@@ -10,7 +10,7 @@ const resolveInfo: any = {
       kind: Kind.FIELD,
       name: {
         kind: Kind.NAME,
-        value: "pageInfo",
+        value: "table",
       },
       selectionSet: {
         kind: Kind.SELECTION_SET,
@@ -19,7 +19,19 @@ const resolveInfo: any = {
             kind: Kind.FIELD,
             name: {
               kind: Kind.NAME,
-              value: "totalCount",
+              value: "pageInfo",
+            },
+            selectionSet: {
+              kind: Kind.SELECTION_SET,
+              selections: [
+                {
+                  kind: Kind.FIELD,
+                  name: {
+                    kind: Kind.NAME,
+                    value: "totalCount",
+                  },
+                },
+              ],
             },
           },
         ],
