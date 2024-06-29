@@ -33,13 +33,7 @@ export const getReadonlyStore = ({
   db: HeadlessKysely<any>;
   common: Common;
 }): ReadonlyStore => ({
-  findUnique: async ({
-    tableName,
-    id,
-  }: {
-    tableName: string;
-    id: UserId;
-  }) => {
+  findUnique: async ({ tableName, id }: { tableName: string; id: UserId }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findUnique` }, async () => {
@@ -68,6 +62,7 @@ export const getReadonlyStore = ({
     before = null,
     after = null,
     limit = DEFAULT_LIMIT,
+    count = false,
   }: {
     tableName: string;
     where?: WhereInput<any>;
@@ -75,20 +70,31 @@ export const getReadonlyStore = ({
     before?: string | null;
     after?: string | null;
     limit?: number;
+    count?: boolean;
   }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
-      let query = db
+      let baseQuery = db
         .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll();
+        .selectFrom(tableName);
 
       if (where) {
-        query = query.where((eb) =>
+        baseQuery = baseQuery.where((eb) =>
           buildWhereConditions({ eb, where, table, encoding }),
         );
       }
+
+      let totalCount = 0;
+      if (count) {
+        const [result] = await baseQuery
+          .select(db.fn.count("id").as("total_count"))
+          .execute();
+
+        totalCount = result?.total_count ? Number(result.total_count) : 0;
+      }
+
+      let query = baseQuery.selectAll();
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
@@ -143,7 +149,13 @@ export const getReadonlyStore = ({
 
         return {
           items: records,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          pageInfo: {
+            hasNextPage,
+            hasPreviousPage,
+            startCursor,
+            endCursor,
+            totalCount,
+          },
         };
       }
 
@@ -178,6 +190,7 @@ export const getReadonlyStore = ({
               hasPreviousPage,
               startCursor,
               endCursor,
+              totalCount,
             },
           };
         }
@@ -211,7 +224,13 @@ export const getReadonlyStore = ({
 
         return {
           items: records,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          pageInfo: {
+            hasNextPage,
+            hasPreviousPage,
+            startCursor,
+            endCursor,
+            totalCount,
+          },
         };
       } else {
         // User specified a 'before' cursor.
@@ -253,6 +272,7 @@ export const getReadonlyStore = ({
               hasPreviousPage,
               startCursor,
               endCursor,
+              totalCount,
             },
           };
         }
@@ -289,7 +309,13 @@ export const getReadonlyStore = ({
 
         return {
           items: records,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          pageInfo: {
+            hasNextPage,
+            hasPreviousPage,
+            startCursor,
+            endCursor,
+            totalCount,
+          },
         };
       }
     });

@@ -20,6 +20,7 @@ export type ReadonlyStore = {
     before?: string | null;
     after?: string | null;
     limit?: number;
+    count?: boolean;
   }): Promise<{
     items: UserRecord[];
     pageInfo: {
