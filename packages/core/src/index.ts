@@ -1,6 +1,6 @@
 export { createConfig } from "@/config/config.js";
 export { createSchema } from "@/schema/schema.js";
-export type { 
+export type {
   Block,
   Log,
   Transaction,
