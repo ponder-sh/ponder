@@ -4,7 +4,7 @@ export type {
   Block,
   Log,
   Transaction,
-  TransactionReceipt,  
+  TransactionReceipt,
 } from "@/types/eth.js";
 export type { Virtual } from "@/types/virtual.js";
 export {
