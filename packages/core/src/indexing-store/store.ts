@@ -1,3 +1,4 @@
+import type { Latest } from "@/bin/utils/run.js";
 import type {
   UserId,
   UserRecord,
@@ -98,6 +99,11 @@ export type HistoricalStore = ReadonlyStore &
   WriteStore<"historical"> & {
     flush: (arg: { isFullFlush: boolean }) => Promise<void>;
   };
+
+export type MetadataStore = {
+  setLatest: (latest: Latest) => Promise<void>;
+  getLatest: () => Promise<Latest | undefined>;
+};
 
 export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",

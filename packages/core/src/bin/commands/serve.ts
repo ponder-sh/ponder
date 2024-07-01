@@ -6,6 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { NamespaceInfo } from "@/database/service.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
 import type { CliOptions } from "../ponder.js";
@@ -112,11 +113,17 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const server = await createServer({
     app,
     readonlyStore,
+    metadataStore: getMetadataStore({
+      encoding: database.kind,
+      namespaceInfo: {
+        userNamespace: databaseConfig.publishSchema,
+      } as unknown as NamespaceInfo,
+      db: database.readonlyDb,
+    }),
     schema,
     database: { kind: "postgres", pool: database.readonlyPool },
     common,
   });
-  server.setHealthy();
 
   cleanupReloadable = async () => {
     await server.kill();

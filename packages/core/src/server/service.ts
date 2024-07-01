@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import { createDrizzleDb } from "@/drizzle/runtime.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import type { MetadataStore, ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
 import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
@@ -16,7 +16,6 @@ import { onError } from "./error.js";
 type Server = {
   hono: Hono;
   port: number;
-  setHealthy: () => void;
   kill: () => Promise<void>;
 };
 
@@ -24,12 +23,14 @@ export async function createServer({
   app: userApp,
   schema,
   readonlyStore,
+  metadataStore,
   database,
   common,
 }: {
   app?: Hono;
   schema: Schema;
   readonlyStore: ReadonlyStore;
+  metadataStore: MetadataStore;
   database:
     | { kind: "postgres"; pool: Pool }
     | { kind: "sqlite"; database: SqliteDatabase };
@@ -38,7 +39,6 @@ export async function createServer({
   // Create hono app
 
   const startTime = Date.now();
-  let isHealthy = false;
 
   const ponderApp = new Hono()
     .use(cors())
@@ -51,7 +51,11 @@ export async function createServer({
       }
     })
     .get("/health", async (c) => {
-      if (isHealthy) {
+      const latest = await metadataStore.getLatest();
+      if (
+        latest !== undefined &&
+        Object.values(latest).every(({ sync }) => sync === "realtime")
+      ) {
         return c.text("", 200);
       }
 
@@ -111,6 +115,15 @@ export async function createServer({
     c.set("db", db);
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
+    c.set(
+      "latest",
+      {
+        get latest() {
+          return metadataStore.getLatest();
+        },
+      }.latest,
+    );
+
     await next();
   });
 
@@ -213,9 +226,6 @@ export async function createServer({
   return {
     hono,
     port,
-    setHealthy: () => {
-      isHealthy = true;
-    },
     kill: () => terminator.terminate(),
   };
 }

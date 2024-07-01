@@ -21,3 +21,9 @@ ponder.get("/big", async (c) => {
     return c.text(`Balance: ${formatEther(account[0]!.balance)}`);
   }
 });
+
+ponder.get("/latest", async (c) => {
+  const latest = await c.get("latest");
+
+  return c.json(latest);
+});

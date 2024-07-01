@@ -1,3 +1,4 @@
+import type { Latest } from "@/bin/utils/run.js";
 import type { Config } from "@/config/config.js";
 import type {
   FormatEventArgs,
@@ -248,9 +249,17 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-    get: Hono<{ Variables: { db: DrizzleDb } }>["get"];
-    post: Hono<{ Variables: { db: DrizzleDb } }>["post"];
-    use: Hono<{ Variables: { db: DrizzleDb } }>["use"];
-    hono: Hono<{ Variables: { db: DrizzleDb } }>;
+    get: Hono<{
+      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+    }>["get"];
+    post: Hono<{
+      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+    }>["post"];
+    use: Hono<{
+      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+    }>["use"];
+    hono: Hono<{
+      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+    }>;
   };
 }

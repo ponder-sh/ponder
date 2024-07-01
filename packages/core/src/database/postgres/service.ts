@@ -228,6 +228,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
 
           // Function to create the operation log tables and user tables.
           const createTables = async () => {
+            // create metadata table
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .createTable("_metadata")
+              .addColumn("key", "text", (col) => col.primaryKey())
+              .addColumn("value", "jsonb", (col) => col.notNull())
+              .ifNotExists()
+              .execute();
+
             for (const [tableName, table] of Object.entries(
               getTables(schema),
             )) {

@@ -71,7 +71,7 @@ let drizzleTables = Object.fromEntries(
     convertToDrizzleTable(tableName, table.table, databaseConfig),
   ]),
 );
-export *  from "@ponder/core/virtual";
+export *  from "@ponder/core/drizzle";
 module.exports = drizzleTables;
 `;
       }

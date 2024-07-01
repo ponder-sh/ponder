@@ -5,6 +5,7 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -38,6 +39,10 @@ export type RealtimeEvent =
       type: "finalize";
       checkpoint: Checkpoint;
     };
+
+export type Latest = {
+  [network: string]: { blockNumber: number; sync: "historical" | "realtime" };
+};
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -94,6 +99,11 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
 
+  const metadataStore = getMetadataStore({
+    encoding: database.kind,
+    namespaceInfo,
+    db: database.indexingDb,
+  });
   const readonlyStore = getReadonlyStore({
     encoding: database.kind,
     schema,
@@ -105,6 +115,7 @@ export async function run({
   const server = await createServer({
     app: build.app,
     readonlyStore,
+    metadataStore,
     schema,
     database:
       database.kind === "sqlite"
@@ -169,7 +180,18 @@ export async function run({
               decodeEvents(syncService, rawEvents),
               event.toCheckpoint,
             );
+
             if (result.status === "error") onReloadableError(result.error);
+
+            const latest: Latest = {};
+            for (const networkName of Object.keys(indexingService.latest)) {
+              latest[networkName] = {
+                blockNumber: Number(indexingService.latest[networkName]),
+                sync: "realtime",
+              };
+            }
+
+            await metadataStore.setLatest(latest);
           }
 
           break;
@@ -248,6 +270,16 @@ export async function run({
           onReloadableError(result.error);
           return;
         }
+
+        const latest: Latest = {};
+        for (const networkName of Object.keys(indexingService.latest)) {
+          latest[networkName] = {
+            blockNumber: Number(indexingService.latest[networkName]),
+            sync: "historical",
+          };
+        }
+
+        await metadataStore.setLatest(latest);
       }
     }
 
@@ -277,12 +309,6 @@ export async function run({
 
     await database.createIndexes({ schema });
 
-    server.setHealthy();
-    common.logger.info({
-      service: "server",
-      msg: "Started responding as healthy",
-    });
-
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
@@ -293,7 +319,6 @@ export async function run({
         common,
       }),
     };
-
     indexingService.updateIndexingStore({ indexingStore, schema });
 
     syncService.startRealtime();
