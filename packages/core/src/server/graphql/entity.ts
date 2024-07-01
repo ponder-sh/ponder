@@ -36,6 +36,7 @@ const GraphQLPageInfo = new GraphQLObjectType({
     hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
     startCursor: { type: GraphQLString },
     endCursor: { type: GraphQLString },
+    totalCount: { type: GraphQLInt },
   },
 });
 
