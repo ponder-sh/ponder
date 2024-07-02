@@ -1,4 +1,3 @@
-import type { Latest } from "@/bin/utils/run.js";
 import type { Config } from "@/config/config.js";
 import type {
   FormatEventArgs,
@@ -20,6 +19,7 @@ import type {
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Hono } from "hono";
+import type { Latest } from "./metadata.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {

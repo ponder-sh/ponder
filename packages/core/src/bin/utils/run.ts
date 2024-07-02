@@ -17,6 +17,7 @@ import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
+import type { Latest } from "@/types/metadata.js";
 import {
   type Checkpoint,
   isCheckpointEqual,
@@ -39,10 +40,6 @@ export type RealtimeEvent =
       type: "finalize";
       checkpoint: Checkpoint;
     };
-
-export type Latest = {
-  [network: string]: { blockNumber: number; sync: "historical" | "realtime" };
-};
 
 /**
  * Starts the server, sync, and indexing services for the specified build.

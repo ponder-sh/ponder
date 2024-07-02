@@ -1,4 +1,4 @@
-import type { Latest } from "@/bin/utils/run.js";
+import type { Latest } from "@/types/metadata.js";
 import type {
   UserId,
   UserRecord,
