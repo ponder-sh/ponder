@@ -233,7 +233,7 @@ The GraphQL API supports cursor pagination using an API that's inspired by the [
 
 ### Page type
 
-Top-level plural query fields and `p.many()` relationship fields return a `Page` type containing a list of items and a `PageInfo` object.
+Top-level plural query fields and `p.many()` relationship fields return a `Page` type containing a list of items, a `PageInfo` object, and the `totalCount` of matching items.
 
 <div className="code-columns">
 ```ts filename="ponder.schema.ts"
@@ -264,6 +264,7 @@ type Pet {
 type PetPage {
   items: [Pet!]!
   pageInfo: PageInfo!
+  totalCount: Int
 }
 ```
 
