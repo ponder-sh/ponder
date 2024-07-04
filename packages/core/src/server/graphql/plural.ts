@@ -40,7 +40,7 @@ export const buildPluralField = ({
       ? { [orderBy]: orderDirection || "asc" }
       : undefined;
 
-    const count = hasSubfield(info, ["pageInfo", "totalCount"]);
+    const withTotalCount = hasSubfield(info, ["totalCount"]);
 
     return await context.store.findMany({
       tableName,
@@ -49,7 +49,7 @@ export const buildPluralField = ({
       limit,
       before,
       after,
-      count,
+      withTotalCount,
     });
   };
 

@@ -20,6 +20,8 @@ import {
 
 const DEFAULT_LIMIT = 50 as const;
 
+type ResultWithCount = { totalCount?: number };
+
 export const getReadonlyStore = ({
   encoding,
   schema,
@@ -62,7 +64,7 @@ export const getReadonlyStore = ({
     before = null,
     after = null,
     limit = DEFAULT_LIMIT,
-    count = false,
+    withTotalCount = false,
   }: {
     tableName: string;
     where?: WhereInput<any>;
@@ -70,31 +72,41 @@ export const getReadonlyStore = ({
     before?: string | null;
     after?: string | null;
     limit?: number;
-    count?: boolean;
+    withTotalCount?: boolean;
   }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
-      let baseQuery = db
+      let query = db
         .withSchema(namespaceInfo.userNamespace)
         .selectFrom(tableName);
 
+      if (withTotalCount) {
+        query = db
+          .withSchema(namespaceInfo.userNamespace)
+          .with("totalCount", (db) => {
+            let totalCountQuery = db.selectFrom(tableName);
+
+            if (where) {
+              totalCountQuery = totalCountQuery.where((eb) =>
+                buildWhereConditions({ eb, where, table, encoding }),
+              );
+            }
+
+            return totalCountQuery.select(({ fn }) =>
+              fn.count("id").as("totalCount"),
+            );
+          })
+          .selectFrom(["totalCount", tableName]);
+      }
+
       if (where) {
-        baseQuery = baseQuery.where((eb) =>
+        query = query.where((eb) =>
           buildWhereConditions({ eb, where, table, encoding }),
         );
       }
 
-      let totalCount = 0;
-      if (count) {
-        const [result] = await baseQuery
-          .select(db.fn.count("id").as("total_count"))
-          .execute();
-
-        totalCount = result?.total_count ? Number(result.total_count) : 0;
-      }
-
-      let query = baseQuery.selectAll();
+      query = query.selectAll();
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
@@ -127,11 +139,11 @@ export const getReadonlyStore = ({
       // Neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
         query = query.limit(limit + 1);
-        const records = await query
-          .execute()
-          .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
-          );
+        const results = await query.execute();
+        const { totalCount } = (results.at(0) || {}) as ResultWithCount;
+        const records = results.map((record) =>
+          decodeRecord({ record, table, encoding }),
+        );
 
         if (records.length === limit + 1) {
           records.pop();
@@ -154,8 +166,8 @@ export const getReadonlyStore = ({
             hasPreviousPage,
             startCursor,
             endCursor,
-            totalCount,
           },
+          totalCount,
         };
       }
 
@@ -176,11 +188,11 @@ export const getReadonlyStore = ({
           )
           .limit(limit + 2);
 
-        const records = await query
-          .execute()
-          .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
-          );
+        const results = await query.execute();
+        const { totalCount } = (results.at(0) || {}) as ResultWithCount;
+        const records = results.map((record) =>
+          decodeRecord({ record, table, encoding }),
+        );
 
         if (records.length === 0) {
           return {
@@ -190,8 +202,8 @@ export const getReadonlyStore = ({
               hasPreviousPage,
               startCursor,
               endCursor,
-              totalCount,
             },
+            totalCount,
           };
         }
 
@@ -229,8 +241,8 @@ export const getReadonlyStore = ({
             hasPreviousPage,
             startCursor,
             endCursor,
-            totalCount,
           },
+          totalCount,
         };
       } else {
         // User specified a 'before' cursor.
@@ -257,12 +269,11 @@ export const getReadonlyStore = ({
           query = query.orderBy(column, direction);
         }
 
-        const records = await query.execute().then((records) =>
-          records
-            .map((record) => decodeRecord({ record, table, encoding }))
-            // Reverse the records again, back to the original order.
-            .reverse(),
-        );
+        const results = await query.execute();
+        const { totalCount } = (results.at(0) || {}) as ResultWithCount;
+        const records = results
+          .map((record) => decodeRecord({ record, table, encoding }))
+          .reverse();
 
         if (records.length === 0) {
           return {
@@ -272,8 +283,8 @@ export const getReadonlyStore = ({
               hasPreviousPage,
               startCursor,
               endCursor,
-              totalCount,
             },
+            totalCount,
           };
         }
 
@@ -314,8 +325,8 @@ export const getReadonlyStore = ({
             hasPreviousPage,
             startCursor,
             endCursor,
-            totalCount,
           },
+          totalCount,
         };
       }
     });
