@@ -36,6 +36,7 @@ const GraphQLPageInfo = new GraphQLObjectType({
     hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
     startCursor: { type: GraphQLString },
     endCursor: { type: GraphQLString },
+    totalCount: { type: GraphQLInt },
   },
 });
 
@@ -124,7 +125,11 @@ export const buildEntityTypes = ({
               const ids = result.items.map((item) => item.id);
               const items = await loader.loadMany(ids);
 
-              return { items, pageInfo: result.pageInfo };
+              return {
+                items,
+                pageInfo: result.pageInfo,
+                totalCount: result.totalCount,
+              };
             };
 
             fieldConfigMap[columnName] = {
@@ -179,6 +184,7 @@ export const buildEntityTypes = ({
           ),
         },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
+        totalCount: { type: GraphQLInt },
       }),
     });
   }

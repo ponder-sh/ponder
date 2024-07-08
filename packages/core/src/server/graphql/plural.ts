@@ -1,3 +1,4 @@
+import { hasSubfield } from "@/utils/hasSubfield.js";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
@@ -30,7 +31,7 @@ export const buildPluralField = ({
   entityPageType: GraphQLObjectType;
   entityFilterType: GraphQLInputObjectType;
 }): GraphQLFieldConfig<Parent, Context> => {
-  const resolver: PluralResolver = async (_, args, context) => {
+  const resolver: PluralResolver = async (_, args, context, info) => {
     const { where, orderBy, orderDirection, before, limit, after } = args;
 
     const whereObject = where ? buildWhereObject(where) : {};
@@ -39,6 +40,8 @@ export const buildPluralField = ({
       ? { [orderBy]: orderDirection || "asc" }
       : undefined;
 
+    const withTotalCount = hasSubfield(info, ["totalCount"]);
+
     return await context.store.findMany({
       tableName,
       where: whereObject,
@@ -46,6 +49,7 @@ export const buildPluralField = ({
       limit,
       before,
       after,
+      withTotalCount,
     });
   };
 

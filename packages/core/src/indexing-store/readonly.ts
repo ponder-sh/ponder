@@ -20,6 +20,8 @@ import {
 
 const DEFAULT_LIMIT = 50 as const;
 
+type ResultWithCount = { ponder_totalCount?: number };
+
 export const getReadonlyStore = ({
   encoding,
   schema,
@@ -33,13 +35,7 @@ export const getReadonlyStore = ({
   db: HeadlessKysely<any>;
   common: Common;
 }): ReadonlyStore => ({
-  findUnique: async ({
-    tableName,
-    id,
-  }: {
-    tableName: string;
-    id: UserId;
-  }) => {
+  findUnique: async ({ tableName, id }: { tableName: string; id: UserId }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findUnique` }, async () => {
@@ -68,6 +64,7 @@ export const getReadonlyStore = ({
     before = null,
     after = null,
     limit = DEFAULT_LIMIT,
+    withTotalCount = false,
   }: {
     tableName: string;
     where?: WhereInput<any>;
@@ -75,20 +72,41 @@ export const getReadonlyStore = ({
     before?: string | null;
     after?: string | null;
     limit?: number;
+    withTotalCount?: boolean;
   }) => {
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
       let query = db
         .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll();
+        .selectFrom(tableName);
+
+      if (withTotalCount) {
+        query = db
+          .withSchema(namespaceInfo.userNamespace)
+          .with("ponder_totalCount", (db) => {
+            let totalCountQuery = db.selectFrom(tableName);
+
+            if (where) {
+              totalCountQuery = totalCountQuery.where((eb) =>
+                buildWhereConditions({ eb, where, table, encoding }),
+              );
+            }
+
+            return totalCountQuery.select(({ fn }) =>
+              fn.count("id").as("ponder_totalCount"),
+            );
+          })
+          .selectFrom(["ponder_totalCount", tableName]);
+      }
 
       if (where) {
         query = query.where((eb) =>
           buildWhereConditions({ eb, where, table, encoding }),
         );
       }
+
+      query = query.selectAll();
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
@@ -121,11 +139,12 @@ export const getReadonlyStore = ({
       // Neither cursors are specified, apply the order conditions and execute.
       if (after === null && before === null) {
         query = query.limit(limit + 1);
-        const records = await query
-          .execute()
-          .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
-          );
+        const results = await query.execute();
+        const totalCount =
+          (results.at(0) as ResultWithCount)?.ponder_totalCount || 0;
+        const records = results.map((record) =>
+          decodeRecord({ record, table, encoding }),
+        );
 
         if (records.length === limit + 1) {
           records.pop();
@@ -143,7 +162,13 @@ export const getReadonlyStore = ({
 
         return {
           items: records,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          pageInfo: {
+            hasNextPage,
+            hasPreviousPage,
+            startCursor,
+            endCursor,
+          },
+          totalCount,
         };
       }
 
@@ -164,11 +189,12 @@ export const getReadonlyStore = ({
           )
           .limit(limit + 2);
 
-        const records = await query
-          .execute()
-          .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
-          );
+        const results = await query.execute();
+        const totalCount =
+          (results.at(0) as ResultWithCount)?.ponder_totalCount || 0;
+        const records = results.map((record) =>
+          decodeRecord({ record, table, encoding }),
+        );
 
         if (records.length === 0) {
           return {
@@ -179,6 +205,7 @@ export const getReadonlyStore = ({
               startCursor,
               endCursor,
             },
+            totalCount,
           };
         }
 
@@ -211,7 +238,13 @@ export const getReadonlyStore = ({
 
         return {
           items: records,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          pageInfo: {
+            hasNextPage,
+            hasPreviousPage,
+            startCursor,
+            endCursor,
+          },
+          totalCount,
         };
       } else {
         // User specified a 'before' cursor.
@@ -238,12 +271,12 @@ export const getReadonlyStore = ({
           query = query.orderBy(column, direction);
         }
 
-        const records = await query.execute().then((records) =>
-          records
-            .map((record) => decodeRecord({ record, table, encoding }))
-            // Reverse the records again, back to the original order.
-            .reverse(),
-        );
+        const results = await query.execute();
+        const totalCount =
+          (results.at(0) as ResultWithCount)?.ponder_totalCount || 0;
+        const records = results
+          .map((record) => decodeRecord({ record, table, encoding }))
+          .reverse();
 
         if (records.length === 0) {
           return {
@@ -254,6 +287,7 @@ export const getReadonlyStore = ({
               startCursor,
               endCursor,
             },
+            totalCount,
           };
         }
 
@@ -289,7 +323,13 @@ export const getReadonlyStore = ({
 
         return {
           items: records,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+          pageInfo: {
+            hasNextPage,
+            hasPreviousPage,
+            startCursor,
+            endCursor,
+          },
+          totalCount,
         };
       }
     });

@@ -20,6 +20,7 @@ export type ReadonlyStore = {
     before?: string | null;
     after?: string | null;
     limit?: number;
+    withTotalCount?: boolean;
   }): Promise<{
     items: UserRecord[];
     pageInfo: {
@@ -28,6 +29,7 @@ export type ReadonlyStore = {
       hasNextPage: boolean;
       hasPreviousPage: boolean;
     };
+    totalCount?: number;
   }>;
 };
 
