@@ -17,7 +17,7 @@ import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
-import type { Latest } from "@/types/metadata.js";
+import type { Status } from "@/types/metadata.js";
 import {
   type Checkpoint,
   isCheckpointEqual,
@@ -161,6 +161,18 @@ export async function run({
     await database.updateFinalizedCheckpoint({ checkpoint });
   };
 
+  const updateStatus = async () => {
+    const status: Status = {};
+    for (const network of networks) {
+      status[network.name] = {
+        blockTimestamp: syncService.checkpoint.blockTimestamp,
+        isBackfill: true,
+      };
+    }
+
+    await metadataStore.setStatus(status);
+  };
+
   const realtimeQueue = createQueue({
     initialStart: true,
     browser: false,
@@ -180,15 +192,7 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            const latest: Latest = {};
-            for (const networkName of Object.keys(indexingService.latest)) {
-              latest[networkName] = {
-                blockNumber: Number(indexingService.latest[networkName]),
-                sync: "realtime",
-              };
-            }
-
-            await metadataStore.setLatest(latest);
+            await updateStatus();
           }
 
           break;
@@ -268,15 +272,7 @@ export async function run({
           return;
         }
 
-        const latest: Latest = {};
-        for (const networkName of Object.keys(indexingService.latest)) {
-          latest[networkName] = {
-            blockNumber: Number(indexingService.latest[networkName]),
-            sync: "historical",
-          };
-        }
-
-        await metadataStore.setLatest(latest);
+        await updateStatus();
       }
     }
 
@@ -305,6 +301,8 @@ export async function run({
     await handleFinalize(syncService.finalizedCheckpoint);
 
     await database.createIndexes({ schema });
+
+    await updateStatus();
 
     indexingStore = {
       ...readonlyStore,

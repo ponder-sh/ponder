@@ -19,7 +19,7 @@ import type {
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { Hono } from "hono";
-import type { Latest } from "./metadata.js";
+import type { Status } from "./metadata.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -250,16 +250,16 @@ export namespace Virtual {
       ) => Promise<void> | void,
     ) => void;
     get: Hono<{
-      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+      Variables: { db: DrizzleDb; status: Promise<Status | undefined> };
     }>["get"];
     post: Hono<{
-      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+      Variables: { db: DrizzleDb; status: Promise<Status | undefined> };
     }>["post"];
     use: Hono<{
-      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+      Variables: { db: DrizzleDb; status: Promise<Status | undefined> };
     }>["use"];
     hono: Hono<{
-      Variables: { db: DrizzleDb; latest: Promise<Latest | undefined> };
+      Variables: { db: DrizzleDb; status: Promise<Status | undefined> };
     }>;
   };
 }

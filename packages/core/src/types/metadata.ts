@@ -1,3 +1,3 @@
-export type Latest = {
-  [network: string]: { blockNumber: number; sync: "historical" | "realtime" };
+export type Status = {
+  [networkName: string]: { blockTimestamp: number; isBackfill: boolean };
 };

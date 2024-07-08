@@ -51,10 +51,10 @@ export async function createServer({
       }
     })
     .get("/health", async (c) => {
-      const latest = await metadataStore.getLatest();
+      const status = await metadataStore.getStatus();
       if (
-        latest !== undefined &&
-        Object.values(latest).every(({ sync }) => sync === "realtime")
+        status !== undefined &&
+        Object.values(status).every(({ isBackfill }) => isBackfill === false)
       ) {
         return c.text("", 200);
       }
@@ -116,12 +116,12 @@ export async function createServer({
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
     c.set(
-      "latest",
+      "status",
       {
-        get latest() {
-          return metadataStore.getLatest();
+        get status() {
+          return metadataStore.getStatus();
         },
-      }.latest,
+      }.status,
     );
 
     await next();

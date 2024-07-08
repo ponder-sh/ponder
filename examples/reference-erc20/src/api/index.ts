@@ -22,8 +22,8 @@ ponder.get("/big", async (c) => {
   }
 });
 
-ponder.get("/latest", async (c) => {
-  const latest = await c.get("latest");
+ponder.get("/status", async (c) => {
+  const status = await c.get("status");
 
-  return c.json(latest);
+  return c.json(status);
 });

@@ -25,9 +25,9 @@ test("getMetadata() empty", async (context) => {
     db: database.indexingDb,
   });
 
-  const latest = await metadataStore.getLatest();
+  const status = await metadataStore.getStatus();
 
-  expect(latest).toBeUndefined();
+  expect(status).toBeUndefined();
 
   await cleanup();
 });
@@ -45,14 +45,14 @@ test("setMetadata()", async (context) => {
     db: database.indexingDb,
   });
 
-  await metadataStore.setLatest({
-    mainnet: { blockNumber: 10, sync: "realtime" },
+  await metadataStore.setStatus({
+    mainnet: { blockTimestamp: 10, isBackfill: false },
   });
 
-  const latest = await metadataStore.getLatest();
+  const status = await metadataStore.getStatus();
 
-  expect(latest).toStrictEqual({
-    mainnet: { blockNumber: 10, sync: "realtime" },
+  expect(status).toStrictEqual({
+    mainnet: { blockTimestamp: 10, isBackfill: false },
   });
 
   await cleanup();

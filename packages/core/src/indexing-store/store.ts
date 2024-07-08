@@ -1,4 +1,4 @@
-import type { Latest } from "@/types/metadata.js";
+import type { Status } from "@/types/metadata.js";
 import type {
   UserId,
   UserRecord,
@@ -101,8 +101,8 @@ export type HistoricalStore = ReadonlyStore &
   };
 
 export type MetadataStore = {
-  setLatest: (latest: Latest) => Promise<void>;
-  getLatest: () => Promise<Latest | undefined>;
+  setStatus: (status: Status) => Promise<void>;
+  getStatus: () => Promise<Status | undefined>;
 };
 
 export type IndexingStore<

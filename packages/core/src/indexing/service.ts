@@ -62,7 +62,6 @@ export type Service = {
 
   // state
   isKilled: boolean;
-  latest: { [networkName: string]: bigint };
 
   eventCount: {
     [eventName: string]: { [networkName: string]: number };
@@ -181,7 +180,6 @@ export const create = ({
     indexingFunctions,
     indexingStore,
     isKilled: false,
-    latest: {},
     eventCount,
     startCheckpoint: syncService.startCheckpoint,
     currentEvent: {
@@ -369,10 +367,6 @@ export const processEvents = async (
       default:
         never(event);
     }
-
-    indexingService.latest[
-      indexingService.networkByChainId[event.chainId]!.name
-    ] = event.event.block.number;
 
     // periodically update metrics
     if (i % 93 === 0) {
