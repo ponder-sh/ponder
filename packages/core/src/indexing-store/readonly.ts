@@ -20,7 +20,7 @@ import {
 
 const DEFAULT_LIMIT = 50 as const;
 
-type ResultWithCount = { totalCount?: number };
+type ResultWithCount = { ponder_totalCount?: number };
 
 export const getReadonlyStore = ({
   encoding,
@@ -84,7 +84,7 @@ export const getReadonlyStore = ({
       if (withTotalCount) {
         query = db
           .withSchema(namespaceInfo.userNamespace)
-          .with("totalCount", (db) => {
+          .with("ponder_totalCount", (db) => {
             let totalCountQuery = db.selectFrom(tableName);
 
             if (where) {
@@ -94,10 +94,10 @@ export const getReadonlyStore = ({
             }
 
             return totalCountQuery.select(({ fn }) =>
-              fn.count("id").as("totalCount"),
+              fn.count("id").as("ponder_totalCount"),
             );
           })
-          .selectFrom(["totalCount", tableName]);
+          .selectFrom(["ponder_totalCount", tableName]);
       }
 
       if (where) {
@@ -140,7 +140,8 @@ export const getReadonlyStore = ({
       if (after === null && before === null) {
         query = query.limit(limit + 1);
         const results = await query.execute();
-        const { totalCount } = (results.at(0) || {}) as ResultWithCount;
+        const totalCount =
+          (results.at(0) as ResultWithCount)?.ponder_totalCount || 0;
         const records = results.map((record) =>
           decodeRecord({ record, table, encoding }),
         );
@@ -189,7 +190,8 @@ export const getReadonlyStore = ({
           .limit(limit + 2);
 
         const results = await query.execute();
-        const { totalCount } = (results.at(0) || {}) as ResultWithCount;
+        const totalCount =
+          (results.at(0) as ResultWithCount)?.ponder_totalCount || 0;
         const records = results.map((record) =>
           decodeRecord({ record, table, encoding }),
         );
@@ -270,7 +272,8 @@ export const getReadonlyStore = ({
         }
 
         const results = await query.execute();
-        const { totalCount } = (results.at(0) || {}) as ResultWithCount;
+        const totalCount =
+          (results.at(0) as ResultWithCount)?.ponder_totalCount || 0;
         const records = results
           .map((record) => decodeRecord({ record, table, encoding }))
           .reverse();
