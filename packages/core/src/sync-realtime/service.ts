@@ -657,6 +657,26 @@ export const handleReorg = async (
   throw new Error(msg);
 };
 
+/**
+ * Find the most recent block that is less than or equal to
+ * the provided checkpoint.
+ */
+export const getMostRecentBlock = (
+  service: Service,
+  checkpoint: Checkpoint,
+): LightBlock | undefined => {
+  const localBlock = service.localChain.findLast(
+    (block) => block.timestamp < checkpoint.blockTimestamp,
+  );
+
+  if (localBlock !== undefined) return localBlock;
+
+  if (service.finalizedBlock.timestamp < checkpoint.blockTimestamp)
+    return service.finalizedBlock;
+
+  return undefined;
+};
+
 const getMatchedLogs = async (
   service: Service,
   {

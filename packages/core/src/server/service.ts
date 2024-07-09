@@ -54,7 +54,7 @@ export async function createServer({
       const status = await metadataStore.getStatus();
       if (
         status !== undefined &&
-        Object.values(status).every(({ isBackfill }) => isBackfill === false)
+        Object.values(status).every(({ ready }) => ready === false)
       ) {
         return c.text("", 200);
       }

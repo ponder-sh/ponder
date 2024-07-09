@@ -566,6 +566,40 @@ export const kill = async (syncService: Service) => {
   await Promise.all(killPromise);
 };
 
+export const getStatus = (syncService: Service) => {
+  const status: {
+    [networkName: string]:
+      | { blockNumber: number; blockTimestamp: number }
+      | undefined;
+  } = {};
+
+  for (const networkService of syncService.networkServices) {
+    if (networkService.realtime === undefined) {
+      status[networkService.network.name] = {
+        blockNumber: Number(networkService.endCheckpoint!.blockNumber),
+        blockTimestamp: networkService.endCheckpoint!.blockTimestamp,
+      };
+    } else {
+      const mostRecentBlock =
+        networkService.realtime.realtimeSync.getMostRecentBlock(
+          syncService.checkpoint,
+        );
+
+      if (mostRecentBlock === undefined) {
+        status[networkService.network.name] = undefined;
+      } else {
+        status[networkService.network.name] = {
+          ...zeroCheckpoint,
+          blockTimestamp: mostRecentBlock.timestamp,
+          blockNumber: mostRecentBlock.number,
+        };
+      }
+    }
+  }
+
+  return status;
+};
+
 export const getCachedTransport = (syncService: Service, network: Network) => {
   const { requestQueue } = syncService.networkServices.find(
     (ns) => ns.network.chainId === network.chainId,

@@ -1,6 +1,6 @@
+import type { Status } from "@/bin/utils/run.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { Status } from "@/types/metadata.js";
 import type { MetadataStore } from "./store.js";
 
 export const getMetadataStore = ({

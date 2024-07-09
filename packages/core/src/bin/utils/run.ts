@@ -17,7 +17,6 @@ import type { SyncStore } from "@/sync-store/store.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { createSyncService } from "@/sync/index.js";
-import type { Status } from "@/types/metadata.js";
 import {
   type Checkpoint,
   isCheckpointEqual,
@@ -40,6 +39,14 @@ export type RealtimeEvent =
       type: "finalize";
       checkpoint: Checkpoint;
     };
+
+export type Status = {
+  [networkName: string]: {
+    blockNumber: number;
+    blockTimestamp: number;
+    ready: boolean;
+  };
+};
 
 /**
  * Starts the server, sync, and indexing services for the specified build.
@@ -72,6 +79,7 @@ export async function run({
   let syncStore: SyncStore;
   let namespaceInfo: NamespaceInfo;
   let initialCheckpoint: Checkpoint;
+  const status: Status = {};
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
@@ -161,13 +169,16 @@ export async function run({
     await database.updateFinalizedCheckpoint({ checkpoint });
   };
 
-  const updateStatus = async () => {
-    const status: Status = {};
+  const updateStatus = async (ready: boolean) => {
+    const checkpointStatus = syncService.getStatus();
     for (const network of networks) {
-      status[network.name] = {
-        blockTimestamp: syncService.checkpoint.blockTimestamp,
-        isBackfill: true,
-      };
+      if (checkpointStatus[network.name] !== undefined) {
+        status[network.name] = {
+          ready,
+          blockNumber: checkpointStatus[network.name]!.blockNumber,
+          blockTimestamp: checkpointStatus[network.name]!.blockTimestamp,
+        };
+      }
     }
 
     await metadataStore.setStatus(status);
@@ -192,7 +203,7 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await updateStatus();
+            await updateStatus(true);
           }
 
           break;
@@ -272,7 +283,7 @@ export async function run({
           return;
         }
 
-        await updateStatus();
+        await updateStatus(false);
       }
     }
 
@@ -302,8 +313,6 @@ export async function run({
 
     await database.createIndexes({ schema });
 
-    await updateStatus();
-
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
@@ -317,6 +326,8 @@ export async function run({
     indexingService.updateIndexingStore({ indexingStore, schema });
 
     syncService.startRealtime();
+
+    await updateStatus(true);
   };
 
   const startPromise = start();

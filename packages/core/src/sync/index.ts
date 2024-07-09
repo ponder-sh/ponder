@@ -22,6 +22,7 @@ import {
   create,
   getCachedTransport,
   getHistoricalCheckpoint,
+  getStatus,
   kill,
   startHistorical,
   startRealtime,
@@ -32,6 +33,7 @@ const methods = {
   getHistoricalCheckpoint,
   startRealtime,
   getCachedTransport,
+  getStatus,
   kill,
 };
 

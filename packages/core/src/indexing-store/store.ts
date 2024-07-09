@@ -1,4 +1,4 @@
-import type { Status } from "@/types/metadata.js";
+import type { Status } from "@/bin/utils/run.js";
 import type {
   UserId,
   UserRecord,
