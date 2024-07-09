@@ -71,6 +71,11 @@ export async function createServer({
       }
 
       return c.text("Historical indexing is not complete.", 503);
+    })
+    .get("/status", async (c) => {
+      const status = await metadataStore.getStatus();
+
+      return c.json(status);
     });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
@@ -115,14 +120,6 @@ export async function createServer({
     c.set("db", db);
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
-    c.set(
-      "status",
-      {
-        get status() {
-          return metadataStore.getStatus();
-        },
-      }.status,
-    );
 
     await next();
   });
