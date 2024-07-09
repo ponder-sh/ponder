@@ -102,7 +102,7 @@ export type HistoricalStore = ReadonlyStore &
 
 export type MetadataStore = {
   setStatus: (status: Status) => Promise<void>;
-  getStatus: () => Promise<Status | undefined>;
+  getStatus: () => Promise<Status>;
 };
 
 export type IndexingStore<

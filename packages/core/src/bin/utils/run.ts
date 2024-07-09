@@ -42,9 +42,9 @@ export type RealtimeEvent =
 
 export type Status = {
   [networkName: string]: {
-    blockNumber: number;
-    blockTimestamp: number;
     ready: boolean;
+    blockNumber: number | undefined;
+    blockTimestamp: number | undefined;
   };
 };
 
@@ -79,7 +79,15 @@ export async function run({
   let syncStore: SyncStore;
   let namespaceInfo: NamespaceInfo;
   let initialCheckpoint: Checkpoint;
+
   const status: Status = {};
+  for (const network of networks) {
+    status[network.name] = {
+      ready: false,
+      blockNumber: undefined,
+      blockTimestamp: undefined,
+    };
+  }
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
@@ -109,6 +117,8 @@ export async function run({
     namespaceInfo,
     db: database.indexingDb,
   });
+  await metadataStore.setStatus(status);
+
   const readonlyStore = getReadonlyStore({
     encoding: database.kind,
     schema,
@@ -169,21 +179,6 @@ export async function run({
     await database.updateFinalizedCheckpoint({ checkpoint });
   };
 
-  const updateStatus = async (ready: boolean) => {
-    const checkpointStatus = syncService.getStatus();
-    for (const network of networks) {
-      if (checkpointStatus[network.name] !== undefined) {
-        status[network.name] = {
-          ready,
-          blockNumber: checkpointStatus[network.name]!.blockNumber,
-          blockTimestamp: checkpointStatus[network.name]!.blockTimestamp,
-        };
-      }
-    }
-
-    await metadataStore.setStatus(status);
-  };
-
   const realtimeQueue = createQueue({
     initialStart: true,
     browser: false,
@@ -203,7 +198,22 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await updateStatus(true);
+            // set status to most recently processed realtime block or end block
+            // for each chain.
+            const checkpointStatus = syncService.getRealtimeStatus();
+            for (const network of networks) {
+              status[network.name] = {
+                ready: true,
+                blockNumber:
+                  checkpointStatus[network.name]?.blockNumber ??
+                  status[network.name]?.blockNumber,
+                blockTimestamp:
+                  checkpointStatus[network.name]?.blockTimestamp ??
+                  status[network.name]?.blockTimestamp,
+              };
+            }
+
+            await metadataStore.setStatus(status);
           }
 
           break;
@@ -282,8 +292,6 @@ export async function run({
           onReloadableError(result.error);
           return;
         }
-
-        await updateStatus(false);
       }
     }
 
@@ -327,7 +335,18 @@ export async function run({
 
     syncService.startRealtime();
 
-    await updateStatus(true);
+    // set status to ready and set blocks to most recently processed
+    // or end block
+    const checkpointStatus = syncService.getRealtimeStatus();
+    for (const network of networks) {
+      status[network.name] = {
+        ready: true,
+        blockNumber: checkpointStatus[network.name]?.blockNumber,
+        blockTimestamp: checkpointStatus[network.name]?.blockTimestamp,
+      };
+    }
+
+    await metadataStore.setStatus(status);
   };
 
   const startPromise = start();

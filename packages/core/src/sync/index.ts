@@ -21,8 +21,9 @@ import {
   type Service,
   create,
   getCachedTransport,
+  getFinalizedStatus,
   getHistoricalCheckpoint,
-  getStatus,
+  getRealtimeStatus,
   kill,
   startHistorical,
   startRealtime,
@@ -33,7 +34,8 @@ const methods = {
   getHistoricalCheckpoint,
   startRealtime,
   getCachedTransport,
-  getStatus,
+  getRealtimeStatus,
+  getFinalizedStatus,
   kill,
 };
 

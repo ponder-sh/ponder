@@ -21,11 +21,9 @@ export const getMetadataStore = ({
         .where("key", "=", "status")
         .executeTakeFirst();
 
-      if (metadata === undefined) return undefined;
-
       return encoding === "sqlite"
-        ? (JSON.parse(metadata.value) as Status)
-        : (metadata.value as Status);
+        ? (JSON.parse(metadata!.value) as Status)
+        : (metadata!.value as Status);
     });
   },
   setStatus: (status: Status) => {

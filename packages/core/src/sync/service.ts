@@ -566,7 +566,26 @@ export const kill = async (syncService: Service) => {
   await Promise.all(killPromise);
 };
 
-export const getStatus = (syncService: Service) => {
+/** Return the number and timestamp of the finalized blocks. */
+export const getFinalizedStatus = (syncService: Service) => {
+  const status: {
+    [networkName: string]: { blockNumber: number; blockTimestamp: number };
+  } = {};
+
+  for (const networkService of syncService.networkServices) {
+    status[networkService.network.name] = {
+      blockTimestamp: networkService.initialFinalizedCheckpoint.blockTimestamp,
+      blockNumber: Number(
+        networkService.initialFinalizedCheckpoint.blockNumber,
+      ),
+    };
+  }
+
+  return status;
+};
+
+/** Return the number and timestamp of the most recently processed blocks. */
+export const getRealtimeStatus = (syncService: Service) => {
   const status: {
     [networkName: string]:
       | { blockNumber: number; blockTimestamp: number }

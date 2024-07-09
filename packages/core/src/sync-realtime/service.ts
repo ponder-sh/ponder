@@ -666,7 +666,7 @@ export const getMostRecentBlock = (
   checkpoint: Checkpoint,
 ): LightBlock | undefined => {
   const localBlock = service.localChain.findLast(
-    (block) => block.timestamp < checkpoint.blockTimestamp,
+    (block) => block.timestamp <= checkpoint.blockTimestamp,
   );
 
   if (localBlock !== undefined) return localBlock;
