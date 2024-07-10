@@ -124,7 +124,7 @@ export async function createServer({
       const status = await metadataStore.getStatus();
 
       if (
-        status !== undefined &&
+        status !== null &&
         Object.values(status).every(({ ready }) => ready === true)
       ) {
         return c.text("", 200);
@@ -149,7 +149,7 @@ export async function createServer({
     .post("/graphql", async (c) => {
       const status = await metadataStore.getStatus();
       if (
-        status === undefined ||
+        status === null ||
         Object.values(status).some(({ ready }) => ready === false)
       ) {
         return c.json(

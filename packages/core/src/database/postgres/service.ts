@@ -262,6 +262,26 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             }
           };
 
+          // Create ponder_metadata table if it doesn't exist
+          await tx.schema
+            .withSchema(this.userNamespace)
+            .createTable("ponder_metadata")
+            .addColumn("key", "text", (col) => col.primaryKey())
+            .addColumn("value", "jsonb")
+            .ifNotExists()
+            .execute();
+
+          // Create or set status to null
+          await tx
+            .withSchema(this.userNamespace)
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .insertInto("ponder_metadata")
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .values({ key: "status", value: null })
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .onConflict((oc) => oc.column("key").doUpdateSet({ value: null }))
+            .execute();
+
           // If no lock row is found for this namespace, we can acquire the lock.
           if (previousLockRow === undefined) {
             await tx
@@ -273,15 +293,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               service: "database",
               msg: `Acquired lock on new schema '${this.userNamespace}'`,
             });
-
-            // create metadata table
-            await tx.schema
-              .withSchema(this.userNamespace)
-              .createTable("ponder_metadata")
-              .addColumn("key", "text", (col) => col.primaryKey())
-              .addColumn("value", "jsonb", (col) => col.notNull())
-              .ifNotExists()
-              .execute();
 
             await createTables();
 
@@ -435,13 +446,6 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             service: "database",
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
-
-          // clear metadata table
-          await tx
-            .withSchema(this.userNamespace)
-            // @ts-expect-error Kysely doesn't have types for user schema
-            .deleteFrom("ponder_metadata")
-            .execute();
 
           for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([

@@ -109,7 +109,7 @@ export type Status = {
 
 export type MetadataStore = {
   setStatus: (status: Status) => Promise<void>;
-  getStatus: () => Promise<Status | undefined>;
+  getStatus: () => Promise<Status | null>;
 };
 
 export type IndexingStore<
