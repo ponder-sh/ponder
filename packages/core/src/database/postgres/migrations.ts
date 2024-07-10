@@ -29,9 +29,6 @@ class StaticMigrationProvider implements MigrationProvider {
 export const migrationProvider = new StaticMigrationProvider();
 
 export type InternalTables = {
-  _metadata: {
-    key: object;
-  };
   namespace_lock: {
     namespace: string;
     is_locked: number;

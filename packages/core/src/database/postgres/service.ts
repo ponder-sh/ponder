@@ -439,6 +439,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           // clear metadata table
           await tx
             .withSchema(this.userNamespace)
+            // @ts-expect-error Kysely doesn't have types for user schema
             .deleteFrom("_metadata")
             .execute();
 
