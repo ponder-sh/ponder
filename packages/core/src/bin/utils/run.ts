@@ -5,9 +5,10 @@ import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { IndexingStore, Status } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
@@ -71,6 +72,15 @@ export async function run({
   let namespaceInfo: NamespaceInfo;
   let initialCheckpoint: Checkpoint;
 
+  const status: Status = {};
+  for (const network of networks) {
+    status[network.name] = {
+      ready: false,
+      blockNumber: null,
+      blockTimestamp: null,
+    };
+  }
+
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
@@ -94,6 +104,13 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
 
+  const metadataStore = getMetadataStore({
+    encoding: database.kind,
+    namespaceInfo,
+    db: database.indexingDb,
+  });
+  await metadataStore.setStatus(status);
+
   const readonlyStore = getReadonlyStore({
     encoding: database.kind,
     schema,
@@ -102,7 +119,12 @@ export async function run({
     common,
   });
 
-  const server = await createServer({ common, graphqlSchema, readonlyStore });
+  const server = await createServer({
+    common,
+    graphqlSchema,
+    readonlyStore,
+    metadataStore,
+  });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
@@ -161,6 +183,25 @@ export async function run({
               event.toCheckpoint,
             );
             if (result.status === "error") onReloadableError(result.error);
+
+            // set status to most recently processed realtime block or end block
+            // for each chain.
+            const checkpointStatus = syncService.getRealtimeStatus();
+            for (const network of networks) {
+              status[network.name] = {
+                ready: true,
+                blockNumber:
+                  checkpointStatus[network.name]?.blockNumber ??
+                  status[network.name]?.blockNumber ??
+                  null,
+                blockTimestamp:
+                  checkpointStatus[network.name]?.blockTimestamp ??
+                  status[network.name]?.blockTimestamp ??
+                  null,
+              };
+            }
+
+            await metadataStore.setStatus(status);
           }
 
           break;
@@ -268,12 +309,6 @@ export async function run({
 
     await database.createIndexes({ schema });
 
-    server.setHealthy();
-    common.logger.info({
-      service: "server",
-      msg: "Started responding as healthy",
-    });
-
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
@@ -288,6 +323,24 @@ export async function run({
     indexingService.updateIndexingStore({ indexingStore, schema });
 
     syncService.startRealtime();
+
+    // set status to ready and set blocks to most recently processed
+    // or end block
+    const checkpointStatus = syncService.getRealtimeStatus();
+    for (const network of networks) {
+      status[network.name] = {
+        ready: true,
+        blockNumber: checkpointStatus[network.name]?.blockNumber ?? null,
+        blockTimestamp: checkpointStatus[network.name]?.blockTimestamp ?? null,
+      };
+    }
+
+    await metadataStore.setStatus(status);
+
+    common.logger.info({
+      service: "server",
+      msg: "Started responding as healthy",
+    });
   };
 
   const startPromise = start();

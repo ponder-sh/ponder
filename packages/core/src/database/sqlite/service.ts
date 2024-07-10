@@ -245,6 +245,15 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               msg: `Acquired lock on database file '${this.userNamespace}.db'`,
             });
 
+            // create metadata table
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .createTable("_metadata")
+              .addColumn("key", "text", (col) => col.primaryKey())
+              .addColumn("value", "jsonb", (col) => col.notNull())
+              .ifNotExists()
+              .execute();
+
             await createTables();
 
             return { status: "success", checkpoint: zeroCheckpoint } as const;
@@ -397,6 +406,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             service: "database",
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
+
+          // clear metadata table
+          await tx
+            .withSchema(this.userNamespace)
+            .deleteFrom("_metadata")
+            .execute();
 
           for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([

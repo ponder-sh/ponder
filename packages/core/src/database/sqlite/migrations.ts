@@ -1,3 +1,4 @@
+import type { Status } from "@/indexing-store/store.js";
 import type { Kysely } from "kysely";
 import type { Migration, MigrationProvider } from "kysely";
 
@@ -29,6 +30,9 @@ class StaticMigrationProvider implements MigrationProvider {
 export const migrationProvider = new StaticMigrationProvider();
 
 export type InternalTables = {
+  _metadata: {
+    status: Status;
+  };
   namespace_lock: {
     namespace: string;
     is_locked: number;

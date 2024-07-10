@@ -274,6 +274,15 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               msg: `Acquired lock on new schema '${this.userNamespace}'`,
             });
 
+            // create metadata table
+            await tx.schema
+              .withSchema(this.userNamespace)
+              .createTable("_metadata")
+              .addColumn("key", "text", (col) => col.primaryKey())
+              .addColumn("value", "jsonb", (col) => col.notNull())
+              .ifNotExists()
+              .execute();
+
             await createTables();
 
             return { status: "success", checkpoint: zeroCheckpoint } as const;
@@ -427,6 +436,12 @@ export class PostgresDatabaseService implements BaseDatabaseService {
             msg: `Acquired lock on schema '${this.userNamespace}' previously used by build '${previousBuildId}'`,
           });
 
+          // clear metadata table
+          await tx
+            .withSchema(this.userNamespace)
+            .deleteFrom("_metadata")
+            .execute();
+
           for (const tableName of Object.keys(previousSchema.tables)) {
             const tableId = hash([
               this.userNamespace,
@@ -568,7 +583,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Create the publish schema if it doesn't exist.
         await tx.schema.createSchema(publishSchema).ifNotExists().execute();
 
-        for (const tableName of Object.keys(getTables(this.schema))) {
+        for (const tableName of Object.keys(getTables(this.schema)).concat(
+          "_metadata",
+        )) {
           // Check if there is an existing relation with the name we're about to publish.
           const result = await tx.executeQuery<{
             table_type: string;
