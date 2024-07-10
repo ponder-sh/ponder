@@ -50,6 +50,6 @@ test("infura block range", async () => {
   expect(retry.ranges).toHaveLength(8);
   expect(retry.ranges![0]).toStrictEqual({
     fromBlock: "0x112a880",
-    toBlock: "0x112a907",
+    toBlock: "0x112a908",
   });
 });

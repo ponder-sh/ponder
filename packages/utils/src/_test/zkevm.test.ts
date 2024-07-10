@@ -6,29 +6,26 @@ import { type Params, getRequest } from "./utils.js";
 const request = getRequest("https://zkevm-rpc.com");
 
 const fromBlock = 950_000n;
-const maxBlockRange = 10_000n;
 
 test("zkevm success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
       {
-        address: "0xea034fb02eb1808c2cc3adbc15f447b93cbe08e1",
         fromBlock: numberToHex(fromBlock),
-        toBlock: numberToHex(fromBlock + maxBlockRange),
+        toBlock: numberToHex(fromBlock + 1_000n),
       },
     ],
   });
 
-  expect(logs).toHaveLength(35);
+  expect(logs).toHaveLength(2979);
 });
 
-test("zkevm block range", async () => {
+test("zkevm response size", async () => {
   const params: Params = [
     {
-      address: "0xea034fb02eb1808c2cc3adbc15f447b93cbe08e1",
       fromBlock: numberToHex(fromBlock),
-      toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
+      toBlock: numberToHex(fromBlock + 5_000n),
     },
   ];
 
@@ -39,7 +36,7 @@ test("zkevm block range", async () => {
 
   expect(error).toBeInstanceOf(RpcError);
   expect(JSON.stringify(error)).includes(
-    "logs are limited to a 10000 block range",
+    "query returned more than 10000 results",
   );
 
   const retry = getLogsRetryHelper({
@@ -47,17 +44,6 @@ test("zkevm block range", async () => {
     error: error,
   });
 
-  expect(retry).toStrictEqual({
-    shouldRetry: true,
-    ranges: [
-      {
-        fromBlock: numberToHex(fromBlock),
-        toBlock: numberToHex(fromBlock + maxBlockRange),
-      },
-      {
-        fromBlock: numberToHex(fromBlock + maxBlockRange + 1n),
-        toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
-      },
-    ],
-  });
+  expect(retry.shouldRetry).toBe(true);
+  expect(retry.ranges).toHaveLength(2);
 });

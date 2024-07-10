@@ -110,7 +110,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // quicknode, 1rpc, zkevm, blast
+  // quicknode, 1rpc, blast
   match = sError.match(/limited to a ([\d,.]+)/);
   if (match !== null) {
     const ranges = chunk({
@@ -148,6 +148,26 @@ export const getLogsRetryHelper = ({
 
   // 1rpc
   match = sError.match(/response size should not greater than \d+ bytes/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
+  // zkevm
+  match = sError.match(/query returned more than \d+ results/);
   if (match !== null) {
     const ranges = chunk({
       params,
