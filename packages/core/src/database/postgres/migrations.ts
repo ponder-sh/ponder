@@ -1,4 +1,3 @@
-import type { Status } from "@/indexing-store/store.js";
 import type { Kysely } from "kysely";
 import type { Migration, MigrationProvider } from "kysely";
 
@@ -31,7 +30,7 @@ export const migrationProvider = new StaticMigrationProvider();
 
 export type InternalTables = {
   _metadata: {
-    status: Status;
+    key: object;
   };
   namespace_lock: {
     namespace: string;
