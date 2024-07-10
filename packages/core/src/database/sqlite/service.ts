@@ -248,7 +248,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             // create metadata table
             await tx.schema
               .withSchema(this.userNamespace)
-              .createTable("_metadata")
+              .createTable("ponder_metadata")
               .addColumn("key", "text", (col) => col.primaryKey())
               .addColumn("value", "jsonb", (col) => col.notNull())
               .ifNotExists()
@@ -411,7 +411,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
           await tx
             .withSchema(this.userNamespace)
             // @ts-expect-error Kysely doesn't have types for user schema
-            .deleteFrom("_metadata")
+            .deleteFrom("ponder_metadata")
             .execute();
 
           for (const tableName of Object.keys(previousSchema.tables)) {

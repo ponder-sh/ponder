@@ -79,7 +79,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     ]);
 
     expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -114,7 +114,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "abc", "Person"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -129,7 +129,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "def", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);
@@ -161,14 +161,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "abc", "Person"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
     expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
       "Pet",
       "Person",
-      "_metadata",
+      "ponder_metadata",
     ]);
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
@@ -182,14 +182,14 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public", "def", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);
     expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
       "Dog",
       "Apple",
-      "_metadata",
+      "ponder_metadata",
     ]);
 
     await databaseTwo.kill();
@@ -222,7 +222,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
       "not_a_ponder_table",
@@ -232,7 +232,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "not_a_ponder_table",
       "AnotherTable",
       "Dog",
@@ -571,7 +571,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public2", "def", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);
@@ -616,7 +616,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       hash(["public2", "abc", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);
@@ -637,7 +637,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.setup({ schema, buildId: "abc" });
 
     expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -647,7 +647,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(database.db, "publish")).toStrictEqual([
       "Pet",
       "Person",
-      "_metadata",
+      "ponder_metadata",
     ]);
 
     await database.kill();
@@ -665,7 +665,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.setup({ schema, buildId: "abc" });
 
     expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -680,7 +680,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getTableNames(database.db, "publish")).toStrictEqual(["Pet"]);
     expect(await getViewNames(database.db, "publish")).toStrictEqual([
       "Person",
-      "_metadata",
+      "ponder_metadata",
     ]);
 
     await database.kill();
@@ -698,7 +698,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.setup({ schema, buildId: "abc" });
 
     expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -718,7 +718,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual([
       "Pet",
       "Person",
-      "_metadata",
+      "ponder_metadata",
     ]);
 
     await database.kill();

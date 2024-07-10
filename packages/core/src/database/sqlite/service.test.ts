@@ -78,7 +78,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     ]);
 
     expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -111,7 +111,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       hash(["public", "abc", "Person"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
     ]);
@@ -126,7 +126,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       hash(["public", "def", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);
@@ -159,7 +159,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     );
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Pet",
       "Person",
       "not_a_ponder_table",
@@ -169,7 +169,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
     expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "not_a_ponder_table",
       "AnotherTable",
       "Dog",
@@ -494,7 +494,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       hash(["public2", "def", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);
@@ -538,7 +538,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
       hash(["public2", "abc", "Apple"]),
     ]);
     expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "_metadata",
+      "ponder_metadata",
       "Dog",
       "Apple",
     ]);

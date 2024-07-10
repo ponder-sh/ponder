@@ -15,7 +15,7 @@ export const getMetadataStore = ({
     return db.wrap({ method: "_metadata.getLatest()" }, async () => {
       const metadata = await db
         .withSchema(namespaceInfo.userNamespace)
-        .selectFrom("_metadata")
+        .selectFrom("ponder_metadata")
         .select("value")
         .where("key", "=", "status")
         .executeTakeFirst();
@@ -31,7 +31,7 @@ export const getMetadataStore = ({
     return db.wrap({ method: "_metadata.setLatest()" }, async () => {
       await db
         .withSchema(namespaceInfo.userNamespace)
-        .insertInto("_metadata")
+        .insertInto("ponder_metadata")
         .values({
           key: "status",
           value: encoding === "sqlite" ? JSON.stringify(status) : status,
