@@ -27,7 +27,7 @@ test("getMetadata() empty", async (context) => {
 
   const status = await metadataStore.getStatus();
 
-  expect(status).toBeUndefined();
+  expect(status).toBe(null);
 
   await cleanup();
 });

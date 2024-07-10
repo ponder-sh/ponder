@@ -3088,9 +3088,5 @@ test("metadata", async (context) => {
     },
   });
 
-  console.log(JSON.stringify(result, null, 2));
-
-  // console.log(result.data._metadata);
-
   await cleanup();
 });
