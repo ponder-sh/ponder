@@ -107,7 +107,7 @@ export const buildEntityTypes = ({
 
               // Query for the IDs of the matching records.
               // TODO: Update query to only fetch IDs, not entire records.
-              const result = await context.store.findMany({
+              const result = await context.readonlyStore.findMany({
                 tableName: column[" referenceTable"],
                 where: whereObject,
                 orderBy: orderByObject,

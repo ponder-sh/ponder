@@ -83,7 +83,7 @@ export async function createServer({
       schema: graphqlSchema,
       context: () => {
         const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { store: readonlyStore, getLoader };
+        return { getLoader, readonlyStore, metadataStore };
       },
       graphqlEndpoint: path,
       maskedErrors: process.env.NODE_ENV === "production",
