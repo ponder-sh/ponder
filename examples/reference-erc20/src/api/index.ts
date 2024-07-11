@@ -1,6 +1,5 @@
-import { Account, desc } from "ponder:db";
 import { ponder } from "@/generated";
-import { graphql } from "@ponder/core";
+import { desc, graphql } from "@ponder/core";
 import { formatEther } from "viem";
 
 // write file

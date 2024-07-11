@@ -31,52 +31,6 @@ export function replaceStateless(code: string, regex: RegExp, shim: string) {
 export const vitePluginPonder = (): Plugin => {
   return {
     name: "ponder",
-    load: (id) => {
-      if (id === "ponder:db") {
-        return `import schema from "ponder.schema";
-import config from "ponder.config";
-import { convertToDrizzleTable } from "@ponder/core";
-let databaseConfig = undefined
-let envSchema = undefined;
-let envPublishSchema = undefined;
-if (process.env.RAILWAY_DEPLOYMENT_ID && process.env.RAILWAY_SERVICE_NAME) {
-  envSchema = \`\${process.env.RAILWAY_SERVICE_NAME}_\${process.env.RAILWAY_DEPLOYMENT_ID.slice(
-    0,
-    8,
-  )}\`;
-  envPublishSchema = "public";
-} else {
-  envSchema = "public";
-}
-if (config.database?.kind) {
-  if (config.database.kind === "postgres") {
-    const schema = config.database.schema ?? envSchema;
-    const publishSchema = config.database.publishSchema ?? envPublishSchema;
-    databaseConfig = { kind: "postgres", schema, publishSchema };
-  } else {
-    databaseConfig = { kind: "sqlite" };
-  }
-} else {
-  if (process.env.DATABASE_PRIVATE_URL || process.env.DATABASE_URL) {
-    const schema = envSchema;
-    const publishSchema = envPublishSchema;
-    databaseConfig = { kind: "postgres", schema, publishSchema };
-  } else {
-    databaseConfig = { kind: "sqlite" };
-  }
-}
-let drizzleTables = Object.fromEntries(
-  Object.entries(schema).map(([tableName, table]) => [
-    tableName,
-    convertToDrizzleTable(tableName, table.table, databaseConfig),
-  ]),
-);
-export *  from "@ponder/core/virtual";
-module.exports = drizzleTables;
-`;
-      }
-      return null;
-    },
     transform: (code, id) => {
       if (ponderRegex.test(code)) {
         const s = replaceStateless(code, ponderRegex, shim);

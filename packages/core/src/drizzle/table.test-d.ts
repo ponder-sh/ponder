@@ -1,9 +1,9 @@
 import { createSchema } from "@/index.js";
+import { eq } from "drizzle-orm";
 import type { Hex } from "viem";
 import { expectTypeOf, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
 import type { ConvertToDrizzleTable } from "./table.js";
-import { eq } from "./virtual.js";
 
 test("select query promise", async () => {
   const schema = createSchema((p) => ({

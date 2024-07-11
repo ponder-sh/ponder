@@ -7,10 +7,10 @@ import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import type { HistoricalStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
+import { eq } from "drizzle-orm";
 import { beforeEach, expect, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
 import { convertToDrizzleTable, createDrizzleDb } from "./runtime.js";
-import { eq } from "./virtual.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
