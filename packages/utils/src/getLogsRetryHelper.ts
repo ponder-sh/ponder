@@ -24,6 +24,8 @@ export type GetLogsRetryHelperReturnType =
       shouldRetry: true;
       /** Suggested values to use for (fromBlock, toBlock) in follow-up eth_getLogs requests. */
       ranges: { fromBlock: Hex; toBlock: Hex }[];
+      /** `true` if the error message suggested to use this range on retry. */
+      isSuggestedRange: boolean;
     }
   | {
       shouldRetry: false;
@@ -50,6 +52,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -71,6 +74,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -86,6 +90,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -107,6 +112,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -125,6 +131,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -143,6 +150,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -163,6 +171,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -203,6 +212,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -223,6 +233,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -241,6 +252,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -261,6 +273,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -278,6 +291,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -300,6 +314,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
