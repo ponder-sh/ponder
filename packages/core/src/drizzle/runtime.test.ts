@@ -4,7 +4,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { DatabaseService } from "@/database/service.js";
-import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import type { HistoricalStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { eq } from "drizzle-orm";
@@ -16,17 +15,7 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 const createDb = (database: DatabaseService) => {
-  if (database instanceof SqliteDatabaseService) {
-    return createDrizzleDb({
-      kind: database.kind,
-      database: database.userDatabase,
-    }) as unknown as DrizzleDb;
-  } else {
-    return createDrizzleDb({
-      kind: database.kind,
-      pool: database.readonlyPool,
-    }) as unknown as DrizzleDb;
-  }
+  return createDrizzleDb(database) as unknown as DrizzleDb;
 };
 
 test("runtime select", async (context) => {

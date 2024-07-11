@@ -1,6 +1,8 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
+import type { DatabaseService } from "@/database/service.js";
 import { createDrizzleDb } from "@/drizzle/runtime.js";
+import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
 import { startClock } from "@/utils/timer.js";
@@ -20,14 +22,18 @@ type Server = {
 
 export async function createServer({
   app: userApp,
+  routes: userRoutes,
+  common,
+  database,
   schema,
   readonlyStore,
-  common,
 }: {
   app?: Hono;
+  routes?: PonderRoutes;
+  common: Common;
+  database: DatabaseService;
   schema: Schema;
   readonlyStore: ReadonlyStore;
-  common: Common;
 }): Promise<Server> {
   // Create hono app
 
@@ -102,7 +108,6 @@ export async function createServer({
   const db = createDrizzleDb(database);
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("db", db);
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
     await next();
@@ -113,7 +118,7 @@ export async function createServer({
     .route("/_ponder", ponderApp)
     .use(contextMiddleware);
 
-  if (userApp !== undefined) {
+  if (userApp !== undefined && userRoutes !== undefined) {
     for (const route of userApp.routes) {
       // Validate user routes don't conflict with ponder routes
       if (route.path.startsWith("/_ponder")) {
@@ -130,12 +135,12 @@ export async function createServer({
         .map((r) => r.path)
         .join(", ")}]`,
     });
-  }
 
-  if (userApp !== undefined) {
     hono.route(
       "/",
-      userApp.onError((error, c) => onError(error, c, common)),
+      applyHonoRoutes(userApp, userRoutes, { db }).onError((error, c) =>
+        onError(error, c, common),
+      ),
     );
   }
 

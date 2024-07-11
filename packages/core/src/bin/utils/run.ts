@@ -104,9 +104,11 @@ export async function run({
 
   const server = await createServer({
     app: build.app,
+    routes: build.routes,
+    common,
+    database,
     readonlyStore,
     schema,
-    common,
   });
 
   // This can be a long-running operation, so it's best to do it after

@@ -9,11 +9,15 @@ export type PonderRoutes = {
   ];
 }[];
 
-export const applyHonoRoutes = (hono: Hono, routes: PonderRoutes) => {
+export const applyHonoRoutes = (
+  hono: Hono,
+  routes: PonderRoutes,
+  customContext?: object,
+) => {
   // add custom properties to hono context
   const addCustomContext =
     (handler: Handler | MiddlewareHandler) => (c: any, next: any) => {
-      return handler(c, next);
+      return handler({ ...customContext, ...c }, next);
     };
 
   for (const {

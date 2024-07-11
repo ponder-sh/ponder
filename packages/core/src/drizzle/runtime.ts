@@ -1,4 +1,5 @@
 import type { DatabaseConfig } from "@/config/database.js";
+import type { DatabaseService } from "@/database/service.js";
 import type { Table as PonderTable } from "@/schema/common.js";
 import {
   isEnumColumn,
@@ -8,7 +9,7 @@ import {
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
-import type { SqliteDatabase } from "@/utils/sqlite.js";
+import { createSqliteDatabase } from "@/utils/sqlite.js";
 import type { Table } from "drizzle-orm";
 import { drizzle as drizzleSQLite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
@@ -26,27 +27,22 @@ import {
   text as SQLiteText,
   sqliteTable,
 } from "drizzle-orm/sqlite-core";
-import type { Pool } from "pg";
 import { SQLiteBigintBuilder } from "./bigint.js";
 import { PgHexBuilder, SQLiteHexBuilder } from "./hex.js";
 import { SQLiteJsonBuilder } from "./json.js";
 
-// TODO(ask kevin for help on this)
-// is what database objects are stateful vs stateless?
-export const createDrizzleDb = (
-  database:
-    | { kind: "postgres"; pool: Pool }
-    | { kind: "sqlite"; database: SqliteDatabase },
-) => {
+export const createDrizzleDb = (database: DatabaseService) => {
   if (database.kind === "postgres") {
-    const drizzle = drizzlePg(database.pool);
+    const drizzle = drizzlePg(database.readonlyPool);
     return {
       // @ts-ignore
       select: (...args: any[]) => drizzle.select(...args),
       execute: (query: any) => drizzle.execute(query),
     };
   } else {
-    const drizzle = drizzleSQLite(database.database);
+    const drizzle = drizzleSQLite(
+      createSqliteDatabase(database.userDatabaseFile),
+    );
     return {
       // @ts-ignore
       select: (...args: any[]) => drizzle.select(...args),
