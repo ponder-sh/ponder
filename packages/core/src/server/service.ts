@@ -3,14 +3,12 @@ import type { Common } from "@/common/common.js";
 import { createDrizzleDb } from "@/drizzle/runtime.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
-import type { SqliteDatabase } from "@/utils/sqlite.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import type { Pool } from "pg";
 import { onError } from "./error.js";
 
 type Server = {
@@ -24,15 +22,11 @@ export async function createServer({
   app: userApp,
   schema,
   readonlyStore,
-  database,
   common,
 }: {
   app?: Hono;
   schema: Schema;
   readonlyStore: ReadonlyStore;
-  database:
-    | { kind: "postgres"; pool: Pool }
-    | { kind: "sqlite"; database: SqliteDatabase };
   common: Common;
 }): Promise<Server> {
   // Create hono app

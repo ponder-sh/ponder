@@ -6,7 +6,6 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { HandlerInterface } from "@/hono/handler.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Schema as BuilderSchema } from "@/schema/common.js";
 import type { InferSchemaType } from "@/schema/infer.js";
@@ -18,7 +17,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
-import type { Hono } from "hono";
+import type { PonderHono } from "./hono.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -248,9 +247,5 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-    get: HandlerInterface;
-    post: HandlerInterface;
-    use: HandlerInterface;
-    hono: Hono;
-  };
+  } & PonderHono;
 }

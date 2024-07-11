@@ -7,6 +7,7 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
 import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
+import type { PonderRoutes } from "@/hono/index.js";
 import type { Schema } from "@/schema/common.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
@@ -54,6 +55,7 @@ export type Build = {
   indexingFunctions: IndexingFunctions;
   // Server
   app?: Hono;
+  routes?: PonderRoutes;
 };
 
 export type BuildResult =
@@ -67,7 +69,7 @@ type RawBuild = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   };
-  server: { app?: Hono };
+  server: { app?: Hono; routes?: PonderRoutes };
 };
 
 export const create = async ({
@@ -432,6 +434,7 @@ const executeServer = async (
   | {
       status: "success";
       app?: Hono;
+      routes?: PonderRoutes;
     }
   | { status: "error"; error: Error }
 > => {
@@ -458,7 +461,11 @@ const executeServer = async (
     return executeResult;
   }
 
-  return { status: "success", app: executeResult.exports?.ponder?.hono };
+  return {
+    status: "success",
+    app: executeResult.exports?.ponder?.hono,
+    routes: executeResult.exports?.ponder?.routes,
+  };
 };
 
 const validateAndBuild = async (
@@ -532,6 +539,7 @@ const validateAndBuild = async (
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
       app: rawBuild.server.app,
+      routes: rawBuild.server.routes,
     },
   };
 };

@@ -31,6 +31,8 @@ import { SQLiteBigintBuilder } from "./bigint.js";
 import { PgHexBuilder, SQLiteHexBuilder } from "./hex.js";
 import { SQLiteJsonBuilder } from "./json.js";
 
+// TODO(ask kevin for help on this)
+// is what database objects are stateful vs stateless?
 export const createDrizzleDb = (
   database:
     | { kind: "postgres"; pool: Pool }

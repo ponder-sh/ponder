@@ -5,7 +5,6 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
 import type { CliOptions } from "../ponder.js";
@@ -99,12 +98,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const readonlyStore = getReadonlyStore({
     encoding: "postgres",
     schema,
-    // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
-    // not need the other fields in NamespaceInfo because it only uses findUnique
-    // and findMany. We should ultimately add a PublicStore interface for this.
+    // Note: `ponder serve` serves data from the `publishSchema`.
     namespaceInfo: {
       userNamespace: databaseConfig.publishSchema,
-    } as unknown as NamespaceInfo,
+    },
     db: database.readonlyDb,
     common,
   });
@@ -113,7 +110,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     app,
     readonlyStore,
     schema,
-    database: { kind: "postgres", pool: database.readonlyPool },
     common,
   });
   server.setHealthy();

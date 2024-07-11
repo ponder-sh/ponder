@@ -1,13 +1,6 @@
-import type { Hono } from "hono";
-import type {
-  BlankInput,
-  BlankSchema,
-  Env,
-  HandlerResponse,
-  Input,
-  Next,
-} from "hono/types";
-import type { Context } from "./context.js";
+import type { PonderHono } from "@/types/hono.js";
+import type { BlankInput, HandlerResponse, Input, Next } from "hono/types";
+import type { Context, MiddlewareContext } from "./context.js";
 
 export type Handler<
   path extends string = any,
@@ -18,13 +11,7 @@ export type Handler<
 export type MiddlewareHandler<
   path extends string = string,
   input extends Input = {},
-> = (c: Context<path, input>, next: Next) => Promise<Response | void>;
-
-export type H<
-  path extends string = any,
-  input extends Input = BlankInput,
-  response extends HandlerResponse<any> = any,
-> = Handler<path, input, response> | MiddlewareHandler<path, input>;
+> = (c: MiddlewareContext<path, input>, next: Next) => Promise<Response | void>;
 
 type BasePath = "/";
 
@@ -36,7 +23,7 @@ export type HandlerInterface = {
     response extends HandlerResponse<any> = any,
   >(
     handler: Handler<path, input, response>,
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x2)
   <
@@ -46,7 +33,7 @@ export type HandlerInterface = {
     response extends HandlerResponse<any> = any,
   >(
     ...handlers: [Handler<path, input>, Handler<path, input2, response>]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler)
   <
@@ -56,7 +43,7 @@ export type HandlerInterface = {
   >(
     path: path,
     handler: Handler<path, input, response>,
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 3)
   <
@@ -67,11 +54,11 @@ export type HandlerInterface = {
     input3 extends Input = input & input2,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
       Handler<path, input3, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x2)
   <
@@ -81,8 +68,11 @@ export type HandlerInterface = {
     input2 extends Input = input,
   >(
     path: path,
-    ...handlers: [Handler<path, input>, Handler<path, input2, response>]
-  ): Hono<Env, BlankSchema>;
+    ...handlers: [
+      MiddlewareHandler<path, input>,
+      Handler<path, input2, response>,
+    ]
+  ): PonderHono;
 
   // app.get(handler x 4)
   <
@@ -94,12 +84,12 @@ export type HandlerInterface = {
     input4 extends Input = input & input2 & input3,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
       Handler<path, input4, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x3)
   <
@@ -111,11 +101,11 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
       Handler<path, input3, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 5)
   <
@@ -128,13 +118,13 @@ export type HandlerInterface = {
     input5 extends Input = input & input2 & input3 & input4,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
       Handler<path, input5, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x4)
   <
@@ -147,12 +137,12 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
       Handler<path, input4, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 6)
   <
@@ -166,14 +156,14 @@ export type HandlerInterface = {
     input6 extends Input = input & input2 & input3 & input4 & input5,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
       Handler<path, input6, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x5)
   <
@@ -187,13 +177,13 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
       Handler<path, input5, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 7)
   <
@@ -208,15 +198,15 @@ export type HandlerInterface = {
     input7 extends Input = input & input2 & input3 & input4 & input5 & input6,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
       Handler<path, input7, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x6)
   <
@@ -231,14 +221,14 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
       Handler<path, input6, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 8)
   <
@@ -260,16 +250,16 @@ export type HandlerInterface = {
       input7,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
-      Handler<path, input7>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
       Handler<path, input8, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x7)
   <
@@ -285,15 +275,15 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
       Handler<path, input7, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 9)
   <
@@ -323,17 +313,17 @@ export type HandlerInterface = {
       input8,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
-      Handler<path, input7>,
-      Handler<path, input8>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
       Handler<path, input9, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x8)
   <
@@ -356,16 +346,16 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
-      Handler<path, input7>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
       Handler<path, input8, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(handler x 10)
   <
@@ -404,18 +394,18 @@ export type HandlerInterface = {
       input9,
   >(
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
-      Handler<path, input7>,
-      Handler<path, input8>,
-      Handler<path, input9>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
+      MiddlewareHandler<path, input9>,
       Handler<path, input10, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x9)
   <
@@ -446,17 +436,17 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
-      Handler<path, input7>,
-      Handler<path, input8>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
       Handler<path, input9, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, handler x10)
   <
@@ -496,18 +486,18 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: [
-      Handler<path, input>,
-      Handler<path, input2>,
-      Handler<path, input3>,
-      Handler<path, input4>,
-      Handler<path, input5>,
-      Handler<path, input6>,
-      Handler<path, input7>,
-      Handler<path, input8>,
-      Handler<path, input9>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
+      MiddlewareHandler<path, input9>,
       Handler<path, input10, response>,
     ]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(...handlers[])
   <
@@ -516,7 +506,7 @@ export type HandlerInterface = {
     response extends HandlerResponse<any> = any,
   >(
     ...handlers: Handler<path, input, response>[]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path, ...handlers[])
   <
@@ -526,8 +516,230 @@ export type HandlerInterface = {
   >(
     path: path,
     ...handlers: Handler<path, input, response>[]
-  ): Hono<Env, BlankSchema>;
+  ): PonderHono;
 
   // app.get(path)
-  <path extends string>(path: path): Hono<Env, BlankSchema>;
+  <path extends string>(path: path): PonderHono;
 };
+
+export interface MiddlewareHandlerInterface {
+  //// app.use(...handlers[])
+  (...handlers: MiddlewareHandler<BasePath>[]): PonderHono;
+
+  // app.use(handler)
+  (handler: MiddlewareHandler<BasePath>): PonderHono;
+
+  // app.use(handler x2)
+  <path extends string = BasePath>(
+    ...handlers: [MiddlewareHandler<path>, MiddlewareHandler<path>]
+  ): PonderHono;
+
+  // app.get(path, handler)
+  <path extends string>(
+    path: path,
+    handler: MiddlewareHandler<path>,
+  ): PonderHono;
+
+  // app.use(handler x3)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x2)
+  <path extends string>(
+    path: path,
+    ...handlers: [MiddlewareHandler<path>, MiddlewareHandler<path>]
+  ): PonderHono;
+
+  // app.use(handler x4)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x3)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.use(handler x5)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x4)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.use(handler x6)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x5)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.use(handler x7)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x6)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.use(handler x8)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x7)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.use(handler x9)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x8)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.use(handler x10)
+  <path extends string = BasePath>(
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  // app.get(path, handler x9)
+  <path extends string>(
+    path: path,
+    ...handlers: [
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+    ]
+  ): PonderHono;
+
+  //// app.use(path, ...handlers[])
+  <path extends string>(
+    path: path,
+    ...handlers: MiddlewareHandler<path>[]
+  ): PonderHono;
+}

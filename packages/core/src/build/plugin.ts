@@ -7,11 +7,19 @@ export const ponderRegex =
 export const shim = `import { Hono } from "hono";
 
 let __ponderHono = {
-  handlers: [],
+  routes: [],
   get(...maybePathOrHandlers) {
-    this.handlers.push(maybePathOrHandlers);
+    this.routes.push({method: "GET", pathOrHandlers: maybePathOrHandlers});
     return this;
-  }
+  },
+  post(...maybePathOrHandlers) {
+    this.routes.push({method: "POST", pathOrHandlers: maybePathOrHandlers});
+    return this;
+  },
+  use(...maybePathOrHandlers) {
+    this.routes.push({method: "USE", pathOrHandlers: maybePathOrHandlers});
+    return this;
+  } 
 }
 
 export let ponder = {

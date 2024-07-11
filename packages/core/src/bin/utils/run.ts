@@ -106,10 +106,6 @@ export async function run({
     app: build.app,
     readonlyStore,
     schema,
-    database:
-      database.kind === "sqlite"
-        ? { kind: "sqlite", database: database.userDatabase }
-        : { kind: "postgres", pool: database.readonlyPool },
     common,
   });
 

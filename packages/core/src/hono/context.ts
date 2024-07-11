@@ -43,3 +43,13 @@ export type Context<path extends string = string, input extends Input = {}> = {
    */
   redirect: HonoContext<Env, path, input>["redirect"];
 };
+
+export type MiddlewareContext<
+  path extends string = string,
+  input extends Input = {},
+> = HonoContext<Env, path, input> & {
+  /**
+   * ...
+   */
+  db: DrizzleDb;
+};
