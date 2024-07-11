@@ -5,12 +5,18 @@ export const ponderRegex =
   /^import\s+\{[^}]*\bponder\b[^}]*\}\s+from\s+["']@\/generated["'];?.*$/gm;
 
 export const shim = `import { Hono } from "hono";
-let __hono__ = new Hono();
+
+let __ponderHono = {
+  handlers: [],
+  get(...maybePathOrHandlers) {
+    this.handlers.push(maybePathOrHandlers);
+    return this;
+  }
+}
+
 export let ponder = {
-  hono: __hono__,
-  get: __hono__.get,
-  post: __hono__.get,
-  use: __hono__.use,
+  hono: new Hono(),
+  ...__ponderHono,
   fns: [],
   on(name, fn) {
     this.fns.push({ name, fn });

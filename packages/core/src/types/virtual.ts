@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { DrizzleDb } from "@/drizzle/db.js";
+import type { HandlerInterface } from "@/hono/handler.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Schema as BuilderSchema } from "@/schema/common.js";
 import type { InferSchemaType } from "@/schema/infer.js";
@@ -248,9 +248,9 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-    get: Hono<{ Variables: { db: DrizzleDb } }>["get"];
-    post: Hono<{ Variables: { db: DrizzleDb } }>["post"];
-    use: Hono<{ Variables: { db: DrizzleDb } }>["use"];
-    hono: Hono<{ Variables: { db: DrizzleDb } }>;
+    get: HandlerInterface;
+    post: HandlerInterface;
+    use: HandlerInterface;
+    hono: Hono;
   };
 }
