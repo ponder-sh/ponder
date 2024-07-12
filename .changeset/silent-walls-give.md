@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Added per network progress to the "/status" endpoint on the server and the "_meta" entity on the GraphQL schema.
+Added an indexing status endpoint at `/status` and a `{ _meta { status } }` field in the GraphQL API. [Read more](https://ponder.sh/docs/advanced/status).
