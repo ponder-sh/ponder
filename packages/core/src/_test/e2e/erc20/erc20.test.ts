@@ -14,6 +14,7 @@ import {
 import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
 import { range } from "@/utils/range.js";
+import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
 import { zeroAddress } from "viem";
 import { beforeEach, describe, expect, test } from "vitest";
@@ -52,6 +53,8 @@ test("erc20", async (context) => {
   });
 
   await waitForIndexedBlock(port, "mainnet", 8);
+
+  await wait(1000);
 
   const response = await postGraphql(
     port,

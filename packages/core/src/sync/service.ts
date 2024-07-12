@@ -567,7 +567,10 @@ export const kill = async (syncService: Service) => {
 };
 
 /** Return the number and timestamp of the most recently processed blocks. */
-export const getStatusBlocks = (syncService: Service) => {
+export const getStatusBlocks = (
+  syncService: Service,
+  realtimeCheckpoint?: Checkpoint,
+) => {
   const status: {
     [networkName: string]: { number: number; timestamp: number } | undefined;
   } = {};
@@ -581,7 +584,9 @@ export const getStatusBlocks = (syncService: Service) => {
     } else {
       const mostRecentBlock =
         networkService.realtime.realtimeSync.getMostRecentBlock(
-          syncService.checkpoint,
+          realtimeCheckpoint === undefined
+            ? syncService.checkpoint
+            : checkpointMin(syncService.checkpoint, realtimeCheckpoint),
         );
 
       if (mostRecentBlock === undefined) {

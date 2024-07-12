@@ -175,7 +175,7 @@ export async function run({
           // Note: statusBlocks should be assigned before any other
           // asynchronous statements in order to prevent race conditions and
           // ensure its correctness.
-          const statusBlocks = syncService.getStatusBlocks();
+          const statusBlocks = syncService.getStatusBlocks(event.toCheckpoint);
 
           for await (const rawEvents of syncStore.getEvents({
             sources,
