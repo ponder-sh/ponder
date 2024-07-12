@@ -33,6 +33,7 @@ export type Service = {
   // static
   common: Common;
   srcRegex: RegExp;
+  serverRegex: RegExp;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -86,6 +87,13 @@ export const create = async ({
     .replace(escapeRegex, "\\$&");
   const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
 
+  const escapedServerDir = common.options.serverDir
+    // If on Windows, use a POSIX path for this regex.
+    .replace(/\\/g, "/")
+    // Escape special characters in the path.
+    .replace(escapeRegex, "\\$&");
+  const serverRegex = new RegExp(`^${escapedServerDir}/.*\\.(ts|js)$`);
+
   const viteLogger = {
     warnedMessages: new Set<string>(),
     loggedErrors: new WeakSet<Error>(),
@@ -137,6 +145,7 @@ export const create = async ({
   return {
     common,
     srcRegex,
+    serverRegex,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -236,13 +245,23 @@ export const start = async (
       const hasSchemaUpdate = invalidated.includes(
         common.options.schemaFile.replace(/\\/g, "/"),
       );
-      const hasSrcUpdate = invalidated.some((file) =>
-        buildService.srcRegex.test(file),
+      const hasSrcUpdate = invalidated.some(
+        (file) =>
+          buildService.srcRegex.test(file) &&
+          !buildService.serverRegex.test(file),
+      );
+      const hasServerUpdate = invalidated.some((file) =>
+        buildService.serverRegex.test(file),
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (!hasConfigUpdate && !hasSchemaUpdate && !hasSrcUpdate) {
+      if (
+        !hasConfigUpdate &&
+        !hasSchemaUpdate &&
+        !hasSrcUpdate &&
+        !hasServerUpdate
+      ) {
         return;
       }
 
@@ -280,7 +299,7 @@ export const start = async (
         rawBuild.indexingFunctions = result;
       }
 
-      if (hasSrcUpdate) {
+      if (hasServerUpdate) {
         const result = await executeServer(buildService);
         if (result.status === "error") {
           onBuild({ status: "error", error: result.error });
@@ -375,10 +394,10 @@ const executeIndexingFunctions = async (
     }
   | { status: "error"; error: Error }
 > => {
+  // TODO(kyle) ignore server file
   const pattern = path
     .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
-  // TODO(kyle) ignore server file
   const files = glob.sync(pattern);
 
   const executeResults = await Promise.all(
@@ -387,8 +406,6 @@ const executeIndexingFunctions = async (
       file,
     })),
   );
-
-  const indexingFunctions: RawIndexingFunctions = [];
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
@@ -403,8 +420,6 @@ const executeIndexingFunctions = async (
 
       return executeResult;
     }
-
-    indexingFunctions.push(...(executeResult.exports?.ponder?.fns ?? []));
   }
 
   // Note that we are only hashing the file contents, not the exports. This is
@@ -424,7 +439,13 @@ const executeIndexingFunctions = async (
   }
   const contentHash = hash.digest("hex");
 
-  return { status: "success", indexingFunctions, contentHash };
+  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+
+  return {
+    status: "success",
+    indexingFunctions: exports.ponder.fns,
+    contentHash,
+  };
 };
 
 const executeServer = async (
@@ -437,33 +458,45 @@ const executeServer = async (
     }
   | { status: "error"; error: Error }
 > => {
-  const doesServerExist = fs.existsSync(buildService.common.options.serverFile);
+  const doesServerExist = fs.existsSync(buildService.common.options.serverDir);
 
   if (doesServerExist === false) {
     return { status: "success" };
   }
 
-  const executeResult = await executeFile(buildService, {
-    file: buildService.common.options.serverFile,
-  });
+  const pattern = path
+    .join(buildService.common.options.serverDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+  const files = glob.sync(pattern);
 
-  if (executeResult.status === "error") {
-    buildService.common.logger.error({
-      service: "build",
-      msg: `Error while executing '${path.relative(
-        buildService.common.options.rootDir,
-        buildService.common.options.serverFile,
-      )}':`,
-      error: executeResult.error,
-    });
+  const executeResults = await Promise.all(
+    files.map(async (file) => ({
+      ...(await executeFile(buildService, { file })),
+      file,
+    })),
+  );
 
-    return executeResult;
+  for (const executeResult of executeResults) {
+    if (executeResult.status === "error") {
+      buildService.common.logger.error({
+        service: "build",
+        msg: `Error while executing '${path.relative(
+          buildService.common.options.rootDir,
+          executeResult.file,
+        )}':`,
+        error: executeResult.error,
+      });
+
+      return executeResult;
+    }
   }
+
+  const exports = await buildService.viteNodeRunner.executeId("@/generated");
 
   return {
     status: "success",
-    app: executeResult.exports?.ponder?.hono,
-    routes: executeResult.exports?.ponder?.routes,
+    app: exports.ponder.hono,
+    routes: exports.ponder.routes,
   };
 };
 
