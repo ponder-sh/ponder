@@ -12,10 +12,10 @@ export const getMetadataStore = ({
   db: HeadlessKysely<any>;
 }): MetadataStore => ({
   getStatus: async () => {
-    return db.wrap({ method: "_metadata.getLatest()" }, async () => {
+    return db.wrap({ method: "_ponder_metadata.getLatest()" }, async () => {
       const metadata = await db
         .withSchema(namespaceInfo.userNamespace)
-        .selectFrom("ponder_metadata")
+        .selectFrom("_ponder_metadata")
         .select("value")
         .where("key", "=", "status")
         .executeTakeFirst();
@@ -28,10 +28,10 @@ export const getMetadataStore = ({
     });
   },
   setStatus: (status: Status) => {
-    return db.wrap({ method: "_metadata.setLatest()" }, async () => {
+    return db.wrap({ method: "_ponder_metadata.setLatest()" }, async () => {
       await db
         .withSchema(namespaceInfo.userNamespace)
-        .insertInto("ponder_metadata")
+        .insertInto("_ponder_metadata")
         .values({
           key: "status",
           value: encoding === "sqlite" ? JSON.stringify(status) : status,
