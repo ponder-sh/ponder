@@ -51,6 +51,8 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private userNamespace: string;
   private internalNamespace: string;
 
+  userDatabaseFile: string;
+
   private internalDatabase: SqliteDatabase;
   private syncDatabase: SqliteDatabase;
 
@@ -77,7 +79,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.deleteV3DatabaseFiles();
 
     this.userNamespace = userNamespace;
-    const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
+    this.userDatabaseFile = path.join(directory, `${userNamespace}.db`);
 
     // Note that SQLite supports using "main" as the schema name for tables
     // in the primary database (as opposed to attached databases). We include
@@ -88,7 +90,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
     this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
     this.internalDatabase.exec(
-      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
+      `ATTACH DATABASE '${this.userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
     this.db = new HeadlessKysely<InternalTables>({

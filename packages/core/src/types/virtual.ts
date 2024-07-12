@@ -17,8 +17,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
-import type { Hono } from "hono";
-import type { QueryResult, RawBuilder } from "kysely";
+import type { PonderHono } from "./hono.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -157,20 +156,6 @@ export namespace Virtual {
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
 
-  type ReadonlyDb<schema extends BuilderSchema> = {
-    [key in keyof InferSchemaType<schema>]: Prettify<
-      Pick<
-        DatabaseModel<
-          // @ts-ignore
-          InferSchemaType<schema>[key]
-        >,
-        "findUnique" | "findMany"
-      >
-    >;
-  } & {
-    query: <t = unknown>(query: RawBuilder<t>) => Promise<QueryResult<t>>;
-  };
-
   export type Context<
     config extends Config,
     schema extends BuilderSchema,
@@ -262,9 +247,5 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-    get: Hono<{ Variables: { db: ReadonlyDb<schema> } }>["get"];
-    post: Hono<{ Variables: { db: ReadonlyDb<schema> } }>["post"];
-    use: Hono<{ Variables: { db: ReadonlyDb<schema> } }>["use"];
-    hono: Hono<{ Variables: { db: ReadonlyDb<schema> } }>;
-  };
+  } & PonderHono<schema>;
 }

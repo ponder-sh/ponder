@@ -25,4 +25,36 @@ export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
 export { graphql } from "@/graphql/index.js";
-export { sql } from "kysely";
+
+export {
+  sql,
+  eq,
+  gt,
+  gte,
+  lt,
+  lte,
+  ne,
+  isNull,
+  isNotNull,
+  inArray,
+  notInArray,
+  exists,
+  notExists,
+  between,
+  notBetween,
+  like,
+  notIlike,
+  not,
+  asc,
+  desc,
+  and,
+  or,
+  count,
+  countDistinct,
+  avg,
+  avgDistinct,
+  sum,
+  sumDistinct,
+  max,
+  min,
+} from "drizzle-orm";

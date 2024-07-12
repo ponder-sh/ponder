@@ -23,7 +23,6 @@ import {
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
-import type { RawBuilder } from "kysely";
 
 export type RealtimeEvent =
   | {
@@ -95,24 +94,13 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
 
-  const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
-    schema,
-    namespaceInfo,
-    db: database.readonlyDb,
-    common,
-  });
-
   const server = await createServer({
     app: build.app,
-    readonlyStore,
-    schema,
-    query: (query: RawBuilder<unknown>) => {
-      return query.execute(
-        database.readonlyDb.withSchema(namespaceInfo.userNamespace),
-      );
-    },
+    routes: build.routes,
     common,
+    schema,
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   // This can be a long-running operation, so it's best to do it after
@@ -188,6 +176,14 @@ export async function run({
           never(event);
       }
     },
+  });
+
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo,
+    db: database.indexingDb,
+    common,
   });
 
   const historicalStore = getHistoricalStore({

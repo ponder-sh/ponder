@@ -1,17 +1,16 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import type { DatabaseService } from "@/database/service.js";
+import { convertSchemaToDrizzle, createDrizzleDb } from "@/drizzle/runtime.js";
+import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import type { Schema } from "@/schema/common.js";
-import { getTables } from "@/schema/utils.js";
-import type { DatabaseModel } from "@/types/model.js";
-import type { UserRecord } from "@/types/schema.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import type { QueryResult, RawBuilder } from "kysely";
 import { onError } from "./error.js";
 
 type Server = {
@@ -23,16 +22,18 @@ type Server = {
 
 export async function createServer({
   app: userApp,
-  schema,
-  readonlyStore,
-  query,
+  routes: userRoutes,
   common,
+  schema,
+  database,
+  dbNamespace,
 }: {
   app?: Hono;
-  schema: Schema;
-  readonlyStore: ReadonlyStore;
-  query: (query: RawBuilder<unknown>) => Promise<QueryResult<unknown>>;
+  routes?: PonderRoutes;
   common: Common;
+  schema: Schema;
+  database: DatabaseService;
+  dbNamespace: string;
 }): Promise<Server> {
   // Create hono app
 
@@ -104,46 +105,15 @@ export async function createServer({
     }
   });
 
-  const db = Object.keys(getTables(schema)).reduce<{
-    [tableName: string]: Pick<
-      DatabaseModel<UserRecord>,
-      "findUnique" | "findMany"
-    >;
-  }>((acc, tableName) => {
-    acc[tableName] = {
-      findUnique: async ({ id }) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findUnique(id=${id})`,
-        });
-        return readonlyStore.findUnique({
-          tableName,
-          id,
-        });
-      },
-      findMany: async ({ where, orderBy, limit, before, after } = {}) => {
-        common.logger.trace({
-          service: "store",
-          msg: `${tableName}.findMany`,
-        });
-        return readonlyStore.findMany({
-          tableName,
-          where,
-          orderBy,
-          limit,
-          before,
-          after,
-        });
-      },
-    };
-    return acc;
-  }, {});
-
-  // @ts-ignore
-  db.query = query;
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo: { userNamespace: dbNamespace },
+    db: database.readonlyDb,
+    common,
+  });
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("db", db);
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
     await next();
@@ -154,7 +124,7 @@ export async function createServer({
     .route("/_ponder", ponderApp)
     .use(contextMiddleware);
 
-  if (userApp !== undefined) {
+  if (userApp !== undefined && userRoutes !== undefined) {
     for (const route of userApp.routes) {
       // Validate user routes don't conflict with ponder routes
       if (route.path.startsWith("/_ponder")) {
@@ -171,12 +141,16 @@ export async function createServer({
         .map((r) => r.path)
         .join(", ")}]`,
     });
-  }
 
-  if (userApp !== undefined) {
+    const db = createDrizzleDb(database);
+    const tables = convertSchemaToDrizzle(schema, database, dbNamespace);
+
+    // apply user routes to hono instance, registering a custom error handler
     hono.route(
       "/",
-      userApp.onError((error, c) => onError(error, c, common)),
+      applyHonoRoutes(userApp, userRoutes, { db, tables }).onError((error, c) =>
+        onError(error, c, common),
+      ),
     );
   }
 

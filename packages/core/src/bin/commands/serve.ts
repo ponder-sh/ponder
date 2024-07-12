@@ -5,10 +5,7 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { NamespaceInfo } from "@/database/service.js";
-import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
-import type { RawBuilder } from "kysely";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -67,7 +64,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
   });
 
-  const { databaseConfig, optionsConfig, schema, app } = initialResult.build;
+  const { databaseConfig, optionsConfig, schema, app, routes } =
+    initialResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -97,27 +95,13 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     isReadonly: true,
   });
 
-  const readonlyStore = getReadonlyStore({
-    encoding: "postgres",
-    schema,
-    // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
-    // not need the other fields in NamespaceInfo because it only uses findUnique
-    // and findMany. We should ultimately add a PublicStore interface for this.
-    namespaceInfo: {
-      userNamespace: databaseConfig.publishSchema,
-    } as unknown as NamespaceInfo,
-    db: database.readonlyDb,
-    common,
-  });
-
   const server = await createServer({
     app,
-    readonlyStore,
-    schema,
-    query: (query: RawBuilder<unknown>) => {
-      return query.execute(database.readonlyDb.withSchema(userNamespace));
-    },
+    routes,
     common,
+    schema,
+    database,
+    dbNamespace: databaseConfig.publishSchema,
   });
   server.setHealthy();
 
