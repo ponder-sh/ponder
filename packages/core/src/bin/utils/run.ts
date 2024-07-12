@@ -94,21 +94,13 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
 
-  const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
-    schema,
-    namespaceInfo,
-    db: database.readonlyDb,
-    common,
-  });
-
   const server = await createServer({
     app: build.app,
     routes: build.routes,
     common,
-    database,
-    readonlyStore,
     schema,
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   // This can be a long-running operation, so it's best to do it after
@@ -184,6 +176,14 @@ export async function run({
           never(event);
       }
     },
+  });
+
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo,
+    db: database.indexingDb,
+    common,
   });
 
   const historicalStore = getHistoricalStore({

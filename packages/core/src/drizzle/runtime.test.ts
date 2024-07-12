@@ -3,20 +3,16 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { DatabaseService } from "@/database/service.js";
+import type { Context } from "@/hono/context.js";
 import type { HistoricalStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { eq } from "drizzle-orm";
 import { beforeEach, expect, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
-import { convertToDrizzleTable, createDrizzleDb } from "./runtime.js";
+import { convertSchemaToDrizzle, createDrizzleDb } from "./runtime.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
-
-const createDb = (database: DatabaseService) => {
-  return createDrizzleDb(database) as unknown as DrizzleDb;
-};
 
 test("runtime select", async (context) => {
   const schema = createSchema((p) => ({
@@ -25,25 +21,21 @@ test("runtime select", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const db = createDb(database);
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
 
   await indexingStore.create({ tableName: "table", id: "kyle" });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await db
-    .select()
-    .from(
-      convertToDrizzleTable(
-        "table",
-        schema.table.table,
-        context.databaseConfig,
-      ),
-    );
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
+
+  const rows = await db.select().from(drizzleTables.table);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "kyle" });
@@ -58,25 +50,21 @@ test("select hex", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const db = createDb(database);
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
 
   await indexingStore.create({ tableName: "table", id: "0x1" });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await db
-    .select()
-    .from(
-      convertToDrizzleTable(
-        "table",
-        schema.table.table,
-        context.databaseConfig,
-      ),
-    );
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
+
+  const rows = await db.select().from(drizzleTables.table);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "0x01" });
@@ -91,25 +79,21 @@ test("select bigint", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const db = createDb(database);
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
 
   await indexingStore.create({ tableName: "table", id: 1n });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await db
-    .select()
-    .from(
-      convertToDrizzleTable(
-        "table",
-        schema.table.table,
-        context.databaseConfig,
-      ),
-    );
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
+
+  const rows = await db.select().from(drizzleTables.table);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: 1n });
@@ -125,12 +109,8 @@ test("select json", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const db = createDb(database);
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
 
   await indexingStore.create({
     tableName: "table",
@@ -143,15 +123,15 @@ test("select json", async (context) => {
   });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await db
-    .select()
-    .from(
-      convertToDrizzleTable(
-        "table",
-        schema.table.table,
-        context.databaseConfig,
-      ),
-    );
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
+
+  const rows = await db.select().from(drizzleTables.table);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "1", json: { prop: 52 } });
@@ -168,12 +148,8 @@ test("select enum", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const db = createDb(database);
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
 
   await indexingStore.create({
     tableName: "table",
@@ -182,15 +158,15 @@ test("select enum", async (context) => {
   });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await db
-    .select()
-    .from(
-      convertToDrizzleTable(
-        "table",
-        schema.table.table,
-        context.databaseConfig,
-      ),
-    );
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
+
+  const rows = await db.select().from(drizzleTables.table);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ id: "1", en: "hi" });
@@ -211,12 +187,8 @@ test("select with join", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const db = createDb(database);
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
 
   await indexingStore.create({
     tableName: "account",
@@ -233,22 +205,21 @@ test("select with join", async (context) => {
   });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const account = convertToDrizzleTable(
-    "account",
-    schema.account.table,
-    context.databaseConfig,
-  );
-  const nft = convertToDrizzleTable(
-    "nft",
-    schema.nft.table,
-    context.databaseConfig,
-  );
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
 
   const rows = await db
     .select()
-    .from(account)
-    // @ts-ignore
-    .fullJoin(nft, eq(account.id, nft.owner));
+    .from(drizzleTables.account)
+    .fullJoin(
+      drizzleTables.nft,
+      eq(drizzleTables.account.id, drizzleTables.nft.owner),
+    );
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({

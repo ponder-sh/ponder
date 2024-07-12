@@ -3,7 +3,7 @@ import type { Common } from "@/common/common.js";
 import type { DatabaseService } from "@/database/service.js";
 import { convertSchemaToDrizzle, createDrizzleDb } from "@/drizzle/runtime.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import type { Schema } from "@/schema/common.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
@@ -24,16 +24,16 @@ export async function createServer({
   app: userApp,
   routes: userRoutes,
   common,
-  database,
   schema,
-  readonlyStore,
+  database,
+  dbNamespace,
 }: {
   app?: Hono;
   routes?: PonderRoutes;
   common: Common;
-  database: DatabaseService;
   schema: Schema;
-  readonlyStore: ReadonlyStore;
+  database: DatabaseService;
+  dbNamespace: string;
 }): Promise<Server> {
   // Create hono app
 
@@ -105,6 +105,14 @@ export async function createServer({
     }
   });
 
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo: { userNamespace: dbNamespace },
+    db: database.readonlyDb,
+    common,
+  });
+
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
@@ -135,8 +143,9 @@ export async function createServer({
     });
 
     const db = createDrizzleDb(database);
-    const tables = convertSchemaToDrizzle(schema, database);
+    const tables = convertSchemaToDrizzle(schema, database, dbNamespace);
 
+    // apply user routes to hono instance, registering a custom error handler
     hono.route(
       "/",
       applyHonoRoutes(userApp, userRoutes, { db, tables }).onError((error, c) =>

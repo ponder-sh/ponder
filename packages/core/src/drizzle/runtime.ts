@@ -8,10 +8,11 @@ import {
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
+import { getTables } from "@/schema/utils.js";
 import { createSqliteDatabase } from "@/utils/sqlite.js";
 import { drizzle as drizzleSQLite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
-import { pgTable } from "drizzle-orm/pg-core";
+import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import {
   doublePrecision as PgDoublePrecision,
   integer as PgInteger,
@@ -56,10 +57,11 @@ type DrizzleTable = { [tableName: string]: any };
 export const convertSchemaToDrizzle = (
   schema: Schema,
   database: DatabaseService,
+  dbNamespace: string,
 ) => {
   const drizzleTables: { [tableName: string]: DrizzleTable } = {};
 
-  for (const [tableName, table] of Object.entries(schema)) {
+  for (const [tableName, { table }] of Object.entries(getTables(schema))) {
     const drizzleColumns: DrizzleTable = {};
 
     for (const [columnName, column] of Object.entries(table)) {
@@ -131,13 +133,16 @@ export const convertSchemaToDrizzle = (
     }
 
     if (database.kind === "postgres") {
-      // if (database.schema === "public") {
-      return pgTable(tableName, drizzleColumns as PostgresTable);
-      // }
-      // return pgSchema(database.schema).table(
-      //   tableName,
-      //   drizzleColumns as PostgresTable,
-      // );
+      if (dbNamespace === "public") {
+        drizzleTables[tableName] = pgTable(
+          tableName,
+          drizzleColumns as PostgresTable,
+        );
+      }
+      drizzleTables[tableName] = pgSchema(dbNamespace).table(
+        tableName,
+        drizzleColumns as PostgresTable,
+      );
     } else {
       drizzleTables[tableName] = sqliteTable(
         tableName,
