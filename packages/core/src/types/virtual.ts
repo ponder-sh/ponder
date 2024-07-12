@@ -247,5 +247,5 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-  } & PonderHono;
+  } & PonderHono<schema>;
 }

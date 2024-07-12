@@ -2,13 +2,11 @@ import { ponder } from "@/generated";
 import { desc, graphql } from "@ponder/core";
 import { formatEther } from "viem";
 
-// write file
-ponder.use("/graphql", graphql());
+ponder.use("/graphql", graphql()).get("/big", async (c) => {
+  const { Account } = c.tables;
 
-ponder.get("/big", async (c) => {
-  const db = c.get("db");
-
-  const account = await db
+  const account = await c.db
+    //  ^?
     .select({ balance: Account.balance })
     .from(Account)
     .orderBy(desc(Account.balance))

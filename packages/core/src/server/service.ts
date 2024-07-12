@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { DatabaseService } from "@/database/service.js";
-import { createDrizzleDb } from "@/drizzle/runtime.js";
+import { convertSchemaToDrizzle, createDrizzleDb } from "@/drizzle/runtime.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import type { ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
@@ -105,8 +105,6 @@ export async function createServer({
     }
   });
 
-  const db = createDrizzleDb(database);
-
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
@@ -136,9 +134,12 @@ export async function createServer({
         .join(", ")}]`,
     });
 
+    const db = createDrizzleDb(database);
+    const tables = convertSchemaToDrizzle(schema, database);
+
     hono.route(
       "/",
-      applyHonoRoutes(userApp, userRoutes, { db }).onError((error, c) =>
+      applyHonoRoutes(userApp, userRoutes, { db, tables }).onError((error, c) =>
         onError(error, c, common),
       ),
     );

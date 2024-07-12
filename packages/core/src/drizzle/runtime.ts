@@ -1,6 +1,5 @@
-import type { DatabaseConfig } from "@/config/database.js";
 import type { DatabaseService } from "@/database/service.js";
-import type { Table as PonderTable } from "@/schema/common.js";
+import type { Schema } from "@/schema/common.js";
 import {
   isEnumColumn,
   isJSONColumn,
@@ -10,10 +9,9 @@ import {
   isScalarColumn,
 } from "@/schema/utils.js";
 import { createSqliteDatabase } from "@/utils/sqlite.js";
-import type { Table } from "drizzle-orm";
 import { drizzle as drizzleSQLite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
-import { pgSchema, pgTable } from "drizzle-orm/pg-core";
+import { pgTable } from "drizzle-orm/pg-core";
 import {
   doublePrecision as PgDoublePrecision,
   integer as PgInteger,
@@ -51,82 +49,104 @@ export const createDrizzleDb = (database: DatabaseService) => {
   }
 };
 
-export const convertToDrizzleTable = (
-  tableName: string,
-  table: PonderTable,
-  databaseConfig: DatabaseConfig,
-): Table => {
-  const columns = Object.entries(table).reduce<{ [columnName: string]: any }>(
-    (acc, [columnName, column]) => {
+type SQLiteTable = Parameters<typeof sqliteTable>[1];
+type PostgresTable = Parameters<typeof pgTable>[1];
+type DrizzleTable = { [tableName: string]: any };
+
+export const convertSchemaToDrizzle = (
+  schema: Schema,
+  database: DatabaseService,
+) => {
+  const drizzleTables: { [tableName: string]: DrizzleTable } = {};
+
+  for (const [tableName, table] of Object.entries(schema)) {
+    const drizzleColumns: DrizzleTable = {};
+
+    for (const [columnName, column] of Object.entries(table)) {
       if (isMaterialColumn(column)) {
         if (isJSONColumn(column)) {
-          acc[columnName] = convertJsonColumn(columnName, databaseConfig.kind);
+          drizzleColumns[columnName] = convertJsonColumn(
+            columnName,
+            database.kind,
+          );
         } else if (isEnumColumn(column)) {
-          acc[columnName] = convertEnumColumn(columnName, databaseConfig.kind);
+          drizzleColumns[columnName] = convertEnumColumn(
+            columnName,
+            database.kind,
+          );
         } else if (isScalarColumn(column) || isReferenceColumn(column)) {
           switch (column[" scalar"]) {
             case "string":
-              acc[columnName] = convertStringColumn(
+              drizzleColumns[columnName] = convertStringColumn(
                 columnName,
-                databaseConfig.kind,
+                database.kind,
               );
               break;
 
             case "int":
-              acc[columnName] = convertIntColumn(
+              drizzleColumns[columnName] = convertIntColumn(
                 columnName,
-                databaseConfig.kind,
+                database.kind,
               );
               break;
 
             case "boolean":
-              acc[columnName] = convertBooleanColumn(
+              drizzleColumns[columnName] = convertBooleanColumn(
                 columnName,
-                databaseConfig.kind,
+                database.kind,
               );
               break;
 
             case "float":
-              acc[columnName] = convertFloatColumn(
+              drizzleColumns[columnName] = convertFloatColumn(
                 columnName,
-                databaseConfig.kind,
+                database.kind,
               );
               break;
 
             case "hex":
-              acc[columnName] = convertHexColumn(
+              drizzleColumns[columnName] = convertHexColumn(
                 columnName,
-                databaseConfig.kind,
+                database.kind,
               );
               break;
 
             case "bigint":
-              acc[columnName] = convertBigintColumn(
+              drizzleColumns[columnName] = convertBigintColumn(
                 columnName,
-                databaseConfig.kind,
+                database.kind,
               );
               break;
           }
 
           // apply column constraints
           if (columnName === "id") {
-            acc[columnName] = acc[columnName]!.primaryKey();
+            drizzleColumns[columnName] =
+              drizzleColumns[columnName]!.primaryKey();
           } else if (isOptionalColumn(column) === false) {
-            acc[columnName] = acc[columnName]!.notNull();
+            drizzleColumns[columnName] = drizzleColumns[columnName]!.notNull();
           }
         }
       }
-      return acc;
-    },
-    {},
-  );
+    }
 
-  if (databaseConfig.kind === "postgres") {
-    if (databaseConfig.schema === "public") return pgTable(tableName, columns);
-    return pgSchema(databaseConfig.schema).table(tableName, columns);
-  } else {
-    return sqliteTable(tableName, columns);
+    if (database.kind === "postgres") {
+      // if (database.schema === "public") {
+      return pgTable(tableName, drizzleColumns as PostgresTable);
+      // }
+      // return pgSchema(database.schema).table(
+      //   tableName,
+      //   drizzleColumns as PostgresTable,
+      // );
+    } else {
+      drizzleTables[tableName] = sqliteTable(
+        tableName,
+        drizzleColumns as SQLiteTable,
+      );
+    }
   }
+
+  return drizzleTables;
 };
 
 const convertStringColumn = (

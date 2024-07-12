@@ -1,11 +1,28 @@
 import type { DrizzleDb } from "@/drizzle/db.js";
+import type { ConvertToDrizzleTable } from "@/drizzle/table.js";
+import type { ExtractTableNames, Schema } from "@/schema/common.js";
 import type { Env, Context as HonoContext, Input } from "hono";
 
-export type Context<path extends string = string, input extends Input = {}> = {
+export type Context<
+  schema extends Schema = Schema,
+  path extends string = string,
+  input extends Input = {},
+> = {
   /**
    * ...
    */
   db: DrizzleDb;
+  /**
+   *
+   */
+  tables: {
+    [tableName in ExtractTableNames<schema>]: ConvertToDrizzleTable<
+      tableName,
+      // @ts-ignore
+      schema[tableName]["table"],
+      schema
+    >;
+  };
   /**
    * Hono request object.
    *
@@ -45,6 +62,7 @@ export type Context<path extends string = string, input extends Input = {}> = {
 };
 
 export type MiddlewareContext<
+  schema extends Schema = Schema,
   path extends string = string,
   input extends Input = {},
 > = HonoContext<Env, path, input> & {
@@ -52,4 +70,15 @@ export type MiddlewareContext<
    * ...
    */
   db: DrizzleDb;
+  /**
+   *
+   */
+  tables: {
+    [tableName in ExtractTableNames<schema>]: ConvertToDrizzleTable<
+      tableName,
+      // @ts-ignore
+      schema[tableName]["table"],
+      schema
+    >;
+  };
 };
