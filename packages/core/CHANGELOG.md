@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.41
+
+### Patch Changes
+
+- [#952](https://github.com/ponder-sh/ponder/pull/952) [`a3f30201f9d123b76b39abcc331f71a01f26c7f8`](https://github.com/ponder-sh/ponder/commit/a3f30201f9d123b76b39abcc331f71a01f26c7f8) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where circular imports between files (like `ponder.config.ts` and `src/index.ts`) would sometimes return `undefined` during the initial build.
+
 ## 0.4.40
 
 ### Patch Changes

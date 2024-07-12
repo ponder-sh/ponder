@@ -160,13 +160,12 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  const [configResult, schemaResult, indexingFunctionsResult, serverResult] =
-    await Promise.all([
-      executeConfig(buildService),
-      executeSchema(buildService),
-      executeIndexingFunctions(buildService),
-      executeServer(buildService),
-    ]);
+  // Note: Don't run these in parallel. If there are circular imports in user code,
+  // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
+  const configResult = await executeConfig(buildService);
+  const schemaResult = await executeSchema(buildService);
+  const indexingFunctionsResult = await executeIndexingFunctions(buildService);
+  const serverResult = await executeServer(buildService);
 
   if (configResult.status === "error") {
     return { status: "error", error: configResult.error };

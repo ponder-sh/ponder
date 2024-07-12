@@ -41,7 +41,7 @@ ponder.on("Token:Swap", async ({ event, context }) => {
   const { timestamp } = event.block;
   const { price } = event.args;
 
-  const hourId = Math.floor((timestamp / secondsInHour) * secondsInHour);
+  const hourId = Math.floor(timestamp / secondsInHour) * secondsInHour;
 
   await context.db.HourBucket.upsert({
     id: hourId,
