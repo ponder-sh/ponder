@@ -265,7 +265,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           // Create ponder_metadata table if it doesn't exist
           await tx.schema
             .withSchema(this.userNamespace)
-            .createTable("_ponder_metadata")
+            .createTable("_ponder_meta")
             .addColumn("key", "text", (col) => col.primaryKey())
             .addColumn("value", "jsonb")
             .ifNotExists()
@@ -275,7 +275,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
           await tx
             .withSchema(this.userNamespace)
             // @ts-expect-error Kysely doesn't have types for user schema
-            .insertInto("_ponder_metadata")
+            .insertInto("_ponder_meta")
             // @ts-expect-error Kysely doesn't have types for user schema
             .values({ key: "status", value: null })
             // @ts-expect-error Kysely doesn't have types for user schema
@@ -589,7 +589,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         await tx.schema.createSchema(publishSchema).ifNotExists().execute();
 
         for (const tableName of Object.keys(getTables(this.schema)).concat(
-          "_ponder_metadata",
+          "_ponder_meta",
         )) {
           // Check if there is an existing relation with the name we're about to publish.
           const result = await tx.executeQuery<{
