@@ -440,7 +440,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5
+        version: github.com/foundry-rs/forge-std/07263d193d621c4b2b0ce8b4d54af58f6957d97d
 
   examples/with-foundry/ponder:
     dependencies:
@@ -585,8 +585,8 @@ importers:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.0.4)
       better-sqlite3:
-        specifier: ^10.0.0
-        version: 10.0.0
+        specifier: ^11.1.2
+        version: 11.1.2
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -4839,6 +4839,9 @@ packages:
 
   /ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
+    peerDependenciesMeta:
+      ajv:
+        optional: true
     dependencies:
       ajv: 8.12.0
     dev: false
@@ -5288,8 +5291,8 @@ packages:
       react: 18.2.0
     dev: false
 
-  /better-sqlite3@10.0.0:
-    resolution: {integrity: sha512-rOz0JY8bt9oMgrFssP7GnvA5R3yln73y/NizzWqy3WlFth8Ux8+g4r/N9fjX97nn4X1YX6MTER2doNpTu5pqiA==}
+  /better-sqlite3@11.1.2:
+    resolution: {integrity: sha512-gujtFwavWU4MSPT+h9B+4pkvZdyOUkH54zgLdIrMmmmd4ZqiBIrRNBzNzYVFO417xo882uP5HBu4GjOfaSrIQw==}
     requiresBuild: true
     dependencies:
       bindings: 1.5.0
@@ -14994,8 +14997,8 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
     dev: false
 
-  github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/52715a217dc51d0de15877878ab8213f6cbbbab5}
+  github.com/foundry-rs/forge-std/07263d193d621c4b2b0ce8b4d54af58f6957d97d:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/07263d193d621c4b2b0ce8b4d54af58f6957d97d}
     name: forge-std
-    version: 1.8.2
+    version: 1.9.1
     dev: false
