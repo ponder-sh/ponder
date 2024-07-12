@@ -10,7 +10,6 @@ import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import type { IndexingStore, Status } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
-import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -41,7 +40,7 @@ export type RealtimeEvent =
     };
 
 /**
- * Starts the server, sync, and indexing services for the specified build.
+ * Starts the sync and indexing services for the specified build.
  */
 export async function run({
   common,
@@ -103,15 +102,6 @@ export async function run({
 
     syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
-
-  const server = await createServer({
-    app: build.app,
-    routes: build.routes,
-    common,
-    schema,
-    database,
-    dbNamespace: namespaceInfo.userNamespace,
-  });
 
   const metadataStore = getMetadataStore({
     encoding: database.kind,
@@ -347,14 +337,12 @@ export async function run({
   const startPromise = start();
 
   return async () => {
-    const serverPromise = server.kill();
     indexingService.kill();
     await syncService.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();
     await realtimeQueue.onIdle();
     await startPromise;
-    await serverPromise;
     await database.kill();
   };
 }

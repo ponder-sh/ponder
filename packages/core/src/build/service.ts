@@ -54,13 +54,19 @@ export type Build = {
   graphQLSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
-  // Server
-  app?: Hono;
-  routes?: PonderRoutes;
+};
+
+export type BuildServer = {
+  app: Hono;
+  routes: PonderRoutes;
 };
 
 export type BuildResult =
   | { status: "success"; build: Build }
+  | { status: "error"; error: Error };
+
+export type BuildResultServer =
+  | { status: "success"; build?: BuildServer }
   | { status: "error"; error: Error };
 
 type RawBuild = {
@@ -70,7 +76,6 @@ type RawBuild = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   };
-  server: { app?: Hono; routes?: PonderRoutes };
 };
 
 export const create = async ({
@@ -174,7 +179,6 @@ export const start = async (
   const configResult = await executeConfig(buildService);
   const schemaResult = await executeSchema(buildService);
   const indexingFunctionsResult = await executeIndexingFunctions(buildService);
-  const serverResult = await executeServer(buildService);
 
   if (configResult.status === "error") {
     return { status: "error", error: configResult.error };
@@ -185,15 +189,11 @@ export const start = async (
   if (indexingFunctionsResult.status === "error") {
     return { status: "error", error: indexingFunctionsResult.error };
   }
-  if (serverResult.status === "error") {
-    return { status: "error", error: serverResult.error };
-  }
 
   const rawBuild: RawBuild = {
     config: configResult,
     schema: schemaResult,
     indexingFunctions: indexingFunctionsResult,
-    server: serverResult,
   };
 
   const buildResult = await validateAndBuild(buildService, rawBuild);
@@ -250,18 +250,10 @@ export const start = async (
           buildService.srcRegex.test(file) &&
           !buildService.serverRegex.test(file),
       );
-      const hasServerUpdate = invalidated.some((file) =>
-        buildService.serverRegex.test(file),
-      );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (
-        !hasConfigUpdate &&
-        !hasSchemaUpdate &&
-        !hasSrcUpdate &&
-        !hasServerUpdate
-      ) {
+      if (!hasConfigUpdate && !hasSchemaUpdate && !hasSrcUpdate) {
         return;
       }
 
@@ -299,15 +291,6 @@ export const start = async (
         rawBuild.indexingFunctions = result;
       }
 
-      if (hasServerUpdate) {
-        const result = await executeServer(buildService);
-        if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
-          return;
-        }
-        rawBuild.server = result;
-      }
-
       const buildResult = await validateAndBuild(buildService, rawBuild);
       onBuild(buildResult);
     };
@@ -316,6 +299,92 @@ export const start = async (
   }
 
   return buildResult;
+};
+
+export const startServer = async (
+  buildService: Service,
+  {
+    watch,
+    onBuild,
+  }:
+    | { watch: true; onBuild: (buildResult: BuildResultServer) => void }
+    | { watch: false; onBuild?: never },
+): Promise<BuildResultServer> => {
+  const { common } = buildService;
+
+  const buildResult = await executeServer(buildService);
+
+  if (buildResult.status === "error") {
+    return { status: "error", error: buildResult.error };
+  }
+
+  // If watch is false (`ponder start` or `ponder serve`),
+  // don't register  any event handlers on the watcher.
+  if (watch) {
+    // Define the directories and files to ignore
+    const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
+    const ignoredFiles = [
+      path.join(common.options.rootDir, "ponder-env.d.ts"),
+      path.join(common.options.rootDir, ".env.local"),
+    ];
+
+    const isFileIgnored = (filePath: string) => {
+      const isInIgnoredDir = ignoredDirs.some((dir) => {
+        const rel = path.relative(dir, filePath);
+        return !rel.startsWith("..") && !path.isAbsolute(rel);
+      });
+
+      const isIgnoredFile = ignoredFiles.includes(filePath);
+      return isInIgnoredDir || isIgnoredFile;
+    };
+
+    const onFileChange = async (_file: string) => {
+      if (isFileIgnored(_file)) return;
+
+      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
+      const file = toFilePath(
+        normalizeModuleId(_file),
+        common.options.rootDir,
+      ).path;
+
+      // Invalidate all modules that depend on the updated files.
+      // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
+      const invalidated = [
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
+      ];
+
+      // If no files were invalidated, no need to reload.
+      if (invalidated.length === 0) return;
+
+      const hasServerUpdate = invalidated.some((file) =>
+        buildService.serverRegex.test(file),
+      );
+
+      // This branch could trigger if you change a `note.txt` file within `src/`.
+      // Note: We could probably do a better job filtering out files in `isFileIgnored`.
+      if (!hasServerUpdate) return;
+
+      common.logger.info({
+        service: "build",
+        msg: `Hot reload ${invalidated
+          .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
+          .join(", ")}`,
+      });
+
+      const result = await executeServer(buildService);
+      if (result.status === "error") {
+        onBuild({ status: "error", error: result.error });
+        return;
+      }
+    };
+
+    buildService.viteDevServer.watcher.on("change", onFileChange);
+  }
+
+  return {
+    status: "success",
+    build: buildResult.app ? (buildResult as BuildServer) : undefined,
+  };
 };
 
 export const kill = async (buildService: Service): Promise<void> => {
@@ -570,8 +639,6 @@ const validateAndBuild = async (
       graphQLSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
-      app: rawBuild.server.app,
-      routes: rawBuild.server.routes,
     },
   };
 };
