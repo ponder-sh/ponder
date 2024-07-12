@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { type BuildResult, createBuildService } from "@/build/index.js";
-import type { Build, BuildResultServer } from "@/build/service.js";
+import type { Build, BuildResultServer, BuildServer } from "@/build/service.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -68,6 +68,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const shutdown = setupShutdown({ common, cleanup });
 
   let cachedBuild: Build;
+  let cachedBuildServer: BuildServer | undefined;
 
   const buildQueue = createQueue({
     initialStart: true,
@@ -97,6 +98,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               buildQueue.add({ type: "indexing", status: "error", error });
             },
           });
+
+          cleanupReloadableServer = await runServer({
+            common,
+            build: cachedBuild,
+            buildServer: cachedBuildServer,
+          });
         } else {
           // This handles build failures and indexing errors on hot reload.
           uiService.setReloadableError();
@@ -106,6 +113,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await cleanupReloadableServer();
 
         if (result.status === "success") {
+          cachedBuildServer = result.build;
+
           cleanupReloadableServer = await runServer({
             common,
             build: cachedBuild,
@@ -147,6 +156,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: { cli_command: "dev", ...buildPayload(initialResult.build) },
   });
+
+  cachedBuild = initialResult.build;
+  cachedBuildServer = initialResultServer.build;
 
   buildQueue
     .add({ type: "indexing", ...initialResult })
