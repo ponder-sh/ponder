@@ -138,11 +138,12 @@ export const convertSchemaToDrizzle = (
           tableName,
           drizzleColumns as PostgresTable,
         );
+      } else {
+        drizzleTables[tableName] = pgSchema(dbNamespace).table(
+          tableName,
+          drizzleColumns as PostgresTable,
+        );
       }
-      drizzleTables[tableName] = pgSchema(dbNamespace).table(
-        tableName,
-        drizzleColumns as PostgresTable,
-      );
     } else {
       drizzleTables[tableName] = sqliteTable(
         tableName,

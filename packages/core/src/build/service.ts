@@ -283,6 +283,8 @@ export const start = async (
       }
 
       if (hasSrcUpdate) {
+        buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+
         const result = await executeIndexingFunctions(buildService);
         if (result.status === "error") {
           onBuild({ status: "error", error: result.error });
@@ -370,6 +372,8 @@ export const startServer = async (
           .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
           .join(", ")}`,
       });
+
+      buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
 
       const result = await executeServer(buildService);
       if (result.status === "error") {

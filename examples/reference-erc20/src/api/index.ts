@@ -6,7 +6,6 @@ ponder.use("/graphql", graphql()).get("/big", async (c) => {
   const { Account } = c.tables;
 
   const account = await c.db
-    //  ^?
     .select({ balance: Account.balance })
     .from(Account)
     .orderBy(desc(Account.balance))
