@@ -172,6 +172,11 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "newEvents": {
+          // Note: statusBlocks should be assigned before any other
+          // asynchronous statements in order to prevent race conditions and
+          // ensure its correctness.
+          const statusBlocks = syncService.getStatusBlocks();
+
           for await (const rawEvents of syncStore.getEvents({
             sources,
             fromCheckpoint: event.fromCheckpoint,
@@ -185,7 +190,6 @@ export async function run({
 
             // set status to most recently processed realtime block or end block
             // for each chain.
-            const statusBlocks = syncService.getStatusBlocks();
             for (const network of networks) {
               if (statusBlocks[network.name] !== undefined) {
                 status[network.name]!.block = statusBlocks[network.name]!;
