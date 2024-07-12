@@ -9,6 +9,7 @@ import {
   sourceIsFactoryLog,
   sourceIsLog,
 } from "@/config/sources.js";
+import type { Status } from "@/indexing-store/store.js";
 import type { RawEvent } from "@/sync-store/store.js";
 import type {
   SyncBlock,
@@ -682,18 +683,29 @@ export function getFreePort(): Promise<number> {
   });
 }
 
-export async function waitForHealthy(port: number) {
+export async function waitForIndexedBlock(
+  port: number,
+  networkName: string,
+  blockNumber: number,
+) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      reject(new Error("Timed out while waiting for app to become healthy."));
+      reject(new Error("Timed out while waiting for the indexed block."));
     }, 5_000);
     const interval = setInterval(async () => {
-      const response = await fetch(`http://localhost:${port}/health`);
+      const response = await fetch(`http://localhost:${port}/status`);
       if (response.status === 200) {
-        clearTimeout(timeout);
-        clearInterval(interval);
-        resolve(undefined);
+        const status = (await response.json()) as Status;
+        const statusBlockNumber = status[networkName]?.block?.number;
+        if (
+          statusBlockNumber !== undefined &&
+          statusBlockNumber >= blockNumber
+        ) {
+          clearTimeout(timeout);
+          clearInterval(interval);
+          resolve(undefined);
+        }
       }
     }, 20);
   });

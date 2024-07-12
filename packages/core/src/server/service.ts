@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import type { MetadataStore, ReadonlyStore } from "@/indexing-store/store.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
@@ -21,17 +21,18 @@ import {
 type Server = {
   hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
   port: number;
-  setHealthy: () => void;
   kill: () => Promise<void>;
 };
 
 export async function createServer({
   graphqlSchema,
   readonlyStore,
+  metadataStore,
   common,
 }: {
   graphqlSchema: GraphQLSchema;
   readonlyStore: ReadonlyStore;
+  metadataStore: MetadataStore;
   common: Common;
 }): Promise<Server> {
   const hono = new Hono<{
@@ -39,7 +40,6 @@ export async function createServer({
   }>();
 
   let port = common.options.port;
-  let isHealthy = false;
   const startTime = Date.now();
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
@@ -83,7 +83,7 @@ export async function createServer({
       schema: graphqlSchema,
       context: () => {
         const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { store: readonlyStore, getLoader };
+        return { getLoader, readonlyStore, metadataStore };
       },
       graphqlEndpoint: path,
       maskedErrors: process.env.NODE_ENV === "production",
@@ -121,7 +121,12 @@ export async function createServer({
       }
     })
     .get("/health", async (c) => {
-      if (isHealthy) {
+      const status = await metadataStore.getStatus();
+
+      if (
+        status !== null &&
+        Object.values(status).every(({ ready }) => ready === true)
+      ) {
         return c.text("", 200);
       }
 
@@ -141,8 +146,12 @@ export async function createServer({
     // Renders GraphiQL
     .get("/graphql", (c) => c.html(prodGraphiql))
     // Serves GraphQL POST requests following healthcheck rules
-    .post("/graphql", (c) => {
-      if (isHealthy === false) {
+    .post("/graphql", async (c) => {
+      const status = await metadataStore.getStatus();
+      if (
+        status === null ||
+        Object.values(status).some(({ ready }) => ready === false)
+      ) {
         return c.json(
           { errors: [new GraphQLError("Historical indexing is not complete")] },
           503,
@@ -154,7 +163,12 @@ export async function createServer({
     // Renders GraphiQL
     .get("/", (c) => c.html(rootGraphiql))
     // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
-    .post("/", (c) => rootYoga.handle(c.req.raw));
+    .post("/", (c) => rootYoga.handle(c.req.raw))
+    .get("/status", async (c) => {
+      const status = await metadataStore.getStatus();
+
+      return c.json(status);
+    });
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any
@@ -220,9 +234,7 @@ export async function createServer({
   return {
     hono,
     port,
-    setHealthy: () => {
-      isHealthy = true;
-    },
+
     kill: () => terminator.terminate(),
   };
 }

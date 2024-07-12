@@ -39,7 +39,7 @@ export const buildPluralField = ({
       ? { [orderBy]: orderDirection || "asc" }
       : undefined;
 
-    return await context.store.findMany({
+    return await context.readonlyStore.findMany({
       tableName,
       where: whereObject,
       orderBy: orderByObject,

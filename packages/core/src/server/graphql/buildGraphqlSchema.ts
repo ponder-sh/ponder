@@ -1,4 +1,4 @@
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { MetadataStore, ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
 import { getTables } from "@/schema/utils.js";
 import {
@@ -10,12 +10,17 @@ import type { GetLoader } from "./buildLoaderCache.js";
 import { buildEntityTypes } from "./entity.js";
 import { buildEnumTypes } from "./enum.js";
 import { buildEntityFilterTypes } from "./filter.js";
+import { metadataEntity } from "./metadata.js";
 import { buildPluralField } from "./plural.js";
 import { buildSingularField } from "./singular.js";
 
 // TODO(kyle) stricter type
 export type Parent = Record<string, any>;
-export type Context = { store: IndexingStore; getLoader: GetLoader };
+export type Context = {
+  getLoader: GetLoader;
+  readonlyStore: ReadonlyStore;
+  metadataStore: MetadataStore;
+};
 
 export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};
@@ -48,6 +53,14 @@ export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
       entityFilterType,
     });
   }
+
+  queryFields._meta = {
+    type: metadataEntity,
+    resolve: async (_source, _args, context) => {
+      const status = await context.metadataStore.getStatus();
+      return { status };
+    },
+  };
 
   return new GraphQLSchema({
     query: new GraphQLObjectType({

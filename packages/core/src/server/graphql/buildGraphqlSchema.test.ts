@@ -3,6 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -68,7 +69,7 @@ test("scalar", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -136,7 +137,7 @@ test("scalar list", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -204,7 +205,7 @@ test("scalar optional", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -272,7 +273,7 @@ test("scalar optional list", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -325,7 +326,7 @@ test("json", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -374,7 +375,7 @@ test("enum", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -423,7 +424,7 @@ test("enum optional", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -481,7 +482,7 @@ test("enum list", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -539,7 +540,7 @@ test("enum optional list", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -598,7 +599,7 @@ test("one", async (context) => {
     schema: graphqlSchema,
     document,
     contextValue: {
-      store: indexingStore,
+      readonlyStore: indexingStore,
       getLoader: buildLoaderCache({ store: indexingStore }),
     },
   });
@@ -668,7 +669,7 @@ test("many", async (context) => {
     schema: graphqlSchema,
     document,
     contextValue: {
-      store: indexingStore,
+      readonlyStore: indexingStore,
       getLoader: buildLoaderCache({ store: indexingStore }),
     },
   });
@@ -749,7 +750,7 @@ test("many w/ filter", async (context) => {
     schema: graphqlSchema,
     document,
     contextValue: {
-      store: indexingStore,
+      readonlyStore: indexingStore,
       getLoader: buildLoaderCache({ store: indexingStore }),
     },
   });
@@ -799,7 +800,7 @@ test("bigint id", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -841,7 +842,7 @@ test("hex id", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -893,7 +894,7 @@ test("filter string eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -955,7 +956,7 @@ test("filter string in", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1029,7 +1030,7 @@ test("filter string contains", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1103,7 +1104,7 @@ test("filter string starts with", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1177,7 +1178,7 @@ test("filter string not ends with", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1239,7 +1240,7 @@ test("filter int eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1313,7 +1314,7 @@ test("filter int gt", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1375,7 +1376,7 @@ test("filter int lte", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1437,7 +1438,7 @@ test("filter int in", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1499,7 +1500,7 @@ test("filter float eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1573,7 +1574,7 @@ test("filter float gt", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1635,7 +1636,7 @@ test("filter float lte", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1697,7 +1698,7 @@ test("filter float in", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1759,7 +1760,7 @@ test("filter bigint eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1833,7 +1834,7 @@ test("filter bigint gt", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1895,7 +1896,7 @@ test("filter bigint lte", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -1957,7 +1958,7 @@ test("filter bigint in", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2019,7 +2020,7 @@ test("filer hex eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2093,7 +2094,7 @@ test("filter hex gt", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2167,7 +2168,7 @@ test("filter string list eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2241,7 +2242,7 @@ test("filter string list has", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2301,7 +2302,7 @@ test("filter enum eq", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2356,7 +2357,7 @@ test("filter enum in", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2419,7 +2420,7 @@ test("filter ref eq", async (context) => {
     schema: graphqlSchema,
     document,
     contextValue: {
-      store: indexingStore,
+      readonlyStore: indexingStore,
       getLoader: buildLoaderCache({ store: indexingStore }),
     },
   });
@@ -2486,7 +2487,7 @@ test("filter ref in", async (context) => {
     schema: graphqlSchema,
     document,
     contextValue: {
-      store: indexingStore,
+      readonlyStore: indexingStore,
       getLoader: buildLoaderCache({ store: indexingStore }),
     },
   });
@@ -2568,7 +2569,7 @@ test("order int asc", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2652,7 +2653,7 @@ test("order bigint asc", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2736,7 +2737,7 @@ test("order bigint desc", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   expect(result.data).toMatchObject({
@@ -2800,7 +2801,7 @@ test("limit default", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   // @ts-ignore
@@ -2851,7 +2852,7 @@ test("limit", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   // @ts-ignore
@@ -2902,7 +2903,7 @@ test("limit error", async (context) => {
   const result = await execute({
     schema: graphqlSchema,
     document,
-    contextValue: { store: indexingStore },
+    contextValue: { readonlyStore: indexingStore },
   });
 
   // @ts-ignore
@@ -3035,4 +3036,61 @@ test("filter type has correct suffixes and types", () => {
     relatedTableBigIntId_gte: "BigInt",
     relatedTableBigIntId_lte: "BigInt",
   });
+});
+
+test("metadata", async (context) => {
+  const schema = createSchema(() => ({}));
+
+  const { indexingStore, cleanup, database, namespaceInfo } =
+    await setupDatabaseServices(context, {
+      schema,
+    });
+
+  const metadataStore = getMetadataStore({
+    encoding: database.kind,
+    db: database.readonlyDb,
+    namespaceInfo,
+  });
+
+  await metadataStore.setStatus({
+    mainnet: {
+      ready: true,
+      block: {
+        number: 10,
+        timestamp: 20,
+      },
+    },
+  });
+
+  const graphqlSchema = buildGraphqlSchema(schema);
+
+  const document = parse(`
+  query {
+    _meta {
+      status
+    }
+  }
+  `);
+
+  const result = await execute({
+    schema: graphqlSchema,
+    document,
+    contextValue: { readonlyStore: indexingStore, metadataStore },
+  });
+
+  expect(result.data).toMatchObject({
+    _meta: {
+      status: {
+        mainnet: {
+          ready: true,
+          block: {
+            number: 10,
+            timestamp: 20,
+          },
+        },
+      },
+    },
+  });
+
+  await cleanup();
 });

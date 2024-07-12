@@ -6,9 +6,12 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { simulatePairSwap } from "@/_test/simulate.js";
-import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
+import {
+  getFreePort,
+  postGraphql,
+  waitForIndexedBlock,
+} from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
-import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test } from "vitest";
 
@@ -40,10 +43,7 @@ test("factory", async (context) => {
     },
   });
 
-  await waitForHealthy(port);
-
-  // TODO: Find a consistent way to wait for indexing to be complete.
-  await wait(500);
+  await waitForIndexedBlock(port, "mainnet", 5);
 
   let response = await postGraphql(
     port,
@@ -74,8 +74,7 @@ test("factory", async (context) => {
 
   await simulatePairSwap(context.factory.pair);
 
-  // TODO: Find a consistent way to wait for indexing to be complete.
-  await wait(2500);
+  await waitForIndexedBlock(port, "mainnet", 6);
 
   response = await postGraphql(
     port,

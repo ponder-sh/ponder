@@ -3,7 +3,11 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { HistoricalStore, ReadonlyStore } from "@/indexing-store/store.js";
+import type {
+  HistoricalStore,
+  MetadataStore,
+  ReadonlyStore,
+} from "@/indexing-store/store.js";
 import { createSchema } from "@/schema/schema.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { GraphQLSchema } from "graphql";
@@ -14,17 +18,26 @@ import { createServer } from "./service.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
+const getMockMetadataStore = (ready: boolean) =>
+  ({
+    getStatus() {
+      return Promise.resolve({ mainnet: { ready } });
+    },
+  }) as unknown as MetadataStore;
+
 test("port", async (context) => {
   const server1 = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   const server2 = await createServer({
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   expect(server2.port).toBeGreaterThanOrEqual(server1.port + 1);
@@ -41,6 +54,7 @@ test("not healthy", async (context) => {
       options: { ...context.common.options, maxHealthcheckDuration: 5 },
     },
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: getMockMetadataStore(false),
   });
 
   const response = await server.hono.request("/health");
@@ -58,6 +72,7 @@ test("healthy", async (context) => {
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: getMockMetadataStore(true),
   });
 
   const response = await server.hono.request("/health");
@@ -75,6 +90,7 @@ test("healthy PUT", async (context) => {
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   const response = await server.hono.request("/health", { method: "PUT" });
@@ -89,6 +105,7 @@ test("metrics", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   const response = await server.hono.request("/metrics");
@@ -103,6 +120,7 @@ test("metrics error", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
@@ -120,6 +138,7 @@ test("metrics PUT", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   const response = await server.hono.request("/metrics", { method: "PUT" });
@@ -171,8 +190,8 @@ test("graphql", async (context) => {
     graphqlSchema: graphqlSchema,
     common: context.common,
     readonlyStore: readonlyStore,
+    metadataStore: getMockMetadataStore(true),
   });
-  server.setHealthy();
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
@@ -240,8 +259,8 @@ test("graphql extra filter", async (context) => {
     graphqlSchema: graphqlSchema,
     common: context.common,
     readonlyStore: readonlyStore,
+    metadataStore: getMockMetadataStore(true),
   });
-  server.setHealthy();
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
@@ -292,8 +311,8 @@ test("graphql token limit error", async (context) => {
       options: { ...context.common.options, graphqlMaxOperationTokens: 3 },
     },
     readonlyStore: readonlyStore,
+    metadataStore: getMockMetadataStore(true),
   });
-  server.setHealthy();
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
@@ -348,8 +367,8 @@ test("graphql depth limit error", async (context) => {
       options: { ...context.common.options, graphqlMaxOperationDepth: 5 },
     },
     readonlyStore: readonlyStore,
+    metadataStore: getMockMetadataStore(true),
   });
-  server.setHealthy();
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
@@ -404,8 +423,8 @@ test("graphql max aliases error", async (context) => {
       options: { ...context.common.options, graphqlMaxOperationAliases: 2 },
     },
     readonlyStore: readonlyStore,
+    metadataStore: getMockMetadataStore(true),
   });
-  server.setHealthy();
 
   const response = await server.hono.request("/graphql", {
     method: "POST",
@@ -457,8 +476,8 @@ test("graphql interactive", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
-  server.setHealthy();
 
   const response = await server.hono.request("/graphql");
 
@@ -472,6 +491,7 @@ test("missing route", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   const response = await server.hono.request("/kevin");
@@ -488,6 +508,7 @@ test.skip("kill", async (context) => {
     graphqlSchema: {} as GraphQLSchema,
     common: context.common,
     readonlyStore: {} as ReadonlyStore,
+    metadataStore: {} as MetadataStore,
   });
 
   await server.kill();
