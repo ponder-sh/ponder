@@ -1,5 +1,9 @@
-import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import type { Schema } from "@/schema/common.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "./service.js";
@@ -8,20 +12,20 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 test("port", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server1 = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const server2 = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   expect(server2.port).toBeGreaterThanOrEqual(server1.port + 1);
@@ -31,15 +35,13 @@ test("port", async (context) => {
 });
 
 test("not healthy", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
-    common: {
-      ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 5 },
-    },
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    common: context.common,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/_ponder/health");
@@ -50,16 +52,20 @@ test("not healthy", async (context) => {
 });
 
 test("healthy", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
-    common: {
-      ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 0 },
-    },
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    common: context.common,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
+
+  await getMetadataStore({
+    encoding: database.kind,
+    namespaceInfo,
+    db: database.indexingDb,
+  }).setStatus({});
 
   const response = await server.hono.request("/_ponder/health");
 
@@ -69,15 +75,16 @@ test("healthy", async (context) => {
 });
 
 test("healthy PUT", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
     common: {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {} as Schema,
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/_ponder/health", {
@@ -90,12 +97,13 @@ test("healthy PUT", async (context) => {
 });
 
 test("metrics", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/_ponder/metrics");
@@ -106,12 +114,13 @@ test("metrics", async (context) => {
 });
 
 test("metrics error", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
@@ -125,12 +134,13 @@ test("metrics error", async (context) => {
 });
 
 test("metrics PUT", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/_ponder/metrics", {
@@ -143,12 +153,13 @@ test("metrics PUT", async (context) => {
 });
 
 test("missing route", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/kevin");
@@ -161,12 +172,13 @@ test("missing route", async (context) => {
 // Note that this test doesn't work because the `hono.request` method doesn't actually
 // create a socket connection, it just calls the request handler function directly.
 test.skip("kill", async (context) => {
+  const { database, namespaceInfo } = await setupDatabaseServices(context);
+
   const server = await createServer({
-    schema: {} as Schema,
     common: context.common,
-    // @ts-ignore
-    query: undefined,
-    readonlyStore: {} as ReadonlyStore,
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
   });
 
   await server.kill();

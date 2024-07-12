@@ -235,6 +235,26 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             }
           };
 
+          // Create ponder_metadata table if it doesn't exist
+          await tx.schema
+            .withSchema(this.userNamespace)
+            .createTable("ponder_metadata")
+            .addColumn("key", "text", (col) => col.primaryKey())
+            .addColumn("value", "jsonb")
+            .ifNotExists()
+            .execute();
+
+          // Create or set status to null
+          await tx
+            .withSchema(this.userNamespace)
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .insertInto("ponder_metadata")
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .values({ key: "status", value: null })
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .onConflict((oc) => oc.column("key").doUpdateSet({ value: null }))
+            .execute();
+
           // If no lock row is found for this namespace, we can acquire the lock.
           if (previousLockRow === undefined) {
             await tx

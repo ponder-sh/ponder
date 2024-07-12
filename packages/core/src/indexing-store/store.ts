@@ -99,6 +99,19 @@ export type HistoricalStore = ReadonlyStore &
     flush: (arg: { isFullFlush: boolean }) => Promise<void>;
   };
 
+export type Status = {
+  [networkName: string]: {
+    blockNumber: number | null;
+    blockTimestamp: number | null;
+    ready: boolean;
+  };
+};
+
+export type MetadataStore = {
+  setStatus: (status: Status) => Promise<void>;
+  getStatus: () => Promise<Status | null>;
+};
+
 export type IndexingStore<
   env extends "historical" | "realtime" = "historical" | "realtime",
 > = ReadonlyStore & WriteStore<env>;

@@ -37,7 +37,7 @@ export const graphql = (
       schema: graphqlSchema,
       context: () => {
         const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { store: readonlyStore, getLoader };
+        return { readonlyStore, getLoader };
       },
       graphqlEndpoint: c.req.path,
       maskedErrors: process.env.NODE_ENV === "production",

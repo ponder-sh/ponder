@@ -103,7 +103,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     database,
     dbNamespace: databaseConfig.publishSchema,
   });
-  server.setHealthy();
 
   cleanupReloadable = async () => {
     await server.kill();

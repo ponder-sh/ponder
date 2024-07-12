@@ -3,6 +3,7 @@ import type { Common } from "@/common/common.js";
 import type { DatabaseService } from "@/database/service.js";
 import { convertSchemaToDrizzle, createDrizzleDb } from "@/drizzle/runtime.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import type { Schema } from "@/schema/common.js";
 import { startClock } from "@/utils/timer.js";
@@ -16,7 +17,6 @@ import { onError } from "./error.js";
 type Server = {
   hono: Hono;
   port: number;
-  setHealthy: () => void;
   kill: () => Promise<void>;
 };
 
@@ -38,7 +38,20 @@ export async function createServer({
   // Create hono app
 
   const startTime = Date.now();
-  let isHealthy = false;
+
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo: { userNamespace: dbNamespace },
+    db: database.readonlyDb,
+    common,
+  });
+
+  const metadataStore = getMetadataStore({
+    encoding: database.kind,
+    namespaceInfo: { userNamespace: dbNamespace },
+    db: database.readonlyDb,
+  });
 
   const ponderApp = new Hono()
     .use(cors())
@@ -51,7 +64,12 @@ export async function createServer({
       }
     })
     .get("/health", async (c) => {
-      if (isHealthy) {
+      const status = await metadataStore.getStatus();
+
+      if (
+        status !== null &&
+        Object.values(status).every(({ ready }) => ready === true)
+      ) {
         return c.text("", 200);
       }
 
@@ -67,6 +85,11 @@ export async function createServer({
       }
 
       return c.text("Historical indexing is not complete.", 503);
+    })
+    .get("/status", async (c) => {
+      const status = await metadataStore.getStatus();
+
+      return c.json(status);
     });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
@@ -105,14 +128,7 @@ export async function createServer({
     }
   });
 
-  const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
-    schema,
-    namespaceInfo: { userNamespace: dbNamespace },
-    db: database.readonlyDb,
-    common,
-  });
-
+  // context required for graphql middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("readonlyStore", readonlyStore);
     c.set("schema", schema);
@@ -222,9 +238,6 @@ export async function createServer({
   return {
     hono,
     port,
-    setHealthy: () => {
-      isHealthy = true;
-    },
     kill: () => terminator.terminate(),
   };
 }
