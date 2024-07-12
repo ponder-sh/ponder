@@ -187,17 +187,17 @@ export async function run({
               event.toCheckpoint,
             );
             if (result.status === "error") onReloadableError(result.error);
-
-            // set status to most recently processed realtime block or end block
-            // for each chain.
-            for (const network of networks) {
-              if (statusBlocks[network.name] !== undefined) {
-                status[network.name]!.block = statusBlocks[network.name]!;
-              }
-            }
-
-            await metadataStore.setStatus(status);
           }
+
+          // set status to most recently processed realtime block or end block
+          // for each chain.
+          for (const network of networks) {
+            if (statusBlocks[network.name] !== undefined) {
+              status[network.name]!.block = statusBlocks[network.name]!;
+            }
+          }
+
+          await metadataStore.setStatus(status);
 
           break;
         }

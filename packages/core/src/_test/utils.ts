@@ -691,7 +691,7 @@ export async function waitForIndexedBlock(
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      reject(new Error("Timed out while waiting for app to become healthy."));
+      reject(new Error("Timed out while waiting for the indexed block."));
     }, 5_000);
     const interval = setInterval(async () => {
       const response = await fetch(`http://localhost:${port}/status`);
