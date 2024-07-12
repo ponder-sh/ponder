@@ -26,6 +26,7 @@ export const graphql = (
 ) =>
   createMiddleware(async (c) => {
     const readonlyStore = c.get("readonlyStore");
+    const metadataStore = c.get("metadataStore");
     const schema = c.get("schema");
     const graphqlSchema = buildGraphQLSchema(schema);
 
@@ -37,7 +38,7 @@ export const graphql = (
       schema: graphqlSchema,
       context: () => {
         const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { readonlyStore, getLoader };
+        return { readonlyStore, metadataStore, getLoader };
       },
       graphqlEndpoint: c.req.path,
       maskedErrors: process.env.NODE_ENV === "production",

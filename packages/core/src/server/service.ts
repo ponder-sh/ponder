@@ -2,6 +2,7 @@ import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { DatabaseService } from "@/database/service.js";
 import { convertSchemaToDrizzle, createDrizzleDb } from "@/drizzle/runtime.js";
+import { graphql } from "@/graphql/index.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
@@ -131,6 +132,7 @@ export async function createServer({
   // context required for graphql middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("readonlyStore", readonlyStore);
+    c.set("metadataStore", metadataStore);
     c.set("schema", schema);
     await next();
   });
@@ -168,6 +170,10 @@ export async function createServer({
         onError(error, c, common),
       ),
     );
+  } else {
+    // apply graphql middleware if no custom api exists
+    hono.use("/graphql", graphql());
+    hono.use("/", graphql());
   }
 
   // Create nodejs server
