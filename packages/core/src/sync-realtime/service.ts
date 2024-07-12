@@ -492,6 +492,8 @@ export const handleBlock = async (
     });
   }
 
+  service.localChain.push(syncBlockToLightBlock(newHeadBlock));
+
   service.onEvent({
     type: "checkpoint",
     chainId: service.network.chainId,
@@ -502,8 +504,6 @@ export const handleBlock = async (
       blockNumber: BigInt(newHeadBlockNumber),
     } satisfies Checkpoint,
   });
-
-  service.localChain.push(syncBlockToLightBlock(newHeadBlock));
 
   service.common.metrics.ponder_realtime_latest_block_number.set(
     { network: service.network.name },

@@ -43,7 +43,7 @@ test("factory", async (context) => {
     },
   });
 
-  await waitForIndexedBlock(port, "mainnet", 4);
+  await waitForIndexedBlock(port, "mainnet", 5);
 
   let response = await postGraphql(
     port,
@@ -74,7 +74,7 @@ test("factory", async (context) => {
 
   await simulatePairSwap(context.factory.pair);
 
-  await waitForIndexedBlock(port, "mainnet", 5);
+  await waitForIndexedBlock(port, "mainnet", 6);
 
   response = await postGraphql(
     port,
