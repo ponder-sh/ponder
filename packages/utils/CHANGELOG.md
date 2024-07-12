@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.7
+
+### Patch Changes
+
+- [#964](https://github.com/ponder-sh/ponder/pull/964) [`e82e385b777cf6fccaf779fe8b12151b56456b68`](https://github.com/ponder-sh/ponder/commit/e82e385b777cf6fccaf779fe8b12151b56456b68) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated logs retry logic for several providers.
+
 ## 0.1.6
 
 ### Patch Changes
