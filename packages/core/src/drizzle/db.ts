@@ -9,6 +9,20 @@ export type DrizzleDb = {
   select(
     fields?: SelectedFields<Column, Table>,
   ): SelectBuilder<SelectedFields<Column, Table> | undefined, "async", void>;
+  /**
+   * Execute raw, readonly sql queries.
+   *
+   * @example
+   * import { ponder } from "@/generated";
+   * import { sql } from "@ponder/core";
+   *
+   * ponder.get("/", async (c) => {
+   *   const result = await c.db.execute(sql`SELECT * from "Accounts" `);
+   *   return c.json(result);
+   * });
+   *
+   * @see https://orm.drizzle.team/docs/sql
+   */
   execute: <record extends Record<string, unknown>>(
     query: SQLWrapper,
   ) => Promise<record[]>;
