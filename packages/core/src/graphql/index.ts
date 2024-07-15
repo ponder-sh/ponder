@@ -7,6 +7,16 @@ import { createMiddleware } from "hono/factory";
 import { buildGraphQLSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
 
+/**
+ * Middleware for GraphQL with an interactive web view.
+ *
+ * - Docs: [TODO(kyle)]
+ *
+ * @example
+ * import { ponder } from "@/generated";
+ * ponder.use("/graphql", graphql());
+ *
+ */
 export const graphql = (
   {
     maxOperationTokens = 1000,

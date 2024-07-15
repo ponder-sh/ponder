@@ -49,6 +49,5 @@ export async function runServer({
 
   return async () => {
     await server.kill();
-    await database.kill();
   };
 }

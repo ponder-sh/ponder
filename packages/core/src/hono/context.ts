@@ -8,13 +8,7 @@ export type Context<
   path extends string = string,
   input extends Input = {},
 > = {
-  /**
-   * ...
-   */
   db: DrizzleDb;
-  /**
-   *
-   */
   tables: {
     [tableName in ExtractTableNames<schema>]: ConvertToDrizzleTable<
       tableName,
@@ -66,13 +60,7 @@ export type MiddlewareContext<
   path extends string = string,
   input extends Input = {},
 > = HonoContext<Env, path, input> & {
-  /**
-   * ...
-   */
   db: DrizzleDb;
-  /**
-   *
-   */
   tables: {
     [tableName in ExtractTableNames<schema>]: ConvertToDrizzleTable<
       tableName,
