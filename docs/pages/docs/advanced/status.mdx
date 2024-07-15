@@ -1,0 +1,86 @@
+---
+title: "Status"
+description: "An overview of the indexing status data that Ponder exposes."
+---
+
+import { Callout } from "nextra/components";
+
+# Status
+
+To check the indexing status of your app, use the `/status` endpoint or the `_meta` field in the GraphQL API.
+
+## Usage
+
+Use the indexing status to quickly confirm that Ponder is working as expected. You can also poll the status to confirm that a specific block number has been ingested by Ponder before refetching a query client-side (for example, in a form submit handler).
+
+### HTTP
+
+<div className="code-columns">
+
+```bash filename="Request"
+curl http://localhost:42069/status
+```
+
+```json filename="Response"
+{
+  "mainnet": {
+    "ready": true,
+    "block": {
+      "number": 20293450,
+      "timestamp": 1720823759
+    }
+  },
+  "base": {
+    "ready": true,
+    "block": {
+      "number": 17017206,
+      "timestamp": 1720823759
+    }
+  }
+}
+```
+
+</div>
+
+### GraphQL
+
+<div className="code-columns">
+
+```graphql filename="Query"
+query {
+  _meta {
+    status
+  }
+}
+```
+
+```json filename="Result"
+{
+  "_meta": {
+    "status": {
+      "mainnet": {
+        "ready": true,
+        "block": {
+          "number": 20293464,
+          "timestamp": 1720823939
+        }
+      },
+      "base": {
+        "ready": false,
+        "block": null
+      }
+    }
+  }
+}
+```
+
+</div>
+
+## API
+
+The response object contains a property for each network in your app with the following fields.
+
+| field     |                       type                       | description                                                                        |
+| :-------- | :----------------------------------------------: | :--------------------------------------------------------------------------------- |
+| **ready** |                    `boolean`                     | `true` if historical indexing is complete.                                         |
+| **block** | `{ number: number; timestamp: number; } \| null` | The most recently indexed block, or `null` if historical indexing is not complete. |

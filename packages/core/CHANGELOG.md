@@ -1,5 +1,16 @@
 # @ponder/core
 
+## 0.4.42
+
+### Patch Changes
+
+- [#967](https://github.com/ponder-sh/ponder/pull/967) [`a143279fd2a200d9955eac06132b254107a13a41`](https://github.com/ponder-sh/ponder/commit/a143279fd2a200d9955eac06132b254107a13a41) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped `better-sqlite3` to `11.1.2` to improve prebuilt binary coverage.
+
+- [#963](https://github.com/ponder-sh/ponder/pull/963) [`c58d6316d03d0e229ee8c9255f4a3d0604378241`](https://github.com/ponder-sh/ponder/commit/c58d6316d03d0e229ee8c9255f4a3d0604378241) Thanks [@kyscott18](https://github.com/kyscott18)! - Added an indexing status endpoint at `/status` and a `{ _meta { status } }` field in the GraphQL API. [Read more](https://ponder.sh/docs/advanced/status).
+
+- Updated dependencies [[`e82e385b777cf6fccaf779fe8b12151b56456b68`](https://github.com/ponder-sh/ponder/commit/e82e385b777cf6fccaf779fe8b12151b56456b68)]:
+  - @ponder/utils@0.1.7
+
 ## 0.4.41
 
 ### Patch Changes
