@@ -16,7 +16,6 @@ import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
-import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
 import {
   type IndexingFunctions,
@@ -34,6 +33,8 @@ export type Service = {
   common: Common;
   srcRegex: RegExp;
   serverRegex: RegExp;
+  srcPattern: string;
+  serverPattern: string;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -99,6 +100,15 @@ export const create = async ({
     .replace(escapeRegex, "\\$&");
   const serverRegex = new RegExp(`^${escapedServerDir}/.*\\.(ts|js)$`);
 
+  // TODO(kyle) ignore server files
+  const srcPattern = path
+    .join(common.options.srcDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+
+  const serverPattern = path
+    .join(common.options.serverDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+
   const viteLogger = {
     warnedMessages: new Set<string>(),
     loggedErrors: new WeakSet<Error>(),
@@ -151,6 +161,8 @@ export const create = async ({
     common,
     srcRegex,
     serverRegex,
+    srcPattern,
+    serverPattern,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -218,19 +230,19 @@ export const start = async (
       return isInIgnoredDir || isIgnoredFile;
     };
 
-    const onFileChange = async (_file: string) => {
-      if (isFileIgnored(_file)) return;
+    const onFileChange = async (file: string) => {
+      if (isFileIgnored(file)) return;
 
-      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
-      const file = toFilePath(
-        normalizeModuleId(_file),
-        common.options.rootDir,
-      ).path;
+      const files = glob.sync(buildService.srcPattern, {
+        ignore: buildService.serverPattern,
+      });
+
+      if (files.includes(file) === false) return;
 
       // Invalidate all modules that depend on the updated files.
       // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
       const invalidated = [
-        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree(files),
       ];
 
       // If no files were invalidated, no need to reload.
@@ -340,19 +352,17 @@ export const startServer = async (
       return isInIgnoredDir || isIgnoredFile;
     };
 
-    const onFileChange = async (_file: string) => {
-      if (isFileIgnored(_file)) return;
+    const onFileChange = async (file: string) => {
+      if (isFileIgnored(file)) return;
 
-      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
-      const file = toFilePath(
-        normalizeModuleId(_file),
-        common.options.rootDir,
-      ).path;
+      const files = glob.sync(buildService.serverPattern);
 
-      // Invalidate all modules that depend on the updated files.
+      if (files.includes(file) === false) return;
+
+      // Invalidate all server modules.
       // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
       const invalidated = [
-        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree(files),
       ];
 
       // If no files were invalidated, no need to reload.
@@ -376,10 +386,19 @@ export const startServer = async (
       buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
 
       const result = await executeServer(buildService);
+
       if (result.status === "error") {
         onBuild({ status: "error", error: result.error });
         return;
       }
+
+      onBuild({
+        status: result.status,
+        build:
+          result.app && result.routes
+            ? { app: result.app, routes: result.routes }
+            : undefined,
+      });
     };
 
     buildService.viteDevServer.watcher.on("change", onFileChange);
@@ -467,12 +486,9 @@ const executeIndexingFunctions = async (
     }
   | { status: "error"; error: Error }
 > => {
-  // TODO(kyle) ignore server file
-  const pattern = path
-    .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
-  const files = glob.sync(pattern);
-
+  const files = glob.sync(buildService.srcPattern, {
+    ignore: buildService.serverPattern,
+  });
   const executeResults = await Promise.all(
     files.map(async (file) => ({
       ...(await executeFile(buildService, { file })),
@@ -537,11 +553,7 @@ const executeServer = async (
     return { status: "success" };
   }
 
-  const pattern = path
-    .join(buildService.common.options.serverDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
-  const files = glob.sync(pattern);
-
+  const files = glob.sync(buildService.serverPattern);
   const executeResults = await Promise.all(
     files.map(async (file) => ({
       ...(await executeFile(buildService, { file })),

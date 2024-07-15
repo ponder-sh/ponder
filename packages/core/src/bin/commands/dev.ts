@@ -80,6 +80,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     ) => {
       if (result.type === "indexing") {
         await cleanupReloadable();
+        await cleanupReloadableServer();
 
         if (result.status === "success") {
           uiService.reset();
@@ -123,7 +124,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         } else {
           // This handles build failures and indexing errors on hot reload.
           uiService.setReloadableError();
-          cleanupReloadable = () => Promise.resolve();
+          cleanupReloadableServer = () => Promise.resolve();
         }
       }
     },
@@ -160,9 +161,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   cachedBuild = initialResult.build;
   cachedBuildServer = initialResultServer.build;
 
-  buildQueue
-    .add({ type: "indexing", ...initialResult })
-    .then(() => buildQueue.add({ type: "server", ...initialResultServer }));
+  buildQueue.add({ type: "indexing", ...initialResult });
 
   return async () => {
     buildQueue.pause();

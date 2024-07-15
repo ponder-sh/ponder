@@ -153,23 +153,21 @@ export async function createServer({
       }
     }
 
-    common.logger.debug({
-      service: "server",
-      msg: `Detected a custom server with routes: [${userApp.routes
-        .map((r) => r.path)
-        .join(", ")}]`,
-    });
-
     const db = createDrizzleDb(database);
     const tables = convertSchemaToDrizzle(schema, database, dbNamespace);
 
     // apply user routes to hono instance, registering a custom error handler
-    hono.route(
-      "/",
-      applyHonoRoutes(userApp, userRoutes, { db, tables }).onError((error, c) =>
-        onError(error, c, common),
-      ),
+    applyHonoRoutes(hono, userRoutes, { db, tables }).onError((error, c) =>
+      onError(error, c, common),
     );
+
+    common.logger.debug({
+      service: "server",
+      msg: `Detected a custom server with routes: [${userRoutes
+        .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
+        .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
+        .join(", ")}]`,
+    });
   } else {
     // apply graphql middleware if no custom api exists
     hono.use("/graphql", graphql());
