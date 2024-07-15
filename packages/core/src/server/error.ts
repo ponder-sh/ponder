@@ -55,7 +55,6 @@ export const onNotFound = (c: Context) => {
 };
 
 const tryExtractRequestBody = async (request: HonoRequest) => {
-  //
   try {
     return await request.json();
   } catch {

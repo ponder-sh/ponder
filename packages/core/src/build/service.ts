@@ -100,7 +100,6 @@ export const create = async ({
     .replace(escapeRegex, "\\$&");
   const serverRegex = new RegExp(`^${escapedServerDir}/.*\\.(ts|js)$`);
 
-  // TODO(kyle) ignore server files
   const srcPattern = path
     .join(common.options.srcDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
@@ -358,6 +357,8 @@ export const startServer = async (
       const files = glob.sync(buildService.serverPattern);
 
       if (files.includes(file) === false) return;
+
+      // TODO(kyle) maybe remove some lines?
 
       // Invalidate all server modules.
       // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.

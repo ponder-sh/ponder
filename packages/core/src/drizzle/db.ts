@@ -17,7 +17,7 @@ export type DrizzleDb = {
    * import { sql } from "@ponder/core";
    *
    * ponder.get("/", async (c) => {
-   *   const result = await c.db.execute(sql`SELECT * from "Accounts" `);
+   *   const result = await c.db.execute(sql`SELECT * from "Accounts"`);
    *   return c.json(result);
    * });
    *
