@@ -174,6 +174,42 @@ test("select enum", async (context) => {
   await cleanup();
 });
 
+test("select list", async (context) => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      list: p.string().list(),
+    }),
+  }));
+
+  const { database, cleanup, indexingStore, namespaceInfo } =
+    await setupDatabaseServices(context, { schema });
+
+  await indexingStore.create({
+    tableName: "table",
+    id: "1",
+    data: {
+      list: ["big", "dog"],
+    },
+  });
+  await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
+
+  const db = createDrizzleDb(database) as unknown as DrizzleDb;
+
+  const drizzleTables = convertSchemaToDrizzle(
+    schema,
+    database,
+    namespaceInfo.userNamespace,
+  ) as Context<typeof schema>["tables"];
+
+  const rows = await db.select().from(drizzleTables.table);
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ id: "1", list: ["big", "dog"] });
+
+  await cleanup();
+});
+
 test("select with join", async (context) => {
   const schema = createSchema((p) => ({
     account: p.createTable({

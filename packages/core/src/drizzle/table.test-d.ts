@@ -50,7 +50,6 @@ test("select enum", async () => {
     e: p.createEnum(["yes", "no"]),
     table: p.createTable({
       id: p.string(),
-      name: p.int().optional(),
       e: p.enum("e"),
     }),
   }));
@@ -64,14 +63,13 @@ test("select enum", async () => {
   const result = await ({} as DrizzleDb).select().from(table);
   //    ^?
 
-  expectTypeOf<{ id: string; name: number | null; e: "yes" | "no" }[]>(result);
+  expectTypeOf<{ id: string; e: "yes" | "no" }[]>(result);
 });
 
 test("select json", async () => {
   const schema = createSchema((p) => ({
     table: p.createTable({
       id: p.string(),
-      name: p.int().optional(),
       json: p.json<{ a: number; b: string }>(),
     }),
   }));
@@ -85,9 +83,27 @@ test("select json", async () => {
   const result = await ({} as DrizzleDb).select().from(table);
   //    ^?
 
-  expectTypeOf<
-    { id: string; name: number | null; json: { a: number; b: string } }[]
-  >(result);
+  expectTypeOf<{ id: string; json: { a: number; b: string } }[]>(result);
+});
+
+test("select list", async () => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      list: p.string().list(),
+    }),
+  }));
+
+  const table = {} as ConvertToDrizzleTable<
+    "table",
+    (typeof schema)["table"]["table"],
+    typeof schema
+  >;
+
+  const result = await ({} as DrizzleDb).select().from(table);
+  //    ^?
+
+  expectTypeOf<{ id: string; list: string[] }[]>(result);
 });
 
 test("select join", async () => {

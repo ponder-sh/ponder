@@ -1,8 +1,9 @@
 import type { DatabaseService } from "@/database/service.js";
-import type { Schema } from "@/schema/common.js";
+import type { Scalar, Schema } from "@/schema/common.js";
 import {
   isEnumColumn,
   isJSONColumn,
+  isListColumn,
   isMaterialColumn,
   isOptionalColumn,
   isReferenceColumn,
@@ -29,6 +30,7 @@ import {
 import { SQLiteBigintBuilder } from "./bigint.js";
 import { PgHexBuilder, SQLiteHexBuilder } from "./hex.js";
 import { SQLiteJsonBuilder } from "./json.js";
+import { PgListBuilder, SQLiteListBuilder } from "./list.js";
 
 export const createDrizzleDb = (database: DatabaseService) => {
   if (database.kind === "postgres") {
@@ -72,53 +74,69 @@ export const convertSchemaToDrizzle = (
             database.kind,
           );
         } else if (isEnumColumn(column)) {
-          drizzleColumns[columnName] = convertEnumColumn(
-            columnName,
-            database.kind,
-          );
+          if (isListColumn(column)) {
+            drizzleColumns[columnName] = convertListColumn(
+              columnName,
+              database.kind,
+              "string",
+            );
+          } else {
+            drizzleColumns[columnName] = convertEnumColumn(
+              columnName,
+              database.kind,
+            );
+          }
         } else if (isScalarColumn(column) || isReferenceColumn(column)) {
-          switch (column[" scalar"]) {
-            case "string":
-              drizzleColumns[columnName] = convertStringColumn(
-                columnName,
-                database.kind,
-              );
-              break;
+          if (isListColumn(column)) {
+            drizzleColumns[columnName] = convertListColumn(
+              columnName,
+              database.kind,
+              column[" scalar"],
+            );
+          } else {
+            switch (column[" scalar"]) {
+              case "string":
+                drizzleColumns[columnName] = convertStringColumn(
+                  columnName,
+                  database.kind,
+                );
+                break;
 
-            case "int":
-              drizzleColumns[columnName] = convertIntColumn(
-                columnName,
-                database.kind,
-              );
-              break;
+              case "int":
+                drizzleColumns[columnName] = convertIntColumn(
+                  columnName,
+                  database.kind,
+                );
+                break;
 
-            case "boolean":
-              drizzleColumns[columnName] = convertBooleanColumn(
-                columnName,
-                database.kind,
-              );
-              break;
+              case "boolean":
+                drizzleColumns[columnName] = convertBooleanColumn(
+                  columnName,
+                  database.kind,
+                );
+                break;
 
-            case "float":
-              drizzleColumns[columnName] = convertFloatColumn(
-                columnName,
-                database.kind,
-              );
-              break;
+              case "float":
+                drizzleColumns[columnName] = convertFloatColumn(
+                  columnName,
+                  database.kind,
+                );
+                break;
 
-            case "hex":
-              drizzleColumns[columnName] = convertHexColumn(
-                columnName,
-                database.kind,
-              );
-              break;
+              case "hex":
+                drizzleColumns[columnName] = convertHexColumn(
+                  columnName,
+                  database.kind,
+                );
+                break;
 
-            case "bigint":
-              drizzleColumns[columnName] = convertBigintColumn(
-                columnName,
-                database.kind,
-              );
-              break;
+              case "bigint":
+                drizzleColumns[columnName] = convertBigintColumn(
+                  columnName,
+                  database.kind,
+                );
+                break;
+            }
           }
 
           // apply column constraints
@@ -197,7 +215,15 @@ const convertBigintColumn = (
     : PgNumeric(columnName, { precision: 78 });
 };
 
-// TODO(kyle) list
+const convertListColumn = (
+  columnName: string,
+  kind: "sqlite" | "postgres",
+  element: Scalar,
+) => {
+  return kind === "sqlite"
+    ? new SQLiteListBuilder(columnName, element)
+    : new PgListBuilder(columnName, element);
+};
 
 const convertJsonColumn = (columnName: string, kind: "sqlite" | "postgres") => {
   return kind === "sqlite"
