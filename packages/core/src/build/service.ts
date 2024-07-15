@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
+import { BuildError } from "@/common/errors.js";
 import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
@@ -330,11 +331,13 @@ export const startServer = async (
 ): Promise<BuildResultServer> => {
   const { common } = buildService;
 
-  const buildResult = await executeServer(buildService);
+  const serverResult = await executeServer(buildService);
 
-  if (buildResult.status === "error") {
-    return { status: "error", error: buildResult.error };
+  if (serverResult.status === "error") {
+    return { status: "error", error: serverResult.error };
   }
+
+  const buildResult = validateAndBuildServer(buildService, serverResult);
 
   // If watch is false (`ponder start` or `ponder serve`),
   // don't register  any event handlers on the watcher.
@@ -382,22 +385,13 @@ export const startServer = async (
         return;
       }
 
-      onBuild({
-        status: result.status,
-        build:
-          result.app && result.routes
-            ? { app: result.app, routes: result.routes }
-            : undefined,
-      });
+      onBuild(validateAndBuildServer(buildService, result));
     };
 
     buildService.viteDevServer.watcher.on("change", onFileChange);
   }
 
-  return {
-    status: "success",
-    build: buildResult.app ? (buildResult as BuildServer) : undefined,
-  };
+  return buildResult;
 };
 
 export const kill = async (buildService: Service): Promise<void> => {
@@ -645,6 +639,42 @@ const validateAndBuild = async (
       graphQLSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
+    },
+  };
+};
+
+const validateAndBuildServer = (
+  { common }: Pick<Service, "common">,
+  build: Partial<BuildServer>,
+): BuildResultServer => {
+  if (!build.app || !build.routes) {
+    return { status: "success" };
+  }
+
+  for (const {
+    pathOrHandlers: [maybePathOrHandler],
+  } of build.routes) {
+    if (typeof maybePathOrHandler === "string") {
+      if (
+        maybePathOrHandler === "/status" ||
+        maybePathOrHandler === "/metrics" ||
+        maybePathOrHandler === "/health"
+      ) {
+        const error = new BuildError(
+          `Validation failed: API route "${maybePathOrHandler}" is reserved for internal use.`,
+        );
+        error.stack = undefined;
+        common.logger.error({ service: "build", msg: "Failed build", error });
+        return { status: "error", error };
+      }
+    }
+  }
+
+  return {
+    status: "success",
+    build: {
+      app: build.app,
+      routes: build.routes,
     },
   };
 };

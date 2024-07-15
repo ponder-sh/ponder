@@ -54,45 +54,6 @@ export async function createServer({
     db: database.readonlyDb,
   });
 
-  const ponderApp = new Hono()
-    .use(cors())
-    .get("/metrics", async (c) => {
-      try {
-        const metrics = await common.metrics.getMetrics();
-        return c.text(metrics);
-      } catch (error) {
-        return c.json(error as Error, 500);
-      }
-    })
-    .get("/health", async (c) => {
-      const status = await metadataStore.getStatus();
-
-      if (
-        status !== null &&
-        Object.values(status).every(({ ready }) => ready === true)
-      ) {
-        return c.text("", 200);
-      }
-
-      const elapsed = (Date.now() - startTime) / 1000;
-      const max = common.options.maxHealthcheckDuration;
-
-      if (elapsed > max) {
-        common.logger.warn({
-          service: "server",
-          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
-        });
-        return c.text("", 200);
-      }
-
-      return c.text("Historical indexing is not complete.", 503);
-    })
-    .get("/status", async (c) => {
-      const status = await metadataStore.getStatus();
-
-      return c.json(status);
-    });
-
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
     common.metrics.ponder_http_server_active_requests.inc(commonLabels);
@@ -139,20 +100,46 @@ export async function createServer({
 
   const hono = new Hono()
     .use(metricsMiddleware)
-    .route("/_ponder", ponderApp)
+    .use(cors())
+    .get("/metrics", async (c) => {
+      try {
+        const metrics = await common.metrics.getMetrics();
+        return c.text(metrics);
+      } catch (error) {
+        return c.json(error as Error, 500);
+      }
+    })
+    .get("/health", async (c) => {
+      const status = await metadataStore.getStatus();
+
+      if (
+        status !== null &&
+        Object.values(status).every(({ ready }) => ready === true)
+      ) {
+        return c.text("", 200);
+      }
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      const max = common.options.maxHealthcheckDuration;
+
+      if (elapsed > max) {
+        common.logger.warn({
+          service: "server",
+          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+        });
+        return c.text("", 200);
+      }
+
+      return c.text("Historical indexing is not complete.", 503);
+    })
+    .get("/status", async (c) => {
+      const status = await metadataStore.getStatus();
+
+      return c.json(status);
+    })
     .use(contextMiddleware);
 
   if (userApp !== undefined && userRoutes !== undefined) {
-    for (const route of userApp.routes) {
-      // Validate user routes don't conflict with ponder routes
-      if (route.path.startsWith("/_ponder")) {
-        common.logger.warn({
-          service: "server",
-          msg: `Ingoring '${route.method}' handler for route '${route.path}' because '/_ponder' is reserved for internal use`,
-        });
-      }
-    }
-
     const db = createDrizzleDb(database);
     const tables = convertSchemaToDrizzle(schema, database, dbNamespace);
 
