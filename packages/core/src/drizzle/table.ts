@@ -1,5 +1,7 @@
 import type {
+  EnumColumn,
   ExtractNonVirtualColumnNames,
+  JSONColumn,
   Schema as PonderSchema,
   Table as PonderTable,
   ReferenceColumn,
@@ -32,7 +34,12 @@ export type ConvertToDrizzleTable<
         driverParam: unknown;
         enumValues: undefined;
         notNull: (table[columnName] &
-          (ScalarColumn | ReferenceColumn))[" optional"] extends true
+          (
+            | ScalarColumn
+            | ReferenceColumn
+            | EnumColumn
+            | JSONColumn
+          ))[" optional"] extends true
           ? false
           : true;
         primaryKey: columnName extends "id" ? true : false;

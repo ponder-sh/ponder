@@ -45,6 +45,51 @@ test("select optional column", async () => {
   expectTypeOf<{ id: string; name: number | null }[]>(result);
 });
 
+test("select enum", async () => {
+  const schema = createSchema((p) => ({
+    e: p.createEnum(["yes", "no"]),
+    table: p.createTable({
+      id: p.string(),
+      name: p.int().optional(),
+      e: p.enum("e"),
+    }),
+  }));
+
+  const table = {} as ConvertToDrizzleTable<
+    "table",
+    (typeof schema)["table"]["table"],
+    typeof schema
+  >;
+
+  const result = await ({} as DrizzleDb).select().from(table);
+  //    ^?
+
+  expectTypeOf<{ id: string; name: number | null; e: "yes" | "no" }[]>(result);
+});
+
+test("select json", async () => {
+  const schema = createSchema((p) => ({
+    table: p.createTable({
+      id: p.string(),
+      name: p.int().optional(),
+      json: p.json<{ a: number; b: string }>(),
+    }),
+  }));
+
+  const table = {} as ConvertToDrizzleTable<
+    "table",
+    (typeof schema)["table"]["table"],
+    typeof schema
+  >;
+
+  const result = await ({} as DrizzleDb).select().from(table);
+  //    ^?
+
+  expectTypeOf<
+    { id: string; name: number | null; json: { a: number; b: string } }[]
+  >(result);
+});
+
 test("select join", async () => {
   const schema = createSchema((p) => ({
     account: p.createTable({
