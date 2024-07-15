@@ -70,6 +70,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   let cachedBuild: Build;
   let cachedBuildServer: BuildServer | undefined;
 
+  // Note: an update to the "indexing" build triggers a reload of the server runtime.
+  // This is to ensure that updates to either the config or schema are reflected in
+  // the server.
   const buildQueue = createQueue({
     initialStart: true,
     concurrency: 1,

@@ -16,6 +16,7 @@ import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
+import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
 import {
   type IndexingFunctions,
@@ -229,19 +230,19 @@ export const start = async (
       return isInIgnoredDir || isIgnoredFile;
     };
 
-    const onFileChange = async (file: string) => {
-      if (isFileIgnored(file)) return;
+    const onFileChange = async (_file: string) => {
+      if (isFileIgnored(_file)) return;
 
-      const files = glob.sync(buildService.srcPattern, {
-        ignore: buildService.serverPattern,
-      });
-
-      if (files.includes(file) === false) return;
+      // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
+      const file = toFilePath(
+        normalizeModuleId(_file),
+        common.options.rootDir,
+      ).path;
 
       // Invalidate all modules that depend on the updated files.
       // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
       const invalidated = [
-        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree(files),
+        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree([file]),
       ];
 
       // If no files were invalidated, no need to reload.
@@ -294,6 +295,10 @@ export const start = async (
       }
 
       if (hasSrcUpdate) {
+        const files = glob.sync(buildService.srcPattern, {
+          ignore: buildService.serverPattern,
+        });
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
 
         const result = await executeIndexingFunctions(buildService);
@@ -358,28 +363,12 @@ export const startServer = async (
 
       if (files.includes(file) === false) return;
 
-      // TODO(kyle) maybe remove some lines?
-
       // Invalidate all server modules.
-      // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
-      const invalidated = [
-        ...buildService.viteNodeRunner.moduleCache.invalidateDepTree(files),
-      ];
-
-      // If no files were invalidated, no need to reload.
-      if (invalidated.length === 0) return;
-
-      const hasServerUpdate = invalidated.some((file) =>
-        buildService.serverRegex.test(file),
-      );
-
-      // This branch could trigger if you change a `note.txt` file within `src/`.
-      // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (!hasServerUpdate) return;
+      buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
 
       common.logger.info({
         service: "build",
-        msg: `Hot reload ${invalidated
+        msg: `Hot reload ${files
           .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
           .join(", ")}`,
       });
