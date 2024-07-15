@@ -12,7 +12,8 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 test("port", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server1 = await createServer({
     common: context.common,
@@ -32,10 +33,12 @@ test("port", async (context) => {
 
   await server1.kill();
   await server2.kill();
+  await cleanup();
 });
 
 test("not healthy", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -49,10 +52,12 @@ test("not healthy", async (context) => {
   expect(response.status).toBe(503);
 
   await server.kill();
+  await cleanup();
 });
 
 test("healthy", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -72,10 +77,12 @@ test("healthy", async (context) => {
   expect(response.status).toBe(200);
 
   await server.kill();
+  await cleanup();
 });
 
 test("healthy PUT", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: {
@@ -94,10 +101,12 @@ test("healthy PUT", async (context) => {
   expect(response.status).toBe(404);
 
   await server.kill();
+  await cleanup();
 });
 
 test("metrics", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -111,10 +120,12 @@ test("metrics", async (context) => {
   expect(response.status).toBe(200);
 
   await server.kill();
+  await cleanup();
 });
 
 test("metrics error", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -131,10 +142,12 @@ test("metrics error", async (context) => {
   expect(response.status).toBe(500);
 
   await server.kill();
+  await cleanup();
 });
 
 test("metrics PUT", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -150,10 +163,12 @@ test("metrics PUT", async (context) => {
   expect(response.status).toBe(404);
 
   await server.kill();
+  await cleanup();
 });
 
 test("missing route", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -167,6 +182,7 @@ test("missing route", async (context) => {
   expect(response.status).toBe(404);
 
   await server.kill();
+  await cleanup();
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually
