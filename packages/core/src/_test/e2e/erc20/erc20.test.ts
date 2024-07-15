@@ -6,11 +6,14 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { simulate } from "@/_test/simulate.js";
-import { getFreePort, postGraphql, waitForHealthy } from "@/_test/utils.js";
+import {
+  getFreePort,
+  postGraphql,
+  waitForIndexedBlock,
+} from "@/_test/utils.js";
 import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
 import { range } from "@/utils/range.js";
-import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
 import { zeroAddress } from "viem";
 import { beforeEach, describe, expect, test } from "vitest";
@@ -43,35 +46,14 @@ test("erc20", async (context) => {
     },
   });
 
-  await waitForHealthy(port);
-
-  let response = await postGraphql(
-    port,
-    `
-    accounts {
-      items {
-        id
-        balance
-      }
-    }
-    `,
-  );
-
-  expect(response.status).toBe(200);
-  let body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-  let accounts = body.data.accounts.items;
-  expect(accounts).toHaveLength(0);
-
   await simulate({
     erc20Address: context.erc20.address,
     factoryAddress: context.factory.address,
   });
 
-  // TODO: Find a consistent way to wait for indexing to be complete.
-  await wait(2500);
+  await waitForIndexedBlock(port, "mainnet", 8);
 
-  response = await postGraphql(
+  const response = await postGraphql(
     port,
     `
     accounts {
@@ -84,9 +66,9 @@ test("erc20", async (context) => {
   );
 
   expect(response.status).toBe(200);
-  body = (await response.json()) as any;
+  const body = (await response.json()) as any;
   expect(body.errors).toBe(undefined);
-  accounts = body.data.accounts.items;
+  const accounts = body.data.accounts.items;
 
   expect(accounts[0]).toMatchObject({
     id: zeroAddress,
@@ -119,8 +101,6 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       },
     });
 
-    await waitForHealthy(startPort);
-
     for (const _ in range(0, 3)) {
       await simulate({
         erc20Address: context.erc20.address,
@@ -137,8 +117,6 @@ describe.skipIf(shouldSkip)("postgres database", () => {
         port: servePort,
       },
     });
-
-    await waitForHealthy(servePort);
 
     const response = await postGraphql(
       servePort,

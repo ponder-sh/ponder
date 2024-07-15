@@ -101,8 +101,7 @@ export type HistoricalStore = ReadonlyStore &
 
 export type Status = {
   [networkName: string]: {
-    blockNumber: number | null;
-    blockTimestamp: number | null;
+    block: { number: number; timestamp: number } | null;
     ready: boolean;
   };
 };

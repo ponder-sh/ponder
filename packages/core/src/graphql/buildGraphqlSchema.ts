@@ -54,7 +54,7 @@ export const buildGraphQLSchema = (schema: Schema): GraphQLSchema => {
     });
   }
 
-  queryFields._metadata = {
+  queryFields._meta = {
     type: metadataEntity,
     resolve: async (_source, _args, context) => {
       const status = await context.metadataStore.getStatus();

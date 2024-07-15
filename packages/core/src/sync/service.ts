@@ -567,32 +567,34 @@ export const kill = async (syncService: Service) => {
 };
 
 /** Return the number and timestamp of the most recently processed blocks. */
-export const getRealtimeStatus = (syncService: Service) => {
+export const getStatusBlocks = (
+  syncService: Service,
+  realtimeCheckpoint?: Checkpoint,
+) => {
   const status: {
-    [networkName: string]:
-      | { blockNumber: number; blockTimestamp: number }
-      | undefined;
+    [networkName: string]: { number: number; timestamp: number } | undefined;
   } = {};
 
   for (const networkService of syncService.networkServices) {
     if (networkService.realtime === undefined) {
       status[networkService.network.name] = {
-        blockNumber: Number(networkService.endCheckpoint!.blockNumber),
-        blockTimestamp: networkService.endCheckpoint!.blockTimestamp,
+        number: Number(networkService.endCheckpoint!.blockNumber),
+        timestamp: networkService.endCheckpoint!.blockTimestamp,
       };
     } else {
       const mostRecentBlock =
         networkService.realtime.realtimeSync.getMostRecentBlock(
-          syncService.checkpoint,
+          realtimeCheckpoint === undefined
+            ? syncService.checkpoint
+            : checkpointMin(syncService.checkpoint, realtimeCheckpoint),
         );
 
       if (mostRecentBlock === undefined) {
         status[networkService.network.name] = undefined;
       } else {
         status[networkService.network.name] = {
-          ...zeroCheckpoint,
-          blockTimestamp: mostRecentBlock.timestamp,
-          blockNumber: mostRecentBlock.number,
+          timestamp: mostRecentBlock.timestamp,
+          number: mostRecentBlock.number,
         };
       }
     }

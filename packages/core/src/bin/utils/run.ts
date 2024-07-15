@@ -75,8 +75,7 @@ export async function run({
   for (const network of networks) {
     status[network.name] = {
       ready: false,
-      blockNumber: null,
-      blockTimestamp: null,
+      block: null,
     };
   }
 
@@ -156,6 +155,11 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "newEvents": {
+          // Note: statusBlocks should be assigned before any other
+          // asynchronous statements in order to prevent race conditions and
+          // ensure its correctness.
+          const statusBlocks = syncService.getStatusBlocks(event.toCheckpoint);
+
           for await (const rawEvents of syncStore.getEvents({
             sources,
             fromCheckpoint: event.fromCheckpoint,
@@ -166,26 +170,17 @@ export async function run({
               event.toCheckpoint,
             );
             if (result.status === "error") onReloadableError(result.error);
-
-            // set status to most recently processed realtime block or end block
-            // for each chain.
-            const checkpointStatus = syncService.getRealtimeStatus();
-            for (const network of networks) {
-              status[network.name] = {
-                ready: true,
-                blockNumber:
-                  checkpointStatus[network.name]?.blockNumber ??
-                  status[network.name]?.blockNumber ??
-                  null,
-                blockTimestamp:
-                  checkpointStatus[network.name]?.blockTimestamp ??
-                  status[network.name]?.blockTimestamp ??
-                  null,
-              };
-            }
-
-            await metadataStore.setStatus(status);
           }
+
+          // set status to most recently processed realtime block or end block
+          // for each chain.
+          for (const network of networks) {
+            if (statusBlocks[network.name] !== undefined) {
+              status[network.name]!.block = statusBlocks[network.name]!;
+            }
+          }
+
+          await metadataStore.setStatus(status);
 
           break;
         }
@@ -317,12 +312,11 @@ export async function run({
 
     // set status to ready and set blocks to most recently processed
     // or end block
-    const checkpointStatus = syncService.getRealtimeStatus();
+    const statusBlocks = syncService.getStatusBlocks();
     for (const network of networks) {
       status[network.name] = {
         ready: true,
-        blockNumber: checkpointStatus[network.name]?.blockNumber ?? null,
-        blockTimestamp: checkpointStatus[network.name]?.blockTimestamp ?? null,
+        block: statusBlocks[network.name] ?? null,
       };
     }
 

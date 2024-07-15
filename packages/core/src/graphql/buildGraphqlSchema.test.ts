@@ -3048,15 +3048,17 @@ test("metadata", async (context) => {
 
   const metadataStore = getMetadataStore({
     encoding: database.kind,
-    db: database.readonlyDb,
+    db: database.indexingDb,
     namespaceInfo,
   });
 
   await metadataStore.setStatus({
     mainnet: {
       ready: true,
-      blockNumber: 10,
-      blockTimestamp: 20,
+      block: {
+        number: 10,
+        timestamp: 20,
+      },
     },
   });
 
@@ -3064,7 +3066,7 @@ test("metadata", async (context) => {
 
   const document = parse(`
   query {
-    _metadata {
+    _meta {
       status
     }
   }
@@ -3077,12 +3079,14 @@ test("metadata", async (context) => {
   });
 
   expect(result.data).toMatchObject({
-    _metadata: {
+    _meta: {
       status: {
         mainnet: {
           ready: true,
-          blockNumber: 10,
-          blockTimestamp: 20,
+          block: {
+            number: 10,
+            timestamp: 20,
+          },
         },
       },
     },
