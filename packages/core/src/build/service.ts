@@ -44,7 +44,7 @@ export type Service = {
   viteNodeRunner: ViteNodeRunner;
 };
 
-export type IndexingBuild = {
+type BaseBuild = {
   // Build ID for caching
   buildId: string;
   // Config
@@ -55,13 +55,15 @@ export type IndexingBuild = {
   // Schema
   schema: Schema;
   graphqlSchema: GraphQLSchema;
-  // Indexing functions
+};
+
+export type IndexingBuild = BaseBuild & {
   indexingFunctions: IndexingFunctions;
 };
 
-export type ApiBuild = {
-  app: Hono;
-  routes: PonderRoutes;
+export type ApiBuild = BaseBuild & {
+  app?: Hono;
+  routes?: PonderRoutes;
 };
 
 export type IndexingBuildResult =
@@ -69,17 +71,8 @@ export type IndexingBuildResult =
   | { status: "error"; error: Error };
 
 export type ApiBuildResult =
-  | { status: "success"; build?: ApiBuild }
+  | { status: "success"; build: ApiBuild }
   | { status: "error"; error: Error };
-
-type RawBuild = {
-  config: { config: Config; contentHash: string };
-  schema: { schema: Schema; contentHash: string };
-  indexingFunctions: {
-    indexingFunctions: RawIndexingFunctions;
-    contentHash: string;
-  };
-};
 
 export const create = async ({
   common,
@@ -180,36 +173,54 @@ export const start = async (
   buildService: Service,
   {
     watch,
-    onBuild,
+    onIndexingBuild,
+    onApiBuild,
   }:
-    | { watch: true; onBuild: (buildResult: IndexingBuildResult) => void }
-    | { watch: false; onBuild?: never },
-): Promise<IndexingBuildResult> => {
+    | {
+        watch: true;
+        onIndexingBuild: (buildResult: IndexingBuildResult) => void;
+        onApiBuild: (buildResult: ApiBuildResult) => void;
+      }
+    | { watch: false; onIndexingBuild?: never; onApiBuild?: never },
+): Promise<{ indexing: IndexingBuildResult; api: ApiBuildResult }> => {
   const { common } = buildService;
 
   // Note: Don't run these in parallel. If there are circular imports in user code,
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
   const configResult = await executeConfig(buildService);
   const schemaResult = await executeSchema(buildService);
-  const indexingFunctionsResult = await executeIndexingFunctions(buildService);
+  const indexingResult = await executeIndexingFunctions(buildService);
+  const apiResult = await executeApiRoutes(buildService);
 
   if (configResult.status === "error") {
-    return { status: "error", error: configResult.error };
+    return {
+      indexing: { status: "error", error: configResult.error },
+      api: { status: "error", error: configResult.error },
+    };
   }
   if (schemaResult.status === "error") {
-    return { status: "error", error: schemaResult.error };
+    return {
+      indexing: { status: "error", error: schemaResult.error },
+      api: { status: "error", error: schemaResult.error },
+    };
   }
-  if (indexingFunctionsResult.status === "error") {
-    return { status: "error", error: indexingFunctionsResult.error };
+  if (indexingResult.status === "error") {
+    return {
+      indexing: { status: "error", error: indexingResult.error },
+      api: { status: "error", error: indexingResult.error },
+    };
+  }
+  if (apiResult.status === "error") {
+    return {
+      indexing: { status: "error", error: apiResult.error },
+      api: { status: "error", error: apiResult.error },
+    };
   }
 
-  const rawBuild: RawBuild = {
-    config: configResult,
-    schema: schemaResult,
-    indexingFunctions: indexingFunctionsResult,
-  };
-
-  const buildResult = await validateAndBuild(buildService, rawBuild);
+  let cachedConfigResult = configResult;
+  let cachedSchemaResult = schemaResult;
+  let cachedIndexingResult = indexingResult;
+  let cachedApiResult = apiResult;
 
   // If watch is false (`ponder start` or `ponder serve`),
   // don't register  any event handlers on the watcher.
@@ -258,15 +269,23 @@ export const start = async (
       const hasSchemaUpdate = invalidated.includes(
         common.options.schemaFile.replace(/\\/g, "/"),
       );
-      const hasSrcUpdate = invalidated.some(
+      const hasIndexingUpdate = invalidated.some(
         (file) =>
           buildService.indexingRegex.test(file) &&
           !buildService.apiRegex.test(file),
       );
+      const hasApiUpdate = invalidated.some((file) =>
+        buildService.apiRegex.test(file),
+      );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (!hasConfigUpdate && !hasSchemaUpdate && !hasSrcUpdate) {
+      if (
+        !hasConfigUpdate &&
+        !hasSchemaUpdate &&
+        !hasIndexingUpdate &&
+        !hasApiUpdate
+      ) {
         return;
       }
 
@@ -280,22 +299,22 @@ export const start = async (
       if (hasConfigUpdate) {
         const result = await executeConfig(buildService);
         if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
+          onIndexingBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.config = result;
+        cachedConfigResult = result;
       }
 
       if (hasSchemaUpdate) {
         const result = await executeSchema(buildService);
         if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
+          onIndexingBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.schema = result;
+        cachedSchemaResult = result;
       }
 
-      if (hasSrcUpdate) {
+      if (hasIndexingUpdate) {
         const files = glob.sync(buildService.indexingPattern, {
           ignore: buildService.apiPattern,
         });
@@ -304,94 +323,108 @@ export const start = async (
 
         const result = await executeIndexingFunctions(buildService);
         if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
+          onIndexingBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.indexingFunctions = result;
+        cachedIndexingResult = result;
       }
 
-      const buildResult = await validateAndBuild(buildService, rawBuild);
-      onBuild(buildResult);
-    };
+      if (hasApiUpdate) {
+        const files = glob.sync(buildService.apiPattern);
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
+        buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
 
-    buildService.viteDevServer.watcher.on("change", onFileChange);
-  }
+        const result = await executeApiRoutes(buildService);
+        if (result.status === "error") {
+          onApiBuild({ status: "error", error: result.error });
+          return;
+        }
+        cachedApiResult = result;
+      }
 
-  return buildResult;
-};
+      /**
+       * Build and validate updated indexing and api artifacts
+       *
+       * There are a few cases to handle:
+       * 1) config or schema is updated -> rebuild both api and indexing
+       * 2) indexing functions are updated -> rebuild indexing
+       * 3) api routes are updated -> rebuild api
+       *
+       * Note: the api build cannot be successful if the indexing
+       * build fails, this means that any indexing errors are always
+       * propogated to the api build.
+       */
 
-export const startServer = async (
-  buildService: Service,
-  {
-    watch,
-    onBuild,
-  }:
-    | { watch: true; onBuild: (buildResult: ApiBuildResult) => void }
-    | { watch: false; onBuild?: never },
-): Promise<ApiBuildResult> => {
-  const { common } = buildService;
-
-  const serverResult = await executeServer(buildService);
-
-  if (serverResult.status === "error") {
-    return { status: "error", error: serverResult.error };
-  }
-
-  const buildResult = validateAndBuildServer(buildService, serverResult);
-
-  // If watch is false (`ponder start` or `ponder serve`),
-  // don't register  any event handlers on the watcher.
-  if (watch) {
-    // Define the directories and files to ignore
-    const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
-    const ignoredFiles = [
-      path.join(common.options.rootDir, "ponder-env.d.ts"),
-      path.join(common.options.rootDir, ".env.local"),
-    ];
-
-    const isFileIgnored = (filePath: string) => {
-      const isInIgnoredDir = ignoredDirs.some((dir) => {
-        const rel = path.relative(dir, filePath);
-        return !rel.startsWith("..") && !path.isAbsolute(rel);
-      });
-
-      const isIgnoredFile = ignoredFiles.includes(filePath);
-      return isInIgnoredDir || isIgnoredFile;
-    };
-
-    const onFileChange = async (file: string) => {
-      if (isFileIgnored(file)) return;
-
-      const files = glob.sync(buildService.apiPattern);
-
-      if (files.includes(file) === false) return;
-
-      // Invalidate all server modules.
-      buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
-
-      common.logger.info({
-        service: "build",
-        msg: `Hot reload ${files
-          .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
-          .join(", ")}`,
-      });
-
-      buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
-
-      const result = await executeServer(buildService);
-
-      if (result.status === "error") {
-        onBuild({ status: "error", error: result.error });
+      const indexingBuildResult = await validateAndBuild(
+        buildService,
+        cachedConfigResult,
+        cachedSchemaResult,
+        cachedIndexingResult,
+      );
+      if (indexingBuildResult.status === "error") {
+        onIndexingBuild(indexingBuildResult);
+        onApiBuild(indexingBuildResult);
         return;
       }
 
-      onBuild(validateAndBuildServer(buildService, result));
+      // If schema or config is updated, rebuild both api and indexing
+      if (hasConfigUpdate || hasSchemaUpdate) {
+        onIndexingBuild(indexingBuildResult);
+        onApiBuild(
+          validateAndBuildApi(
+            buildService,
+            indexingBuildResult.build,
+            cachedApiResult,
+          ),
+        );
+      } else {
+        if (hasIndexingUpdate) {
+          onIndexingBuild(indexingBuildResult);
+        }
+
+        if (hasApiUpdate) {
+          onApiBuild(
+            validateAndBuildApi(
+              buildService,
+              indexingBuildResult.build,
+              cachedApiResult,
+            ),
+          );
+        }
+      }
     };
 
     buildService.viteDevServer.watcher.on("change", onFileChange);
   }
 
-  return buildResult;
+  // Build and validate initial indexing and server build.
+  // Note: the api build cannot be successful if the indexing
+  // build fails
+
+  const initialBuildResult = await validateAndBuild(
+    buildService,
+    configResult,
+    schemaResult,
+    indexingResult,
+  );
+
+  if (initialBuildResult.status === "error") {
+    return {
+      indexing: { status: "error", error: initialBuildResult.error },
+      api: { status: "error", error: initialBuildResult.error },
+    };
+  }
+
+  const initialApiBuildResult = validateAndBuildApi(
+    buildService,
+    initialBuildResult.build,
+    apiResult,
+  );
+
+  return {
+    indexing: initialBuildResult,
+    api: initialApiBuildResult,
+  };
 };
 
 export const kill = async (buildService: Service): Promise<void> => {
@@ -521,7 +554,7 @@ const executeIndexingFunctions = async (
   };
 };
 
-const executeServer = async (
+const executeApiRoutes = async (
   buildService: Service,
 ): Promise<
   | {
@@ -574,11 +607,16 @@ const executeServer = async (
 
 const validateAndBuild = async (
   { common }: Pick<Service, "common">,
-  rawBuild: RawBuild,
+  config: { config: Config; contentHash: string },
+  schema: { schema: Schema; contentHash: string },
+  indexingFunctions: {
+    indexingFunctions: RawIndexingFunctions;
+    contentHash: string;
+  },
 ): Promise<IndexingBuildResult> => {
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
-    schema: rawBuild.schema.schema,
+    schema: schema.schema,
   });
   if (buildSchemaResult.status === "error") {
     common.logger.error({
@@ -599,8 +637,8 @@ const validateAndBuild = async (
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
-      config: rawBuild.config.config,
-      rawIndexingFunctions: rawBuild.indexingFunctions.indexingFunctions,
+      config: config.config,
+      rawIndexingFunctions: indexingFunctions.indexingFunctions,
       options: common.options,
     });
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
@@ -619,9 +657,9 @@ const validateAndBuild = async (
 
   const buildId = createHash("sha256")
     .update(BUILD_ID_VERSION)
-    .update(rawBuild.config.contentHash)
-    .update(rawBuild.schema.contentHash)
-    .update(rawBuild.indexingFunctions.contentHash)
+    .update(config.contentHash)
+    .update(schema.contentHash)
+    .update(indexingFunctions.contentHash)
     .digest("hex")
     .slice(0, 10);
 
@@ -646,17 +684,18 @@ const validateAndBuild = async (
   };
 };
 
-const validateAndBuildServer = (
+const validateAndBuildApi = (
   { common }: Pick<Service, "common">,
-  build: Partial<ApiBuild>,
+  baseBuild: BaseBuild,
+  api: { app?: Hono; routes?: PonderRoutes },
 ): ApiBuildResult => {
-  if (!build.app || !build.routes) {
-    return { status: "success" };
+  if (!api.app || !api.routes) {
+    return { status: "success", build: baseBuild };
   }
 
   for (const {
     pathOrHandlers: [maybePathOrHandler],
-  } of build.routes) {
+  } of api.routes) {
     if (typeof maybePathOrHandler === "string") {
       if (
         maybePathOrHandler === "/status" ||
@@ -668,7 +707,7 @@ const validateAndBuildServer = (
         );
         error.stack = undefined;
         common.logger.error({ service: "build", msg: "Failed build", error });
-        return { status: "error", error };
+        return { status: "error", error } as const;
       }
     }
   }
@@ -676,8 +715,9 @@ const validateAndBuildServer = (
   return {
     status: "success",
     build: {
-      app: build.app,
-      routes: build.routes,
+      ...baseBuild,
+      app: api.app,
+      routes: api.routes,
     },
   };
 };

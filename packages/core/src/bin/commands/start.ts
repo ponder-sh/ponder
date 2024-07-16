@@ -52,15 +52,11 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const indexingBuildResult = await buildService.start({ watch: false });
-  const apiBuildResult = await buildService.startServer({ watch: false });
+  const { indexing, api } = await buildService.start({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (
-    indexingBuildResult.status === "error" ||
-    apiBuildResult.status === "error"
-  ) {
+  if (indexing.status === "error" || api.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
@@ -69,13 +65,13 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "start",
-      ...buildPayload(indexingBuildResult.build),
+      ...buildPayload(indexing.build),
     },
   });
 
   cleanupReloadable = await run({
     common,
-    build: indexingBuildResult.build,
+    build: indexing.build,
     onFatalError: () => {
       shutdown({ reason: "Received fatal error", code: 1 });
     },
@@ -86,8 +82,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   cleanupReloadableServer = await runServer({
     common,
-    indexingBuild: indexingBuildResult.build,
-    apiBuild: apiBuildResult.build,
+    build: api.build,
   });
 
   return cleanup;

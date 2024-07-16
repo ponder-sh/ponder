@@ -1,5 +1,5 @@
 import { type Extend, extend } from "@/utils/extend.js";
-import { create, kill, start, startServer } from "./service.js";
+import { create, kill, start } from "./service.js";
 import type {
   ApiBuild,
   ApiBuildResult,
@@ -8,7 +8,7 @@ import type {
   Service,
 } from "./service.js";
 
-const methods = { start, startServer, kill };
+const methods = { start, kill };
 
 export const createBuildService = extend(create, methods);
 

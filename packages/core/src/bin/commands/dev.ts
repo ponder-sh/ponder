@@ -1,9 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import {
-  type ApiBuild,
   type ApiBuildResult,
-  type IndexingBuild,
   type IndexingBuildResult,
   createBuildService,
 } from "@/build/index.js";
@@ -59,12 +57,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const uiService = new UiService({ common });
 
-  let cleanupReloadable = () => Promise.resolve();
-  let cleanupReloadableServer = () => Promise.resolve();
+  let indexingCleanupReloadable = () => Promise.resolve();
+  let apiCleanupReloadable = () => Promise.resolve();
 
   const cleanup = async () => {
-    await cleanupReloadable();
-    await cleanupReloadableServer();
+    await indexingCleanupReloadable();
+    await apiCleanupReloadable();
     await buildService.kill();
     await telemetry.kill();
     uiService.kill();
@@ -72,91 +70,70 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  let cachedIndexingBuild: IndexingBuild;
-  let cachedApiBuild: ApiBuild | undefined;
-
-  // Note: an update to the "indexing" build triggers a reload of the server runtime.
-  // This is to ensure that updates to either the config or schema are reflected in
-  // the server.
-  const buildQueue = createQueue({
+  const indexingBuildQueue = createQueue({
     initialStart: true,
     concurrency: 1,
-    worker: async (
-      result:
-        | ({ type: "indexing" } & IndexingBuildResult)
-        | ({ type: "server" } & ApiBuildResult),
-    ) => {
-      if (result.type === "indexing") {
-        await cleanupReloadable();
-        await cleanupReloadableServer();
+    worker: async (result: IndexingBuildResult) => {
+      await indexingCleanupReloadable();
 
-        if (result.status === "success") {
-          uiService.reset();
-          metrics.resetMetrics();
+      if (result.status === "success") {
+        uiService.reset();
+        metrics.resetMetrics();
 
-          cachedIndexingBuild = result.build;
-
-          cleanupReloadable = await run({
-            common,
-            build: result.build,
-            onFatalError: () => {
-              shutdown({ reason: "Received fatal error", code: 1 });
-            },
-            onReloadableError: (error) => {
-              buildQueue.clear();
-              buildQueue.add({ type: "indexing", status: "error", error });
-            },
-          });
-
-          cleanupReloadableServer = await runServer({
-            common,
-            indexingBuild: cachedIndexingBuild,
-            apiBuild: cachedApiBuild,
-          });
-        } else {
-          // This handles build failures and indexing errors on hot reload.
-          uiService.setReloadableError();
-          cleanupReloadable = () => Promise.resolve();
-        }
+        indexingCleanupReloadable = await run({
+          common,
+          build: result.build,
+          onFatalError: () => {
+            shutdown({ reason: "Received fatal error", code: 1 });
+          },
+          onReloadableError: (error) => {
+            indexingBuildQueue.clear();
+            indexingBuildQueue.add({ status: "error", error });
+          },
+        });
       } else {
-        await cleanupReloadableServer();
-
-        if (result.status === "success") {
-          cachedApiBuild = result.build;
-
-          cleanupReloadableServer = await runServer({
-            common,
-            indexingBuild: cachedIndexingBuild,
-            apiBuild: result.build,
-          });
-        } else {
-          // This handles build failures and indexing errors on hot reload.
-          uiService.setReloadableError();
-          cleanupReloadableServer = () => Promise.resolve();
-        }
+        // This handles build failures and indexing errors on hot reload.
+        uiService.setReloadableError();
+        indexingCleanupReloadable = () => Promise.resolve();
       }
     },
   });
 
-  const initialIndexingResult = await buildService.start({
-    watch: true,
-    onBuild: (buildResult) => {
-      buildQueue.clear();
-      buildQueue.add({ type: "indexing", ...buildResult });
-    },
-  });
-  const initialApiResult = await buildService.startServer({
-    watch: true,
-    onBuild: (buildResult) => {
-      buildQueue.clear();
-      buildQueue.add({ type: "server", ...buildResult });
+  const apiBuildQueue = createQueue({
+    initialStart: true,
+    concurrency: 1,
+    worker: async (result: ApiBuildResult) => {
+      await apiCleanupReloadable();
+
+      if (result.status === "success") {
+        uiService.reset();
+        metrics.resetMetrics();
+
+        apiCleanupReloadable = await runServer({
+          common,
+          build: result.build,
+        });
+      } else {
+        // This handles build failures on hot reload.
+        uiService.setReloadableError();
+        apiCleanupReloadable = () => Promise.resolve();
+      }
     },
   });
 
-  if (
-    initialIndexingResult.status === "error" ||
-    initialApiResult.status === "error"
-  ) {
+  const { api, indexing } = await buildService.start({
+    watch: true,
+    onIndexingBuild: (buildResult) => {
+      indexingBuildQueue.clear();
+      indexingBuildQueue.add(buildResult);
+    },
+    onApiBuild: (buildResult) => {
+      apiBuildQueue.clear();
+      apiBuildQueue.add(buildResult);
+    },
+  });
+
+  if (indexing.status === "error" || api.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
@@ -165,17 +142,16 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "dev",
-      ...buildPayload(initialIndexingResult.build),
+      ...buildPayload(indexing.build),
     },
   });
 
-  cachedIndexingBuild = initialIndexingResult.build;
-  cachedApiBuild = initialApiResult.build;
-
-  buildQueue.add({ type: "indexing", ...initialIndexingResult });
+  indexingBuildQueue.add(indexing);
+  apiBuildQueue.add(api);
 
   return async () => {
-    buildQueue.pause();
+    indexingBuildQueue.pause();
+    apiBuildQueue.pause();
     await cleanup();
   };
 }

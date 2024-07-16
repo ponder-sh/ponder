@@ -1,4 +1,4 @@
-import type { ApiBuild, IndexingBuild } from "@/build/index.js";
+import type { ApiBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
@@ -10,14 +10,12 @@ import { createServer } from "@/server/service.js";
  */
 export async function runServer({
   common,
-  indexingBuild,
-  apiBuild,
+  build,
 }: {
   common: Common;
-  indexingBuild: IndexingBuild;
-  apiBuild: ApiBuild | undefined;
+  build: ApiBuild;
 }) {
-  const { databaseConfig, optionsConfig, schema } = indexingBuild;
+  const { databaseConfig, optionsConfig, schema } = build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -37,8 +35,8 @@ export async function runServer({
   }
 
   const server = await createServer({
-    app: apiBuild?.app,
-    routes: apiBuild?.routes,
+    app: build.app,
+    routes: build.routes,
     common,
     schema,
     database,
