@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "hono": ">=4",
+    "hono": ">=4.5",
     "typescript": ">=5.0.4",
     "viem": ">=1.16"
   },
