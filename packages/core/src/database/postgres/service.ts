@@ -618,6 +618,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               .withSchema(publishSchema)
               .dropView(tableName)
               .ifExists()
+              .cascade()
               .execute();
 
             this.common.logger.debug({
