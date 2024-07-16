@@ -34,10 +34,10 @@ declare module "@/generated" {
 
 export function runCodegen({
   common,
-  graphQLSchema,
+  graphqlSchema,
 }: {
   common: Common;
-  graphQLSchema: GraphQLSchema;
+  graphqlSchema: GraphQLSchema;
 }) {
   writeFileSync(
     path.join(common.options.rootDir, "ponder-env.d.ts"),
@@ -53,7 +53,7 @@ export function runCodegen({
   mkdirSync(common.options.generatedDir, { recursive: true });
   writeFileSync(
     path.join(common.options.generatedDir, "schema.graphql"),
-    printSchema(graphQLSchema),
+    printSchema(graphqlSchema),
     "utf-8",
   );
 

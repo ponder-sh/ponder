@@ -16,7 +16,7 @@ import type { TableWithColumns } from "./select.js";
  *
  * @returns TableWithColumns
  */
-export type ConvertToDrizzleTable<
+export type DrizzleTable<
   tableName extends string,
   table extends PonderTable,
   schema extends PonderSchema,

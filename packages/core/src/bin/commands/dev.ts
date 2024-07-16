@@ -1,7 +1,12 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { type BuildResult, createBuildService } from "@/build/index.js";
-import type { Build, BuildResultServer, BuildServer } from "@/build/service.js";
+import {
+  type ApiBuild,
+  type ApiBuildResult,
+  type IndexingBuild,
+  type IndexingBuildResult,
+  createBuildService,
+} from "@/build/index.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -67,8 +72,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  let cachedBuild: Build;
-  let cachedBuildServer: BuildServer | undefined;
+  let cachedIndexingBuild: IndexingBuild;
+  let cachedApiBuild: ApiBuild | undefined;
 
   // Note: an update to the "indexing" build triggers a reload of the server runtime.
   // This is to ensure that updates to either the config or schema are reflected in
@@ -78,8 +83,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     concurrency: 1,
     worker: async (
       result:
-        | ({ type: "indexing" } & BuildResult)
-        | ({ type: "server" } & BuildResultServer),
+        | ({ type: "indexing" } & IndexingBuildResult)
+        | ({ type: "server" } & ApiBuildResult),
     ) => {
       if (result.type === "indexing") {
         await cleanupReloadable();
@@ -89,7 +94,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           uiService.reset();
           metrics.resetMetrics();
 
-          cachedBuild = result.build;
+          cachedIndexingBuild = result.build;
 
           cleanupReloadable = await run({
             common,
@@ -105,8 +110,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
           cleanupReloadableServer = await runServer({
             common,
-            build: cachedBuild,
-            buildServer: cachedBuildServer,
+            indexingBuild: cachedIndexingBuild,
+            apiBuild: cachedApiBuild,
           });
         } else {
           // This handles build failures and indexing errors on hot reload.
@@ -117,12 +122,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await cleanupReloadableServer();
 
         if (result.status === "success") {
-          cachedBuildServer = result.build;
+          cachedApiBuild = result.build;
 
           cleanupReloadableServer = await runServer({
             common,
-            build: cachedBuild,
-            buildServer: result.build,
+            indexingBuild: cachedIndexingBuild,
+            apiBuild: result.build,
           });
         } else {
           // This handles build failures and indexing errors on hot reload.
@@ -133,14 +138,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const initialResult = await buildService.start({
+  const initialIndexingResult = await buildService.start({
     watch: true,
     onBuild: (buildResult) => {
       buildQueue.clear();
       buildQueue.add({ type: "indexing", ...buildResult });
     },
   });
-  const initialResultServer = await buildService.startServer({
+  const initialApiResult = await buildService.startServer({
     watch: true,
     onBuild: (buildResult) => {
       buildQueue.clear();
@@ -149,8 +154,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (
-    initialResult.status === "error" ||
-    initialResultServer.status === "error"
+    initialIndexingResult.status === "error" ||
+    initialApiResult.status === "error"
   ) {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
@@ -158,13 +163,16 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   telemetry.record({
     name: "lifecycle:session_start",
-    properties: { cli_command: "dev", ...buildPayload(initialResult.build) },
+    properties: {
+      cli_command: "dev",
+      ...buildPayload(initialIndexingResult.build),
+    },
   });
 
-  cachedBuild = initialResult.build;
-  cachedBuildServer = initialResultServer.build;
+  cachedIndexingBuild = initialIndexingResult.build;
+  cachedApiBuild = initialApiResult.build;
 
-  buildQueue.add({ type: "indexing", ...initialResult });
+  buildQueue.add({ type: "indexing", ...initialIndexingResult });
 
   return async () => {
     buildQueue.pause();

@@ -52,24 +52,30 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const buildResult = await buildService.start({ watch: false });
-  const buildResultServer = await buildService.startServer({ watch: false });
+  const indexingBuildResult = await buildService.start({ watch: false });
+  const apiBuildResult = await buildService.startServer({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (buildResult.status === "error" || buildResultServer.status === "error") {
+  if (
+    indexingBuildResult.status === "error" ||
+    apiBuildResult.status === "error"
+  ) {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
   telemetry.record({
     name: "lifecycle:session_start",
-    properties: { cli_command: "start", ...buildPayload(buildResult.build) },
+    properties: {
+      cli_command: "start",
+      ...buildPayload(indexingBuildResult.build),
+    },
   });
 
   cleanupReloadable = await run({
     common,
-    build: buildResult.build,
+    build: indexingBuildResult.build,
     onFatalError: () => {
       shutdown({ reason: "Received fatal error", code: 1 });
     },
@@ -80,8 +86,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   cleanupReloadableServer = await runServer({
     common,
-    build: buildResult.build,
-    buildServer: buildResultServer.build,
+    indexingBuild: indexingBuildResult.build,
+    apiBuild: apiBuildResult.build,
   });
 
   return cleanup;

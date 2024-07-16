@@ -9,7 +9,7 @@ import { createSchema } from "@/schema/schema.js";
 import { eq } from "drizzle-orm";
 import { beforeEach, expect, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
-import { convertSchemaToDrizzle, createDrizzleDb } from "./runtime.js";
+import { createDrizzleDb, createDrizzleTables } from "./runtime.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -29,7 +29,7 @@ test("runtime select", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,
@@ -58,7 +58,7 @@ test("select hex", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,
@@ -87,7 +87,7 @@ test("select bigint", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,
@@ -125,7 +125,7 @@ test("select json", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,
@@ -160,7 +160,7 @@ test("select enum", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,
@@ -196,7 +196,7 @@ test("select list", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,
@@ -243,7 +243,7 @@ test("select with join", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = convertSchemaToDrizzle(
+  const drizzleTables = createDrizzleTables(
     schema,
     database,
     namespaceInfo.userNamespace,

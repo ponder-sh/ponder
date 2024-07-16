@@ -33,10 +33,10 @@ const BUILD_ID_VERSION = "1";
 export type Service = {
   // static
   common: Common;
-  srcRegex: RegExp;
-  serverRegex: RegExp;
-  srcPattern: string;
-  serverPattern: string;
+  indexingRegex: RegExp;
+  apiRegex: RegExp;
+  indexingPattern: string;
+  apiPattern: string;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -44,7 +44,7 @@ export type Service = {
   viteNodeRunner: ViteNodeRunner;
 };
 
-export type Build = {
+export type IndexingBuild = {
   // Build ID for caching
   buildId: string;
   // Config
@@ -54,22 +54,22 @@ export type Build = {
   networks: Network[];
   // Schema
   schema: Schema;
-  graphQLSchema: GraphQLSchema;
+  graphqlSchema: GraphQLSchema;
   // Indexing functions
   indexingFunctions: IndexingFunctions;
 };
 
-export type BuildServer = {
+export type ApiBuild = {
   app: Hono;
   routes: PonderRoutes;
 };
 
-export type BuildResult =
-  | { status: "success"; build: Build }
+export type IndexingBuildResult =
+  | { status: "success"; build: IndexingBuild }
   | { status: "error"; error: Error };
 
-export type BuildResultServer =
-  | { status: "success"; build?: BuildServer }
+export type ApiBuildResult =
+  | { status: "success"; build?: ApiBuild }
   | { status: "error"; error: Error };
 
 type RawBuild = {
@@ -88,26 +88,26 @@ export const create = async ({
 }): Promise<Service> => {
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
 
-  const escapedSrcDir = common.options.srcDir
+  const escapedIndexingDir = common.options.indexingDir
     // If on Windows, use a POSIX path for this regex.
     .replace(/\\/g, "/")
     // Escape special characters in the path.
     .replace(escapeRegex, "\\$&");
-  const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
+  const indexingRegex = new RegExp(`^${escapedIndexingDir}/.*\\.(ts|js)$`);
 
-  const escapedServerDir = common.options.serverDir
+  const escapedApiDir = common.options.apiDir
     // If on Windows, use a POSIX path for this regex.
     .replace(/\\/g, "/")
     // Escape special characters in the path.
     .replace(escapeRegex, "\\$&");
-  const serverRegex = new RegExp(`^${escapedServerDir}/.*\\.(ts|js)$`);
+  const apiRegex = new RegExp(`^${escapedApiDir}/.*\\.(ts|js)$`);
 
-  const srcPattern = path
-    .join(common.options.srcDir, "**/*.{js,mjs,ts,mts}")
+  const indexingPattern = path
+    .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
-  const serverPattern = path
-    .join(common.options.serverDir, "**/*.{js,mjs,ts,mts}")
+  const apiPattern = path
+    .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
   const viteLogger = {
@@ -160,10 +160,10 @@ export const create = async ({
 
   return {
     common,
-    srcRegex,
-    serverRegex,
-    srcPattern,
-    serverPattern,
+    indexingRegex,
+    apiRegex,
+    indexingPattern,
+    apiPattern,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -182,9 +182,9 @@ export const start = async (
     watch,
     onBuild,
   }:
-    | { watch: true; onBuild: (buildResult: BuildResult) => void }
+    | { watch: true; onBuild: (buildResult: IndexingBuildResult) => void }
     | { watch: false; onBuild?: never },
-): Promise<BuildResult> => {
+): Promise<IndexingBuildResult> => {
   const { common } = buildService;
 
   // Note: Don't run these in parallel. If there are circular imports in user code,
@@ -260,8 +260,8 @@ export const start = async (
       );
       const hasSrcUpdate = invalidated.some(
         (file) =>
-          buildService.srcRegex.test(file) &&
-          !buildService.serverRegex.test(file),
+          buildService.indexingRegex.test(file) &&
+          !buildService.apiRegex.test(file),
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
@@ -296,8 +296,8 @@ export const start = async (
       }
 
       if (hasSrcUpdate) {
-        const files = glob.sync(buildService.srcPattern, {
-          ignore: buildService.serverPattern,
+        const files = glob.sync(buildService.indexingPattern, {
+          ignore: buildService.apiPattern,
         });
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
@@ -326,9 +326,9 @@ export const startServer = async (
     watch,
     onBuild,
   }:
-    | { watch: true; onBuild: (buildResult: BuildResultServer) => void }
+    | { watch: true; onBuild: (buildResult: ApiBuildResult) => void }
     | { watch: false; onBuild?: never },
-): Promise<BuildResultServer> => {
+): Promise<ApiBuildResult> => {
   const { common } = buildService;
 
   const serverResult = await executeServer(buildService);
@@ -362,7 +362,7 @@ export const startServer = async (
     const onFileChange = async (file: string) => {
       if (isFileIgnored(file)) return;
 
-      const files = glob.sync(buildService.serverPattern);
+      const files = glob.sync(buildService.apiPattern);
 
       if (files.includes(file) === false) return;
 
@@ -470,8 +470,8 @@ const executeIndexingFunctions = async (
     }
   | { status: "error"; error: Error }
 > => {
-  const files = glob.sync(buildService.srcPattern, {
-    ignore: buildService.serverPattern,
+  const files = glob.sync(buildService.indexingPattern, {
+    ignore: buildService.apiPattern,
   });
   const executeResults = await Promise.all(
     files.map(async (file) => ({
@@ -531,13 +531,16 @@ const executeServer = async (
     }
   | { status: "error"; error: Error }
 > => {
-  const doesServerExist = fs.existsSync(buildService.common.options.serverDir);
+  const doesServerExist = fs.existsSync(buildService.common.options.apiDir);
+  const hasTsFileInServer = fs
+    .readdirSync(buildService.common.options.apiDir)
+    .some((file) => file.endsWith(".ts"));
 
-  if (doesServerExist === false) {
+  if (doesServerExist === false || hasTsFileInServer === false) {
     return { status: "success" };
   }
 
-  const files = glob.sync(buildService.serverPattern);
+  const files = glob.sync(buildService.apiPattern);
   const executeResults = await Promise.all(
     files.map(async (file) => ({
       ...(await executeFile(buildService, { file })),
@@ -572,7 +575,7 @@ const executeServer = async (
 const validateAndBuild = async (
   { common }: Pick<Service, "common">,
   rawBuild: RawBuild,
-): Promise<BuildResult> => {
+): Promise<IndexingBuildResult> => {
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
     schema: rawBuild.schema.schema,
@@ -591,7 +594,7 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
-  const graphQLSchema = buildGraphQLSchema(buildSchemaResult.schema);
+  const graphqlSchema = buildGraphQLSchema(buildSchemaResult.schema);
 
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
@@ -636,7 +639,7 @@ const validateAndBuild = async (
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,
-      graphQLSchema,
+      graphqlSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
     },
@@ -645,8 +648,8 @@ const validateAndBuild = async (
 
 const validateAndBuildServer = (
   { common }: Pick<Service, "common">,
-  build: Partial<BuildServer>,
-): BuildResultServer => {
+  build: Partial<ApiBuild>,
+): ApiBuildResult => {
   if (!build.app || !build.routes) {
     return { status: "success" };
   }

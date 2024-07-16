@@ -1,4 +1,4 @@
-import type { Build } from "@/build/index.js";
+import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
@@ -49,7 +49,7 @@ export async function run({
   onReloadableError,
 }: {
   common: Common;
-  build: Build;
+  build: IndexingBuild;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
@@ -59,7 +59,7 @@ export async function run({
     optionsConfig,
     networks,
     sources,
-    graphQLSchema,
+    graphqlSchema,
     schema,
     indexingFunctions,
   } = build;
@@ -112,7 +112,7 @@ export async function run({
   // starting the server so the app can become responsive more quickly.
   await database.migrateSyncStore();
 
-  runCodegen({ common, graphQLSchema });
+  runCodegen({ common, graphqlSchema });
 
   // Note: can throw
   const syncService = await createSyncService({

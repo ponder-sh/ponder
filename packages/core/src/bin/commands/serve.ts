@@ -50,22 +50,28 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const buildResult = await buildService.start({ watch: false });
-  const buildResultServer = await buildService.startServer({ watch: false });
+  const indexingBuildResult = await buildService.start({ watch: false });
+  const apiBuildResult = await buildService.startServer({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (buildResult.status === "error" || buildResultServer.status === "error") {
+  if (
+    indexingBuildResult.status === "error" ||
+    apiBuildResult.status === "error"
+  ) {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
   telemetry.record({
     name: "lifecycle:session_start",
-    properties: { cli_command: "serve", ...buildPayload(buildResult.build) },
+    properties: {
+      cli_command: "serve",
+      ...buildPayload(indexingBuildResult.build),
+    },
   });
 
-  const { databaseConfig, optionsConfig, schema } = buildResult.build;
+  const { databaseConfig, optionsConfig, schema } = indexingBuildResult.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -96,8 +102,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const server = await createServer({
-    app: buildResultServer.build?.app,
-    routes: buildResultServer.build?.routes,
+    app: apiBuildResult.build?.app,
+    routes: apiBuildResult.build?.routes,
     common,
     schema,
     database,

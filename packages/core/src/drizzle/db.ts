@@ -10,7 +10,7 @@ export type DrizzleDb = {
     fields?: SelectedFields<Column, Table>,
   ): SelectBuilder<SelectedFields<Column, Table> | undefined, "async", void>;
   /**
-   * Execute raw, readonly sql queries.
+   * Execute a raw read-only SQL query..
    *
    * @example
    * import { ponder } from "@/generated";

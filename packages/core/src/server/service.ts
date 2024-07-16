@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { DatabaseService } from "@/database/service.js";
-import { convertSchemaToDrizzle, createDrizzleDb } from "@/drizzle/runtime.js";
+import { createDrizzleDb, createDrizzleTables } from "@/drizzle/runtime.js";
 import { graphql } from "@/graphql/index.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
@@ -141,7 +141,7 @@ export async function createServer({
 
   if (userApp !== undefined && userRoutes !== undefined) {
     const db = createDrizzleDb(database);
-    const tables = convertSchemaToDrizzle(schema, database, dbNamespace);
+    const tables = createDrizzleTables(schema, database, dbNamespace);
 
     // apply user routes to hono instance, registering a custom error handler
     applyHonoRoutes(hono, userRoutes, { db, tables }).onError((error, c) =>

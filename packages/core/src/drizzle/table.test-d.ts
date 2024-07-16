@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Hex } from "viem";
 import { expectTypeOf, test } from "vitest";
 import type { DrizzleDb } from "./db.js";
-import type { ConvertToDrizzleTable } from "./table.js";
+import type { DrizzleTable } from "./table.js";
 
 test("select query promise", async () => {
   const schema = createSchema((p) => ({
@@ -13,7 +13,7 @@ test("select query promise", async () => {
     }),
   }));
 
-  const table = {} as ConvertToDrizzleTable<
+  const table = {} as DrizzleTable<
     "table",
     (typeof schema)["table"]["table"],
     typeof schema
@@ -33,7 +33,7 @@ test("select optional column", async () => {
     }),
   }));
 
-  const table = {} as ConvertToDrizzleTable<
+  const table = {} as DrizzleTable<
     "table",
     (typeof schema)["table"]["table"],
     typeof schema
@@ -54,7 +54,7 @@ test("select enum", async () => {
     }),
   }));
 
-  const table = {} as ConvertToDrizzleTable<
+  const table = {} as DrizzleTable<
     "table",
     (typeof schema)["table"]["table"],
     typeof schema
@@ -74,7 +74,7 @@ test("select json", async () => {
     }),
   }));
 
-  const table = {} as ConvertToDrizzleTable<
+  const table = {} as DrizzleTable<
     "table",
     (typeof schema)["table"]["table"],
     typeof schema
@@ -94,7 +94,7 @@ test("select list", async () => {
     }),
   }));
 
-  const table = {} as ConvertToDrizzleTable<
+  const table = {} as DrizzleTable<
     "table",
     (typeof schema)["table"]["table"],
     typeof schema
@@ -119,12 +119,12 @@ test("select join", async () => {
     }),
   }));
 
-  const account = {} as ConvertToDrizzleTable<
+  const account = {} as DrizzleTable<
     "account",
     (typeof schema)["account"]["table"],
     typeof schema
   >;
-  const nft = {} as ConvertToDrizzleTable<
+  const nft = {} as DrizzleTable<
     "nft",
     (typeof schema)["nft"]["table"],
     typeof schema

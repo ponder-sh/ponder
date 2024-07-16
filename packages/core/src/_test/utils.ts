@@ -694,7 +694,7 @@ export async function waitForIndexedBlock(
       reject(new Error("Timed out while waiting for the indexed block."));
     }, 5_000);
     const interval = setInterval(async () => {
-      const response = await fetch(`http://localhost:${port}/_ponder/status`);
+      const response = await fetch(`http://localhost:${port}/status`);
       if (response.status === 200) {
         const status = (await response.json()) as Status | null;
         const statusBlockNumber = status

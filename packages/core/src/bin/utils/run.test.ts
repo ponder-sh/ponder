@@ -3,7 +3,7 @@ import {
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { Build } from "@/build/index.js";
+import type { IndexingBuild } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
 import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import { createSchema } from "@/schema/schema.js";
@@ -26,13 +26,13 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-const graphQLSchema = buildGraphQLSchema(schema);
+const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() kill", async (context) => {
-  const build: Build = {
+  const build: IndexingBuild = {
     buildId: "buildId",
     schema,
-    graphQLSchema,
+    graphqlSchema,
     databaseConfig: context.databaseConfig,
     optionsConfig: {},
     networks: context.networks,
@@ -59,10 +59,10 @@ test("run() setup", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
-  const build: Build = {
+  const build: IndexingBuild = {
     buildId: "buildId",
     schema,
-    graphQLSchema,
+    graphqlSchema,
     databaseConfig: context.databaseConfig,
     optionsConfig: {},
     networks: context.networks,
@@ -88,10 +88,10 @@ test("run() setup error", async (context) => {
   };
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
-  const build: Build = {
+  const build: IndexingBuild = {
     buildId: "buildId",
     schema,
-    graphQLSchema,
+    graphqlSchema,
     databaseConfig: context.databaseConfig,
     optionsConfig: {},
     networks: context.networks,

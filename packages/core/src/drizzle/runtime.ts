@@ -56,7 +56,7 @@ type SQLiteTable = Parameters<typeof sqliteTable>[1];
 type PostgresTable = Parameters<typeof pgTable>[1];
 type DrizzleTable = { [tableName: string]: any };
 
-export const convertSchemaToDrizzle = (
+export const createDrizzleTables = (
   schema: Schema,
   database: DatabaseService,
   dbNamespace: string,
@@ -151,6 +151,8 @@ export const convertSchemaToDrizzle = (
     }
 
     if (database.kind === "postgres") {
+      // Note: this is to avoid an error thrown by drizzle when
+      // setting schema to "public".
       if (dbNamespace === "public") {
         drizzleTables[tableName] = pgTable(
           tableName,
