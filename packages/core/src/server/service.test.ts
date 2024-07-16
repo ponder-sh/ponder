@@ -47,7 +47,7 @@ test("not healthy", async (context) => {
     dbNamespace: namespaceInfo.userNamespace,
   });
 
-  const response = await server.hono.request("/_ponder/health");
+  const response = await server.hono.request("/health");
 
   expect(response.status).toBe(503);
 
@@ -72,7 +72,7 @@ test("healthy", async (context) => {
     db: database.indexingDb,
   }).setStatus({});
 
-  const response = await server.hono.request("/_ponder/health");
+  const response = await server.hono.request("/health");
 
   expect(response.status).toBe(200);
 
@@ -94,7 +94,7 @@ test("healthy PUT", async (context) => {
     dbNamespace: namespaceInfo.userNamespace,
   });
 
-  const response = await server.hono.request("/_ponder/health", {
+  const response = await server.hono.request("/health", {
     method: "PUT",
   });
 
@@ -115,7 +115,7 @@ test("metrics", async (context) => {
     dbNamespace: namespaceInfo.userNamespace,
   });
 
-  const response = await server.hono.request("/_ponder/metrics");
+  const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(200);
 
@@ -137,7 +137,7 @@ test("metrics error", async (context) => {
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
   metricsSpy.mockRejectedValueOnce(new Error());
 
-  const response = await server.hono.request("/_ponder/metrics");
+  const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(500);
 
@@ -156,7 +156,7 @@ test("metrics PUT", async (context) => {
     dbNamespace: namespaceInfo.userNamespace,
   });
 
-  const response = await server.hono.request("/_ponder/metrics", {
+  const response = await server.hono.request("/metrics", {
     method: "PUT",
   });
 
@@ -199,5 +199,5 @@ test.skip("kill", async (context) => {
 
   await server.kill();
 
-  expect(() => server.hono.request("/_ponder/health")).rejects.toThrow();
+  expect(() => server.hono.request("/health")).rejects.toThrow();
 });
