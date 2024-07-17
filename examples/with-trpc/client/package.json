@@ -1,11 +1,12 @@
 {
+  "name": "ponder-examples-with-trpc-client",
   "private": true,
-  "name": "ponder-examples-with-trpc-ponder",
   "type": "module",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "scripts": {},
   "dependencies": {
     "@trpc/client": "^10.45.2"
+  },
+  "engines": {
+    "node": ">=18.14"
   }
 }
