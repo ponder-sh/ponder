@@ -62,8 +62,8 @@ export type IndexingBuild = BaseBuild & {
 };
 
 export type ApiBuild = BaseBuild & {
-  app?: Hono;
-  routes?: PonderRoutes;
+  app: Hono;
+  routes: PonderRoutes;
 };
 
 export type IndexingBuildResult =
@@ -559,20 +559,11 @@ const executeApiRoutes = async (
 ): Promise<
   | {
       status: "success";
-      app?: Hono;
-      routes?: PonderRoutes;
+      app: Hono;
+      routes: PonderRoutes;
     }
   | { status: "error"; error: Error }
 > => {
-  const doesServerExist = fs.existsSync(buildService.common.options.apiDir);
-  const hasTsFileInServer = fs
-    .readdirSync(buildService.common.options.apiDir)
-    .some((file) => file.endsWith(".ts"));
-
-  if (doesServerExist === false || hasTsFileInServer === false) {
-    return { status: "success" };
-  }
-
   const files = glob.sync(buildService.apiPattern);
   const executeResults = await Promise.all(
     files.map(async (file) => ({
@@ -687,12 +678,8 @@ const validateAndBuild = async (
 const validateAndBuildApi = (
   { common }: Pick<Service, "common">,
   baseBuild: BaseBuild,
-  api: { app?: Hono; routes?: PonderRoutes },
+  api: { app: Hono; routes: PonderRoutes },
 ): ApiBuildResult => {
-  if (!api.app || !api.routes) {
-    return { status: "success", build: baseBuild };
-  }
-
   for (const {
     pathOrHandlers: [maybePathOrHandler],
   } of api.routes) {

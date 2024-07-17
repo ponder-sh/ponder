@@ -3,8 +3,9 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import type { Context } from "@/hono/context.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
-import type { Schema } from "@/schema/common.js";
+import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "./service.js";
 
@@ -17,6 +18,8 @@ test("port", async (context) => {
 
   const server1 = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -24,6 +27,8 @@ test("port", async (context) => {
 
   const server2 = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -42,6 +47,8 @@ test("not healthy", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -61,6 +68,8 @@ test("healthy", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -89,7 +98,9 @@ test("healthy PUT", async (context) => {
       ...context.common,
       options: { ...context.common.options, maxHealthcheckDuration: 0 },
     },
-    schema: {} as Schema,
+    app: new Hono(),
+    routes: [],
+    schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
   });
@@ -110,6 +121,8 @@ test("metrics", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -129,6 +142,8 @@ test("metrics error", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -151,6 +166,8 @@ test("metrics PUT", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -172,6 +189,8 @@ test("missing route", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,
@@ -185,6 +204,54 @@ test("missing route", async (context) => {
   await cleanup();
 });
 
+test("custom api route", async (context) => {
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
+
+  const server = await createServer({
+    common: context.common,
+    app: new Hono(),
+    routes: [
+      { method: "GET", pathOrHandlers: ["/hi", (c: Context) => c.text("hi")] },
+    ],
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
+  });
+
+  const response = await server.hono.request("/hi");
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("hi");
+
+  await server.kill();
+  await cleanup();
+});
+
+test("custom hono route", async (context) => {
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
+
+  const app = new Hono().get("/hi", (c) => c.text("hi"));
+
+  const server = await createServer({
+    common: context.common,
+    app,
+    routes: [],
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
+  });
+
+  const response = await server.hono.request("/hi");
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("hi");
+
+  await server.kill();
+  await cleanup();
+});
+
 // Note that this test doesn't work because the `hono.request` method doesn't actually
 // create a socket connection, it just calls the request handler function directly.
 test.skip("kill", async (context) => {
@@ -192,6 +259,8 @@ test.skip("kill", async (context) => {
 
   const server = await createServer({
     common: context.common,
+    app: new Hono(),
+    routes: [],
     schema: {},
     database,
     dbNamespace: namespaceInfo.userNamespace,

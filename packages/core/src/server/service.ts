@@ -29,8 +29,8 @@ export async function createServer({
   database,
   dbNamespace,
 }: {
-  app?: Hono;
-  routes?: PonderRoutes;
+  app: Hono;
+  routes: PonderRoutes;
   common: Common;
   schema: Schema;
   database: DatabaseService;
@@ -144,7 +144,11 @@ export async function createServer({
     })
     .use(contextMiddleware);
 
-  if (userApp !== undefined && userRoutes !== undefined) {
+  if (userRoutes.length === 0 && userApp.routes.length === 0) {
+    // apply graphql middleware if no custom api exists
+    hono.use("/graphql", graphql());
+    hono.use("/", graphql());
+  } else {
     // apply user routes to hono instance, registering a custom error handler
     applyHonoRoutes(hono, userRoutes, { db, tables }).onError((error, c) =>
       onError(error, c, common),
@@ -157,10 +161,8 @@ export async function createServer({
         .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
         .join(", ")}]`,
     });
-  } else {
-    // apply graphql middleware if no custom api exists
-    hono.use("/graphql", graphql());
-    hono.use("/", graphql());
+
+    hono.route("/", userApp);
   }
 
   // Create nodejs server
