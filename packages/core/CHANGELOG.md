@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.4.43
+
+### Patch Changes
+
+- [#972](https://github.com/ponder-sh/ponder/pull/972) [`93e36a2735fc1e4688e620a68aea60353fdeac09`](https://github.com/ponder-sh/ponder/commit/93e36a2735fc1e4688e620a68aea60353fdeac09) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed type error for `p.many()` with self reference.
+
 ## 0.4.42
 
 ### Patch Changes
