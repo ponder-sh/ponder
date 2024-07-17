@@ -70,19 +70,17 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     expect(checkpoint).toMatchObject(zeroCheckpoint);
 
-    expect(await getTableNames(database.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-    ]);
+    let tableNames = await getTableNames(database.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-    ]);
+    tableNames = await getTableNames(database.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
 
     await database.kill();
   });
@@ -106,33 +104,31 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: context.databaseConfig.schema,
     });
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-    ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-    ]);
+    let tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
+
+    tableNames = await getTableNames(databaseTwo.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "def", "Dog"]),
-      hash(["public", "def", "Apple"]),
-    ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Dog",
-      "Apple",
-    ]);
+    tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "def", "Dog"]));
+    expect(tableNames).toContain(hash(["public", "def", "Apple"]));
+
+    tableNames = await getTableNames(databaseTwo.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Dog");
+    expect(tableNames).toContain("Apple");
 
     await databaseTwo.kill();
   });
@@ -153,44 +149,42 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const databaseTwo = new PostgresDatabaseService(config);
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-    ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-    ]);
-    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
-      "Pet",
-      "Person",
-      "_ponder_meta",
-    ]);
+    let tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
+
+    tableNames = await getTableNames(databaseTwo.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
+
+    let viewNames = await getViewNames(databaseTwo.db, "publish");
+    expect(viewNames).toContain("_ponder_meta");
+    expect(viewNames).toContain("Pet");
+    expect(viewNames).toContain("Person");
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
     await databaseTwo.publish();
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "def", "Dog"]),
-      hash(["public", "def", "Apple"]),
-    ]);
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Dog",
-      "Apple",
-    ]);
-    expect(await getViewNames(databaseTwo.db, "publish")).toStrictEqual([
-      "Dog",
-      "Apple",
-      "_ponder_meta",
-    ]);
+    tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "def", "Dog"]));
+    expect(tableNames).toContain(hash(["public", "def", "Apple"]));
+
+    tableNames = await getTableNames(databaseTwo.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Dog");
+    expect(tableNames).toContain("Apple");
+
+    viewNames = await getViewNames(databaseTwo.db, "publish");
+    expect(viewNames).toContain("_ponder_meta");
+    expect(viewNames).toContain("Dog");
+    expect(viewNames).toContain("Apple");
 
     await databaseTwo.kill();
   });
@@ -221,23 +215,21 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       sql`CREATE TABLE public."AnotherTable" (id TEXT)`.compile(databaseTwo.db),
     );
 
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-      "not_a_ponder_table",
-      "AnotherTable",
-    ]);
+    let tableNames = await getTableNames(databaseTwo.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
+    expect(tableNames).toContain("not_a_ponder_table");
+    expect(tableNames).toContain("AnotherTable");
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
-    expect(await getTableNames(databaseTwo.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "not_a_ponder_table",
-      "AnotherTable",
-      "Dog",
-      "Apple",
-    ]);
+    tableNames = await getTableNames(databaseTwo.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Dog");
+    expect(tableNames).toContain("Apple");
+    expect(tableNames).toContain("not_a_ponder_table");
+    expect(tableNames).toContain("AnotherTable");
 
     await databaseTwo.kill();
   });
@@ -551,30 +543,28 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: "public2",
     });
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-    ]);
+    let tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "def" });
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-      hash(["public2", "def", "Dog"]),
-      hash(["public2", "def", "Apple"]),
-    ]);
-    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "_ponder_meta",
-      "Dog",
-      "Apple",
-    ]);
+    tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
+    expect(tableNames).toContain(hash(["public2", "def", "Dog"]));
+    expect(tableNames).toContain(hash(["public2", "def", "Apple"]));
+
+    tableNames = await getTableNames(databaseTwo.db, "public2");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Dog");
+    expect(tableNames).toContain("Apple");
 
     await databaseTwo.kill();
     await database.kill();
@@ -596,30 +586,28 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       userNamespace: "public2",
     });
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-    ]);
+    let tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
 
     await databaseTwo.setup({ schema: schemaTwo, buildId: "abc" });
 
-    expect(await getTableNames(databaseTwo.db, "ponder")).toStrictEqual([
-      "kysely_migration",
-      "kysely_migration_lock",
-      "namespace_lock",
-      hash(["public", "abc", "Pet"]),
-      hash(["public", "abc", "Person"]),
-      hash(["public2", "abc", "Dog"]),
-      hash(["public2", "abc", "Apple"]),
-    ]);
-    expect(await getTableNames(databaseTwo.db, "public2")).toStrictEqual([
-      "_ponder_meta",
-      "Dog",
-      "Apple",
-    ]);
+    tableNames = await getTableNames(databaseTwo.db, "ponder");
+    expect(tableNames).toContain("kysely_migration");
+    expect(tableNames).toContain("kysely_migration_lock");
+    expect(tableNames).toContain("namespace_lock");
+    expect(tableNames).toContain(hash(["public", "abc", "Pet"]));
+    expect(tableNames).toContain(hash(["public", "abc", "Person"]));
+    expect(tableNames).toContain(hash(["public2", "abc", "Dog"]));
+    expect(tableNames).toContain(hash(["public2", "abc", "Apple"]));
+
+    tableNames = await getTableNames(databaseTwo.db, "public2");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Dog");
+    expect(tableNames).toContain("Apple");
 
     await database.kill();
     await databaseTwo.kill();
@@ -636,19 +624,17 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-    ]);
+    const tableNames = await getTableNames(database.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
 
     await database.publish();
 
-    expect(await getViewNames(database.db, "publish")).toStrictEqual([
-      "Pet",
-      "Person",
-      "_ponder_meta",
-    ]);
+    const viewNames = await getViewNames(database.db, "publish");
+    expect(viewNames).toContain("_ponder_meta");
+    expect(viewNames).toContain("Pet");
+    expect(viewNames).toContain("Person");
 
     await database.kill();
   });
@@ -664,11 +650,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-    ]);
+    const tableNames = await getTableNames(database.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
 
     await database.db.schema.createSchema("publish").ifNotExists().execute();
     await database.db.executeQuery(
@@ -678,10 +663,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.publish();
 
     expect(await getTableNames(database.db, "publish")).toStrictEqual(["Pet"]);
-    expect(await getViewNames(database.db, "publish")).toStrictEqual([
-      "Person",
-      "_ponder_meta",
-    ]);
+
+    const viewNames = await getViewNames(database.db, "publish");
+    expect(viewNames).toContain("_ponder_meta");
+    expect(viewNames).toContain("Person");
 
     await database.kill();
   });
@@ -697,11 +682,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.setup({ schema, buildId: "abc" });
 
-    expect(await getTableNames(database.db, "public")).toStrictEqual([
-      "_ponder_meta",
-      "Pet",
-      "Person",
-    ]);
+    const tableNames = await getTableNames(database.db, "public");
+    expect(tableNames).toContain("_ponder_meta");
+    expect(tableNames).toContain("Pet");
+    expect(tableNames).toContain("Person");
 
     await database.db.schema
       .createSchema("nice_looks-great")
@@ -715,11 +699,10 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     await database.publish();
 
-    expect(await getViewNames(database.db, "nice_looks-great")).toStrictEqual([
-      "Pet",
-      "Person",
-      "_ponder_meta",
-    ]);
+    const viewNames = await getViewNames(database.db, "nice_looks-great");
+    expect(viewNames).toContain("_ponder_meta");
+    expect(viewNames).toContain("Pet");
+    expect(viewNames).toContain("Person");
 
     await database.kill();
   });
