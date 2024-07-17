@@ -106,9 +106,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       await apiCleanupReloadable();
 
       if (result.status === "success") {
-        uiService.reset();
-        metrics.resetMetrics();
-
         apiCleanupReloadable = await runServer({
           common,
           build: result.build,
