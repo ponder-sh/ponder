@@ -17,7 +17,8 @@ const appRouter = t.router({
       .where(eq(Account.id, input as Address))
       .limit(1);
 
-    return account[0]?.balance?.toString() ?? null;
+    if (account.length === 0) return null;
+    return account[0]!.balance.toString();
   }),
 });
 
@@ -27,6 +28,6 @@ ponder.use(
   "/trpc/*",
   trpcServer({
     router: appRouter,
-    createContext: (_, c) => ({ db: c.env.db, tables: c.env.tables }),
+    createContext: (_, c) => c.var,
   }),
 );

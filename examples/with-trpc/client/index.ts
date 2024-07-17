@@ -11,5 +11,6 @@ const client = createTRPCProxyClient<AppRouter>({
 });
 
 const response = await client.hello.query(zeroAddress);
+//    ^?
 
 console.log(response);
