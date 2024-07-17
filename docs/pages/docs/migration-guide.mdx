@@ -3,11 +3,37 @@ title: "Migration Guide"
 description: "A guide for migrating to new versions of Ponder."
 ---
 
-import { FileTree, Steps } from "nextra/components";
-import { Callout } from "nextra/components";
+import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 import Architecture from "../../public/architecture.svg";
 
 # Migration guide
+
+## 0.5.0
+
+**Breaking:** This release adds [Hono](https://hono.dev) as a peer dependency. After upgrading, install `hono` in your project.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm add hono
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn add hono
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm install hono
+```
+</Tabs.Tab>
+</Tabs>
+
+### Introduced API functions
+
+This release added support for API functions. [Read more](/docs/query/api-functions).
 
 ## 0.4.0
 
@@ -17,11 +43,11 @@ It **does not** require any changes to your application code, and does not bust 
 
 Please read the new docs on [direct SQL](/docs/query/direct-sql) for a detailed overview.
 
-#### SQLite
+### SQLite
 
 Ponder now uses the `.ponder/sqlite/public.db` file for indexed tables. Before, the tables were present as views in the `.ponder/sqlite/ponder.db`. Now, the`.ponder/sqlite/ponder.db` file is only used internally by Ponder.
 
-#### Postgres
+### Postgres
 
 Ponder now creates a table in the `public` schema for each table in `ponder.schema.ts`. Before, Ponder created them as views in the `ponder` schema.
 
@@ -31,7 +57,7 @@ This also changes the zero-downtime behavior on platforms like Railway. For more
 - [Direct SQL](/docs/query/direct-sql)
 - [Zero-downtime deployments](/docs/production/zero-downtime)
 
-#### Postgres table cleanup
+### Postgres table cleanup
 
 After upgrading to `0.4.x`, you can run the following Postgres SQL script to clean up stale tables and views created by `0.3.x` Ponder apps.
 
