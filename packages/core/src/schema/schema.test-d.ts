@@ -130,6 +130,23 @@ test("createSchema many error wrong column", () => {
   }));
 });
 
+test("createSchema many self reference", () => {
+  const schema = createSchema((p) => ({
+    //  ^?
+    t: p.createTable({
+      id: p.hex(),
+      col1: p.hex().references("t.id"),
+      col2: p.one("col1"),
+      many: p.many("t.col1"),
+    }),
+  }));
+
+  type inferred = InferSchemaType<typeof schema>;
+  //   ^?
+
+  assertType<inferred>({} as unknown as { t: { id: Hex; col1: Hex } });
+});
+
 test("createSchema enum", () => {
   const schema = createSchema((p) => ({
     //  ^?
