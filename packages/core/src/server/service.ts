@@ -90,8 +90,13 @@ export async function createServer({
     }
   });
 
-  // context required for graphql middleware
+  const db = createDrizzleDb(database);
+  const tables = createDrizzleTables(schema, database, dbNamespace);
+
+  // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
+    c.set("db", db);
+    c.set("tables", tables);
     c.set("readonlyStore", readonlyStore);
     c.set("metadataStore", metadataStore);
     c.set("schema", schema);
@@ -140,9 +145,6 @@ export async function createServer({
     .use(contextMiddleware);
 
   if (userApp !== undefined && userRoutes !== undefined) {
-    const db = createDrizzleDb(database);
-    const tables = createDrizzleTables(schema, database, dbNamespace);
-
     // apply user routes to hono instance, registering a custom error handler
     applyHonoRoutes(hono, userRoutes, { db, tables }).onError((error, c) =>
       onError(error, c, common),

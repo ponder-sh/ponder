@@ -1,5 +1,5 @@
 import type { Schema } from "@/schema/common.js";
-import type { PonderHono } from "@/types/hono.js";
+import type { ApiRegistry } from "@/types/api.js";
 import type { BlankInput, HandlerResponse, Input, Next } from "hono/types";
 import type { Context, MiddlewareContext } from "./context.js";
 
@@ -29,7 +29,7 @@ export type HandlerInterface<schema extends Schema> = {
     response extends HandlerResponse<any> = any,
   >(
     handler: Handler<schema, path, input, response>,
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x2)
   <
@@ -42,7 +42,7 @@ export type HandlerInterface<schema extends Schema> = {
       Handler<schema, path, input>,
       Handler<schema, path, input2, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler)
   <
@@ -52,7 +52,7 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     handler: Handler<schema, path, input, response>,
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 3)
   <
@@ -67,7 +67,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input2>,
       Handler<schema, path, input3, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x2)
   <
@@ -81,7 +81,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input>,
       Handler<schema, path, input2, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 4)
   <
@@ -98,7 +98,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input3>,
       Handler<schema, path, input4, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x3)
   <
@@ -114,7 +114,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input2>,
       Handler<schema, path, input3, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 5)
   <
@@ -133,7 +133,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input4>,
       Handler<schema, path, input5, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x4)
   <
@@ -151,7 +151,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input3>,
       Handler<schema, path, input4, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 6)
   <
@@ -172,7 +172,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input5>,
       Handler<schema, path, input6, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x5)
   <
@@ -192,7 +192,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input4>,
       Handler<schema, path, input5, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 7)
   <
@@ -215,7 +215,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input6>,
       Handler<schema, path, input7, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x6)
   <
@@ -237,7 +237,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input5>,
       Handler<schema, path, input6, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 8)
   <
@@ -268,7 +268,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input7>,
       Handler<schema, path, input8, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x7)
   <
@@ -292,7 +292,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input6>,
       Handler<schema, path, input7, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 9)
   <
@@ -332,7 +332,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input8>,
       Handler<schema, path, input9, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x8)
   <
@@ -364,7 +364,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input7>,
       Handler<schema, path, input8, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(handler x 10)
   <
@@ -414,7 +414,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input9>,
       Handler<schema, path, input10, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x9)
   <
@@ -455,7 +455,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input8>,
       Handler<schema, path, input9, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x10)
   <
@@ -506,7 +506,7 @@ export type HandlerInterface<schema extends Schema> = {
       MiddlewareHandler<schema, path, input9>,
       Handler<schema, path, input10, response>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(...handlers[])
   <
@@ -515,7 +515,7 @@ export type HandlerInterface<schema extends Schema> = {
     response extends HandlerResponse<any> = any,
   >(
     ...handlers: Handler<schema, path, input, response>[]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, ...handlers[])
   <
@@ -525,18 +525,18 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: Handler<schema, path, input, response>[]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path)
-  <path extends string>(path: path): PonderHono<schema>;
+  <path extends string>(path: path): ApiRegistry<schema>;
 };
 
 export interface MiddlewareHandlerInterface<schema extends Schema> {
   //// app.use(...handlers[])
-  (...handlers: MiddlewareHandler<schema, BasePath>[]): PonderHono<schema>;
+  (...handlers: MiddlewareHandler<schema, BasePath>[]): ApiRegistry<schema>;
 
   // app.use(handler)
-  (handler: MiddlewareHandler<schema, BasePath>): PonderHono<schema>;
+  (handler: MiddlewareHandler<schema, BasePath>): ApiRegistry<schema>;
 
   // app.use(handler x2)
   <path extends string = BasePath>(
@@ -544,13 +544,13 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler)
   <path extends string>(
     path: path,
     handler: MiddlewareHandler<schema, path>,
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x3)
   <path extends string = BasePath>(
@@ -559,7 +559,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x2)
   <path extends string>(
@@ -568,7 +568,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x4)
   <path extends string = BasePath>(
@@ -578,7 +578,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x3)
   <path extends string>(
@@ -588,7 +588,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x5)
   <path extends string = BasePath>(
@@ -599,7 +599,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x4)
   <path extends string>(
@@ -610,7 +610,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x6)
   <path extends string = BasePath>(
@@ -622,7 +622,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x5)
   <path extends string>(
@@ -634,7 +634,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x7)
   <path extends string = BasePath>(
@@ -647,7 +647,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x6)
   <path extends string>(
@@ -660,7 +660,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x8)
   <path extends string = BasePath>(
@@ -674,7 +674,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x7)
   <path extends string>(
@@ -688,7 +688,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x9)
   <path extends string = BasePath>(
@@ -703,7 +703,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x8)
   <path extends string>(
@@ -718,7 +718,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.use(handler x10)
   <path extends string = BasePath>(
@@ -734,7 +734,7 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   // app.get(path, handler x9)
   <path extends string>(
@@ -750,11 +750,11 @@ export interface MiddlewareHandlerInterface<schema extends Schema> {
       MiddlewareHandler<schema, path>,
       MiddlewareHandler<schema, path>,
     ]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 
   //// app.use(path, ...handlers[])
   <path extends string>(
     path: path,
     ...handlers: MiddlewareHandler<schema, path>[]
-  ): PonderHono<schema>;
+  ): ApiRegistry<schema>;
 }

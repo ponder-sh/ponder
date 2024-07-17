@@ -1,22 +1,12 @@
-import type { DrizzleDb } from "@/drizzle/db.js";
-import type { DrizzleTable } from "@/drizzle/table.js";
-import type { ExtractTableNames, Schema } from "@/schema/common.js";
+import type { Schema } from "@/schema/common.js";
+import type { ApiContext } from "@/types/api.js";
 import type { Env, Context as HonoContext, Input } from "hono";
 
 export type Context<
   schema extends Schema = Schema,
   path extends string = string,
   input extends Input = {},
-> = {
-  db: DrizzleDb;
-  tables: {
-    [tableName in ExtractTableNames<schema>]: DrizzleTable<
-      tableName,
-      // @ts-ignore
-      schema[tableName]["table"],
-      schema
-    >;
-  };
+> = ApiContext<schema> & {
   /**
    * Hono request object.
    *
@@ -59,14 +49,4 @@ export type MiddlewareContext<
   schema extends Schema = Schema,
   path extends string = string,
   input extends Input = {},
-> = HonoContext<Env, path, input> & {
-  db: DrizzleDb;
-  tables: {
-    [tableName in ExtractTableNames<schema>]: DrizzleTable<
-      tableName,
-      // @ts-ignore
-      schema[tableName]["table"],
-      schema
-    >;
-  };
-};
+> = ApiContext<schema> & HonoContext<Env, path, input>;

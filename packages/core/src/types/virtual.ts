@@ -17,7 +17,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { DatabaseModel } from "@/types/model.js";
-import type { PonderHono } from "./hono.js";
+import type { ApiRegistry, ApiContext as _ApiContext } from "./api.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -227,6 +227,8 @@ export namespace Virtual {
     };
   };
 
+  export type Drizzle<schema extends BuilderSchema> = _ApiContext<schema>;
+
   export type IndexingFunctionArgs<
     config extends Config,
     schema extends BuilderSchema,
@@ -247,5 +249,5 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-  } & PonderHono<schema>;
+  } & ApiRegistry<schema>;
 }

@@ -17,7 +17,12 @@ export const applyHonoRoutes = (
   // add custom properties to hono context
   const addCustomContext =
     (handler: Handler | MiddlewareHandler) => (c: any, next: any) => {
-      return handler({ ...customContext, ...c }, next);
+      for (const key of Object.keys(customContext ?? {})) {
+        // @ts-ignore
+        c[key] = customContext![key];
+      }
+
+      return handler(c, next);
     };
 
   for (const {
@@ -52,7 +57,7 @@ export const applyHonoRoutes = (
       }
       for (const handler of handlers) {
         // @ts-expect-error access private property
-        hono.addRoute("ALL", path, handler);
+        hono.addRoute("ALL", path, addCustomContext(handler));
       }
     }
   }

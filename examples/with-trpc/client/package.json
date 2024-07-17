@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "name": "ponder-examples-with-trpc-ponder",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@trpc/client": "^10.45.2"
+  }
+}
