@@ -24,7 +24,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
+import {
+  type SqliteDatabase,
+  createReadonlySqliteDatabase,
+  createSqliteDatabase,
+} from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
@@ -51,10 +55,9 @@ export class SqliteDatabaseService implements BaseDatabaseService {
   private userNamespace: string;
   private internalNamespace: string;
 
-  userDatabaseFile: string;
-
   private internalDatabase: SqliteDatabase;
   private syncDatabase: SqliteDatabase;
+  readonlyDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
   readonlyDb: HeadlessKysely<any>;
@@ -79,7 +82,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.deleteV3DatabaseFiles();
 
     this.userNamespace = userNamespace;
-    this.userDatabaseFile = path.join(directory, `${userNamespace}.db`);
+    const userDatabaseFile = path.join(directory, `${userNamespace}.db`);
 
     // Note that SQLite supports using "main" as the schema name for tables
     // in the primary database (as opposed to attached databases). We include
@@ -90,7 +93,12 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
     this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
     this.internalDatabase.exec(
-      `ATTACH DATABASE '${this.userDatabaseFile}' AS ${this.userNamespace}`,
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
+    );
+
+    this.readonlyDatabase = createReadonlySqliteDatabase(internalDatabaseFile);
+    this.readonlyDatabase.exec(
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
     this.db = new HeadlessKysely<InternalTables>({
@@ -135,7 +143,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.readonlyDb = new HeadlessKysely<InternalTables>({
       name: "readonly",
       common,
-      dialect: new SqliteDialect({ database: this.internalDatabase }),
+      dialect: new SqliteDialect({ database: this.readonlyDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({
