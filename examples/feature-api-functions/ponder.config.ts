@@ -1,7 +1,6 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
-
-import { PrimitiveManagerAbi } from "./abis/PrimitiveManagerAbi";
+import { erc20ABI } from "./abis/erc20ABI";
 
 export default createConfig({
   networks: {
@@ -11,11 +10,12 @@ export default createConfig({
     },
   },
   contracts: {
-    PrimitiveManager: {
+    ERC20: {
       network: "mainnet",
-      abi: PrimitiveManagerAbi,
-      address: "0x54522dA62a15225C95b01bD61fF58b866C50471f",
-      startBlock: 14438081,
+      abi: erc20ABI,
+      address: "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
+      startBlock: 13142655,
+      endBlock: 13150000,
     },
   },
 });
