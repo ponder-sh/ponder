@@ -2,7 +2,7 @@ import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
-import { createYoga } from "graphql-yoga";
+import { type YogaServerInstance, createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { buildGraphQLSchema } from "./buildGraphqlSchema.js";
 import { buildLoaderCache } from "./buildLoaderCache.js";
@@ -36,7 +36,7 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
-  let yoga: any | undefined = undefined;
+  let yoga: YogaServerInstance<any, any> | undefined = undefined;
 
   return createMiddleware(async (c) => {
     if (c.req.method === "GET") {
@@ -74,6 +74,13 @@ export const graphql = (
       });
     }
 
-    return yoga.handle(c.req.raw);
+    const response = await yoga.handle(c.req.raw);
+    // TODO: Figure out why Yoga is returning 500 status codes for GraphQL errors.
+    // @ts-expect-error
+    response.status = 200;
+    // @ts-expect-error
+    response.statusText = "OK";
+
+    return response;
   });
 };
