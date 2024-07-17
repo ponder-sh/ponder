@@ -75,3 +75,14 @@ export function createSqliteDatabase(
   database.pragma("journal_mode = WAL");
   return database;
 }
+
+export function createReadonlySqliteDatabase(
+  file: string,
+  options?: BetterSqlite3.Options,
+): SqliteDatabase {
+  ensureDirExists(file);
+  const database = new BetterSqlite3(file, { readonly: true, ...options });
+  improveSqliteErrors(database);
+  database.pragma("journal_mode = WAL");
+  return database;
+}

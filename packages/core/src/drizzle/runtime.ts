@@ -10,7 +10,6 @@ import {
   isScalarColumn,
 } from "@/schema/utils.js";
 import { getTables } from "@/schema/utils.js";
-import { createSqliteDatabase } from "@/utils/sqlite.js";
 import { drizzle as drizzleSQLite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
@@ -41,13 +40,32 @@ export const createDrizzleDb = (database: DatabaseService) => {
       execute: (query: any) => drizzle.execute(query),
     };
   } else {
-    const drizzle = drizzleSQLite(
-      createSqliteDatabase(database.userDatabaseFile),
-    );
+    const drizzle = drizzleSQLite(database.readonlyDatabase);
     return {
       // @ts-ignore
       select: (...args: any[]) => drizzle.select(...args),
-      execute: (query: any) => drizzle.all(query),
+      execute: (query: any) => {
+        try {
+          try {
+            return drizzle.all(query);
+          } catch (e) {
+            const error = e as Error;
+            if (
+              error.name === "SqliteError" &&
+              error.message ===
+                "This statement does not return data. Use run() instead"
+            ) {
+              return drizzle.run(query);
+            } else {
+              throw error;
+            }
+          }
+        } catch (e) {
+          const error = e as Error;
+          if (error.cause) throw error.cause;
+          throw error;
+        }
+      },
     };
   }
 };

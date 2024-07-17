@@ -26,7 +26,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { createPool } from "@/utils/pg.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
@@ -108,7 +108,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       application_name: `${userNamespace}_indexing`,
       max: indexingMax,
     });
-    this.readonlyPool = createPool({
+    this.readonlyPool = createReadonlyPool({
       ...poolConfig,
       application_name: `${userNamespace}_readonly`,
       max: syncMax,
@@ -151,16 +151,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.readonlyDb = new HeadlessKysely<InternalTables>({
       name: "readonly",
       common,
-      dialect: new PostgresDialect({
-        pool: this.readonlyPool,
-        onCreateConnection: async (connection) => {
-          await connection.executeQuery(
-            sql
-              .raw("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
-              .compile(this.readonlyDb),
-          );
-        },
-      }),
+      dialect: new PostgresDialect({ pool: this.readonlyPool }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_postgres_query_total.inc({ pool: "readonly" });
