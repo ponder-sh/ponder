@@ -153,11 +153,11 @@ ponder.get("/:token/ticker", async (c) => {
 
 ## API reference
 
-### `ponder.get()`
+### `get()`
 
 Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
 
-```ts filename="src/api/index.ts" {3,5,7-9}
+```ts filename="src/api/index.ts" {3,5}
 import { ponder } from "@/generated";
 
 ponder.get("/account/:address", async (c) => {
@@ -178,7 +178,7 @@ ponder.get("/account/:address", async (c) => {
 });
 ```
 
-### `ponder.post()`
+### `post()`
 
 <Callout type="info">
   API functions cannot write to the database, even when handling `POST`
@@ -218,7 +218,7 @@ ponder.post("/volume", async (c) => {
 });
 ```
 
-### `ponder.use()`
+### `use()`
 
 Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware functions can modify the request and response objects, add logs, authenticate requests, and more. [Read more](https://hono.dev/docs/guides/middleware) about Hono middleware.
 
@@ -231,9 +231,9 @@ ponder.use((c) => {
 });
 ```
 
-### `ponder.hono`
+### `hono`
 
-If you need to access the underlying Hono instance, use the `hono` property.
+Use `ponder.hono` to access the underlying Hono instance.
 
 ```ts filename="src/api/index.ts" {3}
 import { ponder } from "@/generated";
