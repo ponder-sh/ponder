@@ -13,6 +13,7 @@
   "dependencies": {
     "@ponder/core": "workspace:*",
     "abitype": "^0.10.2",
+    "hono": "^4.5.0",
     "viem": "^1.19.9"
   },
   "devDependencies": {

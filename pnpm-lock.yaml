@@ -141,11 +141,39 @@ importers:
         specifier: ^5.2.2
         version: 5.3.3
 
+  examples/feature-api-functions:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      viem:
+        specifier: ^1.19.9
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.11.24
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.3
+
   examples/feature-blocks:
     dependencies:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -168,6 +196,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -193,6 +224,9 @@ importers:
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -215,6 +249,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -237,6 +274,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -259,6 +299,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -281,6 +324,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -303,6 +349,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -325,6 +374,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -347,6 +399,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -370,7 +425,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       hono:
-        specifier: ^4.4.6
+        specifier: ^4.5.0
         version: 4.5.0
       viem:
         specifier: ^1.19.9
@@ -394,6 +449,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -416,6 +474,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -450,6 +511,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.3
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -529,6 +593,9 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
@@ -565,6 +632,9 @@ importers:
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)

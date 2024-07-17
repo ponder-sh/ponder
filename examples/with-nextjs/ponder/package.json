@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ponder/core": "workspace:*",
+    "hono": "^4.5.0",
     "viem": "^1.19.9"
   },
   "devDependencies": {
