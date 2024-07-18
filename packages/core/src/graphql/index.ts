@@ -10,7 +10,7 @@ import { buildLoaderCache } from "./buildLoaderCache.js";
 /**
  * Middleware for GraphQL with an interactive web view.
  *
- * - Docs: [TODO(kyle)]
+ * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
  *
  * @example
  * import { ponder } from "@/generated";

@@ -3,4 +3,4 @@
 "@ponder/core": minor
 ---
 
-[Experimental] Introduced API functions. [Read more](https://ponder-docs-git-kjs-api2-ponder-sh.vercel.app/docs/query/api-functions).
+Introduced API functions. [Read more](https://ponder.sh/docs/query/api-functions). Please read the [migration guide](https://ponder.sh/docs/migration-guide) for more information.
