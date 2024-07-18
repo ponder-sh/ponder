@@ -3,10 +3,10 @@ import {
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { Build } from "@/build/index.js";
+import type { IndexingBuild } from "@/build/index.js";
 import * as codegen from "@/common/codegen.js";
+import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import { createSchema } from "@/schema/schema.js";
-import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -26,10 +26,10 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-const graphqlSchema = buildGraphqlSchema(schema);
+const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() kill", async (context) => {
-  const build: Build = {
+  const build: IndexingBuild = {
     buildId: "buildId",
     schema,
     graphqlSchema,
@@ -59,7 +59,7 @@ test("run() setup", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
-  const build: Build = {
+  const build: IndexingBuild = {
     buildId: "buildId",
     schema,
     graphqlSchema,
@@ -88,7 +88,7 @@ test("run() setup error", async (context) => {
   };
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
-  const build: Build = {
+  const build: IndexingBuild = {
     buildId: "buildId",
     schema,
     graphqlSchema,

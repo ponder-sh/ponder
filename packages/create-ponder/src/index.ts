@@ -81,6 +81,11 @@ const templates = [
     description: "A Ponder app using an event filter",
   },
   {
+    id: "feature-api-functions",
+    title: "Feature - Custom api functions",
+    description: "A Ponder app using a custom api functions",
+  },
+  {
     id: "feature-blocks",
     title: "Feature - Block filter",
     description: "A Ponder app using a block filter",

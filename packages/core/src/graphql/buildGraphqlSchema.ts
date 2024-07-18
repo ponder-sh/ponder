@@ -22,7 +22,7 @@ export type Context = {
   metadataStore: MetadataStore;
 };
 
-export const buildGraphqlSchema = (schema: Schema): GraphQLSchema => {
+export const buildGraphQLSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};
 
   const { enumTypes } = buildEnumTypes({ schema });

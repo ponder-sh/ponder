@@ -1,5 +1,5 @@
 import { GraphQLObjectType } from "graphql";
-import { GraphQLJSON } from "graphql-type-json";
+import { GraphQLJSON } from "./graphQLJson.js";
 
 export const metadataEntity = new GraphQLObjectType({
   name: "_meta",

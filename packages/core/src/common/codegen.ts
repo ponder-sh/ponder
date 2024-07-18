@@ -1,8 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
-import type { GraphQLSchema } from "graphql";
-import { printSchema } from "graphql";
+import { type GraphQLSchema, printSchema } from "graphql";
 
 export const ponderEnv = `// This file enables type checking and editor autocomplete for this Ponder project.
 // After upgrading, you may find that changes have been made to this file.
@@ -27,6 +26,7 @@ declare module "@/generated" {
     schema,
     name
   >;
+  export type ApiContext = Virtual.Drizzle<schema>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config, schema, name>;
   export type Schema = Virtual.Schema<schema>;

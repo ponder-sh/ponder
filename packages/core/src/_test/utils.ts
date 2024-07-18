@@ -696,8 +696,10 @@ export async function waitForIndexedBlock(
     const interval = setInterval(async () => {
       const response = await fetch(`http://localhost:${port}/status`);
       if (response.status === 200) {
-        const status = (await response.json()) as Status;
-        const statusBlockNumber = status[networkName]?.block?.number;
+        const status = (await response.json()) as Status | null;
+        const statusBlockNumber = status
+          ? status[networkName]?.block?.number
+          : undefined;
         if (
           statusBlockNumber !== undefined &&
           statusBlockNumber >= blockNumber

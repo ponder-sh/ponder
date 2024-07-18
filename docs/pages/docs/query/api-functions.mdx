@@ -1,0 +1,254 @@
+---
+title: "API functions"
+description: "Use API functions to customize the API layer of your app."
+---
+
+import { Callout, Steps } from "nextra/components";
+
+# API functions
+
+**API functions** are user-defined TypeScript functions that handle web requests. You can use them to customize the API layer of your app with complex SQL queries, authentication, data from external sources, and more.
+
+API functions are built on top of [Hono](https://hono.dev/), a fast and lightweight routing framework.
+
+## Example projects
+
+These example apps demonstrate how to use API functions.
+
+- [**Basic**](https://github.com/ponder-sh/ponder/tree/main/examples/feature-api-functions/src/api/index.ts) - An ERC20 app that responds to `GET` requests and uses the [Select API](#query-the-database) to build custom SQL queries.
+- [**tRPC**](https://github.com/ponder-sh/ponder/tree/main/examples/with-trpc/client/index.ts) - An app that creates a [tRPC](https://trpc.io) server and a script that uses a tRPC client with end-to-end type safety.
+
+## Get started
+
+<Steps>
+
+### Upgrade to `>=0.5.0`
+
+API functions are available starting from version `0.5.0`. Read the [migration guide](/docs/migration-guide#050) for more details.
+
+### Create `src/api/index.ts` file
+
+To enable API functions, create a file named `src/api/index.ts` with the following code. You can register API functions in any `.ts` file in the `src/api/` directory.
+
+```ts filename="src/api/index.ts"
+import { ponder } from "@/generated";
+
+ponder.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+```
+
+### Send a request
+
+Visit `http://localhost:42069/hello` in your browser to see the response.
+
+```plaintext filename="Response"
+Hello, world!
+```
+
+### Register GraphQL middleware
+
+<Callout type="warning">
+  Once you create an API function file, you have "opted in" to API functions and
+  your app **will not** serve the standard GraphQL API by default.
+</Callout>
+
+To continue using the standard GraphQL API, register the `graphql` middleware exported from `@ponder/core`.
+
+```ts filename="src/api/index.ts" {2,4-5}
+import { ponder } from "@/generated";
+import { graphql } from "@ponder/core";
+
+ponder.use("/", graphql());
+ponder.use("/graphql", graphql());
+
+// ...
+```
+
+</Steps>
+
+## Query the database
+
+API functions can query the database using the read-only **Select API**, a type-safe query builder powered by [Drizzle](https://orm.drizzle.team/docs/overview). The Select API supports complex filters, joins, aggregations, set operations, and more.
+
+<Callout type="info">
+  The Select API is only available within API functions. Indexing functions use
+  the [Store API](/docs/indexing/create-update-records) (`findUnique`, `upsert`,
+  etc) which supports writes and is reorg-aware.
+</Callout>
+
+### Select
+
+The API function context contains a built-in database client (`db`) and an object for each table in your schema (`tables`). These objects are type-safe – changes to your `ponder.schema.ts` file will be reflected immediately.
+
+To build a query, use `c.db.select(){:ts}` and include a table object using `.from(c.tables.TableName){:ts}`.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts" {4}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.string(),
+    balance: p.bigint(),
+  }),
+}));
+```
+
+```ts filename="src/api/index.ts" {6}
+import { ponder } from "@/generated";
+
+ponder.get("/account/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const account = await c.db.select(c.tables.Account).limit(1);
+
+  return c.json(account);
+});
+```
+
+</div>
+
+To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `@ponder/core`.
+
+For more details, please reference the [Drizzle documentation](https://orm.drizzle.team/docs/select).
+
+```ts filename="src/api/index.ts" {2,7-11}
+import { ponder } from "@/generated";
+import { gte } from "@ponder/core";
+
+ponder.get("/whales", async (c) => {
+  const { Account } = c.tables;
+
+  const whales = await c.db
+    .select({ address: Account.id, balance: Account.balance })
+    .from(Account.id)
+    .where(gte(TransferEvent.balance, 1_000_000_000n))
+    .limit(1);
+
+  return c.json(whales);
+});
+```
+
+### Execute
+
+To run raw SQL queries, use `db.execute(...){:ts}` with the `sql` utility function. [Read more](https://orm.drizzle.team/docs/sql) about the `sql` function.
+
+```ts filename="src/api/index.ts" {2,7-9}
+import { ponder } from "@/generated";
+import { sql } from "@ponder/core";
+
+ponder.get("/:token/ticker", async (c) => {
+  const token = c.req.param("token");
+
+  const result = await c.db.execute(
+    sql`SELECT ticker FROM "Token" WHERE id = ${token}`
+  );
+  const ticker = result.rows[0]?.ticker;
+
+  return c.text(ticker);
+});
+```
+
+## API reference
+
+### `get()`
+
+Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
+
+```ts filename="src/api/index.ts" {3,5}
+import { ponder } from "@/generated";
+
+ponder.get("/account/:address", async (c) => {
+  const { Account } = c.tables;
+  const address = c.req.param("address");
+
+  const account = await c.db
+    .select()
+    .from(Account)
+    .where({ id: address })
+    .first();
+
+  if (account) {
+    return c.json(account);
+  } else {
+    return c.status(404).json({ error: "Account not found" });
+  }
+});
+```
+
+### `post()`
+
+<Callout type="info">
+  API functions cannot write to the database, even when handling `POST`
+  requests.
+</Callout>
+
+Use `ponder.post()` to handle HTTP `POST` requests.
+
+In this example, we calculate the volume of transfers for each recipient within a given time range. The `fromTimestamp` and `toTimestamp` parameters are passed in the request body.
+
+```ts filename="src/api/index.ts" {5,7-9}
+import { ponder } from "@/generated";
+import { and, gte, sum } from "@ponder/core";
+
+ponder.post("/volume", async (c) => {
+  const { TransferEvent } = c.tables;
+
+  const body = await c.req.json();
+  const { fromTimestamp, toTimestamp } = body;
+
+  const volumeChartData = await c.db
+    .select({
+      to: TransferEvent.toId,
+      volume: sum(TransferEvent.amount),
+    })
+    .from(TransferEvent)
+    .groupBy(TransferEvent.toId)
+    .where(
+      and(
+        gte(TransferEvent.timestamp, fromTimestamp),
+        lte(TransferEvent.timestamp, toTimestamp)
+      )
+    )
+    .limit(1);
+
+  return c.json(volumeChartData);
+});
+```
+
+### `use()`
+
+Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware functions can modify the request and response objects, add logs, authenticate requests, and more. [Read more](https://hono.dev/docs/guides/middleware) about Hono middleware.
+
+```ts filename="src/api/index.ts" {3}
+import { ponder } from "@/generated";
+
+ponder.use((c) => {
+  console.log("Request received:", c.req.url);
+  return c.next();
+});
+```
+
+### `hono`
+
+Use `ponder.hono` to access the underlying Hono instance.
+
+```ts filename="src/api/index.ts" {3}
+import { ponder } from "@/generated";
+
+ponder.hono.notFound((c) => {
+  return c.text("Custom 404 Message", 404);
+});
+
+// ...
+```
+
+## Reserved routes
+
+If you register API functions that conflict with these internal routes, the build will fail.
+
+- `/health`: Returns a `200` status code after the app has completed historical indexing OR the healthcheck timeout has expired, whichever comes first. [Read more](/docs/production/zero-downtime) about healthchecks.
+- `/metrics`: Returns Prometheus metrics. [Read more](/docs/advanced/metrics) about metrics.
+- `/status`: Returns indexing status object. [Read more](/docs/advanced/status) about indexing status.

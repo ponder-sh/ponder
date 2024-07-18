@@ -8,11 +8,11 @@ export const getMetadataStore = ({
   db,
 }: {
   encoding: "sqlite" | "postgres";
-  namespaceInfo: NamespaceInfo;
+  namespaceInfo: Pick<NamespaceInfo, "userNamespace">;
   db: HeadlessKysely<any>;
 }): MetadataStore => ({
   getStatus: async () => {
-    return db.wrap({ method: "_ponder_meta.getLatest()" }, async () => {
+    return db.wrap({ method: "_ponder_meta.getStatus()" }, async () => {
       const metadata = await db
         .withSchema(namespaceInfo.userNamespace)
         .selectFrom("_ponder_meta")
@@ -28,7 +28,7 @@ export const getMetadataStore = ({
     });
   },
   setStatus: (status: Status) => {
-    return db.wrap({ method: "_ponder_meta.setLatest()" }, async () => {
+    return db.wrap({ method: "_ponder_meta.setStatus()" }, async () => {
       await db
         .withSchema(namespaceInfo.userNamespace)
         .insertInto("_ponder_meta")
