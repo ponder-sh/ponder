@@ -707,6 +707,46 @@ describe.skipIf(shouldSkip)("postgres database", () => {
     await database.kill();
   });
 
+  test("publish succeeds if there are other views dependent on the removed views", async (context) => {
+    if (context.databaseConfig.kind !== "postgres") return;
+    const database = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: context.databaseConfig.schema,
+      publishSchema: "publish",
+    });
+
+    await database.setup({ schema, buildId: "abc" });
+    await database.publish();
+
+    await database.db.executeQuery(
+      sql`CREATE VIEW "publish"."dependent" AS SELECT * FROM "publish"."Pet"`.compile(
+        database.db,
+      ),
+    );
+
+    let viewNames = await getViewNames(database.db, "publish");
+    expect(viewNames).toContain("dependent");
+    expect(viewNames).toContain("Pet");
+
+    const databaseTwo = new PostgresDatabaseService({
+      common: context.common,
+      poolConfig: context.databaseConfig.poolConfig,
+      userNamespace: "public2",
+      publishSchema: "publish",
+    });
+
+    await databaseTwo.setup({ schema, buildId: "def" });
+    await databaseTwo.publish();
+
+    viewNames = await getViewNames(database.db, "publish");
+    expect(viewNames).not.toContain("dependent");
+    expect(viewNames).toContain("Pet");
+
+    await database.kill();
+    await databaseTwo.kill();
+  });
+
   test("createIndexes adds a single column index", async (context) => {
     if (context.databaseConfig.kind !== "postgres") return;
     const database = new PostgresDatabaseService({
