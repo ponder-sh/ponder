@@ -79,7 +79,7 @@ export function createTelemetry({
     conf.set("notifiedAt", Date.now().toString());
     logger.info({
       service: "telemetry",
-      msg: "Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/advanced/telemetry for more information.",
+      msg: "Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/docs/advanced/telemetry for more information.",
     });
   }
 
