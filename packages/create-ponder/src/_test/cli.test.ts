@@ -29,6 +29,8 @@ test("create empty", async () => {
     .concat([
       path.join("abis", "ExampleContractAbi.ts"),
       path.join("src", "index.ts"),
+      path.join("src", "api"),
+      path.join("src", "api", "index.ts"),
     ])
     .map((filePath) =>
       filePath === "_dot_env.local"
