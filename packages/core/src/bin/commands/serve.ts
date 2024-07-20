@@ -5,8 +5,6 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { NamespaceInfo } from "@/database/service.js";
-import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { createServer } from "@/server/service.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -52,22 +50,24 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const initialResult = await buildService.start({ watch: false });
+  const { api, indexing } = await buildService.start({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (initialResult.status === "error") {
+  if (api.status === "error" || indexing.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
   telemetry.record({
     name: "lifecycle:session_start",
-    properties: { cli_command: "serve", ...buildPayload(initialResult.build) },
+    properties: {
+      cli_command: "serve",
+      ...buildPayload(indexing.build),
+    },
   });
 
-  const { databaseConfig, optionsConfig, schema, graphqlSchema } =
-    initialResult.build;
+  const { databaseConfig, optionsConfig, schema } = api.build;
 
   common.options = { ...common.options, ...optionsConfig };
 
@@ -97,21 +97,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     isReadonly: true,
   });
 
-  const readonlyStore = getReadonlyStore({
-    encoding: "postgres",
-    schema,
-    // Note: `ponder serve` serves data from the `publishSchema`. Also, it does
-    // not need the other fields in NamespaceInfo because it only uses findUnique
-    // and findMany. We should ultimately add a PublicStore interface for this.
-    namespaceInfo: {
-      userNamespace: databaseConfig.publishSchema,
-    } as unknown as NamespaceInfo,
-    db: database.readonlyDb,
+  const server = await createServer({
+    app: api.build.app,
+    routes: api.build.routes,
     common,
+    schema,
+    database,
+    dbNamespace: databaseConfig.publishSchema,
   });
-
-  const server = await createServer({ graphqlSchema, common, readonlyStore });
-  server.setHealthy();
 
   cleanupReloadable = async () => {
     await server.kill();

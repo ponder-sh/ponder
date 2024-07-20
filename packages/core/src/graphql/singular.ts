@@ -27,7 +27,10 @@ export const buildSingularField = ({
 
     if (id === undefined) return null;
 
-    const entityInstance = await context.store.findUnique({ tableName, id });
+    const entityInstance = await context.readonlyStore.findUnique({
+      tableName,
+      id,
+    });
 
     return entityInstance;
   };

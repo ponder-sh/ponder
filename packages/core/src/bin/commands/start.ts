@@ -6,6 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
+import { runServer } from "../utils/runServer.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
 export async function start({ cliOptions }: { cliOptions: CliOptions }) {
@@ -41,37 +42,47 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const buildService = await createBuildService({ common });
 
   let cleanupReloadable = () => Promise.resolve();
+  let cleanupReloadableServer = () => Promise.resolve();
 
   const cleanup = async () => {
     await cleanupReloadable();
+    await cleanupReloadableServer();
     await telemetry.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const initialResult = await buildService.start({ watch: false });
+  const { indexing, api } = await buildService.start({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (initialResult.status === "error") {
+  if (indexing.status === "error" || api.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
   telemetry.record({
     name: "lifecycle:session_start",
-    properties: { cli_command: "start", ...buildPayload(initialResult.build) },
+    properties: {
+      cli_command: "start",
+      ...buildPayload(indexing.build),
+    },
   });
 
   cleanupReloadable = await run({
     common,
-    build: initialResult.build,
+    build: indexing.build,
     onFatalError: () => {
       shutdown({ reason: "Received fatal error", code: 1 });
     },
     onReloadableError: () => {
       shutdown({ reason: "Encountered indexing error", code: 1 });
     },
+  });
+
+  cleanupReloadableServer = await runServer({
+    common,
+    build: api.build,
   });
 
   return cleanup;

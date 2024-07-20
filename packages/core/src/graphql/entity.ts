@@ -23,9 +23,9 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import { GraphQLJSON } from "graphql-type-json";
 import type { Context, Parent } from "./buildGraphqlSchema.js";
 import { buildWhereObject } from "./filter.js";
+import { GraphQLJSON } from "./graphQLJson.js";
 import type { PluralResolver } from "./plural.js";
 import { SCALARS } from "./scalar.js";
 
@@ -107,7 +107,7 @@ export const buildEntityTypes = ({
 
               // Query for the IDs of the matching records.
               // TODO: Update query to only fetch IDs, not entire records.
-              const result = await context.store.findMany({
+              const result = await context.readonlyStore.findMany({
                 tableName: column[" referenceTable"],
                 where: whereObject,
                 orderBy: orderByObject,

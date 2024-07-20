@@ -24,7 +24,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
+import {
+  type SqliteDatabase,
+  createReadonlySqliteDatabase,
+  createSqliteDatabase,
+} from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
@@ -53,6 +57,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   private internalDatabase: SqliteDatabase;
   private syncDatabase: SqliteDatabase;
+  readonlyDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
   readonlyDb: HeadlessKysely<any>;
@@ -88,6 +93,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
     this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
     this.internalDatabase.exec(
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
+    );
+
+    this.readonlyDatabase = createReadonlySqliteDatabase(internalDatabaseFile);
+    this.readonlyDatabase.exec(
       `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
@@ -133,7 +143,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.readonlyDb = new HeadlessKysely<InternalTables>({
       name: "readonly",
       common,
-      dialect: new SqliteDialect({ database: this.internalDatabase }),
+      dialect: new SqliteDialect({ database: this.readonlyDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({
@@ -232,6 +242,26 @@ export class SqliteDatabaseService implements BaseDatabaseService {
               });
             }
           };
+
+          // Create ponder_metadata table if it doesn't exist
+          await tx.schema
+            .withSchema(this.userNamespace)
+            .createTable("_ponder_meta")
+            .addColumn("key", "text", (col) => col.primaryKey())
+            .addColumn("value", "jsonb")
+            .ifNotExists()
+            .execute();
+
+          // Create or set status to null
+          await tx
+            .withSchema(this.userNamespace)
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .insertInto("_ponder_meta")
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .values({ key: "status", value: null })
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .onConflict((oc) => oc.column("key").doUpdateSet({ value: null }))
+            .execute();
 
           // If no lock row is found for this namespace, we can acquire the lock.
           if (previousLockRow === undefined) {

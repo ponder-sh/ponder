@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Build } from "@/build/service.js";
+import type { IndexingBuild } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
 import { getTables } from "@/schema/utils.js";
 import { startClock } from "@/utils/timer.js";
@@ -269,7 +269,7 @@ function getPackageJson(rootDir: string) {
   }
 }
 
-export function buildPayload(build: Build) {
+export function buildPayload(build: IndexingBuild) {
   const table_count = Object.keys(getTables(build.schema)).length;
   const indexing_function_count = Object.values(build.indexingFunctions).reduce(
     (acc, f) => acc + Object.keys(f).length,

@@ -8,9 +8,6 @@ patchedDependencies:
   detect-package-manager@3.0.1:
     hash: tkhlb7gk5ij4zxchvtwu3teirq
     path: patches/detect-package-manager@3.0.1.patch
-  graphql@16.8.1:
-    hash: 3zvcnrptpojleshpmtp6be677a
-    path: patches/graphql@16.8.1.patch
 
 importers:
 
@@ -25,6 +22,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.26.2
         version: 2.27.1
+      hono:
+        specifier: 4.5.0
+        version: 4.5.0
       lint-staged:
         specifier: ^15.1.0
         version: 15.2.0
@@ -141,14 +141,42 @@ importers:
         specifier: ^5.2.2
         version: 5.3.3
 
+  examples/feature-api-functions:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      viem:
+        specifier: ^1.19.9
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.11.24
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.3
+
   examples/feature-blocks:
     dependencies:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -168,9 +196,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -193,9 +224,12 @@ importers:
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -215,9 +249,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -237,9 +274,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -259,9 +299,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -281,9 +324,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -303,9 +349,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -325,9 +374,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -347,9 +399,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -369,9 +424,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -391,9 +449,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -413,9 +474,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -440,16 +504,19 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5
+        version: github.com/foundry-rs/forge-std/07263d193d621c4b2b0ce8b4d54af58f6957d97d
 
   examples/with-foundry/ponder:
     dependencies:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.3
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.9.0
@@ -473,10 +540,10 @@ importers:
         version: 5.12.2(react@18.2.0)
       graphql:
         specifier: ^16.8.1
-        version: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+        version: 16.8.2
       graphql-request:
         specifier: ^6.1.0
-        version: 6.1.0(graphql@16.8.1)
+        version: 6.1.0(graphql@16.8.2)
       next:
         specifier: 14.0.3
         version: 14.0.3(react-dom@18.2.0)(react@18.2.0)
@@ -491,7 +558,7 @@ importers:
         version: 18.2.0(react@18.2.0)
       viem:
         specifier: ^1.19.11
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -526,9 +593,54 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
       viem:
         specifier: ^1.19.9
-        version: 1.21.4(typescript@5.3.3)
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.11.24
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.3
+
+  examples/with-trpc: {}
+
+  examples/with-trpc/client:
+    dependencies:
+      '@trpc/client':
+        specifier: ^10.45.2
+        version: 10.45.2
+
+  examples/with-trpc/ponder:
+    dependencies:
+      '@hono/trpc-server':
+        specifier: ^0.3.2
+        version: 0.3.2(@trpc/server@10.45.2)(hono@4.5.0)
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@trpc/server':
+        specifier: ^10.45.2
+        version: 10.45.2
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      viem:
+        specifier: ^1.19.9
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
+      zod:
+        specifier: ^3.23.8
+        version: 3.23.8
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -568,16 +680,16 @@ importers:
         version: 12.0.1(commander@12.0.0)
       '@escape.tech/graphql-armor-max-aliases':
         specifier: ^2.3.0
-        version: 2.3.0
+        version: 2.4.0
       '@escape.tech/graphql-armor-max-depth':
         specifier: ^2.2.0
-        version: 2.2.0
+        version: 2.3.0
       '@escape.tech/graphql-armor-max-tokens':
         specifier: ^2.3.0
-        version: 2.3.0
+        version: 2.4.0
       '@hono/node-server':
         specifier: ^1.11.2
-        version: 1.11.2
+        version: 1.11.3
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
@@ -585,8 +697,8 @@ importers:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.0.4)
       better-sqlite3:
-        specifier: ^10.0.0
-        version: 10.0.0
+        specifier: ^11.1.2
+        version: 11.1.2
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -602,6 +714,9 @@ importers:
       dotenv:
         specifier: ^16.3.1
         version: 16.3.1
+      drizzle-orm:
+        specifier: ^0.31.2
+        version: 0.31.2(@types/better-sqlite3@7.6.10)(@types/pg@8.10.9)(@types/react@18.2.46)(better-sqlite3@11.1.2)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       emittery:
         specifier: ^1.0.1
         version: 1.0.1
@@ -613,16 +728,10 @@ importers:
         version: 10.3.10
       graphql:
         specifier: ^16.8.1
-        version: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
-      graphql-type-json:
-        specifier: ^0.3.2
-        version: 0.3.2(graphql@16.8.1)
+        version: 16.8.2
       graphql-yoga:
         specifier: ^5.3.0
-        version: 5.3.0(graphql@16.8.1)
-      hono:
-        specifier: ^4.4.2
-        version: 4.4.2
+        version: 5.3.1(graphql@16.8.2)
       http-terminator:
         specifier: ^3.2.0
         version: 3.2.0
@@ -632,9 +741,6 @@ importers:
       kysely:
         specifier: ^0.26.3
         version: 0.26.3
-      magic-string:
-        specifier: ^0.30.5
-        version: 0.30.5
       p-queue:
         specifier: ^7.4.1
         version: 7.4.1
@@ -2419,16 +2525,6 @@ packages:
       '@jridgewell/trace-mapping': 0.3.9
     dev: true
 
-  /@envelop/core@4.0.3:
-    resolution: {integrity: sha512-O0Vz8E0TObT6ijAob8jYFVJavcGywKThM3UAsxUIBBVPYZTMiqI9lo2gmAnbMUnrDcAYkUTZEW9FDYPRdF5l6g==}
-    engines: {node: '>=16.0.0'}
-    requiresBuild: true
-    dependencies:
-      '@envelop/types': 4.0.1
-      tslib: 2.6.2
-    dev: false
-    optional: true
-
   /@envelop/core@5.0.1:
     resolution: {integrity: sha512-wxA8EyE1fPnlbP0nC/SFI7uU8wSNf4YjxZhAPu0P63QbgIvqHtHsH4L3/u+rsTruzhk3OvNRgQyLsMfaR9uzAQ==}
     engines: {node: '>=18.0.0'}
@@ -2437,15 +2533,6 @@ packages:
       '@envelop/types': 5.0.0
       tslib: 2.6.2
     dev: false
-
-  /@envelop/types@4.0.1:
-    resolution: {integrity: sha512-ULo27/doEsP7uUhm2iTnElx13qTO6I5FKvmLoX41cpfuw8x6e0NUFknoqhEsLzAbgz8xVS5mjwcxGCXh4lDYzg==}
-    engines: {node: '>=16.0.0'}
-    requiresBuild: true
-    dependencies:
-      tslib: 2.6.2
-    dev: false
-    optional: true
 
   /@envelop/types@5.0.0:
     resolution: {integrity: sha512-IPjmgSc4KpQRlO4qbEDnBEixvtb06WDmjKfi/7fkZaryh5HuOmTtixe1EupQI5XfXO8joc3d27uUZ0QdC++euA==}
@@ -2837,41 +2924,41 @@ packages:
     requiresBuild: true
     optional: true
 
-  /@escape.tech/graphql-armor-max-aliases@2.3.0:
-    resolution: {integrity: sha512-h0AfPx929MWBnDlWnn/hcLHHNIAnUjws30OmyPLj9GqVmsBpj3338LELvORuuf3N1ciWI0xgkQd3NRSrmgr3ig==}
-    engines: {node: '>=16.0.0'}
+  /@escape.tech/graphql-armor-max-aliases@2.4.0:
+    resolution: {integrity: sha512-d4V9EgtPRG9HIoPHuanFNLHj1ENB1YkZi9FbiBiH88x5VahCjVpMXDgKQGkG6RUTOODU4XKp0/ZgaOq0pX5oEA==}
+    engines: {node: '>=18.0.0'}
     dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
     optionalDependencies:
       '@envelop/core': 5.0.1
-      '@escape.tech/graphql-armor-types': 0.5.0
+      '@escape.tech/graphql-armor-types': 0.6.0
     dev: false
 
-  /@escape.tech/graphql-armor-max-depth@2.2.0:
-    resolution: {integrity: sha512-v0z2yelQL614mYFpYL/iRkieq/7H2XKbvJ6RvbGMFFSqo3eSIz8fyX0f6pyswR7myQxki4ur0MFxSn8S5jjfqw==}
-    engines: {node: '>=16.0.0'}
+  /@escape.tech/graphql-armor-max-depth@2.3.0:
+    resolution: {integrity: sha512-EgqJU2yOaKaFeNDqMn18fIOI6UNjboWV950G9I39ebXyxsQmIaAx0Hs9hJoCBEHdLY9SCKWsEZFipHXqvaphdw==}
+    engines: {node: '>=18.0.0'}
     dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
-    optionalDependencies:
-      '@envelop/core': 4.0.3
-      '@escape.tech/graphql-armor-types': 0.5.0
-    dev: false
-
-  /@escape.tech/graphql-armor-max-tokens@2.3.0:
-    resolution: {integrity: sha512-4aqtUhT4ONUVWY6Z7crjPFyOK2/quUGHFU3G2+s4GYFxQHn3F5HjdI2KoY5ot2Sdijh4X+gx0ebBjUzriLNtbg==}
-    engines: {node: '>=16.0.0'}
-    dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
     optionalDependencies:
       '@envelop/core': 5.0.1
-      '@escape.tech/graphql-armor-types': 0.5.0
+      '@escape.tech/graphql-armor-types': 0.6.0
     dev: false
 
-  /@escape.tech/graphql-armor-types@0.5.0:
-    resolution: {integrity: sha512-a7KMhb1qVHFFWw4bvGYQI637YaIZRozbfc+Fj1Vv/pwnTCJOzOgnvKO8+WBXJsFFGJ2Kj+fRORmSpz7J+lJF1w==}
+  /@escape.tech/graphql-armor-max-tokens@2.4.0:
+    resolution: {integrity: sha512-apKQBcYc6vsrITR+uKGXTC9yWV4zUEP4usb5zO0vebYT6e4KLcS2gwIQOsDLCnD5IyU5sUOzHBWmkFyBPz5keQ==}
+    engines: {node: '>=18.0.0'}
+    dependencies:
+      graphql: 16.8.2
+    optionalDependencies:
+      '@envelop/core': 5.0.1
+      '@escape.tech/graphql-armor-types': 0.6.0
+    dev: false
+
+  /@escape.tech/graphql-armor-types@0.6.0:
+    resolution: {integrity: sha512-Y3X6JgkB1N1MMaHNXaE2IeJWIs6wT4XcPvXM8PRWmT2DblZfY4NYiV1mh0GTInKdlnrEr5hquOR9XV+M3Da43w==}
     requiresBuild: true
     dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
     dev: false
     optional: true
 
@@ -3076,8 +3163,8 @@ packages:
     hasBin: true
     dependencies:
       '@rescript/std': 9.0.0
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
-      graphql-import-node: 0.0.5(graphql@16.8.1)
+      graphql: 16.8.2
+      graphql-import-node: 0.0.5(graphql@16.8.2)
       js-yaml: 4.1.0
     dev: true
 
@@ -3132,63 +3219,63 @@ packages:
       assemblyscript: 0.19.10
     dev: true
 
-  /@graphql-tools/executor@1.2.6(graphql@16.8.1):
+  /@graphql-tools/executor@1.2.6(graphql@16.8.2):
     resolution: {integrity: sha512-+1kjfqzM5T2R+dCw7F4vdJ3CqG+fY/LYJyhNiWEFtq0ToLwYzR/KKyD8YuzTirEjSxWTVlcBh7endkx5n5F6ew==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
     dependencies:
-      '@graphql-tools/utils': 10.2.0(graphql@16.8.1)
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.1)
+      '@graphql-tools/utils': 10.2.0(graphql@16.8.2)
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.2)
       '@repeaterjs/repeater': 3.0.5
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
       tslib: 2.6.2
       value-or-promise: 1.0.12
     dev: false
 
-  /@graphql-tools/merge@9.0.4(graphql@16.8.1):
+  /@graphql-tools/merge@9.0.4(graphql@16.8.2):
     resolution: {integrity: sha512-MivbDLUQ+4Q8G/Hp/9V72hbn810IJDEZQ57F01sHnlrrijyadibfVhaQfW/pNH+9T/l8ySZpaR/DpL5i+ruZ+g==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
     dependencies:
-      '@graphql-tools/utils': 10.2.0(graphql@16.8.1)
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      '@graphql-tools/utils': 10.2.0(graphql@16.8.2)
+      graphql: 16.8.2
       tslib: 2.6.2
     dev: false
 
-  /@graphql-tools/schema@10.0.3(graphql@16.8.1):
+  /@graphql-tools/schema@10.0.3(graphql@16.8.2):
     resolution: {integrity: sha512-p28Oh9EcOna6i0yLaCFOnkcBDQECVf3SCexT6ktb86QNj9idnkhI+tCxnwZDh58Qvjd2nURdkbevvoZkvxzCog==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
     dependencies:
-      '@graphql-tools/merge': 9.0.4(graphql@16.8.1)
-      '@graphql-tools/utils': 10.2.0(graphql@16.8.1)
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      '@graphql-tools/merge': 9.0.4(graphql@16.8.2)
+      '@graphql-tools/utils': 10.2.0(graphql@16.8.2)
+      graphql: 16.8.2
       tslib: 2.6.2
       value-or-promise: 1.0.12
     dev: false
 
-  /@graphql-tools/utils@10.2.0(graphql@16.8.1):
+  /@graphql-tools/utils@10.2.0(graphql@16.8.2):
     resolution: {integrity: sha512-HYV7dO6pNA2nGKawygaBpk8y+vXOUjjzzO43W/Kb7EPRmXUEQKjHxPYRvQbiF72u1N3XxwGK5jnnFk9WVhUwYw==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
     dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.1)
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.2)
       cross-inspect: 1.0.0
       dset: 3.1.3
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
       tslib: 2.6.2
     dev: false
 
-  /@graphql-typed-document-node/core@3.2.0(graphql@16.8.1):
+  /@graphql-typed-document-node/core@3.2.0(graphql@16.8.2):
     resolution: {integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==}
     peerDependencies:
       graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
     dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
     dev: false
 
   /@graphql-yoga/logger@2.0.0:
@@ -3228,14 +3315,26 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
     dev: false
 
-  /@hono/node-server@1.11.2:
-    resolution: {integrity: sha512-JhX0nUC66GeDxpIdMKWDRMEwtQBa64CY907iAF1sYqb4m2p2PdSU7zkbnNhAZLg/6IjSlTuj6CF307JlBXVvpg==}
+  /@hono/node-server@1.11.3:
+    resolution: {integrity: sha512-mFg3qlKkDtMWSalX5Gyh6Zd3MXay0biGobFlyJ49i6R1smBBS1CYkNZbvwLlw+4sSrHO4ZiH7kj4TcLpl2Jr3g==}
     engines: {node: '>=18.14.1'}
+    dev: false
+
+  /@hono/trpc-server@0.3.2(@trpc/server@10.45.2)(hono@4.5.0):
+    resolution: {integrity: sha512-dTKDrSldjBn0hi9FjHOGdiHgMCWPoW5NaBUTQRNLyVL9JcJJu9oiwTFoIscPFxc9CF2rAeA8aRGHoFJK+A8cLw==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      '@trpc/server': ^10.10.0 || >11.0.0-rc
+      hono: '>=4.*'
+    dependencies:
+      '@trpc/server': 10.45.2
+      hono: 4.5.0
     dev: false
 
   /@humanwhocodes/config-array@0.11.13:
     resolution: {integrity: sha512-JSBDMiDKSzQVngfRjOdFXgFfklaXI4K9nLF49Auh21lmBWRLIK3+xTErTWD4KU54pb6coM6ESE7Awz/FNU3zgQ==}
     engines: {node: '>=10.10.0'}
+    deprecated: Use @eslint/config-array instead
     dependencies:
       '@humanwhocodes/object-schema': 2.0.1
       debug: 4.3.4(supports-color@8.1.1)
@@ -3251,6 +3350,7 @@ packages:
 
   /@humanwhocodes/object-schema@2.0.1:
     resolution: {integrity: sha512-dvuCeX5fC9dXgJn9t+X5atfmgQAzUOWqS1254Gh0m6i8wKd10ebXkfNKiRK+1GWi/yTvvLDHpoxLr0xxxeslWw==}
+    deprecated: Use @eslint/object-schema instead
     dev: true
 
   /@ipld/dag-cbor@7.0.3:
@@ -4207,6 +4307,16 @@ packages:
       unist-util-visit: 5.0.0
     dev: false
 
+  /@trpc/client@10.45.2:
+    resolution: {integrity: sha512-ykALM5kYWTLn1zYuUOZ2cPWlVfrXhc18HzBDyRhoPYN0jey4iQHEFSEowfnhg1RvYnrAVjNBgHNeSAXjrDbGwg==}
+    peerDependencies:
+      '@trpc/server': 10.45.2
+    dev: false
+
+  /@trpc/server@10.45.2:
+    resolution: {integrity: sha512-wOrSThNNE4HUnuhJG6PfDRp4L2009KDVxsd+2VYH8ro6o/7/jwYZ8Uu5j+VaW+mOmc8EHerHzGcdbGNQSAUPgg==}
+    dev: false
+
   /@trysound/sax@0.2.0:
     resolution: {integrity: sha512-L7z9BgrNEcYyUYtF+HaEfiS5ebkh9jXqbszz7pC0hRBPaatV0XjSD3+eHrpqFemQfgwiFF0QPIarnIihIDn7OA==}
     engines: {node: '>=10.13.0'}
@@ -4242,7 +4352,6 @@ packages:
     resolution: {integrity: sha512-TZBjD+yOsyrUJGmcUj6OS3JADk3+UZcNv3NOBqGkM09bZdi28fNZw8ODqbMOLfKCu7RYCO62/ldq1iHbzxqoPw==}
     dependencies:
       '@types/node': 20.11.24
-    dev: true
 
   /@types/bn.js@5.1.5:
     resolution: {integrity: sha512-V46N0zwKRF5Q00AZ6hWtN0T8gGmDUaUzLWQvHFo5yThtVwK/VCenFY3wXVbOvNfajEpsTfQM4IN9k/d6gUVX3A==}
@@ -4416,7 +4525,6 @@ packages:
       '@types/node': 20.11.24
       pg-protocol: 1.6.0
       pg-types: 4.0.1
-    dev: true
 
   /@types/prompts@2.4.9:
     resolution: {integrity: sha512-qTxFi6Buiu8+50/+3DGIWLHM6QuWsEKugJnnP6iv2Mc4ncxE4A/OJkjuVOA+5X0X1S/nq5VJRa8Lu+nwcvbrKA==}
@@ -4765,7 +4873,7 @@ packages:
       zod: 3.22.4
     dev: true
 
-  /abitype@0.9.8(typescript@5.3.3):
+  /abitype@0.9.8(typescript@5.3.3)(zod@3.23.8):
     resolution: {integrity: sha512-puLifILdm+8sjyss4S+fsUN09obiT1g2YW6CtcQF+QDzxR0euzgEB29MZujC6zMk2a6SVmtttq1fc6+YFA7WYQ==}
     peerDependencies:
       typescript: '>=5.0.4'
@@ -4777,6 +4885,7 @@ packages:
         optional: true
     dependencies:
       typescript: 5.3.3
+      zod: 3.23.8
 
   /abitype@1.0.0(typescript@5.0.4):
     resolution: {integrity: sha512-NMeMah//6bJ56H5XRj8QCV4AwuW6hB6zqz2LnhhLdcWVQOsXki6/Pn3APeqxCma62nXIcmZWdu1DlHWS74umVQ==}
@@ -5288,8 +5397,8 @@ packages:
       react: 18.2.0
     dev: false
 
-  /better-sqlite3@10.0.0:
-    resolution: {integrity: sha512-rOz0JY8bt9oMgrFssP7GnvA5R3yln73y/NizzWqy3WlFth8Ux8+g4r/N9fjX97nn4X1YX6MTER2doNpTu5pqiA==}
+  /better-sqlite3@11.1.2:
+    resolution: {integrity: sha512-gujtFwavWU4MSPT+h9B+4pkvZdyOUkH54zgLdIrMmmmd4ZqiBIrRNBzNzYVFO417xo882uP5HBu4GjOfaSrIQw==}
     requiresBuild: true
     dependencies:
       bindings: 1.5.0
@@ -6800,6 +6909,98 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
+  /drizzle-orm@0.31.2(@types/better-sqlite3@7.6.10)(@types/pg@8.10.9)(@types/react@18.2.46)(better-sqlite3@11.1.2)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
+    resolution: {integrity: sha512-QnenevbnnAzmbNzQwbhklvIYrDE8YER8K7kSrAWQSV1YvFCdSQPzj+jzqRdTSsV2cDqSpQ0NXGyL1G9I43LDLg==}
+    peerDependencies:
+      '@aws-sdk/client-rds-data': '>=3'
+      '@cloudflare/workers-types': '>=3'
+      '@electric-sql/pglite': '>=0.1.1'
+      '@libsql/client': '*'
+      '@neondatabase/serverless': '>=0.1'
+      '@op-engineering/op-sqlite': '>=2'
+      '@opentelemetry/api': ^1.4.1
+      '@planetscale/database': '>=1'
+      '@tidbcloud/serverless': '*'
+      '@types/better-sqlite3': '*'
+      '@types/pg': '*'
+      '@types/react': '>=18'
+      '@types/sql.js': '*'
+      '@vercel/postgres': '>=0.8.0'
+      '@xata.io/client': '*'
+      better-sqlite3: '>=7'
+      bun-types: '*'
+      expo-sqlite: '>=13.2.0'
+      knex: '*'
+      kysely: '*'
+      mysql2: '>=2'
+      pg: '>=8'
+      postgres: '>=3'
+      react: '>=18'
+      sql.js: '>=1'
+      sqlite3: '>=5'
+    peerDependenciesMeta:
+      '@aws-sdk/client-rds-data':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@electric-sql/pglite':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@op-engineering/op-sqlite':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@tidbcloud/serverless':
+        optional: true
+      '@types/better-sqlite3':
+        optional: true
+      '@types/pg':
+        optional: true
+      '@types/react':
+        optional: true
+      '@types/sql.js':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      '@xata.io/client':
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      expo-sqlite:
+        optional: true
+      knex:
+        optional: true
+      kysely:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      postgres:
+        optional: true
+      react:
+        optional: true
+      sql.js:
+        optional: true
+      sqlite3:
+        optional: true
+    dependencies:
+      '@types/better-sqlite3': 7.6.10
+      '@types/pg': 8.10.9
+      '@types/react': 18.2.46
+      better-sqlite3: 11.1.2
+      kysely: 0.26.3
+      pg: 8.11.3
+      react: 18.2.0
+    dev: false
+
   /dset@3.1.3:
     resolution: {integrity: sha512-20TuZZHCEZ2O71q9/+8BwKwZ0QtD9D8ObhrihJPr+vLLYlSuAU3/zL4cSlgbfeoGHTjCSJBa7NGcrF9/Bx/WJQ==}
     engines: {node: '>=4'}
@@ -8207,50 +8408,42 @@ packages:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
     dev: true
 
-  /graphql-import-node@0.0.5(graphql@16.8.1):
+  /graphql-import-node@0.0.5(graphql@16.8.2):
     resolution: {integrity: sha512-OXbou9fqh9/Lm7vwXT0XoRN9J5+WCYKnbiTalgFDvkQERITRmcfncZs6aVABedd5B85yQU5EULS4a5pnbpuI0Q==}
     peerDependencies:
       graphql: '*'
     dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
     dev: true
 
-  /graphql-request@6.1.0(graphql@16.8.1):
+  /graphql-request@6.1.0(graphql@16.8.2):
     resolution: {integrity: sha512-p+XPfS4q7aIpKVcgmnZKhMNqhltk20hfXtkaIkTfjjmiKMJ5xrt5c743cL03y/K7y1rg3WrIC49xGiEQ4mxdNw==}
     peerDependencies:
       graphql: 14 - 16
     dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.1)
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.2)
       cross-fetch: 3.1.8
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
     transitivePeerDependencies:
       - encoding
     dev: false
 
-  /graphql-type-json@0.3.2(graphql@16.8.1):
-    resolution: {integrity: sha512-J+vjof74oMlCWXSvt0DOf2APEdZOCdubEvGDUAlqH//VBYcOYsGgRW7Xzorr44LvkjiuvecWc8fChxuZZbChtg==}
-    peerDependencies:
-      graphql: '>=0.8.0'
-    dependencies:
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
-    dev: false
-
-  /graphql-yoga@5.3.0(graphql@16.8.1):
-    resolution: {integrity: sha512-6mXoGE5AMN6YNugJvjBFIQ0dFUiOMloN0dAzLL8GFt4iJ5WlWRgjdzGHod2zZz7yWQokEVD42DHgrc7NY3Dm0w==}
+  /graphql-yoga@5.3.1(graphql@16.8.2):
+    resolution: {integrity: sha512-n918QV6TF7xTjb9ASnozgsr4ydMc08c+x4eRAWKxxWVwSnzdP2xeN2zw1ljIzRD0ccSCNoBajGDKwcZkJDitPA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       graphql: ^15.2.0 || ^16.0.0
     dependencies:
       '@envelop/core': 5.0.1
-      '@graphql-tools/executor': 1.2.6(graphql@16.8.1)
-      '@graphql-tools/schema': 10.0.3(graphql@16.8.1)
-      '@graphql-tools/utils': 10.2.0(graphql@16.8.1)
+      '@graphql-tools/executor': 1.2.6(graphql@16.8.2)
+      '@graphql-tools/schema': 10.0.3(graphql@16.8.2)
+      '@graphql-tools/utils': 10.2.0(graphql@16.8.2)
       '@graphql-yoga/logger': 2.0.0
       '@graphql-yoga/subscription': 5.0.0
       '@whatwg-node/fetch': 0.9.17
       '@whatwg-node/server': 0.9.34
       dset: 3.1.3
-      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
+      graphql: 16.8.2
       lru-cache: 10.1.0
       tslib: 2.6.2
     dev: false
@@ -8260,10 +8453,9 @@ packages:
     engines: {node: '>= 10.x'}
     dev: true
 
-  /graphql@16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a):
-    resolution: {integrity: sha512-59LZHPdGZVh695Ud9lRzPBVTtlX9ZCV150Er2W43ro37wVof0ctenSaskPPjN7lVTIN8mSZt8PHUNKZuNQUuxw==}
+  /graphql@16.8.2:
+    resolution: {integrity: sha512-cvVIBILwuoSyD54U4cF/UXDh5yAobhNV/tPygI4lZhgOIJQE/WLWC4waBRb4I6bDVYb3OVx3lfHbaQOEoUD5sg==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
-    patched: true
 
   /gray-matter@4.0.3:
     resolution: {integrity: sha512-5v6yZd4JK3eMI3FqqCouswVqwugaA9r4dNZB1wwcmrD02QkV5H0y7XBQW8QwQqEaZY1pM9aqORSORhJRdNK44Q==}
@@ -8389,7 +8581,7 @@ packages:
       devlop: 1.1.0
       hast-util-from-parse5: 8.0.1
       parse5: 7.1.2
-      vfile: 6.0.1
+      vfile: 6.0.2
       vfile-message: 4.0.2
     dev: false
 
@@ -8401,7 +8593,7 @@ packages:
       devlop: 1.1.0
       hastscript: 8.0.0
       property-information: 6.5.0
-      vfile: 6.0.1
+      vfile: 6.0.2
       vfile-location: 5.0.2
       web-namespaces: 2.0.1
     dev: false
@@ -8418,8 +8610,8 @@ packages:
       '@types/hast': 3.0.4
     dev: false
 
-  /hast-util-raw@9.0.3:
-    resolution: {integrity: sha512-ICWvVOF2fq4+7CMmtCPD5CM4QKjPbHpPotE6+8tDooV0ZuyJVUzHsrNX+O5NaRbieTf0F7FfeBOMAwi6Td0+yQ==}
+  /hast-util-raw@9.0.4:
+    resolution: {integrity: sha512-LHE65TD2YiNsHD3YuXcKPHXPLuYh/gjp12mOfU8jxSrm1f/yJpsb0F/KKljS6U9LJoP0Ux+tCe8iJ2AsPzTdgA==}
     dependencies:
       '@types/hast': 3.0.4
       '@types/unist': 3.0.2
@@ -8431,7 +8623,7 @@ packages:
       parse5: 7.1.2
       unist-util-position: 5.0.0
       unist-util-visit: 5.0.0
-      vfile: 6.0.1
+      vfile: 6.0.2
       web-namespaces: 2.0.1
       zwitch: 2.0.4
     dev: false
@@ -8488,7 +8680,7 @@ packages:
       '@types/unist': 3.0.2
       ccount: 2.0.1
       comma-separated-tokens: 2.0.3
-      hast-util-raw: 9.0.3
+      hast-util-raw: 9.0.4
       hast-util-whitespace: 3.0.0
       html-void-elements: 3.0.0
       mdast-util-to-hast: 13.2.0
@@ -8558,10 +8750,9 @@ packages:
       minimalistic-crypto-utils: 1.0.1
     dev: true
 
-  /hono@4.4.2:
-    resolution: {integrity: sha512-bRhZ+BM9r04lRN2i9wiZ18yQNbZxHsmmRIItoAb43nRkHnIDsFhFh4mJ0seEs06FvenibpAgSVNHQ8ZzcDQx2A==}
+  /hono@4.5.0:
+    resolution: {integrity: sha512-ZbezypZfn4odyApjCCv+Fw5OgweBqRLA/EsMyc4FUknFvBJcBIKhHy4sqmD1rWpBc/3wUlaQ6tqOPjk36R1ckg==}
     engines: {node: '>=16.0.0'}
-    dev: false
 
   /hosted-git-info@2.8.9:
     resolution: {integrity: sha512-mxIDAb9Lsm6DoOJ7xH+5+X4y1LU/4Hi50L9C5sIswK3JzULS4bwk1FvjdBgvYR4bzT4tuUQiC15FE2f5HbLvYw==}
@@ -9823,6 +10014,7 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       '@jridgewell/sourcemap-codec': 1.4.15
+    dev: true
 
   /make-error@1.3.6:
     resolution: {integrity: sha512-s8UhlNe7vPKomQhC1qFelMokr/Sc3AgNbso3n74mVPA5LTZwkB9NlXf4XPamLxJE8h0gh73rM94xvwRT2CVInw==}
@@ -10136,7 +10328,7 @@ packages:
       trim-lines: 3.0.1
       unist-util-position: 5.0.0
       unist-util-visit: 5.0.0
-      vfile: 6.0.1
+      vfile: 6.0.2
     dev: false
 
   /mdast-util-to-markdown@1.5.0:
@@ -11320,7 +11512,6 @@ packages:
 
   /obuf@1.1.2:
     resolution: {integrity: sha512-PX1wu0AmAdPqOL1mWhqmlOd8kOIZQwGZw6rh7uby9fTc5lhaOWFLX3I6R1hrF9k3zUY40e6igsLGkDXK92LJNg==}
-    dev: true
 
   /on-exit-leak-free@2.1.2:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
@@ -11722,7 +11913,6 @@ packages:
   /pg-numeric@1.0.2:
     resolution: {integrity: sha512-BM/Thnrw5jm2kKLE5uJkXqqExRUY/toLHda65XgFTBTFYZyopbKjBe29Ii3RbkvlsMoFwD+tHeGaCjjv0gHlyw==}
     engines: {node: '>=4'}
-    dev: true
 
   /pg-pool@3.6.1(pg@8.11.3):
     resolution: {integrity: sha512-jizsIzhkIitxCGfPRzJn1ZdcosIt3pz9Sh3V01fm1vZnbnCMgmGl5wvGGdNN2EL9Rmb0EcFoCkixH4Pu+sP9Og==}
@@ -11757,7 +11947,6 @@ packages:
       postgres-date: 2.0.1
       postgres-interval: 3.0.0
       postgres-range: 1.1.3
-    dev: true
 
   /pg@8.11.3:
     resolution: {integrity: sha512-+9iuvG8QfaaUrrph+kpF24cXkH1YOOUeArRNYIxq1viYHZagBxrTno7cecY1Fa44tJeZvaoG+Djpkc3JwehN5g==}
@@ -11939,7 +12128,6 @@ packages:
   /postgres-array@3.0.2:
     resolution: {integrity: sha512-6faShkdFugNQCLwucjPcY5ARoW1SlbnrZjmGl0IrrqewpvxvhSLHimCVzqeuULCbG0fQv7Dtk1yDbG3xv7Veog==}
     engines: {node: '>=12'}
-    dev: true
 
   /postgres-bytea@1.0.0:
     resolution: {integrity: sha512-xy3pmLuQqRBZBXDULy7KbaitYqLcmxigw14Q5sj8QBVLqEwXfeybIKVWiqAXTlcvdvb0+xkOtDbfQMOf4lST1w==}
@@ -11951,7 +12139,6 @@ packages:
     engines: {node: '>= 6'}
     dependencies:
       obuf: 1.1.2
-    dev: true
 
   /postgres-date@1.0.7:
     resolution: {integrity: sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q==}
@@ -11961,7 +12148,6 @@ packages:
   /postgres-date@2.0.1:
     resolution: {integrity: sha512-YtMKdsDt5Ojv1wQRvUhnyDJNSr2dGIC96mQVKz7xufp07nfuFONzdaowrMHjlAzY6GDLd4f+LUHHAAM1h4MdUw==}
     engines: {node: '>=12'}
-    dev: true
 
   /postgres-interval@1.2.0:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
@@ -11973,11 +12159,9 @@ packages:
   /postgres-interval@3.0.0:
     resolution: {integrity: sha512-BSNDnbyZCXSxgA+1f5UU2GmwhoI0aU5yMxRGO8CdFEcY2BQF9xm/7MqKnYoM1nJDk8nONNWDk9WeSmePFhQdlw==}
     engines: {node: '>=12'}
-    dev: true
 
   /postgres-range@1.1.3:
     resolution: {integrity: sha512-VdlZoocy5lCP0c/t66xAfclglEapXPCIVhqqJRncYpvbCgImF0w67aPKfbqUMr72tO2k5q0TdTZwCLjPTI6C9g==}
-    dev: true
 
   /posthog-node@4.0.0:
     resolution: {integrity: sha512-jEZnNbgb/3FNk+gNwtTcyz3j+62zIN+UTPotONfacVXJnoI70KScSkKdIR+rvP9tA2kjBSoHQxGwJuizs27o9A==}
@@ -12443,7 +12627,7 @@ packages:
       hast-util-to-text: 4.0.0
       katex: 0.16.9
       unist-util-visit-parents: 6.0.1
-      vfile: 6.0.1
+      vfile: 6.0.2
     dev: false
 
   /rehype-pretty-code@0.10.1(shikiji@0.6.10):
@@ -12462,8 +12646,8 @@ packages:
     resolution: {integrity: sha512-/aE8hCfKlQeA8LmyeyQvQF3eBiLRGNlfBJEvWH7ivp9sBqs7TNqBL5X3v157rM4IFETqDnIOO+z5M/biZbo9Ww==}
     dependencies:
       '@types/hast': 3.0.4
-      hast-util-raw: 9.0.3
-      vfile: 6.0.1
+      hast-util-raw: 9.0.4
+      vfile: 6.0.2
     dev: false
 
   /remark-frontmatter@4.0.1:
@@ -14069,7 +14253,7 @@ packages:
       extend: 3.0.2
       is-plain-obj: 4.1.0
       trough: 2.1.0
-      vfile: 6.0.1
+      vfile: 6.0.2
     dev: false
 
   /unist-util-find-after@5.0.0:
@@ -14318,7 +14502,7 @@ packages:
     resolution: {integrity: sha512-NXPYyxyBSH7zB5U6+3uDdd6Nybz6o6/od9rk8bp9H8GR3L+cm/fC0uUTbqBmUTnMCUDslAGBOIKNfvvb+gGlDg==}
     dependencies:
       '@types/unist': 3.0.2
-      vfile: 6.0.1
+      vfile: 6.0.2
     dev: false
 
   /vfile-message@3.1.4:
@@ -14344,8 +14528,8 @@ packages:
       vfile-message: 3.1.4
     dev: false
 
-  /vfile@6.0.1:
-    resolution: {integrity: sha512-1bYqc7pt6NIADBJ98UiG0Bn/CHIVOoZ/IyEkqIruLg0mE1BKzkOXY2D6CSqQIcKqgadppE5lrxgWXJmXd7zZJw==}
+  /vfile@6.0.2:
+    resolution: {integrity: sha512-zND7NlS8rJYb/sPqkb13ZvbbUoExdbi4w3SfRrMq6R3FvnLQmmfpajJNITuuYm6AZ5uao9vy4BAos3EXBPf2rg==}
     dependencies:
       '@types/unist': 3.0.2
       unist-util-stringify-position: 4.0.0
@@ -14388,7 +14572,7 @@ packages:
       '@noble/hashes': 1.3.2
       '@scure/bip32': 1.3.2
       '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.3.3)
+      abitype: 0.9.8(typescript@5.3.3)(zod@3.23.8)
       isows: 1.0.3(ws@8.13.0)
       typescript: 5.3.3
       ws: 8.13.0
@@ -14421,7 +14605,7 @@ packages:
       - zod
     dev: true
 
-  /viem@1.21.4(typescript@5.3.3):
+  /viem@1.21.4(typescript@5.3.3)(zod@3.23.8):
     resolution: {integrity: sha512-BNVYdSaUjeS2zKQgPs+49e5JKocfo60Ib2yiXOWBT6LuVxY1I/6fFX3waEtpXvL1Xn4qu+BVitVtMh9lyThyhQ==}
     peerDependencies:
       typescript: '>=5.0.4'
@@ -14434,7 +14618,7 @@ packages:
       '@noble/hashes': 1.3.2
       '@scure/bip32': 1.3.2
       '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.3.3)
+      abitype: 0.9.8(typescript@5.3.3)(zod@3.23.8)
       isows: 1.0.3(ws@8.13.0)
       typescript: 5.3.3
       ws: 8.13.0
@@ -14990,12 +15174,15 @@ packages:
   /zod@3.22.4:
     resolution: {integrity: sha512-iC+8Io04lddc+mVqQ9AZ7OQ2MrUKGN+oIQyq1vemgt46jwCwLfhq7/pwnBnNXXXZb8VTVLKwp9EDkx+ryxIWmg==}
 
+  /zod@3.23.8:
+    resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
+
   /zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
     dev: false
 
-  github.com/foundry-rs/forge-std/52715a217dc51d0de15877878ab8213f6cbbbab5:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/52715a217dc51d0de15877878ab8213f6cbbbab5}
+  github.com/foundry-rs/forge-std/07263d193d621c4b2b0ce8b4d54af58f6957d97d:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/07263d193d621c4b2b0ce8b4d54af58f6957d97d}
     name: forge-std
-    version: 1.8.2
+    version: 1.9.1
     dev: false

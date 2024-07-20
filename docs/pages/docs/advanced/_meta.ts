@@ -1,6 +1,7 @@
 export default {
   foundry: "Foundry",
   logging: "Logging",
-  telemetry: "Telemetry",
-  metrics: "Metrics"
+  metrics: "Metrics",
+  status: "Status",
+  telemetry: "Telemetry"
 };

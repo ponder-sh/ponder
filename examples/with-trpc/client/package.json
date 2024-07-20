@@ -1,0 +1,12 @@
+{
+  "name": "ponder-examples-with-trpc-client",
+  "private": true,
+  "type": "module",
+  "scripts": {},
+  "dependencies": {
+    "@trpc/client": "^10.45.2"
+  },
+  "engines": {
+    "node": ">=18.14"
+  }
+}

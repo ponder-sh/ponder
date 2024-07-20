@@ -492,6 +492,8 @@ export const handleBlock = async (
     });
   }
 
+  service.localChain.push(syncBlockToLightBlock(newHeadBlock));
+
   service.onEvent({
     type: "checkpoint",
     chainId: service.network.chainId,
@@ -502,8 +504,6 @@ export const handleBlock = async (
       blockNumber: BigInt(newHeadBlockNumber),
     } satisfies Checkpoint,
   });
-
-  service.localChain.push(syncBlockToLightBlock(newHeadBlock));
 
   service.common.metrics.ponder_realtime_latest_block_number.set(
     { network: service.network.name },
@@ -655,6 +655,26 @@ export const handleReorg = async (
   service.localChain = [];
 
   throw new Error(msg);
+};
+
+/**
+ * Find the most recent block that is less than or equal to
+ * the provided checkpoint.
+ */
+export const getMostRecentBlock = (
+  service: Service,
+  checkpoint: Checkpoint,
+): LightBlock | undefined => {
+  const localBlock = service.localChain.findLast(
+    (block) => block.timestamp <= checkpoint.blockTimestamp,
+  );
+
+  if (localBlock !== undefined) return localBlock;
+
+  if (service.finalizedBlock.timestamp < checkpoint.blockTimestamp)
+    return service.finalizedBlock;
+
+  return undefined;
 };
 
 const getMatchedLogs = async (

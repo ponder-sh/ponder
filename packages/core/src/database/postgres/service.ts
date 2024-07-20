@@ -26,7 +26,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { createPool } from "@/utils/pg.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
@@ -67,7 +67,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private internalPool: Pool;
   private syncPool: Pool;
   private indexingPool: Pool;
-  private readonlyPool: Pool;
+  readonlyPool: Pool;
 
   constructor({
     common,
@@ -108,7 +108,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       application_name: `${userNamespace}_indexing`,
       max: indexingMax,
     });
-    this.readonlyPool = createPool({
+    this.readonlyPool = createReadonlyPool({
       ...poolConfig,
       application_name: `${userNamespace}_readonly`,
       max: syncMax,
@@ -261,6 +261,26 @@ export class PostgresDatabaseService implements BaseDatabaseService {
               });
             }
           };
+
+          // Create ponder_metadata table if it doesn't exist
+          await tx.schema
+            .withSchema(this.userNamespace)
+            .createTable("_ponder_meta")
+            .addColumn("key", "text", (col) => col.primaryKey())
+            .addColumn("value", "jsonb")
+            .ifNotExists()
+            .execute();
+
+          // Create or set status to null
+          await tx
+            .withSchema(this.userNamespace)
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .insertInto("_ponder_meta")
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .values({ key: "status", value: null })
+            // @ts-expect-error Kysely doesn't have types for user schema
+            .onConflict((oc) => oc.column("key").doUpdateSet({ value: null }))
+            .execute();
 
           // If no lock row is found for this namespace, we can acquire the lock.
           if (previousLockRow === undefined) {
@@ -568,7 +588,9 @@ export class PostgresDatabaseService implements BaseDatabaseService {
         // Create the publish schema if it doesn't exist.
         await tx.schema.createSchema(publishSchema).ifNotExists().execute();
 
-        for (const tableName of Object.keys(getTables(this.schema))) {
+        for (const tableName of Object.keys(getTables(this.schema)).concat(
+          "_ponder_meta",
+        )) {
           // Check if there is an existing relation with the name we're about to publish.
           const result = await tx.executeQuery<{
             table_type: string;

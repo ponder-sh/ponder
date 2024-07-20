@@ -1,15 +1,15 @@
-import type { Build } from "@/build/index.js";
+import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import type { IndexingStore, Status } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
-import { createServer } from "@/server/service.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -40,7 +40,7 @@ export type RealtimeEvent =
     };
 
 /**
- * Starts the server, sync, and indexing services for the specified build.
+ * Starts the sync and indexing services for the specified build.
  */
 export async function run({
   common,
@@ -49,7 +49,7 @@ export async function run({
   onReloadableError,
 }: {
   common: Common;
-  build: Build;
+  build: IndexingBuild;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
@@ -59,8 +59,8 @@ export async function run({
     optionsConfig,
     networks,
     sources,
-    schema,
     graphqlSchema,
+    schema,
     indexingFunctions,
   } = build;
 
@@ -70,6 +70,14 @@ export async function run({
   let syncStore: SyncStore;
   let namespaceInfo: NamespaceInfo;
   let initialCheckpoint: Checkpoint;
+
+  const status: Status = {};
+  for (const network of networks) {
+    status[network.name] = {
+      ready: false,
+      block: null,
+    };
+  }
 
   if (databaseConfig.kind === "sqlite") {
     const { directory } = databaseConfig;
@@ -94,15 +102,11 @@ export async function run({
     syncStore = new PostgresSyncStore({ db: database.syncDb, common });
   }
 
-  const readonlyStore = getReadonlyStore({
+  const metadataStore = getMetadataStore({
     encoding: database.kind,
-    schema,
     namespaceInfo,
-    db: database.readonlyDb,
-    common,
+    db: database.indexingDb,
   });
-
-  const server = await createServer({ common, graphqlSchema, readonlyStore });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
@@ -151,6 +155,11 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "newEvents": {
+          // Note: statusBlocks should be assigned before any other
+          // asynchronous statements in order to prevent race conditions and
+          // ensure its correctness.
+          const statusBlocks = syncService.getStatusBlocks(event.toCheckpoint);
+
           for await (const rawEvents of syncStore.getEvents({
             sources,
             fromCheckpoint: event.fromCheckpoint,
@@ -162,6 +171,16 @@ export async function run({
             );
             if (result.status === "error") onReloadableError(result.error);
           }
+
+          // set status to most recently processed realtime block or end block
+          // for each chain.
+          for (const network of networks) {
+            if (statusBlocks[network.name] !== undefined) {
+              status[network.name]!.block = statusBlocks[network.name]!;
+            }
+          }
+
+          await metadataStore.setStatus(status);
 
           break;
         }
@@ -177,6 +196,14 @@ export async function run({
           never(event);
       }
     },
+  });
+
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo,
+    db: database.indexingDb,
+    common,
   });
 
   const historicalStore = getHistoricalStore({
@@ -268,12 +295,6 @@ export async function run({
 
     await database.createIndexes({ schema });
 
-    server.setHealthy();
-    common.logger.info({
-      service: "server",
-      msg: "Started responding as healthy",
-    });
-
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
@@ -288,19 +309,34 @@ export async function run({
     indexingService.updateIndexingStore({ indexingStore, schema });
 
     syncService.startRealtime();
+
+    // set status to ready and set blocks to most recently processed
+    // or end block
+    const statusBlocks = syncService.getStatusBlocks();
+    for (const network of networks) {
+      status[network.name] = {
+        ready: true,
+        block: statusBlocks[network.name] ?? null,
+      };
+    }
+
+    await metadataStore.setStatus(status);
+
+    common.logger.info({
+      service: "server",
+      msg: "Started responding as healthy",
+    });
   };
 
   const startPromise = start();
 
   return async () => {
-    const serverPromise = server.kill();
     indexingService.kill();
     await syncService.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();
     await realtimeQueue.onIdle();
     await startPromise;
-    await serverPromise;
     await database.kill();
   };
 }

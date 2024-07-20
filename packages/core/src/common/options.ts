@@ -9,7 +9,8 @@ export type Options = {
   configFile: string;
   schemaFile: string;
   rootDir: string;
-  srcDir: string;
+  indexingDir: string;
+  apiDir: string;
   generatedDir: string;
   ponderDir: string;
   logDir: string;
@@ -17,10 +18,6 @@ export type Options = {
   port: number;
   hostname?: string;
   maxHealthcheckDuration: number;
-
-  graphqlMaxOperationTokens: number;
-  graphqlMaxOperationDepth: number;
-  graphqlMaxOperationAliases: number;
 
   telemetryUrl: string;
   telemetryDisabled: boolean;
@@ -82,7 +79,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),
-    srcDir: path.join(rootDir, "src"),
+    indexingDir: path.join(rootDir, "src"),
+    apiDir: path.join(rootDir, "src", "api"),
     generatedDir: path.join(rootDir, "generated"),
     ponderDir: path.join(rootDir, ".ponder"),
     logDir: path.join(rootDir, ".ponder", "logs"),
@@ -90,12 +88,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     port,
     hostname,
     maxHealthcheckDuration: 240, // 4 minutes
-
-    // Default limits are from Apollo:
-    // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limits
-    graphqlMaxOperationTokens: 1000,
-    graphqlMaxOperationDepth: 100,
-    graphqlMaxOperationAliases: 30,
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),

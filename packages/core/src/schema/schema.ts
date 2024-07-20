@@ -68,9 +68,7 @@ type GetTable<
                 : table[columnName] extends ManyColumn
                   ? {} extends schema
                     ? ManyColumn
-                    : table[columnName] extends ManyColumn<
-                          Exclude<tableNames, tableName>
-                        >
+                    : table[columnName] extends ManyColumn<tableNames>
                       ? ManyColumn<
                           table[columnName][" referenceTable"],
                           ExtractReferenceColumnNames<

@@ -1,46 +1,58 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { ReadonlyStore } from "@/indexing-store/store.js";
-import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import type { DatabaseService } from "@/database/service.js";
+import { createDrizzleDb, createDrizzleTables } from "@/drizzle/runtime.js";
+import { graphql } from "@/graphql/index.js";
+import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
+import { getReadonlyStore } from "@/indexing-store/readonly.js";
+import type { Schema } from "@/schema/common.js";
 import { startClock } from "@/utils/timer.js";
-import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
-import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
-import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { serve } from "@hono/node-server";
-import { GraphQLError, type GraphQLSchema } from "graphql";
-import { createYoga } from "graphql-yoga";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import {
-  type GetLoader,
-  buildLoaderCache,
-} from "./graphql/buildLoaderCache.js";
+import { onError } from "./error.js";
 
 type Server = {
-  hono: Hono<{ Variables: { store: ReadonlyStore; getLoader: GetLoader } }>;
+  hono: Hono;
   port: number;
-  setHealthy: () => void;
   kill: () => Promise<void>;
 };
 
 export async function createServer({
-  graphqlSchema,
-  readonlyStore,
+  app: userApp,
+  routes: userRoutes,
   common,
+  schema,
+  database,
+  dbNamespace,
 }: {
-  graphqlSchema: GraphQLSchema;
-  readonlyStore: ReadonlyStore;
+  app: Hono;
+  routes: PonderRoutes;
   common: Common;
+  schema: Schema;
+  database: DatabaseService;
+  dbNamespace: string;
 }): Promise<Server> {
-  const hono = new Hono<{
-    Variables: { store: ReadonlyStore; getLoader: GetLoader };
-  }>();
+  // Create hono app
 
-  let port = common.options.port;
-  let isHealthy = false;
   const startTime = Date.now();
+
+  const readonlyStore = getReadonlyStore({
+    encoding: database.kind,
+    schema,
+    namespaceInfo: { userNamespace: dbNamespace },
+    db: database.readonlyDb,
+    common,
+  });
+
+  const metadataStore = getMetadataStore({
+    encoding: database.kind,
+    namespaceInfo: { userNamespace: dbNamespace },
+    db: database.readonlyDb,
+  });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const commonLabels = { method: c.req.method, path: c.req.path };
@@ -78,40 +90,22 @@ export async function createServer({
     }
   });
 
-  const createGraphqlYoga = (path: string) =>
-    createYoga({
-      schema: graphqlSchema,
-      context: () => {
-        const getLoader = buildLoaderCache({ store: readonlyStore });
-        return { store: readonlyStore, getLoader };
-      },
-      graphqlEndpoint: path,
-      maskedErrors: process.env.NODE_ENV === "production",
-      logging: false,
-      graphiql: false,
-      parserAndValidationCache: false,
-      plugins: [
-        maxTokensPlugin({ n: common.options.graphqlMaxOperationTokens }),
-        maxDepthPlugin({
-          n: common.options.graphqlMaxOperationDepth,
-          ignoreIntrospection: false,
-        }),
-        maxAliasesPlugin({
-          n: common.options.graphqlMaxOperationAliases,
-          allowList: [],
-        }),
-      ],
-    });
+  const db = createDrizzleDb(database);
+  const tables = createDrizzleTables(schema, database, dbNamespace);
 
-  const rootYoga = createGraphqlYoga("/");
-  const rootGraphiql = graphiQLHtml("/");
+  // context required for graphql middleware and hono middleware
+  const contextMiddleware = createMiddleware(async (c, next) => {
+    c.set("db", db);
+    c.set("tables", tables);
+    c.set("readonlyStore", readonlyStore);
+    c.set("metadataStore", metadataStore);
+    c.set("schema", schema);
+    await next();
+  });
 
-  const prodYoga = createGraphqlYoga("/graphql");
-  const prodGraphiql = graphiQLHtml("/graphql");
-
-  hono
-    .use(cors())
+  const hono = new Hono()
     .use(metricsMiddleware)
+    .use(cors())
     .get("/metrics", async (c) => {
       try {
         const metrics = await common.metrics.getMetrics();
@@ -121,7 +115,12 @@ export async function createServer({
       }
     })
     .get("/health", async (c) => {
-      if (isHealthy) {
+      const status = await metadataStore.getStatus();
+
+      if (
+        status !== null &&
+        Object.values(status).every(({ ready }) => ready === true)
+      ) {
         return c.text("", 200);
       }
 
@@ -138,23 +137,37 @@ export async function createServer({
 
       return c.text("Historical indexing is not complete.", 503);
     })
-    // Renders GraphiQL
-    .get("/graphql", (c) => c.html(prodGraphiql))
-    // Serves GraphQL POST requests following healthcheck rules
-    .post("/graphql", (c) => {
-      if (isHealthy === false) {
-        return c.json(
-          { errors: [new GraphQLError("Historical indexing is not complete")] },
-          503,
-        );
-      }
+    .get("/status", async (c) => {
+      const status = await metadataStore.getStatus();
 
-      return prodYoga.handle(c.req.raw);
+      return c.json(status);
     })
-    // Renders GraphiQL
-    .get("/", (c) => c.html(rootGraphiql))
-    // Serves GraphQL POST requests regardless of health status, e.g. "dev UI"
-    .post("/", (c) => rootYoga.handle(c.req.raw));
+    .use(contextMiddleware);
+
+  if (userRoutes.length === 0 && userApp.routes.length === 0) {
+    // apply graphql middleware if no custom api exists
+    hono.use("/graphql", graphql());
+    hono.use("/", graphql());
+  } else {
+    // apply user routes to hono instance, registering a custom error handler
+    applyHonoRoutes(hono, userRoutes, { db, tables }).onError((error, c) =>
+      onError(error, c, common),
+    );
+
+    common.logger.debug({
+      service: "server",
+      msg: `Detected a custom server with routes: [${userRoutes
+        .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
+        .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
+        .join(", ")}]`,
+    });
+
+    hono.route("/", userApp);
+  }
+
+  // Create nodejs server
+
+  let port = common.options.port;
 
   const createServerWithNextAvailablePort: typeof http.createServer = (
     ...args: any
@@ -220,9 +233,6 @@ export async function createServer({
   return {
     hono,
     port,
-    setHealthy: () => {
-      isHealthy = true;
-    },
     kill: () => terminator.terminate(),
   };
 }

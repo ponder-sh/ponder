@@ -8,6 +8,7 @@
     "ponder-examples-feature-blocks",
     "ponder-examples-feature-factory",
     "ponder-examples-feature-filter",
+    "ponder-examples-feature-api-functions",
     "ponder-examples-feature-multichain",
     "ponder-examples-feature-call-traces",
     "ponder-examples-feature-proxy",
@@ -22,7 +23,10 @@
     "ponder-examples-with-foundry-ponder",
     "ponder-examples-with-foundry-foundry",
     "ponder-examples-with-nextjs",
-    "ponder-examples-with-nextjs-ponder"
+    "ponder-examples-with-nextjs-ponder",
+    "ponder-examples-with-trpc",
+    "ponder-examples-with-trpc-ponder",
+    "ponder-examples-with-trpc-client"
   ],
   "linked": [],
   "access": "public",

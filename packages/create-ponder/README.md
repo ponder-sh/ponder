@@ -33,7 +33,7 @@ Join [Ponder's telegram chat](https://t.me/ponder_sh) for support, feedback, and
 
 ### 1. Run `create-ponder`
 
-You will be asked for a project name, and if you are using a [template](https://ponder.sh/api-reference/create-ponder#templates) (recommended). Then, the CLI will create a project directory, install dependencies, and initialize a git repository.
+You will be asked for a project name, and if you are using a [template](https://ponder.sh/docs/api-reference/create-ponder#templates) (recommended). Then, the CLI will create a project directory, install dependencies, and initialize a git repository.
 
 ```bash
 npm init ponder@latest
@@ -128,7 +128,7 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
 });
 ```
 
-See the [create & update records](https://ponder.sh/docs/guides/create-update-records) docs for a detailed guide on writing indexing functions.
+See the [create & update records](https://ponder.sh/docs/indexing/create-update-records) docs for a detailed guide on writing indexing functions.
 
 ### 6. Query the GraphQL API
 

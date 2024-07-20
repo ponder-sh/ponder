@@ -4,7 +4,7 @@ import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 
 const request = getRequest("https://1rpc.io/eth");
-const maxBlockRange = 10_000n;
+const maxBlockRange = 1_000n;
 
 test(
   "1rpc success",
@@ -20,7 +20,7 @@ test(
       ],
     });
 
-    expect(logs).toHaveLength(49);
+    expect(logs).toHaveLength(9);
   },
   { timeout: 30_000 },
 );
@@ -40,7 +40,7 @@ test("1rpc block range", async () => {
 
   expect(error).toBeInstanceOf(InvalidInputRpcError);
   expect(JSON.stringify(error)).includes(
-    "eth_getLogs is limited to a 10000 blocks range",
+    "eth_getLogs is limited to a 1000 blocks range",
   );
 
   const retry = getLogsRetryHelper({

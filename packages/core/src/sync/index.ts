@@ -22,6 +22,7 @@ import {
   create,
   getCachedTransport,
   getHistoricalCheckpoint,
+  getStatusBlocks,
   kill,
   startHistorical,
   startRealtime,
@@ -30,6 +31,7 @@ import {
 const methods = {
   startHistorical,
   getHistoricalCheckpoint,
+  getStatusBlocks,
   startRealtime,
   getCachedTransport,
   kill,

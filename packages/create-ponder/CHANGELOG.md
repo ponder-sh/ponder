@@ -1,5 +1,17 @@
 # create-ponder
 
+## 0.5.0
+
+### Minor Changes
+
+- [#943](https://github.com/ponder-sh/ponder/pull/943) [`e997102fce758d532668430b14c0067955c462fd`](https://github.com/ponder-sh/ponder/commit/e997102fce758d532668430b14c0067955c462fd) Thanks [@kyscott18](https://github.com/kyscott18)! - Introduced API functions. [Read more](https://ponder.sh/docs/query/api-functions). Please read the [migration guide](https://ponder.sh/docs/migration-guide) for more information.
+
+## 0.4.43
+
+## 0.4.42
+
+## 0.4.41
+
 ## 0.4.40
 
 ## 0.4.39

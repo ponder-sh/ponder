@@ -1,5 +1,34 @@
 # @ponder/core
 
+## 0.5.0
+
+### Minor Changes
+
+- [#943](https://github.com/ponder-sh/ponder/pull/943) [`e997102fce758d532668430b14c0067955c462fd`](https://github.com/ponder-sh/ponder/commit/e997102fce758d532668430b14c0067955c462fd) Thanks [@kyscott18](https://github.com/kyscott18)! - Introduced API functions. [Read more](https://ponder.sh/docs/query/api-functions). Please read the [migration guide](https://ponder.sh/docs/migration-guide) for more information.
+
+## 0.4.43
+
+### Patch Changes
+
+- [#972](https://github.com/ponder-sh/ponder/pull/972) [`93e36a2735fc1e4688e620a68aea60353fdeac09`](https://github.com/ponder-sh/ponder/commit/93e36a2735fc1e4688e620a68aea60353fdeac09) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed type error for `p.many()` with self reference.
+
+## 0.4.42
+
+### Patch Changes
+
+- [#967](https://github.com/ponder-sh/ponder/pull/967) [`a143279fd2a200d9955eac06132b254107a13a41`](https://github.com/ponder-sh/ponder/commit/a143279fd2a200d9955eac06132b254107a13a41) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped `better-sqlite3` to `11.1.2` to improve prebuilt binary coverage.
+
+- [#963](https://github.com/ponder-sh/ponder/pull/963) [`c58d6316d03d0e229ee8c9255f4a3d0604378241`](https://github.com/ponder-sh/ponder/commit/c58d6316d03d0e229ee8c9255f4a3d0604378241) Thanks [@kyscott18](https://github.com/kyscott18)! - Added an indexing status endpoint at `/status` and a `{ _meta { status } }` field in the GraphQL API. [Read more](https://ponder.sh/docs/advanced/status).
+
+- Updated dependencies [[`e82e385b777cf6fccaf779fe8b12151b56456b68`](https://github.com/ponder-sh/ponder/commit/e82e385b777cf6fccaf779fe8b12151b56456b68)]:
+  - @ponder/utils@0.1.7
+
+## 0.4.41
+
+### Patch Changes
+
+- [#952](https://github.com/ponder-sh/ponder/pull/952) [`a3f30201f9d123b76b39abcc331f71a01f26c7f8`](https://github.com/ponder-sh/ponder/commit/a3f30201f9d123b76b39abcc331f71a01f26c7f8) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where circular imports between files (like `ponder.config.ts` and `src/index.ts`) would sometimes return `undefined` during the initial build.
+
 ## 0.4.40
 
 ### Patch Changes
