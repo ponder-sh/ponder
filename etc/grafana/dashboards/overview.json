@@ -38,7 +38,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -46,6 +46,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -59,6 +60,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -118,11 +120,11 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "histogram_quantile(0.9, max by(le, method) (increase(ponder_database_method_duration_bucket{service=\"admin\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.9, max by(le, method) (increase(ponder_database_method_duration_bucket{service=\"internal\"}[$__rate_interval])))",
           "hide": false,
           "instant": false,
           "legendFormat": "{{method}}",
@@ -136,7 +138,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -144,6 +146,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -157,6 +160,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -216,7 +220,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -234,7 +238,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -242,6 +246,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -255,6 +260,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -314,7 +320,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -332,7 +338,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "description": "Rate of queries submitted to the database",
       "fieldConfig": {
@@ -341,6 +347,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -354,6 +361,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -411,7 +419,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -429,7 +437,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "description": "Number of query requests waiting for an available connection",
       "fieldConfig": {
@@ -438,6 +446,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -451,6 +460,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -508,7 +518,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -526,7 +536,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -534,6 +544,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -547,6 +558,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -604,7 +616,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "builder",
           "exemplar": false,
@@ -635,7 +647,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -656,8 +668,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 12,
-        "w": 4,
+        "h": 4,
+        "w": 8,
         "x": 0,
         "y": 24
       },
@@ -668,14 +680,19 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "vertical",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
@@ -683,7 +700,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "ponder_realtime_latest_block_number",
+          "expr": "ponder_realtime_latest_block_number{network=\"$networks\"}",
           "instant": false,
           "legendFormat": "{{network}}",
           "range": true,
@@ -728,7 +745,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 7,
+        "w": 8,
         "x": 8,
         "y": 24
       },
@@ -739,29 +756,38 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "vertical",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "Prometheus"
           },
+          "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": false,
-          "expr": "histogram_quantile(0.95, ponder_realtime_rpc_request_duration_bucket)",
+          "expr": "histogram_quantile(0.95, max by(le, method) (increase(ponder_rpc_request_duration_bucket[$__rate_interval])))",
           "format": "time_series",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
           "instant": false,
           "interval": "",
           "legendFormat": "{{method}}",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "useBackend": false
         }
       ],
       "title": "RPC request duration (p95)",
@@ -802,8 +828,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 7,
-        "x": 17,
+        "w": 8,
+        "x": 16,
         "y": 24
       },
       "id": 123132,
@@ -813,23 +839,28 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "vertical",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "Prometheus"
           },
-          "editorMode": "builder",
+          "editorMode": "code",
           "exemplar": false,
-          "expr": "histogram_quantile(0.5, ponder_realtime_rpc_request_duration_bucket)",
+          "expr": "histogram_quantile(0.5, max by(le, method) (increase(ponder_rpc_request_duration_bucket[$__rate_interval])))",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -866,10 +897,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 6,
+        "h": 4,
+        "w": 8,
         "x": 0,
-        "y": 36
+        "y": 28
       },
       "id": 123129,
       "interval": "1s",
@@ -878,14 +909,19 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
@@ -909,7 +945,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 32
       },
       "id": 123126,
       "panels": [],
@@ -919,7 +955,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "Prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -942,28 +978,33 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
+        "w": 8,
         "x": 0,
-        "y": 40
+        "y": 33
       },
       "id": 123124,
       "interval": "1s",
       "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "Prometheus"
           },
           "editorMode": "code",
           "expr": "ponder_historical_completed_blocks / ponder_historical_total_blocks",
@@ -975,7 +1016,6 @@
         }
       ],
       "title": "Historical sync progress",
-      "transformations": [],
       "type": "gauge"
     },
     {
@@ -1013,9 +1053,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 7,
-        "x": 17,
-        "y": 40
+        "w": 8,
+        "x": 16,
+        "y": 33
       },
       "id": 123133,
       "interval": "1s",
@@ -1024,14 +1064,19 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "vertical",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
@@ -1040,7 +1085,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "histogram_quantile(0.5, ponder_historical_rpc_request_duration_bucket)",
+          "expr": "histogram_quantile(0.5, ponder_rpc_request_duration_bucket)",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -1087,9 +1132,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 7,
-        "x": 17,
-        "y": 44
+        "w": 8,
+        "x": 16,
+        "y": 37
       },
       "id": 123134,
       "interval": "1s",
@@ -1098,14 +1143,19 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "vertical",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
@@ -1114,7 +1164,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "histogram_quantile(0.95, ponder_historical_rpc_request_duration_bucket)",
+          "expr": "histogram_quantile(0.95, ponder_rpc_request_duration_bucket)",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -1132,7 +1182,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 41
       },
       "id": 123136,
       "panels": [],
@@ -1150,6 +1200,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1163,6 +1214,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1201,7 +1253,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 49
+        "y": 42
       },
       "id": 123137,
       "interval": "1s",
@@ -1224,7 +1276,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "ponder_default_process_resident_memory_bytes",
+          "expr": "process_resident_memory_bytes",
           "hide": false,
           "instant": false,
           "legendFormat": "Total (RSS)",
@@ -1237,7 +1289,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "ponder_default_nodejs_heap_size_total_bytes",
+          "expr": "nodejs_heap_size_total_bytes",
           "hide": false,
           "instant": false,
           "legendFormat": "Heap total (V8)",
@@ -1250,7 +1302,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "ponder_default_nodejs_heap_size_used_bytes",
+          "expr": "nodejs_heap_size_used_bytes",
           "hide": false,
           "instant": false,
           "legendFormat": "Heap used (V8)",
@@ -1272,6 +1324,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1285,6 +1338,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1323,7 +1377,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 49
+        "y": 42
       },
       "id": 123138,
       "interval": "1s",
@@ -1346,7 +1400,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "rate(ponder_default_process_cpu_seconds_total[$__rate_interval])",
+          "expr": "rate(process_cpu_seconds_total[$__rate_interval])",
           "hide": false,
           "instant": false,
           "legendFormat": "Total",
@@ -1359,7 +1413,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "rate(ponder_default_process_cpu_user_seconds_total[$__rate_interval])",
+          "expr": "rate(process_cpu_user_seconds_total[$__rate_interval])",
           "instant": false,
           "legendFormat": "User",
           "range": true,
@@ -1371,7 +1425,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "rate(ponder_default_process_cpu_system_seconds_total[$__rate_interval])",
+          "expr": "rate(process_cpu_system_seconds_total[$__rate_interval])",
           "hide": false,
           "instant": false,
           "legendFormat": "System",
@@ -1393,6 +1447,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1406,6 +1461,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1440,7 +1496,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 57
+        "y": 50
       },
       "id": 123139,
       "interval": "3s",
@@ -1463,7 +1519,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "builder",
-          "expr": "ponder_default_nodejs_eventloop_lag_seconds",
+          "expr": "nodejs_eventloop_lag_seconds",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1484,6 +1540,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1497,6 +1554,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1535,7 +1593,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 57
+        "y": 50
       },
       "id": 123140,
       "interval": "1s",
@@ -1559,7 +1617,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.5, sum(rate(ponder_default_nodejs_gc_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.5, sum(rate(nodejs_gc_duration_seconds_bucket[$__rate_interval])) by (le))",
           "hide": false,
           "instant": false,
           "legendFormat": "Total",
@@ -1572,8 +1630,7 @@
     }
   ],
   "refresh": "1s",
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": []
@@ -1597,12 +1654,22 @@
       "2h",
       "1d"
     ],
-    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ],
     "type": "timepicker"
   },
   "timezone": "browser",
   "title": "Ponder",
   "uid": "c9256f5e-776b-48bd-ae68-b0ed508c8ceb",
-  "version": 57,
+  "version": 2,
   "weekStart": ""
 }
