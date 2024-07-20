@@ -44,10 +44,42 @@ pg.Client.prototype.query = function query(
   }
 };
 
+class ReadonlyClient extends pg.Client {
+  // @ts-expect-error
+  override connect(
+    callback: (err: Error) => void | undefined,
+  ): void | Promise<void> {
+    if (callback) {
+      super.connect(() => {
+        this.query(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
+          callback,
+        );
+      });
+    } else {
+      return super.connect().then(async () => {
+        await this.query(
+          "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
+        );
+      });
+    }
+  }
+}
+
 export function createPool(config: PoolConfig) {
   return new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 2 * 60 * 1000, // 2 minutes
+    ...config,
+  });
+}
+
+export function createReadonlyPool(config: PoolConfig) {
+  return new pg.Pool({
+    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
+    statement_timeout: 2 * 60 * 1000, // 2 minutes
+    // @ts-expect-error: The custom Client is an undocumented option.
+    Client: ReadonlyClient,
     ...config,
   });
 }

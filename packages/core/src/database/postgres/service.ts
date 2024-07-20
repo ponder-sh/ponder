@@ -26,7 +26,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { createPool } from "@/utils/pg.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
@@ -67,7 +67,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
   private internalPool: Pool;
   private syncPool: Pool;
   private indexingPool: Pool;
-  private readonlyPool: Pool;
+  readonlyPool: Pool;
 
   constructor({
     common,
@@ -108,7 +108,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
       application_name: `${userNamespace}_indexing`,
       max: indexingMax,
     });
-    this.readonlyPool = createPool({
+    this.readonlyPool = createReadonlyPool({
       ...poolConfig,
       application_name: `${userNamespace}_readonly`,
       max: syncMax,

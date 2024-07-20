@@ -24,7 +24,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { hash } from "@/utils/hash.js";
-import { type SqliteDatabase, createSqliteDatabase } from "@/utils/sqlite.js";
+import {
+  type SqliteDatabase,
+  createReadonlySqliteDatabase,
+  createSqliteDatabase,
+} from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import {
   type CreateTableBuilder,
@@ -53,6 +57,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
   private internalDatabase: SqliteDatabase;
   private syncDatabase: SqliteDatabase;
+  readonlyDatabase: SqliteDatabase;
 
   db: HeadlessKysely<InternalTables>;
   readonlyDb: HeadlessKysely<any>;
@@ -88,6 +93,11 @@ export class SqliteDatabaseService implements BaseDatabaseService {
 
     this.internalDatabase = createSqliteDatabase(internalDatabaseFile);
     this.internalDatabase.exec(
+      `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
+    );
+
+    this.readonlyDatabase = createReadonlySqliteDatabase(internalDatabaseFile);
+    this.readonlyDatabase.exec(
       `ATTACH DATABASE '${userDatabaseFile}' AS ${this.userNamespace}`,
     );
 
@@ -133,7 +143,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
     this.readonlyDb = new HeadlessKysely<InternalTables>({
       name: "readonly",
       common,
-      dialect: new SqliteDialect({ database: this.internalDatabase }),
+      dialect: new SqliteDialect({ database: this.readonlyDatabase }),
       log(event) {
         if (event.level === "query") {
           common.metrics.ponder_sqlite_query_total.inc({

@@ -26,6 +26,7 @@ export default defineConfig({
         path.join(examplesPath, "**", "*"),
         "!**/with-nextjs/**",
         "!**/with-foundry/**",
+        "!**/with-trpc/**",
         "!**/node_modules/**",
         "!**/generated/**",
         "!**/.ponder/**",

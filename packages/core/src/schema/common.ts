@@ -189,6 +189,7 @@ export type ExtractNonVirtualColumnNames<
       | ReferenceColumn
       | ScalarColumn
       | EnumColumn
+      | JSONColumn
     ? columnNames
     : never
   : never;

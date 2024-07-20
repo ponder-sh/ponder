@@ -1,4 +1,5 @@
 import { createConfig } from "@/config/config.js";
+import type { DrizzleDb } from "@/drizzle/db.js";
 import { createSchema, createTable } from "@/schema/schema.js";
 import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
@@ -436,4 +437,10 @@ test("Registry", () => {
     context.contracts.c1;
     context.contracts.c2;
   });
+});
+
+test("Drizzle", () => {
+  type a = Virtual.Drizzle<typeof schema>;
+
+  assertType<a>({} as any as { db: DrizzleDb; tables: { table: any } });
 });

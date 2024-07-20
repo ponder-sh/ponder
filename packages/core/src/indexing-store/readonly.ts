@@ -29,7 +29,7 @@ export const getReadonlyStore = ({
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
-  namespaceInfo: NamespaceInfo;
+  namespaceInfo: Pick<NamespaceInfo, "userNamespace">;
   db: HeadlessKysely<any>;
   common: Common;
 }): ReadonlyStore => ({

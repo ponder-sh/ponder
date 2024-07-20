@@ -21,6 +21,7 @@ declare module "@/generated" {
     schema,
     name
   >;
+  export type ApiContext = Virtual.Drizzle<schema>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config, schema, name>;
   export type Schema = Virtual.Schema<schema>;

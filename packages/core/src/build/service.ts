@@ -1,15 +1,18 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
+import { BuildError } from "@/common/errors.js";
 import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { EventSource } from "@/config/sources.js";
+import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
+import type { PonderRoutes } from "@/hono/index.js";
 import type { Schema } from "@/schema/common.js";
-import { buildGraphqlSchema } from "@/server/graphql/buildGraphqlSchema.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
+import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -30,7 +33,10 @@ const BUILD_ID_VERSION = "1";
 export type Service = {
   // static
   common: Common;
-  srcRegex: RegExp;
+  indexingRegex: RegExp;
+  apiRegex: RegExp;
+  indexingPattern: string;
+  apiPattern: string;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -38,7 +44,7 @@ export type Service = {
   viteNodeRunner: ViteNodeRunner;
 };
 
-export type Build = {
+type BaseBuild = {
   // Build ID for caching
   buildId: string;
   // Config
@@ -49,22 +55,24 @@ export type Build = {
   // Schema
   schema: Schema;
   graphqlSchema: GraphQLSchema;
-  // Indexing functions
+};
+
+export type IndexingBuild = BaseBuild & {
   indexingFunctions: IndexingFunctions;
 };
 
-export type BuildResult =
-  | { status: "success"; build: Build }
+export type ApiBuild = BaseBuild & {
+  app: Hono;
+  routes: PonderRoutes;
+};
+
+export type IndexingBuildResult =
+  | { status: "success"; build: IndexingBuild }
   | { status: "error"; error: Error };
 
-type RawBuild = {
-  config: { config: Config; contentHash: string };
-  schema: { schema: Schema; contentHash: string };
-  indexingFunctions: {
-    indexingFunctions: RawIndexingFunctions;
-    contentHash: string;
-  };
-};
+export type ApiBuildResult =
+  | { status: "success"; build: ApiBuild }
+  | { status: "error"; error: Error };
 
 export const create = async ({
   common,
@@ -72,12 +80,28 @@ export const create = async ({
   common: Common;
 }): Promise<Service> => {
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
-  const escapedSrcDir = common.options.srcDir
+
+  const escapedIndexingDir = common.options.indexingDir
     // If on Windows, use a POSIX path for this regex.
     .replace(/\\/g, "/")
     // Escape special characters in the path.
     .replace(escapeRegex, "\\$&");
-  const srcRegex = new RegExp(`^${escapedSrcDir}/.*\\.(ts|js)$`);
+  const indexingRegex = new RegExp(`^${escapedIndexingDir}/.*\\.(ts|js)$`);
+
+  const escapedApiDir = common.options.apiDir
+    // If on Windows, use a POSIX path for this regex.
+    .replace(/\\/g, "/")
+    // Escape special characters in the path.
+    .replace(escapeRegex, "\\$&");
+  const apiRegex = new RegExp(`^${escapedApiDir}/.*\\.(ts|js)$`);
+
+  const indexingPattern = path
+    .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+
+  const apiPattern = path
+    .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
 
   const viteLogger = {
     warnedMessages: new Set<string>(),
@@ -129,7 +153,10 @@ export const create = async ({
 
   return {
     common,
-    srcRegex,
+    indexingRegex,
+    apiRegex,
+    indexingPattern,
+    apiPattern,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -146,36 +173,54 @@ export const start = async (
   buildService: Service,
   {
     watch,
-    onBuild,
+    onIndexingBuild,
+    onApiBuild,
   }:
-    | { watch: true; onBuild: (buildResult: BuildResult) => void }
-    | { watch: false; onBuild?: never },
-): Promise<BuildResult> => {
+    | {
+        watch: true;
+        onIndexingBuild: (buildResult: IndexingBuildResult) => void;
+        onApiBuild: (buildResult: ApiBuildResult) => void;
+      }
+    | { watch: false; onIndexingBuild?: never; onApiBuild?: never },
+): Promise<{ indexing: IndexingBuildResult; api: ApiBuildResult }> => {
   const { common } = buildService;
 
   // Note: Don't run these in parallel. If there are circular imports in user code,
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
   const configResult = await executeConfig(buildService);
   const schemaResult = await executeSchema(buildService);
-  const indexingFunctionsResult = await executeIndexingFunctions(buildService);
+  const indexingResult = await executeIndexingFunctions(buildService);
+  const apiResult = await executeApiRoutes(buildService);
 
   if (configResult.status === "error") {
-    return { status: "error", error: configResult.error };
+    return {
+      indexing: { status: "error", error: configResult.error },
+      api: { status: "error", error: configResult.error },
+    };
   }
   if (schemaResult.status === "error") {
-    return { status: "error", error: schemaResult.error };
+    return {
+      indexing: { status: "error", error: schemaResult.error },
+      api: { status: "error", error: schemaResult.error },
+    };
   }
-  if (indexingFunctionsResult.status === "error") {
-    return { status: "error", error: indexingFunctionsResult.error };
+  if (indexingResult.status === "error") {
+    return {
+      indexing: { status: "error", error: indexingResult.error },
+      api: { status: "error", error: indexingResult.error },
+    };
+  }
+  if (apiResult.status === "error") {
+    return {
+      indexing: { status: "error", error: apiResult.error },
+      api: { status: "error", error: apiResult.error },
+    };
   }
 
-  const rawBuild: RawBuild = {
-    config: configResult,
-    schema: schemaResult,
-    indexingFunctions: indexingFunctionsResult,
-  };
-
-  const buildResult = await validateAndBuild(buildService, rawBuild);
+  let cachedConfigResult = configResult;
+  let cachedSchemaResult = schemaResult;
+  let cachedIndexingResult = indexingResult;
+  let cachedApiResult = apiResult;
 
   // If watch is false (`ponder start` or `ponder serve`),
   // don't register  any event handlers on the watcher.
@@ -224,13 +269,23 @@ export const start = async (
       const hasSchemaUpdate = invalidated.includes(
         common.options.schemaFile.replace(/\\/g, "/"),
       );
-      const hasIndexingFunctionUpdate = invalidated.some((file) =>
-        buildService.srcRegex.test(file),
+      const hasIndexingUpdate = invalidated.some(
+        (file) =>
+          buildService.indexingRegex.test(file) &&
+          !buildService.apiRegex.test(file),
+      );
+      const hasApiUpdate = invalidated.some((file) =>
+        buildService.apiRegex.test(file),
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
       // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-      if (!hasConfigUpdate && !hasSchemaUpdate && !hasIndexingFunctionUpdate) {
+      if (
+        !hasConfigUpdate &&
+        !hasSchemaUpdate &&
+        !hasIndexingUpdate &&
+        !hasApiUpdate
+      ) {
         return;
       }
 
@@ -244,38 +299,132 @@ export const start = async (
       if (hasConfigUpdate) {
         const result = await executeConfig(buildService);
         if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
+          onIndexingBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.config = result;
+        cachedConfigResult = result;
       }
 
       if (hasSchemaUpdate) {
         const result = await executeSchema(buildService);
         if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
+          onIndexingBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.schema = result;
+        cachedSchemaResult = result;
       }
 
-      if (hasIndexingFunctionUpdate) {
+      if (hasIndexingUpdate) {
+        const files = glob.sync(buildService.indexingPattern, {
+          ignore: buildService.apiPattern,
+        });
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
+        buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+
         const result = await executeIndexingFunctions(buildService);
         if (result.status === "error") {
-          onBuild({ status: "error", error: result.error });
+          onIndexingBuild({ status: "error", error: result.error });
           return;
         }
-        rawBuild.indexingFunctions = result;
+        cachedIndexingResult = result;
       }
 
-      const buildResult = await validateAndBuild(buildService, rawBuild);
-      onBuild(buildResult);
+      if (hasApiUpdate) {
+        const files = glob.sync(buildService.apiPattern);
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
+        buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+
+        const result = await executeApiRoutes(buildService);
+        if (result.status === "error") {
+          onApiBuild({ status: "error", error: result.error });
+          return;
+        }
+        cachedApiResult = result;
+      }
+
+      /**
+       * Build and validate updated indexing and api artifacts
+       *
+       * There are a few cases to handle:
+       * 1) config or schema is updated -> rebuild both api and indexing
+       * 2) indexing functions are updated -> rebuild indexing
+       * 3) api routes are updated -> rebuild api
+       *
+       * Note: the api build cannot be successful if the indexing
+       * build fails, this means that any indexing errors are always
+       * propogated to the api build.
+       */
+
+      const indexingBuildResult = await validateAndBuild(
+        buildService,
+        cachedConfigResult,
+        cachedSchemaResult,
+        cachedIndexingResult,
+      );
+      if (indexingBuildResult.status === "error") {
+        onIndexingBuild(indexingBuildResult);
+        onApiBuild(indexingBuildResult);
+        return;
+      }
+
+      // If schema or config is updated, rebuild both api and indexing
+      if (hasConfigUpdate || hasSchemaUpdate) {
+        onIndexingBuild(indexingBuildResult);
+        onApiBuild(
+          validateAndBuildApi(
+            buildService,
+            indexingBuildResult.build,
+            cachedApiResult,
+          ),
+        );
+      } else {
+        if (hasIndexingUpdate) {
+          onIndexingBuild(indexingBuildResult);
+        }
+
+        if (hasApiUpdate) {
+          onApiBuild(
+            validateAndBuildApi(
+              buildService,
+              indexingBuildResult.build,
+              cachedApiResult,
+            ),
+          );
+        }
+      }
     };
 
     buildService.viteDevServer.watcher.on("change", onFileChange);
   }
 
-  return buildResult;
+  // Build and validate initial indexing and server build.
+  // Note: the api build cannot be successful if the indexing
+  // build fails
+
+  const initialBuildResult = await validateAndBuild(
+    buildService,
+    configResult,
+    schemaResult,
+    indexingResult,
+  );
+
+  if (initialBuildResult.status === "error") {
+    return {
+      indexing: { status: "error", error: initialBuildResult.error },
+      api: { status: "error", error: initialBuildResult.error },
+    };
+  }
+
+  const initialApiBuildResult = validateAndBuildApi(
+    buildService,
+    initialBuildResult.build,
+    apiResult,
+  );
+
+  return {
+    indexing: initialBuildResult,
+    api: initialApiBuildResult,
+  };
 };
 
 export const kill = async (buildService: Service): Promise<void> => {
@@ -354,19 +503,15 @@ const executeIndexingFunctions = async (
     }
   | { status: "error"; error: Error }
 > => {
-  const pattern = path
-    .join(buildService.common.options.srcDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
-  const files = glob.sync(pattern);
-
+  const files = glob.sync(buildService.indexingPattern, {
+    ignore: buildService.apiPattern,
+  });
   const executeResults = await Promise.all(
     files.map(async (file) => ({
       ...(await executeFile(buildService, { file })),
       file,
     })),
   );
-
-  const indexingFunctions: RawIndexingFunctions = [];
 
   for (const executeResult of executeResults) {
     if (executeResult.status === "error") {
@@ -381,8 +526,6 @@ const executeIndexingFunctions = async (
 
       return executeResult;
     }
-
-    indexingFunctions.push(...(executeResult.exports?.ponder?.fns ?? []));
   }
 
   // Note that we are only hashing the file contents, not the exports. This is
@@ -390,7 +533,7 @@ const executeIndexingFunctions = async (
   const hash = createHash("sha256");
   for (const file of files) {
     try {
-      const contents = readFileSync(file, "utf-8");
+      const contents = fs.readFileSync(file, "utf-8");
       hash.update(contents);
     } catch (e) {
       buildService.common.logger.warn({
@@ -402,16 +545,69 @@ const executeIndexingFunctions = async (
   }
   const contentHash = hash.digest("hex");
 
-  return { status: "success", indexingFunctions, contentHash };
+  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+
+  return {
+    status: "success",
+    indexingFunctions: exports.ponder.fns,
+    contentHash,
+  };
+};
+
+const executeApiRoutes = async (
+  buildService: Service,
+): Promise<
+  | {
+      status: "success";
+      app: Hono;
+      routes: PonderRoutes;
+    }
+  | { status: "error"; error: Error }
+> => {
+  const files = glob.sync(buildService.apiPattern);
+  const executeResults = await Promise.all(
+    files.map(async (file) => ({
+      ...(await executeFile(buildService, { file })),
+      file,
+    })),
+  );
+
+  for (const executeResult of executeResults) {
+    if (executeResult.status === "error") {
+      buildService.common.logger.error({
+        service: "build",
+        msg: `Error while executing '${path.relative(
+          buildService.common.options.rootDir,
+          executeResult.file,
+        )}':`,
+        error: executeResult.error,
+      });
+
+      return executeResult;
+    }
+  }
+
+  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+
+  return {
+    status: "success",
+    app: exports.ponder.hono,
+    routes: exports.ponder.routes,
+  };
 };
 
 const validateAndBuild = async (
   { common }: Pick<Service, "common">,
-  rawBuild: RawBuild,
-): Promise<BuildResult> => {
+  config: { config: Config; contentHash: string },
+  schema: { schema: Schema; contentHash: string },
+  indexingFunctions: {
+    indexingFunctions: RawIndexingFunctions;
+    contentHash: string;
+  },
+): Promise<IndexingBuildResult> => {
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
-    schema: rawBuild.schema.schema,
+    schema: schema.schema,
   });
   if (buildSchemaResult.status === "error") {
     common.logger.error({
@@ -427,13 +623,13 @@ const validateAndBuild = async (
     common.logger[log.level]({ service: "build", msg: log.msg });
   }
 
-  const graphqlSchema = buildGraphqlSchema(buildSchemaResult.schema);
+  const graphqlSchema = buildGraphQLSchema(buildSchemaResult.schema);
 
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
-      config: rawBuild.config.config,
-      rawIndexingFunctions: rawBuild.indexingFunctions.indexingFunctions,
+      config: config.config,
+      rawIndexingFunctions: indexingFunctions.indexingFunctions,
       options: common.options,
     });
   if (buildConfigAndIndexingFunctionsResult.status === "error") {
@@ -452,9 +648,9 @@ const validateAndBuild = async (
 
   const buildId = createHash("sha256")
     .update(BUILD_ID_VERSION)
-    .update(rawBuild.config.contentHash)
-    .update(rawBuild.schema.contentHash)
-    .update(rawBuild.indexingFunctions.contentHash)
+    .update(config.contentHash)
+    .update(schema.contentHash)
+    .update(indexingFunctions.contentHash)
     .digest("hex")
     .slice(0, 10);
 
@@ -475,6 +671,40 @@ const validateAndBuild = async (
       graphqlSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
+    },
+  };
+};
+
+const validateAndBuildApi = (
+  { common }: Pick<Service, "common">,
+  baseBuild: BaseBuild,
+  api: { app: Hono; routes: PonderRoutes },
+): ApiBuildResult => {
+  for (const {
+    pathOrHandlers: [maybePathOrHandler],
+  } of api.routes) {
+    if (typeof maybePathOrHandler === "string") {
+      if (
+        maybePathOrHandler === "/status" ||
+        maybePathOrHandler === "/metrics" ||
+        maybePathOrHandler === "/health"
+      ) {
+        const error = new BuildError(
+          `Validation failed: API route "${maybePathOrHandler}" is reserved for internal use.`,
+        );
+        error.stack = undefined;
+        common.logger.error({ service: "build", msg: "Failed build", error });
+        return { status: "error", error } as const;
+      }
+    }
+  }
+
+  return {
+    status: "success",
+    build: {
+      ...baseBuild,
+      app: api.app,
+      routes: api.routes,
     },
   };
 };

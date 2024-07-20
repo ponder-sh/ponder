@@ -3,6 +3,10 @@ import type { Options } from "@/common/options.js";
 import { codeFrameColumns } from "@babel/code-frame";
 import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 
+// Note: this currently works for both indexing functions and api
+// routes only because the api route dir is a subdir of the indexing function
+// dir.
+
 export const addStackTrace = (error: Error, options: Options) => {
   if (!error.stack) return;
 
@@ -13,12 +17,12 @@ export const addStackTrace = (error: Error, options: Options) => {
 
   // Find first frame that occurred within user code.
   const firstUserFrameIndex = stackTrace.findIndex((frame) =>
-    frame.file?.includes(options.srcDir),
+    frame.file?.includes(options.indexingDir),
   );
 
   if (firstUserFrameIndex >= 0) {
     userStackTrace = stackTrace.filter((frame) =>
-      frame.file?.includes(options.srcDir),
+      frame.file?.includes(options.indexingDir),
     );
 
     const firstUserFrame = stackTrace[firstUserFrameIndex];
