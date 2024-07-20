@@ -35,8 +35,8 @@ importers:
         specifier: 5.0.4
         version: 5.0.4
       viem:
-        specifier: 1.16.0
-        version: 1.16.0(typescript@5.0.4)
+        specifier: 1.21.4
+        version: 1.21.4(typescript@5.0.4)(zod@3.22.4)
 
   benchmarks:
     devDependencies:
@@ -62,8 +62,8 @@ importers:
         specifier: ^5.3.2
         version: 5.3.3
       viem:
-        specifier: 1.19.9
-        version: 1.19.9(typescript@5.3.3)
+        specifier: 1.21.4
+        version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
 
   docs:
     dependencies:
@@ -150,7 +150,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -175,7 +175,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -200,7 +200,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -228,7 +228,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -253,7 +253,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -278,7 +278,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -303,7 +303,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -328,7 +328,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -353,7 +353,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -378,7 +378,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -403,7 +403,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -428,7 +428,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -453,7 +453,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -478,7 +478,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -515,7 +515,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.3
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -557,7 +557,7 @@ importers:
         specifier: ^18
         version: 18.2.0(react@18.2.0)
       viem:
-        specifier: ^1.19.11
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -597,7 +597,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
@@ -636,7 +636,7 @@ importers:
         specifier: ^4.5.0
         version: 4.5.0
       viem:
-        specifier: ^1.19.9
+        specifier: ^1.21.4
         version: 1.21.4(typescript@5.3.3)(zod@3.23.8)
       zod:
         specifier: ^3.23.8
@@ -908,10 +908,6 @@ packages:
 
   /@adraffy/ens-normalize@1.10.0:
     resolution: {integrity: sha512-nA9XHtlAkYfJxY7bce8DcN7eKxWWCWkU+1GR9d+U6MbNpfwQp8TI7vqOsBsMcHoT4mBu2kypKoSKnghEzOOq5Q==}
-
-  /@adraffy/ens-normalize@1.9.4:
-    resolution: {integrity: sha512-UK0bHA7hh9cR39V+4gl2/NnBBjoXIxkuWAPCaY4X7fbH4L/azIi7ilWOCjMUYfpJgraLUAqkRi2BqrjME8Rynw==}
-    dev: true
 
   /@alcalzone/ansi-tokenize@0.1.3:
     resolution: {integrity: sha512-3yWxPTq3UQ/FY9p1ErPxIyfT64elWaMvM9lIHnaqpyft63tkxodF5aUElYHrdisWve5cETkh1+KBw1yJuW0aRw==}
@@ -9442,14 +9438,6 @@ packages:
       ws: 7.5.9
     dev: true
 
-  /isows@1.0.2(ws@8.13.0):
-    resolution: {integrity: sha512-ohHPFvRjcGLLA7uqHjIcGf5M3OrzN/k9QVYMGOvCppV/HY2GZdz7oFsJHT70ZXEL7ImrOGE1F9M0SovDGSfT6Q==}
-    peerDependencies:
-      ws: '*'
-    dependencies:
-      ws: 8.13.0
-    dev: true
-
   /isows@1.0.3(ws@8.13.0):
     resolution: {integrity: sha512-2cKei4vlmg2cxEjm3wVSqn8pcoRF/LX/wpifuuNquFO4SQmPwarClT+SUCA2lt+l581tTeZIPIZuIDo2jWN1fg==}
     peerDependencies:
@@ -13079,6 +13067,7 @@ packages:
 
   /shikiji@0.6.10:
     resolution: {integrity: sha512-WE+A5Y2ntM5hL3iJQujk97qr5Uj7PSIRXpQfrZ6h+JWPXZ8KBEDhFXc4lqNriaRq1WGOVPUT83XMOzmHiH3W8A==}
+    deprecated: Shikiji is merged back to Shiki v1.0, please migrate over to get the latest updates
     dependencies:
       hast-util-to-html: 9.0.1
     dev: false
@@ -14536,52 +14525,6 @@ packages:
       vfile-message: 4.0.2
     dev: false
 
-  /viem@1.16.0(typescript@5.0.4):
-    resolution: {integrity: sha512-noRMxaMubiLbVrZ0tXKxUKNwle0QtF0wO6kBOWnm6wg6XIqptSW7xhFzrFdDRp8Jduu5rwwkCB4Tokd5MtFRtw==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dependencies:
-      '@adraffy/ens-normalize': 1.9.4
-      '@noble/curves': 1.2.0
-      '@noble/hashes': 1.3.2
-      '@scure/bip32': 1.3.2
-      '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.0.4)(zod@3.22.4)
-      isows: 1.0.2(ws@8.13.0)
-      typescript: 5.0.4
-      ws: 8.13.0
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-    dev: true
-
-  /viem@1.19.9(typescript@5.3.3):
-    resolution: {integrity: sha512-Sf9U2x4jU0S/FALqYypcspWOGene0NZyD470oUripNhE0Ta6uOE/OgE4toTDVfRxov8qw0JFinr/wPGxYE3+HQ==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dependencies:
-      '@adraffy/ens-normalize': 1.10.0
-      '@noble/curves': 1.2.0
-      '@noble/hashes': 1.3.2
-      '@scure/bip32': 1.3.2
-      '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.3.3)(zod@3.23.8)
-      isows: 1.0.3(ws@8.13.0)
-      typescript: 5.3.3
-      ws: 8.13.0
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-    dev: true
-
   /viem@1.21.4(typescript@5.0.4)(zod@3.22.4):
     resolution: {integrity: sha512-BNVYdSaUjeS2zKQgPs+49e5JKocfo60Ib2yiXOWBT6LuVxY1I/6fFX3waEtpXvL1Xn4qu+BVitVtMh9lyThyhQ==}
     peerDependencies:
@@ -14626,7 +14569,6 @@ packages:
       - bufferutil
       - utf-8-validate
       - zod
-    dev: false
 
   /viem@2.7.20(typescript@5.0.4):
     resolution: {integrity: sha512-S31a24LWEjqXAjw1A+3/xALo+4eiYKklAjLtlLdPhA0cp+Kv6GcgruNVTktP8pKIGNYvpyQ+HA9PJyUhVXPdDw==}

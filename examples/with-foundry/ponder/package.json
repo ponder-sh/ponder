@@ -12,7 +12,7 @@
   "dependencies": {
     "@ponder/core": "workspace:*",
     "hono": "^4.5.0",
-    "viem": "^1.19.3"
+    "viem": "^1.21.4"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",

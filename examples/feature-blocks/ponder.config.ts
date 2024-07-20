@@ -1,5 +1,5 @@
 import { createConfig } from "@ponder/core";
-import { http, Abi } from "viem";
+import { http } from "viem";
 
 export default createConfig({
   networks: {

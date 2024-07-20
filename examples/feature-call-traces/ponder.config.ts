@@ -1,5 +1,5 @@
 import { createConfig } from "@ponder/core";
-import { http, Abi, multicall3Abi } from "viem";
+import { http, multicall3Abi } from "viem";
 import { mainnet } from "viem/chains";
 
 export default createConfig({
