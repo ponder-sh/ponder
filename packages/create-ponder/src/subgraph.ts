@@ -10,29 +10,29 @@ import {
   validateGraphProtocolSource,
 } from "./helpers/validateGraphProtocolSource.js";
 
-type SubgraphProvider = {
-  id: string;
-  name: string;
-  getUrl: (cid: string) => string;
-};
-
 export const subgraphProviders = [
   {
     id: "thegraph",
     name: "The Graph",
-    getUrl: (cid) => `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`,
+    getUrl: (cid: string) =>
+      `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`,
   },
   {
     id: "satsuma",
     name: "Alchemy Subgraph (Satsuma)",
-    getUrl: (cid) => `https://ipfs.satsuma.xyz/ipfs/${cid}`,
+    getUrl: (cid: string) => `https://ipfs.satsuma.xyz/ipfs/${cid}`,
   },
-] as const satisfies readonly SubgraphProvider[];
+] as const;
 
-export type SubgraphProviderIds = (typeof subgraphProviders)[number]["id"];
+type SubgraphProvider = (typeof subgraphProviders)[number];
 
-const fetchIpfsFile = async (cid: string, provider: SubgraphProvider) => {
-  const url = provider.getUrl(cid);
+export type SubgraphProviderId = SubgraphProvider["id"];
+
+const fetchIpfsFile = async (
+  cid: string,
+  subgraphProvider: SubgraphProvider,
+) => {
+  const url = subgraphProvider.getUrl(cid);
   const response = await fetch(url);
   const contentRaw = await response.text();
   return contentRaw;
@@ -41,15 +41,16 @@ const fetchIpfsFile = async (cid: string, provider: SubgraphProvider) => {
 export const fromSubgraphId = async ({
   rootDir,
   subgraphId,
-  providerId = "thegraph",
+  subgraphProvider = "thegraph",
 }: {
   rootDir: string;
   subgraphId: string;
-  providerId?: SubgraphProviderIds;
+  subgraphProvider?: SubgraphProviderId;
 }) => {
   // Find provider
-  const provider = subgraphProviders.find((p) => p.id === providerId);
-  if (!provider) throw new Error(`Unknown subgraph provider: ${providerId}`);
+  const provider = subgraphProviders.find((p) => p.id === subgraphProvider);
+  if (!provider)
+    throw new Error(`Unknown subgraph provider: ${subgraphProvider}`);
 
   // Fetch the manifest file.
   const manifestRaw = await fetchIpfsFile(subgraphId, provider);
