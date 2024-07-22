@@ -22,16 +22,10 @@ test("create empty", async () => {
   });
 
   const templateFiles = (
-    readdirSync(
-      path.join(__dirname, "..", "..", "templates", "empty"),
-    ) as string[]
+    readdirSync(path.join(__dirname, "..", "..", "templates", "empty"), {
+      recursive: true,
+    }) as string[]
   )
-    .concat([
-      path.join("abis", "ExampleContractAbi.ts"),
-      path.join("src", "index.ts"),
-      path.join("src", "api"),
-      path.join("src", "api", "index.ts"),
-    ])
     .map((filePath) =>
       filePath === "_dot_env.local"
         ? ".env.local"
