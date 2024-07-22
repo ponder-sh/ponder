@@ -10,8 +10,29 @@ import {
   validateGraphProtocolSource,
 } from "./helpers/validateGraphProtocolSource.js";
 
-const fetchIpfsFile = async (cid: string) => {
-  const url = `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`;
+type SubgraphProvider = {
+  id: string;
+  name: string;
+  getUrl: (cid: string) => string;
+};
+
+export const subgraphProviders = [
+  {
+    id: "thegraph",
+    name: "The Graph",
+    getUrl: (cid) => `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`,
+  },
+  {
+    id: "satsuma",
+    name: "Alchemy Subgraph (Satsuma)",
+    getUrl: (cid) => `https://ipfs.satsuma.xyz/ipfs/${cid}`,
+  },
+] as const satisfies readonly SubgraphProvider[];
+
+export type SubgraphProviderIds = (typeof subgraphProviders)[number]["id"];
+
+const fetchIpfsFile = async (cid: string, provider: SubgraphProvider) => {
+  const url = provider.getUrl(cid);
   const response = await fetch(url);
   const contentRaw = await response.text();
   return contentRaw;
@@ -20,12 +41,18 @@ const fetchIpfsFile = async (cid: string) => {
 export const fromSubgraphId = async ({
   rootDir,
   subgraphId,
+  providerId = "thegraph",
 }: {
   rootDir: string;
   subgraphId: string;
+  providerId?: SubgraphProviderIds;
 }) => {
+  // Find provider
+  const provider = subgraphProviders.find((p) => p.id === providerId);
+  if (!provider) throw new Error(`Unknown subgraph provider: ${providerId}`);
+
   // Fetch the manifest file.
-  const manifestRaw = await fetchIpfsFile(subgraphId);
+  const manifestRaw = await fetchIpfsFile(subgraphId, provider);
 
   const manifest = parse(manifestRaw);
 
@@ -56,7 +83,7 @@ export const fromSubgraphId = async ({
 
   await Promise.all(
     abiFiles.map(async (abi) => {
-      const abiContent = await fetchIpfsFile(abi.file["/"].slice(6));
+      const abiContent = await fetchIpfsFile(abi.file["/"].slice(6), provider);
       const abiPath = path.join(rootDir, `./abis/${abi.name}Abi.ts`);
       writeFileSync(
         abiPath,

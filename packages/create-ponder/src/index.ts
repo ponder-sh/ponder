@@ -24,7 +24,7 @@ import {
   validateProjectPath,
   validateTemplateName,
 } from "./helpers/validate.js";
-import { fromSubgraphId } from "./subgraph.js";
+import { fromSubgraphId, subgraphProviders } from "./subgraph.js";
 
 const log = console.log;
 
@@ -297,7 +297,11 @@ export async function run({
 
   if (templateMeta.id === "subgraph") {
     const result = await oraPromise(
-      fromSubgraphId({ rootDir: projectPath, subgraphId: subgraph! }),
+      fromSubgraphId({
+        rootDir: projectPath,
+        subgraphId: subgraph!,
+        providerId: options.subgraphProvider,
+      }),
       {
         text: "Fetching subgraph metadata. This may take a few seconds.",
         failText: "Failed to fetch subgraph metadata.",
@@ -501,6 +505,10 @@ export async function run({
     .option(
       "-t, --template [id]",
       `Use a template. Options: ${templates.map(({ id }) => id).join(", ")}`,
+    )
+    .option(
+      "--provider [provider]",
+      `Use an alternative subgraph provider. Options: ${subgraphProviders.map(({ id }) => id).join(", ")}`,
     )
     .option("--etherscan [url]", "Use the Etherscan template")
     .option("--subgraph [id]", "Use the subgraph template")
