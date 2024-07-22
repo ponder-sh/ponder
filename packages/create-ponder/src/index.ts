@@ -300,7 +300,7 @@ export async function run({
       fromSubgraphId({
         rootDir: projectPath,
         subgraphId: subgraph!,
-        providerId: options.subgraphProvider,
+        providerId: options.provider,
       }),
       {
         text: "Fetching subgraph metadata. This may take a few seconds.",
