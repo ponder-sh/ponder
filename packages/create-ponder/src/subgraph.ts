@@ -102,10 +102,6 @@ export const fromSubgraphId = async ({
   const ponderContracts = dataSources.map((sourceInvalid) => {
     const source = validateGraphProtocolSource(sourceInvalid);
     const network = source.network || "mainnet";
-    const chainId = getGraphProtocolChainId(network);
-    if (!chainId || chainId === -1) {
-      throw new Error(`Unhandled network name: ${network}`);
-    }
     const abiRelativePath = `./abis/${source.source.abi}Abi.ts`;
 
     return {
@@ -125,10 +121,11 @@ export const fromSubgraphId = async ({
   const networksObject: any = {};
 
   ponderContracts.forEach((pc) => {
+    const chainId = getGraphProtocolChainId(pc.network);
     contractsObject[pc.name] = pc;
     networksObject[pc.network] = {
-      chainId: getGraphProtocolChainId(pc.network),
-      transport: `http(process.env.PONDER_RPC_URL_${getGraphProtocolChainId(pc.network)})`,
+      chainId,
+      transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
     };
     contractsObject[pc.name].name = undefined;
   });
