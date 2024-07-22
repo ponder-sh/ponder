@@ -296,10 +296,6 @@ test("start() with block filter skips blocks already in database", async (contex
     [1, blockNumbers.finalizedBlockNumber],
   ]);
 
-  for (const call of requestSpy.mock.calls) {
-    console.log(call);
-  }
-
   expect(requestSpy).toHaveBeenCalledTimes(2);
 
   service.kill();
