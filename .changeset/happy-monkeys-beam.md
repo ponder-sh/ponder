@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Fixed broken link to Telemetry documentation
+Fixed a broken link to the telemetry documentation.
