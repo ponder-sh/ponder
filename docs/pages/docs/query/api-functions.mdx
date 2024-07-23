@@ -225,9 +225,9 @@ Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware f
 ```ts filename="src/api/index.ts" {3}
 import { ponder } from "@/generated";
 
-ponder.use((c) => {
+ponder.use((c, next) => {
   console.log("Request received:", c.req.url);
-  return c.next();
+  return next();
 });
 ```
 
