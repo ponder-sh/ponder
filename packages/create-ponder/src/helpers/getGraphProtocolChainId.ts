@@ -15,8 +15,6 @@ const chainIdByGraphNetwork: Record<string, number | undefined> = {
   fantom: 250,
   "fantom-testnet": 4002,
   bsc: 56,
-  chapel: -1,
-  clover: 0,
   avalanche: 43114,
   fuji: 43113,
   celo: 42220,
@@ -24,7 +22,6 @@ const chainIdByGraphNetwork: Record<string, number | undefined> = {
   fuse: 122,
   moonbeam: 1284,
   moonriver: 1285,
-  mbase: -1,
   base: 8453,
   "base-sepolia": 84532,
   "arbitrum-one": 42161,
@@ -36,7 +33,7 @@ const chainIdByGraphNetwork: Record<string, number | undefined> = {
 };
 
 export const getGraphProtocolChainId = (networkName: string) => {
-  return chainIdByGraphNetwork[networkName];
+  return chainIdByGraphNetwork[networkName] ?? 0;
 };
 
 export const subgraphYamlFileNames = ["subgraph.yaml"].concat(

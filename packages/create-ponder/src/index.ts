@@ -24,7 +24,11 @@ import {
   validateProjectPath,
   validateTemplateName,
 } from "./helpers/validate.js";
-import { fromSubgraphId } from "./subgraph.js";
+import {
+  type SubgraphProviderId,
+  fromSubgraphId,
+  subgraphProviders,
+} from "./subgraph.js";
 
 const log = console.log;
 
@@ -259,7 +263,22 @@ export async function run({
   }
 
   let subgraph: string | undefined = options.subgraph;
+  let subgraphProvider: SubgraphProviderId | undefined =
+    options.subgraphProvider;
   if (templateMeta.id === "subgraph") {
+    if (subgraphProvider === undefined) {
+      const result = await prompts({
+        name: "subgraphProvider",
+        message: "Which provider is the subgraph deployed to?",
+        type: "select",
+        choices: subgraphProviders.map(({ id, name }) => ({
+          title: name,
+          value: id,
+        })),
+      });
+      subgraphProvider = result.subgraphProvider;
+    }
+
     if (!subgraph) {
       const result = await prompts({
         type: "text",
@@ -297,7 +316,11 @@ export async function run({
 
   if (templateMeta.id === "subgraph") {
     const result = await oraPromise(
-      fromSubgraphId({ rootDir: projectPath, subgraphId: subgraph! }),
+      fromSubgraphId({
+        rootDir: projectPath,
+        subgraphId: subgraph!,
+        subgraphProvider: subgraphProvider!,
+      }),
       {
         text: "Fetching subgraph metadata. This may take a few seconds.",
         failText: "Failed to fetch subgraph metadata.",
@@ -504,6 +527,10 @@ export async function run({
     )
     .option("--etherscan [url]", "Use the Etherscan template")
     .option("--subgraph [id]", "Use the subgraph template")
+    .option(
+      "--subgraph-provider [provider]",
+      `Specify the subgraph provider. Options: ${subgraphProviders.map(({ id }) => id).join(", ")}`,
+    )
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
