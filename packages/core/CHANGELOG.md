@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.5.1
+
+### Patch Changes
+
+- [#970](https://github.com/ponder-sh/ponder/pull/970) [`5b5a92ee9ab14fdd3cc4cc0b05e4aa1e69a77ad9`](https://github.com/ponder-sh/ponder/commit/5b5a92ee9ab14fdd3cc4cc0b05e4aa1e69a77ad9) Thanks [@robiiinos](https://github.com/robiiinos)! - Added `CASCADE` to the `DROP VIEW` statements that run during the PostgreSQL view publish step. This fixes a bug where Ponder would crash during the publish step if there were database objects dependent on the Ponder-managed views.
+
+- [#981](https://github.com/ponder-sh/ponder/pull/981) [`b715545ed416e409089e10b01aeb32cf26c4b384`](https://github.com/ponder-sh/ponder/commit/b715545ed416e409089e10b01aeb32cf26c4b384) Thanks [@robiiinos](https://github.com/robiiinos)! - Fixed a broken link to the telemetry documentation.
+
+- [#980](https://github.com/ponder-sh/ponder/pull/980) [`e039f1210a72409f5df268b38adf3d45360f5a14`](https://github.com/ponder-sh/ponder/commit/e039f1210a72409f5df268b38adf3d45360f5a14) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed an issue that prevented `ponder dev` from shutting down gracefully when using SQLite.
+
 ## 0.5.0
 
 ### Minor Changes

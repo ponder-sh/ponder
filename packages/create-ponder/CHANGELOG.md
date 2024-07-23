@@ -1,5 +1,13 @@
 # create-ponder
 
+## 0.5.1
+
+### Patch Changes
+
+- [#987](https://github.com/ponder-sh/ponder/pull/987) [`fb8c0a2e80cdf4a991090a600b04b26d0a9743ad`](https://github.com/ponder-sh/ponder/commit/fb8c0a2e80cdf4a991090a600b04b26d0a9743ad) Thanks [@robiiinos](https://github.com/robiiinos)! - Fixed default contract address in `create-ponder` empty template.
+
+- [#991](https://github.com/ponder-sh/ponder/pull/991) [`0f7879b5fc78869794c221482e8cfdf9b7adcd67`](https://github.com/ponder-sh/ponder/commit/0f7879b5fc78869794c221482e8cfdf9b7adcd67) Thanks [@mirshko](https://github.com/mirshko)! - Added support for Alchemy Subgraph (Satsuma) subgraphs in the `create-ponder` subgraph template via the `--subgraph-provider` option or prompt.
+
 ## 0.5.0
 
 ### Minor Changes
