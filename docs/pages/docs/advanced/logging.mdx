@@ -61,7 +61,7 @@ Use the `--log-format <FORMAT>` CLI option to set the log format.
 
 {/* prettier-ignore */}
 ```bash filename="bash"
-ponder start --log-level pretty
+ponder start --log-format pretty
 ```
 
 ```bash filename="bash"
@@ -77,7 +77,7 @@ ponder start --log-level pretty
 ### JSON
 
 ```bash filename="bash"
-ponder start --log-level json
+ponder start --log-format json
 ```
 
 The JSON log format emits newline-delimited JSON objects with properties `level`, `time`, `service`, `msg`, and (optionally) `error`.
