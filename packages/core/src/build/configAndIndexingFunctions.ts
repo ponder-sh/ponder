@@ -54,7 +54,15 @@ export async function buildConfigAndIndexingFunctions({
   // Build database.
   let databaseConfig: DatabaseConfig;
 
-  const sqliteDir = path.join(ponderDir, "sqlite");
+  // Determine SQLite directory, preferring config.database.directory if available
+  let sqliteDir: string;
+  if (config.database?.kind === "sqlite") {
+    sqliteDir = config.database.directory
+      ? path.resolve(config.database.directory)
+      : path.join(ponderDir, "sqlite");
+  } else {
+    sqliteDir = path.join(ponderDir, "sqlite");
+  }
   const sqlitePrintPath = path.relative(rootDir, sqliteDir);
 
   if (config.database?.kind) {
