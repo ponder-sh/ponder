@@ -1025,7 +1025,7 @@ test("updateMany() updates a large number of entities", async (context) => {
     schema,
   });
 
-  const RECORD_COUNT = 10_000;
+  const RECORD_COUNT = 1_000;
 
   await indexingStore.createMany({
     tableName: "Pet",

@@ -612,6 +612,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
       await this.db.destroy();
 
       this.syncDatabase.close();
+      this.readonlyDatabase.close();
       this.internalDatabase.close();
 
       this.common.logger.debug({

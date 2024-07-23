@@ -8,7 +8,7 @@
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "format": "biome format . --write",
     "lint": "biome check .",
-    "lint:fix": "pnpm lint --apply",
+    "lint:fix": "pnpm lint --write",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
     "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"

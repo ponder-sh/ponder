@@ -14,7 +14,7 @@ export default createConfig({
     ExampleContract: {
       network: "mainnet",
       abi: ExampleContractAbi,
-      address: "0x0",
+      address: "0x0000000000000000000000000000000000000000",
       startBlock: 1234567,
     },
   },
