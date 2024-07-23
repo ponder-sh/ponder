@@ -102,7 +102,7 @@ import { ponder } from "@/generated";
 ponder.get("/account/:address", async (c) => {
   const address = c.req.param("address");
 
-  const account = await c.db.select(c.tables.Account).limit(1);
+  const account = await c.db.select().from(c.tables.Account).limit(1);
 
   return c.json(account);
 });
