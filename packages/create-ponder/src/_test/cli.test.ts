@@ -124,8 +124,6 @@ test("create etherscan", async () => {
 
   const files = readdirSync(rootDir, { recursive: true, encoding: "utf8" });
 
-  console.log(files);
-
   expect(files).toEqual(
     expect.arrayContaining([
       ".env.local",
