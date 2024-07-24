@@ -33,9 +33,9 @@ test("create empty", async () => {
       "ponder.config.ts",
       "ponder.schema.ts",
       "tsconfig.json",
-      "abis/ExampleContractAbi.ts",
-      "src/index.ts",
-      "src/api/index.ts",
+      path.join("abis", "ExampleContractAbi.ts"),
+      path.join("src", "index.ts"),
+      path.join("src", "api", "index.ts"),
     ]),
   );
 });
@@ -66,11 +66,11 @@ test("create subgraph thegraph", async () => {
       "ponder.config.ts",
       "ponder.schema.ts",
       "tsconfig.json",
-      "abis/ERC20Abi.ts",
-      "abis/ERC721Abi.ts",
-      "abis/EntryPointAbi.ts",
-      "src/EntryPoint.ts",
-      "src/EntryPointV0.6.0.ts",
+      path.join("abis", "ERC20Abi.ts"),
+      path.join("abis", "ERC721Abi.ts"),
+      path.join("abis", "EntryPointAbi.ts"),
+      path.join("src", "EntryPoint.ts"),
+      path.join("src", "EntryPointV0.6.0.ts"),
     ]),
   );
 });
@@ -101,8 +101,8 @@ test("create subgraph satsuma", async () => {
       "ponder.config.ts",
       "ponder.schema.ts",
       "tsconfig.json",
-      "abis/AchievementNFTAbi.ts",
-      "src/AchievementNFT.ts",
+      path.join("abis", "AchievementNFTAbi.ts"),
+      path.join("src", "AchievementNFT.ts"),
     ]),
   );
 });
@@ -134,8 +134,12 @@ test("create etherscan", async () => {
       "ponder.config.ts",
       "ponder.schema.ts",
       "tsconfig.json",
-      expect.stringMatching(/src\/(?:WETH9|UnverifiedContract)\.ts/),
-      expect.stringMatching(/abis\/(?:WETH9|UnverifiedContract)Abi\.ts/),
+      expect.stringMatching(
+        /src[/\\](?:WETH9|UnverifiedContract|AchievementNFT)\.ts/,
+      ),
+      expect.stringMatching(
+        /abis[/\\](?:WETH9|UnverifiedContract|AchievementNFT)Abi\.ts/,
+      ),
     ]),
   );
 });
