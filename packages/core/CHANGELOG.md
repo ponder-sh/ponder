@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.2
+
+### Patch Changes
+
+- [#995](https://github.com/ponder-sh/ponder/pull/995) [`44f7bbcd000b47359003b84a771eaadb0d835fe7`](https://github.com/ponder-sh/ponder/commit/44f7bbcd000b47359003b84a771eaadb0d835fe7) Thanks [@erensanlier](https://github.com/erensanlier)! - Fixed a bug where the SQLite `directory` option in `ponder.config.ts` was not respected.
+
 ## 0.5.1
 
 ### Patch Changes
