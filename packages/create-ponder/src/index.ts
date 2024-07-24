@@ -443,24 +443,26 @@ export async function run({
     "install",
     packageManager === "npm" ? "--quiet" : "--silent",
   ];
-  await oraPromise(
-    execa(packageManager, installArgs, {
-      cwd: projectPath,
-      env: {
-        ...process.env,
-        ADBLOCK: "1",
-        DISABLE_OPENCOLLECTIVE: "1",
-        // we set NODE_ENV to development as pnpm skips dev
-        // dependencies when production
-        NODE_ENV: "development",
+  if (!options.skipInstall) {
+    await oraPromise(
+      execa(packageManager, installArgs, {
+        cwd: projectPath,
+        env: {
+          ...process.env,
+          ADBLOCK: "1",
+          DISABLE_OPENCOLLECTIVE: "1",
+          // we set NODE_ENV to development as pnpm skips dev
+          // dependencies when production
+          NODE_ENV: "development",
+        },
+      }),
+      {
+        text: `Installing packages with ${pico.bold(packageManager)}. This may take a few seconds.`,
+        failText: "Failed to install packages.",
+        successText: `Installed packages with ${pico.bold(packageManager)}.`,
       },
-    }),
-    {
-      text: `Installing packages with ${pico.bold(packageManager)}. This may take a few seconds.`,
-      failText: "Failed to install packages.",
-      successText: `Installed packages with ${pico.bold(packageManager)}.`,
-    },
-  );
+    );
+  }
 
   // Create git repository
   if (!options.skipGit) {
@@ -526,6 +528,10 @@ export async function run({
       `Use a template. Options: ${templates.map(({ id }) => id).join(", ")}`,
     )
     .option("--etherscan [url]", "Use the Etherscan template")
+    .option(
+      "--etherscan-api-key [key]",
+      "Etherscan API key for Etherscan template",
+    )
     .option("--subgraph [id]", "Use the subgraph template")
     .option(
       "--subgraph-provider [provider]",
@@ -535,10 +541,7 @@ export async function run({
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
     .option("--skip-git", "Skip initializing a git repository")
-    .option(
-      "--etherscan-api-key [key]",
-      "Etherscan API key for Etherscan template",
-    )
+    .option("--skip-install", "Skip installing packages")
     .help();
 
   // Check Nodejs version

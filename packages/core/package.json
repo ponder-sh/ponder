@@ -29,7 +29,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest",
-    "test:typecheck": "vitest --typecheck",
+    "test:typecheck": "vitest --typecheck.only",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
