@@ -640,6 +640,27 @@ test("buildConfigAndIndexingFunctions() database uses sqlite by default", async 
   process.env.DATABASE_URL = prev;
 });
 
+test("buildConfigAndIndexingFunctions() database respects custom sqlite path", async () => {
+  const config = createConfig({
+    database: { kind: "sqlite", directory: "custom-sqlite/directory" },
+    networks: { mainnet: { chainId: 1, transport: http() } },
+    contracts: { a: { network: "mainnet", abi: [event0] } },
+  });
+
+  const { databaseConfig } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
+
+  console.log(databaseConfig);
+
+  expect(databaseConfig).toMatchObject({
+    kind: "sqlite",
+    directory: expect.stringContaining(path.join("custom-sqlite", "directory")),
+  });
+});
+
 test("buildConfigAndIndexingFunctions() database uses sqlite if specified even if DATABASE_URL env var present", async () => {
   const config = createConfig({
     database: { kind: "sqlite" },
