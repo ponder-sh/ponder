@@ -653,8 +653,6 @@ test("buildConfigAndIndexingFunctions() database respects custom sqlite path", a
     options,
   });
 
-  console.log(databaseConfig);
-
   expect(databaseConfig).toMatchObject({
     kind: "sqlite",
     directory: expect.stringContaining(path.join("custom-sqlite", "directory")),
