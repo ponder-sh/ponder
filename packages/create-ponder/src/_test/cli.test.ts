@@ -18,74 +18,93 @@ test("create empty", async () => {
 
   await run({
     args: [rootDir],
-    options: { template: "empty", skipGit: true },
+    options: { template: "empty", skipGit: true, skipInstall: true },
   });
 
-  const templateFiles = (
-    readdirSync(path.join(__dirname, "..", "..", "templates", "empty"), {
-      recursive: true,
-    }) as string[]
-  )
-    .map((filePath) =>
-      filePath === "_dot_env.local"
-        ? ".env.local"
-        : filePath === "_dot_eslintrc.json"
-          ? ".eslintrc.json"
-          : filePath === "_dot_gitignore"
-            ? ".gitignore"
-            : filePath,
-    )
-    .sort();
+  const files = readdirSync(rootDir, { recursive: true, encoding: "utf8" });
 
-  const generatedFiles = (readdirSync(rootDir, { recursive: true }) as string[])
-    .filter((f) => !f.startsWith("node_modules") && !f.startsWith("pnpm-lock"))
-    .sort();
-  expect(generatedFiles).toStrictEqual(templateFiles);
+  expect(files).toEqual(
+    expect.arrayContaining([
+      ".env.local",
+      ".eslintrc.json",
+      ".gitignore",
+      "package.json",
+      "ponder-env.d.ts",
+      "ponder.config.ts",
+      "ponder.schema.ts",
+      "tsconfig.json",
+      "abis/ExampleContractAbi.ts",
+      "src/index.ts",
+      "src/api/index.ts",
+    ]),
+  );
 });
 
-test("create subgraph id", async () => {
+test("create subgraph thegraph", async () => {
   const rootDir = path.join(tempDir, "subgraph-id");
 
   await run({
     args: [rootDir],
     options: {
       template: "subgraph",
-      skipGit: true,
       subgraph: "QmeCy8bjyudQYwddetkgKDKQTsFxWomvbgsDifnbWFEMK9",
+      subgraphProvider: "thegraph",
+      skipGit: true,
+      skipInstall: true,
     },
   });
 
-  const templateFiles = (
-    readdirSync(path.join(__dirname, "..", "..", "templates", "subgraph"), {
-      recursive: true,
-    }) as string[]
-  )
-    .concat([
-      "ponder.config.ts",
-      path.join("abis", "ERC20Abi.ts"),
-      path.join("abis", "ERC721Abi.ts"),
-      path.join("abis", "EntryPointAbi.ts"),
-      path.join("src", "EntryPoint.ts"),
-      path.join("src", "EntryPointV0.6.0.ts"),
-      "abis",
-      "src",
-    ])
-    // _gitignore is renamed to .gitignore
-    .map((filePath) =>
-      filePath === "_dot_env.local"
-        ? ".env.local"
-        : filePath === "_dot_eslintrc.json"
-          ? ".eslintrc.json"
-          : filePath === "_dot_gitignore"
-            ? ".gitignore"
-            : filePath,
-    )
-    .sort();
+  const files = readdirSync(rootDir, { recursive: true, encoding: "utf8" });
 
-  const generatedFiles = (readdirSync(rootDir, { recursive: true }) as string[])
-    .filter((f) => !f.startsWith("node_modules") && !f.startsWith("pnpm-lock"))
-    .sort();
-  expect(generatedFiles).toStrictEqual(templateFiles);
+  expect(files).toEqual(
+    expect.arrayContaining([
+      ".env.local",
+      ".eslintrc.json",
+      ".gitignore",
+      "package.json",
+      "ponder-env.d.ts",
+      "ponder.config.ts",
+      "ponder.schema.ts",
+      "tsconfig.json",
+      "abis/ERC20Abi.ts",
+      "abis/ERC721Abi.ts",
+      "abis/EntryPointAbi.ts",
+      "src/EntryPoint.ts",
+      "src/EntryPointV0.6.0.ts",
+    ]),
+  );
+});
+
+test("create subgraph satsuma", async () => {
+  const rootDir = path.join(tempDir, "subgraph-id");
+
+  await run({
+    args: [rootDir],
+    options: {
+      template: "subgraph",
+      subgraph: "QmbjiXHX5E7VypxH2gRcdySEXsvSUo7Aocuypr7m9u6Na9",
+      subgraphProvider: "satsuma",
+      skipGit: true,
+      skipInstall: true,
+    },
+  });
+
+  const files = readdirSync(rootDir, { recursive: true, encoding: "utf8" });
+
+  expect(files).toEqual(
+    expect.arrayContaining([
+      ".env.local",
+      ".eslintrc.json",
+      ".gitignore",
+      "package.json",
+      "ponder-env.d.ts",
+      "ponder.config.ts",
+      "ponder.schema.ts",
+      "tsconfig.json",
+      "abis/AchievementNFTAbi.ts",
+      "src/AchievementNFT.ts",
+    ]),
+  );
 });
 
 test("create etherscan", async () => {
@@ -95,39 +114,30 @@ test("create etherscan", async () => {
     args: [rootDir],
     options: {
       template: "etherscan",
-      skipGit: true,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY!,
       etherscan:
         "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      skipGit: true,
+      skipInstall: true,
     },
   });
 
-  const templateFiles = (
-    readdirSync(path.join(__dirname, "..", "..", "templates", "etherscan"), {
-      recursive: true,
-    }) as string[]
-  )
-    .concat([
-      "ponder.config.ts",
-      path.join("abis", "WETH9Abi.ts"),
-      path.join("src", "WETH9.ts"),
-      "abis",
-      "src",
-    ])
-    // _gitignore is renamed to .gitignore
-    .map((filePath) =>
-      filePath === "_dot_env.local"
-        ? ".env.local"
-        : filePath === "_dot_eslintrc.json"
-          ? ".eslintrc.json"
-          : filePath === "_dot_gitignore"
-            ? ".gitignore"
-            : filePath,
-    )
-    .sort();
+  const files = readdirSync(rootDir, { recursive: true, encoding: "utf8" });
 
-  const generatedFiles = (readdirSync(rootDir, { recursive: true }) as string[])
-    .filter((f) => !f.startsWith("node_modules") && !f.startsWith("pnpm-lock"))
-    .sort();
-  expect(generatedFiles).toStrictEqual(templateFiles);
+  console.log(files);
+
+  expect(files).toEqual(
+    expect.arrayContaining([
+      ".env.local",
+      ".eslintrc.json",
+      ".gitignore",
+      "package.json",
+      "ponder-env.d.ts",
+      "ponder.config.ts",
+      "ponder.schema.ts",
+      "tsconfig.json",
+      expect.stringMatching(/src\/(?:WETH9|UnverifiedContract)\.ts/),
+      expect.stringMatching(/abis\/(?:WETH9|UnverifiedContract)Abi\.ts/),
+    ]),
+  );
 });

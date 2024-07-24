@@ -14,13 +14,23 @@ export const subgraphProviders = [
   {
     id: "thegraph",
     name: "The Graph",
-    getUrl: (cid: string) =>
-      `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`,
+    // Used to be https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}
+    // Also used to accept GET requests for some reason
+    fetchIpfs: async (cid: string) => {
+      const response = await fetch(
+        `https://api.thegraph.com/ipfs/api/v0/cat?arg=${cid}`,
+        { method: "POST" },
+      );
+      return await response.text();
+    },
   },
   {
     id: "satsuma",
     name: "Alchemy Subgraph (Satsuma)",
-    getUrl: (cid: string) => `https://ipfs.satsuma.xyz/ipfs/${cid}`,
+    fetchIpfs: async (cid: string) => {
+      const response = await fetch(`https://ipfs.satsuma.xyz/ipfs/${cid}`);
+      return await response.text();
+    },
   },
 ] as const;
 
@@ -28,24 +38,14 @@ type SubgraphProvider = (typeof subgraphProviders)[number];
 
 export type SubgraphProviderId = SubgraphProvider["id"];
 
-const fetchIpfsFile = async (
-  cid: string,
-  subgraphProvider: SubgraphProvider,
-) => {
-  const url = subgraphProvider.getUrl(cid);
-  const response = await fetch(url);
-  const contentRaw = await response.text();
-  return contentRaw;
-};
-
 export const fromSubgraphId = async ({
   rootDir,
   subgraphId,
-  subgraphProvider = "thegraph",
+  subgraphProvider,
 }: {
   rootDir: string;
   subgraphId: string;
-  subgraphProvider?: SubgraphProviderId;
+  subgraphProvider: SubgraphProviderId;
 }) => {
   // Find provider
   const provider = subgraphProviders.find((p) => p.id === subgraphProvider);
@@ -53,7 +53,7 @@ export const fromSubgraphId = async ({
     throw new Error(`Unknown subgraph provider: ${subgraphProvider}`);
 
   // Fetch the manifest file.
-  const manifestRaw = await fetchIpfsFile(subgraphId, provider);
+  const manifestRaw = await provider.fetchIpfs(subgraphId);
 
   const manifest = parse(manifestRaw);
 
@@ -84,7 +84,7 @@ export const fromSubgraphId = async ({
 
   await Promise.all(
     abiFiles.map(async (abi) => {
-      const abiContent = await fetchIpfsFile(abi.file["/"].slice(6), provider);
+      const abiContent = await provider.fetchIpfs(abi.file["/"].slice(6));
       const abiPath = path.join(rootDir, `./abis/${abi.name}Abi.ts`);
       writeFileSync(
         abiPath,
