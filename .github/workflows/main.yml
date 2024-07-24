@@ -27,6 +27,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test (types)
+        run: pnpm --filter core test:typecheck
+
       - name: Lint
         run: pnpm lint
 
@@ -65,9 +68,6 @@ jobs:
 
       - name: Codegen
         run: cd packages/core/ && pnpm wagmi generate
-
-      - name: Test (types)
-        run: pnpm --filter core test:typecheck
 
       - name: Test
         run: pnpm --filter core test
