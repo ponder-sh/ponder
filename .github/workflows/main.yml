@@ -67,9 +67,12 @@ jobs:
         run: cd packages/core/ && pnpm wagmi generate
 
       - name: Test
-        run: pnpm --filter core test:typecheck
+        run: pnpm --filter core test
         env:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
+
+      - name: Test (types)
+        run: pnpm --filter core test:typecheck
 
   test-create-ponder:
     name: Test [create-ponder]
