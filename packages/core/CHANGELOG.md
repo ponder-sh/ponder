@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.3
+
+### Patch Changes
+
+- [#1000](https://github.com/ponder-sh/ponder/pull/1000) [`8bbe39048e7dff402bfc14a4f77a6c7d5f431069`](https://github.com/ponder-sh/ponder/commit/8bbe39048e7dff402bfc14a4f77a6c7d5f431069) Thanks [@kyscott18](https://github.com/kyscott18)! - Update bloom filter logic.
+
 ## 0.5.2
 
 ### Patch Changes
