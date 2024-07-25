@@ -1,11 +1,32 @@
 import {
-  isContractAddressInBloom,
-  isTopicInBloom,
-} from "ethereum-bloom-filters";
-import type { Address, Hex, LogTopic } from "viem";
+  type Address,
+  type Hex,
+  type LogTopic,
+  hexToBytes,
+  keccak256,
+} from "viem";
 
 export const zeroLogsBloom =
   "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+const BLOOM_SIZE_BYTES = 256;
+
+export const isInBloom = (_bloom: Hex, input: Hex): boolean => {
+  const bloom = hexToBytes(_bloom);
+  const hash = hexToBytes(keccak256(input));
+
+  for (const i of [0, 2, 4]) {
+    const bit = (hash[i + 1]! + (hash[i]! << 8)) & 0x7ff;
+    if (
+      (bloom[BLOOM_SIZE_BYTES - 1 - Math.floor(bit / 8)]! &
+        (1 << (bit % 8))) ===
+      0
+    )
+      return false;
+  }
+
+  return true;
+};
 
 export function isMatchedLogInBloomFilter({
   bloom,
@@ -27,7 +48,7 @@ export function isMatchedLogInBloomFilter({
           : [logFilter.address];
     allAddresses.push(...address);
   });
-  if (allAddresses.some((a) => isContractAddressInBloom(bloom, a))) {
+  if (allAddresses.some((a) => isInBloom(bloom, a))) {
     return true;
   }
 
@@ -39,7 +60,7 @@ export function isMatchedLogInBloomFilter({
       else allTopics.push(topic);
     });
   });
-  if (allTopics.some((a) => isTopicInBloom(bloom, a))) {
+  if (allTopics.some((a) => isInBloom(bloom, a))) {
     return true;
   }
 
