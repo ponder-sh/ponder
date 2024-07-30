@@ -62,7 +62,7 @@ type GlobalOptions = {
 const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
-  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -75,7 +75,7 @@ const devCommand = new Command("dev")
 const startCommand = new Command("start")
   .description("Start the production server")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
-  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -88,7 +88,7 @@ const startCommand = new Command("start")
 const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
-  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "0.0.0.0")
+  .option("-H, --hostname <HOSTNAME>", "Hostname for the web server", "")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
