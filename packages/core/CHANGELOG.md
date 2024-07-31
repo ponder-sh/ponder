@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.6
+
+### Patch Changes
+
+- [#1009](https://github.com/ponder-sh/ponder/pull/1009) [`98344a111f47a6a95b766afaf8ecbec5ef57542e`](https://github.com/ponder-sh/ponder/commit/98344a111f47a6a95b766afaf8ecbec5ef57542e) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated internal rpc request logic to not include invalid "eth_call" requests.
+
 ## 0.5.5
 
 ### Patch Changes
