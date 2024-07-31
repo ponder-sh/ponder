@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.4
+
+### Patch Changes
+
+- [#1005](https://github.com/ponder-sh/ponder/pull/1005) [`bba168613896b84139d6546f8cf16855c5a3dcc9`](https://github.com/ponder-sh/ponder/commit/bba168613896b84139d6546f8cf16855c5a3dcc9) Thanks [@kyscott18](https://github.com/kyscott18)! - Enforced minimum polling interval of 100ms.
+
 ## 0.5.3
 
 ### Patch Changes
