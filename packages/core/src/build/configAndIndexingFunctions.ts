@@ -264,7 +264,7 @@ export async function buildConfigAndIndexingFunctions({
         network.pollingInterval! < 100
       ) {
         throw new Error(
-          `Invalid 'pollingInterval' for network '${networkName}'. Minimum is 100 ms.`,
+          `Invalid 'pollingInterval' for network '${networkName}. Expected 100 milliseconds or greater, got ${network.pollingInterval} milliseconds.`,
         );
       }
 
