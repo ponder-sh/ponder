@@ -259,6 +259,15 @@ export async function buildConfigAndIndexingFunctions({
         }
       });
 
+      if (
+        network.pollingInterval !== undefined &&
+        network.pollingInterval! < 100
+      ) {
+        throw new Error(
+          `Invalid 'pollingInterval' for network '${networkName}'. Minimum is 100 ms.`,
+        );
+      }
+
       return {
         name: networkName,
         chainId,
