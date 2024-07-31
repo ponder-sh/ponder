@@ -5,6 +5,7 @@ import prettier from "prettier";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId.js";
+import { translateSchema } from "./helpers/graphqlTranslator.js";
 import {
   type GraphSource,
   validateGraphProtocolSource,
@@ -97,6 +98,21 @@ export const fromSubgraphId = async ({
       );
       abis[abi.name] = JSON.parse(abiContent);
     }),
+  );
+
+  // Copy over the schema.graphql file.
+  const schemaRaw = await provider.fetchIpfs(
+    manifest.schema.file["/"].slice(6),
+  );
+
+  const schemaPath = path.join(rootDir, "./ponder.schema.ts");
+
+  // Translate and write the schema file
+  const translatedSchema = translateSchema(schemaRaw);
+
+  writeFileSync(
+    schemaPath,
+    await prettier.format(translatedSchema, { parser: "typescript" }),
   );
 
   // Build the ponder sources.
