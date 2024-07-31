@@ -259,6 +259,15 @@ export async function buildConfigAndIndexingFunctions({
         }
       });
 
+      if (
+        network.pollingInterval !== undefined &&
+        network.pollingInterval! < 100
+      ) {
+        throw new Error(
+          `Invalid 'pollingInterval' for network '${networkName}. Expected 100 milliseconds or greater, got ${network.pollingInterval} milliseconds.`,
+        );
+      }
+
       return {
         name: networkName,
         chainId,
