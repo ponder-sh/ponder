@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.5
+
+### Patch Changes
+
+- [`1ced31b0acdf0c95e0e5029aeac774d0cff09a07`](https://github.com/ponder-sh/ponder/commit/1ced31b0acdf0c95e0e5029aeac774d0cff09a07) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated `Access-Control-Max-Age` response header to `86400` seconds.
+
 ## 0.5.4
 
 ### Patch Changes
