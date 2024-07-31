@@ -105,7 +105,7 @@ export async function createServer({
 
   const hono = new Hono()
     .use(metricsMiddleware)
-    .use(cors())
+    .use(cors({ origin: "*", maxAge: 86400 }))
     .get("/metrics", async (c) => {
       try {
         const metrics = await common.metrics.getMetrics();
