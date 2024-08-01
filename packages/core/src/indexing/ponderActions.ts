@@ -24,6 +24,7 @@ import type {
 import {
   getBalance as viemGetBalance,
   getBytecode as viemGetBytecode,
+  getEnsName as viemGetEnsName,
   getStorageAt as viemGetStorageAt,
   multicall as viemMulticall,
   readContract as viemReadContract,
@@ -52,6 +53,9 @@ export type PonderActions = {
     args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
       BlockOptions,
   ) => Promise<GetBytecodeReturnType>;
+  getEnsName: (
+    args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
+  ) => Promise<GetEnsNameReturnType>;
   getStorageAt: (
     args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
       BlockOptions,
@@ -76,9 +80,6 @@ export type PonderActions = {
     > &
       BlockOptions,
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
-  getEnsName: (
-    args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
-  ) => Promise<GetEnsNameReturnType>;
 };
 
 export type ReadOnlyClient<
@@ -117,6 +118,18 @@ export const buildCachedActions = (
     }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
       BlockOptions): Promise<GetBytecodeReturnType> =>
       viemGetBytecode(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    getEnsName: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetEnsNameReturnType> =>
+      viemGetEnsName(client, {
         ...args,
         ...(cache === "immutable"
           ? { blockTag: "latest" }

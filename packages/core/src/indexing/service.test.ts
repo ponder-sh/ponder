@@ -11,7 +11,13 @@ import { createSchema } from "@/schema/schema.js";
 import { createSyncService } from "@/sync/index.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
-import { type Address, checksumAddress, parseEther, toHex } from "viem";
+import {
+  type Address,
+  ContractFunctionExecutionError,
+  checksumAddress,
+  parseEther,
+  toHex,
+} from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "../sync/events.js";
 import {
@@ -1102,6 +1108,43 @@ test("ponderActions getBytecode()", async (context) => {
   });
 
   expect(bytecode).toBeTruthy();
+
+  await cleanup();
+});
+
+test("ponderActions getEnsName()", async (context) => {
+  const { common, sources, networks, erc20 } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const syncService = await createSyncService({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => Promise.resolve(),
+    onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  const indexingService = create({
+    indexingFunctions: {},
+    common,
+    sources,
+    networks,
+    syncService,
+    indexingStore,
+    schema,
+  });
+
+  // TO-DO: Contract call throws an error because the resolver is not deployed on Foundry.
+  expect(
+    indexingService.clientByChainId[1]!.getEnsName({
+      address: erc20.address,
+    }),
+  ).rejects.toThrow(ContractFunctionExecutionError);
 
   await cleanup();
 });
