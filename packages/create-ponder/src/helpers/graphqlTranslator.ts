@@ -30,6 +30,7 @@ export function translateSchema(schema: string): string {
       descriptions: { [key: string]: string };
     };
   } = {};
+  const joinedTables: { [name: string]: string } = {};
 
   // Parse enums
   // Need to do all the enums first before processing other types
@@ -126,7 +127,7 @@ export function translateSchema(schema: string): string {
 		${key}: ${referenceFields![tableName]![key]}`,
       )
       .join(", \n")}
-	})`,
+	}),\n`,
         );
       } else {
         throw new Error(
@@ -161,26 +162,38 @@ export function translateSchema(schema: string): string {
 
         break;
 
-      case !baseType:
+      case !baseType: {
         // If not baseType, replace result
+        const targetTableName = type.name.value;
+
         if (levels.includes("ListType")) {
-          // Use many if it's a list
-          // @TODO need to make joined tables for many-to-many
-          const referenceFieldName = `${lowerCaseFirstLetter(tableName)}Id`;
+          // Use joined tables if it's a list
+          // there doesn't seem to be an easy way to differentiate one-to-many and many-to-many
+          // transforming both to many-to-many solves this issue
+
+          const joinedTableName = [tableName, targetTableName].sort().join("");
           result = result.concat(
-            `p.many("${type.name.value}.${referenceFieldName}")`,
+            `p.many("${joinedTableName}.${lowerCaseFirstLetter(tableName)}Id")`,
           );
 
-          // Also add a reference field to the target table
-          const reference = `p.${idTypes[tableName]}().references("${tableName}.id")`;
+          // Generate the joined table
+          const joinedTable = `${joinedTableName}: p.createTable({
+            id: p.string(),
+            ${lowerCaseFirstLetter(tableName)}Id: p.${
+              idTypes[tableName]
+            }().references("${tableName}.id"),
+            ${lowerCaseFirstLetter(targetTableName)}Id: p.${
+              idTypes[targetTableName]
+            }().references("${targetTableName}.id"),
+            ${lowerCaseFirstLetter(tableName)}: p.one("${lowerCaseFirstLetter(
+              tableName,
+            )}Id"),
+            ${lowerCaseFirstLetter(
+              targetTableName,
+            )}: p.one("${lowerCaseFirstLetter(targetTableName)}Id"),
+          }),\n\n`;
 
-          if (!referenceFields[type.name.value]) {
-            referenceFields[type.name.value] = {
-              [referenceFieldName]: reference,
-            };
-          } else {
-            referenceFields[type.name.value]![referenceFieldName] = reference;
-          }
+          joinedTables[joinedTableName] = joinedTable;
 
           // Remove list level since it's already dealt with
           levels = levels.filter((level) => level !== "ListType");
@@ -189,9 +202,11 @@ export function translateSchema(schema: string): string {
           result = result.concat(`p.one("${field.name.value}Id")`);
           const referenceFieldName = `${field.name.value}Id`;
 
-          const reference = `p.${idTypes[type.name.value]}().references("${
-            type.name.value
-          }.id")${levels.includes("NonNullType") ? "" : ".optional()"}`;
+          const reference = `p.${
+            idTypes[targetTableName]
+          }().references("${targetTableName}.id")${
+            levels.includes("NonNullType") ? "" : ".optional()"
+          }`;
 
           if (!referenceFields[tableName]) {
             referenceFields[tableName] = {
@@ -206,6 +221,7 @@ export function translateSchema(schema: string): string {
         }
 
         break;
+      }
 
       default:
         // baseType
@@ -239,7 +255,8 @@ export function translateSchema(schema: string): string {
   return `import { createSchema } from "@ponder/core";
  
 export default createSchema((p) => ({${enumsResult.join("")}
-${result.join(",\n")}
+${result.join("")}
+${Object.values(joinedTables).join("")}
 }));`;
 }
 
