@@ -275,8 +275,8 @@ function camelCase(s: string): string {
     while (s[0] === "_") {
       s = s.slice(1);
       s = s.charAt(0).toUpperCase() + s.slice(1);
-      s = "u".concat(s);
     }
+    s = "u".concat(s);
   }
 
   // Convert UPPERCASE if needed
