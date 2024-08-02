@@ -210,27 +210,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       case "block":
         {
-          /**
-           * Newly ingested range.
-           *
-           * Note: It is an invariant that "block" events are emitted
-           * in a continuous order.
-           */
-          const interval = [
-            hexToNumber(event.block.number),
-            hexToNumber(event.block.number),
-          ] satisfies Interval;
-
           const filters = args.sources
             .filter(({ filter }) => filter.chainId === network.chainId)
             .map(({ filter }) => filter);
-
-          // Add newly synced data to the "event" table.
-          await Promise.all(
-            filters.map((filter) =>
-              args.syncStore.populateEvents({ filter, interval }),
-            ),
-          );
 
           // Update local sync, record checkpoint before and after
           let from = getChainsCheckpoint("latest");

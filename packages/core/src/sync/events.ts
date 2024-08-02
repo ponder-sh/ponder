@@ -8,11 +8,10 @@ import type {
 } from "@/types/eth.js";
 import type { AbiEvent } from "abitype";
 import { type Hex, decodeEventLog, getEventSelector } from "viem";
-import { type Source, getFilterId } from "./source.js";
+import { type ContractSource, type Source, getFilterId } from "./source.js";
 
-export type RawEvent = Exclude<PonderSyncSchema["event"], "data"> & {
-  data: object | null;
-};
+export type RawEvent = PonderSyncSchema["logs"] &
+  PonderSyncSchema["blocks"] & { filterId: string };
 
 export type RawLogData = {
   data: Hex;
@@ -32,18 +31,17 @@ export type SetupEvent = {
 
 export type LogEvent = {
   type: "log";
-  chainId: number;
-  contractName: string;
+  source: ContractSource;
+  checkpoint: string;
+
   logEventName: string;
   event: {
     args: any;
-    id: string;
     log: Log;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
   };
-  checkpoint: string;
 };
 
 export type BlockEvent = {

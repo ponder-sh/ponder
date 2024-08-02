@@ -87,6 +87,28 @@ export function intervalIntersection(
 }
 
 /**
+ * Return the intersection of many lists of numeric intervals.
+ *
+ * @param list1 First list of numeric intervals.
+ * @param list2 Second list of numeric intervals.
+ * @returns Intersection of the intervals, represented as a list of intervals.
+ */
+export function intervalIntersectionMany(
+  lists: [number, number][][],
+): [number, number][] {
+  if (lists.length === 0) return [];
+  if (lists.length === 1) return lists[0]!;
+
+  let result: [number, number][] = lists[0]!;
+
+  for (let i = 1; i < lists.length; i++) {
+    result = intervalIntersection(result, lists[i]!);
+  }
+
+  return intervalUnion(result);
+}
+
+/**
  * Return the difference between two lists of numeric intervals (initial - remove).
  *
  * @param initial Starting/base list of numeric intervals.

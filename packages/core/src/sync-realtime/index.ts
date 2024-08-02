@@ -588,6 +588,8 @@ export const createRealtimeSync = (
 //       logs: matchedFactoryLogs,
 //     });
 
+// WITH [log.addresses ] as VALUES(...) SELECT address from logs.address WHERE address in (addressSQL)
+
 //     // Find any logs matching log filters or child contract filters.
 //     // NOTE: It might make sense to just insert all logs rather than introduce
 //     // a potentially slow DB operation here. It's a tradeoff between sync

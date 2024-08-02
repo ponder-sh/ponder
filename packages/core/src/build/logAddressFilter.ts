@@ -1,18 +1,20 @@
+import type { LogAddressFilter } from "@/sync/source.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
 import { getEventSelector } from "viem";
-import type { ChildAddressCriteria } from "./sources.js";
 
-export function buildChildAddressCriteria({
+export function buildLogAddressFilter({
   address: _address,
   event,
   parameter,
+  chainId,
 }: {
   address: `0x${string}`;
   event: AbiEvent;
   parameter: string;
-}): ChildAddressCriteria {
+  chainId: number;
+}): LogAddressFilter {
   const address = toLowerCase(_address);
   const eventSelector = getEventSelector(event);
 
@@ -23,6 +25,8 @@ export function buildChildAddressCriteria({
 
   if (indexedInputPosition > -1) {
     return {
+      type: "log",
+      chainId,
       address,
       eventSelector,
       // Add 1 because inputs will not contain an element for topic0 (the signature).
@@ -51,6 +55,8 @@ export function buildChildAddressCriteria({
   }
 
   return {
+    type: "log",
+    chainId,
     address,
     eventSelector,
     childAddressLocation: `offset${offset}`,

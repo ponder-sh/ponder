@@ -4,6 +4,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
 import { publicClient } from "@/_test/utils.js";
 import type { SyncBlock } from "@/types/sync.js";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -42,15 +43,12 @@ test("sync() with log filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const events = await database.syncDb
-    .selectFrom("event")
-    .selectAll()
-    .execute();
+  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
 
-  expect(events).toHaveLength(2);
+  expect(logs).toHaveLength(2);
 
   const intervals = await database.syncDb
-    .selectFrom("interval")
+    .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
 
@@ -72,15 +70,15 @@ test("sync() with block filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const events = await database.syncDb
-    .selectFrom("event")
+  const blocks = await database.syncDb
+    .selectFrom("blocks")
     .selectAll()
     .execute();
 
-  expect(events).toHaveLength(3);
+  expect(blocks).toHaveLength(3);
 
   const intervals = await database.syncDb
-    .selectFrom("interval")
+    .selectFrom("blockFilterIntervals")
     .selectAll()
     .execute();
 
@@ -102,26 +100,16 @@ test("sync() with log address filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const events = await database.syncDb
-    .selectFrom("event")
-    .selectAll()
-    .execute();
+  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
 
-  expect(events).toHaveLength(1);
+  expect(logs).toHaveLength(2);
 
   const intervals = await database.syncDb
-    .selectFrom("interval")
+    .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .execute();
 
-  expect(intervals).toHaveLength(2);
-
-  const addresses = await database.syncDb
-    .selectFrom("address")
-    .select("address")
-    .execute();
-
-  expect(addresses).toHaveLength(1);
+  expect(intervals).toHaveLength(1);
 
   await cleanup();
 });
@@ -139,25 +127,20 @@ test("sync() with many filters", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const events = await database.syncDb
-    .selectFrom("event")
+  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(4);
+
+  const blocks = await database.syncDb
+    .selectFrom("blocks")
     .selectAll()
     .execute();
-
-  expect(events).toHaveLength(6);
-
-  const intervals = await database.syncDb
-    .selectFrom("interval")
-    .selectAll()
-    .execute();
-
-  expect(intervals).toHaveLength(4);
+  expect(blocks).toHaveLength(5);
 
   await cleanup();
 });
 
 test("sync() with cache hit", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   let historicalSync = await createHistoricalSync({
     common: context.common,
@@ -170,7 +153,7 @@ test("sync() with cache hit", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(syncStore, "populateEvents");
+  const spy = vi.spyOn(syncStore, "insertBlock");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
@@ -182,55 +165,6 @@ test("sync() with cache hit", async (context) => {
   await historicalSync.sync([0, 5]);
 
   expect(spy).toHaveBeenCalledTimes(0);
-
-  const events = await database.syncDb
-    .selectFrom("event")
-    .selectAll()
-    .execute();
-
-  expect(events).toHaveLength(2);
-
-  await cleanup();
-});
-
-test("syncAddress() with cache hit", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
-
-  let historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[1]],
-    syncStore,
-    requestQueue: context.requestQueues[0],
-  });
-
-  await historicalSync.sync([0, 5]);
-
-  // re-instantiate `historicalSync` to reset the cached intervals
-
-  const spy = vi.spyOn(syncStore, "insertInterval");
-
-  // change `filter` but not `filter.address`
-  const f = context.sources[1].filter;
-  f.topics = [];
-
-  historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: [{ ...context.sources[1], filter: f }],
-    syncStore,
-    requestQueue: context.requestQueues[0],
-  });
-  await historicalSync.sync([0, 5]);
-
-  expect(spy).toHaveBeenCalledTimes(1);
-
-  const events = await database.syncDb
-    .selectFrom("event")
-    .selectAll()
-    .execute();
-
-  expect(events).toHaveLength(2);
 
   await cleanup();
 });
@@ -455,7 +389,40 @@ test("syncBlock() with cache", async (context) => {
 
   // 1 call to `syncBlock()` will be cached because
   // each source in `sources` matches block 2
-  expect(spy).toHaveBeenCalledTimes(3);
+  expect(spy).toHaveBeenCalledTimes(4);
 
   await cleanup();
 });
+
+test(
+  "syncAddress() handles many addresses",
+  async (context) => {
+    const { cleanup, syncStore, database } =
+      await setupDatabaseServices(context);
+
+    for (let i = 0; i < 1000; i++) {
+      await simulateFactoryDeploy(context.factory.address);
+    }
+
+    const pair = await simulateFactoryDeploy(context.factory.address);
+    await simulatePairSwap(pair);
+
+    const historicalSync = await createHistoricalSync({
+      common: context.common,
+      network: context.networks[0],
+      sources: [context.sources[1]],
+      syncStore,
+      requestQueue: context.requestQueues[0],
+    });
+
+    await historicalSync.sync([0, 1000 + 5 + 2]);
+
+    const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+    expect(logs).toHaveLength(1004);
+
+    await cleanup();
+  },
+  { timeout: 20_000 },
+);
+
+test.todo("syncLogFilter() uses dynamic ranges");

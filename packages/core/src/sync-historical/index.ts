@@ -25,7 +25,6 @@ import {
   _eth_getBlockByNumber,
   _eth_getLogs,
 } from "@/utils/rpc.js";
-import { dedupe } from "@ponder/common";
 import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
 
 export type HistoricalSync = {
@@ -45,6 +44,8 @@ type CreateHistoricaSyncParameters = {
   requestQueue: RequestQueue;
 };
 
+const ADDRESS_FILTER_LIMIT = 1_000;
+
 export const createHistoricalSync = async (
   args: CreateHistoricaSyncParameters,
 ): Promise<HistoricalSync> => {
@@ -63,29 +64,8 @@ export const createHistoricalSync = async (
 
   // Populate `intervalsCache` by querying the sync-store.
   for (const { filter } of args.sources) {
-    const getAddressInterval = async (filter: AddressFilter) => {
-      const intervals = await args.syncStore.getIntervals({
-        filterType: "address",
-        filter,
-      });
-      intervalsCache.set(filter, intervals);
-
-      const _address = filter.address;
-      if (isAddressFilter(_address)) await getAddressInterval(_address);
-    };
-
-    // "event" intervals
-    const intervals = await args.syncStore.getIntervals({
-      filterType: "event",
-      filter,
-    });
+    const intervals = await args.syncStore.getIntervals({ filter });
     intervalsCache.set(filter, intervals);
-
-    // "address" intervals
-    if (filter.type === "log") {
-      const _address = filter.address;
-      if (isAddressFilter(_address)) await getAddressInterval(_address);
-    }
   }
 
   // Closest-to-tip block that has been fully injested.
@@ -96,34 +76,63 @@ export const createHistoricalSync = async (
   ////////
 
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
-    // TODO(kyle) fetch last block of interval at same time as log, for the purpose
-    // of potentially ordering in omnichain environment.
-
-    // Resolve `filter.address`
-    const _address = filter.address;
-    const address = isAddressFilter(_address)
-      ? await syncAddress(_address, interval)
-      : _address;
-
-    const logs = await _eth_getLogs(args.requestQueue, {
-      address,
-      topics: filter.topics,
-      fromBlock: interval[0],
-      toBlock: interval[1],
+    // Request last block of interval
+    const blockPromise = _eth_getBlockByNumber(args.requestQueue, {
+      blockNumber: interval[1],
     });
 
-    if (logs.length !== 0) {
-      await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
+    // Resolve `filter.address`
+    let address: Address | Address[] | undefined;
+    if (isAddressFilter(filter.address)) {
+      const _addresses = await syncAddress(filter.address, interval);
+      if (_addresses.length < ADDRESS_FILTER_LIMIT) {
+        address = _addresses;
+      } else {
+        address = undefined;
+      }
+    } else {
+      address = filter.address;
     }
 
-    const dedupedBlockNumbers = dedupe(logs.map((l) => l.blockNumber));
-    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
+    // Request logs, batching of large arrays of addresses
+    let logsPromise: Promise<SyncLog[]>;
+    if (Array.isArray(address) && address.length > 50) {
+      const _promises: Promise<SyncLog[]>[] = [];
+      for (let i = 0; i < address.length; i += 50) {
+        _promises.push(
+          _eth_getLogs(args.requestQueue, {
+            address: address.slice(i, i + 50),
+            topics: filter.topics,
+            fromBlock: interval[0],
+            toBlock: interval[1],
+          }),
+        );
+      }
+      logsPromise = Promise.all(_promises).then((logs) => logs.flat());
+    } else {
+      logsPromise = _eth_getLogs(args.requestQueue, {
+        address,
+        topics: filter.topics,
+        fromBlock: interval[0],
+        toBlock: interval[1],
+      });
+    }
 
-    await Promise.all(
-      dedupedBlockNumbers.map((b) =>
-        syncBlock(hexToBigInt(b), transactionHashes),
+    const [logs] = await Promise.all([logsPromise, blockPromise]);
+
+    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
+    const blocks = await Promise.all(
+      logs.map((log) =>
+        syncBlock(hexToBigInt(log.blockNumber), transactionHashes),
       ),
     );
+
+    if (logs.length !== 0) {
+      await args.syncStore.insertLogs({
+        logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
+        chainId: args.network.chainId,
+      });
+    }
   };
 
   const syncBlockFilter = async (filter: BlockFilter, interval: Interval) => {
@@ -144,49 +153,19 @@ export const createHistoricalSync = async (
     filter: LogAddressFilter,
     interval: Interval,
   ) => {
-    // Resolve `filter.address`
-    const _address = filter.address;
-    const address = isAddressFilter(_address)
-      ? await syncAddress(_address, interval)
-      : _address;
-
     const logs = await _eth_getLogs(args.requestQueue, {
-      address,
+      address: filter.address,
       topics: [filter.eventSelector],
       fromBlock: interval[0],
       toBlock: interval[1],
     });
 
-    const getLogAddressFilterAddress = (log: SyncLog): Address => {
-      if (filter.childAddressLocation.startsWith("offset")) {
-        const childAddressOffset = Number(
-          filter.childAddressLocation.substring(6),
-        );
-        const start = 2 + 12 * 2 + childAddressOffset * 2;
-        const length = 20 * 2;
-        return `0x${log.data.substring(start, start + length)}`;
-      } else {
-        const start = 2 + 12 * 2;
-        const length = 20 * 2;
-
-        return `0x${log.topics[
-          Number(
-            filter.childAddressLocation.charAt(
-              filter.childAddressLocation.length - 1,
-            ),
-          )
-        ]!.substring(start, start + length)}`;
-      }
-    };
-
-    const addresses = logs.map((l) => ({
-      address: getLogAddressFilterAddress(l),
-      blockNumber: hexToNumber(l.blockNumber),
-    }));
-
-    // Insert the addresses into the sync-store
-    if (addresses.length !== 0) {
-      await args.syncStore.insertAddresses({ filter, addresses });
+    // Insert `logs` into the sync-store
+    if (logs.length !== 0) {
+      await args.syncStore.insertLogs({
+        logs: logs.map((log) => ({ log })),
+        chainId: args.network.chainId,
+      });
     }
   };
 
@@ -251,36 +230,20 @@ export const createHistoricalSync = async (
     filter: AddressFilter,
     interval: Interval,
   ): Promise<Address[]> => {
-    const completedIntervals = intervalsCache.get(filter)!;
-    const requiredIntervals = intervalDifference(
-      [interval],
-      completedIntervals,
-    );
-
-    // Skip sync if the interval is already complete.
-    if (requiredIntervals.length !== 0) {
-      // sync required intervals
-      for (const interval of requiredIntervals) {
-        await syncLogAddressFilter(filter, interval);
-      }
-
-      // mark `interval` for `filter` as completed in the sync-store
-      await args.syncStore.insertInterval({
-        filterType: "address",
-        filter,
-        interval,
-      });
-    }
+    await syncLogAddressFilter(filter, interval);
 
     // TODO(kyle) should "address" metrics be tracked?
 
     // Query the sync-store for all addresses that match `filter`.
-    return await args.syncStore.getAddresses({ filter });
+    return await args.syncStore.getAddresses({
+      filter,
+      limit: ADDRESS_FILTER_LIMIT,
+    });
   };
 
   // TODO(kyle) use filter metadata for recommended "eth_getLogs" ranges
 
-  // Emit status update logs on an interval for each source.
+  // Emit progress update logs on an interval for each source.
   const interval = setInterval(async () => {
     const historical = await getHistoricalSyncProgress(args.common.metrics);
 
@@ -306,59 +269,56 @@ export const createHistoricalSync = async (
       return latestBlock;
     },
     async sync(_interval) {
-      // TODO(kyle) concurrency
-      for (const { filter, ...source } of args.sources) {
-        // Compute the required interval to sync, accounting for cached
-        // intervals and start + end block.
+      await Promise.all(
+        args.sources.map(async ({ filter, ...source }) => {
+          // Compute the required interval to sync, accounting for cached
+          // intervals and start + end block.
 
-        // Skip sync if the interval is after the `toBlock`.
-        if (filter.toBlock && filter.toBlock < _interval[0]) continue;
-        const interval: Interval = [
-          Math.max(filter.fromBlock, _interval[0]),
-          Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
-        ];
-        const completedIntervals = intervalsCache.get(filter)!;
-        const requiredIntervals = intervalDifference(
-          [interval],
-          completedIntervals,
-        );
-        // Skip sync if the interval is already complete.
-        if (requiredIntervals.length === 0) continue;
+          // Skip sync if the interval is after the `toBlock`.
+          if (filter.toBlock && filter.toBlock < _interval[0]) return;
+          const interval: Interval = [
+            Math.max(filter.fromBlock, _interval[0]),
+            Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
+          ];
+          const completedIntervals = intervalsCache.get(filter)!;
+          const requiredIntervals = intervalDifference(
+            [interval],
+            completedIntervals,
+          );
+          // Skip sync if the interval is already complete.
+          if (requiredIntervals.length === 0) return;
 
-        // sync required intervals
-        for (const interval of requiredIntervals) {
-          switch (filter.type) {
-            case "log":
-              await syncLogFilter(filter, interval);
-              break;
+          // sync required intervals
+          await Promise.all(
+            requiredIntervals.map(async (interval) => {
+              switch (filter.type) {
+                case "log":
+                  await syncLogFilter(filter, interval);
+                  break;
 
-            case "block":
-              await syncBlockFilter(filter, interval);
-              break;
+                case "block":
+                  await syncBlockFilter(filter, interval);
+                  break;
 
-            default:
-              never(filter);
-          }
-        }
+                default:
+                  never(filter);
+              }
+            }),
+          );
 
-        // Add newly synced data to the "event" table, and then
-        // mark `interval` for `filter` as completed in the sync-store.
-        await args.syncStore.populateEvents({ filter, interval });
-        await args.syncStore.insertInterval({
-          filterType: "event",
-          filter,
-          interval,
-        });
+          // Mark `interval` for `filter` as completed in the sync-store
+          await args.syncStore.insertInterval({ filter, interval });
 
-        args.common.metrics.ponder_historical_completed_blocks.inc(
-          {
-            network: source.networkName,
-            source: source.name,
-            type: filter.type,
-          },
-          interval[1] - interval[0] + 1,
-        );
-      }
+          args.common.metrics.ponder_historical_completed_blocks.inc(
+            {
+              network: source.networkName,
+              source: source.name,
+              type: filter.type,
+            },
+            interval[1] - interval[0] + 1,
+          );
+        }),
+      );
       blockCache.clear();
     },
     initializeMetrics(finalizedBlock) {

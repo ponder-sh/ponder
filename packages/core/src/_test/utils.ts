@@ -2,8 +2,8 @@ import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
-import type { Status } from "@/indexing-store/store.js";
 import type { RawEvent } from "@/sync/events.js";
+import type { Status } from "@/sync/index.js";
 import type { Source } from "@/sync/source.js";
 import type {
   SyncBlock,

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { buildLogAddressFilter } from "@/build/logAddressFilter.js";
 import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
 import {
@@ -8,7 +9,6 @@ import {
 } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import { buildChildAddressCriteria } from "@/config/factories.js";
 import {
   type Network,
   getDefaultMaxBlockRange,
@@ -583,7 +583,7 @@ export async function buildConfigAndIndexingFunctions({
 
       if (resolvedFactory) {
         // Note that this can throw.
-        const childAddressCriteria = buildChildAddressCriteria(resolvedFactory);
+        const childAddressCriteria = buildLogAddressFilter(resolvedFactory);
 
         const source = {
           ...contractMetadata,
