@@ -1,4 +1,4 @@
-import { gql } from "graphql-tag";
+import { parse } from "graphql";
 
 import type {
   DefinitionNode,
@@ -17,8 +17,12 @@ const GraphqlTypesToPonderTypes = {
   Bytes: "hex",
 };
 
-export function translateSchema(schema: string): string {
-  const schemaAST = gql(schema);
+export function translateSchema(schema: string): {
+  result: string;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  const schemaAST = parse(schema);
   const result: string[] = [];
   const enums: string[] = [];
   const enumsResult: string[] = [];
@@ -40,17 +44,12 @@ export function translateSchema(schema: string): string {
     const definition = schemaAST.definitions[
       definitionName as any as number
     ] as DefinitionNode;
-    if (definition.kind === "EnumTypeDefinition") {
-      const enumName = definition.name.value;
-      enums.push(enumName);
-      const values: string[] = [];
-      definition.values?.forEach((value) => {
-        values.push(value.name.value);
-      });
 
-      enumsResult.push(
-        `	${enumName}: p.createEnum(${JSON.stringify(values)}),\n\n`,
-      );
+    if (definition.kind === "EnumTypeDefinition") {
+      const name = pascalCase(definition.name.value);
+      const values = definition.values?.map((value) => value.name.value) ?? [];
+      enums.push(name);
+      enumsResult.push(`${name}: p.createEnum(${JSON.stringify(values)}),\n\n`);
     }
   });
 
@@ -61,16 +60,12 @@ export function translateSchema(schema: string): string {
       definitionName as any as number
     ] as DefinitionNode;
     if (definition.kind === "ObjectTypeDefinition") {
-      const tableName = definition.name.value;
+      const tableName = pascalCase(definition.name.value);
       definition.fields?.forEach((field) => {
         const fieldName = field.name.value;
         if (fieldName === "id") {
           const nonNullTypeNode = field.type as NonNullTypeNode;
           const namedTypeNode = nonNullTypeNode.type as NamedTypeNode;
-          if (!namedTypeNode?.name?.value) {
-            console.log(field);
-            throw new Error(`Unsupported id type for ${tableName}`);
-          }
           idTypes[tableName] =
             GraphqlTypesToPonderTypes[
               namedTypeNode.name.value as keyof typeof GraphqlTypesToPonderTypes
@@ -86,14 +81,17 @@ export function translateSchema(schema: string): string {
       definitionName as any as number
     ] as DefinitionNode;
     if (definition.kind === "ObjectTypeDefinition") {
-      const tableName = definition.name.value;
+      const tableName = pascalCase(definition.name.value);
       tables[tableName] = { columns: {}, descriptions: {} };
       definition.fields?.forEach((field) => {
-        const fieldName = field.name.value;
+        const fieldName = camelCase(field.name.value);
         tables[tableName]!.descriptions[fieldName] = field.description?.value
-          ? `// ${field.description?.value}`
+          ? `// ${field.description?.value}\n`
           : "";
-        tables[tableName]!.columns[fieldName] = parseField(tableName, field);
+        const columnDefinition = parseField(tableName, field);
+        if (columnDefinition) {
+          tables[tableName]!.columns[fieldName] = columnDefinition;
+        }
       });
     }
   });
@@ -104,7 +102,7 @@ export function translateSchema(schema: string): string {
       definitionName as any as number
     ] as DefinitionNode;
     if (definition.kind === "ObjectTypeDefinition") {
-      const tableName = definition.name.value;
+      const tableName = pascalCase(definition.name.value);
       const columns = tables[tableName]!.columns;
       const descriptions = tables[tableName]!.descriptions;
       if (
@@ -113,31 +111,23 @@ export function translateSchema(schema: string): string {
         )
       ) {
         result.push(
-          `
-	${tableName}: p.createTable({${Object.keys(columns)
-    .map(
-      (key) => `
-		${descriptions[key]}
-		${key}: ${columns[key]}`,
-    )
-    .join(", \n")},
-		${Object.keys(referenceFields?.[tableName] ?? {})
-      .map(
-        (key) => `
-		${key}: ${referenceFields![tableName]![key]}`,
-      )
-      .join(", \n")}
-	}),\n`,
+          `${tableName}: p.createTable({${Object.keys(columns)
+            .map((key) => `${descriptions[key]}${key}: ${columns[key]}`)
+            .join(", \n")},
+            ${Object.keys(referenceFields?.[tableName] ?? {})
+              .map((key) => `${key}: ${referenceFields![tableName]![key]}`)
+              .join(", \n")}}),\n
+          `,
         );
       } else {
-        throw new Error(
-          `Unsupported directive: ${definition.directives?.[0]?.name.value}`,
+        warnings.push(
+          `Unsupported directive in schema.graphql: ${definition.directives?.[0]?.name.value}. Currently only @entity is supported`,
         );
       }
     }
   });
 
-  function parseField(tableName: string, field: any) {
+  function parseField(tableName: string, field: any): string | undefined {
     // Go down the levels until there's no more type
     let type = field.type;
     let levels: string[] = [];
@@ -164,43 +154,52 @@ export function translateSchema(schema: string): string {
 
       case !baseType: {
         // If not baseType, replace result
-        const targetTableName = type.name.value;
+        const targetTableName = pascalCase(type.name.value);
 
         if (levels.includes("ListType")) {
           // Use joined tables if it's a list
           // there doesn't seem to be an easy way to differentiate one-to-many and many-to-many
           // transforming both to many-to-many solves this issue
 
+          // If the list is self-referencing, distinguish parent and child
+          const childMethodName =
+            tableName === targetTableName
+              ? `child${pascalCase(tableName)}`
+              : camelCase(tableName);
+
+          const parentMethodName =
+            tableName === targetTableName
+              ? `parent${pascalCase(targetTableName)}`
+              : camelCase(targetTableName);
+
           const joinedTableName = [tableName, targetTableName].sort().join("");
           result = result.concat(
-            `p.many("${joinedTableName}.${lowerCaseFirstLetter(tableName)}Id")`,
+            `p.many("${joinedTableName}.${childMethodName}Id")`,
           );
 
           // Generate the joined table
           const joinedTable = `${joinedTableName}: p.createTable({
             id: p.string(),
-            ${lowerCaseFirstLetter(tableName)}Id: p.${
+            ${camelCase(childMethodName)}Id: p.${
               idTypes[tableName]
             }().references("${tableName}.id"),
-            ${lowerCaseFirstLetter(targetTableName)}Id: p.${
+            ${camelCase(parentMethodName)}Id: p.${
               idTypes[targetTableName]
             }().references("${targetTableName}.id"),
-            ${lowerCaseFirstLetter(tableName)}: p.one("${lowerCaseFirstLetter(
-              tableName,
-            )}Id"),
-            ${lowerCaseFirstLetter(
-              targetTableName,
-            )}: p.one("${lowerCaseFirstLetter(targetTableName)}Id"),
-          }),\n\n`;
+            ${camelCase(childMethodName)}: p.one("${childMethodName}Id"),
+            ${camelCase(parentMethodName)}: p.one("${parentMethodName}Id"),}),\n
+          `;
 
           joinedTables[joinedTableName] = joinedTable;
 
           // Remove list level since it's already dealt with
           levels = levels.filter((level) => level !== "ListType");
         } else {
-          // Use references if it's not a list
-          result = result.concat(`p.one("${field.name.value}Id")`);
-          const referenceFieldName = `${field.name.value}Id`;
+          // Use one-to-one references if it's not a list
+
+          const fieldName = camelCase(field.name.value);
+          result = result.concat(`p.one("${fieldName}Id")`);
+          const referenceFieldName = `${fieldName}Id`;
 
           const reference = `p.${
             idTypes[targetTableName]
@@ -240,7 +239,8 @@ export function translateSchema(schema: string): string {
           result = result.concat(".list()");
           break;
         default:
-          throw new Error(`Unsupported type: ${levels[i]} ${field}`);
+          warnings.push(`Unsupported type: ${tableName} ${levels[i]} ${field}`);
+          return undefined;
       }
       // Append an .optional if needed
       const nextLevel = levels[i + 1] ?? "Optional";
@@ -252,14 +252,51 @@ export function translateSchema(schema: string): string {
     return result;
   }
 
-  return `import { createSchema } from "@ponder/core";
- 
-export default createSchema((p) => ({${enumsResult.join("")}
-${result.join("")}
-${Object.values(joinedTables).join("")}
-}));`;
+  return {
+    result: `import { createSchema } from "@ponder/core";
+      export default createSchema((p) => ({
+        ${enumsResult.join("")}
+
+        ${result.join("")}
+
+        ${Object.values(joinedTables).join("")}
+      }));`,
+    warnings,
+  };
 }
 
-function lowerCaseFirstLetter(s: string): string {
+function camelCase(s: string): string {
+  if (s.length === 0) {
+    return "";
+  }
+
+  // Replace the underscore with a 'u' if it's the first character
+  if (s[0] === "_") {
+    while (s[0] === "_") {
+      s = s.slice(1);
+      s = s.charAt(0).toUpperCase() + s.slice(1);
+      s = "u".concat(s);
+    }
+  }
+
+  // Convert UPPERCASE if needed
+  if (s === s.toUpperCase()) {
+    s = s.toLowerCase();
+  }
+
+  // Convert snake_case if needed
+  if (s.includes("_")) {
+    s = s
+      .split("_")
+      .map((word) => word.toLowerCase())
+      .map((word) => (word[0]?.toUpperCase() ?? "") + (word.slice(1) ?? ""))
+      .join("");
+  }
+
   return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+function pascalCase(s: string): string {
+  s = camelCase(s);
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

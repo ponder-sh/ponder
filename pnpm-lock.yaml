@@ -826,9 +826,6 @@ importers:
       graphql:
         specifier: ^16.8.1
         version: 16.8.2
-      graphql-tag:
-        specifier: ^2.12.6
-        version: 2.12.6(graphql@16.8.2)
       ora:
         specifier: ^7.0.1
         version: 7.0.1
@@ -8474,16 +8471,6 @@ packages:
       graphql: 16.8.2
     transitivePeerDependencies:
       - encoding
-    dev: false
-
-  /graphql-tag@2.12.6(graphql@16.8.2):
-    resolution: {integrity: sha512-FdSNcu2QQcWnM2VNvSCCDCVS5PpPqpzgFT8+GXzqJuoDd0CBncxCY278u4mhRO7tMgo2JjgJA5aZ+nWSQ/Z+xg==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      graphql: ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
-    dependencies:
-      graphql: 16.8.2
-      tslib: 2.6.2
     dev: false
 
   /graphql-yoga@5.3.1(graphql@16.8.2):

@@ -108,7 +108,18 @@ export const fromSubgraphId = async ({
   const schemaPath = path.join(rootDir, "./ponder.schema.ts");
 
   // Translate and write the schema file
-  const translatedSchema = translateSchema(schemaRaw);
+  const { result: translatedSchema, warnings: _warnings } =
+    translateSchema(schemaRaw);
+
+  const warnings = [];
+  if (_warnings.length > 0) {
+    warnings.push(
+      "ponder.schema.ts could not be generated correctly. Please manually check the generated schema.",
+    );
+  }
+  _warnings.forEach((warning) => {
+    warnings.push(warning);
+  });
 
   writeFileSync(
     schemaPath,
@@ -152,7 +163,6 @@ export const fromSubgraphId = async ({
     contracts: contractsObject,
   };
 
-  const warnings = [];
   if (manifest.templates?.length > 0) {
     warnings.push(
       "Factory contract detected. Please see the factory contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#factory-contracts",
