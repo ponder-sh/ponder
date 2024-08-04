@@ -55,6 +55,8 @@ export const createHistoricalSync = async (
    */
   const blockCache = new Map<bigint, Promise<SyncBlock>>();
 
+  // const logMetadata = new Map<LogFilter, { range: number }>();
+
   /** Intervals that have been completed for all "event" and "address" filters
    * in `args.sources`.
    *

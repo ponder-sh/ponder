@@ -401,6 +401,8 @@ export const createSyncStore = ({
         .then((result) => result !== undefined);
     }),
   getEvents: async ({ filters, from, to, limit }) => {
+    const filterMap = new Map<number, Filter>();
+
     const addressSQL = <
       T extends SelectQueryBuilder<PonderSyncSchema, "logs", {}>,
     >(
@@ -429,11 +431,15 @@ export const createSyncStore = ({
       return qb;
     };
 
-    const logSQL = (filter: LogFilter, db: Kysely<PonderSyncSchema>) =>
+    const logSQL = (
+      filter: LogFilter,
+      db: Kysely<PonderSyncSchema>,
+      index: number,
+    ) =>
       db
         .selectFrom("logs")
         .select([
-          ksql.raw(`'${getFilterId("event", filter)}'`).as("filterId"),
+          ksql.raw(`'${index}'`).as("filterIndex"),
           "checkpoint",
           "chainId",
           "blockHash",
@@ -477,11 +483,15 @@ export const createSyncStore = ({
           ),
         );
 
-    const blockSQL = (filter: BlockFilter, db: Kysely<PonderSyncSchema>) =>
+    const blockSQL = (
+      filter: BlockFilter,
+      db: Kysely<PonderSyncSchema>,
+      index: number,
+    ) =>
       db
         .selectFrom("blocks")
         .select([
-          ksql.raw(`'${getFilterId("event", filter)}'`).as("filter_id"),
+          ksql.raw(`'${index}'`).as("filterIndex"),
           "checkpoint",
           "chainId",
           "hash as blockHash",
@@ -515,10 +525,15 @@ export const createSyncStore = ({
       let query: ReturnType<typeof logSQL> | undefined;
 
       for (const filter of filters) {
+        const index = filterMap.size;
+        filterMap.set(index, filter);
+
         if (query === undefined) {
           // @ts-ignore
           query =
-            filter.type === "log" ? logSQL(filter, db) : blockSQL(filter, db);
+            filter.type === "log"
+              ? logSQL(filter, db, index)
+              : blockSQL(filter, db, index);
         } else {
           query = query.unionAll(
             // @ts-ignore
@@ -537,7 +552,7 @@ export const createSyncStore = ({
         .where("event.checkpoint", ">", from)
         .where("event.checkpoint", "<=", to)
         .orderBy("event.checkpoint", "asc")
-        .orderBy("event.filterId", "asc")
+        .orderBy("event.filterIndex", "asc")
         .limit(limit)
         .execute();
     });
@@ -551,7 +566,6 @@ export const createSyncStore = ({
 
     return { events, cursor };
   },
-
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     db.wrap({ method: "insertRpcRequestResult" }, async () => {
       await db

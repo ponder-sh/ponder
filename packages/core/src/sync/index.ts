@@ -258,11 +258,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           // Insert an interval for the newly finalized range.
           await Promise.all(
             filters.map((filter) =>
-              args.syncStore.insertInterval({
-                filterType: "event",
-                filter,
-                interval,
-              }),
+              args.syncStore.insertInterval({ filter, interval }),
             ),
           );
 
