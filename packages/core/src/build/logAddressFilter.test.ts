@@ -1,28 +1,30 @@
 import { getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import { buildChildAddressCriteria } from "./factories.js";
+import { buildLogAddressFilter } from "./logAddressFilter.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
-test("buildChildAddressCriteria throws if provided parameter not found in inputs", () => {
+test("buildLogAddressFilter throws if provided parameter not found in inputs", () => {
   expect(() =>
-    buildChildAddressCriteria({
+    buildLogAddressFilter({
       address: "0xa",
       event: llamaFactoryEventAbiItem,
       parameter: "fakeParameter",
+      chainId: 1,
     }),
   ).toThrowError(
     "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
   );
 });
 
-test("buildChildAddressCriteria handles LlamaInstanceCreated llamaCore", () => {
-  const criteria = buildChildAddressCriteria({
+test("buildLogAddressFilter handles LlamaInstanceCreated llamaCore", () => {
+  const criteria = buildLogAddressFilter({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaCore",
+    chainId: 1,
   });
 
   expect(criteria).toMatchObject({
@@ -32,11 +34,12 @@ test("buildChildAddressCriteria handles LlamaInstanceCreated llamaCore", () => {
   });
 });
 
-test("buildChildAddressCriteria handles LlamaInstanceCreated llamaPolicy", () => {
-  const criteria = buildChildAddressCriteria({
+test("buildLogAddressFilter handles LlamaInstanceCreated llamaPolicy", () => {
+  const criteria = buildLogAddressFilter({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
+    chainId: 1,
   });
 
   expect(criteria).toMatchObject({

@@ -1,4 +1,3 @@
-import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import type { HeadlessKysely } from "./kysely.js";
 import type { NamespaceInfo } from "./service.js";
 
@@ -9,11 +8,9 @@ export const revertIndexingTables = async ({
 }: {
   namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
-  checkpoint: Checkpoint;
+  checkpoint: string;
 }) => {
   await db.wrap({ method: "revert" }, async () => {
-    const encodedCheckpoint = encodeCheckpoint(checkpoint);
-
     await Promise.all(
       Object.entries(namespaceInfo.internalTableIds).map(
         async ([tableName, tableId]) => {
@@ -22,7 +19,7 @@ export const revertIndexingTables = async ({
               .withSchema(namespaceInfo.internalNamespace)
               .deleteFrom(tableId)
               .returningAll()
-              .where("checkpoint", ">", encodedCheckpoint)
+              .where("checkpoint", ">", checkpoint)
               .execute();
 
             const reversed = rows.sort(

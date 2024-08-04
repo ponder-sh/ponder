@@ -6,10 +6,10 @@ import { BuildError } from "@/common/errors.js";
 import type { Config, OptionsConfig } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import type { EventSource } from "@/config/sources.js";
 import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { PonderRoutes } from "@/hono/index.js";
 import type { Schema } from "@/schema/common.js";
+import type { Source } from "@/sync/source.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
@@ -50,7 +50,7 @@ type BaseBuild = {
   // Config
   databaseConfig: DatabaseConfig;
   optionsConfig: OptionsConfig;
-  sources: EventSource[];
+  sources: Source[];
   networks: Network[];
   // Schema
   schema: Schema;

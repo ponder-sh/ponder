@@ -1,10 +1,12 @@
+export type Interval = [number, number];
+
 /**
  * Return the total sum of a list of numeric intervals.
  *
  * @param intervals List of numeric intervals to find the sum of.
  * @returns Sum of the intervals.
  */
-export function intervalSum(intervals: [number, number][]) {
+export function intervalSum(intervals: Interval[]) {
   let totalSum = 0;
 
   for (const [start, end] of intervals) {
@@ -20,17 +22,15 @@ export function intervalSum(intervals: [number, number][]) {
  * @param intervals List of numeric intervals to find the union of.
  * @returns Union of the intervals, represented as a list of intervals.
  */
-export function intervalUnion(intervals_: [number, number][]) {
+export function intervalUnion(intervals_: Interval[]) {
   if (intervals_.length === 0) return [];
 
   // Create copies to avoid mutating the originals.
-  const intervals = intervals_.map(
-    (interval) => [...interval] as [number, number],
-  );
+  const intervals = intervals_.map((interval) => [...interval] as Interval);
   // Sort intervals based on the left end.
   intervals.sort((a, b) => a[0] - b[0]);
 
-  const result: [number, number][] = [];
+  const result: Interval[] = [];
   let currentInterval = intervals[0]!;
 
   for (let i = 1; i < intervals.length; i++) {
@@ -58,10 +58,10 @@ export function intervalUnion(intervals_: [number, number][]) {
  * @returns Intersection of the intervals, represented as a list of intervals.
  */
 export function intervalIntersection(
-  list1: [number, number][],
-  list2: [number, number][],
-): [number, number][] {
-  const result: [number, number][] = [];
+  list1: Interval[],
+  list2: Interval[],
+): Interval[] {
+  const result: Interval[] = [];
   let i = 0;
   let j = 0;
 
@@ -94,13 +94,11 @@ export function intervalIntersection(
  * @param list2 Second list of numeric intervals.
  * @returns Intersection of the intervals, represented as a list of intervals.
  */
-export function intervalIntersectionMany(
-  lists: [number, number][][],
-): [number, number][] {
+export function intervalIntersectionMany(lists: Interval[][]): Interval[] {
   if (lists.length === 0) return [];
   if (lists.length === 1) return lists[0]!;
 
-  let result: [number, number][] = lists[0]!;
+  let result: Interval[] = lists[0]!;
 
   for (let i = 1; i < lists.length; i++) {
     result = intervalIntersection(result, lists[i]!);
@@ -117,14 +115,14 @@ export function intervalIntersectionMany(
  * @returns Difference of the intervals, represented as a list of intervals.
  */
 export function intervalDifference(
-  initial: [number, number][],
-  remove: [number, number][],
-): [number, number][] {
+  initial: Interval[],
+  remove: Interval[],
+): Interval[] {
   // Create copies to avoid mutating the originals.
-  const initial_ = initial.map((interval) => [...interval] as [number, number]);
-  const remove_ = remove.map((interval) => [...interval] as [number, number]);
+  const initial_ = initial.map((interval) => [...interval] as Interval);
+  const remove_ = remove.map((interval) => [...interval] as Interval);
 
-  const result: [number, number][] = [];
+  const result: Interval[] = [];
 
   let i = 0;
   let j = 0;
@@ -170,10 +168,10 @@ export function getChunks({
   intervals,
   maxChunkSize,
 }: {
-  intervals: [number, number][];
+  intervals: Interval[];
   maxChunkSize: number;
 }) {
-  const _chunks: [number, number][] = [];
+  const _chunks: Interval[] = [];
 
   for (const interval of intervals) {
     const [startBlock, endBlock] = interval;
@@ -190,192 +188,4 @@ export function getChunks({
   }
 
   return _chunks;
-}
-
-export class ProgressTracker {
-  target: [number, number];
-  private _completed: [number, number][];
-  private _required: [number, number][] | null = null;
-  private _checkpoint: number | null = null;
-
-  /**
-   * Constructs a new ProgressTracker object.
-
-   * @throws Will throw an error if the target interval is invalid.
-   */
-  constructor({
-    target,
-    completed,
-  }: {
-    target: [number, number];
-    completed: [number, number][];
-  }) {
-    if (target[0] > target[1])
-      throw new Error(
-        `Invalid interval: start (${target[0]}) is greater than end (${target[1]})`,
-      );
-
-    this.target = target;
-    this._completed = completed;
-  }
-
-  /**
-   * Adds a completed interval.
-   *
-   * @throws Will throw an error if the new interval is invalid.
-   */
-  addCompletedInterval(interval: [number, number]) {
-    if (interval[0] > interval[1])
-      throw new Error(
-        `Invalid interval: start (${interval[0]}) is greater than end (${interval[1]})`,
-      );
-
-    const prevCheckpoint = this.getCheckpoint();
-    this._completed = intervalUnion([...this._completed, interval]);
-    this.invalidateCache();
-    const newCheckpoint = this.getCheckpoint();
-
-    return {
-      isUpdated: newCheckpoint > prevCheckpoint,
-      prevCheckpoint,
-      newCheckpoint,
-    };
-  }
-
-  /**
-   * Returns the remaining required intervals.
-   */
-  getRequired() {
-    if (this._required === null) {
-      this._required = intervalDifference([this.target], this._completed);
-    }
-    return this._required;
-  }
-
-  /**
-   * Returns the checkpoint value. If no progress has been made, the checkpoint
-   * is equal to the target start minus one.
-   */
-  getCheckpoint() {
-    if (this._checkpoint !== null) return this._checkpoint;
-
-    const completedIntervalIncludingTargetStart = this._completed
-      .sort((a, b) => a[0] - b[0])
-      .find((i) => i[0] <= this.target[0] && i[1] >= this.target[0]);
-
-    if (completedIntervalIncludingTargetStart) {
-      this._checkpoint = completedIntervalIncludingTargetStart[1];
-    } else {
-      this._checkpoint = this.target[0] - 1;
-    }
-
-    return this._checkpoint;
-  }
-
-  private invalidateCache() {
-    this._required = null;
-    this._checkpoint = null;
-  }
-}
-
-/**
- * Need granular writes to db and retries at each step rather than at the task level
- */
-
-export class BlockProgressTracker {
-  private pendingBlocks: number[] = [];
-  private completedBlocks: {
-    blockNumber: number;
-    blockTimestamp: number;
-  }[] = [];
-
-  checkpoint: { blockNumber: number; blockTimestamp: number } | null = null;
-
-  addPendingBlocks({ blockNumbers }: { blockNumbers: number[] }): void {
-    if (blockNumbers.length === 0) return;
-
-    const maxPendingBlock = this.pendingBlocks[this.pendingBlocks.length - 1]!;
-
-    const sorted = blockNumbers.sort((a, b) => a - b);
-    const minNewPendingBlock = sorted[0]!;
-
-    if (
-      this.pendingBlocks.length > 0 &&
-      minNewPendingBlock <= maxPendingBlock
-    ) {
-      throw new Error(
-        `New pending block number ${minNewPendingBlock} was added out of order. Already added block number ${maxPendingBlock}.`,
-      );
-    }
-
-    sorted.forEach((blockNumber) => {
-      this.pendingBlocks.push(blockNumber);
-    });
-  }
-
-  /**
-   * Add a new completed block. If adding this block moves the checkpoint, returns the
-   * new checkpoint. Otherwise, returns null.
-   */
-  addCompletedBlock({
-    blockNumber,
-    blockTimestamp,
-  }: {
-    blockNumber: number;
-    blockTimestamp: number;
-  }) {
-    // Find and remove the completed block from the pending list.
-    const pendingBlockIndex = this.pendingBlocks.findIndex(
-      (pendingBlock) => pendingBlock === blockNumber,
-    );
-    if (pendingBlockIndex === -1) {
-      throw new Error(
-        `Block number ${blockNumber} was not pending. Ensure to add blocks as pending before marking them as completed.`,
-      );
-    }
-    this.pendingBlocks.splice(pendingBlockIndex, 1);
-
-    // Add the new completed block to the completed block list, and maintain the sort order.
-    // Note that this could be optimized using a for loop with a break.
-    this.completedBlocks.push({ blockNumber, blockTimestamp });
-    this.completedBlocks.sort((a, b) => a.blockNumber - b.blockNumber);
-
-    // If the pending blocks list is now empty, return the max block present in
-    // the list of completed blocks. This happens at the end of the sync.
-    if (this.pendingBlocks.length === 0) {
-      this.checkpoint = this.completedBlocks[this.completedBlocks.length - 1]!;
-      return this.checkpoint;
-    }
-
-    // Find all completed blocks that are less than the minimum pending block.
-    // These blocks are "safe".
-    const safeCompletedBlocks = this.completedBlocks.filter(
-      ({ blockNumber }) => blockNumber < this.pendingBlocks[0]!,
-    );
-
-    // If there are no safe blocks, the first pending block has not been completed yet.
-    if (safeCompletedBlocks.length === 0) return null;
-
-    const maximumSafeCompletedBlock =
-      safeCompletedBlocks[safeCompletedBlocks.length - 1]!;
-
-    // Remove all safe completed blocks that are less than the new checkpoint.
-    // This avoid a memory leak and speeds up subsequent calls.
-    this.completedBlocks = this.completedBlocks.filter(
-      ({ blockNumber }) => blockNumber >= maximumSafeCompletedBlock.blockNumber,
-    );
-
-    // If this is the first checkpoint OR this checkpoint is greater than
-    // the previous checkpoint, store and return it as updated.
-    if (
-      !this.checkpoint ||
-      maximumSafeCompletedBlock.blockNumber > this.checkpoint.blockNumber
-    ) {
-      this.checkpoint = maximumSafeCompletedBlock;
-      return this.checkpoint;
-    }
-
-    // Otherwise, the checkpoint is not updated.
-    return null;
-  }
 }

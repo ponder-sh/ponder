@@ -2,15 +2,9 @@ import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
-import {
-  type EventSource,
-  type FactoryLogSource,
-  type LogSource,
-  sourceIsFactoryLog,
-  sourceIsLog,
-} from "@/config/sources.js";
-import type { Status } from "@/indexing-store/store.js";
-import type { RawEvent } from "@/sync-store/store.js";
+import type { RawEvent } from "@/sync/events.js";
+import type { Status } from "@/sync/index.js";
+import type { Source } from "@/sync/source.js";
 import type {
   SyncBlock,
   SyncCallTrace,
@@ -18,7 +12,7 @@ import type {
   SyncLog,
   SyncTransaction,
   SyncTransactionReceipt,
-} from "@/sync/index.js";
+} from "@/types/sync.js";
 import {
   encodeCheckpoint,
   maxCheckpoint,
@@ -190,28 +184,16 @@ export const getNetworkAndSources = async (
  * Block 4 has a swap event from the newly created pair.
  * Block 5 is empty.
  */
-export const getRawRPCData = async (sources: EventSource[]) => {
+export const getRawRPCData = async () => {
   const latestBlock = await publicClient.getBlockNumber();
-  const logs = (
-    await Promise.all(
-      sources
-        .filter(
-          (source): source is LogSource | FactoryLogSource =>
-            sourceIsLog(source) || sourceIsFactoryLog(source),
-        )
-        .map((source) =>
-          publicClient.request({
-            method: "eth_getLogs",
-            params: [
-              {
-                address: source.criteria.address,
-                fromBlock: toHex(latestBlock - 3n),
-              },
-            ],
-          }),
-        ),
-    )
-  ).flat();
+  const logs = await publicClient.request({
+    method: "eth_getLogs",
+    params: [
+      {
+        fromBlock: toHex(latestBlock - 3n),
+      },
+    ],
+  });
 
   // Manually add the child address log
   logs.push(
@@ -503,10 +485,8 @@ export const getRawRPCData = async (sources: EventSource[]) => {
 /**
  * Mock function for `getEvents` that specifically returns the event data for the log and factory sources.
  */
-export const getEventsLog = async (
-  sources: EventSource[],
-): Promise<RawEvent[]> => {
-  const rpcData = await getRawRPCData(sources);
+export const getEventsLog = async (sources: Source[]): Promise<RawEvent[]> => {
+  const rpcData = await getRawRPCData();
 
   return [
     {
@@ -535,8 +515,8 @@ export const getEventsLog = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ log, block, transaction, transactionReceipt }, i) => ({
-      sourceId: i === 0 || i === 1 ? sources[0]!.id : sources[1]!.id,
-      chainId: sources[0]!.chainId,
+      sourceIndex: i === 0 || i === 1 ? 0 : 1,
+      chainId: sources[0]!.filter.chainId,
       log: {
         ...log,
         id: `${log.blockHash}-${toHex(log.logIndex!)}`,
@@ -561,7 +541,7 @@ export const getEventsLog = async (
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0]!.chainId),
+        chainId: BigInt(sources[0]!.filter.chainId),
         blockNumber: block.number!,
         transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 5,
@@ -574,9 +554,9 @@ export const getEventsLog = async (
  * Mock function for `getEvents` that specifically returns the event data for the block sources.
  */
 export const getEventsBlock = async (
-  sources: EventSource[],
+  sources: Source[],
 ): Promise<RawEvent[]> => {
-  const rpcData = await getRawRPCData(sources);
+  const rpcData = await getRawRPCData();
 
   return [
     {
@@ -587,14 +567,14 @@ export const getEventsBlock = async (
       block: formatBlock(e.block),
     }))
     .map(({ block }) => ({
-      sourceId: sources[4]!.id,
-      chainId: sources[4]!.chainId,
+      sourceIndex: 4,
+      chainId: sources[4]!.filter.chainId,
 
       block: { ...block, miner: checksumAddress(block.miner) },
 
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0]!.chainId),
+        chainId: BigInt(sources[0]!.filter.chainId),
         blockNumber: block.number!,
         transactionIndex: maxCheckpoint.transactionIndex,
         eventType: 5,
@@ -607,9 +587,9 @@ export const getEventsBlock = async (
  * Mock function for `getEvents` that specifically returns the event data for the trace sources.
  */
 export const getEventsTrace = async (
-  sources: EventSource[],
+  sources: Source[],
 ): Promise<RawEvent[]> => {
-  const rpcData = await getRawRPCData(sources);
+  const rpcData = await getRawRPCData();
 
   return [
     {
@@ -626,8 +606,8 @@ export const getEventsTrace = async (
       transactionReceipt: formatTransactionReceipt(e.transactionReceipt),
     }))
     .map(({ trace, block, transaction, transactionReceipt }) => ({
-      sourceId: sources[3]!.id,
-      chainId: sources[3]!.chainId,
+      sourceIndex: 3,
+      chainId: sources[3]!.filter.chainId,
       trace: {
         id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
         from: checksumAddress(trace.action.from),
@@ -664,7 +644,7 @@ export const getEventsTrace = async (
       },
       encodedCheckpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0]!.chainId),
+        chainId: BigInt(sources[0]!.filter.chainId),
         blockNumber: block.number!,
         transactionIndex: BigInt(transaction.transactionIndex!),
         eventType: 7,

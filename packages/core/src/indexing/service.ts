@@ -1,20 +1,18 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import {
-  type EventSource,
-  type FactoryLogSource,
-  type LogSource,
-  sourceIsFactoryLog,
-  sourceIsLog,
-} from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
-import type { SyncService } from "@/sync/index.js";
+
+import type { Sync } from "@/sync/index.js";
+import {
+  type ContractSource,
+  type Source,
+  isAddressFilter,
+} from "@/sync/source.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { UserRecord } from "@/types/schema.js";
 import {
-  type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
   zeroCheckpoint,
@@ -66,7 +64,7 @@ export type Service = {
   eventCount: {
     [eventName: string]: { [networkName: string]: number };
   };
-  startCheckpoint: Checkpoint;
+  // startCheckpoint: Checkpoint;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -91,15 +89,15 @@ export const create = ({
   common,
   sources,
   networks,
-  syncService,
+  sync,
   indexingStore,
   schema,
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
-  sources: EventSource[];
+  sources: Source[];
   networks: Network[];
-  syncService: SyncService;
+  sync: Sync;
   indexingStore: IndexingStore;
   schema: Schema;
 }): Service => {
@@ -122,31 +120,38 @@ export const create = ({
   for (const source of sources) {
     if (source.type === "block") continue;
 
-    const address =
-      source.type === "factoryCallTrace" || source.type === "factoryLog"
-        ? undefined
-        : source.type === "callTrace"
-          ? source.criteria.toAddress!.length === 1
-            ? source.criteria.toAddress![0]
-            : undefined
-          : typeof source.criteria.address === "string"
-            ? source.criteria.address
-            : undefined;
+    let address: Address | undefined;
 
-    if (contractsByChainId[source.chainId] === undefined) {
-      contractsByChainId[source.chainId] = {};
+    if (source.filter.type === "log") {
+      const _address = source.filter.address;
+      if (
+        isAddressFilter(_address) === false &&
+        Array.isArray(_address) === false &&
+        _address !== undefined
+      ) {
+        address = _address as Address;
+      }
+    } else {
+      const _address = source.filter.toAddress;
+      if (isAddressFilter(_address) === false && _address !== undefined) {
+        address = (_address as Address[])[0];
+      }
+    }
+
+    if (contractsByChainId[source.filter.chainId] === undefined) {
+      contractsByChainId[source.filter.chainId] = {};
     }
 
     // Note: multiple sources with the same contract (logs and traces)
     // should only create one entry in the `contracts` object
-    if (contractsByChainId[source.chainId]![source.contractName] !== undefined)
+    if (contractsByChainId[source.filter.chainId]![source.name] !== undefined)
       continue;
 
-    contractsByChainId[source.chainId]![source.contractName] = {
+    contractsByChainId[source.filter.chainId]![source.name] = {
       abi: source.abi,
       address: address ? checksumAddress(address) : address,
-      startBlock: source.startBlock,
-      endBlock: source.endBlock,
+      startBlock: source.filter.fromBlock,
+      endBlock: source.filter.toBlock,
       maxBlockRange: source.maxBlockRange,
     };
   }
@@ -159,7 +164,7 @@ export const create = ({
 
   // build clientByChainId
   for (const network of networks) {
-    const transport = syncService.getCachedTransport(network);
+    const transport = sync.getCachedTransport(network);
     clientByChainId[network.chainId] = createClient({
       transport,
       chain: network.chain,
@@ -181,7 +186,7 @@ export const create = ({
     indexingStore,
     isKilled: false,
     eventCount,
-    startCheckpoint: syncService.startCheckpoint,
+    // startCheckpoint: syncService.startCheckpoint,
     currentEvent: {
       contextState,
       context: {
@@ -217,7 +222,7 @@ export const processSetupEvents = async (
     sources,
     networks,
   }: {
-    sources: EventSource[];
+    sources: Source[];
     networks: Network[];
   },
 ): Promise<
@@ -233,10 +238,10 @@ export const processSetupEvents = async (
     for (const network of networks) {
       const source = sources.find(
         (s) =>
-          (sourceIsLog(s) || sourceIsFactoryLog(s)) &&
-          s.contractName === contractName &&
-          s.chainId === network.chainId,
-      )! as LogSource | FactoryLogSource;
+          s.type === "contract" &&
+          s.name === contractName &&
+          s.filter.chainId === network.chainId,
+      )! as ContractSource;
 
       if (indexingService.isKilled) return { status: "killed" };
       indexingService.eventCount[eventName]![source.networkName]++;
@@ -245,12 +250,12 @@ export const processSetupEvents = async (
         event: {
           type: "setup",
           chainId: network.chainId,
-          contractName: source.contractName,
-          startBlock: BigInt(source.startBlock),
+          contractName: source.name,
+          startBlock: BigInt(source.filter.fromBlock),
           encodedCheckpoint: encodeCheckpoint({
             ...zeroCheckpoint,
             chainId: BigInt(network.chainId),
-            blockNumber: BigInt(source.startBlock),
+            blockNumber: BigInt(source.filter.fromBlock),
           }),
         },
       });
@@ -376,9 +381,9 @@ export const processEvents = async (
         event.encodedCheckpoint,
       ).blockTimestamp;
 
-      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-        eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
-      );
+      // indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+      //   eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
+      // );
       indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
         eventTimestamp,
       );
@@ -394,10 +399,10 @@ export const processEvents = async (
       events[events.length - 1]!.encodedCheckpoint,
     ).blockTimestamp;
 
-    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      lastEventInBatchTimestamp -
-        indexingService.startCheckpoint.blockTimestamp,
-    );
+    // indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+    //   lastEventInBatchTimestamp -
+    //     indexingService.startCheckpoint.blockTimestamp,
+    // );
     indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
       lastEventInBatchTimestamp,
     );
@@ -430,15 +435,15 @@ export const kill = (indexingService: Service) => {
   indexingService.isKilled = true;
 };
 
-export const updateTotalSeconds = (
-  indexingService: Service,
-  endCheckpoint: Checkpoint,
-) => {
-  indexingService.common.metrics.ponder_indexing_total_seconds.set(
-    endCheckpoint.blockTimestamp -
-      indexingService.startCheckpoint.blockTimestamp,
-  );
-};
+// export const updateTotalSeconds = (
+//   indexingService: Service,
+//   endCheckpoint: Checkpoint,
+// ) => {
+//   indexingService.common.metrics.ponder_indexing_total_seconds.set(
+//     endCheckpoint.blockTimestamp -
+//       indexingService.startCheckpoint.blockTimestamp,
+//   );
+// };
 
 const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {

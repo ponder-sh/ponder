@@ -10,13 +10,6 @@ import { createTelemetry } from "@/common/telemetry.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import type {
-  BlockSource,
-  CallTraceSource,
-  FactoryCallTraceSource,
-  FactoryLogSource,
-  LogSource,
-} from "@/config/sources.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
@@ -25,9 +18,8 @@ import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import type { IndexingStore, ReadonlyStore } from "@/indexing-store/store.js";
-import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
-import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
-import type { SyncStore } from "@/sync-store/store.js";
+import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
+import type { BlockSource, ContractSource } from "@/sync/source.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
@@ -41,10 +33,10 @@ declare module "vitest" {
     common: Common;
     databaseConfig: DatabaseConfig;
     sources: [
-      LogSource,
-      FactoryLogSource,
-      FactoryCallTraceSource,
-      CallTraceSource,
+      ContractSource,
+      ContractSource,
+      ContractSource,
+      ContractSource,
       BlockSource,
     ];
     networks: [Network];
@@ -144,118 +136,71 @@ export async function setupDatabaseServices(
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
+  let database: SqliteDatabaseService | PostgresDatabaseService;
 
   if (context.databaseConfig.kind === "sqlite") {
-    const database = new SqliteDatabaseService({
+    database = new SqliteDatabaseService({
       common: context.common,
       directory: context.databaseConfig.directory,
     });
-
-    const result = await database.setup(config);
-
-    await database.migrateSyncStore();
-
-    const syncStore = new SqliteSyncStore({
-      db: database.syncDb,
-      common: context.common,
-    });
-
-    const readonlyStore = getReadonlyStore({
-      encoding: "sqlite",
-      schema: config.schema,
-      namespaceInfo: result.namespaceInfo,
-      db: database.indexingDb,
-      common: context.common,
-    });
-
-    const indexingStore =
-      config.indexing === "historical"
-        ? getHistoricalStore({
-            encoding: "sqlite",
-            schema: config.schema,
-            readonlyStore,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
-            common: context.common,
-            isCacheExhaustive: true,
-          })
-        : {
-            ...readonlyStore,
-            ...getRealtimeStore({
-              encoding: "sqlite",
-              schema: config.schema,
-              namespaceInfo: result.namespaceInfo,
-              db: database.indexingDb,
-              common: context.common,
-            }),
-          };
-
-    const cleanup = () => database.kill();
-
-    return {
-      database,
-      namespaceInfo: result.namespaceInfo,
-      readonlyStore,
-      indexingStore,
-      syncStore,
-      cleanup,
-    };
   } else {
-    const database = new PostgresDatabaseService({
+    database = new PostgresDatabaseService({
       common: context.common,
       poolConfig: context.databaseConfig.poolConfig,
       userNamespace: context.databaseConfig.schema,
     });
+  }
 
-    const result = await database.setup(config);
+  const result = await database.setup(config);
 
-    await database.migrateSyncStore();
+  await database.migrateSyncStore();
 
-    const syncStore = new PostgresSyncStore({
-      db: database.syncDb,
-      common: context.common,
-    });
-    const readonlyStore = getReadonlyStore({
-      encoding: "postgres",
-      schema: config.schema,
-      namespaceInfo: result.namespaceInfo,
-      db: database.indexingDb,
-      common: context.common,
-    });
+  const syncStore = createSyncStore({
+    common: context.common,
+    sql: database.kind,
+    db: database.syncDb,
+  });
 
-    const indexingStore =
-      config.indexing === "historical"
-        ? getHistoricalStore({
-            encoding: "postgres",
+  const readonlyStore = getReadonlyStore({
+    encoding: "sqlite",
+    schema: config.schema,
+    namespaceInfo: result.namespaceInfo,
+    db: database.indexingDb,
+    common: context.common,
+  });
+
+  const indexingStore =
+    config.indexing === "historical"
+      ? getHistoricalStore({
+          encoding: "sqlite",
+          schema: config.schema,
+          readonlyStore,
+          namespaceInfo: result.namespaceInfo,
+          db: database.indexingDb,
+          common: context.common,
+          isCacheExhaustive: true,
+        })
+      : {
+          ...readonlyStore,
+          ...getRealtimeStore({
+            encoding: "sqlite",
             schema: config.schema,
-            readonlyStore,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,
             common: context.common,
-            isCacheExhaustive: true,
-          })
-        : {
-            ...readonlyStore,
-            ...getRealtimeStore({
-              encoding: "postgres",
-              schema: config.schema,
-              namespaceInfo: result.namespaceInfo,
-              db: database.indexingDb,
-              common: context.common,
-            }),
-          };
+          }),
+        };
 
-    const cleanup = () => database.kill();
+  const cleanup = () => database.kill();
 
-    return {
-      database,
-      namespaceInfo: result.namespaceInfo,
-      syncStore,
-      indexingStore,
-      readonlyStore,
-      cleanup,
-    };
-  }
+  return {
+    database,
+    namespaceInfo: result.namespaceInfo,
+    readonlyStore,
+    indexingStore,
+    syncStore,
+    cleanup,
+  };
 }
 
 /**
@@ -283,10 +228,10 @@ export async function setupAnvil(context: TestContext) {
   context.networks = networks as [Network];
   context.requestQueues = requestQueues as [RequestQueue];
   context.sources = sources as [
-    LogSource,
-    FactoryLogSource,
-    FactoryCallTraceSource,
-    CallTraceSource,
+    ContractSource,
+    ContractSource,
+    ContractSource,
+    ContractSource,
     BlockSource,
   ];
   context.erc20 = { address: addresses.erc20Address };
