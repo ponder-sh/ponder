@@ -1,198 +1,89 @@
-// import { erc20ABI, pairABI } from "@/_test/generated.js";
-// import { setupAnvil, setupCommon } from "@/_test/setup.js";
-// import { publicClient } from "@/_test/utils.js";
-// import type { SyncLog } from "@/sync/index.js";
-// import { toLowerCase } from "@/utils/lowercase.js";
-// import { getAbiItem, getEventSelector, toHex } from "viem";
-// import { beforeEach, expect, test } from "vitest";
-// import { filterLogs } from "./filter.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
+import { getRawRPCData } from "@/_test/utils.js";
+import { beforeEach, expect, test } from "vitest";
+import {
+  isCallTraceFilterMatched,
+  isLogFactoryMatched,
+  isLogFilterMatched,
+} from "./filter.js";
 
-// beforeEach(setupCommon);
-// beforeEach(setupAnvil);
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
 
-// const zeroHash =
-//   "0x0000000000000000000000000000000000000000000000000000000000000000";
+test("isLogAddressFilterMatched()", async (context) => {
+  const rpcData = await getRawRPCData();
 
-// const AliceHex = toLowerCase(
-//   "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-// );
+  let isMatched = isLogFactoryMatched({
+    filter: context.sources[1].filter.address,
+    log: rpcData.block3.logs[0],
+  });
+  expect(isMatched).toBe(true);
 
-// const BobHex = toLowerCase(
-//   "0x00000000000000000000000070997970C51812dc3A010C7d01b50e0d17dc79C8",
-// );
+  isMatched = isLogFactoryMatched({
+    filter: context.sources[1].filter.address,
+    log: rpcData.block2.logs[0],
+  });
+  expect(isMatched).toBe(false);
 
-// const getLogs = async () => {
-//   const blockNumber = await publicClient.getBlockNumber();
-//   return publicClient.request({
-//     method: "eth_getLogs",
-//     params: [{ fromBlock: toHex(blockNumber - 3n) }],
-//   }) as Promise<SyncLog[]>;
-// };
+  isMatched = isLogFactoryMatched({
+    filter: context.sources[2].filter.toAddress,
+    log: rpcData.block3.logs[0],
+  });
+  expect(isMatched).toBe(true);
 
-// test("filterLogs handles one logFilter, one address", async (context) => {
-//   const logs = await getLogs();
+  isMatched = isLogFactoryMatched({
+    filter: context.sources[2].filter.toAddress,
+    log: rpcData.block2.logs[0],
+  });
+  expect(isMatched).toBe(false);
+});
 
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [{ address: context.erc20.address, topics: [] }],
-//   });
+test("isLogFilterMatched", async (context) => {
+  const rpcData = await getRawRPCData();
 
-//   expect(filteredLogs).toHaveLength(2);
-//   expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
-//   expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
-// });
+  let isMatched = isLogFilterMatched({
+    filter: context.sources[0].filter,
+    block: rpcData.block2.block,
+    log: rpcData.block2.logs[1],
+  });
+  expect(isMatched).toBe(true);
 
-// test("filterLogs handles one logFilter, two addresses", async (context) => {
-//   const logs = await getLogs();
+  isMatched = isLogFilterMatched({
+    filter: context.sources[1].filter,
+    block: rpcData.block4.block,
+    log: rpcData.block4.logs[0],
+  });
+  expect(isMatched).toBe(true);
 
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [
-//       {
-//         address: [context.erc20.address, context.factory.address],
-//         topics: [],
-//       },
-//     ],
-//   });
+  isMatched = isLogFilterMatched({
+    filter: context.sources[0].filter,
+    block: rpcData.block4.block,
+    log: rpcData.block4.logs[0],
+  });
+  expect(isMatched).toBe(false);
+});
 
-//   expect(filteredLogs).toHaveLength(3);
-//   expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
-//   expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
-//   expect(filteredLogs[2]!.address).toEqual(context.factory.address);
-// });
+test("isCallTraceFilterMatched", async (context) => {
+  const rpcData = await getRawRPCData();
 
-// test("filterLogs handles empty array of addresses", async () => {
-//   const logs = await getLogs();
+  let isMatched = isCallTraceFilterMatched({
+    filter: context.sources[3].filter,
+    block: rpcData.block3.block,
+    callTrace: rpcData.block3.traces[0],
+  });
+  expect(isMatched).toBe(true);
 
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [{ address: [], topics: [] }],
-//   });
+  isMatched = isCallTraceFilterMatched({
+    filter: context.sources[2].filter,
+    block: rpcData.block3.block,
+    callTrace: rpcData.block3.traces[0],
+  });
+  expect(isMatched).toBe(true);
 
-//   expect(filteredLogs).toStrictEqual(logs);
-//   expect(logs).toHaveLength(4);
-// });
-
-// test("filterLogs handles two logFilters, one address each", async (context) => {
-//   const logs = await getLogs();
-
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [
-//       { address: context.erc20.address, topics: [] },
-//       { address: context.factory.address, topics: [] },
-//     ],
-//   });
-
-//   expect(filteredLogs).toHaveLength(3);
-//   expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
-//   expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
-//   expect(filteredLogs[2]!.address).toEqual(context.factory.address);
-// });
-
-// test("filterLogs handles one logFilter, one topic", async (context) => {
-//   const logs = await getLogs();
-
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [
-//       {
-//         topics: [
-//           getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//           null,
-//           null,
-//           null,
-//         ],
-//       },
-//     ],
-//   });
-
-//   expect(filteredLogs).toHaveLength(2);
-//   expect(filteredLogs[0]!.address).toEqual(context.erc20.address);
-//   expect(filteredLogs[1]!.address).toEqual(context.erc20.address);
-// });
-
-// test("filterLogs handles one logFilter, many topics", async () => {
-//   const logs = await getLogs();
-
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [
-//       {
-//         topics: [
-//           getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//           AliceHex,
-//           null,
-//           null,
-//         ],
-//       },
-//     ],
-//   });
-
-//   // Should match log 1 only.
-//   expect(filteredLogs).toHaveLength(1);
-//   expect(filteredLogs[0]!.topics).toMatchObject([
-//     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//     AliceHex,
-//     BobHex,
-//   ]);
-// });
-
-// test("filterLogs handles two logFilters, one topic each", async () => {
-//   const logs = await getLogs();
-
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [
-//       {
-//         topics: [null, zeroHash, null, null],
-//       },
-//       {
-//         topics: [null, null, BobHex, null],
-//       },
-//     ],
-//   });
-
-//   // Should match log 1 and 3.
-//   expect(filteredLogs).toHaveLength(2);
-//   expect(filteredLogs[0]!.topics).toMatchObject([
-//     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//     zeroHash,
-//     AliceHex,
-//   ]);
-//   expect(filteredLogs[1]!.topics).toEqual([
-//     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//     AliceHex,
-//     BobHex,
-//   ]);
-// });
-
-// test("filterLogs handles one logFilter, one topic, list of values", async () => {
-//   const logs = await getLogs();
-
-//   const filteredLogs = filterLogs({
-//     logs,
-//     logFilters: [
-//       {
-//         topics: [null, null, [AliceHex, BobHex], null],
-//       },
-//     ],
-//   });
-
-//   expect(filteredLogs).toHaveLength(3);
-//   expect(filteredLogs[0]!.topics).toMatchObject([
-//     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//     zeroHash,
-//     AliceHex,
-//   ]);
-//   expect(filteredLogs[1]!.topics).toEqual([
-//     getEventSelector(getAbiItem({ abi: erc20ABI, name: "Transfer" })),
-//     AliceHex,
-//     BobHex,
-//   ]);
-//   expect(filteredLogs[2]!.topics).toEqual([
-//     getEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
-//     AliceHex,
-//     AliceHex,
-//   ]);
-// });
+  isMatched = isCallTraceFilterMatched({
+    filter: context.sources[3].filter,
+    block: rpcData.block2.block,
+    callTrace: rpcData.block2.traces[0],
+  });
+  expect(isMatched).toBe(false);
+});

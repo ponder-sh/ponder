@@ -1,12 +1,19 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import { syncBlockToLightBlock } from "@/sync/index.js";
-import type { Source } from "@/sync/source.js";
+import {
+  type CallTraceFilter,
+  type Factory,
+  type LogFilter,
+  type Source,
+  isAddressFactory,
+} from "@/sync/source.js";
 import type {
   LightBlock,
   SyncBlock,
+  SyncCallTrace,
   SyncLog,
-  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -21,12 +28,18 @@ import {
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Hash, hexToNumber } from "viem";
+import { type Address, type Hash, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
+import {
+  isCallTraceFilterMatched,
+  isLogFactoryMatched,
+  isLogFilterMatched,
+} from "./filter.js";
 
 export type RealtimeSync = {
   start(finalizedBlock: LightBlock): Promise<Queue<void, SyncBlock>>;
   kill(): Promise<void>;
+  localChain: LightBlock[];
 };
 
 type CreateRealtimeSyncParameters = {
@@ -34,6 +47,7 @@ type CreateRealtimeSyncParameters = {
   network: Network;
   requestQueue: RequestQueue;
   sources: Source[];
+  syncStore: SyncStore;
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 };
@@ -43,7 +57,7 @@ export type RealtimeSyncEvent =
       type: "block";
       block: SyncBlock;
       logs: SyncLog[];
-      traces: SyncTrace[];
+      callTraces: SyncCallTrace[];
       transactions: SyncTransaction[];
       transactionReceipts: SyncTransactionReceipt[];
     }
@@ -80,6 +94,28 @@ export const createRealtimeSync = (
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
+  const factories: Factory[] = [];
+  const logFilters: LogFilter[] = [];
+  const callTraceFilters: CallTraceFilter[] = [];
+
+  for (const source of args.sources) {
+    if (source.type === "contract") {
+      if (source.filter.type === "log") {
+        logFilters.push(source.filter);
+      } else if (source.filter.type === "callTrace") {
+        callTraceFilters.push(source.filter);
+      }
+
+      const _address =
+        source.filter.type === "log"
+          ? source.filter.address
+          : source.filter.toAddress;
+      if (isAddressFactory(_address)) {
+        factories.push(_address);
+      }
+    }
+  }
+
   /**
    * 1) Determine if a reorg occurred.
    * 2) Insert new event data into the store.
@@ -96,36 +132,35 @@ export const createRealtimeSync = (
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
     });
 
-    const { logs, traces, transactions, transactionReceipts } =
+    const { logs, callTraces, transactions, transactionReceipts } =
       await extract(block);
 
-    // const hasLogEvent = newLogs.length > 0;
-    // const hasCallTraceEvent = newPersistentCallTraces.length > 0;
-    // const hasBlockEvent = service.blockSources.some(
-    //   (blockSource) =>
-    //     (newHeadBlockNumber - blockSource.criteria.offset) %
-    //       blockSource.criteria.interval ===
-    //     0,
-    // );
+    if (logs.length > 0 || callTraces.length > 0) {
+      const _text: string[] = [];
 
-    // if (hasLogEvent || hasCallTraceEvent) {
-    //   const logCountText =
-    //     newLogs.length === 1 ? "1 log" : `${newLogs.length} logs`;
-    //   const traceCountText =
-    //     newCallTraces.length === 1
-    //       ? "1 call trace"
-    //       : `${newCallTraces.length} call traces`;
-    //   const text = [logCountText, traceCountText].join(" and ");
-    //   service.common.logger.info({
-    //     service: "realtime",
-    //     msg: `Synced ${text} from '${service.network.name}' block ${newHeadBlockNumber}`,
-    //   });
-    // } else if (hasBlockEvent) {
-    //   service.common.logger.info({
-    //     service: "realtime",
-    //     msg: `Synced block ${newHeadBlockNumber} from '${service.network.name}' `,
-    //   });
-    // }
+      if (logs.length === 1) {
+        _text.push("1 log");
+      } else if (logs.length > 1) {
+        _text.push(`${logs.length} logs`);
+      }
+
+      if (callTraces.length === 1) {
+        _text.push("1 call trace");
+      } else if (callTraces.length > 1) {
+        _text.push(`${callTraces.length} call traces`);
+      }
+
+      const text = _text.filter((t) => t !== undefined).join(" and ");
+      args.common.logger.info({
+        service: "realtime",
+        msg: `Synced ${text} from '${args.network.name}' block ${hexToNumber(block.number)}`,
+      });
+    } else {
+      args.common.logger.info({
+        service: "realtime",
+        msg: `Synced block ${hexToNumber(block.number)} from '${args.network.name}' `,
+      });
+    }
 
     localChain.push(syncBlockToLightBlock(block));
 
@@ -133,7 +168,7 @@ export const createRealtimeSync = (
       type: "block",
       block,
       logs,
-      traces,
+      callTraces,
       transactions,
       transactionReceipts,
     });
@@ -198,7 +233,7 @@ export const createRealtimeSync = (
     });
 
     // Prune the local chain of blocks that have been reorged out
-    const newLocalChain = localChain.filter(
+    localChain = localChain.filter(
       (lb) => hexToNumber(lb.number) < hexToNumber(block.number),
     );
 
@@ -209,8 +244,6 @@ export const createRealtimeSync = (
       const parentBlock = getLatestLocalBlock();
 
       if (parentBlock.hash === remoteBlock.parentHash) {
-        localChain = newLocalChain;
-
         args.onEvent({ type: "reorg", block: parentBlock });
 
         args.common.logger.warn({
@@ -223,12 +256,12 @@ export const createRealtimeSync = (
         return;
       }
 
-      if (newLocalChain.length === 0) break;
+      if (localChain.length === 0) break;
       else {
         remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
           hash: remoteBlock.parentHash,
         });
-        newLocalChain.pop();
+        localChain.pop();
       }
     }
 
@@ -238,14 +271,11 @@ export const createRealtimeSync = (
 
     args.common.logger.warn({ service: "realtime", msg });
 
-    localChain = [];
-
     throw new Error(msg);
   };
 
   /**
-   *
-   * @param block
+   * Request and filter all relevant data pertaining to `block` and `args.sources`
    */
   const extract = async (block: SyncBlock) => {
     ////////
@@ -255,26 +285,18 @@ export const createRealtimeSync = (
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
     const shouldRequestLogs =
       block.logsBloom === zeroLogsBloom ||
-      args.sources.some(
-        ({ filter }) =>
-          filter.type === "log" &&
-          isFilterInBloom({ bloom: block.logsBloom, filter }),
-      );
+      logFilters.some((filter) => isFilterInBloom({ block, filter }));
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
       logs = await _eth_getLogs(args.requestQueue, { blockHash: block.hash });
-    }
 
-    // Protect against RPCs returning empty logs. Known to happen near chain tip.
-    if (
-      shouldRequestLogs &&
-      block.logsBloom !== zeroLogsBloom &&
-      logs.length === 0
-    ) {
-      throw new Error(
-        `Detected invalid '${args.network.name}' eth_getLogs response.`,
-      );
+      // Protect against RPCs returning empty logs. Known to happen near chain tip.
+      if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
+        throw new Error(
+          `Detected invalid '${args.network.name}' eth_getLogs response.`,
+        );
+      }
     }
 
     if (
@@ -291,20 +313,29 @@ export const createRealtimeSync = (
     // Traces
     ////////
 
-    const shouldRequestTraces = args.sources.some(
-      // @ts-ignore
-      (s) => s.filter.type === "trace",
-    );
+    const shouldRequestTraces = callTraceFilters.length > 0;
 
-    let traces: SyncTrace[] = [];
+    let callTraces: SyncCallTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _trace_block(args.requestQueue, {
+      const traces = await _trace_block(args.requestQueue, {
         blockNumber: hexToNumber(block.number),
       });
+
+      // Protect against RPCs returning empty traces. Known to happen near chain tip.
+      // Use the fact that any transaction produces a trace.
+      if (block.transactions.length !== 0 && traces.length === 0) {
+        throw new Error(
+          `Detected invalid '${args.network.name}' trace_block response.`,
+        );
+      }
+
+      callTraces = traces.filter(
+        (trace) => trace.type === "call",
+      ) as SyncCallTrace[];
     }
 
     // Check that traces refer to the correct block
-    for (const trace of traces) {
+    for (const trace of callTraces) {
       if (trace.blockHash !== block.hash) {
         throw new Error(
           `Received call trace with block hash '${trace.blockHash}' that does not match current head block '${block.hash}'`,
@@ -312,17 +343,59 @@ export const createRealtimeSync = (
       }
     }
 
-    // Protect against RPCs returning empty traces. Known to happen near chain tip.
-    // Use the fact that any transaction produces a trace.
-    if (
-      shouldRequestTraces &&
-      block.transactions.length !== 0 &&
-      traces.length === 0
-    ) {
-      throw new Error(
-        `Detected invalid '${args.network.name}' trace_block response.`,
-      );
+    ////////
+    // Get Matched
+    ////////
+
+    // Insert `logs` that contain factory child addresses
+    const _logs = logs.filter((log) =>
+      factories.some((filter) => isLogFactoryMatched({ filter, log })),
+    );
+    if (_logs.length > 0)
+      await args.syncStore.insertLogs({
+        logs: _logs.map((log) => ({ log })),
+        chainId: args.network.chainId,
+      });
+
+    // ...
+    const childAddresses = new Set<Address>();
+    for (const filter of factories) {
+      const _childAddresses = await args.syncStore.filterChildAddresses({
+        filter,
+        addresses: logs.map(({ address }) => address),
+      });
+      for (const address of _childAddresses) childAddresses.add(address);
     }
+
+    // Remote logs that don't match a filter
+    logs = logs.filter((log) =>
+      logFilters.some((filter) => {
+        const isMatched = isLogFilterMatched({ filter, block, log });
+
+        if (isAddressFactory(filter.address)) {
+          return isMatched && childAddresses.has(log.address);
+        }
+
+        return isMatched;
+      }),
+    );
+
+    // Remote call traces that don't match a filter
+    callTraces = callTraces.filter((callTrace) =>
+      callTraceFilters.some((filter) => {
+        const isMatched = isCallTraceFilterMatched({
+          filter,
+          block,
+          callTrace,
+        });
+
+        if (isAddressFactory(filter.toAddress)) {
+          return isMatched && childAddresses.has(callTrace.action.to);
+        }
+
+        return isMatched;
+      }),
+    );
 
     ////////
     // Transactions
@@ -332,10 +405,8 @@ export const createRealtimeSync = (
     for (const log of logs) {
       transactionHashes.add(log.transactionHash);
     }
-    for (const trace of traces) {
-      if (trace.type === "call") {
-        transactionHashes.add(trace.transactionHash);
-      }
+    for (const trace of callTraces) {
+      transactionHashes.add(trace.transactionHash);
     }
 
     const transactions = block.transactions.filter((t) =>
@@ -347,9 +418,9 @@ export const createRealtimeSync = (
     ////////
 
     const shouldRequestTransactionReceipts =
-      // @ts-ignore
-      args.sources.some((s) => s.filter.includeTransactionReceipts) ||
-      traces.length > 0;
+      args.sources.some(
+        (s) => s.type === "contract" && s.filter.includeTransactionReceipts,
+      ) || callTraces.length > 0;
 
     let transactionReceipts: SyncTransactionReceipt[] = [];
     if (shouldRequestTransactionReceipts) {
@@ -362,7 +433,7 @@ export const createRealtimeSync = (
 
     return {
       logs,
-      traces,
+      callTraces,
       transactions,
       transactionReceipts,
     };
@@ -555,139 +626,8 @@ export const createRealtimeSync = (
 
       await queue.onIdle();
     },
+    get localChain() {
+      return localChain;
+    },
   };
 };
-
-// const getMatchedLogs = async (
-//   service: Service,
-//   {
-//     logs,
-//     upToBlockNumber,
-//   }: {
-//     logs: SyncLog[];
-//     upToBlockNumber: bigint;
-//   },
-// ) => {
-//   if (service.factoryLogSources.length === 0) {
-//     return filterLogs({
-//       logs,
-//       logFilters: service.logSources.map((s) => s.criteria),
-//     });
-//   } else {
-//     // Find and insert any new child contracts.
-//     const matchedFactoryLogs = filterLogs({
-//       logs,
-//       logFilters: service.factoryLogSources.map((fs) => ({
-//         address: fs.criteria.address,
-//         topics: [fs.criteria.eventSelector],
-//       })),
-//     });
-
-//     await service.syncStore.insertFactoryChildAddressLogs({
-//       chainId: service.network.chainId,
-//       logs: matchedFactoryLogs,
-//     });
-
-// WITH [log.addresses ] as VALUES(...) SELECT address from logs.address WHERE address in (addressSQL)
-
-//     // Find any logs matching log filters or child contract filters.
-//     // NOTE: It might make sense to just insert all logs rather than introduce
-//     // a potentially slow DB operation here. It's a tradeoff between sync
-//     // latency and database growth.
-//     // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
-//     // a query each interval.
-//     const factoryLogFilters = await Promise.all(
-//       service.factoryLogSources.map(async (factory) => {
-//         const iterator = service.syncStore.getFactoryChildAddresses({
-//           chainId: service.network.chainId,
-//           factory: factory.criteria,
-//           fromBlock: BigInt(factory.startBlock),
-//           toBlock: upToBlockNumber,
-//         });
-//         const childContractAddresses: Address[] = [];
-//         for await (const batch of iterator) {
-//           childContractAddresses.push(...batch);
-//         }
-//         return {
-//           address: childContractAddresses,
-//           topics: factory.criteria.topics,
-//         };
-//       }),
-//     );
-
-//     return filterLogs({
-//       logs,
-//       logFilters: [
-//         ...service.logSources.map((l) => l.criteria),
-//         ...factoryLogFilters.filter((f) => f.address.length !== 0),
-//       ],
-//     });
-//   }
-// };
-
-// const getMatchedCallTraces = async (
-//   service: Service,
-//   {
-//     callTraces,
-//     logs,
-//     upToBlockNumber,
-//   }: {
-//     callTraces: SyncCallTrace[];
-//     logs: SyncLog[];
-//     upToBlockNumber: bigint;
-//   },
-// ) => {
-//   if (service.factoryCallTraceSources.length === 0) {
-//     return filterCallTraces({
-//       callTraces,
-//       callTraceFilters: service.callTraceSources.map((s) => s.criteria),
-//     });
-//   } else {
-//     // Find and insert any new child contracts.
-//     const matchedFactoryLogs = filterLogs({
-//       logs,
-//       logFilters: service.factoryLogSources.map((fs) => ({
-//         address: fs.criteria.address,
-//         topics: [fs.criteria.eventSelector],
-//       })),
-//     });
-
-//     await service.syncStore.insertFactoryChildAddressLogs({
-//       chainId: service.network.chainId,
-//       logs: matchedFactoryLogs,
-//     });
-
-//     // Find any logs matching log filters or child contract filters.
-//     // NOTE: It might make sense to just insert all logs rather than introduce
-//     // a potentially slow DB operation here. It's a tradeoff between sync
-//     // latency and database growth.
-//     // NOTE: Also makes sense to hold factoryChildAddresses in memory rather than
-//     // a query each interval.
-//     const factoryTraceFilters = await Promise.all(
-//       service.factoryCallTraceSources.map(async (factory) => {
-//         const iterator = service.syncStore.getFactoryChildAddresses({
-//           chainId: service.network.chainId,
-//           factory: factory.criteria,
-//           fromBlock: BigInt(factory.startBlock),
-//           toBlock: upToBlockNumber,
-//         });
-//         const childContractAddresses: Address[] = [];
-//         for await (const batch of iterator) {
-//           childContractAddresses.push(...batch);
-//         }
-//         return {
-//           toAddress: childContractAddresses,
-//           fromAddress: factory.criteria.fromAddress,
-//         };
-//       }),
-//     );
-
-//     return filterCallTraces({
-//       callTraces,
-//       callTraceFilters: [
-//         ...service.callTraceSources.map((s) => s.criteria),
-//         ...factoryTraceFilters.filter((f) => f.toAddress.length !== 0),
-//       ],
-//     });
-//   }
-// };
