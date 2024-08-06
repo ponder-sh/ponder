@@ -8,7 +8,7 @@ import type { Sync } from "@/sync/index.js";
 import {
   type ContractSource,
   type Source,
-  isAddressFilter,
+  isAddressFactory,
 } from "@/sync/source.js";
 import type { DatabaseModel } from "@/types/model.js";
 import type { UserRecord } from "@/types/schema.js";
@@ -125,7 +125,7 @@ export const create = ({
     if (source.filter.type === "log") {
       const _address = source.filter.address;
       if (
-        isAddressFilter(_address) === false &&
+        isAddressFactory(_address) === false &&
         Array.isArray(_address) === false &&
         _address !== undefined
       ) {
@@ -133,7 +133,7 @@ export const create = ({
       }
     } else {
       const _address = source.filter.toAddress;
-      if (isAddressFilter(_address) === false && _address !== undefined) {
+      if (isAddressFactory(_address) === false && _address !== undefined) {
         address = (_address as Address[])[0];
       }
     }

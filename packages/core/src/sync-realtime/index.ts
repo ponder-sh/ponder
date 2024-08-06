@@ -360,11 +360,13 @@ export const createRealtimeSync = (
     // ...
     const childAddresses = new Set<Address>();
     for (const filter of factories) {
-      const _childAddresses = await args.syncStore.filterChildAddresses({
-        filter,
-        addresses: logs.map(({ address }) => address),
-      });
-      for (const address of _childAddresses) childAddresses.add(address);
+      if (logs.length > 0) {
+        const _childAddresses = await args.syncStore.filterChildAddresses({
+          filter,
+          addresses: logs.map(({ address }) => address),
+        });
+        for (const address of _childAddresses) childAddresses.add(address);
+      }
     }
 
     // Remote logs that don't match a filter

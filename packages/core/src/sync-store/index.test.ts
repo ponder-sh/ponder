@@ -5,13 +5,16 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData } from "@/_test/utils.js";
-import type { AddressFilter, LogFilter } from "@/sync/source.js";
+import { NonRetryableError } from "@/common/errors.js";
+import type { Factory, LogFilter } from "@/sync/source.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { range } from "@/utils/range.js";
+import { _eth_getLogs } from "@/utils/rpc.js";
 import { hexToNumber } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
@@ -34,26 +37,261 @@ test("setup creates tables", async (context) => {
   await cleanup();
 });
 
-test.todo("getInterval() empty");
-
-test.todo("getInterval() merges intervals");
-
-test("getAddresses()", async (context) => {
+test("getIntervals() empty", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const logs = await _eth_getLogs(context.requestQueues[0], {
-    address: context.factory.address,
-    fromBlock: 0,
-    toBlock: 5,
+  const intervals = await syncStore.getIntervals({
+    filter: context.sources[0].filter,
   });
 
+  expect(intervals).toHaveLength(0);
+
+  cleanup();
+});
+
+test("getIntervals() returns intervals", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[0].filter,
+    interval: [0, 4],
+  });
+
+  const intervals = await syncStore.getIntervals({
+    filter: context.sources[0].filter,
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 4]);
+
+  cleanup();
+});
+
+test("getIntervals() merges intervals", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[0].filter,
+    interval: [0, 4],
+  });
+
+  await syncStore.insertInterval({
+    filter: context.sources[0].filter,
+    interval: [5, 8],
+  });
+
+  const intervals = await syncStore.getIntervals({
+    filter: context.sources[0].filter,
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 8]);
+
+  cleanup();
+});
+
+test("getIntervals() handles log filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[0].filter,
+    interval: [0, 4],
+  });
+
+  let intervals = await syncStore.getIntervals({
+    filter: {
+      ...context.sources[0].filter,
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 4]);
+
+  intervals = await syncStore.getIntervals({
+    filter: { ...context.sources[0].filter, address: context.factory.address },
+  });
+
+  expect(intervals).toHaveLength(0);
+
+  cleanup();
+});
+
+test("getIntervals() handles factory log filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[1].filter,
+    interval: [0, 4],
+  });
+
+  let intervals = await syncStore.getIntervals({
+    filter: {
+      ...context.sources[1].filter,
+      includeTransactionReceipts: false,
+    },
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 4]);
+
+  intervals = await syncStore.getIntervals({
+    filter: {
+      ...context.sources[1].filter,
+      address: {
+        ...context.sources[1].filter.address,
+        childAddressLocation: "topic2",
+      },
+    },
+  });
+
+  expect(intervals).toHaveLength(0);
+
+  cleanup();
+});
+
+test("getIntervals() handles trace filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[3].filter,
+    interval: [0, 4],
+  });
+
+  let intervals = await syncStore.getIntervals({
+    filter: context.sources[3].filter,
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 4]);
+
+  intervals = await syncStore.getIntervals({
+    filter: {
+      ...context.sources[3].filter,
+      toAddress: [context.erc20.address],
+    },
+  });
+
+  expect(intervals).toHaveLength(0);
+
+  cleanup();
+});
+
+test("getIntervals() handles factory trace filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[2].filter,
+    interval: [0, 4],
+  });
+
+  let intervals = await syncStore.getIntervals({
+    filter: context.sources[2].filter,
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 4]);
+
+  intervals = await syncStore.getIntervals({
+    filter: {
+      ...context.sources[2].filter,
+      toAddress: {
+        ...context.sources[2].filter.toAddress,
+        childAddressLocation: "topic2",
+      },
+    },
+  });
+
+  expect(intervals).toHaveLength(0);
+
+  cleanup();
+});
+
+test("getIntervals() handles block filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertInterval({
+    filter: context.sources[4].filter,
+    interval: [0, 4],
+  });
+
+  let intervals = await syncStore.getIntervals({
+    filter: context.sources[4].filter,
+  });
+
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]).toStrictEqual([0, 4]);
+
+  intervals = await syncStore.getIntervals({
+    filter: { ...context.sources[4].filter, interval: 69 },
+  });
+
+  expect(intervals).toHaveLength(0);
+
+  cleanup();
+});
+
+test("getIntervals() handles size over max", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  context.common.options = {
+    ...context.common.options,
+    syncStoreMaxIntervals: 20,
+  };
+
+  for (const i of range(0, 25)) {
+    await syncStore.insertInterval({
+      filter: context.sources[0].filter,
+      interval: [i, i],
+    });
+  }
+
+  const intervals = await syncStore.getIntervals({
+    filter: context.sources[0].filter,
+  });
+
+  expect(intervals).toMatchObject([[0, 24]]);
+
+  await cleanup();
+});
+
+test("getIntervals() throws non-retryable error after no merges", async (context) => {
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+
+  context.common.options = {
+    ...context.common.options,
+    syncStoreMaxIntervals: 20,
+  };
+
+  for (let i = 0; i < 50; i += 2) {
+    await syncStore.insertInterval({
+      filter: context.sources[0].filter,
+      interval: [i, i],
+    });
+  }
+
+  const error = await syncStore
+    .getIntervals({
+      filter: context.sources[0].filter,
+    })
+    .catch((err) => err);
+
+  expect(error).toBeInstanceOf(NonRetryableError);
+
+  await cleanup();
+});
+
+test("getChildAddresses()", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
   await syncStore.insertLogs({
-    logs: logs.map((log) => ({ log })),
+    logs: [{ log: rpcData.block3.logs[0] }],
     chainId: 1,
   });
 
-  const addresses = await syncStore.getAddresses({
-    filter: context.sources[1].filter.address as AddressFilter,
+  const addresses = await syncStore.getChildAddresses({
+    filter: context.sources[1].filter.address as Factory,
     limit: 10,
   });
 
@@ -63,15 +301,38 @@ test("getAddresses()", async (context) => {
   cleanup();
 });
 
-test("getAddressess() empty", async (context) => {
+test("getChildAddresses() empty", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const addresses = await syncStore.getAddresses({
-    filter: context.sources[1].filter.address as AddressFilter,
+  const addresses = await syncStore.getChildAddresses({
+    filter: context.sources[1].filter.address as Factory,
     limit: 10,
   });
 
   expect(addresses).toHaveLength(0);
+
+  cleanup();
+});
+
+test("filterChildAddresses()", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block3.logs[0] }],
+    chainId: 1,
+  });
+
+  const addresses = await syncStore.filterChildAddresses({
+    filter: context.sources[1].filter.address as Factory,
+    addresses: [
+      context.erc20.address,
+      context.factory.address,
+      context.factory.pair,
+    ],
+  });
+
+  expect(addresses.size).toBe(1);
 
   cleanup();
 });
@@ -364,6 +625,7 @@ test("getEvents() returns events", async (context) => {
   const filter = {
     type: "log",
     chainId: 1,
+    topics: [null],
     fromBlock: 0,
     includeTransactionReceipts: false,
   } satisfies LogFilter;
@@ -499,7 +761,7 @@ test("getEvents() handles log address filters", async (context) => {
   cleanup();
 });
 
-test("populateEvents() handles block filter logic", async (context) => {
+test("getEvents() handles block filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
@@ -514,41 +776,9 @@ test("populateEvents() handles block filter logic", async (context) => {
     limit: 10,
   });
 
-  expect(events).toHaveLength(1);
+  expect(events).toHaveLength(3);
 
   cleanup();
 });
-
-// test("getEventCount empty", async (context) => {
-//   const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-//   const filter = { type: "log", chainId: 1, fromBlock: 0 } satisfies LogFilter;
-//   const count = await syncStore.getEventCount({ filters: [filter] });
-
-//   expect(count).toBe(0);
-
-//   cleanup();
-// });
-
-// test("getEventCount", async (context) => {
-//   const { cleanup, syncStore } = await setupDatabaseServices(context);
-//   const rpcData = await getRawRPCData();
-
-//   await syncStore.insertLogs({ logs: rpcData.block3.logs, chainId: 1 });
-//   await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-//   await syncStore.insertTransaction({
-//     transaction: rpcData.block3.transactions[0],
-//     chainId: 1,
-//   });
-
-//   const filter = { type: "log", chainId: 1, fromBlock: 0 } satisfies LogFilter;
-//   await syncStore.populateEvents({ filter, interval: [3, 3] });
-
-//   const count = await syncStore.getEventCount({ filters: [filter] });
-
-//   expect(count).toBe(1);
-
-//   cleanup();
-// });
 
 test.todo("getEvents() pagination");

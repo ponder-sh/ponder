@@ -285,7 +285,7 @@ test("handleBlock() block event", async (context) => {
   expect(data[4]?.logs).toHaveLength(0);
 
   expect(data[0]?.callTraces).toHaveLength(0);
-  expect(data[1]?.callTraces).toHaveLength(2);
+  expect(data[1]?.callTraces).toHaveLength(0);
   expect(data[2]?.callTraces).toHaveLength(1);
   expect(data[3]?.callTraces).toHaveLength(1);
   expect(data[4]?.callTraces).toHaveLength(0);

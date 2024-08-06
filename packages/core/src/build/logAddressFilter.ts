@@ -1,4 +1,4 @@
-import type { LogAddressFilter } from "@/sync/source.js";
+import type { LogFactory } from "@/sync/source.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
@@ -14,7 +14,7 @@ export function buildLogAddressFilter({
   event: AbiEvent;
   parameter: string;
   chainId: number;
-}): LogAddressFilter {
+}): LogFactory {
   const address = toLowerCase(_address);
   const eventSelector = getEventSelector(event);
 

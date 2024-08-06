@@ -1,10 +1,6 @@
 import path from "node:path";
 import type { Options } from "@/common/options.js";
-import type {
-  CallTraceFilter,
-  LogAddressFilter,
-  LogFilter,
-} from "@/sync/source.js";
+import type { CallTraceFilter, LogFactory, LogFilter } from "@/sync/source.js";
 import {
   http,
   getEventSelector,
@@ -580,8 +576,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
 
   expect((sources[0]!.filter as CallTraceFilter).fromAddress).toBeUndefined();
   expect(
-    ((sources[0]!.filter as CallTraceFilter).toAddress as LogAddressFilter)
-      .address,
+    ((sources[0]!.filter as CallTraceFilter).toAddress as LogFactory).address,
   ).toMatchObject(address2);
   expect(
     (sources[0]!.filter as CallTraceFilter).functionSelectors,

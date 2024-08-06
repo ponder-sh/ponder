@@ -19,7 +19,7 @@ import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import type { IndexingStore, ReadonlyStore } from "@/indexing-store/store.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
-import type { BlockSource, ContractSource } from "@/sync/source.js";
+import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
@@ -33,10 +33,10 @@ declare module "vitest" {
     common: Common;
     databaseConfig: DatabaseConfig;
     sources: [
-      ContractSource,
-      ContractSource,
-      ContractSource,
-      ContractSource,
+      ContractSource<"log", undefined>,
+      ContractSource<"log", LogFactory>,
+      ContractSource<"trace", LogFactory>,
+      ContractSource<"trace", undefined>,
       BlockSource,
     ];
     networks: [Network];
@@ -228,10 +228,10 @@ export async function setupAnvil(context: TestContext) {
   context.networks = networks as [Network];
   context.requestQueues = requestQueues as [RequestQueue];
   context.sources = sources as [
-    ContractSource,
-    ContractSource,
-    ContractSource,
-    ContractSource,
+    ContractSource<"log", undefined>,
+    ContractSource<"log", LogFactory>,
+    ContractSource<"trace", LogFactory>,
+    ContractSource<"trace", undefined>,
     BlockSource,
   ];
   context.erc20 = { address: addresses.erc20Address };

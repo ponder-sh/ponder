@@ -143,7 +143,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * TODO(kyle) update status maybe using events
    * TODO(kyle) programmatically refetch finalized blocks to avoid exiting too early
    */
-
   async function* getEvents() {
     const start = getChainsCheckpoint("start");
     const end = getChainsCheckpoint("end") ?? getChainsCheckpoint("finalized");
@@ -328,6 +327,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             sources: args.sources.filter(
               ({ filter }) => filter.chainId === network.chainId,
             ),
+            syncStore: args.syncStore,
             onEvent: onEvent(network),
             onFatalError: args.onFatalError,
           });

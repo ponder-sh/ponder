@@ -3,12 +3,12 @@ import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
-  type AddressFilter,
   type BlockFilter,
+  type Factory,
   type Filter,
-  type LogAddressFilter,
+  type LogFactory,
   type LogFilter,
-  isAddressFilter,
+  isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
 import type { SyncBlock, SyncLog } from "@/types/sync.js";
@@ -62,7 +62,7 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  const intervalsCache: Map<Filter | AddressFilter, Interval[]> = new Map();
+  const intervalsCache: Map<Filter | Factory, Interval[]> = new Map();
 
   // Populate `intervalsCache` by querying the sync-store.
   for (const { filter } of args.sources) {
@@ -85,7 +85,7 @@ export const createHistoricalSync = async (
 
     // Resolve `filter.address`
     let address: Address | Address[] | undefined;
-    if (isAddressFilter(filter.address)) {
+    if (isAddressFactory(filter.address)) {
       const _addresses = await syncAddress(filter.address, interval);
       if (_addresses.length < ADDRESS_FILTER_LIMIT) {
         address = _addresses;
@@ -152,7 +152,7 @@ export const createHistoricalSync = async (
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogAddressFilter = async (
-    filter: LogAddressFilter,
+    filter: LogFactory,
     interval: Interval,
   ) => {
     const logs = await _eth_getLogs(args.requestQueue, {
@@ -229,7 +229,7 @@ export const createHistoricalSync = async (
    * that match `filter` and `interval`.
    */
   const syncAddress = async (
-    filter: AddressFilter,
+    filter: Factory,
     interval: Interval,
   ): Promise<Address[]> => {
     await syncLogAddressFilter(filter, interval);
@@ -237,7 +237,7 @@ export const createHistoricalSync = async (
     // TODO(kyle) should "address" metrics be tracked?
 
     // Query the sync-store for all addresses that match `filter`.
-    return await args.syncStore.getAddresses({
+    return await args.syncStore.getChildAddresses({
       filter,
       limit: ADDRESS_FILTER_LIMIT,
     });

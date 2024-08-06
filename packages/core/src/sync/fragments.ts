@@ -1,49 +1,42 @@
+import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import type { Address, Hex } from "viem";
 import {
-  type AddressFilter,
   type BlockFilter,
   type CallTraceFilter,
+  type Factory,
+  type LogFactory,
   type LogFilter,
-  isAddressFilter,
+  isAddressFactory,
 } from "./source.js";
 
-export type LogFilterFragment = {
-  id: string;
-  chainId: number;
-  address: Address | AddressFilter | null;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
+export type LogFilterFragment<
+  factory extends Factory | undefined = Factory | undefined,
+> = factory extends Factory
+  ? PonderSyncSchema["factoryLogFilters"]
+  : PonderSyncSchema["logFilters"];
 
-export type BlockFilterFragment = {
-  id: string;
-  chainId: number;
-  interval: number;
-  offset: number;
-};
+export type BlockFilterFragment = PonderSyncSchema["blockFilters"];
 
-export type TraceFilterFragment = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  toAddress: Address | AddressFilter | null;
-};
-
+export type TraceFilterFragment<
+  factory extends Factory | undefined = Factory | undefined,
+> = factory extends Factory
+  ? PonderSyncSchema["factoryTraceFilters"]
+  : PonderSyncSchema["traceFilters"];
 /**
  * Generates log filter fragments from a log filter.
  *
  * @param logFilter Log filter to be decomposed into fragments.
  * @returns A list of log filter fragments.
  */
-export const buildLogFilterFragments = ({
+export const buildLogFilterFragments = <factory extends Factory | undefined>({
   chainId,
   address,
   topics,
   includeTransactionReceipts,
-}: Omit<LogFilter, "fromBlock" | "toBlock">) => {
+}: Omit<
+  LogFilter<factory>,
+  "fromBlock" | "toBlock"
+>): LogFilterFragment<factory>[] => {
   const fragments: LogFilterFragment[] = [];
   const { topic0, topic1, topic2, topic3 } = parseTopics(topics);
 
@@ -55,8 +48,10 @@ export const buildLogFilterFragments = ({
     topic2: topic2_,
     topic3: topic3_,
     includeTransactionReceipts,
-  }: Omit<LogFilterFragment, "id">) => {
-    if (isAddressFilter(address_)) {
+  }: Omit<LogFilterFragment, "id" | "address"> & {
+    address: Address | LogFactory | null;
+  }) => {
+    if (isAddressFactory(address_)) {
       return `${chainId}_${address_.address}_${address_.eventSelector}_${address_.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
         includeTransactionReceipts
       }`;
@@ -83,7 +78,13 @@ export const buildLogFilterFragments = ({
                 includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
               }),
               chainId,
-              address: address_,
+              ...(isAddressFactory(address_)
+                ? {
+                    address: address_.address,
+                    eventSelector: address_.eventSelector,
+                    childAddressLocation: address_.childAddressLocation,
+                  }
+                : { address: address_ }),
               topic0: topic0_,
               topic1: topic1_,
               topic2: topic2_,
@@ -96,7 +97,7 @@ export const buildLogFilterFragments = ({
     }
   }
 
-  return fragments;
+  return fragments as LogFilterFragment<factory>[];
 };
 
 function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
@@ -126,21 +127,23 @@ export const buildBlockFilterFragment = ({
   };
 };
 
-export function buildTraceFilterFragments({
+export const buildTraceFilterFragments = <factory extends Factory | undefined>({
   chainId,
   fromAddress,
   toAddress,
-}: Omit<CallTraceFilter, "fromBlock" | "toBlock"> & {
+}: Omit<CallTraceFilter<factory>, "fromBlock" | "toBlock"> & {
   chainId: number;
-}) {
+}): TraceFilterFragment<factory>[] => {
   const fragments: TraceFilterFragment[] = [];
 
   const idCallback = ({
     chainId,
     fromAddress,
     toAddress,
-  }: Omit<TraceFilterFragment, "id">) => {
-    if (isAddressFilter(toAddress)) {
+  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
+    toAddress: Address | LogFactory | null;
+  }) => {
+    if (isAddressFactory(toAddress)) {
       return `${chainId}_${toAddress.address}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${fromAddress}`;
     }
 
@@ -150,7 +153,9 @@ export function buildTraceFilterFragments({
   for (const _fromAddress of Array.isArray(fromAddress)
     ? fromAddress
     : [null]) {
-    for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
+    for (const _toAddress of Array.isArray(toAddress)
+      ? toAddress
+      : [toAddress ?? null]) {
       fragments.push({
         id: idCallback({
           chainId,
@@ -158,11 +163,17 @@ export function buildTraceFilterFragments({
           toAddress: _toAddress,
         }),
         chainId,
+        ...(isAddressFactory(_toAddress)
+          ? {
+              address: _toAddress.address,
+              eventSelector: _toAddress.eventSelector,
+              childAddressLocation: _toAddress.childAddressLocation,
+            }
+          : { toAddress: _toAddress }),
         fromAddress: _fromAddress,
-        toAddress: _toAddress,
       });
     }
   }
 
-  return fragments;
-}
+  return fragments as TraceFilterFragment<factory>[];
+};

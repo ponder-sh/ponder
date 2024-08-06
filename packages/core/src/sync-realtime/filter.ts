@@ -1,4 +1,7 @@
-import { buildTraceFilterFragments } from "@/sync/fragments.js";
+import {
+  type TraceFilterFragment,
+  buildTraceFilterFragments,
+} from "@/sync/fragments.js";
 import { buildLogFilterFragments } from "@/sync/fragments.js";
 import {
   type CallTraceFilter,
@@ -44,24 +47,34 @@ export const isLogFilterMatched = ({
     return false;
   }
 
-  for (const {
-    address,
-    topic0,
-    topic1,
-    topic2,
-    topic3,
-  } of buildLogFilterFragments(filter)) {
-    if (topic0 !== null && topic0 !== log.topics[0]?.toLowerCase())
+  for (const fragment of buildLogFilterFragments(filter)) {
+    if (
+      fragment.topic0 !== null &&
+      fragment.topic0 !== log.topics[0]?.toLowerCase()
+    )
       return false;
-    if (topic1 !== null && topic1 !== log.topics[1]?.toLowerCase())
+    if (
+      fragment.topic1 !== null &&
+      fragment.topic1 !== log.topics[1]?.toLowerCase()
+    )
       return false;
-    if (topic2 !== null && topic2 !== log.topics[2]?.toLowerCase())
+    if (
+      fragment.topic2 !== null &&
+      fragment.topic2 !== log.topics[2]?.toLowerCase()
+    )
       return false;
-    if (topic3 !== null && topic3 !== log.topics[3]?.toLowerCase())
+    if (
+      fragment.topic3 !== null &&
+      fragment.topic3 !== log.topics[3]?.toLowerCase()
+    )
       return false;
 
-    if (isAddressFactory(address)) continue;
-    if (address !== null && address !== log.address.toLowerCase()) return false;
+    if (isAddressFactory(filter.address)) continue;
+    if (
+      fragment.address !== null &&
+      fragment.address !== log.address.toLowerCase()
+    )
+      return false;
   }
 
   return true;
@@ -87,17 +100,21 @@ export const isCallTraceFilterMatched = ({
     return false;
   }
 
-  for (const { fromAddress, toAddress } of buildTraceFilterFragments(filter)) {
+  for (const fragment of buildTraceFilterFragments(filter)) {
     if (
-      fromAddress !== null &&
-      fromAddress !== callTrace.action.from.toLowerCase()
+      fragment.fromAddress !== null &&
+      fragment.fromAddress !== callTrace.action.from.toLowerCase()
     ) {
       return false;
     }
 
-    if (isAddressFactory(toAddress)) continue;
+    if (isAddressFactory(filter.toAddress)) continue;
 
-    if (toAddress !== null && toAddress !== callTrace.action.to.toLowerCase()) {
+    if (
+      (fragment as TraceFilterFragment<undefined>).toAddress !== null &&
+      (fragment as TraceFilterFragment<undefined>).toAddress !==
+        callTrace.action.to.toLowerCase()
+    ) {
       return false;
     }
   }
