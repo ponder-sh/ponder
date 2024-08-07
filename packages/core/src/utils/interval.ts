@@ -165,26 +165,24 @@ export function intervalDifference(
 }
 
 export function getChunks({
-  intervals,
+  interval,
   maxChunkSize,
 }: {
-  intervals: Interval[];
+  interval: Interval;
   maxChunkSize: number;
 }) {
   const _chunks: Interval[] = [];
 
-  for (const interval of intervals) {
-    const [startBlock, endBlock] = interval;
+  const [startBlock, endBlock] = interval;
 
-    let fromBlock = startBlock;
-    let toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
+  let fromBlock = startBlock;
+  let toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
 
-    while (fromBlock <= endBlock) {
-      _chunks.push([fromBlock, toBlock]);
+  while (fromBlock <= endBlock) {
+    _chunks.push([fromBlock, toBlock]);
 
-      fromBlock = toBlock + 1;
-      toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
-    }
+    fromBlock = toBlock + 1;
+    toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
   }
 
   return _chunks;

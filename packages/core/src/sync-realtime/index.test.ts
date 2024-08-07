@@ -5,7 +5,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, testClient } from "@/_test/utils.js";
-import type { Source } from "@/sync/source.js";
 import type { SyncTrace } from "@/types/sync.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
@@ -18,9 +17,7 @@ beforeEach(setupIsolatedDatabase);
 
 // Helper function used to spoof "trace_filter" requests
 // because they aren't supported by foundry.
-const getRequestQueue = async ({
-  requestQueue,
-}: { sources: Source[]; requestQueue: RequestQueue }) => {
+const getRequestQueue = async (requestQueue: RequestQueue) => {
   const rpcData = await getRawRPCData();
 
   return {
@@ -76,10 +73,7 @@ test("start() handles block", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -107,10 +101,7 @@ test("start() no-op when receiving same block twice", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -144,10 +135,7 @@ test("start() gets missing block", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -172,10 +160,7 @@ test("start() retries on error", async (context) => {
     blockNumber: 0,
   });
 
-  const requestQueue = await getRequestQueue({
-    sources,
-    requestQueue: requestQueues[0],
-  });
+  const requestQueue = await getRequestQueue(requestQueues[0]);
 
   const requestSpy = vi.spyOn(requestQueue, "request");
 
@@ -214,10 +199,7 @@ test("kill()", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -248,10 +230,7 @@ test("handleBlock() block event", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent,
     onFatalError: vi.fn(),
@@ -319,10 +298,7 @@ test("handleBlock() finalize event", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent,
     onFatalError: vi.fn(),
@@ -361,10 +337,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent,
     onFatalError: vi.fn(),
@@ -401,10 +374,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     common,
     syncStore,
     network: networks[0],
-    requestQueue: await getRequestQueue({
-      sources,
-      requestQueue: requestQueues[0],
-    }),
+    requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),

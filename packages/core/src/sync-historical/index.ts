@@ -12,10 +12,11 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncLog } from "@/types/sync.js";
+import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
+  getChunks,
   intervalDifference,
   intervalSum,
 } from "@/utils/interval.js";
@@ -25,7 +26,10 @@ import {
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
+  _eth_getTransactionReceipt,
+  _trace_filter,
 } from "@/utils/rpc.js";
+import { dedupe } from "@ponder/common";
 import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
 
 export type HistoricalSync = {
@@ -154,7 +158,78 @@ export const createHistoricalSync = async (
   const syncTraceFilter = async (
     filter: CallTraceFilter,
     interval: Interval,
-  ) => {};
+  ) => {
+    // Request last block of interval
+    const blockPromise = _eth_getBlockByNumber(args.requestQueue, {
+      blockNumber: interval[1],
+    });
+
+    // Resolve `filter.toAddress`
+    let toAddress: Address[] | undefined;
+    if (isAddressFactory(filter.toAddress)) {
+      const _addresses = await syncAddress(filter.toAddress, interval);
+      if (_addresses.length < ADDRESS_FILTER_LIMIT) {
+        toAddress = _addresses;
+      } else {
+        toAddress = undefined;
+      }
+    } else {
+      toAddress = filter.toAddress;
+    }
+
+    let callTraces = await Promise.all(
+      getChunks({ interval, maxChunkSize: 10 }).map((interval) =>
+        _trace_filter(args.requestQueue, {
+          fromAddress: filter.fromAddress,
+          toAddress,
+          fromBlock: interval[0],
+          toBlock: interval[1],
+        }),
+      ),
+    ).then(
+      (traces) =>
+        traces.flat().filter((t) => t.type === "call") as SyncCallTrace[],
+    );
+
+    await blockPromise;
+
+    // Request transactionReceipts to check for reverted transactions.
+    const transactionReceipts = await Promise.all(
+      dedupe(callTraces.map((t) => t.transactionHash)).map((hash) =>
+        _eth_getTransactionReceipt(args.requestQueue, {
+          hash,
+        }),
+      ),
+    );
+
+    const revertedTransactions = new Set<Hash>();
+    for (const receipt of transactionReceipts) {
+      if (receipt.status === "0x0") {
+        revertedTransactions.add(receipt.transactionHash);
+      }
+    }
+
+    callTraces = callTraces.filter(
+      (trace) => revertedTransactions.has(trace.transactionHash) === false,
+    );
+
+    const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
+    const blocks = await Promise.all(
+      callTraces.map((trace) =>
+        syncBlock(hexToBigInt(trace.blockNumber), transactionHashes),
+      ),
+    );
+
+    if (callTraces.length !== 0) {
+      await args.syncStore.insertCallTraces({
+        callTraces: callTraces.map((callTrace, i) => ({
+          callTrace,
+          block: blocks[i]!,
+        })),
+        chainId: args.network.chainId,
+      });
+    }
+  };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogAddressFilter = async (
@@ -187,7 +262,10 @@ export const createHistoricalSync = async (
    * Note: This function could more accurately skip network requests by taking
    * advantage of `syncStore.hasBlock` and `syncStore.hasTransaction`.
    */
-  const syncBlock = async (number: bigint, transactionHashes?: Set<Hash>) => {
+  const syncBlock = async (
+    number: bigint,
+    transactionHashes?: Set<Hash>,
+  ): Promise<SyncBlock> => {
     let block: SyncBlock;
 
     /**
@@ -228,6 +306,8 @@ export const createHistoricalSync = async (
         }
       }
     }
+
+    return block;
   };
 
   /**

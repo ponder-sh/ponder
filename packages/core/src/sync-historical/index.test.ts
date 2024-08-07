@@ -5,14 +5,53 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
-import { publicClient } from "@/_test/utils.js";
+import { getRawRPCData, publicClient } from "@/_test/utils.js";
 import type { SyncBlock } from "@/types/sync.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
+import { hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+
+// Helper function used to spoof "trace_filter" requests
+// because they aren't supported by foundry.
+const getRequestQueue = async (requestQueue: RequestQueue) => {
+  const rpcData = await getRawRPCData();
+
+  return {
+    ...requestQueue,
+    request: (request: any) => {
+      if (request.method === "trace_filter") {
+        let traces = [
+          ...rpcData.block2.traces,
+          ...rpcData.block3.traces,
+          ...rpcData.block4.traces,
+        ];
+
+        if (request.params[0].fromBlock !== undefined) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) >=
+              hexToNumber(request.params[0].fromBlock),
+          );
+        }
+        if (request.params[0].toBlock) {
+          traces = traces.filter(
+            (t) =>
+              hexToNumber(t.blockNumber) <=
+              hexToNumber(request.params[0].toBlock),
+          );
+        }
+
+        return Promise.resolve(traces);
+      }
+      return requestQueue.request(request);
+    },
+  } as RequestQueue;
+};
 
 test("createHistoricalSync()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
@@ -22,7 +61,7 @@ test("createHistoricalSync()", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   expect(historicalSync).toBeDefined();
@@ -38,7 +77,7 @@ test("sync() with log filter", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   await historicalSync.sync([0, 5]);
@@ -63,9 +102,9 @@ test("sync() with block filter", async (context) => {
   const historicalSync = await createHistoricalSync({
     common: context.common,
     network: context.networks[0],
-    sources: [context.sources[2]],
+    sources: [context.sources[4]],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   await historicalSync.sync([0, 5]);
@@ -95,7 +134,7 @@ test("sync() with log address filter", async (context) => {
     network: context.networks[0],
     sources: [context.sources[1]],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   await historicalSync.sync([0, 5]);
@@ -114,6 +153,36 @@ test("sync() with log address filter", async (context) => {
   await cleanup();
 });
 
+test("sync() with trace filter", async (context) => {
+  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    network: context.networks[0],
+    sources: [context.sources[3]],
+    syncStore,
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
+  });
+
+  await historicalSync.sync([0, 5]);
+
+  const callTraces = await database.syncDb
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+
+  expect(callTraces).toHaveLength(4);
+
+  const intervals = await database.syncDb
+    .selectFrom("traceFilterIntervals")
+    .selectAll()
+    .execute();
+
+  expect(intervals).toHaveLength(1);
+
+  await cleanup();
+});
+
 test("sync() with many filters", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
@@ -122,7 +191,7 @@ test("sync() with many filters", async (context) => {
     network: context.networks[0],
     sources: context.sources,
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   await historicalSync.sync([0, 5]);
@@ -147,7 +216,7 @@ test("sync() with cache hit", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
   await historicalSync.sync([0, 5]);
 
@@ -160,7 +229,7 @@ test("sync() with cache hit", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
   await historicalSync.sync([0, 5]);
 
@@ -177,7 +246,7 @@ test("initializeMetrics()", async (context) => {
     network: context.networks[0],
     sources: context.sources,
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   const finalizeBlock = await publicClient.request({
@@ -249,7 +318,7 @@ test("initializeMetrics() with cache hit", async (context) => {
     network: context.networks[0],
     sources: context.sources,
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   await historicalSync.sync([0, 5]);
@@ -259,7 +328,7 @@ test("initializeMetrics() with cache hit", async (context) => {
     network: context.networks[0],
     sources: context.sources,
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   const finalizeBlock = await publicClient.request({
@@ -331,7 +400,7 @@ test("sync() updates metrics", async (context) => {
     network: context.networks[0],
     sources: context.sources,
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   await historicalSync.sync([0, 5]);
@@ -380,7 +449,7 @@ test("syncBlock() with cache", async (context) => {
       { ...context.sources[4], filter: blockFilter },
     ],
     syncStore,
-    requestQueue: context.requestQueues[0],
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
   });
 
   const spy = vi.spyOn(context.requestQueues[0], "request");
@@ -412,7 +481,7 @@ test(
       network: context.networks[0],
       sources: [context.sources[1]],
       syncStore,
-      requestQueue: context.requestQueues[0],
+      requestQueue: await getRequestQueue(context.requestQueues[0]),
     });
 
     await historicalSync.sync([0, 1000 + 5 + 2]);
