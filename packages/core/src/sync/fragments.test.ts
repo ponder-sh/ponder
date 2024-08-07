@@ -11,6 +11,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for null filter", 
   const logFilterFragments = buildLogFilterFragments({
     type: "log",
     chainId: 1,
+    address: undefined,
     topics: [null, null, null, null],
     includeTransactionReceipts: false,
   });
@@ -115,6 +116,7 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
   const logFilterFragments = buildLogFilterFragments({
     type: "log",
     chainId: 1,
+    address: undefined,
     topics: [null, null, null, null],
     includeTransactionReceipts: true,
   });

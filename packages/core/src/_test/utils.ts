@@ -517,6 +517,14 @@ export const getEventsLog = async (sources: Source[]): Promise<RawEvent[]> => {
     .map(({ log, block, transaction, transactionReceipt }, i) => ({
       sourceIndex: i === 0 || i === 1 ? 0 : 1,
       chainId: sources[0]!.filter.chainId,
+      checkpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
+        chainId: BigInt(sources[0]!.filter.chainId),
+        blockNumber: block.number!,
+        transactionIndex: BigInt(transaction.transactionIndex!),
+        eventType: 5,
+        eventIndex: BigInt(log.logIndex!),
+      }),
       log: {
         ...log,
         id: `${log.blockHash}-${toHex(log.logIndex!)}`,
@@ -539,14 +547,6 @@ export const getEventsLog = async (sources: Source[]): Promise<RawEvent[]> => {
           id: `${l.blockHash}-${toHex(l.logIndex!)}`,
         })),
       },
-      encodedCheckpoint: encodeCheckpoint({
-        blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0]!.filter.chainId),
-        blockNumber: block.number!,
-        transactionIndex: BigInt(transaction.transactionIndex!),
-        eventType: 5,
-        eventIndex: BigInt(log.logIndex!),
-      }),
     })) as RawEvent[];
 };
 
@@ -569,10 +569,7 @@ export const getEventsBlock = async (
     .map(({ block }) => ({
       sourceIndex: 4,
       chainId: sources[4]!.filter.chainId,
-
-      block: { ...block, miner: checksumAddress(block.miner) },
-
-      encodedCheckpoint: encodeCheckpoint({
+      checkpoint: encodeCheckpoint({
         blockTimestamp: Number(block.timestamp),
         chainId: BigInt(sources[0]!.filter.chainId),
         blockNumber: block.number!,
@@ -580,6 +577,8 @@ export const getEventsBlock = async (
         eventType: 5,
         eventIndex: zeroCheckpoint.eventIndex,
       }),
+
+      block: { ...block, miner: checksumAddress(block.miner) },
     })) as RawEvent[];
 };
 
@@ -608,6 +607,14 @@ export const getEventsTrace = async (
     .map(({ trace, block, transaction, transactionReceipt }) => ({
       sourceIndex: 3,
       chainId: sources[3]!.filter.chainId,
+      checkpoint: encodeCheckpoint({
+        blockTimestamp: Number(block.timestamp),
+        chainId: BigInt(sources[0]!.filter.chainId),
+        blockNumber: block.number!,
+        transactionIndex: BigInt(transaction.transactionIndex!),
+        eventType: 7,
+        eventIndex: 0n,
+      }),
       trace: {
         id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
         from: checksumAddress(trace.action.from),
@@ -642,14 +649,6 @@ export const getEventsTrace = async (
           id: `${l.blockHash}-${toHex(l.logIndex!)}`,
         })),
       },
-      encodedCheckpoint: encodeCheckpoint({
-        blockTimestamp: Number(block.timestamp),
-        chainId: BigInt(sources[0]!.filter.chainId),
-        blockNumber: block.number!,
-        transactionIndex: BigInt(transaction.transactionIndex!),
-        eventType: 7,
-        eventIndex: 0n,
-      }),
     })) as RawEvent[];
 };
 

@@ -468,11 +468,6 @@ test("hasBlock()", async (context) => {
   });
   expect(block).toBe(false);
 
-  // block = await syncStore.hasBlock({
-  //   hash: rpcData.block3.block.hash,
-  // });
-  // expect(block).toBe(false);
-
   cleanup();
 });
 
@@ -533,11 +528,6 @@ test("hasTransaction()", async (context) => {
     hash: rpcData.block2.transactions[0].hash,
   });
   expect(transaction).toBe(false);
-
-  // transaction = await syncStore.hasTransaction({
-  //   hash: rpcData.block3.transactions[0].hash,
-  // });
-  // expect(transaction).toBe(false);
 
   cleanup();
 });
@@ -600,10 +590,80 @@ test("hasTransactionReceipt()", async (context) => {
   });
   expect(transaction).toBe(false);
 
-  // transaction = await syncStore.hasTransactionReceipt({
-  //   hash: rpcData.block3.transactionReceipts[0].transactionHash,
-  // });
-  // expect(transaction).toBe(false);
+  cleanup();
+});
+
+test("insertCallTraces()", async (context) => {
+  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertCallTraces({
+    callTraces: [
+      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+    ],
+    chainId: 1,
+  });
+
+  const traces = await database.syncDb
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+  expect(traces).toHaveLength(1);
+
+  cleanup();
+});
+
+test("insertCallTraces() creates checkpoint", async (context) => {
+  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertCallTraces({
+    callTraces: [
+      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+    ],
+    chainId: 1,
+  });
+
+  const traces = await database.syncDb
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+  const checkpoint = decodeCheckpoint(traces[0]!.checkpoint!);
+
+  expect(checkpoint.blockTimestamp).toBe(
+    hexToNumber(rpcData.block3.block.timestamp),
+  );
+  expect(checkpoint.chainId).toBe(1n);
+  expect(checkpoint.blockNumber).toBe(3n);
+  expect(checkpoint.transactionIndex).toBe(0n);
+  expect(checkpoint.eventType).toBe(7);
+  expect(checkpoint.eventIndex).toBe(0n);
+
+  cleanup();
+});
+
+test("insertCallTraces() with duplicates", async (context) => {
+  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertCallTraces({
+    callTraces: [
+      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+    ],
+    chainId: 1,
+  });
+  await syncStore.insertCallTraces({
+    callTraces: [
+      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+    ],
+    chainId: 1,
+  });
+
+  const traces = await database.syncDb
+    .selectFrom("callTraces")
+    .selectAll()
+    .execute();
+  expect(traces).toHaveLength(1);
 
   cleanup();
 });
@@ -625,8 +685,10 @@ test("getEvents() returns events", async (context) => {
   const filter = {
     type: "log",
     chainId: 1,
+    address: undefined,
     topics: [null],
     fromBlock: 0,
+    toBlock: 5,
     includeTransactionReceipts: false,
   } satisfies LogFilter;
 
@@ -685,6 +747,89 @@ test("getEvents() handles log filter logic", async (context) => {
   cleanup();
 });
 
+test("getEvents() handles log address filters", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    chainId: 1,
+  });
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
+    chainId: 1,
+  });
+  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+  await syncStore.insertTransaction({
+    transaction: rpcData.block4.transactions[0],
+    chainId: 1,
+  });
+
+  const { events } = await syncStore.getEvents({
+    filters: [context.sources[1].filter],
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  expect(events).toHaveLength(1);
+
+  cleanup();
+});
+
+test("getEvents() handles trace filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertCallTraces({
+    callTraces: [
+      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+    ],
+    chainId: 1,
+  });
+  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertTransaction({
+    transaction: rpcData.block3.transactions[0],
+    chainId: 1,
+  });
+  await syncStore.insertTransactionReceipt({
+    transactionReceipt: rpcData.block3.transactionReceipts[0],
+    chainId: 1,
+  });
+
+  const { events } = await syncStore.getEvents({
+    filters: [context.sources[3].filter],
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  expect(events).toHaveLength(1);
+
+  cleanup();
+});
+
+test("getEvents() handles block filter logic", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block5.block, chainId: 1 });
+
+  const { events } = await syncStore.getEvents({
+    filters: [context.sources[4].filter],
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  expect(events).toHaveLength(2);
+
+  cleanup();
+});
+
 test("getEvents() handles block bounds", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
@@ -731,54 +876,44 @@ test("getEvents() handles block bounds", async (context) => {
   cleanup();
 });
 
-test("getEvents() handles log address filters", async (context) => {
+test("getEvents() pagination", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
   await syncStore.insertLogs({
-    logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    logs: [
+      { log: rpcData.block2.logs[0], block: rpcData.block2.block },
+      { log: rpcData.block2.logs[1], block: rpcData.block2.block },
+    ],
     chainId: 1,
   });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
-    chainId: 1,
-  });
-  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
   await syncStore.insertTransaction({
-    transaction: rpcData.block4.transactions[0],
+    transaction: rpcData.block2.transactions[0],
+    chainId: 1,
+  });
+  await syncStore.insertTransaction({
+    transaction: rpcData.block2.transactions[1],
     chainId: 1,
   });
 
-  const { events } = await syncStore.getEvents({
-    filters: [context.sources[1].filter],
+  const { events, cursor } = await syncStore.getEvents({
+    filters: [context.sources[0].filter],
     from: encodeCheckpoint(zeroCheckpoint),
     to: encodeCheckpoint(maxCheckpoint),
-    limit: 10,
+    limit: 1,
   });
 
   expect(events).toHaveLength(1);
 
-  cleanup();
-});
-
-test("getEvents() handles block filter logic", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData();
-
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
-
-  const { events } = await syncStore.getEvents({
-    filters: [context.sources[2].filter],
-    from: encodeCheckpoint(zeroCheckpoint),
+  const { events: events2 } = await syncStore.getEvents({
+    filters: [context.sources[0].filter],
+    from: cursor,
     to: encodeCheckpoint(maxCheckpoint),
-    limit: 10,
+    limit: 1,
   });
 
-  expect(events).toHaveLength(3);
+  expect(events2).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
-
-test.todo("getEvents() pagination");

@@ -4,6 +4,7 @@ import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   type BlockFilter,
+  type CallTraceFilter,
   type Factory,
   type Filter,
   type LogFactory,
@@ -149,6 +150,11 @@ export const createHistoricalSync = async (
 
     await Promise.all(requiredBlocks.map((b) => syncBlock(BigInt(b))));
   };
+
+  const syncTraceFilter = async (
+    filter: CallTraceFilter,
+    interval: Interval,
+  ) => {};
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogAddressFilter = async (
@@ -300,6 +306,10 @@ export const createHistoricalSync = async (
 
                 case "block":
                   await syncBlockFilter(filter, interval);
+                  break;
+
+                case "callTrace":
+                  await syncTraceFilter(filter, interval);
                   break;
 
                 default:

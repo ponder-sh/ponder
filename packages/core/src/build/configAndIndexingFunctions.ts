@@ -1,11 +1,6 @@
 import path from "node:path";
 import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
-import {
-  buildAbiEvents,
-  buildAbiFunctions,
-  buildTopics,
-} from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import {
@@ -15,6 +10,7 @@ import {
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import type { BlockSource, ContractSource } from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -574,6 +570,8 @@ export async function buildConfigAndIndexingFunctions({
       const contractMetadata = {
         type: "contract",
         abi: rawContract.abi,
+        abiEvents,
+        abiFunctions,
         name: rawContract.name,
         networkName: rawContract.networkName,
       } as const;
@@ -615,6 +613,7 @@ export async function buildConfigAndIndexingFunctions({
               filter: {
                 type: "callTrace",
                 chainId: network.chainId,
+                fromAddress: undefined,
                 toAddress: logAddressFilter,
                 functionSelectors: registeredFunctionSelectors,
                 includeTransactionReceipts:
@@ -674,6 +673,7 @@ export async function buildConfigAndIndexingFunctions({
             filter: {
               type: "callTrace",
               chainId: network.chainId,
+              fromAddress: undefined,
               toAddress: Array.isArray(validatedAddress)
                 ? validatedAddress
                 : validatedAddress === undefined

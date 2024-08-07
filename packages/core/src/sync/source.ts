@@ -1,3 +1,4 @@
+import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
 
 export type Source = ContractSource | BlockSource;
@@ -12,14 +13,16 @@ export type BlockSource = { filter: BlockFilter } & BlockMetadata;
 export type Filter = LogFilter | BlockFilter | CallTraceFilter;
 export type Factory = LogFactory;
 
-type ContractMetadata = {
+export type ContractMetadata = {
   type: "contract";
   abi: Abi;
+  abiEvents: AbiEvents;
+  abiFunctions: AbiFunctions;
   name: string;
   networkName: string;
   maxBlockRange?: number;
 };
-type BlockMetadata = {
+export type BlockMetadata = {
   type: "block";
   name: string;
   networkName: string;

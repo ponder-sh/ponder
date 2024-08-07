@@ -11,7 +11,7 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { encodeAsText } from "@/utils/encoding.js";
+import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
@@ -19,6 +19,12 @@ import { hexToBigInt, hexToNumber } from "viem";
 
 const formatHex = (sql: "sqlite" | "postgres", hex: Hex) =>
   sql === "sqlite" ? encodeAsText(hex) : hexToBigInt(hex);
+
+export const parseBig = (
+  sql: "sqlite" | "postgres",
+  big: string | bigint,
+): bigint =>
+  sql === "sqlite" ? decodeToBigInt(big as string) : (big as bigint);
 
 type BlocksTable = {
   hash: Hash;
@@ -286,11 +292,10 @@ export function encodeCallTrace({
   trace: SyncCallTrace;
   chainId: number;
   sql: "sqlite" | "postgres";
-}): Insertable<CallTracesTable> {
+}): Insertable<Omit<CallTracesTable, "checkpoint">> {
   return {
     id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
     chainId,
-    checkpoint: encodeCheckpoint(),
     callType: trace.action.callType,
     from: toLowerCase(trace.action.from),
     gas: formatHex(sql, trace.action.gas),

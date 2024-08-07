@@ -12,18 +12,23 @@ import {
 } from "@/sync/fragments.js";
 import {
   type BlockFilter,
+  type CallTraceFilter,
   type Factory,
   type Filter,
   type LogFactory,
   type LogFilter,
   isAddressFactory,
 } from "@/sync/source.js";
+import type { CallTrace, Log, TransactionReceipt } from "@/types/eth.js";
 import type {
   SyncBlock,
+  SyncCallTrace,
   SyncLog,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
+import type { NonNull } from "@/types/utils.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import {
   type Interval,
@@ -32,13 +37,22 @@ import {
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
-import type { Address, Hash, Hex } from "viem";
+import {
+  type Address,
+  type Hash,
+  type Hex,
+  checksumAddress,
+  hexToBigInt,
+  hexToNumber,
+} from "viem";
 import {
   type PonderSyncSchema,
   encodeBlock,
+  encodeCallTrace,
   encodeLog,
   encodeTransaction,
   encodeTransactionReceipt,
+  parseBig,
 } from "./encoding.js";
 
 export type SyncStore = {
@@ -76,6 +90,10 @@ export type SyncStore = {
   }): Promise<void>;
   /** Return true if the transaction receipt is present in the database. */
   hasTransactionReceipt(args: { hash: Hash }): Promise<boolean>;
+  insertCallTraces(args: {
+    callTraces: { callTrace: SyncCallTrace; block: SyncBlock }[];
+    chainId: number;
+  }): Promise<void>;
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
   getEvents(args: {
     filters: Filter[];
@@ -601,23 +619,88 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  getEvents: async ({ filters, from, to, limit }) => {
-    const filterMap = new Map<number, Filter>();
+  insertCallTraces: async ({ callTraces, chainId }) =>
+    db.wrap({ method: "insertCallTrace" }, async () => {
+      // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
+      // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
+      const traceByTransactionHash: {
+        [transactionHash: Hex]: { traces: SyncCallTrace[]; block: SyncBlock };
+      } = {};
 
-    const addressSQL = <
-      T extends SelectQueryBuilder<PonderSyncSchema, "logs", {}>,
-    >(
-      qb: T,
+      for (const { callTrace, block } of callTraces) {
+        if (traceByTransactionHash[callTrace.transactionHash] === undefined) {
+          traceByTransactionHash[callTrace.transactionHash] = {
+            traces: [],
+            block,
+          };
+        }
+        traceByTransactionHash[callTrace.transactionHash]!.traces.push(
+          callTrace,
+        );
+      }
+
+      const values: PonderSyncSchema["callTraces"][] = [];
+
+      await db.transaction().execute(async (tx) => {
+        for (const transactionHash of Object.keys(traceByTransactionHash)) {
+          const block = traceByTransactionHash[transactionHash as Hex]!.block;
+          const traces = await tx
+            .deleteFrom("callTraces")
+            .returningAll()
+            .where("transactionHash", "=", transactionHash as Hex)
+            .where("chainId", "=", chainId)
+            .execute();
+
+          traces.push(
+            // @ts-ignore
+            ...traceByTransactionHash[transactionHash as Hex]!.traces.map(
+              (trace) => encodeCallTrace({ trace, chainId, sql }),
+            ),
+          );
+
+          // Use lexographical sort of stringified `traceAddress`.
+          traces.sort((a, b) => {
+            return a.traceAddress < b.traceAddress ? -1 : 1;
+          });
+
+          for (let i = 0; i < traces.length; i++) {
+            const trace = traces[i]!;
+
+            const checkpoint = encodeCheckpoint({
+              blockTimestamp: hexToNumber(block.timestamp),
+              chainId: BigInt(chainId),
+              blockNumber: hexToBigInt(block.number),
+              transactionIndex: BigInt(trace.transactionPosition),
+              eventType: EVENT_TYPES.callTraces,
+              eventIndex: BigInt(i),
+            });
+            trace.checkpoint = checkpoint;
+            values.push(trace);
+          }
+        }
+        await tx
+          .insertInto("callTraces")
+          .values(values)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      });
+    }),
+  getEvents: async ({ filters, from, to, limit }) => {
+    const addressSQL = (
+      qb: SelectQueryBuilder<
+        PonderSyncSchema,
+        "logs" | "blocks" | "callTraces",
+        {}
+      >,
       address: LogFilter["address"],
-    ): T => {
-      if (typeof address === "string")
-        return qb.where("address", "=", address) as T;
-      if (Array.isArray(address))
-        return qb.where("address", "in", address) as T;
+      column: "address" | "from" | "to",
+    ) => {
+      if (typeof address === "string") return qb.where(column, "=", address);
+      if (Array.isArray(address)) return qb.where(column, "in", address);
       if (isAddressFactory(address)) {
         // log address filter
         return qb.where(
-          "address",
+          column,
           "in",
           db
             .selectFrom("logs")
@@ -627,7 +710,7 @@ export const createSyncStore = ({
             .where("address", "=", address.address)
             .where("topic0", "=", address.eventSelector)
             .where("chainId", "=", address.chainId),
-        ) as T;
+        );
       }
       return qb;
     };
@@ -646,6 +729,7 @@ export const createSyncStore = ({
           "blockHash",
           "transactionHash",
           "id as logId",
+          ksql`null`.as("callTraceId"),
         ])
         .where("chainId", "=", filter.chainId)
         .$if(filter.topics !== undefined, (qb) => {
@@ -666,7 +750,50 @@ export const createSyncStore = ({
           }
           return qb;
         })
-        .$call((qb) => addressSQL(qb, filter.address))
+        .$call((qb) => addressSQL(qb as any, filter.address, "address"))
+        .where(
+          "blockNumber",
+          ">=",
+          sql === "sqlite"
+            ? encodeAsText(filter.fromBlock)
+            : BigInt(filter.fromBlock),
+        )
+        .$if(filter.toBlock !== undefined, (qb) =>
+          qb.where(
+            "blockNumber",
+            "<=",
+            sql === "sqlite"
+              ? encodeAsText(filter.toBlock!)
+              : BigInt(filter.toBlock!),
+          ),
+        );
+
+    const callTraceSQL = (
+      filter: CallTraceFilter,
+      db: Kysely<PonderSyncSchema>,
+      index: number,
+    ) =>
+      db
+        .selectFrom("callTraces")
+        .select([
+          ksql.raw(`'${index}'`).as("filterIndex"),
+          "checkpoint",
+          "chainId",
+          "blockHash",
+          "transactionHash",
+          ksql`null`.as("logId"),
+          "id as callTraceId",
+        ])
+        .where((eb) =>
+          eb.or(
+            filter.functionSelectors.map((fs) =>
+              eb("callTraces.functionSelector", "=", fs),
+            ),
+          ),
+        )
+        .where(ksql`${ksql.ref("callTraces.error")} IS NULL`)
+        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
+        .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
         .where(
           "blockNumber",
           ">=",
@@ -698,19 +825,18 @@ export const createSyncStore = ({
           "hash as blockHash",
           ksql`null`.as("transactionHash"),
           ksql`null`.as("logId"),
+          ksql`null`.as("callTraceId"),
         ])
         .where("chainId", "=", filter.chainId)
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
           qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
         )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where(
-            "number",
-            ">=",
-            sql === "sqlite"
-              ? encodeAsText(filter.fromBlock!)
-              : BigInt(filter.fromBlock!),
-          ),
+        .where(
+          "number",
+          ">=",
+          sql === "sqlite"
+            ? encodeAsText(filter.fromBlock)
+            : BigInt(filter.fromBlock),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
           qb.where(
@@ -722,33 +848,147 @@ export const createSyncStore = ({
           ),
         );
 
-    const events = await db.wrap({ method: "getEvents" }, async () => {
-      let query: ReturnType<typeof logSQL> | undefined;
+    const rows = await db.wrap({ method: "getEvents" }, async () => {
+      let query:
+        | SelectQueryBuilder<
+            PonderSyncSchema,
+            "logs" | "callTraces" | "blocks",
+            {
+              filterIndex: number;
+              checkpoint: string;
+              chainId: number;
+              blockHash: string;
+              transactionHash: string;
+              logId: string;
+              callTraceId: string;
+            }
+          >
+        | undefined;
 
-      for (const filter of filters) {
-        const index = filterMap.size;
-        filterMap.set(index, filter);
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+
+        const _query =
+          filter.type === "log"
+            ? logSQL(filter, db, i)
+            : filter.type === "callTrace"
+              ? callTraceSQL(filter, db, i)
+              : blockSQL(filter, db, i);
 
         if (query === undefined) {
           // @ts-ignore
-          query =
-            filter.type === "log"
-              ? logSQL(filter, db, index)
-              : blockSQL(filter, db, index);
+          query = _query;
         } else {
-          query = query.unionAll(
-            // @ts-ignore
-            filter.type === "log" ? logSQL(filter, db) : blockSQL(filter, db),
-          );
+          // @ts-ignore
+          query = query.unionAll(_query);
         }
       }
 
       return await db
         .with("event", () => query!)
         .selectFrom("event")
+        .select([
+          "event.filterIndex as event_filterIndex",
+          "event.checkpoint as event_checkpoint",
+        ])
         .innerJoin("blocks", "blocks.hash", "event.blockHash")
+        .select([
+          "blocks.baseFeePerGas as block_baseFeePerGas",
+          "blocks.difficulty as block_difficulty",
+          "blocks.extraData as block_extraData",
+          "blocks.gasLimit as block_gasLimit",
+          "blocks.gasUsed as block_gasUsed",
+          "blocks.hash as block_hash",
+          "blocks.logsBloom as block_logsBloom",
+          "blocks.miner as block_miner",
+          "blocks.mixHash as block_mixHash",
+          "blocks.nonce as block_nonce",
+          "blocks.number as block_number",
+          "blocks.parentHash as block_parentHash",
+          "blocks.receiptsRoot as block_receiptsRoot",
+          "blocks.sha3Uncles as block_sha3Uncles",
+          "blocks.size as block_size",
+          "blocks.stateRoot as block_stateRoot",
+          "blocks.timestamp as block_timestamp",
+          "blocks.totalDifficulty as block_totalDifficulty",
+          "blocks.transactionsRoot as block_transactionsRoot",
+        ])
         .leftJoin("logs", "logs.id", "event.logId")
+        .select([
+          "logs.address as log_address",
+          "logs.blockHash as log_blockHash",
+          "logs.blockNumber as log_blockNumber",
+          "logs.chainId as log_chainId",
+          "logs.data as log_data",
+          "logs.id as log_id",
+          "logs.logIndex as log_logIndex",
+          "logs.topic0 as log_topic0",
+          "logs.topic1 as log_topic1",
+          "logs.topic2 as log_topic2",
+          "logs.topic3 as log_topic3",
+          "logs.transactionHash as log_transactionHash",
+          "logs.transactionIndex as log_transactionIndex",
+        ])
         .leftJoin("transactions", "transactions.hash", "event.transactionHash")
+        .select([
+          "transactions.accessList as tx_accessList",
+          "transactions.blockHash as tx_blockHash",
+          "transactions.blockNumber as tx_blockNumber",
+          "transactions.from as tx_from",
+          "transactions.gas as tx_gas",
+          "transactions.gasPrice as tx_gasPrice",
+          "transactions.hash as tx_hash",
+          "transactions.input as tx_input",
+          "transactions.maxFeePerGas as tx_maxFeePerGas",
+          "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+          "transactions.nonce as tx_nonce",
+          "transactions.r as tx_r",
+          "transactions.s as tx_s",
+          "transactions.to as tx_to",
+          "transactions.transactionIndex as tx_transactionIndex",
+          "transactions.type as tx_type",
+          "transactions.value as tx_value",
+          "transactions.v as tx_v",
+        ])
+        .leftJoin("callTraces", "callTraces.id", "event.callTraceId")
+        .select([
+          "callTraces.id as callTrace_id",
+          "callTraces.callType as callTrace_callType",
+          "callTraces.from as callTrace_from",
+          "callTraces.gas as callTrace_gas",
+          "callTraces.input as callTrace_input",
+          "callTraces.to as callTrace_to",
+          "callTraces.value as callTrace_value",
+          "callTraces.blockHash as callTrace_blockHash",
+          "callTraces.blockNumber as callTrace_blockNumber",
+          "callTraces.gasUsed as callTrace_gasUsed",
+          "callTraces.output as callTrace_output",
+          "callTraces.subtraces as callTrace_subtraces",
+          "callTraces.traceAddress as callTrace_traceAddress",
+          "callTraces.transactionHash as callTrace_transactionHash",
+          "callTraces.transactionPosition as callTrace_transactionPosition",
+        ])
+        .leftJoin(
+          "transactionReceipts",
+          "transactionReceipts.transactionHash",
+          "event.transactionHash",
+        )
+        .select([
+          "transactionReceipts.blockHash as txr_blockHash",
+          "transactionReceipts.blockNumber as txr_blockNumber",
+          "transactionReceipts.contractAddress as txr_contractAddress",
+          "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+          "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+          "transactionReceipts.from as txr_from",
+          "transactionReceipts.gasUsed as txr_gasUsed",
+          "transactionReceipts.logs as txr_logs",
+          "transactionReceipts.logsBloom as txr_logsBloom",
+          "transactionReceipts.status as txr_status",
+          "transactionReceipts.to as txr_to",
+          "transactionReceipts.transactionHash as txr_transactionHash",
+          "transactionReceipts.transactionIndex as txr_transactionIndex",
+          "transactionReceipts.type as txr_type",
+        ])
         .selectAll()
         .where("event.checkpoint", ">", from)
         .where("event.checkpoint", "<=", to)
@@ -756,6 +996,188 @@ export const createSyncStore = ({
         .orderBy("event.filterIndex", "asc")
         .limit(limit)
         .execute();
+    });
+
+    const events = rows.map((_row) => {
+      // Without this cast, the block_ and tx_ fields are all nullable
+      // which makes this very annoying. Should probably add a runtime check
+      // that those fields are indeed present before continuing here.
+      const row = _row as NonNull<(typeof rows)[number]>;
+
+      const filter = filters[row.event_filterIndex]!;
+
+      const hasLog = row.log_id !== null;
+      const hasTransaction = row.tx_hash !== null;
+      const hasCallTrace = row.callTrace_id !== null;
+      const hasTransactionReceipt = row.txr_blockHash !== null;
+
+      return {
+        chainId: filter.chainId,
+        sourceIndex: row.event_filterIndex,
+        checkpoint: row.event_checkpoint,
+        block: {
+          baseFeePerGas: row.block_baseFeePerGas
+            ? parseBig(sql, row.block_baseFeePerGas)
+            : null,
+          difficulty: parseBig(sql, row.block_difficulty),
+          extraData: row.block_extraData,
+          gasLimit: parseBig(sql, row.block_gasLimit),
+          gasUsed: parseBig(sql, row.block_gasUsed),
+          hash: row.block_hash,
+          logsBloom: row.block_logsBloom,
+          miner: checksumAddress(row.block_miner),
+          mixHash: row.block_mixHash,
+          nonce: row.block_nonce,
+          number: parseBig(sql, row.block_number),
+          parentHash: row.block_parentHash,
+          receiptsRoot: row.block_receiptsRoot,
+          sha3Uncles: row.block_sha3Uncles,
+          size: parseBig(sql, row.block_size),
+          stateRoot: row.block_stateRoot,
+          timestamp: parseBig(sql, row.block_timestamp),
+          totalDifficulty: row.block_totalDifficulty
+            ? parseBig(sql, row.block_totalDifficulty)
+            : null,
+          transactionsRoot: row.block_transactionsRoot,
+        },
+        log: hasLog
+          ? {
+              address: checksumAddress(row.log_address!),
+              blockHash: row.log_blockHash,
+              blockNumber: parseBig(sql, row.log_blockNumber!),
+              data: row.log_data,
+              id: row.log_id as Log["id"],
+              logIndex: Number(row.log_logIndex),
+              removed: false,
+              topics: [
+                row.log_topic0,
+                row.log_topic1,
+                row.log_topic2,
+                row.log_topic3,
+              ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+              transactionHash: row.log_transactionHash,
+              transactionIndex: Number(row.log_transactionIndex),
+            }
+          : undefined,
+        transaction: hasTransaction
+          ? {
+              blockHash: row.tx_blockHash,
+              blockNumber: parseBig(sql, row.tx_blockNumber),
+              from: checksumAddress(row.tx_from),
+              gas: parseBig(sql, row.tx_gas),
+              hash: row.tx_hash,
+              input: row.tx_input,
+              nonce: Number(row.tx_nonce),
+              r: row.tx_r,
+              s: row.tx_s,
+              to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
+              transactionIndex: Number(row.tx_transactionIndex),
+              value: parseBig(sql, row.tx_value),
+              v: row.tx_v ? parseBig(sql, row.tx_v) : null,
+              ...(row.tx_type === "0x0"
+                ? {
+                    type: "legacy",
+                    gasPrice: parseBig(sql, row.tx_gasPrice),
+                  }
+                : row.tx_type === "0x1"
+                  ? {
+                      type: "eip2930",
+                      gasPrice: parseBig(sql, row.tx_gasPrice),
+                      accessList: JSON.parse(row.tx_accessList),
+                    }
+                  : row.tx_type === "0x2"
+                    ? {
+                        type: "eip1559",
+                        maxFeePerGas: parseBig(sql, row.tx_maxFeePerGas),
+                        maxPriorityFeePerGas: parseBig(
+                          sql,
+                          row.tx_maxPriorityFeePerGas,
+                        ),
+                      }
+                    : row.tx_type === "0x7e"
+                      ? {
+                          type: "deposit",
+                          maxFeePerGas: row.tx_maxFeePerGas
+                            ? parseBig(sql, row.tx_maxFeePerGas)
+                            : undefined,
+                          maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas
+                            ? parseBig(sql, row.tx_maxPriorityFeePerGas)
+                            : undefined,
+                        }
+                      : {
+                          type: row.tx_type,
+                        }),
+            }
+          : undefined,
+        trace: hasCallTrace
+          ? {
+              id: row.callTrace_id,
+              from: checksumAddress(row.callTrace_from),
+              to: checksumAddress(row.callTrace_to),
+              gas: parseBig(sql, row.callTrace_gas),
+              value: parseBig(sql, row.callTrace_value),
+              input: row.callTrace_input,
+              output: row.callTrace_output,
+              gasUsed: parseBig(sql, row.callTrace_gasUsed),
+              subtraces: row.callTrace_subtraces,
+              traceAddress: JSON.parse(row.callTrace_traceAddress),
+              blockHash: row.callTrace_blockHash,
+              blockNumber: parseBig(sql, row.callTrace_blockNumber),
+              transactionHash: row.callTrace_transactionHash,
+              transactionIndex: row.callTrace_transactionPosition,
+              callType: row.callTrace_callType as CallTrace["callType"],
+            }
+          : undefined,
+        transactionReceipt: hasTransactionReceipt
+          ? {
+              blockHash: row.txr_blockHash,
+              blockNumber: parseBig(sql, row.txr_blockNumber),
+              contractAddress: row.txr_contractAddress
+                ? checksumAddress(row.txr_contractAddress)
+                : null,
+              cumulativeGasUsed: parseBig(sql, row.txr_cumulativeGasUsed),
+              effectiveGasPrice: parseBig(sql, row.txr_effectiveGasPrice),
+              from: checksumAddress(row.txr_from),
+              gasUsed: parseBig(sql, row.txr_gasUsed),
+              logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                address: checksumAddress(log.address),
+                blockHash: log.blockHash,
+                blockNumber: hexToBigInt(log.blockNumber),
+                data: log.data,
+                logIndex: hexToNumber(log.logIndex),
+                removed: false,
+                topics: [
+                  log.topics[0] ?? null,
+                  log.topics[1] ?? null,
+                  log.topics[2] ?? null,
+                  log.topics[3] ?? null,
+                ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+                transactionHash: log.transactionHash,
+                transactionIndex: hexToNumber(log.transactionIndex),
+              })),
+              logsBloom: row.txr_logsBloom,
+              status:
+                row.txr_status === "0x1"
+                  ? "success"
+                  : row.txr_status === "0x0"
+                    ? "reverted"
+                    : (row.txr_status as TransactionReceipt["status"]),
+              to: row.txr_to ? checksumAddress(row.txr_to) : null,
+              transactionHash: row.txr_transactionHash,
+              transactionIndex: Number(row.txr_transactionIndex),
+              type:
+                row.txr_type === "0x0"
+                  ? "legacy"
+                  : row.txr_type === "0x1"
+                    ? "eip2930"
+                    : row.tx_type === "0x2"
+                      ? "eip1559"
+                      : row.tx_type === "0x7e"
+                        ? "deposit"
+                        : row.tx_type,
+            }
+          : undefined,
+      } satisfies RawEvent;
     });
 
     let cursor: string;
