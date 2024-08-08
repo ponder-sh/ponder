@@ -16,7 +16,7 @@ export type LocalSync = {
   latestBlock: LightBlock | undefined;
   finalizedBlock: LightBlock;
   sync(): Promise<void>;
-  /** Returns true when `finalizedBlock` is closer to tip than `endBlock` */
+  /** Returns true when `latestBlock` is closer to tip than `endBlock` */
   isComplete(): boolean;
   kill(): void;
 };
@@ -143,9 +143,10 @@ export const createLocalSync = async (
       await historicalSync.sync(interval);
     },
     isComplete() {
-      if (this.endBlock === undefined) return false;
+      if (this.endBlock === undefined || this.latestBlock === undefined)
+        return false;
       return (
-        hexToNumber(this.finalizedBlock.number) >=
+        hexToNumber(this.latestBlock.number) >=
         hexToNumber(this.endBlock.number)
       );
     },

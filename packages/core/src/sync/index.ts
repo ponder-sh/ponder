@@ -12,12 +12,12 @@ import {
   checkpointMin,
   decodeCheckpoint,
   encodeCheckpoint,
-  isCheckpointEqual,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
+import { createPagination } from "@/utils/pagination.js";
 import { type Transport, hexToBigInt, hexToNumber } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import type { RawEvent } from "./events.js";
@@ -119,7 +119,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     tag extends "start" | "latest" | "finalized" | "end",
   >(
     tag: tag,
-  ): tag extends "end" ? string | undefined : string => {
+  ): string | undefined => {
     if (
       tag === "end" &&
       args.networks.some(
@@ -129,18 +129,27 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return undefined as any;
     }
 
-    const checkpoints = args.networks.map((network) => {
-      const localSync = localSyncs.get(network)!;
-      const block = localSync[`${tag}Block`]!;
+    const checkpoints = args.networks
+      // Remove completed networks from checkpoint calculation for "latest"
+      .filter(
+        (network) =>
+          tag !== "latest" || localSyncs.get(network)!.isComplete() === false,
+      )
+      .map((network) => {
+        const localSync = localSyncs.get(network)!;
+        const block = localSync[`${tag}Block`]!;
 
-      // The checkpoint returned by this function is meant to be used in
-      // a closed interval (includes endpoints), so "start" should be inclusive.
-      return blockToCheckpoint(
-        block,
-        network.chainId,
-        tag === "start" ? "down" : "up",
-      );
-    });
+        // The checkpoint returned by this function is meant to be used in
+        // a closed interval (includes endpoints), so "start" should be inclusive.
+        return blockToCheckpoint(
+          block,
+          network.chainId,
+          tag === "start" ? "down" : "up",
+        );
+      });
+
+    // Return `true` if all networks have been filtered out
+    if (checkpoints.length === 0) return undefined;
     return encodeCheckpoint(checkpointMin(...checkpoints)) as any;
   };
 
@@ -232,11 +241,25 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * TODO(kyle) programmatically refetch finalized blocks to avoid exiting too early
    */
   async function* getEvents() {
+    /**
+     * Calculate checkpoints
+     *
+     * `start`: If `args.initial` is non-zero, use that. Otherwise,
+     * use `start`
+     *
+     * `end`: If every network has an `endBlock` and its less than
+     * `finalized`, use that. Otherwise, use `finalized`
+     */
     const start =
-      isCheckpointEqual(args.initialCheckpoint, zeroCheckpoint) === false
+      encodeCheckpoint(args.initialCheckpoint) !==
+      encodeCheckpoint(zeroCheckpoint)
         ? encodeCheckpoint(args.initialCheckpoint)
-        : getChainsCheckpoint("start");
-    const end = getChainsCheckpoint("end") ?? getChainsCheckpoint("finalized");
+        : getChainsCheckpoint("start")!;
+    const end =
+      getChainsCheckpoint("end") !== undefined &&
+      getChainsCheckpoint("end")! < getChainsCheckpoint("finalized")!
+        ? getChainsCheckpoint("end")!
+        : getChainsCheckpoint("finalized")!;
 
     // Cursor used to track progress.
     let from = start;
@@ -254,8 +277,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        * implementation of `LocalSync.latestBlock` for more detail.
        */
       if (_localSyncs.some((l) => l.latestBlock === undefined)) continue;
-      // Calculate the mininum "latest" checkpoint.
-      const to = getChainsCheckpoint("latest");
+      /**
+       *  Calculate the mininum "latest" checkpoint, falling back to `end` if
+       * all networks have completed.
+       */
+      const to = getChainsCheckpoint("latest") ?? end;
+
+      let estimate: string = to;
 
       /*
        * Extract events with `syncStore.getEvents()`, paginating to
@@ -263,15 +291,22 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       while (true) {
         if (from === to) break;
-        // TODO(kyle) may be more performant to self-limit `to`
+
+        const pagination = createPagination({
+          limit: args.common.options.syncEventsQuerySize,
+          max: to,
+        });
+
         const { events, cursor } = await args.syncStore.getEvents({
           filters: args.sources.map(({ filter }) => filter),
           from,
-          to,
-          limit: 10_000,
+          to: estimate,
+          limit: args.common.options.syncEventsQuerySize,
         });
 
         updateStatus(events, cursor, false);
+
+        estimate = pagination.updateAndPredict(from, cursor, events);
 
         yield events;
         from = cursor;
@@ -306,9 +341,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             .map(({ filter }) => filter);
 
           // Update local sync, record checkpoint before and after
-          let from = getChainsCheckpoint("latest");
+          let from = getChainsCheckpoint("latest")!;
           localSync.latestBlock = event.block;
-          const to = getChainsCheckpoint("latest");
+          const to = getChainsCheckpoint("latest")!;
 
           // Add block, logs, transactions, receipts, and traces to the sync-store.
 
@@ -353,7 +388,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             );
           }
 
-          await Promise.all(promises);
+          await Promise.all(promises).catch(args.onFatalError);
 
           /*
            * Extract events with `syncStore.getEvents()`, paginating to
@@ -365,7 +400,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               filters,
               from,
               to,
-              limit: 10_000,
+              limit: args.common.options.syncEventsQuerySize,
             });
 
             updateStatus(events, cursor, true);
@@ -387,9 +422,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           ] satisfies Interval;
 
           // Update local sync, record checkpoint before and after
-          const prev = getChainsCheckpoint("finalized");
+          const prev = getChainsCheckpoint("finalized")!;
           localSync.finalizedBlock = event.block;
-          const checkpoint = getChainsCheckpoint("finalized");
+          const checkpoint = getChainsCheckpoint("finalized")!;
 
           const filters = args.sources
             .filter(({ filter }) => filter.chainId === network.chainId)
@@ -429,7 +464,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         {
           // Update local sync
           localSync.latestBlock = event.block;
-          const checkpoint = getChainsCheckpoint("latest");
+          const checkpoint = getChainsCheckpoint("latest")!;
 
           // await args.syncStore.pruneByBlock();
 
@@ -480,7 +515,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       }
     },
     getFinalizedCheckpoint() {
-      return getChainsCheckpoint("finalized");
+      return getChainsCheckpoint("finalized")!;
     },
     getStatus() {
       return status;

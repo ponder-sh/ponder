@@ -62,7 +62,8 @@ export const createHistoricalSync = async (
 
   // const logMetadata = new Map<LogFilter, { range: number }>();
 
-  /** Intervals that have been completed for all "event" and "address" filters
+  /**
+   * Intervals that have been completed for all "event" and "address" filters
    * in `args.sources`.
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
