@@ -183,6 +183,37 @@ test("metrics PUT", async (context) => {
   await cleanup();
 });
 
+test("metrics unmatched route", async (context) => {
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
+
+  const server = await createServer({
+    common: context.common,
+    app: new Hono(),
+    routes: [],
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
+  });
+
+  await server.hono.request("/graphql");
+  await server.hono.request("/unmatched");
+
+  const response = await server.hono.request("/metrics");
+
+  expect(response.status).toBe(200);
+  const text = await response.text();
+  expect(text).toContain(
+    'ponder_http_server_request_size_bytes_count{method="GET",path="/graphql",status="2XX"} 1',
+  );
+  expect(text).not.toContain(
+    'ponder_http_server_request_size_bytes_count{method="GET",path="/unmatched",status="2XX"} 1',
+  );
+
+  await server.kill();
+  await cleanup();
+});
+
 test("missing route", async (context) => {
   const { database, namespaceInfo, cleanup } =
     await setupDatabaseServices(context);
