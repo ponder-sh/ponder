@@ -544,7 +544,7 @@ ponder.on("ERC20:Transfer", async ({ event }) => {
 
 The `includeCallTraces{:ts}` option specifies whether to enable call trace indexing for a contract. By default, call traces are **disabled**.
 
-After enabling this option, each function in the contract ABI will become available as an indexing function event name. [Read more about call traces](/docs/indexing/call-traces).
+After enabling this option, each function in the contract ABI will become available as an indexing function event name. [Read more](/docs/indexing/call-traces) about call traces.
 
 <div className="code-columns">
 
@@ -578,6 +578,46 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 ```
 
 </div>
+
+## Transaction receipts
+
+The `includeTransactionReceipts{:ts}` option specifies whether to include the transaction receipt. By default, transaction receipts are **disabled**.
+
+After enabling this option, the `event.transactionReceipt{:ts}` property will become available in all indexing functions for the contract. To see all fields available on the receipt object, [read the API reference](/docs/api-reference/indexing-functions#transaction-receipt).
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts" {11}
+import { createConfig } from "@ponder/core";
+import { BlitmapAbi } from "./abis/Blitmap";
+
+export default createConfig({
+  contracts: {
+    Blitmap: {
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 12439123,
+      includeTransactionReceipts: true,
+    },
+  },
+  // ...
+});
+```
+
+```ts filename="src/index.ts" {15}
+import { ponder } from "@/generated";
+
+ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
+  event.transactionReceipt.cumulativeGasUsed;
+  //                       ^? bigint
+  event.transactionReceipt.logs;
+  //                       ^? Log[]
+});
+```
+
+</div>
+
 
 
 ## Block range
