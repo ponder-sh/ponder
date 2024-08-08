@@ -471,12 +471,12 @@ test("hasBlock()", async (context) => {
   cleanup();
 });
 
-test("insertTransaction()", async (context) => {
+test("insertTransactions()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
 
@@ -489,16 +489,16 @@ test("insertTransaction()", async (context) => {
   cleanup();
 });
 
-test("insertTransaction() with duplicates", async (context) => {
+test("insertTransactions() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
 
@@ -515,8 +515,8 @@ test("hasTransaction()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
   let transaction = await syncStore.hasTransaction({
@@ -532,12 +532,12 @@ test("hasTransaction()", async (context) => {
   cleanup();
 });
 
-test("insertTransactionReceipt()", async (context) => {
+test("insertTransactionReceipts()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertTransactionReceipt({
-    transactionReceipt: rpcData.block3.transactionReceipts[0],
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: rpcData.block3.transactionReceipts,
     chainId: 1,
   });
 
@@ -550,16 +550,16 @@ test("insertTransactionReceipt()", async (context) => {
   cleanup();
 });
 
-test("insertTransactionReceipt() with duplicates", async (context) => {
+test("insertTransactionReceipts() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertTransactionReceipt({
-    transactionReceipt: rpcData.block3.transactionReceipts[0],
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: rpcData.block3.transactionReceipts,
     chainId: 1,
   });
-  await syncStore.insertTransactionReceipt({
-    transactionReceipt: rpcData.block3.transactionReceipts[0],
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: rpcData.block3.transactionReceipts,
     chainId: 1,
   });
 
@@ -576,8 +576,8 @@ test("hasTransactionReceipt()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertTransactionReceipt({
-    transactionReceipt: rpcData.block3.transactionReceipts[0],
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: rpcData.block3.transactionReceipts,
     chainId: 1,
   });
   let transaction = await syncStore.hasTransactionReceipt({
@@ -677,8 +677,8 @@ test("getEvents() returns events", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
 
@@ -716,12 +716,8 @@ test("getEvents() handles log filter logic", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block2.transactions[0],
-    chainId: 1,
-  });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block2.transactions[1],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block2.transactions,
     chainId: 1,
   });
 
@@ -730,8 +726,8 @@ test("getEvents() handles log filter logic", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
 
@@ -760,8 +756,8 @@ test("getEvents() handles log address filters", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block4.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block4.transactions,
     chainId: 1,
   });
 
@@ -788,12 +784,12 @@ test("getEvents() handles trace filter logic", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
-  await syncStore.insertTransactionReceipt({
-    transactionReceipt: rpcData.block3.transactionReceipts[0],
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: rpcData.block3.transactionReceipts,
     chainId: 1,
   });
 
@@ -842,12 +838,12 @@ test("getEvents() handles block bounds", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block2.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block2.transactions,
     chainId: 1,
   });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block2.transactions[1],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block2.transactions,
     chainId: 1,
   });
 
@@ -856,8 +852,8 @@ test("getEvents() handles block bounds", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block3.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block3.transactions,
     chainId: 1,
   });
 
@@ -888,12 +884,12 @@ test("getEvents() pagination", async (context) => {
     chainId: 1,
   });
   await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block2.transactions[0],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block2.transactions,
     chainId: 1,
   });
-  await syncStore.insertTransaction({
-    transaction: rpcData.block2.transactions[1],
+  await syncStore.insertTransactions({
+    transactions: rpcData.block2.transactions,
     chainId: 1,
   });
 

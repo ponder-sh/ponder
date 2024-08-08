@@ -35,7 +35,7 @@ test("sync()", async (context) => {
 
   const sync = await createLocalSync({
     syncStore,
-    sources: context.sources,
+    sources: [context.sources[0]],
     common: context.common,
     network: context.networks[0],
   });
@@ -43,11 +43,11 @@ test("sync()", async (context) => {
   await sync.sync();
 
   const intervals = await database.syncDb
-    .selectFrom("interval")
+    .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
 
-  expect(intervals).toHaveLength(4);
+  expect(intervals).toHaveLength(1);
 
   await cleanup();
 });
@@ -57,7 +57,7 @@ test("latestBlock resolves to finalizedBlock", async (context) => {
 
   const sync = await createLocalSync({
     syncStore,
-    sources: context.sources,
+    sources: [context.sources[0]],
     common: context.common,
     network: context.networks[0],
   });

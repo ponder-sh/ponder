@@ -101,7 +101,7 @@ export async function run({
       realtimeQueue.add(realtimeEvent);
     },
     onFatalError,
-    // initialCheckpoint,
+    initialCheckpoint,
   });
 
   const handleEvents = async (events: Event[]) => {

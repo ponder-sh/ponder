@@ -296,15 +296,17 @@ export const createHistoricalSync = async (
     }
 
     // Add `transactionHashes` to the sync-store.
-    if (transactionHashes !== undefined) {
-      for (const transaction of block.transactions) {
-        if (transactionHashes.has(transaction.hash)) {
-          await args.syncStore.insertTransaction({
-            transaction,
-            chainId: args.network.chainId,
-          });
-        }
-      }
+    if (
+      transactionHashes !== undefined &&
+      transactionHashes.size > 0 &&
+      block.transactions.length > 0
+    ) {
+      await args.syncStore.insertTransactions({
+        transactions: block.transactions.filter((transaction) =>
+          transactionHashes.has(transaction.hash),
+        ),
+        chainId: args.network.chainId,
+      });
     }
 
     return block;
@@ -373,6 +375,7 @@ export const createHistoricalSync = async (
             [interval],
             completedIntervals,
           );
+
           // Skip sync if the interval is already complete.
           if (requiredIntervals.length === 0) return;
 

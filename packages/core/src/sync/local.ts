@@ -81,7 +81,7 @@ export const createLocalSync = async (
     network: args.network,
     requestQueue,
   });
-  // historicalSync.initializeMetrics(finalizedBlock);
+  historicalSync.initializeMetrics(finalizedBlock);
 
   /**
    * Estimate the event density, eventually to be used to
@@ -140,7 +140,7 @@ export const createLocalSync = async (
       // Update cursor to record progress
       fromBlock = interval[1];
 
-      // await historicalSync.sync(interval);
+      await historicalSync.sync(interval);
     },
     isComplete() {
       if (this.endBlock === undefined) return false;

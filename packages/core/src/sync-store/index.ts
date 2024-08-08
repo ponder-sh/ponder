@@ -78,14 +78,14 @@ export type SyncStore = {
   insertBlock(args: { block: SyncBlock; chainId: number }): Promise<void>;
   /** Return true if the block receipt is present in the database. */
   hasBlock(args: { hash: Hash }): Promise<boolean>;
-  insertTransaction(args: {
-    transaction: SyncTransaction;
+  insertTransactions(args: {
+    transactions: SyncTransaction[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
   hasTransaction(args: { hash: Hash }): Promise<boolean>;
-  insertTransactionReceipt(args: {
-    transactionReceipt: SyncTransactionReceipt;
+  insertTransactionReceipts(args: {
+    transactionReceipts: SyncTransactionReceipt[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction receipt is present in the database. */
@@ -585,11 +585,15 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  insertTransaction: async ({ transaction, chainId }) =>
-    db.wrap({ method: "insertTransaction" }, async () => {
+  insertTransactions: async ({ transactions, chainId }) =>
+    db.wrap({ method: "insertTransactions" }, async () => {
       await db
         .insertInto("transactions")
-        .values(encodeTransaction({ transaction, chainId, sql }))
+        .values(
+          transactions.map((transaction) =>
+            encodeTransaction({ transaction, chainId, sql }),
+          ),
+        )
         .onConflict((oc) => oc.column("hash").doNothing())
         .execute();
     }),
@@ -602,11 +606,15 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  insertTransactionReceipt: async ({ transactionReceipt, chainId }) =>
-    db.wrap({ method: "insertTransactionReceipt" }, async () => {
+  insertTransactionReceipts: async ({ transactionReceipts, chainId }) =>
+    db.wrap({ method: "insertTransactionReceipts" }, async () => {
       await db
         .insertInto("transactionReceipts")
-        .values(encodeTransactionReceipt({ transactionReceipt, chainId, sql }))
+        .values(
+          transactionReceipts.map((transactionReceipt) =>
+            encodeTransactionReceipt({ transactionReceipt, chainId, sql }),
+          ),
+        )
         .onConflict((oc) => oc.column("transactionHash").doNothing())
         .execute();
     }),

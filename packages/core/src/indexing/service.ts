@@ -314,15 +314,13 @@ export const processEvents = async (
       }
 
       case "block": {
-        const eventName = `${event.name}:block`;
-
-        indexingService.eventCount[eventName]![
+        indexingService.eventCount[event.name]![
           indexingService.networkByChainId[event.chainId]!.name
         ]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
-          msg: `Started indexing function (event="${eventName}", checkpoint=${event.checkpoint})`,
+          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
         const result = await executeBlock(indexingService, { event });
@@ -330,12 +328,12 @@ export const processEvents = async (
           return result;
         }
 
-        if (eventCounts[eventName] === undefined) eventCounts[eventName] = 0;
-        eventCounts[eventName]++;
+        if (eventCounts[event.name] === undefined) eventCounts[event.name] = 0;
+        eventCounts[event.name]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
-          msg: `Completed indexing function (event="${eventName}", checkpoint=${event.checkpoint})`,
+          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
         break;

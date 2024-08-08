@@ -104,7 +104,7 @@ export const decodeEvents = (
           type: "block",
           chainId: event.chainId,
           checkpoint: event.checkpoint,
-          name: source.name,
+          name: `${source.name}:block`,
           event: {
             block: event.block,
           },
