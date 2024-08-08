@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.7
+
+### Patch Changes
+
+- [#1015](https://github.com/ponder-sh/ponder/pull/1015) [`c19358158d3be13e0c8bab8450ba16ab3f71011d`](https://github.com/ponder-sh/ponder/commit/c19358158d3be13e0c8bab8450ba16ab3f71011d) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where requests to the HTTP server could cause a metric label cardinality explosion.
+
 ## 0.5.6
 
 ### Patch Changes
