@@ -183,6 +183,33 @@ test("metrics PUT", async (context) => {
   await cleanup();
 });
 
+test("metrics unmatched route", async (context) => {
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
+
+  const server = await createServer({
+    common: context.common,
+    app: new Hono(),
+    routes: [],
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
+  });
+
+  await server.hono.request("/graphql");
+  await server.hono.request("/unmatched");
+
+  const response = await server.hono.request("/metrics");
+
+  expect(response.status).toBe(200);
+  const text = await response.text();
+  expect(text).toContain('path="/graphql"');
+  expect(text).not.toContain('path="/unmatched"');
+
+  await server.kill();
+  await cleanup();
+});
+
 test("missing route", async (context) => {
   const { database, namespaceInfo, cleanup } =
     await setupDatabaseServices(context);
