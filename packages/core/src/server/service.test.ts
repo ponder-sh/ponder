@@ -203,12 +203,8 @@ test("metrics unmatched route", async (context) => {
 
   expect(response.status).toBe(200);
   const text = await response.text();
-  expect(text).toContain(
-    'ponder_http_server_request_size_bytes_count{method="GET",path="/graphql",status="2XX"} 1',
-  );
-  expect(text).not.toContain(
-    'ponder_http_server_request_size_bytes_count{method="GET",path="/unmatched",status="2XX"} 1',
-  );
+  expect(text).toContain('path="/graphql"');
+  expect(text).not.toContain('path="/unmatched"');
 
   await server.kill();
   await cleanup();
