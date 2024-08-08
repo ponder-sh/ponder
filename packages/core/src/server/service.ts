@@ -55,8 +55,14 @@ export async function createServer({
   });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
-    const commonLabels = { method: c.req.method, path: c.req.path };
-    common.metrics.ponder_http_server_active_requests.inc(commonLabels);
+    const matchedPathLabels = c.req.matchedRoutes
+      // Filter out global middlewares
+      .filter((r) => r.path !== "/*")
+      .map((r) => ({ method: c.req.method, path: r.path }));
+
+    for (const labels of matchedPathLabels) {
+      common.metrics.ponder_http_server_active_requests.inc(labels);
+    }
     const endClock = startClock();
 
     try {
@@ -74,19 +80,21 @@ export async function createServer({
               ? "4XX"
               : "5XX";
 
-      common.metrics.ponder_http_server_active_requests.dec(commonLabels);
-      common.metrics.ponder_http_server_request_size_bytes.observe(
-        { ...commonLabels, status },
-        requestSize,
-      );
-      common.metrics.ponder_http_server_response_size_bytes.observe(
-        { ...commonLabels, status },
-        responseSize,
-      );
-      common.metrics.ponder_http_server_request_duration_ms.observe(
-        { ...commonLabels, status },
-        responseDuration,
-      );
+      for (const labels of matchedPathLabels) {
+        common.metrics.ponder_http_server_active_requests.dec(labels);
+        common.metrics.ponder_http_server_request_size_bytes.observe(
+          { ...labels, status },
+          requestSize,
+        );
+        common.metrics.ponder_http_server_response_size_bytes.observe(
+          { ...labels, status },
+          responseSize,
+        );
+        common.metrics.ponder_http_server_request_duration_ms.observe(
+          { ...labels, status },
+          responseDuration,
+        );
+      }
     }
   });
 
