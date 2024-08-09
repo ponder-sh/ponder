@@ -20,6 +20,12 @@ import { hexToBigInt, hexToNumber } from "viem";
 const formatHex = (sql: "sqlite" | "postgres", hex: Hex) =>
   sql === "sqlite" ? encodeAsText(hex) : hexToBigInt(hex);
 
+export const formatBig = (
+  sql: "sqlite" | "postgres",
+  x: bigint | number,
+): string | bigint =>
+  sql === "sqlite" ? encodeAsText(x) : typeof x === "number" ? BigInt(x) : x;
+
 export const parseBig = (
   sql: "sqlite" | "postgres",
   big: string | bigint,

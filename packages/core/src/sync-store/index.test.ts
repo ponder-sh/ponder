@@ -913,3 +913,24 @@ test("getEvents() pagination", async (context) => {
 
   await cleanup();
 });
+
+test("pruneByBlock", async (context) => {
+  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertBlock({ block: rpcData.block1.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+
+  await syncStore.pruneByBlock({ fromBlock: 2, chainId: 1 });
+
+  const blocks = await database.syncDb
+    .selectFrom("blocks")
+    .selectAll()
+    .execute();
+
+  expect(blocks).toHaveLength(2);
+
+  cleanup();
+});

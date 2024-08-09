@@ -17,7 +17,6 @@ import {
 } from "@/utils/checkpoint.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import { createPagination } from "@/utils/pagination.js";
 import { type Transport, hexToBigInt, hexToNumber } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import type { RawEvent } from "./events.js";
@@ -283,7 +282,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       const to = getChainsCheckpoint("latest") ?? end;
 
-      let estimate: string = to;
+      const estimate = to;
 
       /*
        * Extract events with `syncStore.getEvents()`, paginating to
@@ -291,22 +290,30 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       while (true) {
         if (from === to) break;
-
-        const pagination = createPagination({
-          limit: args.common.options.syncEventsQuerySize,
-          max: to,
-        });
-
+        const limit = args.common.options.syncEventsQuerySize;
         const { events, cursor } = await args.syncStore.getEvents({
           filters: args.sources.map(({ filter }) => filter),
           from,
           to: estimate,
-          limit: args.common.options.syncEventsQuerySize,
+          limit,
         });
 
         updateStatus(events, cursor, false);
 
-        estimate = pagination.updateAndPredict(from, cursor, events);
+        // if (events.length > 0) {
+        //   const eventsPerCheckpoint =
+        //     Number(BigInt(cursor) - BigInt(from)) / events.length;
+        //   console.log({
+        //     eventsPerCheckpoint,
+        //     numerator: BigInt(cursor) - BigInt(from),
+        //     denominator: events.length,
+        //   });
+        //   const range = BigInt(eventsPerCheckpoint * limit);
+        //   estimate =
+        //     BigInt(cursor) + range > BigInt(to)
+        //       ? to
+        //       : (BigInt(cursor) + range).toString();
+        // }
 
         yield events;
         from = cursor;
@@ -466,7 +473,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           localSync.latestBlock = event.block;
           const checkpoint = getChainsCheckpoint("latest")!;
 
-          // await args.syncStore.pruneByBlock();
+          await args.syncStore.pruneByBlock({
+            fromBlock: hexToNumber(event.block.number),
+            chainId: network.chainId,
+          });
 
           args.onRealtimeEvent({ type: "reorg", checkpoint });
         }

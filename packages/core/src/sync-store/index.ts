@@ -29,7 +29,7 @@ import type {
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { decodeToBigInt } from "@/utils/encoding.js";
 import {
   type Interval,
   intervalIntersectionMany,
@@ -52,6 +52,7 @@ import {
   encodeLog,
   encodeTransaction,
   encodeTransactionReceipt,
+  formatBig,
   parseBig,
 } from "./encoding.js";
 
@@ -112,7 +113,10 @@ export type SyncStore = {
     blockNumber: bigint;
     chainId: number;
   }): Promise<string | null>;
-  // pruneByBlock,
+  pruneByBlock(args: {
+    fromBlock: number;
+    chainId: number;
+  }): Promise<void>;
   // pruneBySource,
   // pruneByChain,
 };
@@ -144,10 +148,8 @@ export const createSyncStore = ({
   insertInterval: async ({ filter, interval }) =>
     db.wrap({ method: "insertInterval" }, async () => {
       const intervalToBlock = (interval: Interval) => ({
-        startBlock:
-          sql === "sqlite" ? encodeAsText(interval[0]) : BigInt(interval[0]),
-        endBlock:
-          sql === "sqlite" ? encodeAsText(interval[1]) : BigInt(interval[1]),
+        startBlock: formatBig(sql, interval[0]),
+        endBlock: formatBig(sql, interval[1]),
       });
 
       switch (filter.type) {
@@ -458,12 +460,8 @@ export const createSyncStore = ({
             const mergedIntervalRows = mergedIntervals.map(
               ([startBlock, endBlock]) => ({
                 [idCol as string]: id,
-                startBlock:
-                  sql === "sqlite"
-                    ? encodeAsText(startBlock)
-                    : BigInt(startBlock),
-                endBlock:
-                  sql === "sqlite" ? encodeAsText(endBlock) : BigInt(endBlock),
+                startBlock: formatBig(sql, startBlock),
+                endBlock: formatBig(sql, endBlock),
               }),
             );
 
@@ -759,21 +757,9 @@ export const createSyncStore = ({
           return qb;
         })
         .$call((qb) => addressSQL(qb as any, filter.address, "address"))
-        .where(
-          "blockNumber",
-          ">=",
-          sql === "sqlite"
-            ? encodeAsText(filter.fromBlock)
-            : BigInt(filter.fromBlock),
-        )
+        .where("blockNumber", ">=", formatBig(sql, filter.fromBlock))
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where(
-            "blockNumber",
-            "<=",
-            sql === "sqlite"
-              ? encodeAsText(filter.toBlock!)
-              : BigInt(filter.toBlock!),
-          ),
+          qb.where("blockNumber", "<=", formatBig(sql, filter.toBlock!)),
         );
 
     const callTraceSQL = (
@@ -802,21 +788,9 @@ export const createSyncStore = ({
         .where(ksql`${ksql.ref("callTraces.error")} IS NULL`)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
-        .where(
-          "blockNumber",
-          ">=",
-          sql === "sqlite"
-            ? encodeAsText(filter.fromBlock)
-            : BigInt(filter.fromBlock),
-        )
+        .where("blockNumber", ">=", formatBig(sql, filter.fromBlock))
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where(
-            "blockNumber",
-            "<=",
-            sql === "sqlite"
-              ? encodeAsText(filter.toBlock!)
-              : BigInt(filter.toBlock!),
-          ),
+          qb.where("blockNumber", "<=", formatBig(sql, filter.toBlock!)),
         );
 
     const blockSQL = (
@@ -839,21 +813,9 @@ export const createSyncStore = ({
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
           qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
         )
-        .where(
-          "number",
-          ">=",
-          sql === "sqlite"
-            ? encodeAsText(filter.fromBlock)
-            : BigInt(filter.fromBlock),
-        )
+        .where("number", ">=", formatBig(sql, filter.fromBlock))
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where(
-            "number",
-            "<=",
-            sql === "sqlite"
-              ? encodeAsText(filter.toBlock!)
-              : BigInt(filter.toBlock!),
-          ),
+          qb.where("number", "<=", formatBig(sql, filter.toBlock!)),
         );
 
     const rows = await db.wrap({ method: "getEvents" }, async () => {
@@ -1203,8 +1165,7 @@ export const createSyncStore = ({
         .insertInto("rpcRequestResults")
         .values({
           request,
-          blockNumber:
-            sql === "sqlite" ? encodeAsText(blockNumber) : blockNumber,
+          blockNumber: formatBig(sql, blockNumber),
           chainId,
           result,
         })
@@ -1220,13 +1181,34 @@ export const createSyncStore = ({
         .select("result")
         .where("request", "=", request)
         .where("chainId", "=", chainId)
-        .where(
-          "blockNumber",
-          "=",
-          sql === "sqlite" ? encodeAsText(blockNumber) : blockNumber,
-        )
+        .where("blockNumber", "=", formatBig(sql, blockNumber))
         .executeTakeFirst();
 
       return result?.result ?? null;
+    }),
+  pruneByBlock: async ({ fromBlock, chainId }) =>
+    db.wrap({ method: "pruneByBlock" }, async () => {
+      await db.transaction().execute(async (tx) => {
+        await tx
+          .deleteFrom("logs")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("blocks")
+          .where("chainId", "=", chainId)
+          .where("number", ">", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("callTraces")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">", formatBig(sql, fromBlock))
+          .execute();
+      });
     }),
 });
