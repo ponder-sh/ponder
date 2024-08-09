@@ -29,13 +29,13 @@ export interface BaseDatabaseService {
     checkpoint,
     namespaceInfo,
   }: {
-    checkpoint: Checkpoint;
+    checkpoint: string;
     namespaceInfo: NamespaceInfo;
   }): Promise<void>;
 
   updateFinalizedCheckpoint({
     checkpoint,
-  }: { checkpoint: Checkpoint }): Promise<void>;
+  }: { checkpoint: string }): Promise<void>;
 
   createIndexes({ schema }: { schema: Schema }): Promise<void>;
 

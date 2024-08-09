@@ -1,3 +1,4 @@
+import type { Status } from "@/sync/index.js";
 import type {
   UserId,
   UserRecord,
@@ -98,13 +99,6 @@ export type HistoricalStore = ReadonlyStore &
   WriteStore<"historical"> & {
     flush: (arg: { isFullFlush: boolean }) => Promise<void>;
   };
-
-export type Status = {
-  [networkName: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
-  };
-};
 
 export type MetadataStore = {
   setStatus: (status: Status) => Promise<void>;

@@ -402,7 +402,7 @@ describe.skipIf(shouldSkip)("sqlite database", () => {
     const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
 
     await database.updateFinalizedCheckpoint({
-      checkpoint: maxCheckpoint,
+      checkpoint: encodeCheckpoint(maxCheckpoint),
     });
 
     const rows = await database.db

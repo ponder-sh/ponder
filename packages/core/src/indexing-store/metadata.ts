@@ -1,6 +1,7 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
-import type { MetadataStore, Status } from "./store.js";
+import type { Status } from "@/sync/index.js";
+import type { MetadataStore } from "./store.js";
 
 export const getMetadataStore = ({
   encoding,

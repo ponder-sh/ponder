@@ -84,7 +84,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   });
 
   await database.revert({
-    checkpoint: createCheckpoint(12),
+    checkpoint: encodeCheckpoint(createCheckpoint(12)),
     namespaceInfo,
   });
 
@@ -139,7 +139,7 @@ test("revert() updates versions with intermediate logs", async (context) => {
   });
 
   await database.revert({
-    checkpoint: createCheckpoint(8),
+    checkpoint: encodeCheckpoint(createCheckpoint(8)),
     namespaceInfo,
   });
 

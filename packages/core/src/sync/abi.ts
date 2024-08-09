@@ -15,7 +15,7 @@ import {
   getFunctionSelector,
   parseAbiItem,
 } from "viem";
-import type { Config } from "./config.js";
+import type { Config } from "../config/config.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays
