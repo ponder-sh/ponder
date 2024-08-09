@@ -574,6 +574,7 @@ export async function buildConfigAndIndexingFunctions({
         abiFunctions,
         name: rawContract.name,
         networkName: rawContract.networkName,
+        maxBlockRange: rawContract.maxBlockRange,
       } as const;
 
       const resolvedFactory = rawContract?.factory;

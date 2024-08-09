@@ -96,6 +96,42 @@ test("sync() with log filter", async (context) => {
   await cleanup();
 });
 
+test("sync() with log filter and transaction receipts", async (context) => {
+  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+
+  context.sources[0].filter.includeTransactionReceipts = true;
+
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    network: context.networks[0],
+    sources: [context.sources[0]],
+    syncStore,
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
+  });
+
+  await historicalSync.sync([0, 5]);
+
+  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+
+  expect(logs).toHaveLength(2);
+
+  const transactionReceipts = await database.syncDb
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+
+  expect(transactionReceipts).toHaveLength(2);
+
+  const intervals = await database.syncDb
+    .selectFrom("logFilterIntervals")
+    .selectAll()
+    .execute();
+
+  expect(intervals).toHaveLength(1);
+
+  await cleanup();
+});
+
 test("sync() with block filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
@@ -494,4 +530,24 @@ test(
   { timeout: 20_000 },
 );
 
-test.todo("syncLogFilter() uses dynamic ranges");
+test("sync() chunks requests", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  context.sources[0].maxBlockRange = 1;
+
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    network: context.networks[0],
+    sources: [context.sources[0]],
+    syncStore,
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
+  });
+
+  const spy = vi.spyOn(context.requestQueues[0], "request");
+
+  await historicalSync.sync([0, 5]);
+
+  expect(spy).toHaveBeenCalledTimes(8);
+
+  await cleanup();
+});
