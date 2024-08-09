@@ -94,6 +94,25 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     }),
   );
 
+  // Invalidate sync cache for devnet sources
+  for (const network of args.networks) {
+    if (network.disableCache) {
+      const startBlock = hexToNumber(
+        localSyncs.get(network)!.startBlock.number,
+      );
+
+      args.common.logger.warn({
+        service: "sync",
+        msg: `Deleting cache records for '${network.name}' from block ${startBlock}`,
+      });
+
+      await args.syncStore.pruneByChain({
+        fromBlock: startBlock,
+        chainId: network.chainId,
+      });
+    }
+  }
+
   /** Convert `block` to a `Checkpoint`. */
   const blockToCheckpoint = (
     block: LightBlock | SyncBlock,

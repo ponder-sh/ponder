@@ -117,8 +117,10 @@ export type SyncStore = {
     fromBlock: number;
     chainId: number;
   }): Promise<void>;
-  // pruneBySource,
-  // pruneByChain,
+  pruneByChain(args: {
+    fromBlock: number;
+    chainId: number;
+  }): Promise<void>;
 };
 
 const childAddressSQL = (
@@ -1211,4 +1213,248 @@ export const createSyncStore = ({
           .execute();
       });
     }),
+  pruneByChain: async ({ fromBlock, chainId }) =>
+    db.wrap({ method: "pruneByChain" }, () =>
+      db.transaction().execute(async (tx) => {
+        await tx
+          .with("deleteLogFilter(logFilterId)", (qb) =>
+            qb
+              .selectFrom("logFilterIntervals")
+              .innerJoin("logFilters", "logFilterId", "logFilters.id")
+              .select("logFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", formatBig(sql, fromBlock)),
+          )
+          .deleteFrom("logFilterIntervals")
+          .where(
+            "logFilterId",
+            "in",
+            ksql`(SELECT "logFilterId" FROM ${ksql.table("deleteLogFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateLogFilter(logFilterId)", (qb) =>
+            qb
+              .selectFrom("logFilterIntervals")
+              .innerJoin("logFilters", "logFilterId", "logFilters.id")
+              .select("logFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", formatBig(sql, fromBlock))
+              .where("endBlock", ">", formatBig(sql, fromBlock)),
+          )
+          .updateTable("logFilterIntervals")
+          .set({
+            endBlock: formatBig(sql, fromBlock),
+          })
+          .where(
+            "logFilterId",
+            "in",
+            ksql`(SELECT "logFilterId" FROM ${ksql.table("updateLogFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteFactoryLogFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryLogFilterIntervals")
+              .innerJoin(
+                "factoryLogFilters",
+                "factoryId",
+                "factoryLogFilters.id",
+              )
+
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", formatBig(sql, fromBlock)),
+          )
+          .deleteFrom("factoryLogFilterIntervals")
+          .where(
+            "factoryId",
+            "in",
+            ksql`(SELECT "factoryId" FROM ${ksql.table("deleteFactoryLogFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateFactoryLogFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryLogFilterIntervals")
+              .innerJoin(
+                "factoryLogFilters",
+                "factoryId",
+                "factoryLogFilters.id",
+              )
+
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", formatBig(sql, fromBlock))
+              .where("endBlock", ">", formatBig(sql, fromBlock)),
+          )
+          .updateTable("factoryLogFilterIntervals")
+          .set({
+            endBlock: formatBig(sql, fromBlock),
+          })
+          .where(
+            "factoryId",
+            "in",
+            ksql`(SELECT "factoryId" FROM ${ksql.table("updateFactoryLogFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteTraceFilter(traceFilterId)", (qb) =>
+            qb
+              .selectFrom("traceFilterIntervals")
+              .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+              .select("traceFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", formatBig(sql, fromBlock)),
+          )
+          .deleteFrom("traceFilterIntervals")
+          .where(
+            "traceFilterId",
+            "in",
+            ksql`(SELECT "traceFilterId" FROM ${ksql.table("deleteTraceFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateTraceFilter(traceFilterId)", (qb) =>
+            qb
+              .selectFrom("traceFilterIntervals")
+              .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
+              .select("traceFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", formatBig(sql, fromBlock))
+              .where("endBlock", ">", formatBig(sql, fromBlock)),
+          )
+          .updateTable("traceFilterIntervals")
+          .set({
+            endBlock: formatBig(sql, fromBlock),
+          })
+          .where(
+            "traceFilterId",
+            "in",
+            ksql`(SELECT "traceFilterId" FROM ${ksql.table("updateTraceFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteFactoryTraceFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryTraceFilterIntervals")
+              .innerJoin(
+                "factoryTraceFilters",
+                "factoryId",
+                "factoryTraceFilters.id",
+              )
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", formatBig(sql, fromBlock)),
+          )
+          .deleteFrom("factoryTraceFilterIntervals")
+          .where(
+            "factoryId",
+            "in",
+            ksql`(SELECT "factoryId" FROM ${ksql.table("deleteFactoryTraceFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateFactoryTraceFilter(factoryId)", (qb) =>
+            qb
+              .selectFrom("factoryTraceFilterIntervals")
+              .innerJoin(
+                "factoryTraceFilters",
+                "factoryId",
+                "factoryTraceFilters.id",
+              )
+
+              .select("factoryId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", formatBig(sql, fromBlock))
+              .where("endBlock", ">", formatBig(sql, fromBlock)),
+          )
+          .updateTable("factoryTraceFilterIntervals")
+          .set({
+            endBlock: formatBig(sql, fromBlock),
+          })
+          .where(
+            "factoryId",
+            "in",
+            ksql`(SELECT "factoryId" FROM ${ksql.table("updateFactoryTraceFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("deleteBlockFilter(blockFilterId)", (qb) =>
+            qb
+              .selectFrom("blockFilterIntervals")
+              .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+              .select("blockFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", ">=", formatBig(sql, fromBlock)),
+          )
+          .deleteFrom("blockFilterIntervals")
+          .where(
+            "blockFilterId",
+            "in",
+            ksql`(SELECT "blockFilterId" FROM ${ksql.table("deleteBlockFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .with("updateBlockFilter(blockFilterId)", (qb) =>
+            qb
+              .selectFrom("blockFilterIntervals")
+              .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
+              .select("blockFilterId")
+              .where("chainId", "=", chainId)
+              .where("startBlock", "<", formatBig(sql, fromBlock))
+              .where("endBlock", ">", formatBig(sql, fromBlock)),
+          )
+          .updateTable("blockFilterIntervals")
+          .set({
+            endBlock: formatBig(sql, fromBlock),
+          })
+          .where(
+            "blockFilterId",
+            "in",
+            ksql`(SELECT "blockFilterId" FROM ${ksql.table("updateBlockFilter")})`,
+          )
+          .execute();
+
+        await tx
+          .deleteFrom("logs")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("blocks")
+          .where("chainId", "=", chainId)
+          .where("number", ">=", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("callTraces")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("transactions")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", formatBig(sql, fromBlock))
+          .execute();
+        await tx
+          .deleteFrom("transactionReceipts")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", formatBig(sql, fromBlock))
+          .execute();
+      }),
+    ),
 });

@@ -385,5 +385,3 @@ test("onEvent() handles endBlock finalization", async (context) => {
 });
 
 test.todo("onEvent() handles errors");
-
-test.todo("isDevnet");
