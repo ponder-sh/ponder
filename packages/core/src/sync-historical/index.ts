@@ -361,11 +361,6 @@ export const createHistoricalSync = async (
       return latestBlock;
     },
     async sync(_interval) {
-      // Request last block of interval
-      const blockPromise = _eth_getBlockByNumber(args.requestQueue, {
-        blockNumber: _interval[1],
-      });
-
       await Promise.all(
         args.sources.map(async (source) => {
           // Compute the required interval to sync, accounting for cached
@@ -389,6 +384,11 @@ export const createHistoricalSync = async (
 
           // Skip sync if the interval is already complete.
           if (requiredIntervals.length === 0) return;
+
+          // Request last block of interval
+          const blockPromise = _eth_getBlockByNumber(args.requestQueue, {
+            blockNumber: interval[1],
+          });
 
           // TODO(kyle) use filter metadata for recommended "eth_getLogs" chunk size
 
@@ -426,6 +426,8 @@ export const createHistoricalSync = async (
             }),
           );
 
+          await blockPromise;
+
           // Mark `interval` for `filter` as completed in the sync-store
           await args.syncStore.insertInterval({
             filter: source.filter,
@@ -442,7 +444,6 @@ export const createHistoricalSync = async (
           );
         }),
       );
-      await blockPromise;
       blockCache.clear();
     },
     initializeMetrics(finalizedBlock) {

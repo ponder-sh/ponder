@@ -16,6 +16,7 @@ import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync } from "@/sync/index.js";
 import {
   type Checkpoint,
+  decodeCheckpoint,
   isCheckpointEqual,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -104,8 +105,8 @@ export async function run({
     initialCheckpoint,
   });
 
-  const handleEvents = async (events: Event[]) => {
-    // indexingService.updateTotalSeconds(toCheckpoint);
+  const handleEvents = async (events: Event[], checkpoint: string) => {
+    indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
 
     if (events.length === 0) return { status: "success" } as const;
 
@@ -136,6 +137,7 @@ export async function run({
 
           const result = await handleEvents(
             decodeEvents(common, sources, event.events),
+            event.checkpoint,
           );
 
           if (result.status === "error") onReloadableError(result.error);
@@ -203,9 +205,17 @@ export async function run({
       }
     }
 
+    // Track the last processed checkpoint, used to set metrics
+    let end: Checkpoint | undefined;
+
     // Run historical indexing until complete.
-    for await (const events of sync.getEvents()) {
-      const result = await handleEvents(decodeEvents(common, sources, events));
+    for await (const { events, checkpoint } of sync.getEvents()) {
+      end = decodeCheckpoint(checkpoint);
+
+      const result = await handleEvents(
+        decodeEvents(common, sources, events),
+        checkpoint,
+      );
       if (result.status === "killed") {
         return;
       } else if (result.status === "error") {
@@ -219,12 +229,15 @@ export async function run({
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
     // checkpoint.
-    // common.metrics.ponder_indexing_completed_seconds.set(
-    //   sync.checkpoint.blockTimestamp - sync.startCheckpoint.blockTimestamp,
-    // );
-    // common.metrics.ponder_indexing_completed_timestamp.set(
-    //   sync.checkpoint.blockTimestamp,
-    // );
+    if (end) {
+      common.metrics.ponder_indexing_completed_seconds.set(
+        end.blockTimestamp -
+          decodeCheckpoint(sync.getStartCheckpoint()).blockTimestamp,
+      );
+      common.metrics.ponder_indexing_completed_timestamp.set(
+        end.blockTimestamp,
+      );
+    }
 
     // Become healthy
     common.logger.info({

@@ -13,6 +13,7 @@ import {
 import type { DatabaseModel } from "@/types/model.js";
 import type { UserRecord } from "@/types/schema.js";
 import {
+  type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
   zeroCheckpoint,
@@ -64,7 +65,7 @@ export type Service = {
   eventCount: {
     [eventName: string]: { [networkName: string]: number };
   };
-  // startCheckpoint: Checkpoint;
+  startCheckpoint: Checkpoint;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -186,7 +187,7 @@ export const create = ({
     indexingStore,
     isKilled: false,
     eventCount,
-    // startCheckpoint: syncService.startCheckpoint,
+    startCheckpoint: decodeCheckpoint(sync.getStartCheckpoint()),
     currentEvent: {
       contextState,
       context: {
@@ -375,9 +376,9 @@ export const processEvents = async (
 
       const eventTimestamp = decodeCheckpoint(event.checkpoint).blockTimestamp;
 
-      // indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      //   eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
-      // );
+      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+        eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
+      );
       indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
         eventTimestamp,
       );
@@ -393,10 +394,10 @@ export const processEvents = async (
       events[events.length - 1]!.checkpoint,
     ).blockTimestamp;
 
-    // indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-    //   lastEventInBatchTimestamp -
-    //     indexingService.startCheckpoint.blockTimestamp,
-    // );
+    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+      lastEventInBatchTimestamp -
+        indexingService.startCheckpoint.blockTimestamp,
+    );
     indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
       lastEventInBatchTimestamp,
     );
@@ -429,15 +430,15 @@ export const kill = (indexingService: Service) => {
   indexingService.isKilled = true;
 };
 
-// export const updateTotalSeconds = (
-//   indexingService: Service,
-//   endCheckpoint: Checkpoint,
-// ) => {
-//   indexingService.common.metrics.ponder_indexing_total_seconds.set(
-//     endCheckpoint.blockTimestamp -
-//       indexingService.startCheckpoint.blockTimestamp,
-//   );
-// };
+export const updateTotalSeconds = (
+  indexingService: Service,
+  endCheckpoint: Checkpoint,
+) => {
+  indexingService.common.metrics.ponder_indexing_total_seconds.set(
+    endCheckpoint.blockTimestamp -
+      indexingService.startCheckpoint.blockTimestamp,
+  );
+};
 
 const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {

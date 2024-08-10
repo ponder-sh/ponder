@@ -25,9 +25,11 @@ import type { Source } from "./source.js";
 import { cachedTransport } from "./transport.js";
 
 export type Sync = {
-  getEvents(): AsyncGenerator<RawEvent[]>;
+  getEvents(): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }>;
   startRealtime(): void;
   getStatus(): Status;
+  /** Return the minimum start checkpoint (supremum) for all networks. */
+  getStartCheckpoint(): string;
   /** Return the minimum finalized checkpoint (supremum) for all networks. */
   getFinalizedCheckpoint(): string;
   getCachedTransport(network: Network): Transport;
@@ -37,6 +39,7 @@ export type Sync = {
 export type RealtimeEvent =
   | {
       type: "block";
+      checkpoint: string;
       events: RawEvent[];
     }
   | {
@@ -334,7 +337,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         //       : (BigInt(cursor) + range).toString();
         // }
 
-        yield events;
+        yield { events, checkpoint: to };
         from = cursor;
       }
       if (to >= end) break;
@@ -430,7 +433,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             });
 
             updateStatus(events, cursor, true);
-            args.onRealtimeEvent({ type: "block", events });
+            args.onRealtimeEvent({ type: "block", checkpoint: to, events });
 
             from = cursor;
           }
@@ -542,6 +545,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           realtimeSyncs.set(network, realtimeSync);
         }
       }
+    },
+    getStartCheckpoint() {
+      return getChainsCheckpoint("start")!;
     },
     getFinalizedCheckpoint() {
       return getChainsCheckpoint("finalized")!;
