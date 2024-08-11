@@ -351,11 +351,10 @@ export const createRealtimeSync = (
     const _logs = logs.filter((log) =>
       factories.some((filter) => isLogFactoryMatched({ filter, log })),
     );
-    if (_logs.length > 0)
-      await args.syncStore.insertLogs({
-        logs: _logs.map((log) => ({ log })),
-        chainId: args.network.chainId,
-      });
+    await args.syncStore.insertLogs({
+      logs: _logs.map((log) => ({ log })),
+      chainId: args.network.chainId,
+    });
 
     // ...
     const childAddresses = new Set<Address>();

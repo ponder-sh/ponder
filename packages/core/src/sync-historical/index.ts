@@ -128,12 +128,10 @@ export const createHistoricalSync = async (
       ),
     );
 
-    if (logs.length > 0) {
-      await args.syncStore.insertLogs({
-        logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
-        chainId: args.network.chainId,
-      });
-    }
+    await args.syncStore.insertLogs({
+      logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
+      chainId: args.network.chainId,
+    });
 
     if (filter.includeTransactionReceipts) {
       const transactionReceipts = await Promise.all(
@@ -141,12 +139,10 @@ export const createHistoricalSync = async (
           _eth_getTransactionReceipt(args.requestQueue, { hash }),
         ),
       );
-      if (transactionReceipts.length > 0) {
-        await args.syncStore.insertTransactionReceipts({
-          transactionReceipts,
-          chainId: args.network.chainId,
-        });
-      }
+      await args.syncStore.insertTransactionReceipts({
+        transactionReceipts,
+        chainId: args.network.chainId,
+      });
     }
   };
 
@@ -248,12 +244,10 @@ export const createHistoricalSync = async (
     });
 
     // Insert `logs` into the sync-store
-    if (logs.length !== 0) {
-      await args.syncStore.insertLogs({
-        logs: logs.map((log) => ({ log })),
-        chainId: args.network.chainId,
-      });
-    }
+    await args.syncStore.insertLogs({
+      logs: logs.map((log) => ({ log })),
+      chainId: args.network.chainId,
+    });
   };
 
   /**
@@ -300,11 +294,7 @@ export const createHistoricalSync = async (
     }
 
     // Add `transactionHashes` to the sync-store.
-    if (
-      transactionHashes !== undefined &&
-      transactionHashes.size > 0 &&
-      block.transactions.length > 0
-    ) {
+    if (transactionHashes !== undefined) {
       await args.syncStore.insertTransactions({
         transactions: block.transactions.filter((transaction) =>
           transactionHashes.has(transaction.hash),
@@ -402,8 +392,18 @@ export const createHistoricalSync = async (
                     const maxChunkSize =
                       source.maxBlockRange ?? args.network.defaultMaxBlockRange;
                     await Promise.all(
-                      getChunks({ interval, maxChunkSize }).map((interval) =>
-                        syncLogFilter(filter, interval),
+                      getChunks({ interval, maxChunkSize }).map(
+                        async (interval) => {
+                          await syncLogFilter(filter, interval);
+                          args.common.metrics.ponder_historical_completed_blocks.inc(
+                            {
+                              network: source.networkName,
+                              source: source.name,
+                              type: source.filter.type,
+                            },
+                            interval[1] - interval[0] + 1,
+                          );
+                        },
                       ),
                     );
                     break;
@@ -412,7 +412,18 @@ export const createHistoricalSync = async (
                   case "callTrace":
                     await Promise.all(
                       getChunks({ interval, maxChunkSize: 10 }).map(
-                        (interval) => syncTraceFilter(filter, interval),
+                        async (interval) => {
+                          await syncTraceFilter(filter, interval);
+
+                          args.common.metrics.ponder_historical_completed_blocks.inc(
+                            {
+                              network: source.networkName,
+                              source: source.name,
+                              type: source.filter.type,
+                            },
+                            interval[1] - interval[0] + 1,
+                          );
+                        },
                       ),
                     );
                     break;
@@ -422,6 +433,15 @@ export const createHistoricalSync = async (
                 }
               } else {
                 await syncBlockFilter(source.filter, interval);
+
+                args.common.metrics.ponder_historical_completed_blocks.inc(
+                  {
+                    network: source.networkName,
+                    source: source.name,
+                    type: source.filter.type,
+                  },
+                  interval[1] - interval[0] + 1,
+                );
               }
             }),
           );
@@ -433,15 +453,6 @@ export const createHistoricalSync = async (
             filter: source.filter,
             interval,
           });
-
-          args.common.metrics.ponder_historical_completed_blocks.inc(
-            {
-              network: source.networkName,
-              source: source.name,
-              type: source.filter.type,
-            },
-            interval[1] - interval[0] + 1,
-          );
         }),
       );
       blockCache.clear();

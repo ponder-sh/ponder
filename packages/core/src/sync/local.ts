@@ -5,6 +5,7 @@ import type { SyncStore } from "@/sync-store/index.js";
 import type { LightBlock } from "@/types/sync.js";
 import type { Interval } from "@/utils/interval.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
+import { startClock } from "@/utils/timer.js";
 import { hexToNumber } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import type { Source } from "./source.js";
@@ -84,12 +85,10 @@ export const createLocalSync = async (
   historicalSync.initializeMetrics(finalizedBlock);
 
   /**
-   * Estimate the event density, eventually to be used to
+   * Estimate optimal range to sync at once, eventually to be used to
    * determine the interval size passed to `historicalSync.sync()`.
-   *
-   * TODO(kyle) dynamically adjust, use diagnostic run of ~100 blocks.
    */
-  const blocksPerEvent = 0.25 / args.sources.length;
+  let estimate = 25;
 
   // Cursor to track progress.
   let fromBlock = hexToNumber(startBlock.number);
@@ -132,15 +131,26 @@ export const createLocalSync = async (
        */
       const interval: Interval = [
         fromBlock,
-        Math.min(
-          fromBlock + blocksPerEvent * 1_000,
-          hexToNumber(finalizedBlock.number),
-        ),
+        Math.min(hexToNumber(finalizedBlock.number), fromBlock + estimate),
       ];
+
+      const endClock = startClock();
+      await historicalSync.sync(interval);
+      const duration = endClock();
+
+      // Use the duration and interval of the last call to `sync` to pick the next
+      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
+      estimate = Math.min(
+        Math.max(
+          25,
+          Math.round((1_000 * (interval[1] - interval[0])) / duration),
+        ),
+        estimate * 2,
+        10_000,
+      );
+
       // Update cursor to record progress
       fromBlock = interval[1];
-
-      await historicalSync.sync(interval);
     },
     isComplete() {
       if (this.endBlock === undefined || this.latestBlock === undefined)

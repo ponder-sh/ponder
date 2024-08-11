@@ -376,48 +376,30 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
           // Add block, logs, transactions, receipts, and traces to the sync-store.
 
-          const promises: Promise<void>[] = [];
           const chainId = network.chainId;
-          promises.push(
-            args.syncStore.insertBlock({ block: event.block, chainId }),
-          );
-          if (event.logs.length > 0) {
-            promises.push(
-              args.syncStore.insertLogs({
-                logs: event.logs.map((log) => ({ log, block: event.block })),
-                chainId,
-              }),
-            );
-          }
-          if (event.transactions.length > 0) {
-            promises.push(
-              args.syncStore.insertTransactions({
-                transactions: event.transactions,
-                chainId,
-              }),
-            );
-          }
-          if (event.transactionReceipts.length > 0) {
-            promises.push(
-              args.syncStore.insertTransactionReceipts({
-                transactionReceipts: event.transactionReceipts,
-                chainId,
-              }),
-            );
-          }
-          if (event.callTraces.length > 0) {
-            promises.push(
-              args.syncStore.insertCallTraces({
-                callTraces: event.callTraces.map((callTrace) => ({
-                  callTrace,
-                  block: event.block,
-                })),
-                chainId,
-              }),
-            );
-          }
 
-          await Promise.all(promises).catch(args.onFatalError);
+          await Promise.all([
+            args.syncStore.insertBlock({ block: event.block, chainId }),
+            args.syncStore.insertLogs({
+              logs: event.logs.map((log) => ({ log, block: event.block })),
+              chainId,
+            }),
+            args.syncStore.insertTransactions({
+              transactions: event.transactions,
+              chainId,
+            }),
+            args.syncStore.insertTransactionReceipts({
+              transactionReceipts: event.transactionReceipts,
+              chainId,
+            }),
+            args.syncStore.insertCallTraces({
+              callTraces: event.callTraces.map((callTrace) => ({
+                callTrace,
+                block: event.block,
+              })),
+              chainId,
+            }),
+          ]);
 
           /*
            * Extract events with `syncStore.getEvents()`, paginating to
