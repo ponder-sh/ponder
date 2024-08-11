@@ -376,9 +376,7 @@ export const createHistoricalSync = async (
           if (requiredIntervals.length === 0) return;
 
           // Request last block of interval
-          const blockPromise = _eth_getBlockByNumber(args.requestQueue, {
-            blockNumber: interval[1],
-          });
+          const blockPromise = syncBlock(BigInt(interval[1]));
 
           // TODO(kyle) use filter metadata for recommended "eth_getLogs" chunk size
 

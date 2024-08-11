@@ -10,16 +10,27 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { drainAsyncGenerator } from "@/utils/drainAsyncGenerator.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import type { RawEvent } from "./events.js";
-import { createSync } from "./index.js";
+import { type Sync, createSync } from "./index.js";
 import type { BlockSource } from "./source.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+
+async function drainAsyncGenerator(
+  asyncGenerator: ReturnType<Sync["getEvents"]>,
+) {
+  const result: RawEvent[] = [];
+
+  for await (const { events } of asyncGenerator) {
+    result.push(...events);
+  }
+
+  return result;
+}
 
 function getMultichainNetworksAndSources(context: TestContext) {
   const mainnet = context.networks[0];
@@ -348,7 +359,36 @@ test("onEvent() handles finalize", async (context) => {
 
 test.todo("onEvent() handles reorg");
 
-test.todo("onEvent() multichain");
+test("onEvent() multichain", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+
+  sources[1].filter.toBlock = 1;
+
+  const promise = promiseWithResolvers<void>();
+
+  const sync = await createSync({
+    syncStore,
+    sources: [sources[0], sources[1]],
+    common: context.common,
+    networks,
+    onRealtimeEvent: () => {
+      promise.resolve();
+    },
+    onFatalError: (e) => {},
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  sync.startRealtime();
+
+  await promise.promise;
+
+  await sync.kill();
+
+  await cleanup();
+});
 
 test("onEvent() handles endBlock finalization", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
@@ -384,4 +424,33 @@ test("onEvent() handles endBlock finalization", async (context) => {
   await cleanup();
 });
 
-test.todo("onEvent() handles errors");
+test("onEvent() handles errors", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const promise = promiseWithResolvers<void>();
+
+  const sync = await createSync({
+    syncStore,
+    sources: [context.sources[0]],
+    common: context.common,
+    networks: context.networks,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {
+      promise.resolve();
+    },
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  const spy = vi.spyOn(syncStore, "insertTransactions");
+  spy.mockRejectedValue(new Error());
+
+  sync.startRealtime();
+
+  await promise.promise;
+
+  await sync.kill();
+
+  await cleanup();
+});
