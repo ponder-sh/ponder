@@ -23,7 +23,6 @@ import {
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
-  _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
@@ -54,6 +53,8 @@ const ADDRESS_FILTER_LIMIT = 1_000;
 export const createHistoricalSync = async (
   args: CreateHistoricaSyncParameters,
 ): Promise<HistoricalSync> => {
+  let isKilled = false;
+
   /**
    * Blocks that have already been extracted.
    * Note: All entries are deleted at the end of each call to `sync()`.
@@ -97,6 +98,8 @@ export const createHistoricalSync = async (
       address = filter.address;
     }
 
+    if (isKilled) return;
+
     // Request logs, batching of large arrays of addresses
     let logs: SyncLog[];
     if (Array.isArray(address) && address.length > 50) {
@@ -121,6 +124,8 @@ export const createHistoricalSync = async (
       });
     }
 
+    if (isKilled) return;
+
     const transactionHashes = new Set(logs.map((l) => l.transactionHash));
     const blocks = await Promise.all(
       logs.map((log) =>
@@ -128,10 +133,14 @@ export const createHistoricalSync = async (
       ),
     );
 
+    if (isKilled) return;
+
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
       chainId: args.network.chainId,
     });
+
+    if (isKilled) return;
 
     if (filter.includeTransactionReceipts) {
       const transactionReceipts = await Promise.all(
@@ -139,6 +148,9 @@ export const createHistoricalSync = async (
           _eth_getTransactionReceipt(args.requestQueue, { hash }),
         ),
       );
+
+      if (isKilled) return;
+
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
         chainId: args.network.chainId,
@@ -163,11 +175,6 @@ export const createHistoricalSync = async (
     filter: CallTraceFilter,
     interval: Interval,
   ) => {
-    // Request last block of interval
-    const blockPromise = _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: interval[1],
-    });
-
     // Resolve `filter.toAddress`
     let toAddress: Address[] | undefined;
     if (isAddressFactory(filter.toAddress)) {
@@ -181,6 +188,8 @@ export const createHistoricalSync = async (
       toAddress = filter.toAddress;
     }
 
+    if (isKilled) return;
+
     let callTraces = await _trace_filter(args.requestQueue, {
       fromAddress: filter.fromAddress,
       toAddress,
@@ -191,7 +200,7 @@ export const createHistoricalSync = async (
         traces.flat().filter((t) => t.type === "call") as SyncCallTrace[],
     );
 
-    await blockPromise;
+    if (isKilled) return;
 
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
@@ -213,6 +222,8 @@ export const createHistoricalSync = async (
       (trace) => revertedTransactions.has(trace.transactionHash) === false,
     );
 
+    if (isKilled) return;
+
     const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
     const blocks = await Promise.all(
       callTraces.map((trace) =>
@@ -220,15 +231,15 @@ export const createHistoricalSync = async (
       ),
     );
 
-    if (callTraces.length !== 0) {
-      await args.syncStore.insertCallTraces({
-        callTraces: callTraces.map((callTrace, i) => ({
-          callTrace,
-          block: blocks[i]!,
-        })),
-        chainId: args.network.chainId,
-      });
-    }
+    if (isKilled) return;
+
+    await args.syncStore.insertCallTraces({
+      callTraces: callTraces.map((callTrace, i) => ({
+        callTrace,
+        block: blocks[i]!,
+      })),
+      chainId: args.network.chainId,
+    });
   };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
@@ -242,6 +253,8 @@ export const createHistoricalSync = async (
       fromBlock: interval[0],
       toBlock: interval[1],
     });
+
+    if (isKilled) return;
 
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
@@ -444,6 +457,8 @@ export const createHistoricalSync = async (
             }),
           );
 
+          if (isKilled) return;
+
           await blockPromise;
 
           // Mark `interval` for `filter` as completed in the sync-store
@@ -510,6 +525,7 @@ export const createHistoricalSync = async (
       }
     },
     kill() {
+      isKilled = true;
       clearInterval(interval);
     },
   };

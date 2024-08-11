@@ -81,6 +81,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   const localSyncs = new Map<Network, LocalSync>();
   const realtimeSyncs = new Map<Network, RealtimeSync>();
   const status: Status = {};
+  let isKilled = false;
 
   // Create a `LocalSync` for each network, populating `localSyncs`.
   await Promise.all(
@@ -313,6 +314,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        * avoid loading too many events into memory.
        */
       while (true) {
+        if (isKilled) return;
         if (from === to) break;
         const limit = args.common.options.syncEventsQuerySize;
         // convert `estimateSeconds` to checkpoint
@@ -349,7 +351,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         yield { events, checkpoint: to };
         from = cursor;
       }
-      if (to >= end) break;
+
+      // Exit condition: All network have completed historical sync.
+      if (
+        _localSyncs.every(
+          (localSync) =>
+            localSync.isComplete() ||
+            localSync.finalizedBlock === localSync.latestBlock,
+        )
+      ) {
+        break;
+      }
     }
   }
 
@@ -419,6 +431,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
              * avoid loading too many events into memory.
              */
             while (true) {
+              if (isKilled) return;
               if (from === to) break;
               const { events, cursor } = await args.syncStore.getEvents({
                 filters,
@@ -557,6 +570,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return cachedTransport({ requestQueue, syncStore: args.syncStore });
     },
     async kill() {
+      isKilled = true;
       const promises: Promise<void>[] = [];
       for (const network of args.networks) {
         /**
@@ -567,6 +581,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         const realtimeSync = realtimeSyncs.get(network);
         if (realtimeSync) promises.push(realtimeSync.kill());
       }
+
+      eventQueue.pause();
+      eventQueue.clear();
+      promises.push(eventQueue.onIdle());
+
       await Promise.all(promises);
     },
   };

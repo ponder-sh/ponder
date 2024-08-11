@@ -746,11 +746,21 @@ export const createSyncStore = ({
             values.push(trace);
           }
         }
-        await tx
-          .insertInto("callTraces")
-          .values(values)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
+
+        // Calculate `batchSize` based on how many parameters the
+        // input will have
+        const batchSize = Math.floor(
+          common.options.databaseMaxQueryParameters /
+            Object.keys(values[0]!).length,
+        );
+
+        for (let i = 0; i < values.length; i += batchSize) {
+          await tx
+            .insertInto("callTraces")
+            .values(values.slice(i, i + batchSize))
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute();
+        }
       });
     }),
   getEvents: async ({ filters, from, to, limit }) => {

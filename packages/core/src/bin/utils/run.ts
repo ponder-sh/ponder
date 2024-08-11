@@ -50,6 +50,7 @@ export async function run({
 
   common.options = { ...common.options, ...optionsConfig };
 
+  let isKilled = false;
   let database: DatabaseService;
   let namespaceInfo: NamespaceInfo;
   let initialCheckpoint: Checkpoint;
@@ -106,9 +107,9 @@ export async function run({
   });
 
   const handleEvents = async (events: Event[], checkpoint: string) => {
-    indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
-
     if (events.length === 0) return { status: "success" } as const;
+
+    indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
 
     return await indexingService.processEvents({ events });
   };
@@ -224,6 +225,8 @@ export async function run({
       }
     }
 
+    if (isKilled) return;
+
     await historicalStore.flush({ isFullFlush: true });
 
     // Manually update metrics to fix a UI bug that occurs when the end
@@ -278,6 +281,7 @@ export async function run({
   const startPromise = start();
 
   return async () => {
+    isKilled = true;
     indexingService.kill();
     await sync.kill();
     realtimeQueue.pause();
