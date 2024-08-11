@@ -85,10 +85,10 @@ export const createLocalSync = async (
   historicalSync.initializeMetrics(finalizedBlock);
 
   /**
-   * Estimate optimal range to sync at once, eventually to be used to
-   * determine the interval size passed to `historicalSync.sync()`.
+   * Estimate optimal range (blocks) to sync at a time, eventually to be used to
+   * determine `interval` passed to `historicalSync.sync()`.
    */
-  let estimate = 25;
+  let estimateRange = 25;
 
   // Cursor to track progress.
   let fromBlock = hexToNumber(startBlock.number);
@@ -131,22 +131,22 @@ export const createLocalSync = async (
        */
       const interval: Interval = [
         fromBlock,
-        Math.min(hexToNumber(finalizedBlock.number), fromBlock + estimate),
+        Math.min(hexToNumber(finalizedBlock.number), fromBlock + estimateRange),
       ];
 
       const endClock = startClock();
       await historicalSync.sync(interval);
       const duration = endClock();
 
-      // Use the duration and interval of the last call to `sync` to pick the next
+      // Use the duration and interval of the last call to `sync` to update estimate
       // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-      estimate = Math.min(
+      estimateRange = Math.min(
         Math.max(
           25,
           Math.round((1_000 * (interval[1] - interval[0])) / duration),
         ),
-        estimate * 2,
-        10_000,
+        estimateRange * 2,
+        100_000,
       );
 
       // Update cursor to record progress

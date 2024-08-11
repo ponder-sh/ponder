@@ -249,6 +249,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   };
 
   /**
+   * Estimate optimal range (seconds) to query at a time, eventually
+   * used to determine `to` passed to `getEvents`
+   */
+  let estimateSeconds = 10_000;
+  /**
    * Omnichain `getEvents`
    *
    * Extract all events across `args.networks` ordered by checkpoint.
@@ -303,8 +308,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       const to = getChainsCheckpoint("latest") ?? end;
 
-      const estimate = to;
-
       /*
        * Extract events with `syncStore.getEvents()`, paginating to
        * avoid loading too many events into memory.
@@ -312,29 +315,36 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       while (true) {
         if (from === to) break;
         const limit = args.common.options.syncEventsQuerySize;
+        // convert `estimateSeconds` to checkpoint
+        const _estimate = encodeCheckpoint({
+          ...zeroCheckpoint,
+          blockTimestamp: Math.min(
+            decodeCheckpoint(from).blockTimestamp + estimateSeconds,
+            maxCheckpoint.blockTimestamp,
+          ),
+        });
         const { events, cursor } = await args.syncStore.getEvents({
           filters: args.sources.map(({ filter }) => filter),
           from,
-          to: estimate,
+          to: to < _estimate ? to : _estimate,
           limit,
         });
 
         updateStatus(events, cursor, false);
 
-        // if (events.length > 0) {
-        //   const eventsPerCheckpoint =
-        //     Number(BigInt(cursor) - BigInt(from)) / events.length;
-        //   console.log({
-        //     eventsPerCheckpoint,
-        //     numerator: BigInt(cursor) - BigInt(from),
-        //     denominator: events.length,
-        //   });
-        //   const range = BigInt(eventsPerCheckpoint * limit);
-        //   estimate =
-        //     BigInt(cursor) + range > BigInt(to)
-        //       ? to
-        //       : (BigInt(cursor) + range).toString();
-        // }
+        // Use range and number of events returned to update estimate
+        // 10 <= estimate(new) <= estimate(prev) * 2
+        estimateSeconds = Math.min(
+          Math.max(
+            10,
+            Math.round(
+              (limit * decodeCheckpoint(cursor).blockTimestamp -
+                decodeCheckpoint(from).blockTimestamp) /
+                (events.length || 1),
+            ),
+          ),
+          estimateSeconds * 2,
+        );
 
         yield { events, checkpoint: to };
         from = cursor;

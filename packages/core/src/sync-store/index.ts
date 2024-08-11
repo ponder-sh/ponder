@@ -124,17 +124,24 @@ export type SyncStore = {
 };
 
 const childAddressSQL = (
+  sql: "sqlite" | "postgres",
   childAddressLocation: LogFactory["childAddressLocation"],
 ) => {
   if (childAddressLocation.startsWith("offset")) {
     const childAddressOffset = Number(childAddressLocation.substring(6));
     const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
     const length = 20 * 2;
-    return ksql<Hex>`'0x' || substring(data, ${start}, ${length})`;
+    return sql === "sqlite"
+      ? ksql<Hex>`'0x' || substring(data, ${start}, ${length})`
+      : ksql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return ksql<Hex>`'0x' || substring(${ksql.ref(childAddressLocation)}, ${start}, ${length})`;
+    return sql === "sqlite"
+      ? ksql<Hex>`'0x' || substring(${ksql.ref(childAddressLocation)}, ${start}, ${length})`
+      : ksql<Hex>`'0x' || substring(${ksql.ref(
+          childAddressLocation,
+        )} from ${start}::integer for ${length}::integer)`;
   }
 };
 
@@ -521,7 +528,7 @@ export const createSyncStore = ({
     db.wrap({ method: "getChildAddresses" }, async () => {
       return await db
         .selectFrom("logs")
-        .select(childAddressSQL(filter.childAddressLocation).as("address"))
+        .select(childAddressSQL(sql, filter.childAddressLocation).as("address"))
         .where("address", "=", filter.address)
         .where("topic0", "=", filter.eventSelector)
         .where("chainId", "=", filter.chainId)
@@ -536,7 +543,9 @@ export const createSyncStore = ({
         .with("childAddresses", (db) =>
           db
             .selectFrom("logs")
-            .select(childAddressSQL(filter.childAddressLocation).as("address"))
+            .select(
+              childAddressSQL(sql, filter.childAddressLocation).as("address"),
+            )
             .where("address", "=", filter.address)
             .where("topic0", "=", filter.eventSelector)
             .where("chainId", "=", filter.chainId),
@@ -544,7 +553,9 @@ export const createSyncStore = ({
         .selectNoFrom(
           addresses.map((a, i) =>
             ksql
-              .raw(`CASE WHEN '${a}' IN "childAddresses" THEN 1 ELSE 0 END`)
+              .raw(
+                `CASE WHEN '${a}' IN (SELECT "address" FROM "childAddresses") THEN 1 ELSE 0 END`,
+              )
               .as(String(i)),
           ),
         )
@@ -762,7 +773,9 @@ export const createSyncStore = ({
           db
             .selectFrom("logs")
             .select(
-              childAddressSQL(address.childAddressLocation).as("childAddress"),
+              childAddressSQL(sql, address.childAddressLocation).as(
+                "childAddress",
+              ),
             )
             .where("address", "=", address.address)
             .where("topic0", "=", address.eventSelector)

@@ -375,7 +375,7 @@ test("onEvent() multichain", async (context) => {
     onRealtimeEvent: () => {
       promise.resolve();
     },
-    onFatalError: (e) => {},
+    onFatalError: () => {},
     initialCheckpoint: zeroCheckpoint,
   });
 
