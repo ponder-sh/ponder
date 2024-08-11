@@ -458,6 +458,8 @@ export const createHistoricalSync = async (
       blockCache.clear();
     },
     initializeMetrics(finalizedBlock) {
+      args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
+
       for (const source of args.sources) {
         const label = {
           network: source.networkName,

@@ -150,7 +150,7 @@ export const createLocalSync = async (
       );
 
       // Update cursor to record progress
-      fromBlock = interval[1];
+      fromBlock = interval[1] + 1;
     },
     isComplete() {
       if (this.endBlock === undefined || this.latestBlock === undefined)
