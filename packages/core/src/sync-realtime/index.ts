@@ -250,7 +250,7 @@ export const createRealtimeSync = (
           service: "realtime",
           msg: `Reconciled ${hexToNumber(block.number) - hexToNumber(parentBlock.number)}-block reorg on '${
             args.network.name
-          }' with common ancestor block ${parentBlock.number}`,
+          }' with common ancestor block ${hexToNumber(parentBlock.number)}`,
         });
 
         return;

@@ -588,7 +588,11 @@ export const createSyncStore = ({
               .slice(i, i + batchSize)
               .map(({ log, block }) => encodeLog({ log, block, chainId, sql })),
           )
-          .onConflict((oc) => oc.column("id").doNothing())
+          .onConflict((oc) =>
+            oc.column("id").doUpdateSet((eb) => ({
+              checkpoint: eb.ref("excluded.checkpoint"),
+            })),
+          )
           .execute();
       }
     }),
@@ -632,7 +636,13 @@ export const createSyncStore = ({
                 encodeTransaction({ transaction, chainId, sql }),
               ),
           )
-          .onConflict((oc) => oc.column("hash").doNothing())
+          .onConflict((oc) =>
+            oc.column("hash").doUpdateSet((eb) => ({
+              blockHash: eb.ref("excluded.blockHash"),
+              blockNumber: eb.ref("excluded.blockNumber"),
+              transactionIndex: eb.ref("excluded.transactionIndex"),
+            })),
+          )
           .execute();
       }
     }),
@@ -672,7 +682,19 @@ export const createSyncStore = ({
                 encodeTransactionReceipt({ transactionReceipt, chainId, sql }),
               ),
           )
-          .onConflict((oc) => oc.column("transactionHash").doNothing())
+          .onConflict((oc) =>
+            oc.column("transactionHash").doUpdateSet((eb) => ({
+              blockHash: eb.ref("excluded.blockHash"),
+              blockNumber: eb.ref("excluded.blockNumber"),
+              contractAddress: eb.ref("excluded.contractAddress"),
+              cumulativeGasUsed: eb.ref("excluded.cumulativeGasUsed"),
+              effectiveGasPrice: eb.ref("excluded.effectiveGasPrice"),
+              gasUsed: eb.ref("excluded.gasUsed"),
+              logs: eb.ref("excluded.logs"),
+              logsBloom: eb.ref("excluded.logsBloom"),
+              transactionIndex: eb.ref("excluded.transactionIndex"),
+            })),
+          )
           .execute();
       }
     }),
@@ -1244,7 +1266,9 @@ export const createSyncStore = ({
           result,
         })
         .onConflict((oc) =>
-          oc.columns(["request", "chainId", "blockNumber"]).doNothing(),
+          oc
+            .columns(["request", "chainId", "blockNumber"])
+            .doUpdateSet({ result }),
         )
         .execute();
     }),
