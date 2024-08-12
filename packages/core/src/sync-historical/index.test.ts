@@ -499,36 +499,33 @@ test("syncBlock() with cache", async (context) => {
   await cleanup();
 });
 
-test(
-  "syncAddress() handles many addresses",
-  async (context) => {
-    const { cleanup, syncStore, database } =
-      await setupDatabaseServices(context);
+test("syncAddress() handles many addresses", async (context) => {
+  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-    for (let i = 0; i < 1000; i++) {
-      await simulateFactoryDeploy(context.factory.address);
-    }
+  context.common.options.historicalAddressLimit = 10;
 
-    const pair = await simulateFactoryDeploy(context.factory.address);
-    await simulatePairSwap(pair);
+  for (let i = 0; i < 10; i++) {
+    await simulateFactoryDeploy(context.factory.address);
+  }
 
-    const historicalSync = await createHistoricalSync({
-      common: context.common,
-      network: context.networks[0],
-      sources: [context.sources[1]],
-      syncStore,
-      requestQueue: await getRequestQueue(context.requestQueues[0]),
-    });
+  const pair = await simulateFactoryDeploy(context.factory.address);
+  await simulatePairSwap(pair);
 
-    await historicalSync.sync([0, 1000 + 5 + 2]);
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    network: context.networks[0],
+    sources: [context.sources[1]],
+    syncStore,
+    requestQueue: await getRequestQueue(context.requestQueues[0]),
+  });
 
-    const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
-    expect(logs).toHaveLength(1004);
+  await historicalSync.sync([0, 10 + 5 + 2]);
 
-    await cleanup();
-  },
-  { timeout: 20_000 },
-);
+  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(14);
+
+  await cleanup();
+});
 
 test("sync() chunks requests", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);

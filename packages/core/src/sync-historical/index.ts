@@ -48,8 +48,6 @@ type CreateHistoricaSyncParameters = {
   requestQueue: RequestQueue;
 };
 
-const ADDRESS_FILTER_LIMIT = 1_000;
-
 export const createHistoricalSync = async (
   args: CreateHistoricaSyncParameters,
 ): Promise<HistoricalSync> => {
@@ -89,7 +87,7 @@ export const createHistoricalSync = async (
     let address: Address | Address[] | undefined;
     if (isAddressFactory(filter.address)) {
       const _addresses = await syncAddress(filter.address, interval);
-      if (_addresses.length < ADDRESS_FILTER_LIMIT) {
+      if (_addresses.length < args.common.options.historicalAddressLimit) {
         address = _addresses;
       } else {
         address = undefined;
@@ -179,7 +177,7 @@ export const createHistoricalSync = async (
     let toAddress: Address[] | undefined;
     if (isAddressFactory(filter.toAddress)) {
       const _addresses = await syncAddress(filter.toAddress, interval);
-      if (_addresses.length < ADDRESS_FILTER_LIMIT) {
+      if (_addresses.length < args.common.options.historicalAddressLimit) {
         toAddress = _addresses;
       } else {
         toAddress = undefined;
@@ -334,7 +332,7 @@ export const createHistoricalSync = async (
     // Query the sync-store for all addresses that match `filter`.
     return await args.syncStore.getChildAddresses({
       filter,
-      limit: ADDRESS_FILTER_LIMIT,
+      limit: args.common.options.historicalAddressLimit,
     });
   };
 

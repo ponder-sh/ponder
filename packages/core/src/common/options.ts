@@ -31,6 +31,8 @@ export type Options = {
   databaseMaxQueryParameters: number;
   databaseMaxRowLimit: number;
 
+  historicalAddressLimit: number;
+
   indexingCacheMaxBytes: number;
   indexingCacheFlushRatio: number;
 
@@ -101,6 +103,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     // Half of the max query parameters for SQLite
     databaseMaxQueryParameters: 16_000,
     databaseMaxRowLimit: 1_000,
+
+    historicalAddressLimit: 1_000,
 
     // os.freemem() / 4, bucketed closest to 64, 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:

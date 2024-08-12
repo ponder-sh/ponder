@@ -162,7 +162,7 @@ export async function setupDatabaseServices(
   });
 
   const readonlyStore = getReadonlyStore({
-    encoding: "sqlite",
+    encoding: database.kind,
     schema: config.schema,
     namespaceInfo: result.namespaceInfo,
     db: database.indexingDb,
@@ -172,7 +172,7 @@ export async function setupDatabaseServices(
   const indexingStore =
     config.indexing === "historical"
       ? getHistoricalStore({
-          encoding: "sqlite",
+          encoding: database.kind,
           schema: config.schema,
           readonlyStore,
           namespaceInfo: result.namespaceInfo,
@@ -183,7 +183,7 @@ export async function setupDatabaseServices(
       : {
           ...readonlyStore,
           ...getRealtimeStore({
-            encoding: "sqlite",
+            encoding: database.kind,
             schema: config.schema,
             namespaceInfo: result.namespaceInfo,
             db: database.indexingDb,

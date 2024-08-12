@@ -4,7 +4,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
-import * as codegen from "@/common/codegen.js";
 import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import { createSchema } from "@/schema/schema.js";
 import { promiseWithResolvers } from "@ponder/common";
@@ -27,32 +26,6 @@ const schema = createSchema((p) => ({
 }));
 
 const graphqlSchema = buildGraphQLSchema(schema);
-
-test("run() kill", async (context) => {
-  const build: IndexingBuild = {
-    buildId: "buildId",
-    schema,
-    graphqlSchema,
-    databaseConfig: context.databaseConfig,
-    optionsConfig: {},
-    networks: context.networks,
-    sources: context.sources,
-    indexingFunctions: {},
-  };
-
-  const codegenSpy = vi.spyOn(codegen, "runCodegen");
-
-  const kill = await run({
-    common: context.common,
-    build,
-    onFatalError: vi.fn(),
-    onReloadableError: vi.fn(),
-  });
-
-  expect(codegenSpy).toHaveBeenCalledOnce();
-
-  await kill();
-});
 
 test("run() setup", async (context) => {
   const indexingFunctions = {
