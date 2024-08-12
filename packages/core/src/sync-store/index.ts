@@ -540,6 +540,11 @@ export const createSyncStore = ({
   filterChildAddresses: ({ filter, addresses }) =>
     db.wrap({ method: "filterChildAddresses" }, async () => {
       const result = await db
+        .with(
+          "addresses(address)",
+          () =>
+            ksql`( values ${ksql.join(addresses.map((a) => ksql`( ${ksql.val(a)} )`))} )`,
+        )
         .with("childAddresses", (db) =>
           db
             .selectFrom("logs")
@@ -550,24 +555,16 @@ export const createSyncStore = ({
             .where("topic0", "=", filter.eventSelector)
             .where("chainId", "=", filter.chainId),
         )
-        .selectNoFrom(
-          addresses.map((a, i) =>
-            ksql
-              .raw(
-                `CASE WHEN '${a}' IN (SELECT "address" FROM "childAddresses") THEN 1 ELSE 0 END`,
-              )
-              .as(String(i)),
-          ),
+        .selectFrom("addresses")
+        .where(
+          "addresses.address",
+          "in",
+          ksql`(SELECT "address" FROM "childAddresses")`,
         )
-        .executeTakeFirstOrThrow();
+        .selectAll()
+        .execute();
 
-      const set = new Set<Address>();
-
-      for (let i = 0; i < addresses.length; i++) {
-        if (result[String(i)] === 1) set.add(addresses[i]!);
-      }
-
-      return set;
+      return new Set<Address>([...result.map(({ address }) => address)]);
     }),
   insertLogs: async ({ logs, chainId }) =>
     db.wrap({ method: "insertLogs" }, async () => {
