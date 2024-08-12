@@ -1052,7 +1052,6 @@ export const createSyncStore = ({
           "transactionReceipts.transactionIndex as txr_transactionIndex",
           "transactionReceipts.type as txr_type",
         ])
-        .selectAll()
         .where("event.checkpoint", ">", from)
         .where("event.checkpoint", "<=", to)
         .orderBy("event.checkpoint", "asc")
