@@ -1,8 +1,8 @@
 import {
   type TraceFilterFragment,
+  buildLogFilterFragments,
   buildTraceFilterFragments,
 } from "@/sync/fragments.js";
-import { buildLogFilterFragments } from "@/sync/fragments.js";
 import {
   type CallTraceFilter,
   type LogFactory,
@@ -47,7 +47,7 @@ export const isLogFilterMatched = ({
     return false;
   }
 
-  for (const fragment of buildLogFilterFragments(filter)) {
+  return buildLogFilterFragments(filter).some((fragment) => {
     if (
       fragment.topic0 !== null &&
       fragment.topic0 !== log.topics[0]?.toLowerCase()
@@ -69,15 +69,15 @@ export const isLogFilterMatched = ({
     )
       return false;
 
-    if (isAddressFactory(filter.address)) continue;
     if (
+      isAddressFactory(filter.address) === false &&
       fragment.address !== null &&
       fragment.address !== log.address.toLowerCase()
     )
       return false;
-  }
 
-  return true;
+    return true;
+  });
 };
 
 /**
@@ -100,7 +100,7 @@ export const isCallTraceFilterMatched = ({
     return false;
   }
 
-  for (const fragment of buildTraceFilterFragments(filter)) {
+  return buildTraceFilterFragments(filter).some((fragment) => {
     if (
       fragment.fromAddress !== null &&
       fragment.fromAddress !== callTrace.action.from.toLowerCase()
@@ -108,16 +108,15 @@ export const isCallTraceFilterMatched = ({
       return false;
     }
 
-    if (isAddressFactory(filter.toAddress)) continue;
-
     if (
+      isAddressFactory(filter.toAddress) === false &&
       (fragment as TraceFilterFragment<undefined>).toAddress !== null &&
       (fragment as TraceFilterFragment<undefined>).toAddress !==
         callTrace.action.to.toLowerCase()
     ) {
       return false;
     }
-  }
 
-  return true;
+    return true;
+  });
 };

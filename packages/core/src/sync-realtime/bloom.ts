@@ -69,21 +69,8 @@ export function isFilterInBloom({
   else if (isAddressFactory(filter.address)) {
     // Return true if the `Factory` is matched.
 
-    let _isAddressInBloom: boolean;
-    if (Array.isArray(filter.address.address)) {
-      if (filter.address.address.length === 0) {
-        _isAddressInBloom = true;
-      } else {
-        _isAddressInBloom = filter.address.address.some((address) =>
-          isInBloom(block.logsBloom, address),
-        );
-      }
-    } else {
-      _isAddressInBloom = isInBloom(block.logsBloom, filter.address.address);
-    }
-
     if (
-      _isAddressInBloom &&
+      isInBloom(block.logsBloom, filter.address.address) &&
       isInBloom(block.logsBloom, filter.address.eventSelector)
     ) {
       return true;

@@ -356,7 +356,7 @@ export const createRealtimeSync = (
       chainId: args.network.chainId,
     });
 
-    // ...
+    // Get all addresses from `logs` that are from a factory
     const childAddresses = new Set<Address>();
     for (const filter of factories) {
       if (logs.length > 0) {
@@ -368,7 +368,7 @@ export const createRealtimeSync = (
       }
     }
 
-    // Remote logs that don't match a filter
+    // Remove logs that don't match a filter
     logs = logs.filter((log) =>
       logFilters.some((filter) => {
         const isMatched = isLogFilterMatched({ filter, block, log });
