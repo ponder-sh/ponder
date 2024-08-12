@@ -412,8 +412,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 **Factory contract requirements & limitations**
 
-1. **Scaling**: The sync engine does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permissionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that the sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
-2. **Event signature requirements**: The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
+1. **Event signature requirements**: The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
 
 ```solidity
 // ✅ Eligible. The parameter "child" has type "address" and is non-indexed.
@@ -433,7 +432,7 @@ struct ChildContract {
 event ChildCreated(ChildContract child);
 ```
 
-3. **Nested factory patterns**: The sync engine doesn't support factory patterns that are nested beyond a single layer.
+2. **Nested factory patterns**: The sync engine doesn't support factory patterns that are nested beyond a single layer.
 
 ### Proxy & upgradable contracts
 
