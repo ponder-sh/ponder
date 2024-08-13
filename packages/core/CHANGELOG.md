@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.5.8
+
+### Patch Changes
+
+- [#1019](https://github.com/ponder-sh/ponder/pull/1019) [`6ce5ce70df8101826b02779ea52a8e04725ad2a9`](https://github.com/ponder-sh/ponder/commit/6ce5ce70df8101826b02779ea52a8e04725ad2a9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed issue with multi-network block intervals.
+
+- [#1003](https://github.com/ponder-sh/ponder/pull/1003) [`f609fbee88f1cc49f59eb06e722a9345aef0174f`](https://github.com/ponder-sh/ponder/commit/f609fbee88f1cc49f59eb06e722a9345aef0174f) Thanks [@sinasab](https://github.com/sinasab)! - Fix default ipv6 support
+
 ## 0.5.7
 
 ### Patch Changes
