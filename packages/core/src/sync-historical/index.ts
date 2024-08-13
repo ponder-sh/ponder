@@ -18,6 +18,7 @@ import {
   type Interval,
   getChunks,
   intervalDifference,
+  intervalIntersection,
   intervalSum,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
@@ -76,6 +77,26 @@ export const createHistoricalSync = async (
 
   // Closest-to-tip block that has been fully injested.
   let latestBlock: SyncBlock | undefined;
+
+  /**
+   * Attempt to initialize `latestBlock` to the minimum completed block
+   * across all filters. This is only possible if every filter has made
+   * some progress.
+   */
+  const _latestCompletedBlocks = args.sources.map(({ filter }) => {
+    const completedIntervals = intervalIntersection(
+      [[filter.fromBlock, filter.toBlock ?? Number.POSITIVE_INFINITY]],
+      intervalsCache.get(filter)!,
+    );
+    if (completedIntervals.length === 0) return undefined;
+    return completedIntervals[0]![1];
+  });
+
+  if (_latestCompletedBlocks.every((block) => block !== undefined)) {
+    latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
+      blockNumber: Math.min(...(_latestCompletedBlocks as number[])),
+    });
+  }
 
   ////////
   // Helper functions for specific sync tasks

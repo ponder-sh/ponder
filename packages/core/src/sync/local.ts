@@ -91,7 +91,10 @@ export const createLocalSync = async (
   let estimateRange = 25;
 
   // Cursor to track progress.
-  let fromBlock = hexToNumber(startBlock.number);
+  let fromBlock =
+    historicalSync.latestBlock !== undefined
+      ? hexToNumber(historicalSync.latestBlock.number) + 1
+      : hexToNumber(startBlock.number);
 
   // `latestBlock` override. Set during realtime sync
   let _latestBlock: LightBlock | undefined;
