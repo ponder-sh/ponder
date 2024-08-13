@@ -170,11 +170,7 @@ export const createSyncStore = ({
                   await tx
                     .insertInto("factoryLogFilters")
                     .values(fragment as LogFilterFragment<Factory>)
-                    .onConflict((oc) =>
-                      oc
-                        .column("id")
-                        .doUpdateSet(fragment as LogFilterFragment<Factory>),
-                    )
+                    .onConflict((oc) => oc.column("id").doNothing())
                     .execute();
 
                   await tx
@@ -188,7 +184,7 @@ export const createSyncStore = ({
                   await tx
                     .insertInto("logFilters")
                     .values(fragment)
-                    .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+                    .onConflict((oc) => oc.column("id").doNothing())
                     .execute();
 
                   await tx
@@ -211,7 +207,7 @@ export const createSyncStore = ({
               await tx
                 .insertInto("blockFilters")
                 .values(fragment)
-                .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+                .onConflict((oc) => oc.column("id").doNothing())
                 .executeTakeFirstOrThrow();
 
               await tx
@@ -233,7 +229,7 @@ export const createSyncStore = ({
                   await tx
                     .insertInto("factoryTraceFilters")
                     .values(fragment as TraceFilterFragment<Factory>)
-                    .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+                    .onConflict((oc) => oc.column("id").doNothing())
                     .execute();
 
                   await tx
@@ -247,7 +243,7 @@ export const createSyncStore = ({
                   await tx
                     .insertInto("traceFilters")
                     .values(fragment)
-                    .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+                    .onConflict((oc) => oc.column("id").doNothing())
                     .execute();
 
                   await tx
