@@ -434,6 +434,8 @@ event ChildCreated(ChildContract child);
 
 2. **Nested factory patterns**: The sync engine doesn't support factory patterns that are nested beyond a single layer.
 
+3. **Scaling**: The sync engine can handle an unlimited number of child contracts. However, if the target factory contract has more than 1,000 child contracts, Ponder omits the address argument to `eth_getLogs` and filters client-side.
+
 ### Proxy & upgradable contracts
 
 To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/docs/utilities/abi) utility function.

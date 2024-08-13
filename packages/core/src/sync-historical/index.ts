@@ -107,7 +107,9 @@ export const createHistoricalSync = async (
     let address: Address | Address[] | undefined;
     if (isAddressFactory(filter.address)) {
       const _addresses = await syncAddress(filter.address, interval);
-      if (_addresses.length < args.common.options.historicalAddressLimit) {
+      if (
+        _addresses.length < args.common.options.factoryAddressCountThreshold
+      ) {
         address = _addresses;
       } else {
         address = undefined;
@@ -197,7 +199,9 @@ export const createHistoricalSync = async (
     let toAddress: Address[] | undefined;
     if (isAddressFactory(filter.toAddress)) {
       const _addresses = await syncAddress(filter.toAddress, interval);
-      if (_addresses.length < args.common.options.historicalAddressLimit) {
+      if (
+        _addresses.length < args.common.options.factoryAddressCountThreshold
+      ) {
         toAddress = _addresses;
       } else {
         toAddress = undefined;
@@ -347,7 +351,7 @@ export const createHistoricalSync = async (
     // Query the sync-store for all addresses that match `filter`.
     return await args.syncStore.getChildAddresses({
       filter,
-      limit: args.common.options.historicalAddressLimit,
+      limit: args.common.options.factoryAddressCountThreshold,
     });
   };
 

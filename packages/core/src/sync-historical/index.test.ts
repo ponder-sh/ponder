@@ -502,7 +502,7 @@ test("syncBlock() with cache", async (context) => {
 test("syncAddress() handles many addresses", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  context.common.options.historicalAddressLimit = 10;
+  context.common.options.factoryAddressCountThreshold = 10;
 
   for (let i = 0; i < 10; i++) {
     await simulateFactoryDeploy(context.factory.address);
