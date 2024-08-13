@@ -323,8 +323,6 @@ export const createHistoricalSync = async (
   ): Promise<Address[]> => {
     await syncLogFactory(filter, interval);
 
-    // TODO(kyle) should "address" metrics be tracked?
-
     // Query the sync-store for all addresses that match `filter`.
     return await args.syncStore.getChildAddresses({
       filter,
@@ -342,7 +340,6 @@ export const createHistoricalSync = async (
       progress,
       eta,
     } of historical.sources) {
-      // TODO(kyle) check `requiredIntervals`.
       if (progress === 1 || networkName !== args.network.name) return;
       args.common.logger.info({
         service: "historical",
@@ -481,6 +478,9 @@ export const createHistoricalSync = async (
             service: "historical",
             msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
           });
+
+          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
+          args.common.metrics.ponder_historical_cached_blocks.set(label, 0);
         } else {
           const interval = [
             source.filter.fromBlock,
@@ -504,8 +504,6 @@ export const createHistoricalSync = async (
             label,
             cachedBlocks,
           );
-
-          // TODO(kyle) different message for full cache?
 
           args.common.logger.info({
             service: "historical",

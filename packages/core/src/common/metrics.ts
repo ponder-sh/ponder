@@ -308,7 +308,8 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
         };
       }
 
-      const progress = (completedBlocks + cachedBlocks) / totalBlocks;
+      const progress =
+        totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
 
       const elapsed = Date.now() - startTimestampMetric;
       const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
