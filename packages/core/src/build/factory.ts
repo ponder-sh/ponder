@@ -4,7 +4,7 @@ import { getBytesConsumedByParam } from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
 import { getEventSelector } from "viem";
 
-export function buildLogAddressFilter({
+export function buildLogFactory({
   address: _address,
   event,
   parameter,

@@ -138,10 +138,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * Note: `localSync.latestBlock` is assumed to be defined if
    * this function is called with `tag`: "latest".
    */
-  const getChainsCheckpoint = <
-    tag extends "start" | "latest" | "finalized" | "end",
-  >(
-    tag: tag,
+  const getChainsCheckpoint = (
+    tag: "start" | "latest" | "finalized" | "end",
   ): string | undefined => {
     if (
       tag === "end" &&
@@ -152,26 +150,29 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return undefined;
     }
 
-    const checkpoints = [...localSyncs.entries()]
-      // Remove completed networks from checkpoint calculation for "latest"
-      .filter(
-        ([, localSync]) => tag !== "latest" || localSync.isComplete() === false,
-      )
-      .map(([network, localSync]) => {
-        const block = localSync[`${tag}Block`]!;
-
-        // The checkpoint returned by this function is meant to be used in
-        // a closed interval (includes endpoints), so "start" should be inclusive.
-        return blockToCheckpoint(
-          block,
-          network.chainId,
-          tag === "start" ? "down" : "up",
-        );
-      });
-
-    // Return `true` if all networks have been filtered out
+    let checkpoints = [...localSyncs.entries()];
+    if (tag === "latest")
+      checkpoints = checkpoints.filter(
+        ([, localSync]) => localSync.isComplete() === false,
+      );
+    // Return early if all networks are complete
     if (checkpoints.length === 0) return undefined;
-    return encodeCheckpoint(checkpointMin(...checkpoints));
+
+    return encodeCheckpoint(
+      checkpointMin(
+        ...checkpoints.map(([network, localSync]) => {
+          const block = localSync[`${tag}Block`]!;
+
+          // The checkpoint returned by this function is meant to be used in
+          // a closed interval (includes endpoints), so "start" should be inclusive.
+          return blockToCheckpoint(
+            block,
+            network.chainId,
+            tag === "start" ? "down" : "up",
+          );
+        }),
+      ),
+    );
   };
 
   /** Updates `status` to record progress for each network. */
@@ -206,9 +207,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
      * Otherwise, reverse iterate through `events` updating `status` for each network.
      */
 
-    const staleNetworks = new Set<number>();
+    const staleNetworks = new Map<number, Network>();
     for (const [network] of localSyncs) {
-      staleNetworks.add(network.chainId);
+      staleNetworks.set(network.chainId, network);
     }
 
     let i = events.length - 1;
@@ -216,9 +217,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const event = events[i]!;
 
       if (staleNetworks.has(event.chainId)) {
-        const network = args.networks.find(
-          (network) => network.chainId === event.chainId,
-        )!;
+        const network = staleNetworks.get(event.chainId)!;
         const { blockTimestamp, blockNumber } = decodeCheckpoint(
           event.checkpoint,
         );
@@ -316,9 +315,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       while (true) {
         if (isKilled) return;
         if (from === to) break;
-        const limit = args.common.options.syncEventsQuerySize;
+        const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
         // convert `estimateSeconds` to checkpoint
-        const _estimate = encodeCheckpoint({
+        const estimatedTo = encodeCheckpoint({
           ...zeroCheckpoint,
           blockTimestamp: Math.min(
             decodeCheckpoint(from).blockTimestamp + estimateSeconds,
@@ -328,8 +327,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         const { events, cursor } = await args.syncStore.getEvents({
           filters: args.sources.map(({ filter }) => filter),
           from,
-          to: to < _estimate ? to : _estimate,
-          limit,
+          to: to < estimatedTo ? to : estimatedTo,
+          limit: getEventsMaxBatchSize,
         });
 
         updateStatus(events, cursor, false);
@@ -340,7 +339,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           Math.max(
             10,
             Math.round(
-              (limit * decodeCheckpoint(cursor).blockTimestamp -
+              (getEventsMaxBatchSize * decodeCheckpoint(cursor).blockTimestamp -
                 decodeCheckpoint(from).blockTimestamp) /
                 (events.length || 1),
             ),

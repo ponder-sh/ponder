@@ -17,7 +17,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
 import parse from "pg-connection-string";
 import type { Hex, LogTopic } from "viem";
-import { buildLogAddressFilter } from "./logAddressFilter.js";
+import { buildLogFactory } from "./factory.js";
 
 export type RawIndexingFunctions = {
   name: string;
@@ -588,7 +588,7 @@ export async function buildConfigAndIndexingFunctions({
 
       if (resolvedFactory) {
         // Note that this can throw.
-        const logAddressFilter = buildLogAddressFilter({
+        const logAddressFilter = buildLogFactory({
           chainId: network.chainId,
           ...resolvedFactory,
         });

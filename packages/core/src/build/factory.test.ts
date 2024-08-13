@@ -1,6 +1,6 @@
 import { getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import { buildLogAddressFilter } from "./logAddressFilter.js";
+import { buildLogFactory } from "./factory.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
@@ -8,7 +8,7 @@ const llamaFactoryEventAbiItem = parseAbiItem(
 
 test("buildLogAddressFilter throws if provided parameter not found in inputs", () => {
   expect(() =>
-    buildLogAddressFilter({
+    buildLogFactory({
       address: "0xa",
       event: llamaFactoryEventAbiItem,
       parameter: "fakeParameter",
@@ -20,7 +20,7 @@ test("buildLogAddressFilter throws if provided parameter not found in inputs", (
 });
 
 test("buildLogAddressFilter handles LlamaInstanceCreated llamaCore", () => {
-  const criteria = buildLogAddressFilter({
+  const criteria = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaCore",
@@ -35,7 +35,7 @@ test("buildLogAddressFilter handles LlamaInstanceCreated llamaCore", () => {
 });
 
 test("buildLogAddressFilter handles LlamaInstanceCreated llamaPolicy", () => {
-  const criteria = buildLogAddressFilter({
+  const criteria = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",

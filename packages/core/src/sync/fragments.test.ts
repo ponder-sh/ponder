@@ -1,4 +1,4 @@
-import { buildLogAddressFilter } from "@/build/logAddressFilter.js";
+import { buildLogFactory } from "@/build/factory.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 import { buildLogFilterFragments } from "./fragments.js";
@@ -135,7 +135,7 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
 });
 
 test("buildFactoryFragments builds id containing topic", () => {
-  const addressFilter = buildLogAddressFilter({
+  const addressFilter = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "deployer",
@@ -156,7 +156,7 @@ test("buildFactoryFragments builds id containing topic", () => {
 });
 
 test("buildFactoryFragments builds id containing offset", () => {
-  const addressFilter = buildLogAddressFilter({
+  const addressFilter = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",

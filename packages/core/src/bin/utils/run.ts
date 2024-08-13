@@ -130,7 +130,7 @@ export async function run({
       switch (event.type) {
         case "block": {
           /**
-           * Note: statusBlocks should be assigned before any other
+           * Note: `status` should be assigned before any other
            * synchronous statements in order to prevent race conditions and
            * ensure its correctness.
            */
@@ -207,7 +207,7 @@ export async function run({
     }
 
     // Track the last processed checkpoint, used to set metrics
-    let end: Checkpoint | undefined;
+    let end: Checkpoint;
 
     // Run historical indexing until complete.
     for await (const { events, checkpoint } of sync.getEvents()) {
@@ -232,15 +232,11 @@ export async function run({
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
     // checkpoint.
-    if (end) {
-      common.metrics.ponder_indexing_completed_seconds.set(
-        end.blockTimestamp -
-          decodeCheckpoint(sync.getStartCheckpoint()).blockTimestamp,
-      );
-      common.metrics.ponder_indexing_completed_timestamp.set(
-        end.blockTimestamp,
-      );
-    }
+    common.metrics.ponder_indexing_completed_seconds.set(
+      end!.blockTimestamp -
+        decodeCheckpoint(sync.getStartCheckpoint()).blockTimestamp,
+    );
+    common.metrics.ponder_indexing_completed_timestamp.set(end!.blockTimestamp);
 
     // Become healthy
     common.logger.info({

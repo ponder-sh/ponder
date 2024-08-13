@@ -40,7 +40,7 @@ export type HistoricalSync = {
   kill(): void;
 };
 
-type CreateHistoricaSyncParameters = {
+type CreateHistoricalSyncParameters = {
   common: Common;
   sources: Source[];
   syncStore: SyncStore;
@@ -49,7 +49,7 @@ type CreateHistoricaSyncParameters = {
 };
 
 export const createHistoricalSync = async (
-  args: CreateHistoricaSyncParameters,
+  args: CreateHistoricalSyncParameters,
 ): Promise<HistoricalSync> => {
   let isKilled = false;
 
@@ -62,8 +62,7 @@ export const createHistoricalSync = async (
   // const logMetadata = new Map<LogFilter, { range: number }>();
 
   /**
-   * Intervals that have been completed for all "event" and "address" filters
-   * in `args.sources`.
+   * Intervals that have been completed for all filters in `args.sources`.
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
@@ -241,10 +240,7 @@ export const createHistoricalSync = async (
   };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
-  const syncLogAddressFilter = async (
-    filter: LogFactory,
-    interval: Interval,
-  ) => {
+  const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
     const logs = await _eth_getLogs(args.requestQueue, {
       address: filter.address,
       topics: [filter.eventSelector],
@@ -325,7 +321,7 @@ export const createHistoricalSync = async (
     filter: Factory,
     interval: Interval,
   ): Promise<Address[]> => {
-    await syncLogAddressFilter(filter, interval);
+    await syncLogFactory(filter, interval);
 
     // TODO(kyle) should "address" metrics be tracked?
 
