@@ -429,11 +429,10 @@ export const createSyncStore = ({
       for (const fragment of fragments!) {
         await db.transaction().execute(async (tx) => {
           while (true) {
-            const { id } = await tx
+            await tx
               .insertInto(`${table}s`)
               .values(fragment)
               .onConflict((oc) => oc.column("id").doNothing())
-              .returning(["id"])
               .executeTakeFirstOrThrow();
 
             // This is a trick to add a LIMIT to a DELETE statement
@@ -444,7 +443,7 @@ export const createSyncStore = ({
                 "in",
                 tx
                   .selectFrom(`${table}Intervals`)
-                  .where(idCol, "=", id)
+                  .where(idCol, "=", fragment.id)
                   .select("id")
                   .limit(common.options.syncStoreMaxIntervals),
               )
@@ -464,7 +463,7 @@ export const createSyncStore = ({
 
             const mergedIntervalRows = mergedIntervals.map(
               ([startBlock, endBlock]) => ({
-                [idCol as string]: id,
+                [idCol as string]: fragment.id,
                 startBlock: formatBig(sql, startBlock),
                 endBlock: formatBig(sql, endBlock),
               }),
