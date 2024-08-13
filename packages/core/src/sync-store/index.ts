@@ -432,8 +432,8 @@ export const createSyncStore = ({
             const { id } = await tx
               .insertInto(`${table}s`)
               .values(fragment)
-              .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
-              .returningAll()
+              .onConflict((oc) => oc.column("id").doNothing())
+              .returning(["id"])
               .executeTakeFirstOrThrow();
 
             // This is a trick to add a LIMIT to a DELETE statement
