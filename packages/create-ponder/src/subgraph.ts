@@ -5,6 +5,7 @@ import prettier from "prettier";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId.js";
+import { translateSchema } from "./helpers/graphqlTranslator.js";
 import {
   type GraphSource,
   validateGraphProtocolSource,
@@ -99,6 +100,32 @@ export const fromSubgraphId = async ({
     }),
   );
 
+  // Copy over the schema.graphql file.
+  const schemaRaw = await provider.fetchIpfs(
+    manifest.schema.file["/"].slice(6),
+  );
+
+  const schemaPath = path.join(rootDir, "./ponder.schema.ts");
+
+  // Translate and write the schema file
+  const { result: translatedSchema, warnings: _warnings } =
+    translateSchema(schemaRaw);
+
+  const warnings = [];
+  if (_warnings.length > 0) {
+    warnings.push(
+      "ponder.schema.ts could not be generated correctly. Please manually check the generated schema.",
+    );
+  }
+  _warnings.forEach((warning) => {
+    warnings.push(warning);
+  });
+
+  writeFileSync(
+    schemaPath,
+    await prettier.format(translatedSchema, { parser: "typescript" }),
+  );
+
   // Build the ponder sources.
   const ponderContracts = dataSources.map((sourceInvalid) => {
     const source = validateGraphProtocolSource(sourceInvalid);
@@ -136,7 +163,6 @@ export const fromSubgraphId = async ({
     contracts: contractsObject,
   };
 
-  const warnings = [];
   if (manifest.templates?.length > 0) {
     warnings.push(
       "Factory contract detected. Please see the factory contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#factory-contracts",
