@@ -71,9 +71,11 @@ export type NetworkConfig<network> = {
 };
 
 export type BlockFilterConfig = {
-  startBlock: number;
+  /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
+  startBlock?: number;
+  /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
   endBlock?: number;
-  interval: number;
+  interval?: number;
 };
 
 type GetBlockFilter<

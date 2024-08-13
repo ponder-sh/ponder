@@ -742,15 +742,6 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const intervalMaybeNan = blockSourceConfig.interval;
-      const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
-
-      if (!Number.isInteger(interval) || interval === 0) {
-        throw new Error(
-          `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
-        );
-      }
-
       if (typeof blockSourceConfig.network === "string") {
         const network = networks.find(
           (n) => n.name === blockSourceConfig.network,
@@ -760,6 +751,15 @@ export async function buildConfigAndIndexingFunctions({
             `Validation failed: Invalid network for block source '${sourceName}'. Got '${
               blockSourceConfig.network
             }', expected one of [${networks.map((n) => `'${n.name}'`).join(", ")}].`,
+          );
+        }
+
+        const intervalMaybeNan = blockSourceConfig.interval ?? 1;
+        const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
+
+        if (!Number.isInteger(interval) || interval === 0) {
+          throw new Error(
+            `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
           );
         }
 
@@ -812,7 +812,7 @@ export async function buildConfigAndIndexingFunctions({
           }
 
           const intervalMaybeNan =
-            overrides.interval ?? blockSourceConfig.interval;
+            overrides.interval ?? blockSourceConfig.interval ?? 0;
           const interval = Number.isNaN(intervalMaybeNan)
             ? 0
             : intervalMaybeNan;
