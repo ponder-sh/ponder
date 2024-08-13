@@ -432,6 +432,19 @@ export const createRealtimeSync = (
       );
     }
 
+    // Filter out reverted call traces
+
+    const revertedTransactions = new Set<Hash>();
+    for (const receipt of transactionReceipts) {
+      if (receipt.status === "0x0") {
+        revertedTransactions.add(receipt.transactionHash);
+      }
+    }
+
+    callTraces = callTraces.filter(
+      (trace) => revertedTransactions.has(trace.transactionHash) === false,
+    );
+
     return {
       logs,
       callTraces,
