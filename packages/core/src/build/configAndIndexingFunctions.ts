@@ -754,7 +754,7 @@ export async function buildConfigAndIndexingFunctions({
           );
         }
 
-        const intervalMaybeNan = blockSourceConfig.interval ?? 0;
+        const intervalMaybeNan = blockSourceConfig.interval ?? 1;
         const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
         if (!Number.isInteger(interval) || interval === 0) {
