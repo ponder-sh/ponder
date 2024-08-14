@@ -29,16 +29,11 @@ export type BlockMetadata = {
 };
 
 export type LogFilter<
-  factory extends Factory | Factory[] | undefined =
-    | Factory
-    | Factory[]
-    | undefined,
+  factory extends Factory | undefined = Factory | undefined,
 > = {
   type: "log";
   chainId: number;
-  address: factory extends Factory | Factory[]
-    ? factory
-    : Address | Address[] | undefined;
+  address: factory extends Factory ? factory : Address | Address[] | undefined;
   topics: LogTopic[];
   includeTransactionReceipts: boolean;
   fromBlock: number;
@@ -55,17 +50,12 @@ export type BlockFilter = {
 };
 
 export type CallTraceFilter<
-  factory extends Factory | Factory[] | undefined =
-    | Factory
-    | Factory[]
-    | undefined,
+  factory extends Factory | undefined = Factory | undefined,
 > = {
   type: "callTrace";
   chainId: number;
   fromAddress: Address[] | undefined;
-  toAddress: factory extends Factory | Factory[]
-    ? factory
-    : Address[] | undefined;
+  toAddress: factory extends Factory ? factory : Address[] | undefined;
   functionSelectors: Hex[];
   includeTransactionReceipts: boolean;
   fromBlock: number;
@@ -75,15 +65,15 @@ export type CallTraceFilter<
 export type LogFactory = {
   type: "log";
   chainId: number;
-  address: Address;
+  address: Address | Address[];
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
 };
 
 /** Returns true if `address` is an address filter. */
 export const isAddressFactory = (
-  address: Address | Address[] | Factory | Factory[] | undefined | null,
-): address is LogFactory | LogFactory[] => {
+  address: Address | Address[] | Factory | undefined | null,
+): address is LogFactory => {
   if (address === undefined || address === null || typeof address === "string")
     return false;
   return Array.isArray(address) ? isAddressFactory(address[0]) : true;

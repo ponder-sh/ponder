@@ -6,7 +6,6 @@ import {
 } from "@/_test/setup.js";
 import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
 import { getRawRPCData, publicClient } from "@/_test/utils.js";
-import type { LogFactory, LogFilter } from "@/sync/source.js";
 import type { SyncBlock } from "@/types/sync.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { hexToNumber } from "viem";
@@ -186,46 +185,6 @@ test("sync() with log factory", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-
-  await cleanup();
-});
-
-test("sync() with multiple log factories", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
-
-  // @ts-ignore
-  context.sources[1].filter = {
-    ...context.sources[1].filter,
-    address: [
-      context.sources[1].filter.address,
-      context.sources[1].filter.address,
-    ],
-  } satisfies LogFilter<LogFactory[]>;
-
-  const spy = vi.spyOn(syncStore, "getChildAddresses");
-
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[1]],
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  await historicalSync.sync([0, 5]);
-
-  expect(spy).toHaveBeenCalledTimes(2);
-
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
-
-  expect(logs).toHaveLength(2);
-
-  const intervals = await database.syncDb
-    .selectFrom("factoryLogFilterIntervals")
-    .selectAll()
-    .execute();
-
-  expect(intervals).toHaveLength(2);
 
   await cleanup();
 });

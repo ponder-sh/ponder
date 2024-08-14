@@ -181,14 +181,8 @@ test("buildLogFilterFragments builds id containing factory offset", () => {
 });
 
 test("buildLogFilterFragments builds id with multiple factories", () => {
-  const factory1 = buildLogFactory({
-    address: "0xa",
-    event: llamaFactoryEventAbiItem,
-    parameter: "deployer",
-    chainId: 1,
-  });
-  const factory2 = buildLogFactory({
-    address: "0xa",
+  const factory = buildLogFactory({
+    address: ["0xa", "0xb"],
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
     chainId: 1,
@@ -198,7 +192,7 @@ test("buildLogFilterFragments builds id with multiple factories", () => {
     type: "log",
     chainId: 1,
     topics: [null, null, null, null],
-    address: [factory1, factory2],
+    address: factory,
     includeTransactionReceipts: false,
   });
 

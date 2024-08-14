@@ -151,7 +151,12 @@ const logFactorySQL = (
         }
       })().as("childAddress"),
     )
-    .where("address", "=", factory.address)
+    .$call((qb) => {
+      if (Array.isArray(factory.address)) {
+        return qb.where("address", "in", factory.address);
+      }
+      return qb.where("address", "=", factory.address);
+    })
     .where("topic0", "=", factory.eventSelector)
     .where("chainId", "=", factory.chainId);
 
@@ -789,21 +794,6 @@ export const createSyncStore = ({
     ) => {
       if (typeof address === "string") return qb.where(column, "=", address);
       if (isAddressFactory(address)) {
-        if (Array.isArray(address)) {
-          return qb.where((eb) =>
-            eb.or(
-              address.map((factory) =>
-                eb(
-                  column,
-                  "in",
-                  db
-                    .selectFrom("logs")
-                    .$call((qb) => logFactorySQL(sql, qb, factory)),
-                ),
-              ),
-            ),
-          );
-        }
         return qb.where(
           column,
           "in",

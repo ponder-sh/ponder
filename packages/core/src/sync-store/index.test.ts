@@ -15,7 +15,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { _eth_getLogs } from "@/utils/rpc.js";
-import { hexToNumber } from "viem";
+import { type Address, hexToNumber } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach(setupCommon);
@@ -791,14 +791,16 @@ test("getEvents() handles multiple log factories", async (context) => {
     chainId: 1,
   });
 
-  // @ts-ignore
   context.sources[1].filter = {
     ...context.sources[1].filter,
-    address: [
-      context.sources[1].filter.address,
-      context.sources[1].filter.address,
-    ],
-  } satisfies LogFilter<LogFactory[]>;
+    address: {
+      ...context.sources[1].filter.address,
+      address: [
+        context.sources[1].filter.address.address as Address,
+        context.sources[1].filter.address.address as Address,
+      ],
+    },
+  } satisfies LogFilter<LogFactory>;
 
   const { events } = await syncStore.getEvents({
     filters: [context.sources[1].filter],
