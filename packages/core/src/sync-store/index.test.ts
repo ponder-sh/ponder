@@ -785,7 +785,7 @@ test("getEvents() handles multiple log factories", async (context) => {
     logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block4.transactions,
     chainId: 1,
