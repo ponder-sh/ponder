@@ -434,7 +434,7 @@ event ChildCreated(ChildContract child);
 
 2. **Nested factory patterns**: The sync engine doesn't support factory patterns that are nested beyond a single layer.
 
-3. **Scaling**: The sync engine can handle an unlimited number of child contracts. However, if the target factory contract has more than 1,000 child contracts, Ponder omits the address argument to `eth_getLogs` and filters client-side.
+3. **Scaling**: As of `0.5.9`, the sync engine supports any number of child contracts. If a factory contract has more than 1,000 children, the sync engine omits the `address` argument when calling `eth_getLogs` or `trace_filter` and filters the result client-side. This can cause slow sync performance for very large factories.
 
 ### Proxy & upgradable contracts
 
