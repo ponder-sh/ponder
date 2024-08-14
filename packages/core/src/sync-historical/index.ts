@@ -312,10 +312,6 @@ export const createHistoricalSync = async (
       });
       blockCache.set(number, _block);
       block = await _block;
-      await args.syncStore.insertBlock({
-        block,
-        chainId: args.network.chainId,
-      });
 
       // Update `latestBlock` if `block` is closer to tip.
       if (
@@ -484,6 +480,10 @@ export const createHistoricalSync = async (
           });
         }),
       );
+      await args.syncStore.insertBlocks({
+        blocks: await Promise.all(blockCache.values()),
+        chainId: args.network.chainId,
+      });
       blockCache.clear();
     },
     initializeMetrics(finalizedBlock) {

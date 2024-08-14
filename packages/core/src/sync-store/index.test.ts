@@ -395,11 +395,11 @@ test("insertLogs() creates checkpoint", async (context) => {
   cleanup();
 });
 
-test("insertBlock()", async (context) => {
+test("insertBlocks()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
 
   const blocks = await database.syncDb
     .selectFrom("blocks")
@@ -410,12 +410,12 @@ test("insertBlock()", async (context) => {
   cleanup();
 });
 
-test("insertBlock() with duplicates", async (context) => {
+test("insertBlocks() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
 
   const blocks = await database.syncDb
     .selectFrom("blocks")
@@ -426,12 +426,12 @@ test("insertBlock() with duplicates", async (context) => {
   cleanup();
 });
 
-test("insertBlock() creates checkpoint", async (context) => {
+test("insertBlocks() creates checkpoint", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({
-    block: rpcData.block3.block,
+  await syncStore.insertBlocks({
+    blocks: [rpcData.block3.block],
     chainId: 1,
   });
 
@@ -457,7 +457,7 @@ test("hasBlock()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   let block = await syncStore.hasBlock({
     hash: rpcData.block3.block.hash,
   });
@@ -676,7 +676,7 @@ test("getEvents() returns events", async (context) => {
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block3.transactions,
     chainId: 1,
@@ -715,7 +715,7 @@ test("getEvents() handles log filter logic", async (context) => {
     ],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block2.transactions,
     chainId: 1,
@@ -725,7 +725,7 @@ test("getEvents() handles log filter logic", async (context) => {
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block3.transactions,
     chainId: 1,
@@ -755,7 +755,7 @@ test("getEvents() handles log address filters", async (context) => {
     logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block4.transactions,
     chainId: 1,
@@ -783,7 +783,7 @@ test("getEvents() handles trace filter logic", async (context) => {
     ],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block3.transactions,
     chainId: 1,
@@ -809,10 +809,10 @@ test("getEvents() handles block filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block5.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block5.block], chainId: 1 });
 
   const { events } = await syncStore.getEvents({
     filters: [context.sources[4].filter],
@@ -837,7 +837,7 @@ test("getEvents() handles block bounds", async (context) => {
     ],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block2.transactions,
     chainId: 1,
@@ -851,7 +851,7 @@ test("getEvents() handles block bounds", async (context) => {
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block3.transactions,
     chainId: 1,
@@ -883,7 +883,7 @@ test("getEvents() pagination", async (context) => {
     ],
     chainId: 1,
   });
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
   await syncStore.insertTransactions({
     transactions: rpcData.block2.transactions,
     chainId: 1,
@@ -918,10 +918,10 @@ test("pruneByBlock", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({ block: rpcData.block1.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
-  await syncStore.insertBlock({ block: rpcData.block4.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block1.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
 
   await syncStore.pruneByBlock({ fromBlock: 2, chainId: 1 });
 
@@ -1147,7 +1147,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlock({ block: rpcData.block2.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
   await syncStore.insertLogs({
     logs: [
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
@@ -1171,7 +1171,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  await syncStore.insertBlock({ block: rpcData.block3.block, chainId: 1 });
+  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
     chainId: 1,
