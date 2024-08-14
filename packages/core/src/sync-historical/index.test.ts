@@ -290,7 +290,7 @@ test("initializeMetrics()", async (context) => {
     params: ["latest", false],
   });
 
-  historicalSync.initializeMetrics(finalizeBlock as SyncBlock);
+  historicalSync.initializeMetrics(finalizeBlock as SyncBlock, true);
 
   const totalBlocksMetric = (
     await context.common.metrics.ponder_historical_total_blocks.get()
@@ -372,7 +372,7 @@ test("initializeMetrics() with cache hit", async (context) => {
     params: ["latest", false],
   });
 
-  historicalSync.initializeMetrics(finalizeBlock as SyncBlock);
+  historicalSync.initializeMetrics(finalizeBlock as SyncBlock, true);
 
   const totalBlocksMetric = (
     await context.common.metrics.ponder_historical_total_blocks.get()

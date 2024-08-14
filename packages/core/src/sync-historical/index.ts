@@ -37,7 +37,7 @@ export type HistoricalSync = {
   latestBlock: SyncBlock | undefined;
   /** Extract raw data for `interval`. */
   sync(interval: Interval): Promise<void>;
-  initializeMetrics(finalizedBlock: SyncBlock): void;
+  initializeMetrics(finalizedBlock: SyncBlock, showStart: boolean): void;
   kill(): void;
 };
 
@@ -486,7 +486,7 @@ export const createHistoricalSync = async (
       );
       blockCache.clear();
     },
-    initializeMetrics(finalizedBlock) {
+    initializeMetrics(finalizedBlock, showStart) {
       args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
 
       for (const source of args.sources) {
@@ -499,10 +499,12 @@ export const createHistoricalSync = async (
         if (source.filter.fromBlock > hexToNumber(finalizedBlock.number)) {
           args.common.metrics.ponder_historical_total_blocks.set(label, 0);
 
-          args.common.logger.warn({
-            service: "historical",
-            msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
-          });
+          if (showStart) {
+            args.common.logger.warn({
+              service: "historical",
+              msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
+            });
+          }
 
           args.common.metrics.ponder_historical_total_blocks.set(label, 0);
           args.common.metrics.ponder_historical_cached_blocks.set(label, 0);
@@ -530,14 +532,16 @@ export const createHistoricalSync = async (
             cachedBlocks,
           );
 
-          args.common.logger.info({
-            service: "historical",
-            msg: `Started syncing '${source.networkName}' for '${
-              source.name
-            }' with ${formatPercentage(
-              Math.min(1, cachedBlocks / (totalBlocks || 1)),
-            )} cached`,
-          });
+          if (showStart) {
+            args.common.logger.info({
+              service: "historical",
+              msg: `Started syncing '${source.networkName}' for '${
+                source.name
+              }' with ${formatPercentage(
+                Math.min(1, cachedBlocks / (totalBlocks || 1)),
+              )} cached`,
+            });
+          }
         }
       }
     },

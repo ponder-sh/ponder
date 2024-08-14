@@ -10,6 +10,7 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { wait } from "@/utils/wait.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type TestContext, beforeEach, expect, test, vi } from "vitest";
 import type { RawEvent } from "./events.js";
@@ -256,6 +257,30 @@ test("getEvents() initialCheckpoint", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(0);
+
+  await sync.kill();
+
+  await cleanup();
+});
+
+test("getEvents() refetches finalized block", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  context.common.options.syncHandoffStaleSeconds = 0.5;
+
+  const sync = await createSync({
+    syncStore,
+    sources: [context.sources[4]],
+    common: context.common,
+    networks: context.networks,
+    onRealtimeEvent: () => {},
+    onFatalError: () => {},
+    initialCheckpoint: zeroCheckpoint,
+  });
+
+  await wait(1000);
+
+  await drainAsyncGenerator(sync.getEvents());
 
   await sync.kill();
 
