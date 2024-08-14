@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.5.9
+
+### Patch Changes
+
+- [#1014](https://github.com/ponder-sh/ponder/pull/1014) [`d3507deaad1ec46efabb93e5a345576c156f508a`](https://github.com/ponder-sh/ponder/commit/d3507deaad1ec46efabb93e5a345576c156f508a) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved accurary of `/status` endpoint during historical indexing.
+
+- [#1014](https://github.com/ponder-sh/ponder/pull/1014) [`d3507deaad1ec46efabb93e5a345576c156f508a`](https://github.com/ponder-sh/ponder/commit/d3507deaad1ec46efabb93e5a345576c156f508a) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved sync performance for factory contracts and removed the 10,000 child address limit.
+
 ## 0.5.8
 
 ### Patch Changes
