@@ -474,7 +474,9 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     const { namespaceInfo } = await database.setup({ schema, buildId: "abc" });
 
-    await database.updateFinalizedCheckpoint({ checkpoint: maxCheckpoint });
+    await database.updateFinalizedCheckpoint({
+      checkpoint: encodeCheckpoint(maxCheckpoint),
+    });
 
     const rows = await database.db
       .withSchema(namespaceInfo.internalNamespace)

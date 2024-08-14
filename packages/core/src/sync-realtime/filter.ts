@@ -1,97 +1,122 @@
-import type {
-  CallTraceFilterCriteria,
-  LogFilterCriteria,
-} from "@/config/sources.js";
-import type { SyncCallTrace, SyncLog } from "@/sync/index.js";
+import {
+  type TraceFilterFragment,
+  buildLogFilterFragments,
+  buildTraceFilterFragments,
+} from "@/sync/fragments.js";
+import {
+  type CallTraceFilter,
+  type LogFactory,
+  type LogFilter,
+  isAddressFactory,
+} from "@/sync/source.js";
+import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { hexToNumber } from "viem";
 
-export function filterLogs({
-  logs,
-  logFilters,
-}: {
-  logs: SyncLog[];
-  logFilters: Pick<LogFilterCriteria, "address" | "topics">[];
-}) {
-  return logs.filter((log) =>
-    logFilters.some((logFilter) => isLogMatchedByFilter({ log, logFilter })),
-  );
-}
-
-export function isLogMatchedByFilter({
+/**
+ * Returns `true` if `log` matches `filter`
+ */
+export const isLogFactoryMatched = ({
+  filter,
   log,
-  logFilter,
-}: {
-  log: Pick<SyncLog, "address" | "topics">;
-  logFilter: Pick<LogFilterCriteria, "address" | "topics">;
-}) {
-  const logAddress = toLowerCase(log.address);
-
-  if (logFilter.address !== undefined && logFilter.address.length > 0) {
-    if (Array.isArray(logFilter.address)) {
-      if (!logFilter.address.includes(logAddress)) return false;
-    } else {
-      if (logAddress !== logFilter.address) return false;
-    }
-  }
-
-  if (logFilter.topics) {
-    for (const [index, topic] of logFilter.topics.entries()) {
-      if (topic === null || topic === undefined) continue;
-
-      if (log.topics[index] === null || log.topics[index] === undefined)
-        return false;
-
-      if (Array.isArray(topic)) {
-        if (!topic.includes(toLowerCase(log.topics[index]!))) return false;
-      } else {
-        if (toLowerCase(log.topics[index]!) !== topic) return false;
-      }
-    }
-  }
+}: { filter: LogFactory; log: SyncLog }): boolean => {
+  if (filter.address !== toLowerCase(log.address)) return false;
+  if (log.topics.length === 0) return false;
+  if (filter.eventSelector !== toLowerCase(log.topics[0]!)) return false;
 
   return true;
-}
+};
 
-export function filterCallTraces({
-  callTraces,
-  callTraceFilters,
+/**
+ * Returns `true` if `log` matches `filter`
+ */
+export const isLogFilterMatched = ({
+  filter,
+  block,
+  log,
 }: {
-  callTraces: SyncCallTrace[];
-  callTraceFilters: Pick<
-    CallTraceFilterCriteria,
-    "fromAddress" | "toAddress"
-  >[];
-}) {
-  return callTraces.filter((callTrace) =>
-    callTraceFilters.some((callTraceFilter) =>
-      isCallTraceMatchedByFilter({ callTrace, callTraceFilter }),
-    ),
-  );
-}
+  filter: LogFilter;
+  block: SyncBlock;
+  log: SyncLog;
+}): boolean => {
+  // Return `false` for out of range blocks
+  if (
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
+  }
 
-export function isCallTraceMatchedByFilter({
+  return buildLogFilterFragments(filter).some((fragment) => {
+    if (
+      fragment.topic0 !== null &&
+      fragment.topic0 !== log.topics[0]?.toLowerCase()
+    )
+      return false;
+    if (
+      fragment.topic1 !== null &&
+      fragment.topic1 !== log.topics[1]?.toLowerCase()
+    )
+      return false;
+    if (
+      fragment.topic2 !== null &&
+      fragment.topic2 !== log.topics[2]?.toLowerCase()
+    )
+      return false;
+    if (
+      fragment.topic3 !== null &&
+      fragment.topic3 !== log.topics[3]?.toLowerCase()
+    )
+      return false;
+
+    if (
+      isAddressFactory(filter.address) === false &&
+      fragment.address !== null &&
+      fragment.address !== log.address.toLowerCase()
+    )
+      return false;
+
+    return true;
+  });
+};
+
+/**
+ * Returns `true` if `callTrace` matches `filter`
+ */
+export const isCallTraceFilterMatched = ({
+  filter,
+  block,
   callTrace,
-  callTraceFilter,
 }: {
-  callTrace: Pick<SyncCallTrace, "action">;
-  callTraceFilter: Pick<CallTraceFilterCriteria, "fromAddress" | "toAddress">;
-}) {
-  const fromAddress = toLowerCase(callTrace.action.from);
-  const toAddress = toLowerCase(callTrace.action.to);
-
+  filter: CallTraceFilter;
+  block: SyncBlock;
+  callTrace: SyncCallTrace;
+}): boolean => {
+  // Return `false` for out of range blocks
   if (
-    callTraceFilter.fromAddress !== undefined &&
-    callTraceFilter.fromAddress.length > 0
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
-    if (!callTraceFilter.fromAddress.includes(fromAddress)) return false;
+    return false;
   }
 
-  if (
-    callTraceFilter.toAddress !== undefined &&
-    callTraceFilter.toAddress.length > 0
-  ) {
-    if (!callTraceFilter.toAddress.includes(toAddress)) return false;
-  }
+  return buildTraceFilterFragments(filter).some((fragment) => {
+    if (
+      fragment.fromAddress !== null &&
+      fragment.fromAddress !== callTrace.action.from.toLowerCase()
+    ) {
+      return false;
+    }
 
-  return true;
-}
+    if (
+      isAddressFactory(filter.toAddress) === false &&
+      (fragment as TraceFilterFragment<undefined>).toAddress !== null &&
+      (fragment as TraceFilterFragment<undefined>).toAddress !==
+        callTrace.action.to.toLowerCase()
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+};

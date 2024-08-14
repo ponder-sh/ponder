@@ -1,10 +1,7 @@
-import { buildChildAddressCriteria } from "@/config/factories.js";
+import { buildLogFactory } from "@/build/factory.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import {
-  buildFactoryLogFragments,
-  buildLogFilterFragments,
-} from "./fragments.js";
+import { buildLogFilterFragments } from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
@@ -12,7 +9,9 @@ const llamaFactoryEventAbiItem = parseAbiItem(
 
 test("buildLogFilterFragments generates 1 log filter fragment for null filter", () => {
   const logFilterFragments = buildLogFilterFragments({
+    type: "log",
     chainId: 1,
+    address: undefined,
     topics: [null, null, null, null],
     includeTransactionReceipts: false,
   });
@@ -32,6 +31,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for null filter", 
 
 test("buildLogFilterFragments generates 1 log filter fragment for simple filter", () => {
   const logFilterFragments = buildLogFilterFragments({
+    type: "log",
     chainId: 1,
     address: "0xa",
     topics: [null, null, null, null],
@@ -53,6 +53,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for simple filter"
 
 test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", () => {
   const logFilterFragments = buildLogFilterFragments({
+    type: "log",
     chainId: 115511,
     address: ["0xa", "0xb"],
     topics: [["0xc", "0xd"], null, "0xe", null],
@@ -101,6 +102,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
 
 test("buildLogFilterFragments generates 12 log filter fragment for 2x2x3 filter", () => {
   const logFilterFragments = buildLogFilterFragments({
+    type: "log",
     chainId: 1,
     address: ["0xa", "0xb"],
     topics: [["0xc", "0xd"], null, ["0xe", "0xf", "0x1"], null],
@@ -112,7 +114,9 @@ test("buildLogFilterFragments generates 12 log filter fragment for 2x2x3 filter"
 
 test("buildLogFilterFragments includeTransactionReceipts", () => {
   const logFilterFragments = buildLogFilterFragments({
+    type: "log",
     chainId: 1,
+    address: undefined,
     topics: [null, null, null, null],
     includeTransactionReceipts: true,
   });
@@ -131,17 +135,19 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
 });
 
 test("buildFactoryFragments builds id containing topic", () => {
-  const criteria = buildChildAddressCriteria({
+  const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "deployer",
+    chainId: 1,
   });
 
   expect(
-    buildFactoryLogFragments({
+    buildLogFilterFragments({
+      type: "log",
       chainId: 1,
       topics: [null, null, null, null],
-      ...criteria,
+      address: factory,
       includeTransactionReceipts: false,
     })[0]!.id,
   ).toBe(
@@ -150,17 +156,19 @@ test("buildFactoryFragments builds id containing topic", () => {
 });
 
 test("buildFactoryFragments builds id containing offset", () => {
-  const criteria = buildChildAddressCriteria({
+  const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
+    chainId: 1,
   });
 
   expect(
-    buildFactoryLogFragments({
+    buildLogFilterFragments({
+      type: "log",
       chainId: 115511,
       topics: [null, null, null, null],
-      ...criteria,
+      address: factory,
       includeTransactionReceipts: false,
     })[0]!.id,
   ).toBe(

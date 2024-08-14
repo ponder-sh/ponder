@@ -8,7 +8,7 @@ import {
 } from "@/_test/setup.js";
 import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
 import { createSchema } from "@/schema/schema.js";
-import { createSyncService } from "@/sync/index.js";
+import { createSync } from "@/sync/index.js";
 import { zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { type Address, checksumAddress, parseEther, toHex } from "viem";
@@ -44,7 +44,7 @@ test("createIndexing()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -59,7 +59,7 @@ test("createIndexing()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -77,7 +77,7 @@ test("processSetupEvents() empty", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -92,7 +92,7 @@ test("processSetupEvents() empty", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -114,7 +114,7 @@ test("processSetupEvents()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -133,7 +133,7 @@ test("processSetupEvents()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -152,23 +152,25 @@ test("processSetupEvents()", async (context) => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[0].criteria.address as Address),
-          startBlock: sources[0].startBlock,
-          endBlock: sources[0].endBlock,
+          address: checksumAddress(sources[0].filter.address as Address),
+          startBlock: sources[0].filter.fromBlock,
+          endBlock: sources[0].filter.toBlock,
           maxBlockRange: sources[0].maxBlockRange,
         },
         Pair: {
           abi: expect.any(Object),
           address: undefined,
-          startBlock: sources[1].startBlock,
-          endBlock: sources[1].endBlock,
+          startBlock: sources[1].filter.fromBlock,
+          endBlock: sources[1].filter.toBlock,
           maxBlockRange: sources[1].maxBlockRange,
         },
         Factory: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[2].criteria.address as Address),
-          startBlock: sources[2].startBlock,
-          endBlock: sources[2].endBlock,
+          address: checksumAddress(
+            sources[2].filter.toAddress.address as Address,
+          ),
+          startBlock: sources[2].filter.fromBlock,
+          endBlock: sources[2].filter.toBlock,
           maxBlockRange: sources[2].maxBlockRange,
         },
       },
@@ -187,7 +189,7 @@ test("processEvent() log events", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -208,13 +210,13 @@ test("processEvent() log events", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -243,23 +245,25 @@ test("processEvent() log events", async (context) => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[0].criteria.address as Address),
-          startBlock: sources[0].startBlock,
-          endBlock: sources[0].endBlock,
+          address: checksumAddress(sources[0].filter.address as Address),
+          startBlock: sources[0].filter.fromBlock,
+          endBlock: sources[0].filter.toBlock,
           maxBlockRange: sources[0].maxBlockRange,
         },
         Pair: {
           abi: expect.any(Object),
           address: undefined,
-          startBlock: sources[1].startBlock,
-          endBlock: sources[1].endBlock,
+          startBlock: sources[1].filter.fromBlock,
+          endBlock: sources[1].filter.toBlock,
           maxBlockRange: sources[1].maxBlockRange,
         },
         Factory: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[2].criteria.address as Address),
-          startBlock: sources[2].startBlock,
-          endBlock: sources[2].endBlock,
+          address: checksumAddress(
+            sources[2].filter.toAddress.address as Address,
+          ),
+          startBlock: sources[2].filter.fromBlock,
+          endBlock: sources[2].filter.toBlock,
           maxBlockRange: sources[2].maxBlockRange,
         },
       },
@@ -278,7 +282,7 @@ test("processEvents() block events", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -297,13 +301,13 @@ test("processEvents() block events", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
 
   const rawEvents = await getEventsBlock(sources);
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -319,23 +323,25 @@ test("processEvents() block events", async (context) => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[0].criteria.address as Address),
-          startBlock: sources[0].startBlock,
-          endBlock: sources[0].endBlock,
+          address: checksumAddress(sources[0].filter.address as Address),
+          startBlock: sources[0].filter.fromBlock,
+          endBlock: sources[0].filter.toBlock,
           maxBlockRange: sources[0].maxBlockRange,
         },
         Pair: {
           abi: expect.any(Object),
           address: undefined,
-          startBlock: sources[1].startBlock,
-          endBlock: sources[1].endBlock,
+          startBlock: sources[1].filter.fromBlock,
+          endBlock: sources[1].filter.toBlock,
           maxBlockRange: sources[1].maxBlockRange,
         },
         Factory: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[2].criteria.address as Address),
-          startBlock: sources[2].startBlock,
-          endBlock: sources[2].endBlock,
+          address: checksumAddress(
+            sources[2].filter.toAddress.address as Address,
+          ),
+          startBlock: sources[2].filter.fromBlock,
+          endBlock: sources[2].filter.toBlock,
           maxBlockRange: sources[2].maxBlockRange,
         },
       },
@@ -354,7 +360,7 @@ test("processEvents() call trace events", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -373,13 +379,13 @@ test("processEvents() call trace events", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
 
   const rawEvents = await getEventsTrace(sources);
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -400,23 +406,25 @@ test("processEvents() call trace events", async (context) => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[0].criteria.address as Address),
-          startBlock: sources[0].startBlock,
-          endBlock: sources[0].endBlock,
+          address: checksumAddress(sources[0].filter.address as Address),
+          startBlock: sources[0].filter.fromBlock,
+          endBlock: sources[0].filter.toBlock,
           maxBlockRange: sources[0].maxBlockRange,
         },
         Pair: {
           abi: expect.any(Object),
           address: undefined,
-          startBlock: sources[1].startBlock,
-          endBlock: sources[1].endBlock,
+          startBlock: sources[1].filter.fromBlock,
+          endBlock: sources[1].filter.toBlock,
           maxBlockRange: sources[1].maxBlockRange,
         },
         Factory: {
           abi: expect.any(Object),
-          address: checksumAddress(sources[2].criteria.address as Address),
-          startBlock: sources[2].startBlock,
-          endBlock: sources[2].endBlock,
+          address: checksumAddress(
+            sources[2].filter.toAddress.address as Address,
+          ),
+          startBlock: sources[2].filter.fromBlock,
+          endBlock: sources[2].filter.toBlock,
           maxBlockRange: sources[2].maxBlockRange,
         },
       },
@@ -435,7 +443,7 @@ test("processEvents killed", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -456,14 +464,14 @@ test("processEvents killed", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
   kill(indexingService);
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -485,7 +493,7 @@ test("processEvents eventCount", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -506,13 +514,13 @@ test("processEvents eventCount", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -538,7 +546,7 @@ test("executeSetup() context.client", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -561,7 +569,7 @@ test("executeSetup() context.client", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -593,7 +601,7 @@ test("executeSetup() context.db", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -619,7 +627,7 @@ test("executeSetup() context.db", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -661,7 +669,7 @@ test("executeSetup() metrics", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -678,7 +686,7 @@ test("executeSetup() metrics", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -702,7 +710,7 @@ test("executeSetup() error", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -721,7 +729,7 @@ test("executeSetup() error", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -746,7 +754,7 @@ test("processEvents() context.client", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -773,7 +781,7 @@ test("processEvents() context.client", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -788,7 +796,7 @@ test("processEvents() context.client", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -809,7 +817,7 @@ test("processEvents() context.db", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -842,7 +850,7 @@ test("processEvents() context.db", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -857,7 +865,7 @@ test("processEvents() context.db", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -881,7 +889,7 @@ test("processEvents() metrics", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -902,7 +910,7 @@ test("processEvents() metrics", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -912,7 +920,7 @@ test("processEvents() metrics", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   await processEvents(indexingService, {
     events,
   });
@@ -930,7 +938,7 @@ test("processEvents() error", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -953,7 +961,7 @@ test("processEvents() error", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -967,7 +975,7 @@ test("processEvents() error", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const result = await processEvents(indexingService, {
     events,
   });
@@ -995,7 +1003,7 @@ test("execute() error after killed", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1016,13 +1024,13 @@ test("execute() error after killed", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(syncService, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents);
   const resultPromise = processEvents(indexingService, { events });
   kill(indexingService);
 
@@ -1041,7 +1049,7 @@ test("ponderActions getBalance()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1056,7 +1064,7 @@ test("ponderActions getBalance()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -1077,7 +1085,7 @@ test("ponderActions getBytecode()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1092,7 +1100,7 @@ test("ponderActions getBytecode()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -1113,7 +1121,7 @@ test("ponderActions getStorageAt()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1128,7 +1136,7 @@ test("ponderActions getStorageAt()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -1151,7 +1159,7 @@ test("ponderActions readContract()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1166,7 +1174,7 @@ test("ponderActions readContract()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -1189,7 +1197,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1204,7 +1212,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });
@@ -1229,7 +1237,7 @@ test.skip("ponderActions multicall()", async (context) => {
     { schema },
   );
 
-  const syncService = await createSyncService({
+  const sync = await createSync({
     common,
     syncStore,
     networks,
@@ -1244,7 +1252,7 @@ test.skip("ponderActions multicall()", async (context) => {
     common,
     sources,
     networks,
-    syncService,
+    sync,
     indexingStore,
     schema,
   });

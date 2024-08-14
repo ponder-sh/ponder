@@ -178,7 +178,10 @@ export const createRequestQueue = ({
 function shouldRetry(method: string, error: Error) {
   if ("code" in error && typeof error.code === "number") {
     if (error.code === -1) return true; // Unknown error
-    if (method === "eth_getLogs" && error.code === InvalidInputRpcError.code)
+    if (
+      (method === "trace_filter" || method === "eth_getLogs") &&
+      error.code === InvalidInputRpcError.code
+    )
       return true;
     if (error.code === LimitExceededRpcError.code) return true;
     if (error.code === InternalRpcError.code) return true;

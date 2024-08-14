@@ -1,10 +1,6 @@
-import {
-  type Address,
-  type Hex,
-  type LogTopic,
-  hexToBytes,
-  keccak256,
-} from "viem";
+import { type LogFilter, isAddressFactory } from "@/sync/source.js";
+import type { SyncBlock } from "@/types/sync.js";
+import { type Hex, hexToBytes, hexToNumber, keccak256 } from "viem";
 
 export const zeroLogsBloom =
   "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
@@ -28,41 +24,71 @@ export const isInBloom = (_bloom: Hex, input: Hex): boolean => {
   return true;
 };
 
-export function isMatchedLogInBloomFilter({
-  bloom,
-  logFilters,
+/**
+ * Return true if `filter` is in `bloom`.
+ *
+ * A filter with an address of type `LogFactory` is matched
+ * if the address filter is matched (new child contract) or the log
+ * filter is matched (log on child contract).
+ *
+ * Note: False positives are possible.
+ */
+export function isFilterInBloom({
+  block,
+  filter,
 }: {
-  bloom: Hex;
-  logFilters: {
-    address?: Address | Address[];
-    topics?: LogTopic[];
-  }[];
-}) {
-  const allAddresses: Address[] = [];
-  logFilters.forEach((logFilter) => {
-    const address =
-      logFilter.address === undefined
-        ? []
-        : Array.isArray(logFilter.address)
-          ? logFilter.address
-          : [logFilter.address];
-    allAddresses.push(...address);
-  });
-  if (allAddresses.some((a) => isInBloom(bloom, a))) {
-    return true;
+  block: Pick<SyncBlock, "number" | "logsBloom">;
+  filter: LogFilter;
+}): boolean {
+  // Return `false` for out of range blocks
+  if (
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
   }
 
-  const allTopics: Hex[] = [];
-  logFilters.forEach((logFilter) => {
-    logFilter.topics?.forEach((topic) => {
-      if (topic === null) return;
-      if (Array.isArray(topic)) allTopics.push(...topic);
-      else allTopics.push(topic);
+  let isTopicsInBloom: boolean;
+  let isAddressInBloom: boolean;
+
+  if (filter.topics === undefined || filter.topics.length === 0) {
+    isTopicsInBloom = true;
+  } else {
+    isTopicsInBloom = filter.topics.some((topic) => {
+      if (topic === null || topic === undefined) {
+        return true;
+      } else if (Array.isArray(topic)) {
+        return topic.some((t) => isInBloom(block.logsBloom, t));
+      } else {
+        return isInBloom(block.logsBloom, topic);
+      }
     });
-  });
-  if (allTopics.some((a) => isInBloom(bloom, a))) {
-    return true;
   }
 
-  return false;
+  if (filter.address === undefined) isAddressInBloom = true;
+  else if (isAddressFactory(filter.address)) {
+    // Return true if the `Factory` is matched.
+
+    if (
+      isInBloom(block.logsBloom, filter.address.address) &&
+      isInBloom(block.logsBloom, filter.address.eventSelector)
+    ) {
+      return true;
+    }
+
+    isAddressInBloom = true;
+  } else if (Array.isArray(filter.address)) {
+    if (filter.address.length === 0) {
+      isAddressInBloom = true;
+    } else {
+      isAddressInBloom = filter.address.some((address) =>
+        isInBloom(block.logsBloom, address),
+      );
+    }
+  } else {
+    // single address case
+    isAddressInBloom = isInBloom(block.logsBloom, filter.address);
+  }
+
+  return isAddressInBloom && isTopicsInBloom;
 }

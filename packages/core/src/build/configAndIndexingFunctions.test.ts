@@ -1,10 +1,6 @@
 import path from "node:path";
 import type { Options } from "@/common/options.js";
-import type {
-  CallTraceSource,
-  FactoryCallTraceSource,
-  LogSource,
-} from "@/config/sources.js";
+import type { CallTraceFilter, LogFactory, LogFilter } from "@/sync/source.js";
 import {
   http,
   getEventSelector,
@@ -65,7 +61,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
+  expect((sources[0]!.filter as LogFilter).topics).toMatchObject([
     [getEventSelector(event0), getEventSelector(event1)],
   ]);
 });
@@ -99,7 +95,7 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
+  expect((sources[0]!.filter as LogFilter).topics).toMatchObject([
     [getEventSelector(event1), getEventSelector(event1Overloaded)],
   ]);
 });
@@ -156,7 +152,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
+  expect((sources[0]!.filter as LogFilter).topics).toMatchObject([
     [getEventSelector(event0)],
     bytes1,
   ]);
@@ -189,7 +185,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.topics).toMatchObject([
+  expect((sources[0]!.filter as LogFilter).topics).toMatchObject([
     [getEventSelector(event1Overloaded)],
     [bytes1, bytes2],
   ]);
@@ -223,7 +219,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.address).toBe(address2);
+  expect((sources[0]!.filter as LogFilter).address).toBe(address2);
 });
 
 test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
@@ -473,7 +469,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () =
     options,
   });
 
-  expect((sources[0] as LogSource).startBlock).toBe(0);
+  expect(sources[0]?.filter.fromBlock).toBe(0);
 });
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
@@ -500,10 +496,10 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
     options,
   });
 
-  expect((sources[0] as LogSource).criteria.includeTransactionReceipts).toBe(
+  expect((sources[0]!.filter as LogFilter).includeTransactionReceipts).toBe(
     true,
   );
-  expect((sources[1] as LogSource).criteria.includeTransactionReceipts).toBe(
+  expect((sources[1]!.filter as LogFilter).includeTransactionReceipts).toBe(
     false,
   );
 });
@@ -535,16 +531,15 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
 
   expect(sources).toHaveLength(1);
 
-  expect((sources[0] as CallTraceSource).id).toBe("callTrace_a_mainnet");
-  expect((sources[0] as CallTraceSource).criteria.fromAddress).toBeUndefined();
-  expect((sources[0] as CallTraceSource).criteria.toAddress).toMatchObject([
+  expect((sources[0]!.filter as CallTraceFilter).fromAddress).toBeUndefined();
+  expect((sources[0]!.filter as CallTraceFilter).toAddress).toMatchObject([
     zeroAddress,
   ]);
   expect(
-    (sources[0] as CallTraceSource).criteria.functionSelectors,
+    (sources[0]!.filter as CallTraceFilter).functionSelectors,
   ).toMatchObject([getFunctionSelector(func0)]);
   expect(
-    (sources[0] as CallTraceSource).criteria.includeTransactionReceipts,
+    (sources[0]!.filter as CallTraceFilter).includeTransactionReceipts,
   ).toBe(false);
 });
 
@@ -579,18 +574,15 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
 
   expect(sources).toHaveLength(1);
 
-  expect((sources[0] as FactoryCallTraceSource).id).toBe("callTrace_a_mainnet");
+  expect((sources[0]!.filter as CallTraceFilter).fromAddress).toBeUndefined();
   expect(
-    (sources[0] as FactoryCallTraceSource).criteria.fromAddress,
-  ).toBeUndefined();
-  expect((sources[0] as FactoryCallTraceSource).criteria.address).toMatchObject(
-    address2,
-  );
+    ((sources[0]!.filter as CallTraceFilter).toAddress as LogFactory).address,
+  ).toMatchObject(address2);
   expect(
-    (sources[0] as FactoryCallTraceSource).criteria.functionSelectors,
+    (sources[0]!.filter as CallTraceFilter).functionSelectors,
   ).toMatchObject([getFunctionSelector(func0)]);
   expect(
-    (sources[0] as FactoryCallTraceSource).criteria.includeTransactionReceipts,
+    (sources[0]!.filter as CallTraceFilter).includeTransactionReceipts,
   ).toBe(false);
 });
 
@@ -614,7 +606,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
     options,
   });
 
-  expect(sources[0]!.endBlock).toBe(undefined);
+  expect(sources[0]!.filter.toBlock).toBe(undefined);
 });
 
 test("buildConfigAndIndexingFunctions() database uses sqlite by default", async () => {
