@@ -588,7 +588,7 @@ export async function buildConfigAndIndexingFunctions({
 
       if (resolvedFactory) {
         // Note that this can throw.
-        const logAddressFilter = buildLogFactory({
+        const logFactory = buildLogFactory({
           chainId: network.chainId,
           ...resolvedFactory,
         });
@@ -598,7 +598,7 @@ export async function buildConfigAndIndexingFunctions({
           filter: {
             type: "log",
             chainId: network.chainId,
-            address: logAddressFilter,
+            address: logFactory,
             topics,
             includeTransactionReceipts: rawContract.includeTransactionReceipts,
             fromBlock: rawContract.startBlock,
@@ -615,7 +615,7 @@ export async function buildConfigAndIndexingFunctions({
                 type: "callTrace",
                 chainId: network.chainId,
                 fromAddress: undefined,
-                toAddress: logAddressFilter,
+                toAddress: logFactory,
                 functionSelectors: registeredFunctionSelectors,
                 includeTransactionReceipts:
                   rawContract.includeTransactionReceipts,

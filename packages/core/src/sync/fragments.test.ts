@@ -135,7 +135,7 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
 });
 
 test("buildFactoryFragments builds id containing topic", () => {
-  const addressFilter = buildLogFactory({
+  const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "deployer",
@@ -147,7 +147,7 @@ test("buildFactoryFragments builds id containing topic", () => {
       type: "log",
       chainId: 1,
       topics: [null, null, null, null],
-      address: addressFilter,
+      address: factory,
       includeTransactionReceipts: false,
     })[0]!.id,
   ).toBe(
@@ -156,7 +156,7 @@ test("buildFactoryFragments builds id containing topic", () => {
 });
 
 test("buildFactoryFragments builds id containing offset", () => {
-  const addressFilter = buildLogFactory({
+  const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
@@ -168,7 +168,7 @@ test("buildFactoryFragments builds id containing offset", () => {
       type: "log",
       chainId: 115511,
       topics: [null, null, null, null],
-      address: addressFilter,
+      address: factory,
       includeTransactionReceipts: false,
     })[0]!.id,
   ).toBe(

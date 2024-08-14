@@ -6,7 +6,7 @@ const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
-test("buildLogAddressFilter throws if provided parameter not found in inputs", () => {
+test("buildLogFactory throws if provided parameter not found in inputs", () => {
   expect(() =>
     buildLogFactory({
       address: "0xa",
@@ -19,7 +19,7 @@ test("buildLogAddressFilter throws if provided parameter not found in inputs", (
   );
 });
 
-test("buildLogAddressFilter handles LlamaInstanceCreated llamaCore", () => {
+test("buildLogFactory handles LlamaInstanceCreated llamaCore", () => {
   const criteria = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
@@ -34,7 +34,7 @@ test("buildLogAddressFilter handles LlamaInstanceCreated llamaCore", () => {
   });
 });
 
-test("buildLogAddressFilter handles LlamaInstanceCreated llamaPolicy", () => {
+test("buildLogFactory handles LlamaInstanceCreated llamaPolicy", () => {
   const criteria = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,

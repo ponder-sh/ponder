@@ -10,7 +10,7 @@ import {
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 
-test("isLogAddressFilterMatched()", async (context) => {
+test("isLogFactoryMatched()", async (context) => {
   const rpcData = await getRawRPCData();
 
   let isMatched = isLogFactoryMatched({

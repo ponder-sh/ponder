@@ -27,7 +27,7 @@ export const isInBloom = (_bloom: Hex, input: Hex): boolean => {
 /**
  * Return true if `filter` is in `bloom`.
  *
- * A filter with an address of type `LogAddressFilter` is matched
+ * A filter with an address of type `LogFactory` is matched
  * if the address filter is matched (new child contract) or the log
  * filter is matched (log on child contract).
  *
