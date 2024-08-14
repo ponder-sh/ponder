@@ -151,12 +151,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     }
 
     let checkpoints = [...localSyncs.entries()];
-    if (tag === "latest")
+    if (tag === "latest") {
       checkpoints = checkpoints.filter(
         ([, localSync]) => localSync.isComplete() === false,
       );
-    // Return early if all networks are complete
-    if (checkpoints.length === 0) return undefined;
+      // Return early if all networks are complete
+      if (checkpoints.length === 0) return undefined;
+    }
 
     return encodeCheckpoint(
       checkpointMin(
@@ -547,7 +548,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ),
             syncStore: args.syncStore,
             onEvent: (event) =>
-              eventQueue.add({ network, event }).catch(args.onFatalError),
+              eventQueue.add({ network, event }).catch((error) => {
+                args.common.logger.error({
+                  service: "sync",
+                  msg: `Fatal error: Unable to process ${event.type} event`,
+                  error,
+                });
+                args.onFatalError(error);
+              }),
             onFatalError: args.onFatalError,
           });
           realtimeSync.start(localSync.finalizedBlock);

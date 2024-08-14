@@ -208,7 +208,7 @@ export const createSyncStore = ({
                 .insertInto("blockFilters")
                 .values(fragment)
                 .onConflict((oc) => oc.column("id").doNothing())
-                .executeTakeFirstOrThrow();
+                .execute();
 
               await tx
                 .insertInto("blockFilterIntervals")
@@ -433,7 +433,7 @@ export const createSyncStore = ({
               .insertInto(`${table}s`)
               .values(fragment)
               .onConflict((oc) => oc.column("id").doNothing())
-              .executeTakeFirstOrThrow();
+              .execute();
 
             // This is a trick to add a LIMIT to a DELETE statement
             const existingIntervals = await tx
