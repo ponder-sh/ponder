@@ -10,25 +10,34 @@ import {
 } from "./source.js";
 
 export type LogFilterFragment<
-  factory extends Factory | undefined = Factory | undefined,
-> = factory extends Factory
+  factory extends Factory | Factory[] | undefined =
+    | Factory
+    | Factory[]
+    | undefined,
+> = factory extends Factory | Factory[]
   ? PonderSyncSchema["factoryLogFilters"]
   : PonderSyncSchema["logFilters"];
 
 export type BlockFilterFragment = PonderSyncSchema["blockFilters"];
 
 export type TraceFilterFragment<
-  factory extends Factory | undefined = Factory | undefined,
-> = factory extends Factory
+  factory extends Factory | Factory[] | undefined =
+    | Factory
+    | Factory[]
+    | undefined,
+> = factory extends Factory | Factory[]
   ? PonderSyncSchema["factoryTraceFilters"]
   : PonderSyncSchema["traceFilters"];
+
 /**
  * Generates log filter fragments from a log filter.
  *
  * @param logFilter Log filter to be decomposed into fragments.
  * @returns A list of log filter fragments.
  */
-export const buildLogFilterFragments = <factory extends Factory | undefined>({
+export const buildLogFilterFragments = <
+  factory extends Factory | Factory[] | undefined,
+>({
   chainId,
   address,
   topics,
@@ -80,9 +89,10 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
               chainId,
               ...(isAddressFactory(address_)
                 ? {
-                    address: address_.address,
-                    eventSelector: address_.eventSelector,
-                    childAddressLocation: address_.childAddressLocation,
+                    address: (address_ as LogFactory).address,
+                    eventSelector: (address_ as LogFactory).eventSelector,
+                    childAddressLocation: (address_ as LogFactory)
+                      .childAddressLocation,
                   }
                 : { address: address_ }),
               topic0: topic0_,
@@ -127,7 +137,9 @@ export const buildBlockFilterFragment = ({
   };
 };
 
-export const buildTraceFilterFragments = <factory extends Factory | undefined>({
+export const buildTraceFilterFragments = <
+  factory extends Factory | Factory[] | undefined,
+>({
   chainId,
   fromAddress,
   toAddress,
@@ -165,9 +177,10 @@ export const buildTraceFilterFragments = <factory extends Factory | undefined>({
         chainId,
         ...(isAddressFactory(_toAddress)
           ? {
-              address: _toAddress.address,
-              eventSelector: _toAddress.eventSelector,
-              childAddressLocation: _toAddress.childAddressLocation,
+              address: (_toAddress as LogFactory).address,
+              eventSelector: (_toAddress as LogFactory).eventSelector,
+              childAddressLocation: (_toAddress as LogFactory)
+                .childAddressLocation,
             }
           : { toAddress: _toAddress }),
         fromAddress: _fromAddress,
