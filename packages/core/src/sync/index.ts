@@ -249,6 +249,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     }
   };
 
+  let latestFinalizedFetch = Date.now() / 1_000;
   /**
    * Estimate optimal range (seconds) to query at a time, eventually
    * used to determine `to` passed to `getEvents`
@@ -263,29 +264,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    *
    * Note: `syncStore.getEvents` is used to order between multiple
    * networks. This approach is not future proof.
-   *
-   * TODO(kyle) programmatically refetch finalized blocks to avoid exiting too early
    */
   async function* getEvents() {
     /**
-     * Calculate checkpoints
-     *
-     * `start`: If `args.initial` is non-zero, use that. Otherwise,
-     * use `start`
-     *
-     * `end`: If every network has an `endBlock` and its less than
-     * `finalized`, use that. Otherwise, use `finalized`
+     * Calculate start checkpoint, if `args.initial` is non-zero,
+     * use that. Otherwise, use `start`
      */
     const start =
       encodeCheckpoint(args.initialCheckpoint) !==
       encodeCheckpoint(zeroCheckpoint)
         ? encodeCheckpoint(args.initialCheckpoint)
         : getChainsCheckpoint("start")!;
-    const end =
-      getChainsCheckpoint("end") !== undefined &&
-      getChainsCheckpoint("end")! < getChainsCheckpoint("finalized")!
-        ? getChainsCheckpoint("end")!
-        : getChainsCheckpoint("finalized")!;
 
     // Cursor used to track progress.
     let from = start;
@@ -304,9 +293,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       if (_localSyncs.some((l) => l.latestBlock === undefined)) continue;
       /**
-       *  Calculate the mininum "latest" checkpoint, falling back to `end` if
+       * Calculate the mininum "latest" checkpoint, falling back to `end` if
        * all networks have completed.
+       *
+       * `end`: If every network has an `endBlock` and it's less than
+       * `finalized`, use that. Otherwise, use `finalized`
        */
+      const end =
+        getChainsCheckpoint("end") !== undefined &&
+        getChainsCheckpoint("end")! < getChainsCheckpoint("finalized")!
+          ? getChainsCheckpoint("end")!
+          : getChainsCheckpoint("finalized")!;
       const to = getChainsCheckpoint("latest") ?? end;
 
       /*
@@ -360,7 +357,31 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             localSync.finalizedBlock === localSync.latestBlock,
         )
       ) {
-        break;
+        /**
+         * Check how "fresh" the `finalized` blocks are. If they have been
+         * fetched within the threshold, exit the loop.
+         */
+        if (
+          latestFinalizedFetch + args.common.options.syncHandoffStaleSeconds >
+          Date.now() / 1_000
+        ) {
+          break;
+        }
+
+        // Refetch finalized blocks for non-complete networks.
+        await Promise.all(
+          [...localSyncs].map(([network, localSync]) => {
+            if (localSync.isComplete()) return;
+
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Refetching '${network.name}' finalized block`,
+            });
+
+            return localSync.refetchFinalizedBlock();
+          }),
+        );
+        latestFinalizedFetch = Date.now() / 1_000;
       }
     }
   }

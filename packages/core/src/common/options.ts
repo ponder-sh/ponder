@@ -38,6 +38,7 @@ export type Options = {
 
   syncStoreMaxIntervals: number;
   syncEventsQuerySize: number;
+  syncHandoffStaleSeconds: number;
 };
 
 export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
@@ -119,5 +120,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     syncStoreMaxIntervals: 50_000,
     syncEventsQuerySize: 10_000,
+    syncHandoffStaleSeconds: 300,
   } satisfies Options;
 };

@@ -19,6 +19,7 @@ export type LocalSync = {
   sync(): Promise<void>;
   /** Returns true when `latestBlock` is closer to tip than `endBlock` */
   isComplete(): boolean;
+  refetchFinalizedBlock(): Promise<void>;
   kill(): void;
 };
 
@@ -71,7 +72,7 @@ export const createLocalSync = async (
     hexToNumber(latestBlock.number) - args.network.finalityBlockCount,
   );
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
+  let finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
     blockNumber: finalizedBlockNumber,
   });
 
@@ -82,7 +83,7 @@ export const createLocalSync = async (
     network: args.network,
     requestQueue,
   });
-  historicalSync.initializeMetrics(finalizedBlock);
+  historicalSync.initializeMetrics(finalizedBlock, true);
 
   /**
    * Estimate optimal range (blocks) to sync at a time, eventually to be used to
@@ -127,7 +128,12 @@ export const createLocalSync = async (
       if (block === undefined) return;
       _latestBlock = block;
     },
-    finalizedBlock,
+    get finalizedBlock() {
+      return finalizedBlock;
+    },
+    set finalizedBlock(block) {
+      finalizedBlock = block;
+    },
     async sync() {
       /**
        * Select a range of blocks to sync bounded by `finalizedBlock`.
@@ -165,6 +171,21 @@ export const createLocalSync = async (
         hexToNumber(this.latestBlock.number) >=
         hexToNumber(this.endBlock.number)
       );
+    },
+    async refetchFinalizedBlock() {
+      const latestBlock = await _eth_getBlockByNumber(requestQueue, {
+        blockTag: "latest",
+      });
+
+      const finalizedBlockNumber = Math.max(
+        0,
+        hexToNumber(latestBlock.number) - args.network.finalityBlockCount,
+      );
+
+      finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
+        blockNumber: finalizedBlockNumber,
+      });
+      historicalSync.initializeMetrics(finalizedBlock, false);
     },
     kill() {
       historicalSync.kill();
