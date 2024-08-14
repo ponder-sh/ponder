@@ -226,6 +226,7 @@ export const decodeEvents = (
   return events;
 };
 
+/** @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99 */
 function decodeEventLog({
   abiItem,
   topics,
