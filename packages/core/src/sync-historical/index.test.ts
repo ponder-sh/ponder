@@ -258,7 +258,7 @@ test("sync() with cache hit", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(syncStore, "insertBlock");
+  const spy = vi.spyOn(context.requestQueues[0], "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
@@ -269,7 +269,7 @@ test("sync() with cache hit", async (context) => {
   });
   await historicalSync.sync([0, 5]);
 
-  expect(spy).toHaveBeenCalledTimes(0);
+  expect(spy).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });

@@ -76,7 +76,7 @@ export type SyncStore = {
     logs: { log: SyncLog; block?: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
-  insertBlock(args: { block: SyncBlock; chainId: number }): Promise<void>;
+  insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   /** Return true if the block receipt is present in the database. */
   hasBlock(args: { hash: Hash }): Promise<boolean>;
   insertTransactions(args: {
@@ -561,10 +561,9 @@ export const createSyncStore = ({
 
       return new Set<Address>([...result.map(({ address }) => address)]);
     }),
-  insertLogs: async ({ logs, chainId }) =>
-    db.wrap({ method: "insertLogs" }, async () => {
-      if (logs.length === 0) return;
-
+  insertLogs: async ({ logs, chainId }) => {
+    if (logs.length === 0) return;
+    await db.wrap({ method: "insertLogs" }, async () => {
       // Calculate `batchSize` based on how many parameters the
       // input will have
       const batchSize = Math.floor(
@@ -587,15 +586,31 @@ export const createSyncStore = ({
           )
           .execute();
       }
-    }),
-  insertBlock: async ({ block, chainId }) =>
-    db.wrap({ method: "insertBlock" }, async () => {
-      await db
-        .insertInto("blocks")
-        .values(encodeBlock({ block, chainId, sql }))
-        .onConflict((oc) => oc.column("hash").doNothing())
-        .execute();
-    }),
+    });
+  },
+  insertBlocks: async ({ blocks, chainId }) => {
+    if (blocks.length === 0) return;
+    await db.wrap({ method: "insertBlocks" }, async () => {
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(encodeBlock({ block: blocks[0]!, chainId, sql })).length,
+      );
+
+      for (let i = 0; i < blocks.length; i += batchSize) {
+        await db
+          .insertInto("blocks")
+          .values(
+            blocks
+              .slice(i, i + batchSize)
+              .map((block) => encodeBlock({ block, chainId, sql })),
+          )
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+    });
+  },
   hasBlock: async ({ hash }) =>
     db.wrap({ method: "hasBlock" }, async () => {
       return await db
@@ -605,10 +620,9 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  insertTransactions: async ({ transactions, chainId }) =>
-    db.wrap({ method: "insertTransactions" }, async () => {
-      if (transactions.length === 0) return;
-
+  insertTransactions: async ({ transactions, chainId }) => {
+    if (transactions.length === 0) return;
+    await db.wrap({ method: "insertTransactions" }, async () => {
       // Calculate `batchSize` based on how many parameters the
       // input will have
       const batchSize = Math.floor(
@@ -637,7 +651,8 @@ export const createSyncStore = ({
           )
           .execute();
       }
-    }),
+    });
+  },
   hasTransaction: async ({ hash }) =>
     db.wrap({ method: "hasTransaction" }, async () => {
       return await db
@@ -647,10 +662,9 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  insertTransactionReceipts: async ({ transactionReceipts, chainId }) =>
-    db.wrap({ method: "insertTransactionReceipts" }, async () => {
-      if (transactionReceipts.length === 0) return;
-
+  insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
+    if (transactionReceipts.length === 0) return;
+    await db.wrap({ method: "insertTransactionReceipts" }, async () => {
       // Calculate `batchSize` based on how many parameters the
       // input will have
       const batchSize = Math.floor(
@@ -689,7 +703,8 @@ export const createSyncStore = ({
           )
           .execute();
       }
-    }),
+    });
+  },
   hasTransactionReceipt: async ({ hash }) =>
     db.wrap({ method: "hasTransactionReceipt" }, async () => {
       return await db
@@ -699,10 +714,9 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  insertCallTraces: async ({ callTraces, chainId }) =>
-    db.wrap({ method: "insertCallTrace" }, async () => {
-      if (callTraces.length === 0) return;
-
+  insertCallTraces: async ({ callTraces, chainId }) => {
+    if (callTraces.length === 0) return;
+    await db.wrap({ method: "insertCallTrace" }, async () => {
       // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
       // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
       const traceByTransactionHash: {
@@ -776,7 +790,8 @@ export const createSyncStore = ({
             .execute();
         }
       });
-    }),
+    });
+  },
   getEvents: async ({ filters, from, to, limit }) => {
     const addressSQL = (
       qb: SelectQueryBuilder<
