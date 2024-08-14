@@ -410,6 +410,34 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 </div>
 
+**Multiple factory contracts create the same child contract**
+
+The factory `address` field also accepts a list of factory contract addresses. Use this option if there are multiple factory contracts on the same network that have the same ABI, factory event signature, and create the same kind of child contract.
+
+```ts filename="ponder.config.ts" {12-15}
+import { createConfig } from "@ponder/core";
+import { parseAbiItem } from "viem";
+
+export default createConfig({
+  // ...
+  contracts: {
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      network: "mainnet",
+      factory: {
+        // A list of factory contract addresses that all create SudoswapPool contracts.
+        address: [
+          "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
+          "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4"
+        ],
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        parameter: "poolAddress",
+      },
+    },
+  },
+});
+```
+
 **Factory contract requirements & limitations**
 
 1. **Event signature requirements**: The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
