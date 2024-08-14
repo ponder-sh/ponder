@@ -8,8 +8,8 @@ export const formatEta = (ms: number) => {
   const s = seconds - h * 3600 - m * 60;
 
   const hstr = h > 0 ? `${h}h ` : "";
-  const mstr = m > 0 || h > 0 ? `${m}m ` : "";
-  const sstr = s > 0 || m > 0 ? `${s}s` : "";
+  const mstr = m > 0 || h > 0 ? `${m < 10 && h > 0 ? "0" : ""}${m}m ` : "";
+  const sstr = s > 0 || m > 0 ? `${s < 10 && m > 0 ? "0" : ""}${s}s` : "";
 
   return `${hstr}${mstr}${sstr}`;
 };
