@@ -267,6 +267,8 @@ test("Context client", () => {
   type expectedFunctions =
     | "request"
     | "readContract"
+    | "simulateContract"
+    | "call"
     | "multicall"
     | "getStorageAt"
     | "getBytecode"

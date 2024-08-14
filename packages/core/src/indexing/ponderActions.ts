@@ -3,6 +3,8 @@ import type { Prettify } from "@/types/utils.js";
 import type {
   Abi,
   Account,
+  CallParameters,
+  CallReturnType,
   Chain,
   Client,
   ContractFunctionConfig,
@@ -19,14 +21,18 @@ import type {
   PublicRpcSchema,
   ReadContractParameters,
   ReadContractReturnType,
+  SimulateContractParameters,
+  SimulateContractReturnType,
   Transport,
 } from "viem";
 import {
+  call as viemCall,
   getBalance as viemGetBalance,
   getBytecode as viemGetBytecode,
   getStorageAt as viemGetStorageAt,
   multicall as viemMulticall,
   readContract as viemReadContract,
+  simulateContract as viemSimulateContract,
 } from "viem/actions";
 import type { Service, create } from "./service.js";
 
@@ -79,6 +85,19 @@ export type PonderActions = {
   getEnsName: (
     args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
   ) => Promise<GetEnsNameReturnType>;
+  simulateContract: <
+    const TAbi extends Abi | readonly unknown[],
+    TFunctionName extends string,
+  >(
+    args: Omit<
+      SimulateContractParameters<TAbi, TFunctionName>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions,
+  ) => Promise<SimulateContractReturnType<TAbi, TFunctionName>>;
+  call: (
+    args: Omit<CallParameters, "blockTag" | "blockNumber"> & BlockOptions,
+  ) => Promise<CallReturnType>;
 };
 
 export type ReadOnlyClient<
@@ -171,6 +190,38 @@ export const buildCachedActions = (
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
       } as ReadContractParameters<TAbi, TFunctionName>),
+    // @ts-ignore
+    simulateContract: <
+      const TAbi extends Abi | readonly unknown[],
+      TFunctionName extends string,
+    >({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<
+      SimulateContractParameters<TAbi, TFunctionName>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions): Promise<SimulateContractReturnType<TAbi, TFunctionName>> =>
+      // @ts-ignore
+      viemSimulateContract(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    call: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<CallParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<CallReturnType> =>
+      viemCall(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
   });
 };
 
