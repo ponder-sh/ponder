@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.11
+
+### Patch Changes
+
+- [#1032](https://github.com/ponder-sh/ponder/pull/1032) [`57b9b1373b45e6585ade689c63591294d60cc612`](https://github.com/ponder-sh/ponder/commit/57b9b1373b45e6585ade689c63591294d60cc612) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical sync efficiency by inserting transactions in batches
+
 ## 0.5.10
 
 ### Patch Changes
