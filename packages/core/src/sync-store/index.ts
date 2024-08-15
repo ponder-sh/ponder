@@ -559,7 +559,7 @@ export const createSyncStore = ({
         .where(
           "addresses.address",
           "in",
-          ksql`(SELECT "address" FROM "childAddresses")`,
+          ksql`(SELECT "childAddress" FROM "childAddresses")`,
         )
         .selectAll()
         .execute();
