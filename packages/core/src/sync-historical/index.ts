@@ -326,7 +326,7 @@ export const createHistoricalSync = async (
       }
     }
 
-    // Add `transactionHashes` to the sync-store and `transactionCache`.
+    // Add `transactionHashes` to `transactionCache`.
     if (transactionHashes !== undefined) {
       // Filter out transactions that aren't relevant
       const newTransactions = block.transactions.filter(({ hash }) =>
