@@ -151,12 +151,14 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
     const blocks = await Promise.all(
-      logs.map((log) =>
-        syncBlock(hexToBigInt(log.blockNumber), transactionHashes),
-      ),
+      logs.map((log) => syncBlock(hexToBigInt(log.blockNumber))),
     );
+
+    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
+    for (const hash of transactionHashes) {
+      transactionsCache.add(hash);
+    }
 
     if (isKilled) return;
 
@@ -251,12 +253,13 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
     const blocks = await Promise.all(
-      callTraces.map((trace) =>
-        syncBlock(hexToBigInt(trace.blockNumber), transactionHashes),
-      ),
+      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
     );
+
+    for (const { transactionHash } of callTraces) {
+      transactionsCache.add(transactionHash);
+    }
 
     if (isKilled) return;
 
@@ -297,10 +300,7 @@ export const createHistoricalSync = async (
    * Note: This function could more accurately skip network requests by taking
    * advantage of `syncStore.hasBlock` and `syncStore.hasTransaction`.
    */
-  const syncBlock = async (
-    number: bigint,
-    transactionHashes?: Set<Hash>,
-  ): Promise<SyncBlock> => {
+  const syncBlock = async (number: bigint): Promise<SyncBlock> => {
     let block: SyncBlock;
 
     /**
@@ -323,19 +323,6 @@ export const createHistoricalSync = async (
         hexToBigInt(block.number) > hexToBigInt(latestBlock?.number ?? "0x0")
       ) {
         latestBlock = block;
-      }
-    }
-
-    // Add `transactionHashes` to `transactionCache`.
-    if (transactionHashes !== undefined) {
-      // Filter out transactions that aren't relevant
-      const newTransactions = block.transactions.filter(({ hash }) =>
-        transactionHashes.has(hash),
-      );
-
-      // Add `newTransactions` to the cache
-      for (const transaction of newTransactions) {
-        transactionsCache.add(transaction.hash);
       }
     }
 
@@ -489,16 +476,13 @@ export const createHistoricalSync = async (
         }),
       );
 
+      const blocks = await Promise.all(blockCache.values());
+
       await Promise.all([
-        args.syncStore.insertBlocks({
-          blocks: await Promise.all(blockCache.values()),
-          chainId: args.network.chainId,
-        }),
+        args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
         args.syncStore.insertTransactions({
-          transactions: await Promise.all(blockCache.values()).then((blocks) =>
-            blocks.flatMap(({ transactions }) =>
-              transactions.filter(({ hash }) => transactionsCache.has(hash)),
-            ),
+          transactions: blocks.flatMap(({ transactions }) =>
+            transactions.filter(({ hash }) => transactionsCache.has(hash)),
           ),
           chainId: args.network.chainId,
         }),
