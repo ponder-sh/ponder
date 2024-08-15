@@ -156,72 +156,72 @@ export const createSyncStore = ({
 }): SyncStore => ({
   insertInterval: async ({ filter, interval }) =>
     db.wrap({ method: "insertInterval" }, async () => {
-      const intervalToBlock = (interval: Interval) => ({
-        startBlock: formatBig(sql, interval[0]),
-        endBlock: formatBig(sql, interval[1]),
-      });
+      const startBlock = formatBig(sql, interval[0]);
+      const endBlock = formatBig(sql, interval[1]);
 
       switch (filter.type) {
-        case "log":
-          {
-            for (const fragment of buildLogFilterFragments(filter)) {
-              if (isAddressFactory(filter.address)) {
-                await db
-                  .insertInto("factoryLogFilterIntervals")
-                  .values({
-                    factoryId: fragment.id,
-                    ...intervalToBlock(interval),
-                  })
-                  .execute();
-              } else {
-                await db
-                  .insertInto("logFilterIntervals")
-                  .values({
-                    logFilterId: fragment.id,
-                    ...intervalToBlock(interval),
-                  })
-                  .execute();
-              }
+        case "log": {
+          for (const fragment of buildLogFilterFragments(filter)) {
+            if (isAddressFactory(filter.address)) {
+              await db
+                .insertInto("factoryLogFilterIntervals")
+                .values({
+                  factoryId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
+            } else {
+              await db
+                .insertInto("logFilterIntervals")
+                .values({
+                  logFilterId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
             }
           }
           break;
+        }
 
-        case "block":
-          {
-            const fragment = buildBlockFilterFragment(filter);
-            await db
-              .insertInto("blockFilterIntervals")
-              .values({
-                blockFilterId: fragment.id,
-                ...intervalToBlock(interval),
-              })
-              .execute();
-          }
+        case "block": {
+          const fragment = buildBlockFilterFragment(filter);
+          await db
+            .insertInto("blockFilterIntervals")
+            .values({
+              blockFilterId: fragment.id,
+              startBlock,
+              endBlock,
+            })
+            .execute();
           break;
+        }
 
-        case "callTrace":
-          {
-            for (const fragment of buildTraceFilterFragments(filter)) {
-              if (isAddressFactory(filter.toAddress)) {
-                await db
-                  .insertInto("factoryTraceFilterIntervals")
-                  .values({
-                    factoryId: fragment.id,
-                    ...intervalToBlock(interval),
-                  })
-                  .execute();
-              } else {
-                await db
-                  .insertInto("traceFilterIntervals")
-                  .values({
-                    traceFilterId: fragment.id,
-                    ...intervalToBlock(interval),
-                  })
-                  .execute();
-              }
+        case "callTrace": {
+          for (const fragment of buildTraceFilterFragments(filter)) {
+            if (isAddressFactory(filter.toAddress)) {
+              await db
+                .insertInto("factoryTraceFilterIntervals")
+                .values({
+                  factoryId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
+            } else {
+              await db
+                .insertInto("traceFilterIntervals")
+                .values({
+                  traceFilterId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
             }
           }
           break;
+        }
 
         default:
           never(filter);
