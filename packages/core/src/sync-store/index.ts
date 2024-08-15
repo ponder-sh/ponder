@@ -123,27 +123,42 @@ export type SyncStore = {
   }): Promise<void>;
 };
 
-const childAddressSQL = (
+const logFactorySQL = (
   sql: "sqlite" | "postgres",
-  childAddressLocation: LogFactory["childAddressLocation"],
-) => {
-  if (childAddressLocation.startsWith("offset")) {
-    const childAddressOffset = Number(childAddressLocation.substring(6));
-    const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
-    const length = 20 * 2;
-    return sql === "sqlite"
-      ? ksql<Hex>`'0x' || substring(data, ${start}, ${length})`
-      : ksql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
-  } else {
-    const start = 2 + 12 * 2 + 1;
-    const length = 20 * 2;
-    return sql === "sqlite"
-      ? ksql<Hex>`'0x' || substring(${ksql.ref(childAddressLocation)}, ${start}, ${length})`
-      : ksql<Hex>`'0x' || substring(${ksql.ref(
-          childAddressLocation,
-        )} from ${start}::integer for ${length}::integer)`;
-  }
-};
+  qb: SelectQueryBuilder<PonderSyncSchema, "logs", {}>,
+  factory: LogFactory,
+) =>
+  qb
+    .select(
+      (() => {
+        if (factory.childAddressLocation.startsWith("offset")) {
+          const childAddressOffset = Number(
+            factory.childAddressLocation.substring(6),
+          );
+          const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
+          const length = 20 * 2;
+          return sql === "sqlite"
+            ? ksql<Hex>`'0x' || substring(data, ${start}, ${length})`
+            : ksql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
+        } else {
+          const start = 2 + 12 * 2 + 1;
+          const length = 20 * 2;
+          return sql === "sqlite"
+            ? ksql<Hex>`'0x' || substring(${ksql.ref(factory.childAddressLocation)}, ${start}, ${length})`
+            : ksql<Hex>`'0x' || substring(${ksql.ref(
+                factory.childAddressLocation,
+              )} from ${start}::integer for ${length}::integer)`;
+        }
+      })().as("childAddress"),
+    )
+    .$call((qb) => {
+      if (Array.isArray(factory.address)) {
+        return qb.where("address", "in", factory.address);
+      }
+      return qb.where("address", "=", factory.address);
+    })
+    .where("topic0", "=", factory.eventSelector)
+    .where("chainId", "=", factory.chainId);
 
 export const createSyncStore = ({
   common,
@@ -523,14 +538,11 @@ export const createSyncStore = ({
     db.wrap({ method: "getChildAddresses" }, async () => {
       return await db
         .selectFrom("logs")
-        .select(childAddressSQL(sql, filter.childAddressLocation).as("address"))
-        .where("address", "=", filter.address)
-        .where("topic0", "=", filter.eventSelector)
-        .where("chainId", "=", filter.chainId)
+        .$call((qb) => logFactorySQL(sql, qb, filter))
         .orderBy("id asc")
         .limit(limit)
         .execute()
-        .then((addresses) => addresses.map(({ address }) => address));
+        .then((addresses) => addresses.map(({ childAddress }) => childAddress));
     }),
   filterChildAddresses: ({ filter, addresses }) =>
     db.wrap({ method: "filterChildAddresses" }, async () => {
@@ -541,20 +553,13 @@ export const createSyncStore = ({
             ksql`( values ${ksql.join(addresses.map((a) => ksql`( ${ksql.val(a)} )`))} )`,
         )
         .with("childAddresses", (db) =>
-          db
-            .selectFrom("logs")
-            .select(
-              childAddressSQL(sql, filter.childAddressLocation).as("address"),
-            )
-            .where("address", "=", filter.address)
-            .where("topic0", "=", filter.eventSelector)
-            .where("chainId", "=", filter.chainId),
+          db.selectFrom("logs").$call((qb) => logFactorySQL(sql, qb, filter)),
         )
         .selectFrom("addresses")
         .where(
           "addresses.address",
           "in",
-          ksql`(SELECT "address" FROM "childAddresses")`,
+          ksql`(SELECT "childAddress" FROM "childAddresses")`,
         )
         .selectAll()
         .execute();
@@ -803,24 +808,15 @@ export const createSyncStore = ({
       column: "address" | "from" | "to",
     ) => {
       if (typeof address === "string") return qb.where(column, "=", address);
-      if (Array.isArray(address)) return qb.where(column, "in", address);
       if (isAddressFactory(address)) {
-        // log address filter
         return qb.where(
           column,
           "in",
-          db
-            .selectFrom("logs")
-            .select(
-              childAddressSQL(sql, address.childAddressLocation).as(
-                "childAddress",
-              ),
-            )
-            .where("address", "=", address.address)
-            .where("topic0", "=", address.eventSelector)
-            .where("chainId", "=", address.chainId),
+          db.selectFrom("logs").$call((qb) => logFactorySQL(sql, qb, address)),
         );
       }
+      if (Array.isArray(address)) return qb.where(column, "in", address);
+
       return qb;
     };
 
@@ -948,13 +944,8 @@ export const createSyncStore = ({
               ? callTraceSQL(filter, db, i)
               : blockSQL(filter, db, i);
 
-        if (query === undefined) {
-          // @ts-ignore
-          query = _query;
-        } else {
-          // @ts-ignore
-          query = query.unionAll(_query);
-        }
+        // @ts-ignore
+        query = query === undefined ? _query : query.unionAll(_query);
       }
 
       return await db

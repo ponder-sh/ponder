@@ -162,7 +162,7 @@ test("sync() with block filter", async (context) => {
   await cleanup();
 });
 
-test("sync() with log address filter", async (context) => {
+test("sync() with log factory", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const historicalSync = await createHistoricalSync({

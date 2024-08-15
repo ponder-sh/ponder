@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { getRawRPCData } from "@/_test/utils.js";
 import { NonRetryableError } from "@/common/errors.js";
-import type { Factory, LogFilter } from "@/sync/source.js";
+import type { Factory, LogFactory, LogFilter } from "@/sync/source.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -15,7 +15,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 import { _eth_getLogs } from "@/utils/rpc.js";
-import { hexToNumber } from "viem";
+import { type Address, hexToNumber } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach(setupCommon);
@@ -743,7 +743,7 @@ test("getEvents() handles log filter logic", async (context) => {
   cleanup();
 });
 
-test("getEvents() handles log address filters", async (context) => {
+test("getEvents() handles log factory", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
@@ -760,6 +760,47 @@ test("getEvents() handles log address filters", async (context) => {
     transactions: rpcData.block4.transactions,
     chainId: 1,
   });
+
+  const { events } = await syncStore.getEvents({
+    filters: [context.sources[1].filter],
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  expect(events).toHaveLength(1);
+
+  cleanup();
+});
+
+test("getEvents() handles multiple log factories", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    chainId: 1,
+  });
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
+    chainId: 1,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
+  await syncStore.insertTransactions({
+    transactions: rpcData.block4.transactions,
+    chainId: 1,
+  });
+
+  context.sources[1].filter = {
+    ...context.sources[1].filter,
+    address: {
+      ...context.sources[1].filter.address,
+      address: [
+        context.sources[1].filter.address.address as Address,
+        context.sources[1].filter.address.address as Address,
+      ],
+    },
+  } satisfies LogFilter<LogFactory>;
 
   const { events } = await syncStore.getEvents({
     filters: [context.sources[1].filter],

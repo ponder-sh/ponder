@@ -134,7 +134,7 @@ test("buildLogFilterFragments includeTransactionReceipts", () => {
   ]);
 });
 
-test("buildFactoryFragments builds id containing topic", () => {
+test("buildLogFilterFragments builds id containing factory topic", () => {
   const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
@@ -142,20 +142,22 @@ test("buildFactoryFragments builds id containing topic", () => {
     chainId: 1,
   });
 
-  expect(
-    buildLogFilterFragments({
-      type: "log",
-      chainId: 1,
-      topics: [null, null, null, null],
-      address: factory,
-      includeTransactionReceipts: false,
-    })[0]!.id,
-  ).toBe(
+  const fragments = buildLogFilterFragments({
+    type: "log",
+    chainId: 1,
+    topics: [null, null, null, null],
+    address: factory,
+    includeTransactionReceipts: false,
+  });
+
+  expect(fragments).toHaveLength(1);
+
+  expect(fragments[0]!.id).toBe(
     "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null_0",
   );
 });
 
-test("buildFactoryFragments builds id containing offset", () => {
+test("buildLogFilterFragments builds id containing factory offset", () => {
   const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
@@ -163,15 +165,36 @@ test("buildFactoryFragments builds id containing offset", () => {
     chainId: 1,
   });
 
-  expect(
-    buildLogFilterFragments({
-      type: "log",
-      chainId: 115511,
-      topics: [null, null, null, null],
-      address: factory,
-      includeTransactionReceipts: false,
-    })[0]!.id,
-  ).toBe(
+  const fragments = buildLogFilterFragments({
+    type: "log",
+    chainId: 115511,
+    topics: [null, null, null, null],
+    address: factory,
+    includeTransactionReceipts: false,
+  });
+
+  expect(fragments).toHaveLength(1);
+
+  expect(fragments[0]!.id).toBe(
     "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",
   );
+});
+
+test("buildLogFilterFragments builds id with multiple factories", () => {
+  const factory = buildLogFactory({
+    address: ["0xa", "0xb"],
+    event: llamaFactoryEventAbiItem,
+    parameter: "llamaPolicy",
+    chainId: 1,
+  });
+
+  const fragments = buildLogFilterFragments({
+    type: "log",
+    chainId: 1,
+    topics: [null, null, null, null],
+    address: factory,
+    includeTransactionReceipts: false,
+  });
+
+  expect(fragments).toHaveLength(2);
 });

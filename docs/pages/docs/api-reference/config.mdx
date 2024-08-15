@@ -136,9 +136,8 @@ export default createConfig({
 Here is the logic Ponder uses to determine which database to use:
 
 - If the `database.kind` option is specified, Ponder will use that database.
-- If the `DATABASE_PRIVATE_URL` environment variable is defined, Ponder will use Postgres with that as the connection string.
 - If the `DATABASE_URL` environment variable is defined, Ponder will use Postgres with that as the connection string.
-- If neither `DATABASE_PRIVATE_URL` nor `DATABASE_URL` are defined, Ponder will use SQLite.
+- If `DATABASE_URL` is not defined, Ponder will use SQLite.
 
 For more details, see the guide on [production deployments](/docs/production/deploy).
 
@@ -172,7 +171,7 @@ export default createConfig({
 | field                |                                type                                |                                                                                                     |
 | :------------------- | :----------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------- |
 | **kind**             |                            `"postgres"`                            |                                                                                                     |
-| **connectionString** |                       `string \| undefined`                        | **Default: `DATABASE_PRIVATE_URL` or `DATABASE_URL` env var**. Postgres database connection string. |
+| **connectionString** |                       `string \| undefined`                        | **Default: `DATABASE_URL` env var**. Postgres database connection string. |
 | **schema**           |                       `string \| undefined`                        | **Default: `"public"`**. Postgres schema to use for indexed data.                                   |
 | **poolConfig**       | [`PoolConfig`](https://node-postgres.com/apis/pool) \| `undefined` | **Default: `{ max: 30 }`**. Pool configuration passed to `node-postgres`.                           |
 

@@ -106,11 +106,11 @@ export const createHistoricalSync = async (
     // Resolve `filter.address`
     let address: Address | Address[] | undefined;
     if (isAddressFactory(filter.address)) {
-      const _addresses = await syncAddress(filter.address, interval);
+      const childAddresses = await syncAddress(filter.address, interval);
       if (
-        _addresses.length < args.common.options.factoryAddressCountThreshold
+        childAddresses.length < args.common.options.factoryAddressCountThreshold
       ) {
-        address = _addresses;
+        address = childAddresses;
       } else {
         address = undefined;
       }
@@ -198,11 +198,11 @@ export const createHistoricalSync = async (
     // Resolve `filter.toAddress`
     let toAddress: Address[] | undefined;
     if (isAddressFactory(filter.toAddress)) {
-      const _addresses = await syncAddress(filter.toAddress, interval);
+      const childAddresses = await syncAddress(filter.toAddress, interval);
       if (
-        _addresses.length < args.common.options.factoryAddressCountThreshold
+        childAddresses.length < args.common.options.factoryAddressCountThreshold
       ) {
-        toAddress = _addresses;
+        toAddress = childAddresses;
       } else {
         toAddress = undefined;
       }

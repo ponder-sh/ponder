@@ -22,6 +22,7 @@ export type TraceFilterFragment<
 > = factory extends Factory
   ? PonderSyncSchema["factoryTraceFilters"]
   : PonderSyncSchema["traceFilters"];
+
 /**
  * Generates log filter fragments from a log filter.
  *
@@ -67,30 +68,61 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
       for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
         for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
           for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-            fragments.push({
-              id: idCallback({
+            if (isAddressFactory(address_) && Array.isArray(address_.address)) {
+              for (const factoryAddress_ of address_.address) {
+                fragments.push({
+                  id: idCallback({
+                    chainId,
+                    address: address_,
+                    topic0: topic0_,
+                    topic1: topic1_,
+                    topic2: topic2_,
+                    topic3: topic3_,
+                    includeTransactionReceipts: includeTransactionReceipts
+                      ? 1
+                      : 0,
+                  }),
+                  chainId,
+                  address: factoryAddress_,
+                  eventSelector: address_.eventSelector,
+                  childAddressLocation: address_.childAddressLocation,
+                  topic0: topic0_,
+                  topic1: topic1_,
+                  topic2: topic2_,
+                  topic3: topic3_,
+                  includeTransactionReceipts: includeTransactionReceipts
+                    ? 1
+                    : 0,
+                });
+              }
+            } else {
+              fragments.push({
+                id: idCallback({
+                  chainId,
+                  address: address_,
+                  topic0: topic0_,
+                  topic1: topic1_,
+                  topic2: topic2_,
+                  topic3: topic3_,
+                  includeTransactionReceipts: includeTransactionReceipts
+                    ? 1
+                    : 0,
+                }),
                 chainId,
-                address: address_,
+                ...(isAddressFactory(address_)
+                  ? {
+                      address: address_.address as Address,
+                      eventSelector: address_.eventSelector,
+                      childAddressLocation: address_.childAddressLocation,
+                    }
+                  : { address: address_ }),
                 topic0: topic0_,
                 topic1: topic1_,
                 topic2: topic2_,
                 topic3: topic3_,
                 includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
-              }),
-              chainId,
-              ...(isAddressFactory(address_)
-                ? {
-                    address: address_.address,
-                    eventSelector: address_.eventSelector,
-                    childAddressLocation: address_.childAddressLocation,
-                  }
-                : { address: address_ }),
-              topic0: topic0_,
-              topic1: topic1_,
-              topic2: topic2_,
-              topic3: topic3_,
-              includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
-            });
+              });
+            }
           }
         }
       }
@@ -156,22 +188,41 @@ export const buildTraceFilterFragments = <factory extends Factory | undefined>({
     for (const _toAddress of Array.isArray(toAddress)
       ? toAddress
       : [toAddress ?? null]) {
-      fragments.push({
-        id: idCallback({
+      if (isAddressFactory(_toAddress) && Array.isArray(_toAddress.address)) {
+        for (const factoryAddress_ of _toAddress.address) {
+          fragments.push({
+            id: idCallback({
+              chainId,
+              fromAddress: _fromAddress,
+              toAddress: _toAddress,
+            }),
+            chainId,
+
+            address: factoryAddress_,
+            eventSelector: _toAddress.eventSelector,
+            childAddressLocation: _toAddress.childAddressLocation,
+
+            fromAddress: _fromAddress,
+          });
+        }
+      } else {
+        fragments.push({
+          id: idCallback({
+            chainId,
+            fromAddress: _fromAddress,
+            toAddress: _toAddress,
+          }),
           chainId,
+          ...(isAddressFactory(_toAddress)
+            ? {
+                address: _toAddress.address as Address,
+                eventSelector: _toAddress.eventSelector,
+                childAddressLocation: _toAddress.childAddressLocation,
+              }
+            : { toAddress: _toAddress }),
           fromAddress: _fromAddress,
-          toAddress: _toAddress,
-        }),
-        chainId,
-        ...(isAddressFactory(_toAddress)
-          ? {
-              address: _toAddress.address,
-              eventSelector: _toAddress.eventSelector,
-              childAddressLocation: _toAddress.childAddressLocation,
-            }
-          : { toAddress: _toAddress }),
-        fromAddress: _fromAddress,
-      });
+        });
+      }
     }
   }
 
