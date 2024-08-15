@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Added "ponder_indexing_decoding_duration" to metrics to track abi decoding duration.
+Added "ponder_indexing_abi_decoding_duration" to metrics to track abi decoding duration.

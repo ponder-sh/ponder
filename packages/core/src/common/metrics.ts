@@ -28,7 +28,7 @@ export class MetricsService {
   ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
   ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
 
-  ponder_indexing_decoding_duration: prometheus.Histogram;
+  ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
   ponder_historical_start_timestamp: prometheus.Gauge<"network">;
   ponder_historical_total_blocks: prometheus.Gauge<
@@ -112,8 +112,8 @@ export class MetricsService {
       labelNames: ["network", "event"] as const,
       registers: [this.registry],
     });
-    this.ponder_indexing_decoding_duration = new prometheus.Histogram({
-      name: "ponder_indexing_decoding_duration",
+    this.ponder_indexing_abi_decoding_duration = new prometheus.Histogram({
+      name: "ponder_indexing_abi_decoding_duration",
       help: "Total time spent decoding log arguments and call trace arguments and results",
       buckets: databaseQueryDurationMs,
       registers: [this.registry],

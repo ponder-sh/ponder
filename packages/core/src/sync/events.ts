@@ -221,7 +221,7 @@ export const decodeEvents = (
     }
   }
 
-  common.metrics.ponder_indexing_decoding_duration.observe(endClock());
+  common.metrics.ponder_indexing_abi_decoding_duration.observe(endClock());
 
   return events;
 };

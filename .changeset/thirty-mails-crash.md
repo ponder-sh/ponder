@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Improved abi decoding performance by avoiding extra event selector calculation
+Improved ABI decoding performance, leading to a ~10% improvement in historical indexing speed.
