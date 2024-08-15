@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.12
+
+### Patch Changes
+
+- [#1036](https://github.com/ponder-sh/ponder/pull/1036) [`118cadc90459f9d3d482e59b952743c06e4d9d12`](https://github.com/ponder-sh/ponder/commit/118cadc90459f9d3d482e59b952743c06e4d9d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in 0.5.9 that slowed down the historical backfill for apps with a large number of events.
+
 ## 0.5.11
 
 ### Patch Changes
