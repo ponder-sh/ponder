@@ -406,14 +406,15 @@ export const createSyncStore = ({
 
       // First, attempt to merge overlapping and adjacent intervals.
       for (const fragment of fragments!) {
-        await db.transaction().execute(async (tx) => {
-          while (true) {
-            await tx
-              .insertInto(`${table}s`)
-              .values(fragment)
-              .onConflict((oc) => oc.column("id").doNothing())
-              .execute();
+        await db
+          .insertInto(`${table!}s`)
+          .values(fragment)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
 
+        let mergeComplete = false;
+        while (mergeComplete === false) {
+          await db.transaction().execute(async (tx) => {
             // This is a trick to add a LIMIT to a DELETE statement
             const existingIntervals = await tx
               .deleteFrom(`${table}Intervals`)
@@ -466,10 +467,11 @@ export const createSyncStore = ({
 
             if (
               existingIntervals.length !== common.options.syncStoreMaxIntervals
-            )
-              break;
-          }
-        });
+            ) {
+              mergeComplete = true;
+            }
+          });
+        }
       }
 
       const intervals: Interval[][] = [];
