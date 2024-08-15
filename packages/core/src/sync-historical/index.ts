@@ -59,6 +59,11 @@ export const createHistoricalSync = async (
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
   const blockCache = new Map<bigint, Promise<SyncBlock>>();
+  /**
+   * Transactions that should be saved to the sync-store.
+   * Note: All entries are deleted at the end of each call to `sync()`.
+   */
+  const transactionsCache = new Set<Hash>();
 
   // const logMetadata = new Map<LogFilter, { range: number }>();
 
@@ -146,12 +151,14 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
     const blocks = await Promise.all(
-      logs.map((log) =>
-        syncBlock(hexToBigInt(log.blockNumber), transactionHashes),
-      ),
+      logs.map((log) => syncBlock(hexToBigInt(log.blockNumber))),
     );
+
+    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
+    for (const hash of transactionHashes) {
+      transactionsCache.add(hash);
+    }
 
     if (isKilled) return;
 
@@ -246,12 +253,13 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
     const blocks = await Promise.all(
-      callTraces.map((trace) =>
-        syncBlock(hexToBigInt(trace.blockNumber), transactionHashes),
-      ),
+      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
     );
+
+    for (const { transactionHash } of callTraces) {
+      transactionsCache.add(transactionHash);
+    }
 
     if (isKilled) return;
 
@@ -292,10 +300,7 @@ export const createHistoricalSync = async (
    * Note: This function could more accurately skip network requests by taking
    * advantage of `syncStore.hasBlock` and `syncStore.hasTransaction`.
    */
-  const syncBlock = async (
-    number: bigint,
-    transactionHashes?: Set<Hash>,
-  ): Promise<SyncBlock> => {
+  const syncBlock = async (number: bigint): Promise<SyncBlock> => {
     let block: SyncBlock;
 
     /**
@@ -319,16 +324,6 @@ export const createHistoricalSync = async (
       ) {
         latestBlock = block;
       }
-    }
-
-    // Add `transactionHashes` to the sync-store.
-    if (transactionHashes !== undefined) {
-      await args.syncStore.insertTransactions({
-        transactions: block.transactions.filter((transaction) =>
-          transactionHashes.has(transaction.hash),
-        ),
-        chainId: args.network.chainId,
-      });
     }
 
     return block;
@@ -480,11 +475,20 @@ export const createHistoricalSync = async (
           });
         }),
       );
-      await args.syncStore.insertBlocks({
-        blocks: await Promise.all(blockCache.values()),
-        chainId: args.network.chainId,
-      });
+
+      const blocks = await Promise.all(blockCache.values());
+
+      await Promise.all([
+        args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
+        args.syncStore.insertTransactions({
+          transactions: blocks.flatMap(({ transactions }) =>
+            transactions.filter(({ hash }) => transactionsCache.has(hash)),
+          ),
+          chainId: args.network.chainId,
+        }),
+      ]);
       blockCache.clear();
+      transactionsCache.clear();
     },
     initializeMetrics(finalizedBlock, showStart) {
       args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
