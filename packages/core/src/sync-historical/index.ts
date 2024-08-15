@@ -12,12 +12,7 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type {
-  SyncBlock,
-  SyncCallTrace,
-  SyncLog,
-  SyncTransaction,
-} from "@/types/sync.js";
+import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
@@ -65,10 +60,10 @@ export const createHistoricalSync = async (
    */
   const blockCache = new Map<bigint, Promise<SyncBlock>>();
   /**
-   * Transactions that have already been extracted.
+   * Transactions that should be saved to the sync-store.
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
-  const transactionsCache = new Map<Hash, SyncTransaction>();
+  const transactionsCache = new Set<Hash>();
 
   // const logMetadata = new Map<LogFilter, { range: number }>();
 
@@ -333,22 +328,15 @@ export const createHistoricalSync = async (
 
     // Add `transactionHashes` to the sync-store and `transactionCache`.
     if (transactionHashes !== undefined) {
-      // Filter out transactions that aren't relevant or have already been inserted
-      const newTransactions = block.transactions.filter(
-        ({ hash }) =>
-          transactionHashes.has(hash) && transactionsCache.has(hash) === false,
+      // Filter out transactions that aren't relevant
+      const newTransactions = block.transactions.filter(({ hash }) =>
+        transactionHashes.has(hash),
       );
 
-      // Add `newTransactions` to the cache. It's important that this comes before
-      // `syncStore.insertTransactions` to prevent duplicate work from race conditions
+      // Add `newTransactions` to the cache
       for (const transaction of newTransactions) {
-        transactionsCache.set(transaction.hash, transaction);
+        transactionsCache.add(transaction.hash);
       }
-
-      await args.syncStore.insertTransactions({
-        transactions: newTransactions,
-        chainId: args.network.chainId,
-      });
     }
 
     return block;
@@ -501,12 +489,22 @@ export const createHistoricalSync = async (
         }),
       );
 
-      await args.syncStore.insertBlocks({
-        blocks: await Promise.all(blockCache.values()),
-        chainId: args.network.chainId,
-      });
-      transactionsCache.clear();
+      await Promise.all([
+        args.syncStore.insertBlocks({
+          blocks: await Promise.all(blockCache.values()),
+          chainId: args.network.chainId,
+        }),
+        args.syncStore.insertTransactions({
+          transactions: await Promise.all(blockCache.values()).then((blocks) =>
+            blocks.flatMap(({ transactions }) =>
+              transactions.filter(({ hash }) => transactionsCache.has(hash)),
+            ),
+          ),
+          chainId: args.network.chainId,
+        }),
+      ]);
       blockCache.clear();
+      transactionsCache.clear();
     },
     initializeMetrics(finalizedBlock, showStart) {
       args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
