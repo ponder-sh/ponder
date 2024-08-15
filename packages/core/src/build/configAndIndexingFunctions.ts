@@ -126,8 +126,11 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const poolConfig = {
-        max: config.database.poolConfig?.max ?? 30,
         connectionString,
+        max: config.database.poolConfig?.max ?? 30,
+        statement_timeout:
+          config.database.poolConfig?.statement_timeout ?? 120_000,
+        query_timeout: config.database.poolConfig?.query_timeout ?? 300_000,
       };
 
       databaseConfig = {
@@ -207,7 +210,12 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const poolConfig = { max: 30, connectionString };
+      const poolConfig = {
+        connectionString,
+        max: 30,
+        statement_timeout: 120_000,
+        query_timeout: 300_000,
+      };
 
       databaseConfig = {
         kind: "postgres",

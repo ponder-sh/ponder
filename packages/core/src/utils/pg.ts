@@ -67,17 +67,11 @@ class ReadonlyClient extends pg.Client {
 }
 
 export function createPool(config: PoolConfig) {
-  return new pg.Pool({
-    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
-    statement_timeout: 2 * 60 * 1000, // 2 minutes
-    ...config,
-  });
+  return new pg.Pool(config);
 }
 
 export function createReadonlyPool(config: PoolConfig) {
   return new pg.Pool({
-    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
-    statement_timeout: 2 * 60 * 1000, // 2 minutes
     // @ts-expect-error: The custom Client is an undocumented option.
     Client: ReadonlyClient,
     ...config,

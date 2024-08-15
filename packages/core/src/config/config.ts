@@ -32,6 +32,10 @@ type DatabaseConfig =
       poolConfig?: {
         /** Maximum number of clients in the pool. Default: `30`. */
         max?: number;
+        /** Abort any statement that takes more than this number of milliseconds (server-side timeout). Default: `120_000` (2 minutes). */
+        statement_timeout?: number;
+        /** Throw an error if a query takes more than this number of milliseconds (client-side timeout). Default: `300_000` (5 minutes). */
+        query_timeout?: number;
       };
     };
 
