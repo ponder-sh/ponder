@@ -331,17 +331,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         updateStatus(events, cursor, false);
 
+        const fromTime = decodeCheckpoint(from).blockTimestamp;
+        const cursorTime = decodeCheckpoint(cursor).blockTimestamp;
+        const receivedDensity = (cursorTime - fromTime) / (events.length || 1);
+
         // Use range and number of events returned to update estimate
         // 10 <= estimate(new) <= estimate(prev) * 2
         estimateSeconds = Math.min(
-          Math.max(
-            10,
-            Math.round(
-              (getEventsMaxBatchSize * decodeCheckpoint(cursor).blockTimestamp -
-                decodeCheckpoint(from).blockTimestamp) /
-                (events.length || 1),
-            ),
-          ),
+          Math.max(10, Math.round(receivedDensity * getEventsMaxBatchSize)),
           estimateSeconds * 2,
         );
 
