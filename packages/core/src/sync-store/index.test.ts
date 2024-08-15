@@ -210,6 +210,10 @@ test("getIntervals() handles factory trace filter logic", async (context) => {
 test("getIntervals() handles block filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
+  await syncStore.getIntervals({
+    filter: context.sources[4].filter,
+  });
+
   await syncStore.insertInterval({
     filter: context.sources[4].filter,
     interval: [0, 4],
@@ -939,6 +943,11 @@ test("pruneByChain deletes filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
+  await syncStore.getIntervals({ filter: sources[0].filter });
+  await syncStore.getIntervals({ filter: sources[1].filter });
+  await syncStore.getIntervals({ filter: sources[2].filter });
+  await syncStore.getIntervals({ filter: sources[3].filter });
+
   await syncStore.insertInterval({
     filter: sources[0].filter,
     interval: [1, 4],
@@ -960,6 +969,11 @@ test("pruneByChain deletes filters", async (context) => {
   sources[1].filter.chainId = 2;
   sources[2].filter.chainId = 2;
   sources[3].filter.chainId = 2;
+
+  await syncStore.getIntervals({ filter: sources[0].filter });
+  await syncStore.getIntervals({ filter: sources[1].filter });
+  await syncStore.getIntervals({ filter: sources[2].filter });
+  await syncStore.getIntervals({ filter: sources[3].filter });
 
   await syncStore.insertInterval({
     filter: sources[0].filter,
@@ -1011,6 +1025,11 @@ test("pruneByChain updates filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
+  await syncStore.getIntervals({ filter: sources[0].filter });
+  await syncStore.getIntervals({ filter: sources[1].filter });
+  await syncStore.getIntervals({ filter: sources[2].filter });
+  await syncStore.getIntervals({ filter: sources[3].filter });
+
   await syncStore.insertInterval({
     filter: sources[0].filter,
     interval: [0, 4],
@@ -1032,6 +1051,11 @@ test("pruneByChain updates filters", async (context) => {
   sources[1].filter.chainId = 2;
   sources[2].filter.chainId = 2;
   sources[3].filter.chainId = 2;
+
+  await syncStore.getIntervals({ filter: sources[0].filter });
+  await syncStore.getIntervals({ filter: sources[1].filter });
+  await syncStore.getIntervals({ filter: sources[2].filter });
+  await syncStore.getIntervals({ filter: sources[3].filter });
 
   await syncStore.insertInterval({
     filter: sources[0].filter,
@@ -1091,12 +1115,16 @@ test("pruneByChain deletes block filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
+  await syncStore.getIntervals({ filter: sources[4].filter });
+
   await syncStore.insertInterval({
     filter: sources[4].filter,
     interval: [2, 4],
   });
 
   sources[4].filter.chainId = 2;
+
+  await syncStore.getIntervals({ filter: sources[4].filter });
 
   await syncStore.insertInterval({
     filter: sources[4].filter,
@@ -1118,12 +1146,16 @@ test("pruneByChain updates block filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
+  await syncStore.getIntervals({ filter: sources[4].filter });
+
   await syncStore.insertInterval({
     filter: sources[4].filter,
     interval: [0, 4],
   });
 
   sources[4].filter.chainId = 2;
+
+  await syncStore.getIntervals({ filter: sources[4].filter });
 
   await syncStore.insertInterval({
     filter: sources[4].filter,
