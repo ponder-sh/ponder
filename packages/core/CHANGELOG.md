@@ -1,5 +1,21 @@
 # @ponder/core
 
+## 0.5.10
+
+### Patch Changes
+
+- [#1024](https://github.com/ponder-sh/ponder/pull/1024) [`47f1030a00b9d72f4d477641aafe5d99a6dc7a0e`](https://github.com/ponder-sh/ponder/commit/47f1030a00b9d72f4d477641aafe5d99a6dc7a0e) Thanks [@tmm](https://github.com/tmm)! - Fixed CLI syncing ETA table column formatting to be less jumpy.
+
+- [#1026](https://github.com/ponder-sh/ponder/pull/1026) [`d39f3b3de52d5ccc6850c7b951c2d8d069c04316`](https://github.com/ponder-sh/ponder/commit/d39f3b3de52d5ccc6850c7b951c2d8d069c04316) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved accuracy of historical to realtime handoff by dynamically refetching finalized blocks.
+
+- [#1029](https://github.com/ponder-sh/ponder/pull/1029) [`ea38d18fb36b2757e75362c221cec48dc4411450`](https://github.com/ponder-sh/ponder/commit/ea38d18fb36b2757e75362c221cec48dc4411450) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for factory contracts with multiple addresses.
+
+- [#1025](https://github.com/ponder-sh/ponder/pull/1025) [`f7aafb6f3926493f45e2362a0edfa92099c6a7a5`](https://github.com/ponder-sh/ponder/commit/f7aafb6f3926493f45e2362a0edfa92099c6a7a5) Thanks [@kyscott18](https://github.com/kyscott18)! - Added "ponder_indexing_abi_decoding_duration" to metrics to track abi decoding duration.
+
+- [#1025](https://github.com/ponder-sh/ponder/pull/1025) [`f7aafb6f3926493f45e2362a0edfa92099c6a7a5`](https://github.com/ponder-sh/ponder/commit/f7aafb6f3926493f45e2362a0edfa92099c6a7a5) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved ABI decoding performance, leading to a ~10% improvement in historical indexing speed.
+
+- [#1027](https://github.com/ponder-sh/ponder/pull/1027) [`76b1a5b90f26dc86183cac3aaa1ec1a30fafac12`](https://github.com/ponder-sh/ponder/commit/76b1a5b90f26dc86183cac3aaa1ec1a30fafac12) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical sync efficiency by inserting blocks in batches
+
 ## 0.5.9
 
 ### Patch Changes
