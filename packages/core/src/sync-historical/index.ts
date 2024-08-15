@@ -12,7 +12,12 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncCallTrace,
+  SyncLog,
+  SyncTransaction,
+} from "@/types/sync.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
@@ -59,6 +64,11 @@ export const createHistoricalSync = async (
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
   const blockCache = new Map<bigint, Promise<SyncBlock>>();
+  /**
+   * Transactions that have already been extracted.
+   * Note: All entries are deleted at the end of each call to `sync()`.
+   */
+  const transactionsCache = new Map<Hash, SyncTransaction>();
 
   // const logMetadata = new Map<LogFilter, { range: number }>();
 
@@ -321,12 +331,22 @@ export const createHistoricalSync = async (
       }
     }
 
-    // Add `transactionHashes` to the sync-store.
+    // Add `transactionHashes` to the sync-store and `transactionCache`.
     if (transactionHashes !== undefined) {
+      // Filter out transactions that aren't relevant or have already been inserted
+      const newTransactions = block.transactions.filter(
+        ({ hash }) =>
+          transactionHashes.has(hash) && transactionsCache.has(hash) === false,
+      );
+
+      // Add `newTransactions` to the cache. It's important that this comes before
+      // `syncStore.insertTransactions` to prevent duplicate work from race conditions
+      for (const transaction of newTransactions) {
+        transactionsCache.set(transaction.hash, transaction);
+      }
+
       await args.syncStore.insertTransactions({
-        transactions: block.transactions.filter((transaction) =>
-          transactionHashes.has(transaction.hash),
-        ),
+        transactions: newTransactions,
         chainId: args.network.chainId,
       });
     }
@@ -480,10 +500,12 @@ export const createHistoricalSync = async (
           });
         }),
       );
+
       await args.syncStore.insertBlocks({
         blocks: await Promise.all(blockCache.values()),
         chainId: args.network.chainId,
       });
+      transactionsCache.clear();
       blockCache.clear();
     },
     initializeMetrics(finalizedBlock, showStart) {
