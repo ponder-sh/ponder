@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.13
+
+### Patch Changes
+
+- [#1040](https://github.com/ponder-sh/ponder/pull/1040) [`1593d0cc6714c140132c9e855e4396c1386f67a2`](https://github.com/ponder-sh/ponder/commit/1593d0cc6714c140132c9e855e4396c1386f67a2) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in 0.5.9 that caused the terminal ui to error.
+
 ## 0.5.12
 
 ### Patch Changes
