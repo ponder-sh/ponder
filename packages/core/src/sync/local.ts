@@ -97,7 +97,11 @@ export const createLocalSync = async (
   // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
   // is defined (a cache hit has occurred)
   if (historicalSync.latestBlock !== undefined) {
-    fromBlock = hexToNumber(historicalSync.latestBlock.number);
+    fromBlock = Math.min(
+      hexToNumber(historicalSync.latestBlock.number) + 1,
+      hexToNumber(finalizedBlock.number),
+      endBlock ? hexToNumber(endBlock.number) : Number.POSITIVE_INFINITY,
+    );
   }
 
   // `latestBlock` override. Set during realtime sync
