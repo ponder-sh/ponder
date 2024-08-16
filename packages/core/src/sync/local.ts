@@ -150,6 +150,8 @@ export const createLocalSync = async (
         Math.min(hexToNumber(finalizedBlock.number), fromBlock + estimateRange),
       ];
 
+      if (fromBlock >= hexToNumber(finalizedBlock.number)) return;
+
       args.common.logger.debug({
         service: "sync",
         msg: `Syncing '${args.network.name}' blocks from ${interval[0]} to ${interval[1]}`,
