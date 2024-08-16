@@ -146,6 +146,11 @@ export const createLocalSync = async (
         Math.min(hexToNumber(finalizedBlock.number), fromBlock + estimateRange),
       ];
 
+      args.common.logger.debug({
+        service: "sync",
+        msg: `Syncing '${args.network.name}' blocks from ${interval[0]} to ${interval[1]}`,
+      });
+
       const endClock = startClock();
       await historicalSync.sync(interval);
       const duration = endClock();
