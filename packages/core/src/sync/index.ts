@@ -15,6 +15,7 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { estimate } from "@/utils/estimate.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
@@ -331,16 +332,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         updateStatus(events, cursor, false);
 
-        const fromTime = decodeCheckpoint(from).blockTimestamp;
-        const cursorTime = decodeCheckpoint(cursor).blockTimestamp;
-        const receivedDensity = (cursorTime - fromTime) / (events.length || 1);
-
-        // Use range and number of events returned to update estimate
-        // 10 <= estimate(new) <= estimate(prev) * 2
-        estimateSeconds = Math.min(
-          Math.max(10, Math.round(receivedDensity * getEventsMaxBatchSize)),
-          estimateSeconds * 2,
-        );
+        estimateSeconds = estimate({
+          from: decodeCheckpoint(from).blockTimestamp,
+          to: decodeCheckpoint(cursor).blockTimestamp,
+          target: getEventsMaxBatchSize,
+          result: events.length,
+          min: 10,
+          max: 86_400,
+          prev: estimateSeconds,
+          maxIncrease: 1.08,
+        });
 
         yield { events, checkpoint: to };
         from = cursor;
