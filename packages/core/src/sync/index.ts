@@ -314,7 +314,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       while (true) {
         if (isKilled) return;
         if (from === to) break;
+
         const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
+        let consecutiveErrors = 0;
+
         // convert `estimateSeconds` to checkpoint
         const estimatedTo = encodeCheckpoint({
           ...zeroCheckpoint,
@@ -323,28 +326,36 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             maxCheckpoint.blockTimestamp,
           ),
         });
-        const { events, cursor } = await args.syncStore.getEvents({
-          filters: args.sources.map(({ filter }) => filter),
-          from,
-          to: to < estimatedTo ? to : estimatedTo,
-          limit: getEventsMaxBatchSize,
-        });
 
-        updateStatus(events, cursor, false);
+        try {
+          const { events, cursor } = await args.syncStore.getEvents({
+            filters: args.sources.map(({ filter }) => filter),
+            from,
+            to: to < estimatedTo ? to : estimatedTo,
+            limit: getEventsMaxBatchSize,
+          });
+          consecutiveErrors = 0;
 
-        estimateSeconds = estimate({
-          from: decodeCheckpoint(from).blockTimestamp,
-          to: decodeCheckpoint(cursor).blockTimestamp,
-          target: getEventsMaxBatchSize,
-          result: events.length,
-          min: 10,
-          max: 86_400,
-          prev: estimateSeconds,
-          maxIncrease: 1.08,
-        });
+          updateStatus(events, cursor, false);
 
-        yield { events, checkpoint: to };
-        from = cursor;
+          estimateSeconds = estimate({
+            from: decodeCheckpoint(from).blockTimestamp,
+            to: decodeCheckpoint(cursor).blockTimestamp,
+            target: getEventsMaxBatchSize,
+            result: events.length,
+            min: 10,
+            max: 86_400,
+            prev: estimateSeconds,
+            maxIncrease: 1.08,
+          });
+
+          yield { events, checkpoint: to };
+          from = cursor;
+        } catch (error) {
+          // Handle errors by reducing the requested range by 10x
+          estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+          if (consecutiveErrors++ > 3) throw error;
+        }
       }
 
       // Exit condition: All network have completed historical sync.
