@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.14
+
+### Patch Changes
+
+- [#1042](https://github.com/ponder-sh/ponder/pull/1042) [`2c21ffab0339675e4577017f06ee01dd3852a4fc`](https://github.com/ponder-sh/ponder/commit/2c21ffab0339675e4577017f06ee01dd3852a4fc) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.5.9` that sometimes caused events to be skipped during indexing if any `startBlock` was set earlier than in a previous indexing run. This issue did not affect the database integrity, but affected apps should restart to ensure all events are indexed.
+
 ## 0.5.13
 
 ### Patch Changes
