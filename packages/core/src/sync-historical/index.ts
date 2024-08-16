@@ -371,9 +371,14 @@ export const createHistoricalSync = async (
           // Compute the required interval to sync, accounting for cached
           // intervals and start + end block.
 
-          // Skip sync if the interval is after the `toBlock`.
-          if (source.filter.toBlock && source.filter.toBlock < _interval[0])
+          // Skip sync if the interval is after the `toBlock` or before
+          // the `fromBlock`.
+          if (
+            source.filter.fromBlock > _interval[1] ||
+            (source.filter.toBlock && source.filter.toBlock < _interval[0])
+          ) {
             return;
+          }
           const interval: Interval = [
             Math.max(source.filter.fromBlock, _interval[0]),
             Math.min(
