@@ -94,6 +94,7 @@ export const createHistoricalSync = async (
       intervalsCache.get(filter)!,
     );
     if (completedIntervals.length === 0) return undefined;
+    if (completedIntervals[0]![0] !== filter.fromBlock) return undefined;
     return completedIntervals[0]![1];
   });
 
