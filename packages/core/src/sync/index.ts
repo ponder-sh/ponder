@@ -255,7 +255,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * Estimate optimal range (seconds) to query at a time, eventually
    * used to determine `to` passed to `getEvents`
    */
-  let estimateSeconds = 10_000;
+  let estimateSeconds = 1_000;
   /**
    * Omnichain `getEvents`
    *
