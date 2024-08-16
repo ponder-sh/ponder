@@ -20,6 +20,7 @@ import {
   intervalDifference,
   intervalIntersection,
   intervalSum,
+  sortIntervals,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -89,13 +90,21 @@ export const createHistoricalSync = async (
    * some progress.
    */
   const _latestCompletedBlocks = args.sources.map(({ filter }) => {
-    const completedIntervals = intervalIntersection(
-      [[filter.fromBlock, filter.toBlock ?? Number.POSITIVE_INFINITY]],
-      intervalsCache.get(filter)!,
+    const requiredInterval = [
+      filter.fromBlock,
+      filter.toBlock ?? Number.POSITIVE_INFINITY,
+    ] satisfies Interval;
+    const cachedIntervals = intervalsCache.get(filter)!;
+
+    const completedIntervals = sortIntervals(
+      intervalIntersection([requiredInterval], cachedIntervals),
     );
+
     if (completedIntervals.length === 0) return undefined;
-    if (completedIntervals[0]![0] !== filter.fromBlock) return undefined;
-    return completedIntervals[0]![1];
+
+    const earliestCompletedInterval = completedIntervals[0]!;
+    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
+    return earliestCompletedInterval[1];
   });
 
   if (_latestCompletedBlocks.every((block) => block !== undefined)) {

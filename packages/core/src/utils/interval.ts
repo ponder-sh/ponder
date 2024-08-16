@@ -164,6 +164,10 @@ export function intervalDifference(
   return result;
 }
 
+export function sortIntervals(intervals: Interval[]) {
+  return intervals.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+}
+
 export function getChunks({
   interval,
   maxChunkSize,
