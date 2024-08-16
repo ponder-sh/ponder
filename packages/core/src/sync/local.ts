@@ -155,6 +155,11 @@ export const createLocalSync = async (
       await historicalSync.sync(interval);
       const duration = endClock();
 
+      args.common.metrics.ponder_historical_sync_duration.observe(
+        { network: args.network.name },
+        duration,
+      );
+
       // Use the duration and interval of the last call to `sync` to update estimate
       // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
       estimateRange = Math.min(

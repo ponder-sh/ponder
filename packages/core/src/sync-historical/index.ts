@@ -350,16 +350,11 @@ export const createHistoricalSync = async (
   const interval = setInterval(async () => {
     const historical = await getHistoricalSyncProgress(args.common.metrics);
 
-    for (const {
-      networkName,
-      sourceName,
-      progress,
-      eta,
-    } of historical.sources) {
+    for (const { networkName, progress, eta } of historical.networks) {
       if (progress === 1 || networkName !== args.network.name) return;
       args.common.logger.info({
         service: "historical",
-        msg: `Syncing '${networkName}' for '${sourceName}' with ${formatPercentage(
+        msg: `Syncing '${networkName}' with ${formatPercentage(
           progress ?? 0,
         )} complete${eta !== undefined ? ` and ~${formatEta(eta)} remaining` : ""}`,
       });
@@ -413,14 +408,6 @@ export const createHistoricalSync = async (
                       getChunks({ interval, maxChunkSize }).map(
                         async (interval) => {
                           await syncLogFilter(filter, interval);
-                          args.common.metrics.ponder_historical_completed_blocks.inc(
-                            {
-                              network: source.networkName,
-                              source: source.name,
-                              type: source.filter.type,
-                            },
-                            interval[1] - interval[0] + 1,
-                          );
                         },
                       ),
                     );
@@ -432,15 +419,6 @@ export const createHistoricalSync = async (
                       getChunks({ interval, maxChunkSize: 10 }).map(
                         async (interval) => {
                           await syncTraceFilter(filter, interval);
-
-                          args.common.metrics.ponder_historical_completed_blocks.inc(
-                            {
-                              network: source.networkName,
-                              source: source.name,
-                              type: source.filter.type,
-                            },
-                            interval[1] - interval[0] + 1,
-                          );
                         },
                       ),
                     );
@@ -451,17 +429,17 @@ export const createHistoricalSync = async (
                 }
               } else {
                 await syncBlockFilter(source.filter, interval);
-
-                args.common.metrics.ponder_historical_completed_blocks.inc(
-                  {
-                    network: source.networkName,
-                    source: source.name,
-                    type: source.filter.type,
-                  },
-                  interval[1] - interval[0] + 1,
-                );
               }
             }),
+          );
+
+          args.common.metrics.ponder_historical_completed_blocks.inc(
+            {
+              network: source.networkName,
+              source: source.name,
+              type: source.filter.type,
+            },
+            interval[1] - interval[0] + 1,
           );
 
           if (isKilled) return;
