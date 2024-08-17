@@ -41,6 +41,9 @@ export class MetricsService {
     "network" | "source" | "type"
   >;
   ponder_historical_sync_duration: prometheus.Histogram<"network">;
+  ponder_historical_sync_total_blocks: prometheus.Gauge<"network">;
+  ponder_historical_sync_cached_blocks: prometheus.Gauge<"network">;
+  ponder_historical_sync_completed_blocks: prometheus.Gauge<"network">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -149,6 +152,24 @@ export class MetricsService {
       help: "Duration of historical sync execution",
       labelNames: ["network"] as const,
       buckets: httpRequestDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_historical_sync_total_blocks = new prometheus.Gauge({
+      name: "ponder_historical_sync_total_blocks",
+      help: "Number of blocks required for the historical sync",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_sync_cached_blocks = new prometheus.Gauge({
+      name: "ponder_historical_sync_cached_blocks",
+      help: "Number of blocks that were found in the cache for the historical sync",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_sync_completed_blocks = new prometheus.Gauge({
+      name: "ponder_historical_sync_completed_blocks",
+      help: "Number of blocks that have been processed for the historical sync",
+      labelNames: ["network", "source", "type"] as const,
       registers: [this.registry],
     });
 
@@ -269,32 +290,25 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
   }
 
   /** Aggregate block metrics for different "types" of sources. */
-  const reduceBlockMetrics = (
-    values: prometheus.MetricValue<"network" | "source" | "type">[],
-  ) =>
+  const reduceBlockMetrics = (values: prometheus.MetricValue<"network">[]) =>
     values.reduce<{
       [network: string]: number;
     }>((acc, cur) => {
       const network = cur.labels.network as string;
-
-      if (acc[network] === undefined) {
-        acc[network] = cur.value;
-      } else {
-        acc[network]! = acc[network]! + cur.value;
-      }
-
+      acc[network] = cur.value;
       return acc;
     }, {});
 
-  const cachedBlocksMetric = await metrics.ponder_historical_cached_blocks
+  const cachedBlocksMetric = await metrics.ponder_historical_sync_cached_blocks
     .get()
     .then(({ values }) => reduceBlockMetrics(values));
-  const totalBlocksMetric = await metrics.ponder_historical_total_blocks
+  const totalBlocksMetric = await metrics.ponder_historical_sync_total_blocks
     .get()
     .then(({ values }) => reduceBlockMetrics(values));
-  const completedBlocksMetric = await metrics.ponder_historical_completed_blocks
-    .get()
-    .then(({ values }) => reduceBlockMetrics(values));
+  const completedBlocksMetric =
+    await metrics.ponder_historical_sync_completed_blocks
+      .get()
+      .then(({ values }) => reduceBlockMetrics(values));
 
   const networks = Object.entries(totalBlocksMetric).map(
     ([network, totalBlocks]) => {

@@ -76,6 +76,10 @@ export const createLocalSync = async (
     blockNumber: finalizedBlockNumber,
   });
 
+  ////////
+  // State
+  ////////
+
   const historicalSync = await createHistoricalSync({
     common: args.common,
     sources: args.sources,
@@ -106,6 +110,38 @@ export const createLocalSync = async (
 
   // `latestBlock` override. Set during realtime sync
   let _latestBlock: LightBlock | undefined;
+
+  ////////
+  // Metrics
+  ////////
+
+  /** Update "ponder_historical_sync_total_blocks", resolving the closest-to-tip block */
+  const updateTotalBlocksMetric = () => {
+    args.common.metrics.ponder_historical_sync_total_blocks.set(
+      { network: args.network.name },
+      Math.min(
+        hexToNumber(finalizedBlock.number),
+        endBlock ? hexToNumber(endBlock.number) : Number.POSITIVE_INFINITY,
+      ) -
+        hexToNumber(startBlock.number) +
+        1,
+    );
+  };
+
+  updateTotalBlocksMetric();
+
+  // Set "ponder_historical_sync_cached_blocks"
+  if (fromBlock !== hexToNumber(startBlock.number)) {
+    args.common.metrics.ponder_historical_sync_cached_blocks.set(
+      { network: args.network.name },
+      fromBlock - hexToNumber(startBlock.number),
+    );
+  } else {
+    args.common.metrics.ponder_historical_sync_cached_blocks.set(
+      { network: args.network.name },
+      0,
+    );
+  }
 
   const localSync = {
     requestQueue,
@@ -150,11 +186,11 @@ export const createLocalSync = async (
         Math.min(hexToNumber(finalizedBlock.number), fromBlock + estimateRange),
       ];
 
-      if (fromBlock >= hexToNumber(finalizedBlock.number)) return;
+      if (fromBlock > hexToNumber(finalizedBlock.number)) return;
 
       args.common.logger.debug({
         service: "sync",
-        msg: `Syncing '${args.network.name}' blocks from ${interval[0]} to ${interval[1]}`,
+        msg: `Syncing '${args.network.name}' from block ${interval[0]} to ${interval[1]}`,
       });
 
       const endClock = startClock();
@@ -164,6 +200,10 @@ export const createLocalSync = async (
       args.common.metrics.ponder_historical_sync_duration.observe(
         { network: args.network.name },
         duration,
+      );
+      args.common.metrics.ponder_historical_sync_completed_blocks.inc(
+        { network: args.network.name },
+        interval[1] - interval[0] + 1,
       );
 
       // Use the duration and interval of the last call to `sync` to update estimate
@@ -201,7 +241,9 @@ export const createLocalSync = async (
       finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
         blockNumber: finalizedBlockNumber,
       });
+
       historicalSync.initializeMetrics(finalizedBlock, false);
+      updateTotalBlocksMetric();
     },
     kill() {
       historicalSync.kill();
