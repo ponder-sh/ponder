@@ -191,6 +191,8 @@ export async function run({
     schema,
   });
 
+  await metadataStore.setStatus(sync.getStatus());
+
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
     if (isCheckpointEqual(initialCheckpoint, zeroCheckpoint)) {
@@ -217,6 +219,7 @@ export async function run({
         decodeEvents(common, sources, events),
         checkpoint,
       );
+      await metadataStore.setStatus(sync.getStatus());
       if (result.status === "killed") {
         return;
       } else if (result.status === "error") {
