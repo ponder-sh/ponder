@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.15
+
+### Patch Changes
+
+- [#1045](https://github.com/ponder-sh/ponder/pull/1045) [`662c45f676307ed35b46cfed363e4cabf476d5c0`](https://github.com/ponder-sh/ponder/commit/662c45f676307ed35b46cfed363e4cabf476d5c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `/status` endpoint not being updated during the historical backfill.
+
 ## 0.5.14
 
 ### Patch Changes
