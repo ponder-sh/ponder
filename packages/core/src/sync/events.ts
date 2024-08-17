@@ -161,6 +161,8 @@ export const buildEvents = (
         never(filter);
     }
   }
+
+  return events.sort((a, b) => (a < b ? -1 : 1));
 };
 
 export const decodeEvents = (
