@@ -38,8 +38,6 @@ export async function createServer({
 }): Promise<Server> {
   // Create hono app
 
-  const startTime = Date.now();
-
   const readonlyStore = getReadonlyStore({
     encoding: database.kind,
     schema,
@@ -129,17 +127,6 @@ export async function createServer({
         status !== null &&
         Object.values(status).every(({ ready }) => ready === true)
       ) {
-        return c.text("", 200);
-      }
-
-      const elapsed = (Date.now() - startTime) / 1000;
-      const max = common.options.maxHealthcheckDuration;
-
-      if (elapsed > max) {
-        common.logger.warn({
-          service: "server",
-          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
-        });
         return c.text("", 200);
       }
 

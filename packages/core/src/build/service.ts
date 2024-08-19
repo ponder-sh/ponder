@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { BuildError } from "@/common/errors.js";
-import type { Config, OptionsConfig } from "@/config/config.js";
+import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
@@ -49,7 +49,6 @@ type BaseBuild = {
   buildId: string;
   // Config
   databaseConfig: DatabaseConfig;
-  optionsConfig: OptionsConfig;
   sources: Source[];
   networks: Network[];
   // Schema
@@ -664,7 +663,6 @@ const validateAndBuild = async (
     build: {
       buildId,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
-      optionsConfig: buildConfigAndIndexingFunctionsResult.optionsConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: buildSchemaResult.schema,

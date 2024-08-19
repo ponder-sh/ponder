@@ -40,15 +40,12 @@ export async function run({
   const {
     buildId,
     databaseConfig,
-    optionsConfig,
     networks,
     sources,
     graphqlSchema,
     schema,
     indexingFunctions,
   } = build;
-
-  common.options = { ...common.options, ...optionsConfig };
 
   let isKilled = false;
   let database: DatabaseService;
@@ -62,12 +59,11 @@ export async function run({
       .setup({ schema, buildId })
       .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
   } else {
-    const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
+    const { poolConfig, schema: userNamespace } = databaseConfig;
     database = new PostgresDatabaseService({
       common,
       poolConfig,
       userNamespace,
-      publishSchema,
     });
     [namespaceInfo, initialCheckpoint] = await database
       .setup({ schema, buildId })

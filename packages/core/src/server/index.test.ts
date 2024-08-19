@@ -7,7 +7,7 @@ import type { Context } from "@/hono/context.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
-import { createServer } from "./service.js";
+import { createServer } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -96,7 +96,7 @@ test("healthy PUT", async (context) => {
   const server = await createServer({
     common: {
       ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 0 },
+      options: { ...context.common.options },
     },
     app: new Hono(),
     routes: [],

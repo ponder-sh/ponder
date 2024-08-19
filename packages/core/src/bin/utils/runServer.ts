@@ -3,7 +3,7 @@ import type { Common } from "@/common/common.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
 import type { DatabaseService } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import { createServer } from "@/server/service.js";
+import { createServer } from "@/server/index.js";
 
 /**
  * Starts the server for the specified build.
@@ -15,9 +15,7 @@ export async function runServer({
   common: Common;
   build: ApiBuild;
 }) {
-  const { databaseConfig, optionsConfig, schema } = build;
-
-  common.options = { ...common.options, ...optionsConfig };
+  const { databaseConfig, schema } = build;
 
   let database: DatabaseService;
 
@@ -25,12 +23,11 @@ export async function runServer({
     const { directory } = databaseConfig;
     database = new SqliteDatabaseService({ common, directory });
   } else {
-    const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
+    const { poolConfig, schema: userNamespace } = databaseConfig;
     database = new PostgresDatabaseService({
       common,
       poolConfig,
       userNamespace,
-      publishSchema,
     });
   }
 

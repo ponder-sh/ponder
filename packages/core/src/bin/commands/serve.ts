@@ -5,7 +5,7 @@ import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import { createServer } from "@/server/service.js";
+import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -67,21 +67,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const { databaseConfig, optionsConfig, schema } = api.build;
-
-  common.options = { ...common.options, ...optionsConfig };
+  const { databaseConfig, schema } = api.build;
 
   if (databaseConfig.kind === "sqlite") {
     await shutdown({
       reason: "The 'ponder serve' command does not support SQLite",
-      code: 1,
-    });
-    return cleanup;
-  }
-
-  if (databaseConfig.publishSchema === undefined) {
-    await shutdown({
-      reason: "The 'ponder serve' command requires 'publishSchema' to be set",
       code: 1,
     });
     return cleanup;
@@ -103,7 +93,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     schema,
     database,
-    dbNamespace: databaseConfig.publishSchema,
+    dbNamespace: databaseConfig.schema,
   });
 
   cleanupReloadable = async () => {
