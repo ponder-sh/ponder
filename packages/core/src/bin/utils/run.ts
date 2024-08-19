@@ -6,8 +6,8 @@ import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
 import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
+import { getNoReorgStore } from "@/indexing-store/no-reorg.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
-import { getSimpleStore } from "@/indexing-store/simple.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
@@ -253,7 +253,7 @@ export async function run({
 
     indexingStore = {
       ...readonlyStore,
-      ...getSimpleStore({
+      ...getNoReorgStore({
         encoding: database.kind,
         schema,
         namespaceInfo,
