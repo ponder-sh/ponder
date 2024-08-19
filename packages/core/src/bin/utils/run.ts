@@ -7,13 +7,13 @@ import { SqliteDatabaseService } from "@/database/sqlite/service.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
-import { getRealtimeStore } from "@/indexing-store/realtime.js";
+import { getSimpleStore } from "@/indexing-store/simple.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
-import { type RealtimeEvent, createSync } from "@/sync/index.js";
+import { type RealtimeEvent, createSync } from "@/sync/multichain.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -253,7 +253,7 @@ export async function run({
 
     indexingStore = {
       ...readonlyStore,
-      ...getRealtimeStore({
+      ...getSimpleStore({
         encoding: database.kind,
         schema,
         namespaceInfo,
