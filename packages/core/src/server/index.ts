@@ -120,7 +120,10 @@ export async function createServer({
         return c.json(error as Error, 500);
       }
     })
-    .get("/health", async (c) => {
+    .get("/health", (c) => {
+      return c.text("", 200);
+    })
+    .get("/ready", async (c) => {
       const status = await metadataStore.getStatus();
 
       if (

@@ -41,7 +41,7 @@ test("port", async (context) => {
   await cleanup();
 });
 
-test("not healthy", async (context) => {
+test("not ready", async (context) => {
   const { database, namespaceInfo, cleanup } =
     await setupDatabaseServices(context);
 
@@ -54,7 +54,7 @@ test("not healthy", async (context) => {
     dbNamespace: namespaceInfo.userNamespace,
   });
 
-  const response = await server.hono.request("/health");
+  const response = await server.hono.request("/ready");
 
   expect(response.status).toBe(503);
 
@@ -62,7 +62,7 @@ test("not healthy", async (context) => {
   await cleanup();
 });
 
-test("healthy", async (context) => {
+test("ready", async (context) => {
   const { database, namespaceInfo, cleanup } =
     await setupDatabaseServices(context);
 
@@ -80,6 +80,27 @@ test("healthy", async (context) => {
     namespaceInfo,
     db: database.indexingDb,
   }).setStatus({});
+
+  const response = await server.hono.request("/ready");
+
+  expect(response.status).toBe(200);
+
+  await server.kill();
+  await cleanup();
+});
+
+test("health", async (context) => {
+  const { database, namespaceInfo, cleanup } =
+    await setupDatabaseServices(context);
+
+  const server = await createServer({
+    common: context.common,
+    app: new Hono(),
+    routes: [],
+    schema: {},
+    database,
+    dbNamespace: namespaceInfo.userNamespace,
+  });
 
   const response = await server.hono.request("/health");
 
