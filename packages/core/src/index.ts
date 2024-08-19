@@ -57,4 +57,7 @@ export {
   sumDistinct,
   max,
   min,
+  TableAliasProxyHandler,
 } from "drizzle-orm";
+
+export { alias } from "@/drizzle/runtime.js";
