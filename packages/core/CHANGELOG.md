@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.16
+
+### Patch Changes
+
+- [#1048](https://github.com/ponder-sh/ponder/pull/1048) [`c88b78ab0f91b9f4c499b936bacb4602c418f8dc`](https://github.com/ponder-sh/ponder/commit/c88b78ab0f91b9f4c499b936bacb4602c418f8dc) Thanks [@kyscott18](https://github.com/kyscott18)! - Exported Drizzle [`alias`](https://orm.drizzle.team/docs/joins#aliases--selfjoins) function which can be used in API functions.
+
 ## 0.5.15
 
 ### Patch Changes
