@@ -10,6 +10,7 @@ import {
   isScalarColumn,
 } from "@/schema/utils.js";
 import { getTables } from "@/schema/utils.js";
+import { type Table, TableAliasProxyHandler } from "drizzle-orm";
 import { drizzle as drizzleSQLite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
@@ -20,6 +21,7 @@ import {
   numeric as PgNumeric,
   text as PgText,
 } from "drizzle-orm/pg-core";
+import type { View } from "drizzle-orm/sql";
 import {
   integer as SQLiteInteger,
   real as SQLiteReal,
@@ -30,6 +32,7 @@ import { SQLiteBigintBuilder } from "./bigint.js";
 import { PgHexBuilder, SQLiteHexBuilder } from "./hex.js";
 import { SQLiteJsonBuilder } from "./json.js";
 import { PgListBuilder, SQLiteListBuilder } from "./list.js";
+import type { BuildAliasTable } from "./select.js";
 
 export const createDrizzleDb = (database: DatabaseService) => {
   if (database.kind === "postgres") {
@@ -69,6 +72,13 @@ export const createDrizzleDb = (database: DatabaseService) => {
     };
   }
 };
+
+export function alias<tableOrView extends Table | View, alias extends string>(
+  table: tableOrView,
+  alias: alias,
+): BuildAliasTable<tableOrView, alias> {
+  return new Proxy(table, new TableAliasProxyHandler(alias, false)) as any;
+}
 
 type SQLiteTable = Parameters<typeof sqliteTable>[1];
 type PostgresTable = Parameters<typeof pgTable>[1];
