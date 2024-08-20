@@ -37,7 +37,7 @@ import {
 } from "./filter.js";
 
 export type RealtimeSync = {
-  start(finalizedBlock: LightBlock): Promise<Queue<void, SyncBlock>>;
+  start(finalizedBlock: LightBlock): Promise<Queue<void, BlockData>>;
   kill(): Promise<void>;
   localChain: LightBlock[];
 };
@@ -52,15 +52,18 @@ type CreateRealtimeSyncParameters = {
   onFatalError: (error: Error) => void;
 };
 
+type BlockData = {
+  block: SyncBlock;
+  logs: SyncLog[];
+  callTraces: SyncCallTrace[];
+  transactions: SyncTransaction[];
+  transactionReceipts: SyncTransactionReceipt[];
+};
+
 export type RealtimeSyncEvent =
-  | {
+  | ({
       type: "block";
-      block: SyncBlock;
-      logs: SyncLog[];
-      callTraces: SyncCallTrace[];
-      transactions: SyncTransaction[];
-      transactionReceipts: SyncTransactionReceipt[];
-    }
+    } & BlockData)
   | {
       type: "finalize";
       block: LightBlock;
@@ -90,7 +93,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let localChain: LightBlock[] = [];
-  let queue: Queue<void, SyncBlock>;
+  let queue: Queue<void, BlockData>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -126,14 +129,59 @@ export const createRealtimeSync = (
    * 1 block ahead of the local chain.
    * @returns true if a reorg occurred
    */
-  const handleBlock = async (block: SyncBlock) => {
+  const handleBlock = async ({
+    block,
+    logs,
+    callTraces,
+    transactions,
+    transactionReceipts,
+  }: BlockData) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
     });
 
-    const { logs, callTraces, transactions, transactionReceipts } =
-      await extract(block);
+    // Get all addresses from `logs` that are from a factory
+    const childAddresses = new Set<Address>();
+    for (const filter of factories) {
+      if (logs.length > 0) {
+        const _childAddresses = await args.syncStore.filterChildAddresses({
+          filter,
+          addresses: logs.map(({ address }) => address),
+        });
+        for (const address of _childAddresses) childAddresses.add(address);
+      }
+    }
+
+    // Remove logs that don't match a filter, accounting for factory addresses
+    logs = logs.filter((log) =>
+      logFilters.some((filter) => {
+        const isMatched = isLogFilterMatched({ filter, block, log });
+
+        if (isAddressFactory(filter.address)) {
+          return isMatched && childAddresses.has(log.address);
+        }
+
+        return isMatched;
+      }),
+    );
+
+    // Remote call traces that don't match a filter, accounting for factory addresses
+    callTraces = callTraces.filter((callTrace) =>
+      callTraceFilters.some((filter) => {
+        const isMatched = isCallTraceFilterMatched({
+          filter,
+          block,
+          callTrace,
+        });
+
+        if (isAddressFactory(filter.toAddress)) {
+          return isMatched && childAddresses.has(callTrace.action.to);
+        }
+
+        return isMatched;
+      }),
+    );
 
     if (logs.length > 0 || callTraces.length > 0) {
       const _text: string[] = [];
@@ -276,8 +324,12 @@ export const createRealtimeSync = (
 
   /**
    * Request and filter all relevant data pertaining to `block` and `args.sources`
+   *
+   * Note: The data returned by this function may include false positives. This
+   * is due to the fact that factory addresses are unknown and are always
+   * treated as "matched".
    */
-  const extract = async (block: SyncBlock) => {
+  const extract = async (block: SyncBlock): Promise<BlockData> => {
     ////////
     // Logs
     ////////
@@ -356,46 +408,20 @@ export const createRealtimeSync = (
       chainId: args.network.chainId,
     });
 
-    // Get all addresses from `logs` that are from a factory
-    const childAddresses = new Set<Address>();
-    for (const filter of factories) {
-      if (logs.length > 0) {
-        const _childAddresses = await args.syncStore.filterChildAddresses({
-          filter,
-          addresses: logs.map(({ address }) => address),
-        });
-        for (const address of _childAddresses) childAddresses.add(address);
-      }
-    }
-
     // Remove logs that don't match a filter
     logs = logs.filter((log) =>
-      logFilters.some((filter) => {
-        const isMatched = isLogFilterMatched({ filter, block, log });
-
-        if (isAddressFactory(filter.address)) {
-          return isMatched && childAddresses.has(log.address);
-        }
-
-        return isMatched;
-      }),
+      logFilters.some((filter) => isLogFilterMatched({ filter, block, log })),
     );
 
     // Remote call traces that don't match a filter
     callTraces = callTraces.filter((callTrace) =>
-      callTraceFilters.some((filter) => {
-        const isMatched = isCallTraceFilterMatched({
+      callTraceFilters.some((filter) =>
+        isCallTraceFilterMatched({
           filter,
           block,
           callTrace,
-        });
-
-        if (isAddressFactory(filter.toAddress)) {
-          return isMatched && childAddresses.has(callTrace.action.to);
-        }
-
-        return isMatched;
-      }),
+        }),
+      ),
     );
 
     ////////
@@ -446,6 +472,7 @@ export const createRealtimeSync = (
     );
 
     return {
+      block,
       logs,
       callTraces,
       transactions,
@@ -476,7 +503,7 @@ export const createRealtimeSync = (
         browser: false,
         concurrency: 1,
         initialStart: true,
-        worker: async (block: SyncBlock) => {
+        worker: async ({ block, ...rest }: BlockData) => {
           const latestLocalBlock = getLatestLocalBlock();
 
           // We already saw and handled this block. No-op.
@@ -516,7 +543,9 @@ export const createRealtimeSync = (
               );
               const pendingBlocks = await Promise.all(
                 missingBlockRange.map((blockNumber) =>
-                  _eth_getBlockByNumber(args.requestQueue, { blockNumber }),
+                  _eth_getBlockByNumber(args.requestQueue, {
+                    blockNumber,
+                  }).then((block) => extract(block)),
                 ),
               );
 
@@ -541,7 +570,7 @@ export const createRealtimeSync = (
                 queue.add(pendingBlock);
               }
 
-              queue.add(block);
+              queue.add({ block, ...rest });
 
               return;
             }
@@ -555,7 +584,7 @@ export const createRealtimeSync = (
 
             // New block is exactly one block ahead of the local chain.
             // Attempt to ingest it.
-            await handleBlock(block);
+            await handleBlock({ block, ...rest });
 
             // Reset the error state after successfully completing the happy path.
             consecutiveErrors = 0;
@@ -602,11 +631,14 @@ export const createRealtimeSync = (
         },
       });
 
+      // TODO(kyle) track errors in this block
       const enqueue = async () => {
         try {
           const block = await _eth_getBlockByNumber(args.requestQueue, {
             blockTag: "latest",
-          });
+          }).then((block) => extract(block));
+
+          consecutiveErrors = 0;
 
           return queue.add(block);
         } catch (_error) {
@@ -619,6 +651,17 @@ export const createRealtimeSync = (
             msg: `Failed to fetch latest '${args.network.name}' block`,
             error,
           });
+
+          // After a certain number of attempts, emit a fatal error.
+          if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+            args.common.logger.error({
+              service: "realtime",
+              msg: `Fatal error: Unable to fetch latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+              error,
+            });
+
+            args.onFatalError(error);
+          }
         }
       };
 

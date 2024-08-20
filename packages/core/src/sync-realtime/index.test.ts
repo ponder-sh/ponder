@@ -111,7 +111,8 @@ test("start() no-op when receiving same block twice", async (context) => {
   await queue.onIdle();
 
   await _eth_getBlockByNumber(requestQueues[0], { blockNumber: 5 }).then(
-    queue.add,
+    // @ts-ignore
+    (block) => queue.add({ block }),
   );
 
   await queue.onIdle();
@@ -180,7 +181,7 @@ test("start() retries on error", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(0);
+  expect(realtimeSync.localChain).toHaveLength(5);
 
   await realtimeSync.kill();
 
@@ -346,7 +347,8 @@ test("handleReorg() finds common ancestor", async (context) => {
   const queue = await realtimeSync.start(finalizedBlock);
 
   await _eth_getBlockByNumber(requestQueues[0], { blockNumber: 3 }).then(
-    queue.add,
+    // @ts-ignore
+    (block) => queue.add({ block }),
   );
   await queue.onIdle();
 
@@ -387,11 +389,14 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     blockNumber: 5,
   });
 
+  // @ts-ignore
   await queue.add({
-    ...block,
-    number: "0x6",
-    hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
-    parentHash: realtimeSync.localChain[3]!.hash,
+    block: {
+      ...block,
+      number: "0x6",
+      hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      parentHash: realtimeSync.localChain[3]!.hash,
+    },
   });
 
   expect(realtimeSync.localChain).toHaveLength(0);
