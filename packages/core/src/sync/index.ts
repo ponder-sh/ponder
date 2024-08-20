@@ -279,12 +279,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     // Cursor used to track progress.
     let from = start;
 
+    let syncPromise: Promise<void[]> | undefined;
+
     while (true) {
       const _localSyncs = args.networks.map(
         (network) => localSyncs.get(network)!,
       );
-      // Sync the next interval of each chain.
-      await Promise.all(_localSyncs.map((l) => l.sync()));
+      // Sync the next interval of each chain without awaiting the promise
+      // so that `sync` world can be done at the same time as `getEvents`.
+      if (syncPromise !== undefined) await syncPromise;
+      syncPromise = Promise.all(_localSyncs.map((l) => l.sync()));
       /**
        * `latestBlock` is used to calculate the `to` checkpoint, if any
        * network hasn't yet ingested a block, run another iteration of this loop.
