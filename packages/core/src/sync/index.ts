@@ -354,7 +354,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         } catch (error) {
           // Handle errors by reducing the requested range by 10x
           estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
-          if (++consecutiveErrors > 3) throw error;
+          if (++consecutiveErrors > 4) throw error;
         }
       }
 
