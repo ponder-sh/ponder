@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.5.17
+
+### Patch Changes
+
+- [#1050](https://github.com/ponder-sh/ponder/pull/1050) [`b3225f46f905addfa6e8eb9d5f181a595d2b0858`](https://github.com/ponder-sh/ponder/commit/b3225f46f905addfa6e8eb9d5f181a595d2b0858) Thanks [@jwahdatehagh](https://github.com/jwahdatehagh)! - Fixed a bug that caused a build error when including `BigInt` literals in the config object (e.g. in `filter.args`).
+
+- [#1051](https://github.com/ponder-sh/ponder/pull/1051) [`aa2aecd8d0f6157cef849bd77f94ec9e7fd0a05e`](https://github.com/ponder-sh/ponder/commit/aa2aecd8d0f6157cef849bd77f94ec9e7fd0a05e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed misconfigured Postgres pool size for `ponder serve`.
+
 ## 0.5.16
 
 ### Patch Changes
