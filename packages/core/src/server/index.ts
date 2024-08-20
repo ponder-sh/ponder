@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { DatabaseService } from "@/database/service.js";
+import type { Database } from "@/database/index.js";
 import { createDrizzleDb, createDrizzleTables } from "@/drizzle/runtime.js";
 import { graphql } from "@/graphql/index.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
@@ -33,23 +33,21 @@ export async function createServer({
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
-  database: DatabaseService;
+  database: Database;
   dbNamespace: string;
 }): Promise<Server> {
   // Create hono app
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
+    encoding: database.sql,
     schema,
-    namespaceInfo: { userNamespace: dbNamespace },
-    db: database.readonlyDb,
+    db: database.orm.readonly,
     common,
   });
 
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo: { userNamespace: dbNamespace },
-    db: database.readonlyDb,
+    encoding: database.sql,
+    db: database.orm.readonly,
   });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {

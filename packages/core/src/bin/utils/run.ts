@@ -1,7 +1,7 @@
 import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
-import { createSqliteDatabase } from "@/database/index.js";
+import { createDatabase } from "@/database/index.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
@@ -15,7 +15,7 @@ import { type RealtimeEvent, createSync } from "@/sync/index.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
-  isCheckpointEqual,
+  encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
@@ -47,28 +47,29 @@ export async function run({
 
   let isKilled = false;
 
-  const database = await createSqliteDatabase({
+  const database = createDatabase({
     common,
     schema,
     databaseConfig,
   });
-  const initialCheckpoint = await database.setup({ buildId });
+  const { checkpoint: initialCheckpoint } = await database.manageDatabaseEnv({
+    buildId,
+  });
 
   const syncStore = createSyncStore({
     common,
-    db: database.syncDb,
-    sql: database.kind,
+    db: database.orm.sync,
+    sql: database.sql,
   });
 
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo,
-    db: database.indexingDb,
+    encoding: database.sql,
+    db: database.orm.user,
   });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
-  await database.migrateSyncStore();
+  await database.migrateSync();
 
   runCodegen({ common, graphqlSchema });
 
@@ -143,21 +144,19 @@ export async function run({
   });
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
+    encoding: database.sql,
     schema,
-    namespaceInfo,
-    db: database.indexingDb,
+    db: database.orm.user,
     common,
   });
 
   const historicalStore = getHistoricalStore({
-    encoding: database.kind,
+    encoding: database.sql,
     schema,
     readonlyStore,
-    namespaceInfo,
-    db: database.indexingDb,
+    db: database.orm.user,
     common,
-    isCacheExhaustive: isCheckpointEqual(zeroCheckpoint, initialCheckpoint),
+    isCacheExhaustive: encodeCheckpoint(zeroCheckpoint) === initialCheckpoint,
   });
 
   let indexingStore: IndexingStore = historicalStore;
@@ -176,7 +175,7 @@ export async function run({
 
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
-    if (isCheckpointEqual(initialCheckpoint, zeroCheckpoint)) {
+    if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
       const result = await indexingService.processSetupEvents({
         sources,
         networks,
@@ -228,9 +227,6 @@ export async function run({
       msg: "Completed historical indexing",
     });
 
-    if (database.kind === "postgres") {
-      await database.publish();
-    }
     await handleFinalize(sync.getFinalizedCheckpoint());
 
     await database.createIndexes({ schema });
@@ -238,10 +234,9 @@ export async function run({
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
-        encoding: database.kind,
+        encoding: database.sql,
         schema,
-        namespaceInfo,
-        db: database.indexingDb,
+        db: database.orm.user,
         common,
       }),
     };

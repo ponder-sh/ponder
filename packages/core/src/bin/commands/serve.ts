@@ -4,7 +4,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
+import { createDatabase } from "@/database/index.js";
 import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
@@ -77,14 +77,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const { poolConfig, schema: userNamespace } = databaseConfig;
-  const database = new PostgresDatabaseService({
+  const database = createDatabase({
     common,
-    poolConfig,
-    userNamespace,
-    // Ensures that the `readonly` connection pool gets
-    // allocated the maximum number of connections.
-    isReadonly: true,
+    schema,
+    databaseConfig,
   });
 
   const server = await createServer({

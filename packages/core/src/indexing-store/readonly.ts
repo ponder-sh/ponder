@@ -1,7 +1,6 @@
 import type { Common } from "@/common/common.js";
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import type { MaterialColumn, Schema, Table } from "@/schema/common.js";
 import type { UserId } from "@/types/schema.js";
 import { sql } from "kysely";
@@ -23,13 +22,11 @@ const DEFAULT_LIMIT = 50 as const;
 export const getReadonlyStore = ({
   encoding,
   schema,
-  namespaceInfo,
   db,
   common,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
-  namespaceInfo: Pick<NamespaceInfo, "userNamespace">;
   db: HeadlessKysely<any>;
   common: Common;
 }): ReadonlyStore => ({
@@ -50,7 +47,6 @@ export const getReadonlyStore = ({
       });
 
       const record = await db
-        .withSchema(namespaceInfo.userNamespace)
         .selectFrom(tableName)
         .selectAll()
         .where("id", "=", encodedId)
@@ -79,10 +75,7 @@ export const getReadonlyStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
-      let query = db
-        .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll();
+      let query = db.selectFrom(tableName).selectAll();
 
       if (where) {
         query = query.where((eb) =>

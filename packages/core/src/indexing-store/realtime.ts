@@ -1,6 +1,5 @@
 import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import type {
   DatabaseRecord,
@@ -16,13 +15,11 @@ import { buildWhereConditions } from "./utils/filter.js";
 export const getRealtimeStore = ({
   encoding,
   schema,
-  namespaceInfo,
   db,
   common,
 }: {
   encoding: "sqlite" | "postgres";
   schema: Schema;
-  namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   common: Common;
 }): WriteStore<"realtime"> => ({
@@ -50,7 +47,6 @@ export const getRealtimeStore = ({
 
       return await db.transaction().execute(async (tx) => {
         const record = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .insertInto(tableName)
           .values(createRecord)
           .returningAll()
@@ -60,8 +56,7 @@ export const getRealtimeStore = ({
           });
 
         await tx
-          .withSchema(namespaceInfo.internalNamespace)
-          .insertInto(namespaceInfo.internalTableIds[tableName]!)
+          .insertInto(`_ponder_reorg_${tableName}`)
           .values({
             operation: 0,
             id: createRecord.id,
@@ -102,7 +97,6 @@ export const getRealtimeStore = ({
           );
 
           const _records = await tx
-            .withSchema(namespaceInfo.userNamespace)
             .insertInto(tableName)
             .values(createRecords)
             .returningAll()
@@ -114,8 +108,7 @@ export const getRealtimeStore = ({
           records.push(..._records);
 
           await tx
-            .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName]!)
+            .insertInto(`_ponder_reorg_${tableName}`)
             .values(
               createRecords.map((record) => ({
                 operation: 0,
@@ -150,7 +143,6 @@ export const getRealtimeStore = ({
 
       const record = await db.transaction().execute(async (tx) => {
         const latestRecord = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
@@ -178,7 +170,6 @@ export const getRealtimeStore = ({
         });
 
         const updateResult = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .updateTable(tableName)
           .set(updateRecord)
           .where("id", "=", encodedId)
@@ -189,8 +180,7 @@ export const getRealtimeStore = ({
           });
 
         await tx
-          .withSchema(namespaceInfo.internalNamespace)
-          .insertInto(namespaceInfo.internalTableIds[tableName]!)
+          .insertInto(`_ponder_reorg_${tableName}`)
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
@@ -230,7 +220,6 @@ export const getRealtimeStore = ({
         () =>
           db.transaction().execute(async (tx) => {
             const latestRecords: DatabaseRecord[] = await tx
-              .withSchema(namespaceInfo.userNamespace)
               .selectFrom(tableName)
               .selectAll()
               .where((eb) =>
@@ -273,7 +262,6 @@ export const getRealtimeStore = ({
               };
 
               const record = await tx
-                .withSchema(namespaceInfo.userNamespace)
                 .updateTable(tableName)
                 .set(updateRecord)
                 .where("id", "=", latestRecord.id)
@@ -286,8 +274,7 @@ export const getRealtimeStore = ({
               records.push(record);
 
               await tx
-                .withSchema(namespaceInfo.internalNamespace)
-                .insertInto(namespaceInfo.internalTableIds[tableName]!)
+                .insertInto(`_ponder_reorg_${tableName}`)
                 .values({
                   operation: 1,
                   checkpoint: encodedCheckpoint,
@@ -347,7 +334,6 @@ export const getRealtimeStore = ({
       const record = await db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRecord = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
@@ -356,7 +342,6 @@ export const getRealtimeStore = ({
         // If there is no latest version, insert a new version using the create data.
         if (latestRecord === undefined) {
           const record = await tx
-            .withSchema(namespaceInfo.userNamespace)
             .insertInto(tableName)
             .values(createRecord)
             .returningAll()
@@ -375,8 +360,7 @@ export const getRealtimeStore = ({
             });
 
           await tx
-            .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName]!)
+            .insertInto(`_ponder_reorg_${tableName}`)
             .values({
               operation: 0,
               id: createRecord.id,
@@ -406,7 +390,6 @@ export const getRealtimeStore = ({
         });
 
         const record = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .updateTable(tableName)
           .set(updateRecord)
           .where("id", "=", encodedId)
@@ -422,8 +405,7 @@ export const getRealtimeStore = ({
           });
 
         await tx
-          .withSchema(namespaceInfo.internalNamespace)
-          .insertInto(namespaceInfo.internalTableIds[tableName]!)
+          .insertInto(`_ponder_reorg_${tableName}`)
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
@@ -453,14 +435,12 @@ export const getRealtimeStore = ({
 
       const isDeleted = await db.transaction().execute(async (tx) => {
         const record = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where("id", "=", encodedId)
           .executeTakeFirst();
 
         const deletedRecord = await tx
-          .withSchema(namespaceInfo.userNamespace)
           .deleteFrom(tableName)
           .where("id", "=", encodedId)
           .returning(["id"])
@@ -471,8 +451,7 @@ export const getRealtimeStore = ({
 
         if (record !== undefined) {
           await tx
-            .withSchema(namespaceInfo.internalNamespace)
-            .insertInto(namespaceInfo.internalTableIds[tableName]!)
+            .insertInto(`_ponder_reorg_${tableName}`)
             .values({
               operation: 2,
               checkpoint: encodedCheckpoint,

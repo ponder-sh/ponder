@@ -1,68 +1,55 @@
+import type { Schema } from "@/schema/common.js";
+import { getTables } from "@/schema/utils.js";
 import type { HeadlessKysely } from "./kysely.js";
-import type { NamespaceInfo } from "./service.js";
 
 export const revertIndexingTables = async ({
   checkpoint,
   db,
-  namespace,
+  schema,
 }: {
   checkpoint: string;
   db: HeadlessKysely<any>;
-  namespace: string;
+  schema: Schema;
 }) => {
   await db.wrap({ method: "revert" }, async () => {
     await Promise.all(
-      Object.entries(namespaceInfo.internalTableIds).map(
-        async ([tableName, tableId]) => {
-          await db.transaction().execute(async (tx) => {
-            const rows = await tx
-              .withSchema(namespaceInfo.internalNamespace)
-              .deleteFrom(tableId)
-              .returningAll()
-              .where("checkpoint", ">", checkpoint)
-              .execute();
+      Object.keys(getTables(schema)).map(async (tableName) => {
+        await db.transaction().execute(async (tx) => {
+          const rows = await tx
+            .deleteFrom(`_ponder_reorg_${tableName}`)
+            .returningAll()
+            .where("checkpoint", ">", checkpoint)
+            .execute();
 
-            const reversed = rows.sort(
-              (a, b) => b.operation_id - a.operation_id,
-            );
+          const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
 
-            // undo operation
-            for (const log of reversed) {
-              if (log.operation === 0) {
-                // create
-                await tx
-                  .withSchema(namespaceInfo.userNamespace)
-                  .deleteFrom(tableName)
-                  .where("id", "=", log.id)
-                  .execute();
-              } else if (log.operation === 1) {
-                // update
-                log.operation_id = undefined;
-                log.checkpoint = undefined;
-                log.operation = undefined;
+          // undo operation
+          for (const log of reversed) {
+            if (log.operation === 0) {
+              // create
+              await tx.deleteFrom(tableName).where("id", "=", log.id).execute();
+            } else if (log.operation === 1) {
+              // update
+              log.operation_id = undefined;
+              log.checkpoint = undefined;
+              log.operation = undefined;
 
-                await tx
-                  .withSchema(namespaceInfo.userNamespace)
-                  .updateTable(tableName)
-                  .set(log)
-                  .where("id", "=", log.id)
-                  .execute();
-              } else {
-                // delete
-                log.operation_id = undefined;
-                log.checkpoint = undefined;
-                log.operation = undefined;
+              await tx
+                .updateTable(tableName)
+                .set(log)
+                .where("id", "=", log.id)
+                .execute();
+            } else {
+              // delete
+              log.operation_id = undefined;
+              log.checkpoint = undefined;
+              log.operation = undefined;
 
-                await tx
-                  .withSchema(namespaceInfo.userNamespace)
-                  .insertInto(tableName)
-                  .values(log)
-                  .execute();
-              }
+              await tx.insertInto(tableName).values(log).execute();
             }
-          });
-        },
-      ),
+          }
+        });
+      }),
     );
   });
 };

@@ -15,6 +15,8 @@ import {
   isOptionalColumn,
 } from "@/schema/utils.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
+import { migrationProvider as postgresMigrationProvider } from "@/sync-store/postgres/migrations.js";
+import { migrationProvider as sqliteMigrationProvider } from "@/sync-store/sqlite/migrations.js";
 import type { UserTable } from "@/types/schema.js";
 import {
   decodeCheckpoint,
@@ -22,23 +24,35 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import {
   type SqliteDatabase,
   createSqliteDatabase as _createSqliteDatabase,
   createReadonlySqliteDatabase,
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
-import { sql as ksql } from "kysely";
+import {
+  type Kysely,
+  Migrator,
+  PostgresDialect,
+  WithSchemaPlugin,
+  sql as ksql,
+} from "kysely";
 import { SqliteDialect } from "kysely";
+import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 import { revertIndexingTables } from "./revert.js";
 
-export type Database = {
-  sql: "sqlite" | "postgres";
+export type Database<
+  sql extends "sqlite" | "postgres" = "sqlite" | "postgres",
+> = {
+  sql: sql;
   namespace: string;
-  driver: Driver;
+  driver: Driver<sql>;
   orm: ORM;
+  migrateSync(): Promise<void>;
+  // TODO(kyle) migrate
   /**
    * Prepare the database environment for a Ponder app.
    *
@@ -85,11 +99,18 @@ type PonderInternalSchema = {
   [tableName: string]: UserTable;
 };
 
-type Driver = {
-  user: SqliteDatabase;
-  readonly: SqliteDatabase;
-  sync: SqliteDatabase;
-};
+type Driver<sql extends "sqlite" | "postgres"> = sql extends "sqlite"
+  ? {
+      user: SqliteDatabase;
+      readonly: SqliteDatabase;
+      sync: SqliteDatabase;
+    }
+  : {
+      internal: Pool;
+      user: Pool;
+      readonly: Pool;
+      sync: Pool;
+    };
 
 type ORM = {
   internal: HeadlessKysely<PonderInternalSchema>;
@@ -107,100 +128,340 @@ const scalarToSqliteType = {
   hex: "blob",
 } as const;
 
-export const createSqliteDatabase = (args: {
+const scalarToPostgresType = {
+  boolean: "integer",
+  int: "integer",
+  float: "float8",
+  string: "text",
+  bigint: "numeric(78, 0)",
+  hex: "bytea",
+} as const;
+
+export const createDatabase = (args: {
   common: Common;
   schema: Schema;
-  databaseConfig: Extract<DatabaseConfig, { kind: "sqlite" }>;
+  databaseConfig: DatabaseConfig;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
-  const namespace = "public";
+  let namespace: string;
 
   ////////
-  // Create drivers
+  // Create drivers and orms
   ////////
 
-  const userFile = path.join(args.databaseConfig.directory, "public.db");
-  const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
+  let sql: Database["sql"];
+  let driver: Database["driver"];
+  let orm: Database["orm"];
 
-  const driver = {
-    user: _createSqliteDatabase(userFile),
-    readonly: createReadonlySqliteDatabase(userFile),
-    sync: _createSqliteDatabase(syncFile),
-  } satisfies Driver;
+  if (args.databaseConfig.kind === "sqlite") {
+    sql = "sqlite";
+    namespace = "public";
 
-  driver.user.exec(`ATTACH DATABASE '${userFile}' AS public`);
-  driver.readonly.exec(`ATTACH DATABASE '${userFile}' AS public`);
+    const userFile = path.join(args.databaseConfig.directory, "public.db");
+    const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
 
+    driver = {
+      user: _createSqliteDatabase(userFile),
+      readonly: createReadonlySqliteDatabase(userFile),
+      sync: _createSqliteDatabase(syncFile),
+    };
+
+    driver.user.exec(`ATTACH DATABASE '${userFile}' AS public`);
+    driver.readonly.exec(`ATTACH DATABASE '${userFile}' AS public`);
+    // driver.readonly.exec(`ATTACH DATABASE '${syncFile}' AS public`);
+
+    orm = {
+      internal: new HeadlessKysely({
+        name: "internal",
+        common: args.common,
+        dialect: new SqliteDialect({ database: driver.user }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_sqlite_query_total.inc({
+              database: "internal",
+            });
+          }
+        },
+      }),
+      user: new HeadlessKysely({
+        name: "user",
+        common: args.common,
+        dialect: new SqliteDialect({ database: driver.user }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_sqlite_query_total.inc({
+              database: "user",
+            });
+          }
+        },
+      }),
+      readonly: new HeadlessKysely({
+        name: "readonly",
+        common: args.common,
+        dialect: new SqliteDialect({ database: driver.readonly }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_sqlite_query_total.inc({
+              database: "readonly",
+            });
+          }
+        },
+      }),
+      sync: new HeadlessKysely<PonderSyncSchema>({
+        name: "sync",
+        common: args.common,
+        dialect: new SqliteDialect({ database: driver.sync }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_sqlite_query_total.inc({
+              database: "sync",
+            });
+          }
+        },
+      }),
+    };
+  } else {
+    sql = "postgres";
+    namespace = args.databaseConfig.schema;
+
+    const internalMax = 2;
+    const equalMax = Math.floor(
+      (args.databaseConfig.poolConfig.max - internalMax) / 3,
+    );
+    const [readonlyMax, userMax, syncMax] =
+      args.common.options.command === "serve"
+        ? [args.databaseConfig.poolConfig.max - internalMax, 0, 0]
+        : [equalMax, equalMax, equalMax];
+
+    driver = {
+      internal: createPool({
+        ...args.databaseConfig.poolConfig,
+        application_name: `${namespace}_internal`,
+        max: internalMax,
+        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+      }),
+      user: createPool({
+        ...args.databaseConfig.poolConfig,
+        application_name: `${namespace}_user`,
+        max: userMax,
+      }),
+      readonly: createReadonlyPool({
+        ...args.databaseConfig.poolConfig,
+        application_name: `${namespace}_readonly`,
+        max: readonlyMax,
+      }),
+      sync: createPool({
+        ...args.databaseConfig.poolConfig,
+        application_name: "ponder_sync",
+        max: syncMax,
+      }),
+    };
+
+    orm = {
+      internal: new HeadlessKysely({
+        name: "internal",
+        common: args.common,
+        dialect: new PostgresDialect({ pool: driver.internal }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "internal",
+            });
+          }
+        },
+        plugins: [new WithSchemaPlugin(namespace)],
+      }),
+      user: new HeadlessKysely({
+        name: "user",
+        common: args.common,
+        dialect: new PostgresDialect({ pool: driver.user }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "user",
+            });
+          }
+        },
+        plugins: [new WithSchemaPlugin(namespace)],
+      }),
+      readonly: new HeadlessKysely({
+        name: "readonly",
+        common: args.common,
+        dialect: new PostgresDialect({ pool: driver.readonly }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "readonly",
+            });
+          }
+        },
+        plugins: [new WithSchemaPlugin(namespace)],
+      }),
+      sync: new HeadlessKysely<PonderSyncSchema>({
+        name: "sync",
+        common: args.common,
+        dialect: new PostgresDialect({ pool: driver.sync }),
+        log(event) {
+          if (event.level === "query") {
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "sync",
+            });
+          }
+        },
+        plugins: [new WithSchemaPlugin("ponder_sync")],
+      }),
+    };
+  }
+
+  // Register metrics
+  if (sql === "sqlite") {
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_sqlite_query_total",
+    );
+    args.common.metrics.ponder_sqlite_query_total = new prometheus.Counter({
+      name: "ponder_sqlite_query_total",
+      help: "Number of queries submitted to the database",
+      labelNames: ["database"] as const,
+      registers: [args.common.metrics.registry],
+    });
+  } else {
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_total",
+    );
+    args.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
+      name: "ponder_postgres_query_total",
+      help: "Total number of queries submitted to the database",
+      labelNames: ["pool"] as const,
+      registers: [args.common.metrics.registry],
+    });
+
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_pool_connections",
+    );
+    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_pool_connections",
+        help: "Number of connections in the pool",
+        labelNames: ["pool", "kind"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set(
+            { pool: "internal", kind: "idle" },
+            // @ts-ignore
+            driver.internal.idleCount,
+          );
+          this.set(
+            { pool: "internal", kind: "total" },
+            // @ts-ignore
+            driver.internal.totalCount,
+          );
+
+          this.set(
+            { pool: "sync", kind: "idle" },
+            (driver.sync as Pool).idleCount,
+          );
+          this.set(
+            { pool: "sync", kind: "total" },
+            (driver.sync as Pool).totalCount,
+          );
+
+          this.set(
+            { pool: "user", kind: "idle" },
+            (driver.user as Pool).idleCount,
+          );
+          this.set(
+            { pool: "user", kind: "total" },
+            (driver.user as Pool).totalCount,
+          );
+
+          this.set(
+            { pool: "readonly", kind: "idle" },
+            (driver.readonly as Pool).idleCount,
+          );
+          this.set(
+            { pool: "readonly", kind: "total" },
+            (driver.readonly as Pool).totalCount,
+          );
+        },
+      },
+    );
+
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_queue_size",
+    );
+    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_query_queue_size",
+        help: "Number of query requests waiting for an available connection",
+        labelNames: ["pool"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          // @ts-ignore
+          this.set({ pool: "internal" }, driver.internal.waitingCount);
+          this.set({ pool: "sync" }, (driver.sync as Pool).waitingCount);
+          this.set({ pool: "user" }, (driver.user as Pool).waitingCount);
+          this.set(
+            { pool: "readonly" },
+            (driver.readonly as Pool).waitingCount,
+          );
+        },
+      },
+    );
+  }
   ////////
-  // Create orms
+  // Helpers
   ////////
 
-  // TODO(kyle) preset schema?
+  const getApp = async (db: Kysely<PonderInternalSchema>) => {
+    const row = await db
+      .selectFrom("_ponder_meta")
+      .where("key", "=", "app")
+      .select("value")
+      .executeTakeFirst();
 
-  const orm = {
-    internal: new HeadlessKysely({
-      name: "internal",
-      common: args.common,
-      dialect: new SqliteDialect({ database: driver.user }),
-      log(event) {
-        if (event.level === "query") {
-          args.common.metrics.ponder_sqlite_query_total.inc({
-            database: "internal",
-          });
-        }
-      },
-    }),
-    user: new HeadlessKysely({
-      name: "user",
-      common: args.common,
-      dialect: new SqliteDialect({ database: driver.user }),
-      log(event) {
-        if (event.level === "query") {
-          args.common.metrics.ponder_sqlite_query_total.inc({
-            database: "user",
-          });
-        }
-      },
-    }),
-    readonly: new HeadlessKysely({
-      name: "readonly",
-      common: args.common,
-      dialect: new SqliteDialect({ database: driver.readonly }),
-      log(event) {
-        if (event.level === "query") {
-          args.common.metrics.ponder_sqlite_query_total.inc({
-            database: "readonly",
-          });
-        }
-      },
-    }),
-    sync: new HeadlessKysely<PonderSyncSchema>({
-      name: "sync",
-      common: args.common,
-      dialect: new SqliteDialect({ database: driver.sync }),
-      log(event) {
-        if (event.level === "query") {
-          args.common.metrics.ponder_sqlite_query_total.inc({
-            database: "sync",
-          });
-        }
-      },
-    }),
-  } satisfies ORM;
+    if (row === undefined) return undefined;
+    const app: PonderApp =
+      sql === "sqlite" ? JSON.parse(row.value!) : row.value;
+    return app;
+  };
 
-  args.common.metrics.registry.removeSingleMetric("ponder_sqlite_query_total");
-  args.common.metrics.ponder_sqlite_query_total = new prometheus.Counter({
-    name: "ponder_sqlite_query_total",
-    help: "Number of queries submitted to the database",
-    labelNames: ["database"] as const,
-    registers: [args.common.metrics.registry],
-  });
+  const encodeApp = (app: PonderApp) => {
+    return sql === "sqlite" ? JSON.stringify(app) : (app as any);
+  };
 
   return {
-    sql: "sqlite",
+    sql,
     namespace,
     driver,
     orm,
+    async migrateSync() {
+      await orm.sync.wrap({ method: "migrateSyncStore" }, async () => {
+        // TODO: Probably remove this at 1.0 to speed up startup time.
+        // await moveLegacyTables({
+        //   common: this.common,
+        //   db: this.db as Kysely<any>,
+        //   newSchemaName: "ponder_sync",
+        // });
+
+        let migrator: Migrator;
+
+        if (sql === "sqlite") {
+          migrator = new Migrator({
+            db: orm.sync as any,
+            provider: sqliteMigrationProvider,
+          });
+        } else {
+          migrator = new Migrator({
+            db: orm.sync as any,
+            provider: postgresMigrationProvider,
+            migrationTableSchema: "ponder_sync",
+          });
+        }
+
+        const { error } = await migrator.migrateToLatest();
+        if (error) throw error;
+      });
+    },
     async manageDatabaseEnv({ buildId }) {
       ////////
       // Migrate
@@ -281,7 +542,9 @@ export const createSqliteDatabase = (args: {
                         // Non-list base columns
                         builder = builder.addColumn(
                           columnName,
-                          scalarToSqliteType[column[" scalar"]],
+                          (sql === "sqlite"
+                            ? scalarToSqliteType
+                            : scalarToPostgresType)[column[" scalar"]],
                           (col) => {
                             if (isOptionalColumn(column) === false)
                               col = col.notNull();
@@ -299,9 +562,14 @@ export const createSqliteDatabase = (args: {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create table '${tableName}' in 'public.db' because a table with that name already exists. Is there another application using the 'public.db' database file?`,
+                      `Unable to create table '${namespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${namespace}' database scheme?`,
                     );
                   });
+
+                args.common.logger.info({
+                  service: "database",
+                  msg: `Created table '${namespace}'.'${tableName}'`,
+                });
               }
             };
 
@@ -331,7 +599,9 @@ export const createSqliteDatabase = (args: {
                         // Non-list base columns
                         builder = builder.addColumn(
                           columnName,
-                          scalarToSqliteType[column[" scalar"]],
+                          (sql === "sqlite"
+                            ? scalarToSqliteType
+                            : scalarToPostgresType)[column[" scalar"]],
                           (col) => {
                             if (columnName === "id") col = col.notNull();
                             return col;
@@ -340,20 +610,26 @@ export const createSqliteDatabase = (args: {
                       }
                     }
 
+                    builder = builder
+                      .addColumn(
+                        "operation_id",
+                        sql === "sqlite" ? "integer" : "serial",
+                        (col) => col.notNull().primaryKey(),
+                      )
+                      .addColumn("checkpoint", "varchar(75)", (col) =>
+                        col.notNull(),
+                      )
+                      .addColumn("operation", "integer", (col) =>
+                        col.notNull(),
+                      );
+
                     return builder;
                   })
                   .execute();
               }
             };
 
-            const previousApp = await tx
-              .selectFrom("_ponder_meta")
-              .where("key", "=", "app")
-              .select("value")
-              .executeTakeFirst()
-              .then((app) =>
-                app ? (JSON.parse(app.value!) as PonderApp) : undefined,
-              );
+            const previousApp = await getApp(tx);
 
             const newApp = {
               is_locked: true,
@@ -372,12 +648,12 @@ export const createSqliteDatabase = (args: {
                 .insertInto("_ponder_meta")
                 .values([
                   { key: "status", value: null },
-                  { key: "app", value: JSON.stringify(newApp) },
+                  { key: "app", value: encodeApp(newApp) },
                 ])
                 .execute();
               args.common.logger.debug({
                 service: "database",
-                msg: `Acquired lock on database file 'public.db'`,
+                msg: `Acquired lock on schema '${namespace}'`,
               });
 
               await createUserTables();
@@ -421,13 +697,11 @@ export const createSqliteDatabase = (args: {
               await tx
                 .updateTable("_ponder_meta")
                 .set({
-                  value: JSON.stringify({
+                  value: encodeApp({
+                    ...previousApp,
                     is_locked: true,
                     is_dev: false,
                     heartbeat_at: Date.now(),
-                    checkpoint: previousApp.checkpoint,
-                    build_id: previousApp.build_id,
-                    schema: previousApp.schema,
                   }),
                 })
                 .where("key", "=", "app")
@@ -435,11 +709,11 @@ export const createSqliteDatabase = (args: {
 
               args.common.logger.info({
                 service: "database",
-                msg: `Detected cache hit for build '${buildId}' in database file 'ponder.db' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+                msg: `Detected cache hit for build '${buildId}' in scheme '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
               });
               args.common.logger.debug({
                 service: "database",
-                msg: `Acquired lock on schema 'public'`,
+                msg: `Acquired lock on schema '${namespace}'`,
               });
 
               // Remove indexes
@@ -456,7 +730,7 @@ export const createSqliteDatabase = (args: {
 
                   args.common.logger.info({
                     service: "database",
-                    msg: `Dropped index '${tableName}_${name}' in schema 'public'`,
+                    msg: `Dropped index '${tableName}_${name}' in schema '${namespace}'`,
                   });
                 }
               }
@@ -542,13 +816,13 @@ export const createSqliteDatabase = (args: {
 
             await tx
               .updateTable("_ponder_meta")
-              .set({ value: JSON.stringify(newApp) })
+              .set({ value: encodeApp(newApp) })
               .where("key", "=", "app")
               .execute();
 
             args.common.logger.debug({
               service: "database",
-              msg: `Acquired lock on schema 'public' previously used by build '${previousApp.build_id}'`,
+              msg: `Acquired lock on schema '${namespace}' previously used by build '${previousApp.build_id}'`,
             });
 
             // Drop old tables
@@ -586,11 +860,11 @@ export const createSqliteDatabase = (args: {
         const duration = result.expiry - Date.now();
         args.common.logger.warn({
           service: "database",
-          msg: `Database file 'public.db' is locked by a different Ponder app`,
+          msg: `Schema '${namespace}' is locked by a different Ponder app`,
         });
         args.common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on database file 'public.db' to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace} to expire...`,
         });
 
         await wait(duration);
@@ -598,32 +872,25 @@ export const createSqliteDatabase = (args: {
         result = await attempt();
         if (result.status === "locked") {
           throw new NonRetryableError(
-            `Failed to acquire lock on database file 'public.db'. A different Ponder app is actively using this database.`,
+            `Failed to acquire lock on schema '${namespace}'. A different Ponder app is actively using this database.`,
           );
         }
       }
 
       heartbeatInterval = setInterval(async () => {
         try {
-          const row = await orm.internal
-            .selectFrom("_ponder_meta")
-            .where("key", "=", "app")
-            .select("value")
-            .executeTakeFirst();
+          const app = await getApp(orm.internal);
           await orm.internal
             .updateTable("_ponder_meta")
             .where("key", "=", "app")
             .set({
-              value: JSON.stringify({
-                ...(JSON.parse(row!.value!) as PonderApp),
-                heartbeat_at: Date.now(),
-              }),
+              value: encodeApp({ ...app!, heartbeat_at: Date.now() }),
             })
             .execute();
 
           args.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${JSON.parse(row!.value!).heartbeat_at} (build_id=${buildId})`,
+            msg: `Updated heartbeat timestamp to ${app?.heartbeat_at} (build_id=${buildId})`,
           });
         } catch (err) {
           const error = err as Error;
@@ -651,16 +918,35 @@ export const createSqliteDatabase = (args: {
 
                 const indexColumn = index[" column"];
                 const order = index[" order"];
+                const nulls = index[" nulls"];
 
-                const columns = Array.isArray(indexColumn)
-                  ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-                  : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
+                if (sql === "sqlite") {
+                  const columns = Array.isArray(indexColumn)
+                    ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+                    : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
 
-                await orm.internal.executeQuery(
-                  ksql`CREATE INDEX ${ksql.ref("public")}.${ksql.ref(indexName)} ON ${ksql.table(
-                    tableName,
-                  )} (${ksql.raw(columns)})`.compile(orm.internal),
-                );
+                  await orm.internal.executeQuery(
+                    ksql`CREATE INDEX ${ksql.ref(namespace)}.${ksql.ref(indexName)} ON ${ksql.table(
+                      tableName,
+                    )} (${ksql.raw(columns)})`.compile(orm.internal),
+                  );
+                } else {
+                  const columns = Array.isArray(indexColumn)
+                    ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+                    : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
+                        nulls === "first"
+                          ? "NULLS FIRST"
+                          : nulls === "last"
+                            ? "NULLS LAST"
+                            : ""
+                      }`;
+
+                  await orm.internal.executeQuery(
+                    ksql`CREATE INDEX ${ksql.ref(indexName)} ON ${ksql.table(
+                      `${namespace}.${tableName}`,
+                    )} (${ksql.raw(columns)})`.compile(orm.internal),
+                  );
+                }
               });
 
               args.common.logger.info({
@@ -669,7 +955,7 @@ export const createSqliteDatabase = (args: {
                   Array.isArray(index[" column"])
                     ? index[" column"].join(", ")
                     : index[" column"]
-                }) in 'public.db'`,
+                }) in schema '${namespace}'`,
               });
             },
           );
@@ -680,26 +966,19 @@ export const createSqliteDatabase = (args: {
       return revertIndexingTables({
         checkpoint,
         db: orm.internal,
-        namespace: "public",
+        schema: args.schema,
       });
     },
     async updateFinalizedCheckpoint({ checkpoint }) {
       await orm.internal.wrap(
         { method: "updateFinalizedCheckpoint" },
         async () => {
-          const row = await orm.internal
-            .selectFrom("_ponder_meta")
-            .where("key", "=", "app")
-            .select("value")
-            .executeTakeFirst();
+          const app = await getApp(orm.internal);
           await orm.internal
             .updateTable("_ponder_meta")
             .where("key", "=", "app")
             .set({
-              value: JSON.stringify({
-                ...(JSON.parse(row!.value!) as PonderApp),
-                checkpoint,
-              }),
+              value: encodeApp({ ...app!, checkpoint }),
             })
             .execute();
         },
@@ -715,36 +994,43 @@ export const createSqliteDatabase = (args: {
     async kill() {
       clearInterval(heartbeatInterval);
 
-      const row = await orm.internal
-        .selectFrom("_ponder_meta")
-        .where("key", "=", "app")
-        .select("value")
-        .executeTakeFirst();
-      if (row) {
+      const app = await getApp(orm.internal);
+      if (app) {
         await orm.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
           .set({
-            value: JSON.stringify({
-              ...(JSON.parse(row!.value!) as PonderApp),
-              is_locked: false,
-            }),
+            value: encodeApp({ ...app, is_locked: false }),
           })
           .execute();
       }
       args.common.logger.debug({
         service: "database",
-        msg: `Released lock on namespace 'public'`,
+        msg: `Released lock on schema '${namespace}'`,
       });
 
-      await this.orm.internal.destroy();
-      await this.orm.user.destroy();
-      await this.orm.readonly.destroy();
-      await this.orm.sync.destroy();
+      await orm.internal.destroy();
+      await orm.user.destroy();
+      await orm.readonly.destroy();
+      await orm.sync.destroy();
 
-      this.driver.user.close();
-      this.driver.readonly.close();
-      this.driver.sync.close();
+      if (sql === "sqlite") {
+        // @ts-ignore
+        driver.user.close();
+        // @ts-ignore
+        driver.readonly.close();
+        // @ts-ignore
+        driver.sync.close();
+      } else {
+        // @ts-ignore
+        await driver.internal.end();
+        // @ts-ignore
+        await driver.user.end();
+        // @ts-ignore
+        await driver.readonly.end();
+        // @ts-ignore
+        await driver.sync.end();
+      }
 
       args.common.logger.debug({
         service: "database",

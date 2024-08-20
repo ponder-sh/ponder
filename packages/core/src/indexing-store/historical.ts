@@ -5,7 +5,6 @@ import {
   UniqueConstraintError,
 } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
   getTables,
@@ -82,7 +81,6 @@ export const getHistoricalStore = ({
   encoding,
   schema,
   readonlyStore,
-  namespaceInfo,
   db,
   common,
   isCacheExhaustive: _isCacheExhaustive,
@@ -90,7 +88,6 @@ export const getHistoricalStore = ({
   encoding: "sqlite" | "postgres";
   schema: Schema;
   readonlyStore: ReadonlyStore;
-  namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   common: Common;
   isCacheExhaustive: boolean;
@@ -220,7 +217,6 @@ export const getHistoricalStore = ({
                   );
 
                 await db
-                  .withSchema(namespaceInfo.userNamespace)
                   .insertInto(tableName)
                   .values(_insertRecords)
                   .execute()
@@ -282,7 +278,6 @@ export const getHistoricalStore = ({
                   );
 
                 await db
-                  .withSchema(namespaceInfo.userNamespace)
                   .insertInto(tableName)
                   .values(_updateRecords)
                   .onConflict((oc) =>
@@ -355,7 +350,6 @@ export const getHistoricalStore = ({
     });
 
     const record = await db
-      .withSchema(namespaceInfo.userNamespace)
       .selectFrom(tableName)
       .selectAll()
       .where("id", "=", encodedId)
@@ -599,7 +593,6 @@ export const getHistoricalStore = ({
 
       if (typeof data === "function") {
         const query = db
-          .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
           .where((eb) => buildWhereConditions({ eb, where, table, encoding }))
@@ -639,7 +632,6 @@ export const getHistoricalStore = ({
                 };
 
                 const record = await db
-                  .withSchema(namespaceInfo.userNamespace)
                   .updateTable(tableName)
                   .set(updateRecord)
                   .where("id", "=", latestRecord.id)
@@ -684,14 +676,12 @@ export const getHistoricalStore = ({
           const records = await db
             .with("latestRows(id)", (db) =>
               db
-                .withSchema(namespaceInfo.userNamespace)
                 .selectFrom(tableName)
                 .select("id")
                 .where((eb) =>
                   buildWhereConditions({ eb, where, table, encoding }),
                 ),
             )
-            .withSchema(namespaceInfo.userNamespace)
             .updateTable(tableName)
             .set(updateRecord)
             .from("latestRows")
@@ -835,7 +825,6 @@ export const getHistoricalStore = ({
           const table = (schema[tableName] as { table: Table }).table;
 
           const deletedRecord = await db
-            .withSchema(namespaceInfo.userNamespace)
             .deleteFrom(tableName)
             .where(
               "id",

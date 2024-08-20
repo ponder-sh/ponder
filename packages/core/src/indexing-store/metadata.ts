@@ -1,21 +1,17 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import type { Status } from "@/sync/index.js";
 import type { MetadataStore } from "./store.js";
 
 export const getMetadataStore = ({
   encoding,
-  namespaceInfo,
   db,
 }: {
   encoding: "sqlite" | "postgres";
-  namespaceInfo: Pick<NamespaceInfo, "userNamespace">;
   db: HeadlessKysely<any>;
 }): MetadataStore => ({
   getStatus: async () => {
     return db.wrap({ method: "_ponder_meta.getStatus()" }, async () => {
       const metadata = await db
-        .withSchema(namespaceInfo.userNamespace)
         .selectFrom("_ponder_meta")
         .select("value")
         .where("key", "=", "status")
@@ -31,7 +27,6 @@ export const getMetadataStore = ({
   setStatus: (status: Status) => {
     return db.wrap({ method: "_ponder_meta.setStatus()" }, async () => {
       await db
-        .withSchema(namespaceInfo.userNamespace)
         .insertInto("_ponder_meta")
         .values({
           key: "status",
