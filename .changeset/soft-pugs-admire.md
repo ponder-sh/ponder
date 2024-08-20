@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-Fixed misconfigured postgres pool size `ponder serve`.
+Fixed misconfigured Postgres pool size for `ponder serve`.
