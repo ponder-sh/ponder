@@ -3,6 +3,7 @@ import type { Network } from "@/config/networks.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { LightBlock } from "@/types/sync.js";
+import { estimate } from "@/utils/estimate.js";
 import type { Interval } from "@/utils/interval.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
@@ -151,15 +152,16 @@ export const createLocalSync = async (
       const duration = endClock();
 
       // Use the duration and interval of the last call to `sync` to update estimate
-      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-      estimateRange = Math.min(
-        Math.max(
-          25,
-          Math.round((1_000 * (interval[1] - interval[0])) / duration),
-        ),
-        estimateRange * 2,
-        100_000,
-      );
+      estimateRange = estimate({
+        from: interval[0],
+        to: interval[1],
+        target: 2_000,
+        result: duration,
+        min: 25,
+        max: 50_000,
+        prev: estimateRange,
+        maxIncrease: 1.08,
+      });
 
       // Update cursor to record progress
       fromBlock = interval[1] + 1;
