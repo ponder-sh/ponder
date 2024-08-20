@@ -42,7 +42,7 @@ test("sync()", async (context) => {
 
   await sync.sync();
 
-  const intervals = await database.syncDb
+  const intervals = await database.orm.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();

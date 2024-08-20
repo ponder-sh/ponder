@@ -114,7 +114,7 @@ type Driver<sql extends "sqlite" | "postgres"> = sql extends "sqlite"
 
 type ORM = {
   internal: HeadlessKysely<PonderInternalSchema>;
-  user: HeadlessKysely<unknown>;
+  user: HeadlessKysely<any>;
   readonly: HeadlessKysely<unknown>;
   sync: HeadlessKysely<PonderSyncSchema>;
 };

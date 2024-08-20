@@ -89,7 +89,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     schema,
     database,
-    dbNamespace: databaseConfig.schema,
   });
 
   cleanupReloadable = async () => {

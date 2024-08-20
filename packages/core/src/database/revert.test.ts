@@ -9,7 +9,6 @@ import {
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { hash } from "@/utils/hash.js";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach(setupCommon);
@@ -35,16 +34,14 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
-function calculateLogTableName(tableName: string) {
-  return hash(["public", "test", tableName]);
-}
-
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -85,7 +82,6 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
   await database.revert({
     checkpoint: encodeCheckpoint(createCheckpoint(12)),
-    namespaceInfo,
   });
 
   const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
@@ -101,17 +97,15 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   expect(persons[0]!.name).toBe("Bobby");
   expect(persons[1]!.name).toBe("Kevin");
 
-  const PetLogs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const PetLogs = await database.orm.user
+    .selectFrom("_ponder_reorg_Pet")
     .selectAll()
     .execute();
 
   expect(PetLogs).toHaveLength(1);
 
-  const PersonLogs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Person"))
+  const PersonLogs = await database.orm.user
+    .selectFrom("_ponder_reorg_Person")
     .selectAll()
     .execute();
   expect(PersonLogs).toHaveLength(3);
@@ -120,11 +114,13 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 });
 
 test("revert() updates versions with intermediate logs", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -140,7 +136,6 @@ test("revert() updates versions with intermediate logs", async (context) => {
 
   await database.revert({
     checkpoint: encodeCheckpoint(createCheckpoint(8)),
-    namespaceInfo,
   });
 
   const instancePet = await indexingStore.findUnique({
@@ -149,9 +144,8 @@ test("revert() updates versions with intermediate logs", async (context) => {
   });
   expect(instancePet).toBe(null);
 
-  const PetLogs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const PetLogs = await database.orm.user
+    .selectFrom("_ponder_reorg_Pet")
     .selectAll()
     .execute();
   expect(PetLogs).toHaveLength(0);

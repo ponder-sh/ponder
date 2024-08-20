@@ -86,11 +86,7 @@ type SQLiteTable = Parameters<typeof sqliteTable>[1];
 type PostgresTable = Parameters<typeof pgTable>[1];
 type DrizzleTable = { [tableName: string]: any };
 
-export const createDrizzleTables = (
-  schema: Schema,
-  database: Database,
-  dbNamespace: string,
-) => {
+export const createDrizzleTables = (schema: Schema, database: Database) => {
   const drizzleTables: { [tableName: string]: DrizzleTable } = {};
 
   for (const [tableName, { table }] of Object.entries(getTables(schema))) {
@@ -183,13 +179,13 @@ export const createDrizzleTables = (
     if (database.sql === "postgres") {
       // Note: this is to avoid an error thrown by drizzle when
       // setting schema to "public".
-      if (dbNamespace === "public") {
+      if (database.namespace === "public") {
         drizzleTables[tableName] = pgTable(
           tableName,
           drizzleColumns as PostgresTable,
         );
       } else {
-        drizzleTables[tableName] = pgSchema(dbNamespace).table(
+        drizzleTables[tableName] = pgSchema(database.namespace).table(
           tableName,
           drizzleColumns as PostgresTable,
         );

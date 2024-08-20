@@ -24,7 +24,7 @@ beforeEach(setupIsolatedDatabase);
 
 test("setup creates tables", async (context) => {
   const { cleanup, database } = await setupDatabaseServices(context);
-  const tables = await database.syncDb.introspection.getTables();
+  const tables = await database.orm.sync.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
 
   expect(tableNames).toContain("blocks");
@@ -350,7 +350,7 @@ test("insertLogs()", async (context) => {
     chainId: 1,
   });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
 
   cleanup();
@@ -369,7 +369,7 @@ test("insertLogs() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
 
   cleanup();
@@ -384,7 +384,7 @@ test("insertLogs() creates checkpoint", async (context) => {
     chainId: 1,
   });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
   const checkpoint = decodeCheckpoint(logs[0]!.checkpoint!);
 
   expect(checkpoint.blockTimestamp).toBe(
@@ -405,7 +405,7 @@ test("insertBlocks()", async (context) => {
 
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
 
-  const blocks = await database.syncDb
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -421,7 +421,7 @@ test("insertBlocks() with duplicates", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
 
-  const blocks = await database.syncDb
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -439,7 +439,7 @@ test("insertBlocks() creates checkpoint", async (context) => {
     chainId: 1,
   });
 
-  const blocks = await database.syncDb
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -484,7 +484,7 @@ test("insertTransactions()", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.syncDb
+  const transactions = await database.orm.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
@@ -506,7 +506,7 @@ test("insertTransactions() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.syncDb
+  const transactions = await database.orm.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
@@ -545,7 +545,7 @@ test("insertTransactionReceipts()", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.orm.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
@@ -567,7 +567,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.orm.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
@@ -608,7 +608,7 @@ test("insertCallTraces()", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.syncDb
+  const traces = await database.orm.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
@@ -628,7 +628,7 @@ test("insertCallTraces() creates checkpoint", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.syncDb
+  const traces = await database.orm.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
@@ -663,7 +663,7 @@ test("insertCallTraces() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.syncDb
+  const traces = await database.orm.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
@@ -970,7 +970,7 @@ test("pruneByBlock", async (context) => {
 
   await syncStore.pruneByBlock({ fromBlock: 2, chainId: 1 });
 
-  const blocks = await database.syncDb
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -1035,25 +1035,25 @@ test("pruneByChain deletes filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 0 });
 
-  const logFilterIntervals = await database.syncDb
+  const logFilterIntervals = await database.orm.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
   expect(logFilterIntervals).toHaveLength(1);
 
-  const factoryLogFilterIntervals = await database.syncDb
+  const factoryLogFilterIntervals = await database.orm.sync
     .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .execute();
   expect(factoryLogFilterIntervals).toHaveLength(1);
 
-  const traceFilterIntervals = await database.syncDb
+  const traceFilterIntervals = await database.orm.sync
     .selectFrom("traceFilterIntervals")
     .selectAll()
     .execute();
   expect(traceFilterIntervals).toHaveLength(1);
 
-  const factoryTraceFilterIntervals = await database.syncDb
+  const factoryTraceFilterIntervals = await database.orm.sync
     .selectFrom("factoryTraceFilterIntervals")
     .selectAll()
     .execute();
@@ -1117,7 +1117,7 @@ test("pruneByChain updates filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const logFilterIntervals = await database.syncDb
+  const logFilterIntervals = await database.orm.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1125,7 +1125,7 @@ test("pruneByChain updates filters", async (context) => {
   expect(logFilterIntervals).toHaveLength(2);
   expect(Number(logFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const factoryLogFilterIntervals = await database.syncDb
+  const factoryLogFilterIntervals = await database.orm.sync
     .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1133,7 +1133,7 @@ test("pruneByChain updates filters", async (context) => {
   expect(factoryLogFilterIntervals).toHaveLength(2);
   expect(Number(factoryLogFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const traceFilterIntervals = await database.syncDb
+  const traceFilterIntervals = await database.orm.sync
     .selectFrom("traceFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1141,7 +1141,7 @@ test("pruneByChain updates filters", async (context) => {
   expect(traceFilterIntervals).toHaveLength(2);
   expect(Number(traceFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const factoryTraceFilterIntervals = await database.syncDb
+  const factoryTraceFilterIntervals = await database.orm.sync
     .selectFrom("factoryTraceFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1174,7 +1174,7 @@ test("pruneByChain deletes block filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const blockFilterIntervals = await database.syncDb
+  const blockFilterIntervals = await database.orm.sync
     .selectFrom("blockFilterIntervals")
     .selectAll()
     .execute();
@@ -1205,7 +1205,7 @@ test("pruneByChain updates block filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const blockFilterIntervals = await database.syncDb
+  const blockFilterIntervals = await database.orm.sync
     .selectFrom("blockFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1266,20 +1266,20 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 3 });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
-  const blocks = await database.syncDb
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
-  const callTraces = await database.syncDb
+  const callTraces = await database.orm.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
-  const transactions = await database.syncDb
+  const transactions = await database.orm.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.orm.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();

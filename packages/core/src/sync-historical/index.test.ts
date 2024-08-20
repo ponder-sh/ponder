@@ -82,11 +82,11 @@ test("sync() with log filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
 
   expect(logs).toHaveLength(2);
 
-  const intervals = await database.syncDb
+  const intervals = await database.orm.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
@@ -111,18 +111,18 @@ test("sync() with log filter and transaction receipts", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
 
   expect(logs).toHaveLength(2);
 
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.orm.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
 
   expect(transactionReceipts).toHaveLength(2);
 
-  const intervals = await database.syncDb
+  const intervals = await database.orm.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
@@ -145,14 +145,14 @@ test("sync() with block filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const blocks = await database.syncDb
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
 
   expect(blocks).toHaveLength(3);
 
-  const intervals = await database.syncDb
+  const intervals = await database.orm.sync
     .selectFrom("blockFilterIntervals")
     .selectAll()
     .execute();
@@ -175,11 +175,11 @@ test("sync() with log factory", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
 
   expect(logs).toHaveLength(2);
 
-  const intervals = await database.syncDb
+  const intervals = await database.orm.sync
     .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .execute();
@@ -202,14 +202,14 @@ test("sync() with trace filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const callTraces = await database.syncDb
+  const callTraces = await database.orm.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
 
   expect(callTraces).toHaveLength(4);
 
-  const intervals = await database.syncDb
+  const intervals = await database.orm.sync
     .selectFrom("traceFilterIntervals")
     .selectAll()
     .execute();
@@ -232,10 +232,10 @@ test("sync() with many filters", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(4);
 
-  const blocks = await database.syncDb
+  const blocks = await database.orm.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -521,7 +521,7 @@ test("syncAddress() handles many addresses", async (context) => {
 
   await historicalSync.sync([0, 10 + 5 + 2]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.orm.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(14);
 
   await cleanup();

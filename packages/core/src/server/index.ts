@@ -27,14 +27,12 @@ export async function createServer({
   common,
   schema,
   database,
-  dbNamespace,
 }: {
   app: Hono;
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
   database: Database;
-  dbNamespace: string;
 }): Promise<Server> {
   // Create hono app
 
@@ -95,7 +93,7 @@ export async function createServer({
   });
 
   const db = createDrizzleDb(database);
-  const tables = createDrizzleTables(schema, database, dbNamespace);
+  const tables = createDrizzleTables(schema, database);
 
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {

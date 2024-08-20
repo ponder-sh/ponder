@@ -27,8 +27,6 @@ export async function runServer({
     common,
     schema,
     database,
-    dbNamespace:
-      databaseConfig.kind === "sqlite" ? "public" : databaseConfig.schema,
   });
 
   return async () => {
