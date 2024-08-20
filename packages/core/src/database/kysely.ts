@@ -47,7 +47,6 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         return result;
       } catch (_error) {
         const error = _error as Error;
-        console.log(error);
 
         this.common.metrics.ponder_database_method_duration.observe(
           { service: this.name, method: options.method },

@@ -317,7 +317,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
       buildId: "def",
     }),
   ).rejects.toThrow(
-    "Failed to acquire lock on database file 'public.db'. A different Ponder app is actively using this database.",
+    "Failed to acquire lock on schema 'public'. A different Ponder app is actively using this database.",
   );
 
   await database.kill();
@@ -340,7 +340,7 @@ test("setup throws if there is a table name collision", async (context) => {
   await expect(() =>
     database.manageDatabaseEnv({ buildId: "abc" }),
   ).rejects.toThrow(
-    "Unable to create table 'Pet' in 'public.db' because a table with that name already exists. Is there another application using the 'public.db' database file?",
+    "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
   );
 
   await database.kill();

@@ -562,7 +562,7 @@ export const createDatabase = (args: {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create table '${namespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${namespace}' database scheme?`,
+                      `Unable to create table '${namespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${namespace}' database schema?`,
                     );
                   });
 
@@ -709,7 +709,7 @@ export const createDatabase = (args: {
 
               args.common.logger.info({
                 service: "database",
-                msg: `Detected cache hit for build '${buildId}' in scheme '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+                msg: `Detected cache hit for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
               });
               args.common.logger.debug({
                 service: "database",
