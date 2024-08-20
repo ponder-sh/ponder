@@ -10,6 +10,7 @@ import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { PonderRoutes } from "@/hono/index.js";
 import type { Schema } from "@/schema/common.js";
 import type { Source } from "@/sync/source.js";
+import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
@@ -458,7 +459,7 @@ const executeConfig = async (
   const config = executeResult.exports.default as Config;
 
   const contentHash = createHash("sha256")
-    .update(JSON.stringify(config))
+    .update(serialize(config))
     .digest("hex");
 
   return { status: "success", config, contentHash } as const;
@@ -487,7 +488,7 @@ const executeSchema = async (
   const schema = executeResult.exports.default as Schema;
 
   const contentHash = createHash("sha256")
-    .update(JSON.stringify(schema))
+    .update(serialize(schema))
     .digest("hex");
 
   return { status: "success", schema, contentHash };
