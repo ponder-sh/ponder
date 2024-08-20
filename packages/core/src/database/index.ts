@@ -709,7 +709,7 @@ export const createDatabase = (args: {
 
               args.common.logger.info({
                 service: "database",
-                msg: `Detected cache hit for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+                msg: `Detected cache hit for build '${buildId}' in schemaq '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
               });
               args.common.logger.debug({
                 service: "database",
