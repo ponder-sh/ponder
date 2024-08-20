@@ -3,12 +3,12 @@ import type { NamespaceInfo } from "./service.js";
 
 export const revertIndexingTables = async ({
   checkpoint,
-  namespaceInfo,
   db,
+  namespace,
 }: {
-  namespaceInfo: NamespaceInfo;
-  db: HeadlessKysely<any>;
   checkpoint: string;
+  db: HeadlessKysely<any>;
+  namespace: string;
 }) => {
   await db.wrap({ method: "revert" }, async () => {
     await Promise.all(

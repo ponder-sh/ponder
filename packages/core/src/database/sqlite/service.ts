@@ -243,7 +243,7 @@ export class SqliteDatabaseService implements BaseDatabaseService {
             }
           };
 
-          // Create ponder_metadata table if it doesn't exist
+          // Create _ponder_meta table if it doesn't exist
           await tx.schema
             .withSchema(this.userNamespace)
             .createTable("_ponder_meta")

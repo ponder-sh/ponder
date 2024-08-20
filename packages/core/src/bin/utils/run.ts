@@ -1,9 +1,7 @@
 import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
-import { SqliteDatabaseService } from "@/database/sqlite/service.js";
+import { createSqliteDatabase } from "@/database/index.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
@@ -48,27 +46,14 @@ export async function run({
   } = build;
 
   let isKilled = false;
-  let database: DatabaseService;
-  let namespaceInfo: NamespaceInfo;
-  let initialCheckpoint: Checkpoint;
 
-  if (databaseConfig.kind === "sqlite") {
-    const { directory } = databaseConfig;
-    database = new SqliteDatabaseService({ common, directory });
-    [namespaceInfo, initialCheckpoint] = await database
-      .setup({ schema, buildId })
-      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
-  } else {
-    const { poolConfig, schema: userNamespace } = databaseConfig;
-    database = new PostgresDatabaseService({
-      common,
-      poolConfig,
-      userNamespace,
-    });
-    [namespaceInfo, initialCheckpoint] = await database
-      .setup({ schema, buildId })
-      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
-  }
+  const database = await createSqliteDatabase({
+    common,
+    schema,
+    databaseConfig,
+  });
+  const initialCheckpoint = await database.setup({ buildId });
+
   const syncStore = createSyncStore({
     common,
     db: database.syncDb,
@@ -111,7 +96,7 @@ export async function run({
   };
 
   const handleReorg = async (checkpoint: string) => {
-    await database.revert({ checkpoint, namespaceInfo });
+    await database.revert({ checkpoint });
   };
 
   const handleFinalize = async (checkpoint: string) => {
