@@ -420,10 +420,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          */
         case "block":
           {
-            const filters = args.sources
-              .filter(({ filter }) => filter.chainId === network.chainId)
-              .map(({ filter }) => filter);
-
             // Update local sync, record checkpoint before and after
             let from = getChainsCheckpoint("latest")!;
             localSync.latestBlock = event.block;
@@ -464,7 +460,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               if (isKilled) return;
               if (from === to) break;
               const { events, cursor } = await args.syncStore.getEvents({
-                filters,
+                filters: args.sources.map(({ filter }) => filter),
                 from,
                 to,
                 limit: args.common.options.syncEventsQuerySize,
