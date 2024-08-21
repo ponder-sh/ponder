@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.18
+
+### Patch Changes
+
+- [#1056](https://github.com/ponder-sh/ponder/pull/1056) [`313267cbe93679b9b18a38929ee07b3a2008bb0f`](https://github.com/ponder-sh/ponder/commit/313267cbe93679b9b18a38929ee07b3a2008bb0f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.5.9 that caused events to be missed in realtime when indexing multiple chains. This issue does not affect database integrity, but affected apps should restart to ensure all events are indexed.
+
 ## 0.5.17
 
 ### Patch Changes
