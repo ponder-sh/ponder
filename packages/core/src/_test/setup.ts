@@ -141,7 +141,7 @@ export async function setupDatabaseServices(
     schema: config.schema,
   });
 
-  await database.manageDatabaseEnv(config);
+  await database.prepareEnv(config);
 
   await database.migrateSync();
 

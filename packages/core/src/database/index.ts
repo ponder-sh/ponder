@@ -35,6 +35,7 @@ import {
   type Kysely,
   Migrator,
   PostgresDialect,
+  type Transaction,
   WithSchemaPlugin,
   sql as ksql,
 } from "kysely";
@@ -42,7 +43,6 @@ import { SqliteDialect } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
-import { revertIndexingTables } from "./revert.js";
 
 export type Database<
   sql extends "sqlite" | "postgres" = "sqlite" | "postgres",
@@ -67,7 +67,7 @@ export type Database<
    * - If table name collision, exit
    * - Else, start
    */
-  manageDatabaseEnv(args: { buildId: string }): Promise<{ checkpoint: string }>;
+  prepareEnv(args: { buildId: string }): Promise<{ checkpoint: string }>;
   revert(args: { checkpoint: string }): Promise<void>;
   updateFinalizedCheckpoint(args: { checkpoint: string }): Promise<void>;
   createIndexes(args: { schema: Schema }): Promise<void>;
@@ -429,6 +429,67 @@ export const createDatabase = (args: {
     return sql === "sqlite" ? JSON.stringify(app) : (app as any);
   };
 
+  const revert = async ({
+    tableName,
+    checkpoint,
+    tx,
+  }: {
+    tableName: string;
+    checkpoint: string;
+    tx: Transaction<PonderInternalSchema>;
+  }) => {
+    const rows = await tx
+      .deleteFrom(`_ponder_reorg_${tableName}`)
+      .returningAll()
+      .where("checkpoint", ">", checkpoint)
+      .execute();
+
+    const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
+
+    // undo operation
+    for (const log of reversed) {
+      if (log.operation === 0) {
+        // Create
+        await tx
+          .deleteFrom(tableName)
+          .where("id", "=", log.id as any)
+          .execute();
+      } else if (log.operation === 1) {
+        // Update
+
+        // @ts-ignore
+        log.operation_id = undefined;
+        // @ts-ignore
+        log.checkpoint = undefined;
+        // @ts-ignore
+        log.operation = undefined;
+        await tx
+          .updateTable(tableName)
+          .set(log as any)
+          .where("id", "=", log.id as any)
+          .execute();
+      } else {
+        // Delete
+
+        // @ts-ignore
+        log.operation_id = undefined;
+        // @ts-ignore
+        log.checkpoint = undefined;
+        // @ts-ignore
+        log.operation = undefined;
+        await tx
+          .insertInto(tableName)
+          .values(log as any)
+          .execute();
+      }
+    }
+
+    args.common.logger.info({
+      service: "database",
+      msg: `Reverted ${rows.length} unfinalized operations from '${tableName}' table`,
+    });
+  };
+
   return {
     sql,
     namespace,
@@ -462,7 +523,7 @@ export const createDatabase = (args: {
         if (error) throw error;
       });
     },
-    async manageDatabaseEnv({ buildId }) {
+    async prepareEnv({ buildId }) {
       ////////
       // Migrate
       ////////
@@ -746,56 +807,10 @@ export const createDatabase = (args: {
               });
 
               for (const tableName of Object.keys(getTables(args.schema))) {
-                const rows = await tx
-                  .deleteFrom(`_ponder_reorg_${tableName}`)
-                  .returningAll()
-                  .where("checkpoint", ">", previousApp.checkpoint)
-                  .execute();
-
-                const reversed = rows.sort(
-                  (a, b) => b.operation_id - a.operation_id,
-                );
-
-                for (const log of reversed) {
-                  if (log.operation === 0) {
-                    // Create
-                    await tx
-                      .deleteFrom(tableName)
-                      .where("id", "=", log.id as any)
-                      .execute();
-                  } else if (log.operation === 1) {
-                    // Update
-
-                    // @ts-ignore
-                    log.operation_id = undefined;
-                    // @ts-ignore
-                    log.checkpoint = undefined;
-                    // @ts-ignore
-                    log.operation = undefined;
-                    await tx
-                      .updateTable(tableName)
-                      .set(log as any)
-                      .where("id", "=", log.id as any)
-                      .execute();
-                  } else {
-                    // Delete
-
-                    // @ts-ignore
-                    log.operation_id = undefined;
-                    // @ts-ignore
-                    log.checkpoint = undefined;
-                    // @ts-ignore
-                    log.operation = undefined;
-                    await tx
-                      .insertInto(tableName)
-                      .values(log as any)
-                      .execute();
-                  }
-                }
-
-                args.common.logger.info({
-                  service: "database",
-                  msg: `Reverted ${rows.length} unfinalized operations from existing '${tableName}' table`,
+                await revert({
+                  tableName,
+                  checkpoint: previousApp.checkpoint,
+                  tx,
                 });
               }
 
@@ -962,12 +977,16 @@ export const createDatabase = (args: {
         }),
       );
     },
-    revert({ checkpoint }) {
-      return revertIndexingTables({
-        checkpoint,
-        db: orm.internal,
-        schema: args.schema,
-      });
+    async revert({ checkpoint }) {
+      await orm.internal.wrap({ method: "revert" }, () =>
+        Promise.all(
+          Object.keys(getTables(args.schema)).map((tableName) =>
+            orm.internal
+              .transaction()
+              .execute(async (tx) => revert({ tableName, checkpoint, tx })),
+          ),
+        ),
+      );
     },
     async updateFinalizedCheckpoint({ checkpoint }) {
       await orm.internal.wrap(

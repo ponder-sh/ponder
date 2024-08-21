@@ -1,8 +1,13 @@
-import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import {
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import { createSchema } from "@/schema/schema.js";
 import {
+  type Checkpoint,
   encodeCheckpoint,
   maxCheckpoint,
   zeroCheckpoint,
@@ -53,6 +58,10 @@ const schemaTwo = createSchema((p) => ({
   }),
 }));
 
+function createCheckpoint(index: number): Checkpoint {
+  return { ...zeroCheckpoint, blockTimestamp: index };
+}
+
 test("setup succeeds with a fresh database", async (context) => {
   const database = createDatabase({
     common: context.common,
@@ -60,7 +69,7 @@ test("setup succeeds with a fresh database", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  const { checkpoint } = await database.manageDatabaseEnv({ buildId: "abc" });
+  const { checkpoint } = await database.prepareEnv({ buildId: "abc" });
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
@@ -81,7 +90,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -97,7 +106,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
   expect(tableNames).toContain("_ponder_reorg_Pet");
   expect(tableNames).toContain("_ponder_reorg_Person");
 
-  await databaseTwo.manageDatabaseEnv({ buildId: "def" });
+  await databaseTwo.prepareEnv({ buildId: "def" });
 
   tableNames = await getUserTableNames(databaseTwo);
 
@@ -117,7 +126,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -144,7 +153,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
   expect(tableNames).toContain("not_a_ponder_table");
   expect(tableNames).toContain("AnotherTable");
 
-  await databaseTwo.manageDatabaseEnv({ buildId: "def" });
+  await databaseTwo.prepareEnv({ buildId: "def" });
 
   tableNames = await getUserTableNames(databaseTwo);
 
@@ -164,7 +173,7 @@ test("setup with the same build ID and namespace reverts to and returns the fina
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   const realtimeIndexingStore = getRealtimeStore({
     encoding: context.databaseConfig.kind,
@@ -219,7 +228,7 @@ test("setup with the same build ID and namespace reverts to and returns the fina
     databaseConfig: context.databaseConfig,
   });
 
-  const { checkpoint } = await databaseTwo.manageDatabaseEnv({
+  const { checkpoint } = await databaseTwo.prepareEnv({
     buildId: "abc",
   });
 
@@ -251,7 +260,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
     schema,
     databaseConfig: context.databaseConfig,
   });
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -285,7 +294,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
     })
     .execute();
 
-  const { checkpoint } = await databaseTwo.manageDatabaseEnv({
+  const { checkpoint } = await databaseTwo.prepareEnv({
     buildId: "def",
   });
 
@@ -304,7 +313,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   const databaseTwo = createDatabase({
     common: context.common,
@@ -313,7 +322,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
   });
 
   await expect(() =>
-    databaseTwo.manageDatabaseEnv({
+    databaseTwo.prepareEnv({
       buildId: "def",
     }),
   ).rejects.toThrow(
@@ -337,9 +346,7 @@ test("setup throws if there is a table name collision", async (context) => {
 
   expect(await getUserTableNames(database)).toStrictEqual(["Pet"]);
 
-  await expect(() =>
-    database.manageDatabaseEnv({ buildId: "abc" }),
-  ).rejects.toThrow(
+  await expect(() => database.prepareEnv({ buildId: "abc" })).rejects.toThrow(
     "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
   );
 
@@ -355,7 +362,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     schema,
     databaseConfig: context.databaseConfig,
   });
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   const row = await database.orm.internal
     .selectFrom("_ponder_meta")
@@ -395,7 +402,7 @@ test("updateFinalizedCheckpoint updates lock table", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({
+  await database.prepareEnv({
     buildId: "abc",
   });
 
@@ -426,7 +433,7 @@ test("kill releases the namespace lock", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   const row = await database.orm.internal
     .selectFrom("_ponder_meta")
@@ -472,7 +479,7 @@ test("createIndexes adds a single column index", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   await database.createIndexes({ schema });
 
@@ -492,7 +499,7 @@ test("createIndexes adds a multi column index", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   await database.createIndexes({ schema });
 
@@ -524,7 +531,7 @@ test("createIndexes with ordering", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.manageDatabaseEnv({ buildId: "abc" });
+  await database.prepareEnv({ buildId: "abc" });
 
   await database.createIndexes({ schema });
 
@@ -546,7 +553,7 @@ test(
       databaseConfig: context.databaseConfig,
     });
 
-    await database.manageDatabaseEnv({ buildId: "abc" });
+    await database.prepareEnv({ buildId: "abc" });
 
     await database.createIndexes({ schema });
 
@@ -558,7 +565,7 @@ test(
       databaseConfig: context.databaseConfig,
     });
 
-    await databaseTwo.manageDatabaseEnv({ buildId: "abc" });
+    await databaseTwo.prepareEnv({ buildId: "abc" });
 
     const indexes = await getUserIndexNames(databaseTwo, "Person");
 
@@ -570,6 +577,125 @@ test(
   },
   { timeout: 30_000 },
 );
+
+test("revert() deletes versions newer than the safe timestamp", async (context) => {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
+      schema,
+      indexing: "realtime",
+    },
+  );
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Skip" },
+  });
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(13)),
+    id: "id2",
+    data: { name: "Foo" },
+  });
+  await indexingStore.update({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(15)),
+    id: "id1",
+    data: { name: "SkipUpdated" },
+  });
+  await indexingStore.create({
+    tableName: "Person",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+    data: { name: "Bob" },
+  });
+  await indexingStore.update({
+    tableName: "Person",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(11)),
+    id: "id1",
+    data: { name: "Bobby" },
+  });
+  await indexingStore.create({
+    tableName: "Person",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(12)),
+    id: "id2",
+    data: { name: "Kevin" },
+  });
+
+  await database.revert({
+    checkpoint: encodeCheckpoint(createCheckpoint(12)),
+  });
+
+  const { items: pets } = await indexingStore.findMany({ tableName: "Pet" });
+
+  expect(pets.length).toBe(1);
+  expect(pets[0]!.name).toBe("Skip");
+
+  const { items: persons } = await indexingStore.findMany({
+    tableName: "Person",
+  });
+
+  expect(persons.length).toBe(2);
+  expect(persons[0]!.name).toBe("Bobby");
+  expect(persons[1]!.name).toBe("Kevin");
+
+  const PetLogs = await database.orm.user
+    .selectFrom("_ponder_reorg_Pet")
+    .selectAll()
+    .execute();
+
+  expect(PetLogs).toHaveLength(1);
+
+  const PersonLogs = await database.orm.user
+    .selectFrom("_ponder_reorg_Person")
+    .selectAll()
+    .execute();
+  expect(PersonLogs).toHaveLength(3);
+
+  await cleanup();
+});
+
+test("revert() updates versions with intermediate logs", async (context) => {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
+      schema,
+      indexing: "realtime",
+    },
+  );
+
+  await indexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(9)),
+    id: "id1",
+    data: { name: "Skip" },
+  });
+  await indexingStore.delete({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+    id: "id1",
+  });
+
+  await database.revert({
+    checkpoint: encodeCheckpoint(createCheckpoint(8)),
+  });
+
+  const instancePet = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instancePet).toBe(null);
+
+  const PetLogs = await database.orm.user
+    .selectFrom("_ponder_reorg_Pet")
+    .selectAll()
+    .execute();
+  expect(PetLogs).toHaveLength(0);
+
+  await cleanup();
+});
 
 async function getUserTableNames(database: Database) {
   const { rows } = await database.orm.internal.executeQuery<{ name: string }>(

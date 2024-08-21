@@ -52,7 +52,7 @@ export async function run({
     schema,
     databaseConfig,
   });
-  const { checkpoint: initialCheckpoint } = await database.manageDatabaseEnv({
+  const { checkpoint: initialCheckpoint } = await database.prepareEnv({
     buildId,
   });
 
