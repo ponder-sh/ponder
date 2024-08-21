@@ -66,6 +66,20 @@ export const syncBlockToLightBlock = ({
   timestamp,
 }: SyncBlock): LightBlock => ({ hash, parentHash, number, timestamp });
 
+/** Convert `block` to a `Checkpoint`. */
+export const blockToCheckpoint = (
+  block: LightBlock | SyncBlock,
+  chainId: number,
+  rounding: "up" | "down",
+): Checkpoint => {
+  return {
+    ...(rounding === "up" ? maxCheckpoint : zeroCheckpoint),
+    blockTimestamp: hexToNumber(block.timestamp),
+    chainId: BigInt(chainId),
+    blockNumber: hexToBigInt(block.number),
+  };
+};
+
 type CreateSyncParameters = {
   common: Common;
   syncStore: SyncStore;
@@ -117,20 +131,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       });
     }
   }
-
-  /** Convert `block` to a `Checkpoint`. */
-  const blockToCheckpoint = (
-    block: LightBlock | SyncBlock,
-    chainId: number,
-    rounding: "up" | "down",
-  ): Checkpoint => {
-    return {
-      ...(rounding === "up" ? maxCheckpoint : zeroCheckpoint),
-      blockTimestamp: hexToNumber(block.timestamp),
-      chainId: BigInt(chainId),
-      blockNumber: hexToBigInt(block.number),
-    };
-  };
 
   /**
    * Returns the minimum checkpoint across all chains.
