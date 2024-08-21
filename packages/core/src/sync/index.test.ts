@@ -388,7 +388,8 @@ test("onEvent() multichain", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  sources[1].filter.toBlock = 1;
+  // `sources[0]` will not match any events
+  sources[0].filter.interval = 10;
 
   const promise = promiseWithResolvers<void>();
 
@@ -397,8 +398,12 @@ test("onEvent() multichain", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: () => {
-      promise.resolve();
+    onRealtimeEvent: (event) => {
+      if (event.type === "block") {
+        if (event.events.length > 0) {
+          promise.resolve();
+        }
+      }
     },
     onFatalError: () => {},
     initialCheckpoint: zeroCheckpoint,
