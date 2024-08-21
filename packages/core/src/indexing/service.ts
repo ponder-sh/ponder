@@ -48,7 +48,6 @@ export type Context = {
       address?: Address | readonly Address[];
       startBlock: number;
       endBlock?: number;
-      maxBlockRange?: number;
     }
   >;
 };
@@ -153,7 +152,6 @@ export const create = ({
       address: address ? checksumAddress(address) : address,
       startBlock: source.filter.fromBlock,
       endBlock: source.filter.toBlock,
-      maxBlockRange: source.maxBlockRange,
     };
   }
 

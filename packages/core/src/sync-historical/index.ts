@@ -31,7 +31,16 @@ import {
   _trace_filter,
 } from "@/utils/rpc.js";
 import { dedupe } from "@ponder/common";
-import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
+import { getLogsRetryHelper } from "@ponder/utils";
+import {
+  type Address,
+  type Hash,
+  type LogTopic,
+  type RpcError,
+  hexToBigInt,
+  hexToNumber,
+  toHex,
+} from "viem";
 
 export type HistoricalSync = {
   /** Closest-to-tip block that is synced. */
@@ -66,7 +75,10 @@ export const createHistoricalSync = async (
    */
   const transactionsCache = new Set<Hash>();
 
-  // const logMetadata = new Map<LogFilter, { range: number }>();
+  const logRequestMetadata = new Map<
+    LogFilter | LogFactory,
+    { range: number; isFixed: boolean }
+  >();
 
   /**
    * Intervals that have been completed for all filters in `args.sources`.
@@ -117,6 +129,65 @@ export const createHistoricalSync = async (
   // Helper functions for specific sync tasks
   ////////
 
+  /**
+   * ...
+   */
+  const logRequestHelper = async ({
+    address,
+    topics,
+    interval,
+    filter,
+  }: {
+    address?: Address | Address[];
+    topics?: LogTopic[];
+    interval: Interval;
+    filter: LogFilter | LogFactory;
+  }): Promise<SyncLog[]> => {
+    const range =
+      logRequestMetadata.get(filter)?.range ?? interval[1] - interval[0] + 1;
+
+    return Promise.all(
+      getChunks({ interval, maxChunkSize: range }).map((interval) =>
+        _eth_getLogs(args.requestQueue, {
+          address,
+          topics,
+          fromBlock: interval[0],
+          toBlock: interval[1],
+        }).catch((error) => {
+          const getLogsErrorResponse = getLogsRetryHelper({
+            params: [
+              {
+                address,
+                topics,
+                fromBlock: toHex(interval[0]),
+                toBlock: toHex(interval[1]),
+              },
+            ],
+            error: error as RpcError,
+          });
+
+          if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+          const range =
+            hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+            hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
+
+          args.common.logger.debug({
+            service: "sync",
+            msg: `Caught eth_getLogs error on '${
+              args.network.name
+            }', updating recommended range to ${range}.`,
+          });
+
+          // TODO(kyle) implement dynamic increasing intervals
+          logRequestMetadata.set(filter, { range, isFixed: false });
+
+          return logRequestHelper({ address, topics, interval, filter });
+        }),
+      ),
+    ).then((logs) => logs.flat());
+  };
+
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
     // Resolve `filter.address`
     let address: Address | Address[] | undefined;
@@ -141,21 +212,21 @@ export const createHistoricalSync = async (
       const _promises: Promise<SyncLog[]>[] = [];
       for (let i = 0; i < address.length; i += 50) {
         _promises.push(
-          _eth_getLogs(args.requestQueue, {
+          logRequestHelper({
             address: address.slice(i, i + 50),
             topics: filter.topics,
-            fromBlock: interval[0],
-            toBlock: interval[1],
+            interval,
+            filter,
           }),
         );
       }
       logs = await Promise.all(_promises).then((logs) => logs.flat());
     } else {
-      logs = await _eth_getLogs(args.requestQueue, {
+      logs = await logRequestHelper({
         address,
         topics: filter.topics,
-        fromBlock: interval[0],
-        toBlock: interval[1],
+        interval,
+        filter,
       });
     }
 
@@ -284,11 +355,11 @@ export const createHistoricalSync = async (
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
-    const logs = await _eth_getLogs(args.requestQueue, {
+    const logs = await logRequestHelper({
       address: filter.address,
       topics: [filter.eventSelector],
-      fromBlock: interval[0],
-      toBlock: interval[1],
+      interval,
+      filter,
     });
 
     if (isKilled) return;
@@ -422,22 +493,15 @@ export const createHistoricalSync = async (
                 const filter = source.filter;
                 switch (filter.type) {
                   case "log": {
-                    const maxChunkSize =
-                      source.maxBlockRange ?? args.network.defaultMaxBlockRange;
-                    await Promise.all(
-                      getChunks({ interval, maxChunkSize }).map(
-                        async (interval) => {
-                          await syncLogFilter(filter, interval);
-                          args.common.metrics.ponder_historical_completed_blocks.inc(
-                            {
-                              network: source.networkName,
-                              source: source.name,
-                              type: source.filter.type,
-                            },
-                            interval[1] - interval[0] + 1,
-                          );
-                        },
-                      ),
+                    await syncLogFilter(filter, interval);
+                    // TODO(kyle) more frequently updating metrics
+                    args.common.metrics.ponder_historical_completed_blocks.inc(
+                      {
+                        network: source.networkName,
+                        source: source.name,
+                        type: source.filter.type,
+                      },
+                      interval[1] - interval[0] + 1,
                     );
                     break;
                   }

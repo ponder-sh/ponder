@@ -530,8 +530,6 @@ test("syncAddress() handles many addresses", async (context) => {
 test("sync() chunks requests", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  context.sources[0].maxBlockRange = 1;
-
   const historicalSync = await createHistoricalSync({
     common: context.common,
     network: context.networks[0],

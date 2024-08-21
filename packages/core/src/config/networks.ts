@@ -9,64 +9,9 @@ export type Network = {
   pollingInterval: number;
   maxRequestsPerSecond: number;
   maxHistoricalTaskConcurrency: number;
-  defaultMaxBlockRange: number;
   finalityBlockCount: number;
   disableCache: boolean;
 };
-
-export function getDefaultMaxBlockRange({
-  chainId,
-  rpcUrls,
-}: {
-  chainId: number;
-  rpcUrls: (string | undefined)[];
-}) {
-  let maxBlockRange: number;
-  switch (chainId) {
-    // Mainnet and mainnet testnets.
-    case 1:
-    case 3:
-    case 4:
-    case 5:
-    case 42:
-    case 11155111:
-      maxBlockRange = 2_000;
-      break;
-    // Optimism.
-    case 10:
-    case 420:
-      maxBlockRange = 50_000;
-      break;
-    // Polygon.
-    case 137:
-    case 80001:
-      maxBlockRange = 50_000;
-      break;
-    // Arbitrum.
-    case 42161:
-    case 421613:
-      maxBlockRange = 50_000;
-      break;
-    default:
-      maxBlockRange = 50_000;
-  }
-
-  const isQuickNode = rpcUrls
-    .filter((url): url is string => url !== undefined)
-    .some((url) => url.includes("quiknode"));
-
-  const isCloudflare = rpcUrls
-    .filter((url): url is string => url !== undefined)
-    .some((url) => url.includes("cloudflare-eth"));
-
-  if (isQuickNode) {
-    maxBlockRange = Math.min(maxBlockRange, 10_000);
-  } else if (isCloudflare) {
-    maxBlockRange = Math.min(maxBlockRange, 800);
-  }
-
-  return maxBlockRange;
-}
 
 /**
  * Returns the number of blocks that must pass before a block is considered final.

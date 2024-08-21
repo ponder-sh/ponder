@@ -10,8 +10,6 @@ export type BlockConfig = {
   startBlock?: number;
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
   endBlock?: number;
-  /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
-  maxBlockRange?: number;
 };
 
 type DatabaseConfig =
