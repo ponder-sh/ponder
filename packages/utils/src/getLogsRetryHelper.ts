@@ -192,6 +192,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
