@@ -484,8 +484,6 @@ export const createHistoricalSync = async (
           // Request last block of interval
           const blockPromise = syncBlock(BigInt(interval[1]));
 
-          // TODO(kyle) use filter metadata for recommended "eth_getLogs" chunk size
-
           // sync required intervals, account for chunk sizes
           await Promise.all(
             requiredIntervals.map(async (interval) => {
