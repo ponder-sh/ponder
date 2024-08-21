@@ -130,7 +130,7 @@ export const createHistoricalSync = async (
   ////////
 
   /**
-   * ...
+   * Split "eth_getLogs" requests into ranges inferred from errors.
    */
   const logRequestHelper = async ({
     address,
@@ -146,7 +146,7 @@ export const createHistoricalSync = async (
     const range =
       logRequestMetadata.get(filter)?.range ?? interval[1] - interval[0] + 1;
 
-    return Promise.all(
+    const logs = await Promise.all(
       getChunks({ interval, maxChunkSize: range }).map((interval) =>
         _eth_getLogs(args.requestQueue, {
           address,
@@ -179,13 +179,24 @@ export const createHistoricalSync = async (
             }', updating recommended range to ${range}.`,
           });
 
-          // TODO(kyle) implement dynamic increasing intervals
-          logRequestMetadata.set(filter, { range, isFixed: false });
+          logRequestMetadata.set(filter, {
+            range,
+            isFixed: getLogsErrorResponse.isSuggestedRange,
+          });
 
           return logRequestHelper({ address, topics, interval, filter });
         }),
       ),
     ).then((logs) => logs.flat());
+
+    // Slowly increase range for filters without a determined retry range
+    if (logRequestMetadata.get(filter)?.isFixed === false) {
+      logRequestMetadata.get(filter)!.range = Math.round(
+        logRequestMetadata.get(filter)!.range * 1.05,
+      );
+    }
+
+    return logs;
   };
 
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
