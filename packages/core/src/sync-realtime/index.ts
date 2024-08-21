@@ -153,6 +153,11 @@ export const createRealtimeSync = (
       }
     }
 
+    /**
+     * `logs` and `callTraces` must be filtered again (already filtered in `extract`)
+     *  because `extract` doesn't have factory address information.
+     */
+
     // Remove logs that don't match a filter, accounting for factory addresses
     logs = logs.filter((log) =>
       logFilters.some((filter) => {
@@ -631,7 +636,6 @@ export const createRealtimeSync = (
         },
       });
 
-      // TODO(kyle) track errors in this block
       const enqueue = async () => {
         try {
           const block = await _eth_getBlockByNumber(args.requestQueue, {

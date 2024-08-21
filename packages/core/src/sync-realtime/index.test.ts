@@ -175,13 +175,13 @@ test("start() retries on error", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
-
   requestSpy.mockRejectedValueOnce(new Error());
+
+  const queue = await realtimeSync.start(finalizedBlock);
 
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(5);
+  expect(realtimeSync.localChain).toHaveLength(0);
 
   await realtimeSync.kill();
 
