@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.19
+
+### Patch Changes
+
+- [#1059](https://github.com/ponder-sh/ponder/pull/1059) [`7b8129dd2817fd7749511b5d0937a2818a9365c0`](https://github.com/ponder-sh/ponder/commit/7b8129dd2817fd7749511b5d0937a2818a9365c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved precision of historical sync cache for faster startup times.
+
 ## 0.5.18
 
 ### Patch Changes
