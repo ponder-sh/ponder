@@ -8,9 +8,25 @@ import { Callout } from "nextra/components";
 
 # Deploy
 
-## Database
+## Database schema
 
-## Healthchecks (`/health` and `/ready`)
+Ponder uses a single database schema for user tables, metadata, and reorg information. This schema follows a strict set of rules to avoid two Ponder apps writing to the same tables or accidentally dropping tables from a running Ponder app.
+
+<Callout type="default">
+  The default schema is "public" but gets [overriden](/docs/production/deploy#zero-downtime) when executing on Railway. This behavior can be configured in [`ponder.config.ts`](/docs/api-reference/config#postgres)
+</Callout>
+
+## Cached indexing
+
+## Healthchecks
+
+### `/health`
+
+Returns a `200` status code immediately after the app starts running
+
+### `/ready`
+
+Returns a `200` status code after the app has completed the historical backfill and is available to serve traffic
 
 ## Railway (recommended)
 
@@ -29,7 +45,7 @@ From the Railway console:
 1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list
 2. Click **Add variables**, then add your project's RPC URL (e.g. `PONDER_RPC_URL_1`) and any other environment variables
 3. Expose your service to the public internet. Open the **Settings** tab and click **Generate Domain** under **Networking**
-4. Set a healthcheck path. In the **Settings** tab, enter `/health` for **Healthcheck Path** under **Deploy**
+4. Set a healthcheck path. In the **Settings** tab, enter `/ready` for **Healthcheck Path** under **Deploy**
 
 <Callout type="warning">
   _Monorepo users:_ Update the service **Root Directory** and/or **Start Command**
@@ -46,7 +62,15 @@ From the Railway console:
 
 After a moment, your Ponder service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
-### Zero downtime
+### Zero downtime deployments
+
+Ponder uses a unique database schema for each deployment on Railway. By default, this allows for zero downtime deployments with reindexing occurring on every redployment. 
+
+<Callout type="warning">
+  **Healthcheck Timeout** must be set higher than the time it takes to complete the historical backfill.
+</Callout>
+
+### Manual redployments
 
 </Steps>
 

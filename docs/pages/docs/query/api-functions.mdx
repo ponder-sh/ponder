@@ -249,7 +249,7 @@ ponder.hono.notFound((c) => {
 
 If you register API functions that conflict with these internal routes, the build will fail.
 
-- `/health`: Returns a `200` status code if the app is running. [Read more](/docs/production/deploy) about healthchecks.
-- `/ready`: Returns a `200` status code after the app has completed the historical backfill and is available to serve traffic.[Read more](/docs/production/deploy) about heatlthchecks.
+- `/health`: Returns a `200` status code immediately after the app starts running. [Read more](/docs/production/deploy#healthchecks) about healthchecks.
+- `/ready`: Returns a `200` status code after the app has completed the historical backfill and is available to serve traffic. [Read more](/docs/production/deploy#healthchecks) about heatlthchecks.
 - `/metrics`: Returns Prometheus metrics. [Read more](/docs/advanced/metrics) about metrics.
 - `/status`: Returns indexing status object. [Read more](/docs/advanced/status) about indexing status.
