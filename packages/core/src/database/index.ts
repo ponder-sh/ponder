@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
@@ -14,7 +15,10 @@ import {
   isOptionalColumn,
 } from "@/schema/utils.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
-import { migrationProvider as postgresMigrationProvider } from "@/sync-store/postgres/migrations.js";
+import {
+  moveLegacyTables,
+  migrationProvider as postgresMigrationProvider,
+} from "@/sync-store/postgres/migrations.js";
 import { migrationProvider as sqliteMigrationProvider } from "@/sync-store/sqlite/migrations.js";
 import type { UserTable } from "@/types/schema.js";
 import {
@@ -496,11 +500,14 @@ export const createDatabase = (args: {
     async migrateSync() {
       await orm.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
-        // await moveLegacyTables({
-        //   common: this.common,
-        //   db: this.db as Kysely<any>,
-        //   newSchemaName: "ponder_sync",
-        // });
+        // TODO(kevin) is the `WithSchemaPlugin` going to break this?
+        if (sql === "postgres") {
+          await moveLegacyTables({
+            common: args.common,
+            db: orm.internal,
+            newSchemaName: "ponder_sync",
+          });
+        }
 
         let migrator: Migrator;
 
@@ -526,7 +533,138 @@ export const createDatabase = (args: {
       // Migrate
       ////////
 
-      // TODO(kyle) delete v3 database files
+      // v0.4 migration ???
+
+      // v0.6 migration
+
+      if (args.databaseConfig.kind === "sqlite") {
+        const ponderFile = path.join(
+          args.databaseConfig.directory,
+          "ponder.db",
+        );
+        if (fs.existsSync(ponderFile)) {
+          const _driver = _createSqliteDatabase(ponderFile);
+          const _orm = new HeadlessKysely<any>({
+            name: "user",
+            common: args.common,
+            dialect: new SqliteDialect({ database: _driver }),
+          });
+          await orm.internal.wrap({ method: "prepareEnv" }, async () => {
+            const namespaceCount = await _orm
+              .selectFrom("namespace_lock")
+              .select(ksql`count(*)`.as("count"))
+              .executeTakeFirst();
+
+            const tableNames = await _orm
+              .selectFrom("namespace_lock")
+              .select("schema")
+              .where("namespace", "=", namespace)
+              .executeTakeFirst()
+              .then((schema) =>
+                schema === undefined
+                  ? undefined
+                  : Object.keys(JSON.parse(schema.schema).tables),
+              );
+            if (tableNames) {
+              for (const tableName of tableNames) {
+                await orm.internal.schema
+                  .dropTable(tableName)
+                  .ifExists()
+                  .execute();
+              }
+
+              await _orm
+                .deleteFrom("namespace_lock")
+                .where("namespace", "=", namespace)
+                .execute();
+
+              if (namespaceCount!.count === 1) {
+                fs.rmSync(
+                  // @ts-ignore
+                  path.join(args.databaseConfig.directory, "ponder.db"),
+                  {
+                    force: true,
+                  },
+                );
+                fs.rmSync(
+                  // @ts-ignore
+                  path.join(args.databaseConfig.directory, "ponder.db-shm"),
+                  {
+                    force: true,
+                  },
+                );
+                fs.rmSync(
+                  // @ts-ignore
+                  path.join(args.databaseConfig.directory, "ponder.db-wal"),
+                  {
+                    force: true,
+                  },
+                );
+                args.common.logger.debug({
+                  service: "database",
+                  msg: `Removed '.ponder/sqlite/ponder.db' file`,
+                });
+              }
+            }
+          });
+        }
+      } else {
+        const hasPonderSchema = await orm.internal
+          .selectFrom("information_schema.schemata")
+          .select("schema_name")
+          .where("schema_name", "=", "ponder")
+          .executeTakeFirst()
+          .then((schema) => schema?.schema_name === "ponder");
+
+        if (hasPonderSchema) {
+          await orm.internal.wrap({ method: "prepareEnv" }, async () => {
+            const namespaceCount = await orm.internal
+              .withSchema("ponder")
+              .selectFrom("namespace_lock")
+              .select(ksql`count(*)`.as("count"))
+              .executeTakeFirst();
+
+            const tableNames = await orm.internal
+              .withSchema("ponder")
+              .selectFrom("namespace_lock")
+              .select("schema")
+              .where("namespace", "=", namespace)
+              .executeTakeFirst()
+              .then((schema: any | undefined) =>
+                schema === undefined
+                  ? undefined
+                  : Object.keys(schema.schema.tables),
+              );
+            if (tableNames) {
+              for (const tableName of tableNames) {
+                await orm.internal.schema
+                  .dropTable(tableName)
+                  .ifExists()
+                  .cascade()
+                  .execute();
+              }
+
+              await orm.internal
+                .withSchema("ponder")
+                .deleteFrom("namespace_lock")
+                .where("namespace", "=", namespace)
+                .execute();
+
+              if (namespaceCount!.count === 1) {
+                await orm.internal.schema
+                  .dropSchema("ponder")
+                  .cascade()
+                  .execute();
+
+                args.common.logger.debug({
+                  service: "database",
+                  msg: `Removed 'ponder' schema`,
+                });
+              }
+            }
+          });
+        }
+      }
 
       // Create "_ponder_meta" table if it doesn't exist
       await orm.internal.schema
@@ -537,7 +675,7 @@ export const createDatabase = (args: {
         .execute();
 
       const attempt = async () =>
-        orm.internal.wrap({ method: "manageDatabaseEnv" }, () =>
+        orm.internal.wrap({ method: "prepareEnv" }, () =>
           orm.internal.transaction().execute(async (tx) => {
             ////////
             // Create tables
@@ -705,10 +843,14 @@ export const createDatabase = (args: {
             if (previousApp === undefined) {
               await tx
                 .insertInto("_ponder_meta")
-                .values([
-                  { key: "status", value: null },
-                  { key: "app", value: encodeApp(newApp) },
-                ])
+                .values({ key: "status", value: null })
+                .onConflict((oc) =>
+                  oc.column("key").doUpdateSet({ key: "status", value: null }),
+                )
+                .execute();
+              await tx
+                .insertInto("_ponder_meta")
+                .values({ key: "app", value: encodeApp(newApp) })
                 .execute();
               args.common.logger.debug({
                 service: "database",

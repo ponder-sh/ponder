@@ -406,7 +406,7 @@ test("onEvent() multichain end block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
