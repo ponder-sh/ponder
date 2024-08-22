@@ -107,9 +107,25 @@ export const createHistoricalSync = async (
     return earliestCompletedInterval[1];
   });
 
-  if (_latestCompletedBlocks.every((block) => block !== undefined)) {
+  const _minCompletedBlock = Math.min(
+    ...(_latestCompletedBlocks.filter(
+      (block) => block !== undefined,
+    ) as number[]),
+  );
+
+  /**  Filter i has known progress if a completed interval is found or if
+   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
+   * is > `_minCompletedBlock`.
+   */
+  if (
+    _latestCompletedBlocks.every(
+      (block, i) =>
+        block !== undefined ||
+        args.sources[i]!.filter.fromBlock > _minCompletedBlock,
+    )
+  ) {
     latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: Math.min(...(_latestCompletedBlocks as number[])),
+      blockNumber: _minCompletedBlock,
     });
   }
 
