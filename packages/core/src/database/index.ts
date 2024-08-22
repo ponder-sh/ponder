@@ -2,9 +2,8 @@ import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import type { Schema, Table } from "@/schema/common.js";
+import type { Schema } from "@/schema/common.js";
 import {
-  encodeSchema,
   getEnums,
   getTables,
   isEnumColumn,
@@ -52,7 +51,6 @@ export type Database<
   driver: Driver<sql>;
   orm: ORM;
   migrateSync(): Promise<void>;
-  // TODO(kyle) migrate
   /**
    * Prepare the database environment for a Ponder app.
    *
@@ -80,7 +78,7 @@ type PonderApp = {
   heartbeat_at: number;
   build_id: string;
   checkpoint: string;
-  schema: string;
+  table_names: string[];
 };
 
 type PonderInternalSchema = {
@@ -698,7 +696,7 @@ export const createDatabase = (args: {
               heartbeat_at: Date.now(),
               build_id: buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              schema: encodeSchema(args.schema),
+              table_names: Object.keys(getTables(args.schema)),
             } satisfies PonderApp;
 
             /**
@@ -842,11 +840,7 @@ export const createDatabase = (args: {
 
             // Drop old tables
 
-            for (const tableName of Object.keys(
-              JSON.parse(previousApp.schema).tables as {
-                [tableName: string]: Table;
-              },
-            )) {
+            for (const tableName of previousApp.table_names) {
               await tx.schema
                 .dropTable(`_ponder_reorg_${tableName}`)
                 .ifExists()
