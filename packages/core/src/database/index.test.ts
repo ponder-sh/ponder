@@ -188,7 +188,7 @@ test("setup with the same build ID and namespace reverts to and returns the fina
     blockNumber: 10n,
   };
 
-  await database.updateFinalizedCheckpoint({
+  await database.finalize({
     checkpoint: encodeCheckpoint(newCheckpoint),
   });
 
@@ -395,7 +395,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   await database.kill();
 });
 
-test("updateFinalizedCheckpoint updates lock table", async (context) => {
+test("finalize updates lock table", async (context) => {
   const database = createDatabase({
     common: context.common,
     schema,
@@ -406,7 +406,7 @@ test("updateFinalizedCheckpoint updates lock table", async (context) => {
     buildId: "abc",
   });
 
-  await database.updateFinalizedCheckpoint({
+  await database.finalize({
     checkpoint: encodeCheckpoint(maxCheckpoint),
   });
 
@@ -422,6 +422,74 @@ test("updateFinalizedCheckpoint updates lock table", async (context) => {
       : // @ts-ignore
         row!.value!.checkpoint,
   ).toStrictEqual(encodeCheckpoint(maxCheckpoint));
+
+  await database.kill();
+});
+
+test("finalize delete reorg table rows", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    schema,
+    databaseConfig: context.databaseConfig,
+  });
+
+  await database.prepareEnv({ buildId: "abc" });
+
+  const realtimeIndexingStore = getRealtimeStore({
+    encoding: context.databaseConfig.kind,
+    schema,
+    db: database.orm.user,
+    common: context.common,
+  });
+
+  await realtimeIndexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint({
+      ...zeroCheckpoint,
+      blockNumber: 9n,
+    }),
+    id: "id1",
+    data: { name: "Skip" },
+  });
+  await realtimeIndexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint({
+      ...zeroCheckpoint,
+      blockNumber: 11n,
+    }),
+    id: "id2",
+    data: { name: "Kevin" },
+  });
+  await realtimeIndexingStore.create({
+    tableName: "Pet",
+    encodedCheckpoint: encodeCheckpoint({
+      ...zeroCheckpoint,
+      blockNumber: 12n,
+    }),
+    id: "id3",
+    data: { name: "Foo" },
+  });
+
+  let rows = await database.orm.internal
+    .selectFrom("_ponder_reorg_Pet")
+    .select("id")
+    .execute();
+
+  expect(rows).toHaveLength(3);
+
+  await database.finalize({
+    checkpoint: encodeCheckpoint({
+      ...zeroCheckpoint,
+      blockNumber: 11n,
+    }),
+  });
+
+  rows = await database.orm.internal
+    .selectFrom("_ponder_reorg_Pet")
+    .select("id")
+    .execute();
+
+  expect(rows).toHaveLength(1);
 
   await database.kill();
 });

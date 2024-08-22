@@ -96,14 +96,6 @@ export async function run({
     return await indexingService.processEvents({ events });
   };
 
-  const handleReorg = async (checkpoint: string) => {
-    await database.revert({ checkpoint });
-  };
-
-  const handleFinalize = async (checkpoint: string) => {
-    await database.updateFinalizedCheckpoint({ checkpoint });
-  };
-
   const realtimeQueue = createQueue({
     initialStart: true,
     browser: false,
@@ -130,11 +122,11 @@ export async function run({
           break;
         }
         case "reorg":
-          await handleReorg(event.checkpoint);
+          await database.revert({ checkpoint: event.checkpoint });
           break;
 
         case "finalize":
-          await handleFinalize(event.checkpoint);
+          await database.finalize({ checkpoint: event.checkpoint });
           break;
 
         default:
@@ -227,7 +219,7 @@ export async function run({
       msg: "Completed historical indexing",
     });
 
-    await handleFinalize(sync.getFinalizedCheckpoint());
+    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     await database.createIndexes({ schema });
 

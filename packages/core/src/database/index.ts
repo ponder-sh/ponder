@@ -71,7 +71,7 @@ export type Database<
    */
   prepareEnv(args: { buildId: string }): Promise<{ checkpoint: string }>;
   revert(args: { checkpoint: string }): Promise<void>;
-  updateFinalizedCheckpoint(args: { checkpoint: string }): Promise<void>;
+  finalize(args: { checkpoint: string }): Promise<void>;
   createIndexes(args: { schema: Schema }): Promise<void>;
   kill(): Promise<void>;
 };
@@ -1133,20 +1133,26 @@ export const createDatabase = (args: {
         ),
       );
     },
-    async updateFinalizedCheckpoint({ checkpoint }) {
-      await orm.internal.wrap(
-        { method: "updateFinalizedCheckpoint" },
-        async () => {
-          const app = await getApp(orm.internal);
-          await orm.internal
-            .updateTable("_ponder_meta")
-            .where("key", "=", "app")
-            .set({
-              value: encodeApp({ ...app!, checkpoint }),
-            })
-            .execute();
-        },
-      );
+    async finalize({ checkpoint }) {
+      await orm.internal.wrap({ method: "finalize" }, async () => {
+        const app = await getApp(orm.internal);
+        await orm.internal
+          .updateTable("_ponder_meta")
+          .where("key", "=", "app")
+          .set({
+            value: encodeApp({ ...app!, checkpoint }),
+          })
+          .execute();
+
+        await Promise.all(
+          Object.keys(getTables(args.schema)).map((tableName) =>
+            orm.internal
+              .deleteFrom(`_ponder_reorg_${tableName}`)
+              .where("checkpoint", "<=", checkpoint)
+              .execute(),
+          ),
+        );
+      });
 
       const decoded = decodeCheckpoint(checkpoint);
 
