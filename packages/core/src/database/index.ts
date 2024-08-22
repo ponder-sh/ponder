@@ -666,13 +666,22 @@ export const createDatabase = (args: {
         }
       }
 
-      // Create "_ponder_meta" table if it doesn't exist
-      await orm.internal.schema
-        .createTable("_ponder_meta")
-        .addColumn("key", "text", (col) => col.primaryKey())
-        .addColumn("value", "jsonb")
-        .ifNotExists()
-        .execute();
+      await orm.internal.wrap({ method: "prepareEnv" }, async () => {
+        if (sql === "postgres") {
+          await orm.internal.schema
+            .createSchema(namespace)
+            .ifNotExists()
+            .execute();
+        }
+
+        // Create "_ponder_meta" table if it doesn't exist
+        await orm.internal.schema
+          .createTable("_ponder_meta")
+          .addColumn("key", "text", (col) => col.primaryKey())
+          .addColumn("value", "jsonb")
+          .ifNotExists()
+          .execute();
+      });
 
       const attempt = async () =>
         orm.internal.wrap({ method: "prepareEnv" }, () =>
