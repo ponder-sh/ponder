@@ -19,10 +19,10 @@ export type DatabaseModel<table extends UserTable> = {
           ? { data: Prettify<Omit<table, "id">> }
           : { data?: Prettify<Omit<table, "id">> })
     >,
-  ) => Promise<Prettify<table>>;
+  ) => Promise<Readonly<Prettify<table>>>;
 
   createMany: (options: { data: Prettify<table>[] }) => Promise<
-    Prettify<table>[]
+    Readonly<Prettify<table>>[]
   >;
 
   update: (
@@ -47,7 +47,7 @@ export type DatabaseModel<table extends UserTable> = {
                   }) => Prettify<Omit<Partial<table>, "id">>);
             })
     >,
-  ) => Promise<Prettify<table>>;
+  ) => Promise<Readonly<Prettify<table>>>;
 
   updateMany: (options: {
     where: Prettify<WhereInput<table>>;
@@ -56,7 +56,7 @@ export type DatabaseModel<table extends UserTable> = {
       | ((options: {
           current: Prettify<table>;
         }) => Prettify<Omit<Partial<table>, "id">>);
-  }) => Promise<Prettify<table>[]>;
+  }) => Promise<Readonly<Prettify<table>>[]>;
 
   upsert: (
     options: Prettify<
@@ -82,9 +82,11 @@ export type DatabaseModel<table extends UserTable> = {
                   }) => Prettify<Omit<Partial<table>, "id">>);
             })
     >,
-  ) => Promise<Prettify<table>>;
+  ) => Promise<Readonly<Prettify<table>>>;
 
-  findUnique: (options: { id: table["id"] }) => Promise<Prettify<table> | null>;
+  findUnique: (options: { id: table["id"] }) => Promise<Readonly<
+    Prettify<table>
+  > | null>;
 
   findMany: (options?: {
     where?: Prettify<WhereInput<table>>;
@@ -93,7 +95,7 @@ export type DatabaseModel<table extends UserTable> = {
     before?: string;
     after?: string;
   }) => Promise<{
-    items: Prettify<table>[];
+    items: Readonly<Prettify<table>>[];
     pageInfo: {
       startCursor: string | null;
       endCursor: string | null;

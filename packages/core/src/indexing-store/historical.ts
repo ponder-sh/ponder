@@ -369,7 +369,7 @@ export const getHistoricalStore = ({
   return {
     findUnique: async ({
       tableName,
-      id: _id,
+      id,
     }: {
       tableName: string;
       id: UserId;
@@ -377,13 +377,13 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush({ isFullFlush: false });
 
       return db.wrap({ method: `${tableName}.findUnique` }, async () => {
-        const id = structuredClone(_id);
+        Object.freeze(id);
         const cacheKey = getCacheKey(id, tableName);
 
         const cacheEntry = storeCache[tableName]![cacheKey];
         if (cacheEntry !== undefined) {
           cacheEntry.opIndex = totalCacheOps++;
-          return structuredClone(cacheEntry.record);
+          return cacheEntry.record;
         }
 
         // At this point if cache is exhaustive, findUnique will always return null
@@ -392,6 +392,8 @@ export const getHistoricalStore = ({
           : await _findUnique({ tableName, id });
 
         const bytes = getBytesSize(record);
+
+        Object.freeze(record);
 
         // add "find" entry to cache
         storeCache[tableName]![cacheKey] = {
@@ -404,7 +406,7 @@ export const getHistoricalStore = ({
         cacheSizeBytes += bytes;
         cacheSize++;
 
-        return structuredClone(record);
+        return record;
       });
     },
     findMany: async (arg: {
@@ -420,7 +422,7 @@ export const getHistoricalStore = ({
     },
     create: async ({
       tableName,
-      id: _id,
+      id,
       data = {},
     }: {
       tableName: string;
@@ -430,7 +432,7 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush({ isFullFlush: false });
 
       return db.wrap({ method: `${tableName}.create` }, async () => {
-        const id = structuredClone(_id);
+        Object.freeze(id);
         const cacheKey = getCacheKey(id, tableName);
 
         // Check cache truthiness, will be false if record is null.
@@ -441,7 +443,7 @@ export const getHistoricalStore = ({
         }
 
         // copy user-land record
-        const record = structuredClone(data) as UserRecord;
+        const record = data as UserRecord;
         record.id = id;
 
         normalizeRecord(record, tableName);
@@ -449,6 +451,8 @@ export const getHistoricalStore = ({
         validateRecord({ record, table: tables[tableName]!.table, schema });
 
         const bytes = getBytesSize(record);
+
+        Object.freeze(record);
 
         storeCache[tableName]![cacheKey] = {
           type: "insert",
@@ -460,7 +464,7 @@ export const getHistoricalStore = ({
         cacheSizeBytes += bytes;
         cacheSize++;
 
-        return structuredClone(record);
+        return record;
       });
     },
     createMany: async ({
@@ -473,8 +477,9 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush({ isFullFlush: false });
 
       return db.wrap({ method: `${tableName}.createMany` }, async () => {
-        for (const _record of data) {
-          const cacheKey = getCacheKey(_record.id, tableName);
+        Object.freeze(data);
+        for (const record of data) {
+          const cacheKey = getCacheKey(record.id, tableName);
 
           // Check cache truthiness, will be false if record is null.
           if (storeCache[tableName]![cacheKey]?.record) {
@@ -482,9 +487,6 @@ export const getHistoricalStore = ({
               `Unique constraint failed for '${tableName}.id'.`,
             );
           }
-
-          // copy user-land record
-          const record = structuredClone(_record);
 
           normalizeRecord(record, tableName);
 
@@ -504,16 +506,15 @@ export const getHistoricalStore = ({
 
         cacheSize += data.length;
 
-        const returnData = structuredClone(data);
         for (const record of data) {
           normalizeRecord(record, tableName);
         }
-        return returnData;
+        return data;
       });
     },
     update: async ({
       tableName,
-      id: _id,
+      id,
       data = {},
     }: {
       tableName: string;
@@ -525,7 +526,7 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush({ isFullFlush: false });
 
       return db.wrap({ method: `${tableName}.findUnique` }, async () => {
-        const id = structuredClone(_id);
+        Object.freeze(id);
         const cacheKey = getCacheKey(id, tableName);
 
         let cacheEntry = storeCache[tableName]![cacheKey];
@@ -560,12 +561,12 @@ export const getHistoricalStore = ({
 
         const update =
           typeof data === "function"
-            ? data({ current: structuredClone(cacheEntry.record!) })
+            ? data({ current: cacheEntry.record! })
             : data;
 
         // copy user-land record
-        const record = cacheEntry.record!;
-        for (const [key, value] of Object.entries(structuredClone(update))) {
+        const record = structuredClone(cacheEntry.record!);
+        for (const [key, value] of Object.entries(update)) {
           record[key] = value;
         }
 
@@ -575,11 +576,13 @@ export const getHistoricalStore = ({
 
         const bytes = getBytesSize(record);
 
+        Object.freeze(record);
+
         cacheEntry.record = record;
         cacheEntry.opIndex = totalCacheOps++;
         cacheEntry.bytes = bytes;
 
-        return structuredClone(record);
+        return record;
       });
     },
     updateMany: async ({
@@ -710,7 +713,7 @@ export const getHistoricalStore = ({
     },
     upsert: async ({
       tableName,
-      id: _id,
+      id,
       create = {},
       update = {},
     }: {
@@ -724,7 +727,7 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush({ isFullFlush: false });
 
       return db.wrap({ method: `${tableName}.upsert` }, async () => {
-        const id = structuredClone(_id);
+        Object.freeze(id);
         const cacheKey = getCacheKey(id, tableName);
 
         let cacheEntry = storeCache[tableName]![cacheKey];
@@ -759,12 +762,12 @@ export const getHistoricalStore = ({
           // update branch
           const _update =
             typeof update === "function"
-              ? update({ current: structuredClone(cacheEntry.record) })
+              ? update({ current: cacheEntry.record })
               : update;
 
           // copy user-land record
-          const record = cacheEntry.record;
-          for (const [key, value] of Object.entries(structuredClone(_update))) {
+          const record = structuredClone(cacheEntry.record);
+          for (const [key, value] of Object.entries(_update)) {
             record[key] = value;
           }
 
@@ -774,16 +777,18 @@ export const getHistoricalStore = ({
 
           const bytes = getBytesSize(record);
 
+          Object.freeze(record);
+
           cacheEntry.record = record;
           cacheEntry.opIndex = totalCacheOps++;
           cacheEntry.bytes = bytes;
 
-          return structuredClone(record);
+          return record;
         } else {
           // insert/create branch
 
           // copy user-land record
-          const record = structuredClone(create) as UserRecord;
+          const record = create as UserRecord;
           record.id = id;
 
           normalizeRecord(record, tableName);
@@ -791,6 +796,8 @@ export const getHistoricalStore = ({
           validateRecord({ record, table: tables[tableName]!.table, schema });
 
           const bytes = getBytesSize(record);
+
+          Object.freeze(record);
 
           storeCache[tableName]![cacheKey] = {
             type: "insert",
@@ -802,13 +809,13 @@ export const getHistoricalStore = ({
           cacheSize++;
           cacheSizeBytes += bytes;
 
-          return structuredClone(record);
+          return record;
         }
       });
     },
     delete: async ({
       tableName,
-      id: _id,
+      id,
     }: {
       tableName: string;
       id: UserId;
@@ -816,7 +823,7 @@ export const getHistoricalStore = ({
       if (shouldFlush()) await flush({ isFullFlush: false });
 
       return db.wrap({ method: `${tableName}.delete` }, async () => {
-        const id = structuredClone(_id);
+        Object.freeze(id);
         const cacheKey = getCacheKey(id, tableName);
 
         const cacheEntry = storeCache[tableName]![cacheKey];
