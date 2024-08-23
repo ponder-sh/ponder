@@ -29,6 +29,7 @@ import type {
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
+import { checksumAddress } from "@/utils/checksumAddress.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import {
   type Interval,
@@ -41,7 +42,6 @@ import {
   type Address,
   type Hash,
   type Hex,
-  checksumAddress,
   hexToBigInt,
   hexToNumber,
 } from "viem";

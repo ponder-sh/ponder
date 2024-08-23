@@ -18,11 +18,12 @@ import {
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { checksumAddress } from "@/utils/checksumAddress.js";
 import { never } from "@/utils/never.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
-import { checksumAddress, createClient } from "viem";
+import { createClient } from "viem";
 import type {
   BlockEvent,
   CallTraceEvent,
