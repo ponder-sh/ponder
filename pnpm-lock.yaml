@@ -793,6 +793,9 @@ importers:
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      mitata:
+        specifier: ^0.1.11
+        version: 0.1.11
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
@@ -11066,6 +11069,10 @@ packages:
     dependencies:
       minipass: 3.3.6
       yallist: 4.0.0
+    dev: true
+
+  /mitata@0.1.11:
+    resolution: {integrity: sha512-cs6FiWcnRxn7atVumm8wA8R70XCDmMXgVgb/qWUSjr5dwuIBr7zC+22mbGYPlbyFixlIOjuP//A0e72Q1ZoGDw==}
     dev: true
 
   /mixme@0.5.10:
