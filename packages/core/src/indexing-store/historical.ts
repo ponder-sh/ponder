@@ -129,8 +129,9 @@ export const getHistoricalStore = ({
     }).toLowerCase();
 
   const getCacheKey = (id: UserId, tableName: string): Key => {
-    if (tables[tableName]!.table.id[" scalar"] === "hex")
+    if (tables[tableName]!.table.id[" scalar"] === "hex") {
       return normalizeHex(id as Hex);
+    }
     if (typeof id === "bigint") return `#Bigint.${id}`;
     return id;
   };
