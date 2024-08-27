@@ -244,6 +244,7 @@ test("handleBlock() block event", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(5);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
+    filters: expect.any(Object),
     block: expect.any(Object),
     logs: expect.any(Object),
     transactions: expect.any(Object),
