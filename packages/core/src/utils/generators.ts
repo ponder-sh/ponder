@@ -11,8 +11,8 @@ export async function* mergeAsyncGenerators<T>(
     );
 
     if (done === false) {
-      yield value;
       nextPromises[index] = generators[index]!.next();
+      yield value;
     } else {
       nextPromises.splice(index, 1);
       generators.splice(index, 1);
