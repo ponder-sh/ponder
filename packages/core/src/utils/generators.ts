@@ -1,6 +1,6 @@
 export async function* mergeAsyncGenerators<T>(
   generators: AsyncGenerator<T>[],
-) {
+): AsyncGenerator<T> {
   const nextPromises = generators.map((generator) => generator.next());
 
   while (nextPromises.length > 0) {
