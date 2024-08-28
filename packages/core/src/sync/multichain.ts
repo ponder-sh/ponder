@@ -24,6 +24,7 @@ import {
   type Status,
   type Sync,
   getChainCheckpoint,
+  isSyncExhaustive,
   localHistoricalSyncHelper,
   onEventHelper,
   syncDiagnostic,
@@ -81,6 +82,22 @@ export const createMultichainSync = async (
     Extract<RealtimeSyncEvent, { type: "block" }>,
     "type"
   >[] = [];
+
+  // Invalidate sync cache for devnet sources
+  if (args.network.disableCache) {
+    const startBlock = hexToNumber(blockProgress.start.number);
+
+    args.common.logger.warn({
+      service: "sync",
+      msg: `Deleting cache records for '${args.network.name}' from block ${startBlock}`,
+    });
+
+    await args.syncStore.pruneByChain({
+      fromBlock: startBlock,
+      chainId: args.network.chainId,
+    });
+  }
+
   /**
    * Estimate optimal range (seconds) to query at a time, eventually
    * used to determine `to` passed to `getEvents`
@@ -88,13 +105,40 @@ export const createMultichainSync = async (
   let estimateSeconds = 10_000;
 
   async function* getEvents() {
-    for await (const { from: _from, to } of localHistoricalSyncHelper({
+    /**
+     * Calculate start checkpoint, if `initialCheckpoint` is non-zero,
+     * use that. Otherwise, use `startBlock`
+     */
+    const start =
+      args.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
+        ? args.initialCheckpoint
+        : getChainCheckpoint(blockProgress, args.network, "start")!;
+
+    // Cursor used to track progress.
+    let from = start;
+
+    for await (const _ of localHistoricalSyncHelper({
       ...args,
       blockProgress,
       historicalSync,
       requestQueue,
     })) {
-      let from = _from;
+      /**
+       * Calculate the mininum "latest" checkpoint, falling back to `end` if
+       * all networks have completed.
+       *
+       * `end`: If every network has an `endBlock` and it's less than
+       * `finalized`, use that. Otherwise, use `finalized`
+       */
+      const end =
+        blockProgress.end !== undefined &&
+        getChainCheckpoint(blockProgress, args.network, "end")! <
+          getChainCheckpoint(blockProgress, args.network, "finalized")!
+          ? getChainCheckpoint(blockProgress, args.network, "end")!
+          : getChainCheckpoint(blockProgress, args.network, "finalized")!;
+      const to =
+        getChainCheckpoint(blockProgress, args.network, "latest") ?? end;
+
       while (true) {
         if (isKilled) return;
         if (from === to) return;
@@ -192,7 +236,7 @@ export const createMultichainSync = async (
             args.network,
             "latest",
           )!;
-
+          // Raise event to parent function (runtime)
           args.onRealtimeEvent({ type: "reorg", checkpoint });
           break;
         }
@@ -212,7 +256,9 @@ export const createMultichainSync = async (
       };
       status.ready = true;
 
-      realtimeSync.start(blockProgress.finalized);
+      if (isSyncExhaustive(blockProgress) === false) {
+        realtimeSync.start(blockProgress.finalized);
+      }
     },
     getStartCheckpoint() {
       return getChainCheckpoint(blockProgress, args.network, "start")!;

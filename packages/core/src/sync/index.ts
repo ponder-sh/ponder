@@ -175,20 +175,15 @@ export async function* localHistoricalSyncHelper({
   common,
   network,
   requestQueue,
-  initialCheckpoint,
   blockProgress,
   historicalSync,
 }: {
   common: Common;
   network: Network;
   requestQueue: RequestQueue;
-  initialCheckpoint: string;
   blockProgress: BlockProgress;
   historicalSync: HistoricalSync;
-}): AsyncGenerator<{
-  from: string;
-  to: string;
-}> {
+}): AsyncGenerator {
   /**
    * Estimate optimal range (blocks) to sync at a time, eventually to be used to
    * determine `interval` passed to `historicalSync.sync()`.
@@ -202,16 +197,6 @@ export async function* localHistoricalSyncHelper({
   if (historicalSync.latestBlock !== undefined) {
     fromBlock = hexToNumber(historicalSync.latestBlock.number);
   }
-  /**
-   * Calculate start checkpoint, if `initialCheckpoint` is non-zero,
-   * use that. Otherwise, use `startBlock`
-   */
-  const start =
-    initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
-      ? initialCheckpoint
-      : getChainCheckpoint(blockProgress, network, "start")!;
-  // Cursor used to track progress.
-  let from = start;
 
   historicalSync.initializeMetrics(blockProgress.finalized as SyncBlock, true);
 
@@ -250,17 +235,7 @@ export async function* localHistoricalSyncHelper({
 
     if (blockProgress.latest === undefined) continue;
 
-    const end =
-      blockProgress.end !== undefined &&
-      getChainCheckpoint(blockProgress, network, "end")! <
-        getChainCheckpoint(blockProgress, network, "finalized")!
-        ? getChainCheckpoint(blockProgress, network, "end")!
-        : getChainCheckpoint(blockProgress, network, "finalized")!;
-
-    const to = getChainCheckpoint(blockProgress, network, "latest") ?? end;
-
-    yield { from, to };
-    from = to;
+    yield;
 
     if (isSyncExhaustive(blockProgress)) return;
     // Dynamically refetch `finalized` block if it is considered "stale"
