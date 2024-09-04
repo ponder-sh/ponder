@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { BaseError, UniqueConstraintError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
@@ -371,7 +372,17 @@ export const getRealtimeStore = ({
                 for (const [key, value] of Object.entries(update))
                   prettyObject[`update.${key}`] = value;
               }
-              throw parseStoreError(err, prettyObject);
+              const error = parseStoreError(err, prettyObject);
+              if (error instanceof UniqueConstraintError) {
+                // If the error is a UniqueConstraintError, it means there is a race condition between >=2
+                // upserts on the insert path for the same ID. In this case, we should throw a generic error
+                // to trigger a db.wrap(...) retry for any upserts that failed.
+                throw new BaseError(
+                  "Unique constraint error during upsert due to race condition",
+                );
+              } else {
+                throw error;
+              }
             });
 
           await tx

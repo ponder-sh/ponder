@@ -382,6 +382,40 @@ test("upsert() inserts a new record", async (context) => {
   await cleanup();
 });
 
+test("upsert() insert race condition retries unique constraint error", async (context) => {
+  const { indexingStore, cleanup } = await setupDatabaseServices(context, {
+    schema,
+    indexing: "realtime",
+  });
+
+  const promises = [
+    indexingStore.upsert({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+      id: "id1",
+      create: { name: "Skip", age: 10 },
+      update: ({ current }) => ({ age: (current.age as number) + 1 }),
+    }),
+    indexingStore.upsert({
+      tableName: "Pet",
+      encodedCheckpoint: encodeCheckpoint(createCheckpoint(10)),
+      id: "id1",
+      create: { name: "Skip", age: 10 },
+      update: ({ current }) => ({ age: (current.age as number) + 1 }),
+    }),
+  ];
+
+  await Promise.all(promises);
+
+  const instance = await indexingStore.findUnique({
+    tableName: "Pet",
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 11 });
+
+  await cleanup();
+});
+
 test("upsert() updates a record", async (context) => {
   const { indexingStore, cleanup } = await setupDatabaseServices(context, {
     schema,
