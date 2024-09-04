@@ -4,6 +4,7 @@ import {
   buildTraceFilterFragments,
 } from "@/sync/fragments.js";
 import {
+  type BlockFilter,
   type CallTraceFilter,
   type LogFactory,
   type LogFilter,
@@ -119,4 +120,25 @@ export const isCallTraceFilterMatched = ({
 
     return true;
   });
+};
+
+/**
+ * Returns `true` if `block` matches `filter`
+ */
+export const isBlockFilterMatched = ({
+  filter,
+  block,
+}: {
+  filter: BlockFilter;
+  block: SyncBlock;
+}): boolean => {
+  // Return `false` for out of range blocks
+  if (
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
+  }
+
+  return (hexToNumber(block.number) - filter.offset) % filter.interval === 0;
 };
