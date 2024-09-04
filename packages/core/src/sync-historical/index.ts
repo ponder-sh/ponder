@@ -190,7 +190,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
-      isFactory: false,
+      shouldUpdateCheckpoint: false,
       chainId: args.network.chainId,
     });
 
@@ -313,7 +313,7 @@ export const createHistoricalSync = async (
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),
-      isFactory: true,
+      shouldUpdateCheckpoint: true,
       chainId: args.network.chainId,
     });
   };

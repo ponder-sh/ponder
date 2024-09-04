@@ -74,7 +74,7 @@ export type SyncStore = {
   }): Promise<Set<Address>>;
   insertLogs(args: {
     logs: { log: SyncLog; block?: SyncBlock }[];
-    isFactory: boolean;
+    shouldUpdateCheckpoint: boolean;
     chainId: number;
   }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
@@ -533,7 +533,7 @@ export const createSyncStore = ({
 
       return new Set<Address>([...result.map(({ address }) => address)]);
     }),
-  insertLogs: async ({ logs, isFactory, chainId }) => {
+  insertLogs: async ({ logs, shouldUpdateCheckpoint: isFactory, chainId }) => {
     if (logs.length === 0) return;
     await db.wrap({ method: "insertLogs" }, async () => {
       // Calculate `batchSize` based on how many parameters the

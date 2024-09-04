@@ -291,7 +291,7 @@ test("getChildAddresses()", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0] }],
-    isFactory: true,
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -325,7 +325,7 @@ test("filterChildAddresses()", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0] }],
-    isFactory: true,
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -349,7 +349,7 @@ test("insertLogs()", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
 
@@ -365,12 +365,12 @@ test("insertLogs() with duplicates", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
 
@@ -386,7 +386,7 @@ test("insertLogs() creates checkpoint", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
 
@@ -411,7 +411,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0] }],
-    isFactory: true,
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -420,7 +420,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
 
@@ -429,7 +429,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0] }],
-    isFactory: true,
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -718,7 +718,7 @@ test("getEvents() returns events", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
@@ -758,7 +758,7 @@ test("getEvents() handles log filter logic", async (context) => {
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
@@ -769,7 +769,7 @@ test("getEvents() handles log filter logic", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
@@ -796,12 +796,12 @@ test("getEvents() handles log factory", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
@@ -828,12 +828,12 @@ test("getEvents() handles multiple log factories", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
@@ -927,7 +927,7 @@ test("getEvents() handles block bounds", async (context) => {
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
@@ -942,7 +942,7 @@ test("getEvents() handles block bounds", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
@@ -975,7 +975,7 @@ test("getEvents() pagination", async (context) => {
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
@@ -1276,7 +1276,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertTransactions({
@@ -1298,7 +1298,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
-    isFactory: false,
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
   await syncStore.insertTransactions({
