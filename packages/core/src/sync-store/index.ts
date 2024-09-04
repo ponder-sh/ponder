@@ -543,6 +543,14 @@ export const createSyncStore = ({
           Object.keys(encodeLog({ log: logs[0]!.log, chainId, sql })).length,
       );
 
+      /**
+       * As an optimization, logs that are matched by a factory do
+       * not contain a checkpoint, because not corresponding block is
+       * fetched (no block.timestamp). However, when a log is matched by
+       * both a log filter and a factory, the checkpoint must be included
+       * in the db.
+       */
+
       for (let i = 0; i < logs.length; i += batchSize) {
         await db
           .insertInto("logs")
