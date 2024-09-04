@@ -265,7 +265,6 @@ export async function buildConfigAndIndexingFunctions({
         pollingInterval: network.pollingInterval ?? 1_000,
         defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
         finalityBlockCount: getFinalityBlockCount({ chainId }),
-
         disableCache: network.disableCache ?? false,
       } satisfies Network;
     }),
