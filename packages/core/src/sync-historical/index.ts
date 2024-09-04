@@ -138,6 +138,8 @@ export const createHistoricalSync = async (
     let address: Address | Address[] | undefined;
     if (isAddressFactory(filter.address)) {
       const childAddresses = await syncAddress(filter.address, interval);
+      // Exit early if no child addresses are found
+      if (childAddresses.length === 0) return;
       if (
         childAddresses.length < args.common.options.factoryAddressCountThreshold
       ) {
