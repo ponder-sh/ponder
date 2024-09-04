@@ -74,6 +74,7 @@ export type SyncStore = {
   }): Promise<Set<Address>>;
   insertLogs(args: {
     logs: { log: SyncLog; block?: SyncBlock }[];
+    isFactory: boolean;
     chainId: number;
   }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
@@ -532,7 +533,7 @@ export const createSyncStore = ({
 
       return new Set<Address>([...result.map(({ address }) => address)]);
     }),
-  insertLogs: async ({ logs, chainId }) => {
+  insertLogs: async ({ logs, isFactory, chainId }) => {
     if (logs.length === 0) return;
     await db.wrap({ method: "insertLogs" }, async () => {
       // Calculate `batchSize` based on how many parameters the
@@ -551,9 +552,13 @@ export const createSyncStore = ({
               .map(({ log, block }) => encodeLog({ log, block, chainId, sql })),
           )
           .onConflict((oc) =>
-            oc.column("id").doUpdateSet((eb) => ({
-              checkpoint: eb.ref("excluded.checkpoint"),
-            })),
+            oc.column("id").$call((qb) =>
+              isFactory
+                ? qb.doNothing()
+                : qb.doUpdateSet((eb) => ({
+                    checkpoint: eb.ref("excluded.checkpoint"),
+                  })),
+            ),
           )
           .execute();
       }
