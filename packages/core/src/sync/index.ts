@@ -433,6 +433,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               args.syncStore.insertBlocks({ blocks: [event.block], chainId }),
               args.syncStore.insertLogs({
                 logs: event.logs.map((log) => ({ log, block: event.block })),
+                isFactory: false,
                 chainId,
               }),
               args.syncStore.insertTransactions({

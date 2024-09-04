@@ -353,7 +353,7 @@ export const createRealtimeSync = (
     );
     await args.syncStore.insertLogs({
       logs: _logs.map((log) => ({ log })),
-      isFactory: false,
+      isFactory: true,
       chainId: args.network.chainId,
     });
 
