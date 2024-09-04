@@ -13,7 +13,7 @@ import { Callout } from "nextra/components";
 Ponder uses a single database schema for user tables, metadata, and reorg information. This schema follows a strict set of rules to avoid two Ponder apps writing to the same tables or accidentally dropping tables from a running Ponder app.
 
 <Callout type="default">
-  The default schema is "public" but gets [overriden](/docs/production/deploy#zero-downtime) when executing on Railway. This behavior can be configured in [`ponder.config.ts`](/docs/api-reference/config#postgres)
+  The default schema is "public" but gets [overriden](/docs/production/deploy#zero-downtime-deployments) when executing on Railway. This behavior can be configured in [`ponder.config.ts`](/docs/api-reference/config#postgres)
 </Callout>
 
 ## Cached indexing
