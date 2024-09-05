@@ -534,7 +534,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             const checkpoint = getChainsCheckpoint("latest")!;
 
             await args.syncStore.pruneByBlock({
-              fromBlock: hexToNumber(event.block.number),
+              blocks: event.reorgedBlocks,
               chainId: network.chainId,
             });
 

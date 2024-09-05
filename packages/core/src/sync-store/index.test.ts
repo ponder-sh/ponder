@@ -1018,7 +1018,10 @@ test("pruneByBlock", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
 
-  await syncStore.pruneByBlock({ fromBlock: 2, chainId: 1 });
+  await syncStore.pruneByBlock({
+    blocks: [rpcData.block3.block, rpcData.block4.block],
+    chainId: 1,
+  });
 
   const blocks = await database.syncDb
     .selectFrom("blocks")

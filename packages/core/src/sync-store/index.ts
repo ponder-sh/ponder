@@ -21,6 +21,7 @@ import {
 } from "@/sync/source.js";
 import type { CallTrace, Log, TransactionReceipt } from "@/types/eth.js";
 import type {
+  LightBlock,
   SyncBlock,
   SyncCallTrace,
   SyncLog,
@@ -115,7 +116,7 @@ export type SyncStore = {
     chainId: number;
   }): Promise<string | null>;
   pruneByBlock(args: {
-    fromBlock: number;
+    blocks: Pick<LightBlock, "hash" | "number">[];
     chainId: number;
   }): Promise<void>;
   pruneByChain(args: {
@@ -1272,30 +1273,22 @@ export const createSyncStore = ({
 
       return result?.result ?? null;
     }),
-  pruneByBlock: async ({ fromBlock, chainId }) =>
+  pruneByBlock: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneByBlock" }, async () => {
-      await db.transaction().execute(async (tx) => {
-        await tx
-          .deleteFrom("logs")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", formatBig(sql, fromBlock))
-          .execute();
-        await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">", formatBig(sql, fromBlock))
-          .execute();
-        await tx
-          .deleteFrom("rpcRequestResults")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", formatBig(sql, fromBlock))
-          .execute();
-        await tx
-          .deleteFrom("callTraces")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", formatBig(sql, fromBlock))
-          .execute();
-      });
+      const hashes = blocks.map(({ hash }) => hash);
+      const numbers = blocks.map(({ number }) => number);
+
+      await db.deleteFrom("blocks").where("hash", "in", hashes).execute();
+      await db.deleteFrom("logs").where("blockHash", "in", hashes).execute();
+      await db
+        .deleteFrom("callTraces")
+        .where("blockHash", "in", hashes)
+        .execute();
+      await db
+        .deleteFrom("rpcRequestResults")
+        .where("chainId", "=", chainId)
+        .where("blockNumber", "in", numbers)
+        .execute();
     }),
   pruneByChain: async ({ fromBlock, chainId }) =>
     db.wrap({ method: "pruneByChain" }, () =>
