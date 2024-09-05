@@ -30,16 +30,6 @@ export class MetricsService {
 
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
-  ponder_historical_start_timestamp: prometheus.Gauge<"network">;
-  ponder_historical_total_blocks: prometheus.Gauge<
-    "network" | "source" | "type"
-  >;
-  ponder_historical_cached_blocks: prometheus.Gauge<
-    "network" | "source" | "type"
-  >;
-  ponder_historical_completed_blocks: prometheus.Gauge<
-    "network" | "source" | "type"
-  >;
   ponder_historical_sync_duration: prometheus.Histogram<"network">;
   ponder_historical_sync_total_blocks: prometheus.Gauge<"network">;
   ponder_historical_sync_cached_blocks: prometheus.Gauge<"network">;
@@ -123,30 +113,6 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_historical_start_timestamp = new prometheus.Gauge({
-      name: "ponder_historical_start_timestamp",
-      help: "Unix timestamp (ms) when the historical sync service started",
-      labelNames: ["network"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_historical_total_blocks = new prometheus.Gauge({
-      name: "ponder_historical_total_blocks",
-      help: "Number of blocks required for the historical sync",
-      labelNames: ["network", "source", "type"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_historical_cached_blocks = new prometheus.Gauge({
-      name: "ponder_historical_cached_blocks",
-      help: "Number of blocks that were found in the cache for the historical sync",
-      labelNames: ["network", "source", "type"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_historical_completed_blocks = new prometheus.Gauge({
-      name: "ponder_historical_completed_blocks",
-      help: "Number of blocks that have been processed for the historical sync",
-      labelNames: ["network", "source", "type"] as const,
-      registers: [this.registry],
-    });
     this.ponder_historical_sync_duration = new prometheus.Histogram({
       name: "ponder_historical_sync_duration",
       help: "Duration of historical sync execution",

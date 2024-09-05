@@ -438,15 +438,6 @@ export const createHistoricalSync = async (
             }),
           );
 
-          args.common.metrics.ponder_historical_completed_blocks.inc(
-            {
-              network: source.networkName,
-              source: source.name,
-              type: source.filter.type,
-            },
-            interval[1] - interval[0] + 1,
-          );
-
           if (isKilled) return;
 
           await blockPromise;
@@ -474,15 +465,7 @@ export const createHistoricalSync = async (
       transactionsCache.clear();
     },
     initializeMetrics(finalizedBlock, showStart) {
-      args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
-
       for (const source of args.sources) {
-        const label = {
-          network: source.networkName,
-          source: source.name,
-          type: source.filter.type,
-        };
-
         if (source.filter.fromBlock > hexToNumber(finalizedBlock.number)) {
           if (showStart) {
             args.common.logger.warn({
@@ -490,9 +473,6 @@ export const createHistoricalSync = async (
               msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
             });
           }
-
-          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
-          args.common.metrics.ponder_historical_cached_blocks.set(label, 0);
         } else {
           const interval = [
             source.filter.fromBlock,
@@ -506,15 +486,6 @@ export const createHistoricalSync = async (
 
           const totalBlocks = interval[1] - interval[0] + 1;
           const cachedBlocks = totalBlocks - intervalSum(requiredIntervals);
-
-          args.common.metrics.ponder_historical_total_blocks.set(
-            label,
-            totalBlocks,
-          );
-          args.common.metrics.ponder_historical_cached_blocks.set(
-            label,
-            cachedBlocks,
-          );
 
           if (showStart) {
             args.common.logger.info({
