@@ -354,6 +354,7 @@ test("handleReorg() finds common ancestor", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "reorg",
     block: expect.any(Object),
+    reorgedBlocks: [expect.any(Object), expect.any(Object), expect.any(Object)],
   });
 
   expect(realtimeSync.localChain).toHaveLength(2);
