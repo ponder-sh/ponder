@@ -74,6 +74,7 @@ export type SyncStore = {
   }): Promise<Set<Address>>;
   insertLogs(args: {
     logs: { log: SyncLog; block?: SyncBlock }[];
+    shouldUpdateCheckpoint: boolean;
     chainId: number;
   }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
@@ -534,7 +535,7 @@ export const createSyncStore = ({
 
       return new Set<Address>([...result.map(({ address }) => address)]);
     }),
-  insertLogs: async ({ logs, chainId }) => {
+  insertLogs: async ({ logs, shouldUpdateCheckpoint, chainId }) => {
     if (logs.length === 0) return;
     await db.wrap({ method: "insertLogs" }, async () => {
       // Calculate `batchSize` based on how many parameters the
@@ -544,6 +545,14 @@ export const createSyncStore = ({
           Object.keys(encodeLog({ log: logs[0]!.log, chainId, dialect }))
             .length,
       );
+
+      /**
+       * As an optimization, logs that are matched by a factory do
+       * not contain a checkpoint, because not corresponding block is
+       * fetched (no block.timestamp). However, when a log is matched by
+       * both a log filter and a factory, the checkpoint must be included
+       * in the db.
+       */
 
       for (let i = 0; i < logs.length; i += batchSize) {
         await db
@@ -556,9 +565,13 @@ export const createSyncStore = ({
               ),
           )
           .onConflict((oc) =>
-            oc.column("id").doUpdateSet((eb) => ({
-              checkpoint: eb.ref("excluded.checkpoint"),
-            })),
+            oc.column("id").$call((qb) =>
+              shouldUpdateCheckpoint
+                ? qb.doUpdateSet((eb) => ({
+                    checkpoint: eb.ref("excluded.checkpoint"),
+                  }))
+                : qb.doNothing(),
+            ),
           )
           .execute();
       }

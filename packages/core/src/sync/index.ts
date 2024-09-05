@@ -429,9 +429,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             const chainId = network.chainId;
 
             await Promise.all([
-              args.syncStore.insertBlocks({ blocks: [event.block], chainId }),
+              args.syncStore.insertBlocks({
+                blocks: event.filters.size === 0 ? [] : [event.block],
+                chainId,
+              }),
               args.syncStore.insertLogs({
                 logs: event.logs.map((log) => ({ log, block: event.block })),
+                shouldUpdateCheckpoint: true,
                 chainId,
               }),
               args.syncStore.insertTransactions({

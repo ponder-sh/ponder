@@ -2,6 +2,7 @@ import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { getRawRPCData } from "@/_test/utils.js";
 import { beforeEach, expect, test } from "vitest";
 import {
+  isBlockFilterMatched,
   isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
@@ -86,4 +87,20 @@ test("isCallTraceFilterMatched", async (context) => {
     callTrace: rpcData.block2.traces[0],
   });
   expect(isMatched).toBe(false);
+});
+
+test("isBlockFilterMatched", async (context) => {
+  const rpcData = await getRawRPCData();
+
+  let isMatched = isBlockFilterMatched({
+    filter: context.sources[4].filter,
+    block: rpcData.block2.block,
+  });
+  expect(isMatched).toBe(false);
+
+  isMatched = isBlockFilterMatched({
+    filter: context.sources[4].filter,
+    block: rpcData.block3.block,
+  });
+  expect(isMatched).toBe(true);
 });

@@ -303,6 +303,24 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // coinbase
+  match = sError.match(/please limit the query to at most ([\d,.]+) blocks/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")) - 1n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,
