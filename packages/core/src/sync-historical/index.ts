@@ -484,8 +484,6 @@ export const createHistoricalSync = async (
         };
 
         if (source.filter.fromBlock > hexToNumber(finalizedBlock.number)) {
-          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
-
           if (showStart) {
             args.common.logger.warn({
               service: "historical",
@@ -513,7 +511,6 @@ export const createHistoricalSync = async (
             label,
             totalBlocks,
           );
-
           args.common.metrics.ponder_historical_cached_blocks.set(
             label,
             cachedBlocks,
