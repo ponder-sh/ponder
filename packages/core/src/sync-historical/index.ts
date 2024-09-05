@@ -74,12 +74,14 @@ export const createHistoricalSync = async (
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
   const transactionsCache = new Set<Hash>();
-
-  const logRequestMetadata = new Map<
+  /**
+   * Data about the range passed to "eth_getLogs" for all log
+   *  filters and log factories.
+   */
+  const getLogsRequestMetadata = new Map<
     LogFilter | LogFactory,
     { range: number; isFixed: boolean }
   >();
-
   /**
    * Intervals that have been completed for all filters in `args.sources`.
    *
@@ -144,7 +146,8 @@ export const createHistoricalSync = async (
     filter: LogFilter | LogFactory;
   }): Promise<SyncLog[]> => {
     const range =
-      logRequestMetadata.get(filter)?.range ?? interval[1] - interval[0] + 1;
+      getLogsRequestMetadata.get(filter)?.range ??
+      interval[1] - interval[0] + 1;
 
     const logs = await Promise.all(
       getChunks({ interval, maxChunkSize: range }).map((interval) =>
@@ -179,7 +182,7 @@ export const createHistoricalSync = async (
             }', updating recommended range to ${range}.`,
           });
 
-          logRequestMetadata.set(filter, {
+          getLogsRequestMetadata.set(filter, {
             range,
             isFixed: getLogsErrorResponse.isSuggestedRange,
           });
@@ -190,9 +193,9 @@ export const createHistoricalSync = async (
     ).then((logs) => logs.flat());
 
     // Slowly increase range for filters without a determined retry range
-    if (logRequestMetadata.get(filter)?.isFixed === false) {
-      logRequestMetadata.get(filter)!.range = Math.round(
-        logRequestMetadata.get(filter)!.range * 1.05,
+    if (getLogsRequestMetadata.get(filter)?.isFixed === false) {
+      getLogsRequestMetadata.get(filter)!.range = Math.round(
+        getLogsRequestMetadata.get(filter)!.range * 1.05,
       );
     }
 
