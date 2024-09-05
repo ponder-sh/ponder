@@ -30,8 +30,8 @@ import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import {
   type SqliteDatabase,
-  createSqliteDatabase as _createSqliteDatabase,
   createReadonlySqliteDatabase,
+  createSqliteDatabase,
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import {
@@ -40,7 +40,7 @@ import {
   PostgresDialect,
   type Transaction,
   WithSchemaPlugin,
-  sql as ksql,
+  sql,
 } from "kysely";
 import { SqliteDialect } from "kysely";
 import type { Pool } from "pg";
@@ -48,12 +48,12 @@ import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database<
-  sql extends "sqlite" | "postgres" = "sqlite" | "postgres",
+  dialect extends "sqlite" | "postgres" = "sqlite" | "postgres",
 > = {
-  sql: sql;
+  dialect: dialect;
   namespace: string;
-  driver: Driver<sql>;
-  orm: ORM;
+  driver: Driver<dialect>;
+  qb: QueryBuilder;
   migrateSync(): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
@@ -66,10 +66,11 @@ export type Database<
    * - If schema is empty, start
    * - If schema is locked, exit
    * - If cache hit (matching build_id), start
+   * - Drop old tables
    * - If table name collision, exit
    * - Else, start
    */
-  prepareEnv(args: { buildId: string }): Promise<{ checkpoint: string }>;
+  setup(args: { buildId: string }): Promise<{ checkpoint: string }>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   createIndexes(args: { schema: Schema }): Promise<void>;
@@ -91,7 +92,7 @@ type PonderInternalSchema = {
     value: string | null;
   };
 } & {
-  [_: `_ponder_reorg_${string}`]: {
+  [_: `_ponder_reorg__${string}`]: {
     id: unknown;
     operation_id: number;
     checkpoint: string;
@@ -101,7 +102,7 @@ type PonderInternalSchema = {
   [tableName: string]: UserTable;
 };
 
-type Driver<sql extends "sqlite" | "postgres"> = sql extends "sqlite"
+type Driver<dialect extends "sqlite" | "postgres"> = dialect extends "sqlite"
   ? {
       user: SqliteDatabase;
       readonly: SqliteDatabase;
@@ -114,7 +115,7 @@ type Driver<sql extends "sqlite" | "postgres"> = sql extends "sqlite"
       sync: Pool;
     };
 
-type ORM = {
+type QueryBuilder = {
   internal: HeadlessKysely<PonderInternalSchema>;
   user: HeadlessKysely<any>;
   readonly: HeadlessKysely<unknown>;
@@ -151,28 +152,24 @@ export const createDatabase = (args: {
   // Create drivers and orms
   ////////
 
-  let sql: Database["sql"];
+  let dialect: Database["dialect"];
   let driver: Database["driver"];
-  let orm: Database["orm"];
+  let qb: Database["qb"];
 
   if (args.databaseConfig.kind === "sqlite") {
-    sql = "sqlite";
+    dialect = "sqlite";
     namespace = "public";
 
     const userFile = path.join(args.databaseConfig.directory, "public.db");
     const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
 
     driver = {
-      user: _createSqliteDatabase(userFile),
+      user: createSqliteDatabase(userFile),
       readonly: createReadonlySqliteDatabase(userFile),
-      sync: _createSqliteDatabase(syncFile),
+      sync: createSqliteDatabase(syncFile),
     };
 
-    driver.user.exec(`ATTACH DATABASE '${userFile}' AS public`);
-    driver.readonly.exec(`ATTACH DATABASE '${userFile}' AS public`);
-    // driver.readonly.exec(`ATTACH DATABASE '${syncFile}' AS public`);
-
-    orm = {
+    qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
@@ -223,7 +220,7 @@ export const createDatabase = (args: {
       }),
     };
   } else {
-    sql = "postgres";
+    dialect = "postgres";
     namespace = args.databaseConfig.schema;
 
     const internalMax = 2;
@@ -259,7 +256,7 @@ export const createDatabase = (args: {
       }),
     };
 
-    orm = {
+    qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
@@ -316,7 +313,7 @@ export const createDatabase = (args: {
   }
 
   // Register metrics
-  if (sql === "sqlite") {
+  if (dialect === "sqlite") {
     args.common.metrics.registry.removeSingleMetric(
       "ponder_sqlite_query_total",
     );
@@ -423,12 +420,12 @@ export const createDatabase = (args: {
 
     if (row === undefined) return undefined;
     const app: PonderApp =
-      sql === "sqlite" ? JSON.parse(row.value!) : row.value;
+      dialect === "sqlite" ? JSON.parse(row.value!) : row.value;
     return app;
   };
 
   const encodeApp = (app: PonderApp) => {
-    return sql === "sqlite" ? JSON.stringify(app) : (app as any);
+    return dialect === "sqlite" ? JSON.stringify(app) : (app as any);
   };
 
   const revert = async ({
@@ -441,7 +438,7 @@ export const createDatabase = (args: {
     tx: Transaction<PonderInternalSchema>;
   }) => {
     const rows = await tx
-      .deleteFrom(`_ponder_reorg_${tableName}`)
+      .deleteFrom(`_ponder_reorg__${tableName}`)
       .returningAll()
       .where("checkpoint", ">", checkpoint)
       .execute();
@@ -493,32 +490,32 @@ export const createDatabase = (args: {
   };
 
   return {
-    sql,
+    dialect,
     namespace,
     driver,
-    orm,
+    qb,
     async migrateSync() {
-      await orm.sync.wrap({ method: "migrateSyncStore" }, async () => {
+      await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
-        if (sql === "postgres") {
+        if (dialect === "postgres") {
           await moveLegacyTables({
             common: args.common,
-            db: orm.internal,
+            db: qb.internal,
             newSchemaName: "ponder_sync",
           });
         }
 
         let migrator: Migrator;
 
-        if (sql === "sqlite") {
+        if (dialect === "sqlite") {
           migrator = new Migrator({
-            db: orm.sync as any,
+            db: qb.sync as any,
             provider: sqliteMigrationProvider,
           });
         } else {
           migrator = new Migrator({
-            db: orm.sync as any,
+            db: qb.sync as any,
             provider: postgresMigrationProvider,
             migrationTableSchema: "ponder_sync",
           });
@@ -528,7 +525,7 @@ export const createDatabase = (args: {
         if (error) throw error;
       });
     },
-    async prepareEnv({ buildId }) {
+    async setup({ buildId }) {
       ////////
       // Migrate
       ////////
@@ -543,16 +540,16 @@ export const createDatabase = (args: {
           "ponder.db",
         );
         if (fs.existsSync(ponderFile)) {
-          const _driver = _createSqliteDatabase(ponderFile);
+          const _driver = createSqliteDatabase(ponderFile);
           const _orm = new HeadlessKysely<any>({
             name: "user",
             common: args.common,
             dialect: new SqliteDialect({ database: _driver }),
           });
-          await orm.internal.wrap({ method: "prepareEnv" }, async () => {
+          await qb.internal.wrap({ method: "setup" }, async () => {
             const namespaceCount = await _orm
               .selectFrom("namespace_lock")
-              .select(ksql`count(*)`.as("count"))
+              .select(sql`count(*)`.as("count"))
               .executeTakeFirst();
 
             const tableNames = await _orm
@@ -567,7 +564,7 @@ export const createDatabase = (args: {
               );
             if (tableNames) {
               for (const tableName of tableNames) {
-                await orm.internal.schema
+                await qb.internal.schema
                   .dropTable(tableName)
                   .ifExists()
                   .execute();
@@ -577,6 +574,9 @@ export const createDatabase = (args: {
                 .deleteFrom("namespace_lock")
                 .where("namespace", "=", namespace)
                 .execute();
+
+              await _orm.destroy();
+              _driver.close();
 
               if (namespaceCount!.count === 1) {
                 fs.rmSync(
@@ -609,7 +609,7 @@ export const createDatabase = (args: {
           });
         }
       } else {
-        const hasPonderSchema = await orm.internal
+        const hasPonderSchema = await qb.internal
           .selectFrom("information_schema.schemata")
           .select("schema_name")
           .where("schema_name", "=", "ponder")
@@ -617,14 +617,14 @@ export const createDatabase = (args: {
           .then((schema) => schema?.schema_name === "ponder");
 
         if (hasPonderSchema) {
-          await orm.internal.wrap({ method: "prepareEnv" }, async () => {
-            const namespaceCount = await orm.internal
+          await qb.internal.wrap({ method: "setup" }, async () => {
+            const namespaceCount = await qb.internal
               .withSchema("ponder")
               .selectFrom("namespace_lock")
-              .select(ksql`count(*)`.as("count"))
+              .select(sql`count(*)`.as("count"))
               .executeTakeFirst();
 
-            const tableNames = await orm.internal
+            const tableNames = await qb.internal
               .withSchema("ponder")
               .selectFrom("namespace_lock")
               .select("schema")
@@ -637,21 +637,21 @@ export const createDatabase = (args: {
               );
             if (tableNames) {
               for (const tableName of tableNames) {
-                await orm.internal.schema
+                await qb.internal.schema
                   .dropTable(tableName)
                   .ifExists()
                   .cascade()
                   .execute();
               }
 
-              await orm.internal
+              await qb.internal
                 .withSchema("ponder")
                 .deleteFrom("namespace_lock")
                 .where("namespace", "=", namespace)
                 .execute();
 
               if (namespaceCount!.count === 1) {
-                await orm.internal.schema
+                await qb.internal.schema
                   .dropSchema("ponder")
                   .cascade()
                   .execute();
@@ -666,16 +666,16 @@ export const createDatabase = (args: {
         }
       }
 
-      await orm.internal.wrap({ method: "prepareEnv" }, async () => {
-        if (sql === "postgres") {
-          await orm.internal.schema
+      await qb.internal.wrap({ method: "setup" }, async () => {
+        if (dialect === "postgres") {
+          await qb.internal.schema
             .createSchema(namespace)
             .ifNotExists()
             .execute();
         }
 
         // Create "_ponder_meta" table if it doesn't exist
-        await orm.internal.schema
+        await qb.internal.schema
           .createTable("_ponder_meta")
           .addColumn("key", "text", (col) => col.primaryKey())
           .addColumn("value", "jsonb")
@@ -684,8 +684,8 @@ export const createDatabase = (args: {
       });
 
       const attempt = async () =>
-        orm.internal.wrap({ method: "prepareEnv" }, () =>
-          orm.internal.transaction().execute(async (tx) => {
+        qb.internal.wrap({ method: "setup" }, () =>
+          qb.internal.transaction().execute(async (tx) => {
             ////////
             // Create tables
             ////////
@@ -712,9 +712,9 @@ export const createDatabase = (args: {
                               col = col.notNull();
                             if (isListColumn(column) === false) {
                               col = col.check(
-                                ksql`${ksql.ref(columnName)} in (${ksql.join(
+                                sql`${sql.ref(columnName)} in (${sql.join(
                                   getEnums(args.schema)[column[" enum"]]!.map(
-                                    (v) => ksql.lit(v),
+                                    (v) => sql.lit(v),
                                   ),
                                 )})`,
                               );
@@ -748,7 +748,7 @@ export const createDatabase = (args: {
                         // Non-list base columns
                         builder = builder.addColumn(
                           columnName,
-                          (sql === "sqlite"
+                          (dialect === "sqlite"
                             ? scalarToSqliteType
                             : scalarToPostgresType)[column[" scalar"]],
                           (col) => {
@@ -784,7 +784,7 @@ export const createDatabase = (args: {
                 getTables(args.schema),
               )) {
                 await tx.schema
-                  .createTable(`_ponder_reorg_${tableName}`)
+                  .createTable(`_ponder_reorg__${tableName}`)
                   .$call((builder) => {
                     for (const [columnName, column] of Object.entries(
                       table.table,
@@ -805,7 +805,7 @@ export const createDatabase = (args: {
                         // Non-list base columns
                         builder = builder.addColumn(
                           columnName,
-                          (sql === "sqlite"
+                          (dialect === "sqlite"
                             ? scalarToSqliteType
                             : scalarToPostgresType)[column[" scalar"]],
                           (col) => {
@@ -819,7 +819,7 @@ export const createDatabase = (args: {
                     builder = builder
                       .addColumn(
                         "operation_id",
-                        sql === "sqlite" ? "integer" : "serial",
+                        dialect === "sqlite" ? "integer" : "serial",
                         (col) => col.notNull().primaryKey(),
                       )
                       .addColumn("checkpoint", "varchar(75)", (col) =>
@@ -919,7 +919,7 @@ export const createDatabase = (args: {
 
               args.common.logger.info({
                 service: "database",
-                msg: `Detected cache hit for build '${buildId}' in schemaq '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+                msg: `Detected cache hit for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
               });
               args.common.logger.debug({
                 service: "database",
@@ -952,7 +952,7 @@ export const createDatabase = (args: {
               );
               args.common.logger.info({
                 service: "database",
-                msg: `Reverting operations prior to finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
+                msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
               });
 
               for (const tableName of Object.keys(getTables(args.schema))) {
@@ -970,9 +970,6 @@ export const createDatabase = (args: {
             }
 
             /**
-             * If table name collision, exit
-             * Else, start
-             *
              * At this point in the control flow, the previous app has a
              * different build ID or a zero "checkpoint". We need to drop the
              * previous app's tables and create new ones.
@@ -993,7 +990,7 @@ export const createDatabase = (args: {
 
             for (const tableName of previousApp.table_names) {
               await tx.schema
-                .dropTable(`_ponder_reorg_${tableName}`)
+                .dropTable(`_ponder_reorg__${tableName}`)
                 .ifExists()
                 .execute();
 
@@ -1039,8 +1036,8 @@ export const createDatabase = (args: {
 
       heartbeatInterval = setInterval(async () => {
         try {
-          const app = await getApp(orm.internal);
-          await orm.internal
+          const app = await getApp(qb.internal);
+          await qb.internal
             .updateTable("_ponder_meta")
             .where("key", "=", "app")
             .set({
@@ -1073,22 +1070,22 @@ export const createDatabase = (args: {
 
           return Object.entries(table.constraints).map(
             async ([name, index]) => {
-              await orm.internal.wrap({ method: "createIndexes" }, async () => {
+              await qb.internal.wrap({ method: "createIndexes" }, async () => {
                 const indexName = `${tableName}_${name}`;
 
                 const indexColumn = index[" column"];
                 const order = index[" order"];
                 const nulls = index[" nulls"];
 
-                if (sql === "sqlite") {
+                if (dialect === "sqlite") {
                   const columns = Array.isArray(indexColumn)
                     ? indexColumn.map((ic) => `"${ic}"`).join(", ")
                     : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
 
-                  await orm.internal.executeQuery(
-                    ksql`CREATE INDEX ${ksql.ref(namespace)}.${ksql.ref(indexName)} ON ${ksql.table(
+                  await qb.internal.executeQuery(
+                    sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
                       tableName,
-                    )} (${ksql.raw(columns)})`.compile(orm.internal),
+                    )} (${sql.raw(columns)})`.compile(qb.internal),
                   );
                 } else {
                   const columns = Array.isArray(indexColumn)
@@ -1101,10 +1098,10 @@ export const createDatabase = (args: {
                             : ""
                       }`;
 
-                  await orm.internal.executeQuery(
-                    ksql`CREATE INDEX ${ksql.ref(indexName)} ON ${ksql.table(
+                  await qb.internal.executeQuery(
+                    sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
                       `${namespace}.${tableName}`,
-                    )} (${ksql.raw(columns)})`.compile(orm.internal),
+                    )} (${sql.raw(columns)})`.compile(qb.internal),
                   );
                 }
               });
@@ -1123,20 +1120,20 @@ export const createDatabase = (args: {
       );
     },
     async revert({ checkpoint }) {
-      await orm.internal.wrap({ method: "revert" }, () =>
+      await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
           Object.keys(getTables(args.schema)).map((tableName) =>
-            orm.internal
+            qb.internal
               .transaction()
-              .execute(async (tx) => revert({ tableName, checkpoint, tx })),
+              .execute((tx) => revert({ tableName, checkpoint, tx })),
           ),
         ),
       );
     },
     async finalize({ checkpoint }) {
-      await orm.internal.wrap({ method: "finalize" }, async () => {
-        const app = await getApp(orm.internal);
-        await orm.internal
+      await qb.internal.wrap({ method: "finalize" }, async () => {
+        const app = await getApp(qb.internal);
+        await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
           .set({
@@ -1146,8 +1143,8 @@ export const createDatabase = (args: {
 
         await Promise.all(
           Object.keys(getTables(args.schema)).map((tableName) =>
-            orm.internal
-              .deleteFrom(`_ponder_reorg_${tableName}`)
+            qb.internal
+              .deleteFrom(`_ponder_reorg__${tableName}`)
               .where("checkpoint", "<=", checkpoint)
               .execute(),
           ),
@@ -1164,9 +1161,9 @@ export const createDatabase = (args: {
     async kill() {
       clearInterval(heartbeatInterval);
 
-      const app = await getApp(orm.internal);
+      const app = await getApp(qb.internal);
       if (app) {
-        await orm.internal
+        await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
           .set({
@@ -1179,12 +1176,12 @@ export const createDatabase = (args: {
         msg: `Released lock on schema '${namespace}'`,
       });
 
-      await orm.internal.destroy();
-      await orm.user.destroy();
-      await orm.readonly.destroy();
-      await orm.sync.destroy();
+      await qb.internal.destroy();
+      await qb.user.destroy();
+      await qb.readonly.destroy();
+      await qb.sync.destroy();
 
-      if (sql === "sqlite") {
+      if (dialect === "sqlite") {
         // @ts-ignore
         driver.user.close();
         // @ts-ignore

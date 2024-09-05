@@ -69,8 +69,8 @@ test("ready", async (context) => {
   });
 
   await getMetadataStore({
-    encoding: database.sql,
-    db: database.orm.user,
+    dialect: database.dialect,
+    db: database.qb.user,
   }).setStatus({});
 
   const response = await server.hono.request("/ready");
@@ -104,10 +104,7 @@ test("healthy PUT", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
-    common: {
-      ...context.common,
-      options: { ...context.common.options },
-    },
+    common: context.common,
     app: new Hono(),
     routes: [],
     schema: {},

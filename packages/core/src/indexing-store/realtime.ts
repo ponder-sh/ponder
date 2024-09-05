@@ -13,12 +13,12 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 export const getRealtimeStore = ({
-  encoding,
+  dialect,
   schema,
   db,
   common,
 }: {
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
   schema: Schema;
   db: HeadlessKysely<any>;
   common: Common;
@@ -40,7 +40,7 @@ export const getRealtimeStore = ({
       const createRecord = encodeRecord({
         record: { id, ...data },
         table,
-        encoding,
+        dialect,
         schema,
         skipValidation: false,
       });
@@ -56,7 +56,7 @@ export const getRealtimeStore = ({
           });
 
         await tx
-          .insertInto(`_ponder_reorg_${tableName}`)
+          .insertInto(`_ponder_reorg__${tableName}`)
           .values({
             operation: 0,
             id: createRecord.id,
@@ -64,7 +64,7 @@ export const getRealtimeStore = ({
           })
           .execute();
 
-        return decodeRecord({ record: record, table, encoding });
+        return decodeRecord({ record: record, table, dialect });
       });
     });
   },
@@ -90,7 +90,7 @@ export const getRealtimeStore = ({
             encodeRecord({
               record: d,
               table,
-              encoding,
+              dialect,
               schema,
               skipValidation: false,
             }),
@@ -108,7 +108,7 @@ export const getRealtimeStore = ({
           records.push(..._records);
 
           await tx
-            .insertInto(`_ponder_reorg_${tableName}`)
+            .insertInto(`_ponder_reorg__${tableName}`)
             .values(
               createRecords.map((record) => ({
                 operation: 0,
@@ -120,7 +120,7 @@ export const getRealtimeStore = ({
         }
       });
 
-      return records.map((record) => decodeRecord({ record, table, encoding }));
+      return records.map((record) => decodeRecord({ record, table, dialect }));
     });
   },
   update: ({
@@ -139,7 +139,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, encoding });
+      const encodedId = encodeValue({ value: id, column: table.id, dialect });
 
       const record = await db.transaction().execute(async (tx) => {
         const latestRecord = await tx
@@ -157,14 +157,14 @@ export const getRealtimeStore = ({
                 current: decodeRecord({
                   record: latestRecord,
                   table,
-                  encoding,
+                  dialect,
                 }),
               })
             : data;
         const updateRecord = encodeRecord({
           record: { id, ...updateObject },
           table,
-          encoding,
+          dialect,
           schema,
           skipValidation: false,
         });
@@ -180,7 +180,7 @@ export const getRealtimeStore = ({
           });
 
         await tx
-          .insertInto(`_ponder_reorg_${tableName}`)
+          .insertInto(`_ponder_reorg__${tableName}`)
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
@@ -191,7 +191,7 @@ export const getRealtimeStore = ({
         return updateResult;
       });
 
-      const result = decodeRecord({ record: record, table, encoding });
+      const result = decodeRecord({ record: record, table, dialect });
 
       return result;
     });
@@ -227,7 +227,7 @@ export const getRealtimeStore = ({
                   eb,
                   where,
                   table,
-                  encoding,
+                  dialect,
                 }),
               )
               .orderBy("id", "asc")
@@ -244,7 +244,7 @@ export const getRealtimeStore = ({
                       current: decodeRecord({
                         record: latestRecord,
                         table,
-                        encoding,
+                        dialect,
                       }),
                     })
                   : data;
@@ -255,7 +255,7 @@ export const getRealtimeStore = ({
                 ...encodeRecord({
                   record: updateObject,
                   table,
-                  encoding,
+                  dialect,
                   schema,
                   skipValidation: false,
                 }),
@@ -274,7 +274,7 @@ export const getRealtimeStore = ({
               records.push(record);
 
               await tx
-                .insertInto(`_ponder_reorg_${tableName}`)
+                .insertInto(`_ponder_reorg__${tableName}`)
                 .values({
                   operation: 1,
                   checkpoint: encodedCheckpoint,
@@ -284,7 +284,7 @@ export const getRealtimeStore = ({
             }
 
             return records.map((record) =>
-              decodeRecord({ record, table, encoding }),
+              decodeRecord({ record, table, dialect }),
             );
           }),
       );
@@ -297,7 +297,7 @@ export const getRealtimeStore = ({
         cursor = encodeValue({
           value: _records[_records.length - 1]!.id,
           column: table.id,
-          encoding,
+          dialect,
         });
       }
     }
@@ -322,11 +322,11 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, encoding });
+      const encodedId = encodeValue({ value: id, column: table.id, dialect });
       const createRecord = encodeRecord({
         record: { id, ...create },
         table,
-        encoding,
+        dialect,
         schema,
         skipValidation: false,
       });
@@ -360,7 +360,7 @@ export const getRealtimeStore = ({
             });
 
           await tx
-            .insertInto(`_ponder_reorg_${tableName}`)
+            .insertInto(`_ponder_reorg__${tableName}`)
             .values({
               operation: 0,
               id: createRecord.id,
@@ -377,14 +377,14 @@ export const getRealtimeStore = ({
                 current: decodeRecord({
                   record: latestRecord,
                   table,
-                  encoding,
+                  dialect,
                 }),
               })
             : update;
         const updateRecord = encodeRecord({
           record: { id, ...updateObject },
           table,
-          encoding,
+          dialect,
           schema,
           skipValidation: false,
         });
@@ -405,7 +405,7 @@ export const getRealtimeStore = ({
           });
 
         await tx
-          .insertInto(`_ponder_reorg_${tableName}`)
+          .insertInto(`_ponder_reorg__${tableName}`)
           .values({
             operation: 1,
             checkpoint: encodedCheckpoint,
@@ -416,7 +416,7 @@ export const getRealtimeStore = ({
         return record;
       });
 
-      return decodeRecord({ record, table, encoding });
+      return decodeRecord({ record, table, dialect });
     });
   },
   delete: ({
@@ -431,7 +431,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, encoding });
+      const encodedId = encodeValue({ value: id, column: table.id, dialect });
 
       const isDeleted = await db.transaction().execute(async (tx) => {
         const record = await tx
@@ -451,7 +451,7 @@ export const getRealtimeStore = ({
 
         if (record !== undefined) {
           await tx
-            .insertInto(`_ponder_reorg_${tableName}`)
+            .insertInto(`_ponder_reorg__${tableName}`)
             .values({
               operation: 2,
               checkpoint: encodedCheckpoint,

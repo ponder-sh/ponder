@@ -141,39 +141,39 @@ export async function setupDatabaseServices(
     schema: config.schema,
   });
 
-  await database.prepareEnv(config);
+  await database.setup(config);
 
   await database.migrateSync();
 
   const syncStore = createSyncStore({
     common: context.common,
-    sql: database.sql,
-    db: database.orm.sync,
+    dialect: database.dialect,
+    db: database.qb.sync,
   });
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.sql,
+    dialect: database.dialect,
     schema: config.schema,
-    db: database.orm.user,
+    db: database.qb.user,
     common: context.common,
   });
 
   const indexingStore =
     config.indexing === "historical"
       ? getHistoricalStore({
-          encoding: database.sql,
+          dialect: database.dialect,
           schema: config.schema,
           readonlyStore,
-          db: database.orm.user,
+          db: database.qb.user,
           common: context.common,
           isCacheExhaustive: true,
         })
       : {
           ...readonlyStore,
           ...getRealtimeStore({
-            encoding: database.sql,
+            dialect: database.dialect,
             schema: config.schema,
-            db: database.orm.user,
+            db: database.qb.user,
             common: context.common,
           }),
         };

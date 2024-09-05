@@ -69,7 +69,7 @@ test("setup succeeds with a fresh database", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  const { checkpoint } = await database.prepareEnv({ buildId: "abc" });
+  const { checkpoint } = await database.setup({ buildId: "abc" });
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
@@ -77,8 +77,8 @@ test("setup succeeds with a fresh database", async (context) => {
   expect(tableNames).toContain("Pet");
   expect(tableNames).toContain("Person");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg_Pet");
-  expect(tableNames).toContain("_ponder_reorg_Person");
+  expect(tableNames).toContain("_ponder_reorg__Pet");
+  expect(tableNames).toContain("_ponder_reorg__Person");
 
   await database.kill();
 });
@@ -90,7 +90,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -103,18 +103,18 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
   expect(tableNames).toContain("Pet");
   expect(tableNames).toContain("Person");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg_Pet");
-  expect(tableNames).toContain("_ponder_reorg_Person");
+  expect(tableNames).toContain("_ponder_reorg__Pet");
+  expect(tableNames).toContain("_ponder_reorg__Person");
 
-  await databaseTwo.prepareEnv({ buildId: "def" });
+  await databaseTwo.setup({ buildId: "def" });
 
   tableNames = await getUserTableNames(databaseTwo);
 
   expect(tableNames).toContain("Dog");
   expect(tableNames).toContain("Apple");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg_Dog");
-  expect(tableNames).toContain("_ponder_reorg_Apple");
+  expect(tableNames).toContain("_ponder_reorg__Dog");
+  expect(tableNames).toContain("_ponder_reorg__Apple");
 
   await databaseTwo.kill();
 });
@@ -126,7 +126,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -134,34 +134,32 @@ test("setup does not drop tables that are not managed by ponder", async (context
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
   });
-  await databaseTwo.orm.internal.executeQuery(
-    sql`CREATE TABLE public.not_a_ponder_table (id TEXT)`.compile(
-      databaseTwo.orm.internal,
+  await databaseTwo.qb.internal.executeQuery(
+    sql`CREATE TABLE not_a_ponder_table (id TEXT)`.compile(
+      databaseTwo.qb.internal,
     ),
   );
-  await databaseTwo.orm.internal.executeQuery(
-    sql`CREATE TABLE public."AnotherTable" (id TEXT)`.compile(
-      databaseTwo.orm.internal,
-    ),
+  await databaseTwo.qb.internal.executeQuery(
+    sql`CREATE TABLE "AnotherTable" (id TEXT)`.compile(databaseTwo.qb.internal),
   );
   let tableNames = await getUserTableNames(databaseTwo);
   expect(tableNames).toContain("Pet");
   expect(tableNames).toContain("Person");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg_Pet");
-  expect(tableNames).toContain("_ponder_reorg_Person");
+  expect(tableNames).toContain("_ponder_reorg__Pet");
+  expect(tableNames).toContain("_ponder_reorg__Person");
   expect(tableNames).toContain("not_a_ponder_table");
   expect(tableNames).toContain("AnotherTable");
 
-  await databaseTwo.prepareEnv({ buildId: "def" });
+  await databaseTwo.setup({ buildId: "def" });
 
   tableNames = await getUserTableNames(databaseTwo);
 
   expect(tableNames).toContain("Dog");
   expect(tableNames).toContain("Apple");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg_Dog");
-  expect(tableNames).toContain("_ponder_reorg_Apple");
+  expect(tableNames).toContain("_ponder_reorg__Dog");
+  expect(tableNames).toContain("_ponder_reorg__Apple");
 
   await databaseTwo.kill();
 });
@@ -173,12 +171,12 @@ test("setup with the same build ID and namespace reverts to and returns the fina
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
   const realtimeIndexingStore = getRealtimeStore({
-    encoding: context.databaseConfig.kind,
+    dialect: context.databaseConfig.kind,
     schema,
-    db: database.orm.user,
+    db: database.qb.user,
     common: context.common,
   });
 
@@ -228,14 +226,14 @@ test("setup with the same build ID and namespace reverts to and returns the fina
     databaseConfig: context.databaseConfig,
   });
 
-  const { checkpoint } = await databaseTwo.prepareEnv({
+  const { checkpoint } = await databaseTwo.setup({
     buildId: "abc",
   });
 
   const readonlyIndexingStore = getReadonlyStore({
-    encoding: context.databaseConfig.kind,
+    dialect: context.databaseConfig.kind,
     schema,
-    db: databaseTwo.orm.user,
+    db: databaseTwo.qb.user,
     common: context.common,
   });
 
@@ -260,7 +258,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
     schema,
     databaseConfig: context.databaseConfig,
   });
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -270,18 +268,18 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
   });
 
   // Update the prior app lock row to simulate an abrupt shutdown.
-  const row = await databaseTwo.orm.internal
+  const row = await databaseTwo.qb.internal
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
     .executeTakeFirst();
 
-  await databaseTwo.orm.internal
+  await databaseTwo.qb.internal
     .updateTable("_ponder_meta")
     .where("key", "=", "app")
     .set({
       value:
-        database.sql === "sqlite"
+        database.dialect === "sqlite"
           ? JSON.stringify({
               ...JSON.parse(row!.value!),
               is_locked: true,
@@ -294,7 +292,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
     })
     .execute();
 
-  const { checkpoint } = await databaseTwo.prepareEnv({
+  const { checkpoint } = await databaseTwo.setup({
     buildId: "def",
   });
 
@@ -313,7 +311,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
   const databaseTwo = createDatabase({
     common: context.common,
@@ -322,7 +320,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
   });
 
   await expect(() =>
-    databaseTwo.prepareEnv({
+    databaseTwo.setup({
       buildId: "def",
     }),
   ).rejects.toThrow(
@@ -340,13 +338,13 @@ test("setup throws if there is a table name collision", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.orm.internal.executeQuery(
-    sql`CREATE TABLE public."Pet" (id TEXT)`.compile(database.orm.internal),
+  await database.qb.internal.executeQuery(
+    sql`CREATE TABLE "Pet" (id TEXT)`.compile(database.qb.internal),
   );
 
   expect(await getUserTableNames(database)).toStrictEqual(["Pet"]);
 
-  await expect(() => database.prepareEnv({ buildId: "abc" })).rejects.toThrow(
+  await expect(() => database.setup({ buildId: "abc" })).rejects.toThrow(
     "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
   );
 
@@ -362,9 +360,9 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     schema,
     databaseConfig: context.databaseConfig,
   });
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
-  const row = await database.orm.internal
+  const row = await database.qb.internal
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
@@ -372,7 +370,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   await wait(500);
 
-  const rowAfterHeartbeat = await database.orm.internal
+  const rowAfterHeartbeat = await database.qb.internal
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
@@ -380,13 +378,13 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   expect(
     BigInt(
-      database.sql === "sqlite"
+      database.dialect === "sqlite"
         ? JSON.parse(rowAfterHeartbeat!.value!).heartbeat_at
         : // @ts-ignore
           rowAfterHeartbeat!.value!.heartbeat_at,
     ),
   ).toBeGreaterThan(
-    database.sql === "sqlite"
+    database.dialect === "sqlite"
       ? JSON.parse(row!.value!).heartbeat_at
       : // @ts-ignore
         row!.value!.heartbeat_at,
@@ -402,7 +400,7 @@ test("finalize updates lock table", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({
+  await database.setup({
     buildId: "abc",
   });
 
@@ -410,14 +408,14 @@ test("finalize updates lock table", async (context) => {
     checkpoint: encodeCheckpoint(maxCheckpoint),
   });
 
-  const row = await database.orm.internal
+  const row = await database.qb.internal
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
     .executeTakeFirst();
 
   expect(
-    database.sql === "sqlite"
+    database.dialect === "sqlite"
       ? JSON.parse(row!.value!).checkpoint
       : // @ts-ignore
         row!.value!.checkpoint,
@@ -433,12 +431,12 @@ test("finalize delete reorg table rows", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
   const realtimeIndexingStore = getRealtimeStore({
-    encoding: context.databaseConfig.kind,
+    dialect: context.databaseConfig.kind,
     schema,
-    db: database.orm.user,
+    db: database.qb.user,
     common: context.common,
   });
 
@@ -470,8 +468,8 @@ test("finalize delete reorg table rows", async (context) => {
     data: { name: "Foo" },
   });
 
-  let rows = await database.orm.internal
-    .selectFrom("_ponder_reorg_Pet")
+  let rows = await database.qb.internal
+    .selectFrom("_ponder_reorg__Pet")
     .select("id")
     .execute();
 
@@ -484,8 +482,8 @@ test("finalize delete reorg table rows", async (context) => {
     }),
   });
 
-  rows = await database.orm.internal
-    .selectFrom("_ponder_reorg_Pet")
+  rows = await database.qb.internal
+    .selectFrom("_ponder_reorg__Pet")
     .select("id")
     .execute();
 
@@ -501,9 +499,9 @@ test("kill releases the namespace lock", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
-  const row = await database.orm.internal
+  const row = await database.qb.internal
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
@@ -518,20 +516,20 @@ test("kill releases the namespace lock", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  const rowAfterKill = await databaseTwo.orm.internal
+  const rowAfterKill = await databaseTwo.qb.internal
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
     .executeTakeFirst();
 
   expect(
-    database.sql === "sqlite"
+    database.dialect === "sqlite"
       ? JSON.parse(row!.value!).is_locked
       : // @ts-ignore
         row!.value!.is_locked,
   ).toBe(true);
   expect(
-    database.sql === "sqlite"
+    database.dialect === "sqlite"
       ? JSON.parse(rowAfterKill!.value!).is_locked
       : // @ts-ignore
         rowAfterKill!.value!.is_locked,
@@ -547,7 +545,7 @@ test("createIndexes adds a single column index", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
   await database.createIndexes({ schema });
 
@@ -567,7 +565,7 @@ test("createIndexes adds a multi column index", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
   await database.createIndexes({ schema });
 
@@ -599,7 +597,7 @@ test("createIndexes with ordering", async (context) => {
     databaseConfig: context.databaseConfig,
   });
 
-  await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
   await database.createIndexes({ schema });
 
@@ -612,39 +610,35 @@ test("createIndexes with ordering", async (context) => {
   await database.kill();
 });
 
-test(
-  "setup with the same build ID drops indexes",
-  async (context) => {
-    const database = createDatabase({
-      common: context.common,
-      schema,
-      databaseConfig: context.databaseConfig,
-    });
+test("setup with the same build ID drops indexes", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    schema,
+    databaseConfig: context.databaseConfig,
+  });
 
-    await database.prepareEnv({ buildId: "abc" });
+  await database.setup({ buildId: "abc" });
 
-    await database.createIndexes({ schema });
+  await database.createIndexes({ schema });
 
-    await database.kill();
+  await database.kill();
 
-    const databaseTwo = createDatabase({
-      common: context.common,
-      schema,
-      databaseConfig: context.databaseConfig,
-    });
+  const databaseTwo = createDatabase({
+    common: context.common,
+    schema,
+    databaseConfig: context.databaseConfig,
+  });
 
-    await databaseTwo.prepareEnv({ buildId: "abc" });
+  await databaseTwo.setup({ buildId: "abc" });
 
-    const indexes = await getUserIndexNames(databaseTwo, "Person");
+  const indexes = await getUserIndexNames(databaseTwo, "Person");
 
-    expect(indexes).toStrictEqual([
-      database.sql === "sqlite" ? "sqlite_autoindex_Person_1" : "Person_pkey",
-    ]);
+  expect(indexes).toStrictEqual([
+    database.dialect === "sqlite" ? "sqlite_autoindex_Person_1" : "Person_pkey",
+  ]);
 
-    await databaseTwo.kill();
-  },
-  { timeout: 30_000 },
-);
+  await databaseTwo.kill();
+});
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, database, cleanup } = await setupDatabaseServices(
@@ -709,15 +703,15 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   expect(persons[0]!.name).toBe("Bobby");
   expect(persons[1]!.name).toBe("Kevin");
 
-  const PetLogs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const PetLogs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
   expect(PetLogs).toHaveLength(1);
 
-  const PersonLogs = await database.orm.user
-    .selectFrom("_ponder_reorg_Person")
+  const PersonLogs = await database.qb.user
+    .selectFrom("_ponder_reorg__Person")
     .selectAll()
     .execute();
   expect(PersonLogs).toHaveLength(3);
@@ -756,8 +750,8 @@ test("revert() updates versions with intermediate logs", async (context) => {
   });
   expect(instancePet).toBe(null);
 
-  const PetLogs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const PetLogs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
   expect(PetLogs).toHaveLength(0);
@@ -766,38 +760,36 @@ test("revert() updates versions with intermediate logs", async (context) => {
 });
 
 async function getUserTableNames(database: Database) {
-  const { rows } = await database.orm.internal.executeQuery<{ name: string }>(
-    database.sql === "sqlite"
-      ? sql`SELECT name FROM ${sql.raw(
-          database.namespace,
-        )}.sqlite_master WHERE type='table'`.compile(database.orm.internal)
+  const { rows } = await database.qb.internal.executeQuery<{ name: string }>(
+    database.dialect === "sqlite"
+      ? sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(
+          database.qb.internal,
+        )
       : sql`
     SELECT table_name as name
     FROM information_schema.tables
     WHERE table_schema = '${sql.raw(database.namespace)}'
     AND table_type = 'BASE TABLE'
-  `.compile(database.orm.internal),
+  `.compile(database.qb.internal),
   );
   return rows.map(({ name }) => name);
 }
 
 async function getUserIndexNames(database: Database, tableName: string) {
-  const { rows } = await database.orm.internal.executeQuery<{
+  const { rows } = await database.qb.internal.executeQuery<{
     name: string;
     tbl_name: string;
   }>(
-    database.sql === "sqlite"
-      ? sql`SELECT name FROM ${sql.raw(
-          database.namespace,
-        )}.sqlite_master WHERE type='index' AND tbl_name='${sql.raw(tableName)}'`.compile(
-          database.orm.internal,
+    database.dialect === "sqlite"
+      ? sql`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='${sql.raw(tableName)}'`.compile(
+          database.qb.internal,
         )
       : sql`
     SELECT indexname as name
     FROM pg_indexes
     WHERE schemaname = '${sql.raw(database.namespace)}'
     AND tablename = '${sql.raw(tableName)}'
-  `.compile(database.orm.internal),
+  `.compile(database.qb.internal),
   );
   return rows.map((r) => r.name);
 }

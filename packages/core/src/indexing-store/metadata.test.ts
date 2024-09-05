@@ -17,8 +17,8 @@ test("getMetadata() empty", async (context) => {
     schema,
   });
   const metadataStore = getMetadataStore({
-    encoding: database.sql,
-    db: database.orm.user,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   const status = await metadataStore.getStatus();
@@ -33,8 +33,8 @@ test("setMetadata()", async (context) => {
     schema,
   });
   const metadataStore = getMetadataStore({
-    encoding: database.sql,
-    db: database.orm.user,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   await metadataStore.setStatus({

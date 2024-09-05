@@ -37,15 +37,15 @@ export async function createServer({
   // Create hono app
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.sql,
+    dialect: database.dialect,
     schema,
-    db: database.orm.readonly,
+    db: database.qb.readonly,
     common,
   });
 
   const metadataStore = getMetadataStore({
-    encoding: database.sql,
-    db: database.orm.readonly,
+    dialect: database.dialect,
+    db: database.qb.readonly,
   });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {

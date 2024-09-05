@@ -513,7 +513,7 @@ test("update() w/ find cache", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await database.orm.user.selectFrom("Pet").selectAll().execute();
+  const rows = await database.qb.user.selectFrom("Pet").selectAll().execute();
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -771,7 +771,7 @@ test("upsert() w/ find cache", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await database.orm.user.selectFrom("Pet").selectAll().execute();
+  const rows = await database.qb.user.selectFrom("Pet").selectAll().execute();
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -845,7 +845,7 @@ test("delete() w/ find cache", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await database.orm.user.selectFrom("Pet").selectAll().execute();
+  const rows = await database.qb.user.selectFrom("Pet").selectAll().execute();
 
   expect(rows).toHaveLength(0);
 
@@ -1058,7 +1058,7 @@ test("flush() insert", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await database.orm.user.selectFrom("Pet").selectAll().execute();
+  const rows = await database.qb.user.selectFrom("Pet").selectAll().execute();
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -1094,7 +1094,7 @@ test("flush() update", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await database.orm.user.selectFrom("Pet").selectAll().execute();
+  const rows = await database.qb.user.selectFrom("Pet").selectAll().execute();
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -1132,7 +1132,7 @@ test("flush() partial", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: false });
 
-  const rows = await database.orm.user.selectFrom("Pet").selectAll().execute();
+  const rows = await database.qb.user.selectFrom("Pet").selectAll().execute();
 
   expect(rows).toHaveLength(4);
   expect(rows[0]).toMatchObject({
@@ -1173,10 +1173,7 @@ test("flush() skips update w/ no data", async (context) => {
 
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
-  const rows = await database.orm.user
-    .selectFrom("table")
-    .selectAll()
-    .execute();
+  const rows = await database.qb.user.selectFrom("table").selectAll().execute();
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({

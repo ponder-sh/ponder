@@ -3049,8 +3049,8 @@ test("metadata", async (context) => {
   );
 
   const metadataStore = getMetadataStore({
-    encoding: database.sql,
-    db: database.orm.user,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   await metadataStore.setStatus({

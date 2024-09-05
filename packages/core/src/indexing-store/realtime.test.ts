@@ -222,8 +222,8 @@ test("create() inserts into the log table", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  const logs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -342,8 +342,8 @@ test("update() inserts into the log table", async (context) => {
     data: { name: "Peanut Butter" },
   });
 
-  const logs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -480,8 +480,8 @@ test("upsert() inserts into the log table", async (context) => {
     update: { name: "Jelly" },
   });
 
-  const logs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -555,8 +555,8 @@ test("delete() inserts into the log table", async (context) => {
     id: "id1",
   });
 
-  const logs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -645,8 +645,8 @@ test("createMany() inserts into the log table", async (context) => {
     ],
   });
 
-  const logs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -730,8 +730,8 @@ test("updateMany() inserts into the log table", async (context) => {
     data: { bigAge: 300n },
   });
 
-  const logs = await database.orm.user
-    .selectFrom("_ponder_reorg_Pet")
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 

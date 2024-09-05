@@ -52,19 +52,19 @@ export async function run({
     schema,
     databaseConfig,
   });
-  const { checkpoint: initialCheckpoint } = await database.prepareEnv({
+  const { checkpoint: initialCheckpoint } = await database.setup({
     buildId,
   });
 
   const syncStore = createSyncStore({
     common,
-    db: database.orm.sync,
-    sql: database.sql,
+    db: database.qb.sync,
+    dialect: database.dialect,
   });
 
   const metadataStore = getMetadataStore({
-    encoding: database.sql,
-    db: database.orm.user,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   // This can be a long-running operation, so it's best to do it after
@@ -136,17 +136,17 @@ export async function run({
   });
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.sql,
+    dialect: database.dialect,
     schema,
-    db: database.orm.user,
+    db: database.qb.user,
     common,
   });
 
   const historicalStore = getHistoricalStore({
-    encoding: database.sql,
+    dialect: database.dialect,
     schema,
     readonlyStore,
-    db: database.orm.user,
+    db: database.qb.user,
     common,
     isCacheExhaustive: encodeCheckpoint(zeroCheckpoint) === initialCheckpoint,
   });
@@ -226,9 +226,9 @@ export async function run({
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
-        encoding: database.sql,
+        dialect: database.dialect,
         schema,
-        db: database.orm.user,
+        db: database.qb.user,
         common,
       }),
     };

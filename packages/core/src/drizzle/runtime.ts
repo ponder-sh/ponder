@@ -37,7 +37,7 @@ import { PgListBuilder, SQLiteListBuilder } from "./list.js";
 import type { BuildAliasTable } from "./select.js";
 
 export const createDrizzleDb = (database: Database) => {
-  if (database.sql === "postgres") {
+  if (database.dialect === "postgres") {
     const drizzle = drizzlePg(database.driver.readonly as Pool);
     return {
       // @ts-ignore
@@ -97,26 +97,26 @@ export const createDrizzleTables = (schema: Schema, database: Database) => {
         if (isJSONColumn(column)) {
           drizzleColumns[columnName] = convertJsonColumn(
             columnName,
-            database.sql,
+            database.dialect,
           );
         } else if (isEnumColumn(column)) {
           if (isListColumn(column)) {
             drizzleColumns[columnName] = convertListColumn(
               columnName,
-              database.sql,
+              database.dialect,
               "string",
             );
           } else {
             drizzleColumns[columnName] = convertEnumColumn(
               columnName,
-              database.sql,
+              database.dialect,
             );
           }
         } else if (isScalarColumn(column) || isReferenceColumn(column)) {
           if (isListColumn(column)) {
             drizzleColumns[columnName] = convertListColumn(
               columnName,
-              database.sql,
+              database.dialect,
               column[" scalar"],
             );
           } else {
@@ -124,42 +124,42 @@ export const createDrizzleTables = (schema: Schema, database: Database) => {
               case "string":
                 drizzleColumns[columnName] = convertStringColumn(
                   columnName,
-                  database.sql,
+                  database.dialect,
                 );
                 break;
 
               case "int":
                 drizzleColumns[columnName] = convertIntColumn(
                   columnName,
-                  database.sql,
+                  database.dialect,
                 );
                 break;
 
               case "boolean":
                 drizzleColumns[columnName] = convertBooleanColumn(
                   columnName,
-                  database.sql,
+                  database.dialect,
                 );
                 break;
 
               case "float":
                 drizzleColumns[columnName] = convertFloatColumn(
                   columnName,
-                  database.sql,
+                  database.dialect,
                 );
                 break;
 
               case "hex":
                 drizzleColumns[columnName] = convertHexColumn(
                   columnName,
-                  database.sql,
+                  database.dialect,
                 );
                 break;
 
               case "bigint":
                 drizzleColumns[columnName] = convertBigintColumn(
                   columnName,
-                  database.sql,
+                  database.dialect,
                 );
                 break;
             }
@@ -176,7 +176,7 @@ export const createDrizzleTables = (schema: Schema, database: Database) => {
       }
     }
 
-    if (database.sql === "postgres") {
+    if (database.dialect === "postgres") {
       // Note: this is to avoid an error thrown by drizzle when
       // setting schema to "public".
       if (database.namespace === "public") {
