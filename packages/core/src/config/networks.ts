@@ -8,7 +8,6 @@ export type Network = {
   transport: ReturnType<Transport>;
   pollingInterval: number;
   maxRequestsPerSecond: number;
-  maxHistoricalTaskConcurrency: number;
   defaultMaxBlockRange: number;
   finalityBlockCount: number;
   disableCache: boolean;
