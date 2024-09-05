@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  getChunks,
   intervalDifference,
   intervalIntersection,
   intervalSum,
@@ -213,5 +214,17 @@ test("sortIntervals", () => {
   expect(result).toStrictEqual([
     [1, 5],
     [4, 7],
+  ]);
+});
+
+test("getChunks", () => {
+  const result = getChunks({ interval: [1, 9], maxChunkSize: 2 });
+
+  expect(result).toStrictEqual([
+    [1, 2],
+    [3, 4],
+    [5, 6],
+    [7, 8],
+    [9, 9],
   ]);
 });

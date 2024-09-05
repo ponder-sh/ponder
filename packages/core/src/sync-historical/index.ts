@@ -80,7 +80,12 @@ export const createHistoricalSync = async (
    */
   const getLogsRequestMetadata = new Map<
     LogFilter | LogFactory,
-    { range: number; isFixed: boolean }
+    {
+      /** Estimate optimal range to use for "eth_getLogs" requests */
+      range: number;
+      /** `true` if an exact range has been suggested by the error message */
+      isSuggestedByError: boolean;
+    }
   >();
   /**
    * Intervals that have been completed for all filters in `args.sources`.
@@ -145,12 +150,22 @@ export const createHistoricalSync = async (
     interval: Interval;
     filter: LogFilter | LogFactory;
   }): Promise<SyncLog[]> => {
-    const range =
-      getLogsRequestMetadata.get(filter)?.range ??
-      interval[1] - interval[0] + 1;
+    /**
+     * Use the recommended range if available, else don't chunk the interval at all
+     */
+
+    let intervals: Interval[];
+    if (getLogsRequestMetadata.has(filter)) {
+      intervals = getChunks({
+        interval,
+        maxChunkSize: getLogsRequestMetadata.get(filter)!.range,
+      });
+    } else {
+      intervals = [interval];
+    }
 
     const logs = await Promise.all(
-      getChunks({ interval, maxChunkSize: range }).map((interval) =>
+      intervals.map((interval) =>
         _eth_getLogs(args.requestQueue, {
           address,
           topics,
@@ -184,7 +199,7 @@ export const createHistoricalSync = async (
 
           getLogsRequestMetadata.set(filter, {
             range,
-            isFixed: getLogsErrorResponse.isSuggestedRange,
+            isSuggestedByError: getLogsErrorResponse.isSuggestedRange,
           });
 
           return logRequestHelper({ address, topics, interval, filter });
@@ -192,8 +207,12 @@ export const createHistoricalSync = async (
       ),
     ).then((logs) => logs.flat());
 
-    // Slowly increase range for filters without a determined retry range
-    if (getLogsRequestMetadata.get(filter)?.isFixed === false) {
+    /**
+     * Dynamically increase the range used in "eth_getLogs" if an
+     * error has been received but the error didn't suggest a range.
+     */
+
+    if (getLogsRequestMetadata.get(filter)?.isSuggestedByError === false) {
       getLogsRequestMetadata.get(filter)!.range = Math.round(
         getLogsRequestMetadata.get(filter)!.range * 1.05,
       );
