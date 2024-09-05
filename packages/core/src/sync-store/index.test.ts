@@ -415,7 +415,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
     chainId: 1,
   });
 
-  let logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  let logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs[0]!.checkpoint).toBe(null);
 
   await syncStore.insertLogs({
@@ -424,7 +424,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
     chainId: 1,
   });
 
-  logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs[0]!.checkpoint).not.toBe(null);
 
   await syncStore.insertLogs({
@@ -433,7 +433,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
     chainId: 1,
   });
 
-  logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs[0]!.checkpoint).not.toBe(null);
 
   cleanup();
