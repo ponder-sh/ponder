@@ -396,7 +396,7 @@ export const onEventHelper = async ({
 
       blockProgress.latest = event.block;
 
-      await syncStore.pruneByBlock({
+      await syncStore.pruneRpcRequestByBlock({
         fromBlock: hexToNumber(event.block.number),
         chainId: network.chainId,
       });

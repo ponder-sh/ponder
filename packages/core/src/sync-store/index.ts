@@ -113,7 +113,7 @@ export type SyncStore = {
     blockNumber: bigint;
     chainId: number;
   }): Promise<string | null>;
-  pruneByBlock(args: {
+  pruneRpcRequestByBlock(args: {
     fromBlock: number;
     chainId: number;
   }): Promise<void>;
@@ -1247,30 +1247,13 @@ export const createSyncStore = ({
 
       return result?.result ?? null;
     }),
-  pruneByBlock: async ({ fromBlock, chainId }) =>
-    db.wrap({ method: "pruneByBlock" }, async () => {
-      await db.transaction().execute(async (tx) => {
-        await tx
-          .deleteFrom("logs")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", formatBig(sql, fromBlock))
-          .execute();
-        await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">", formatBig(sql, fromBlock))
-          .execute();
-        await tx
-          .deleteFrom("rpcRequestResults")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", formatBig(sql, fromBlock))
-          .execute();
-        await tx
-          .deleteFrom("callTraces")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">", formatBig(sql, fromBlock))
-          .execute();
-      });
+  pruneRpcRequestByBlock: async ({ fromBlock, chainId }) =>
+    db.wrap({ method: "pruneRpcRequestByBlock" }, async () => {
+      await db
+        .deleteFrom("rpcRequestResults")
+        .where("chainId", "=", chainId)
+        .where("blockNumber", ">", formatBig(sql, fromBlock))
+        .execute();
     }),
   pruneByChain: async ({ fromBlock, chainId }) =>
     db.wrap({ method: "pruneByChain" }, () =>
