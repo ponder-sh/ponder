@@ -1275,8 +1275,12 @@ export const createSyncStore = ({
     }),
   pruneByBlock: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneByBlock" }, async () => {
+      if (blocks.length === 0) return;
+
       const hashes = blocks.map(({ hash }) => hash);
-      const numbers = blocks.map(({ number }) => number);
+      const numbers = blocks.map(({ number }) =>
+        formatBig(sql, hexToBigInt(number)),
+      );
 
       await db.deleteFrom("blocks").where("hash", "in", hashes).execute();
       await db.deleteFrom("logs").where("blockHash", "in", hashes).execute();
