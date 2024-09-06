@@ -832,6 +832,21 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_09_06_0_reorg_indexes": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("transactions_blockHash_index")
+        .on("transactions")
+        .column("blockHash")
+        .execute();
+
+      await db.schema
+        .createIndex("transactionReceipts_blockHash_index")
+        .on("transactionReceipts")
+        .column("blockHash")
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
