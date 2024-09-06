@@ -1,6 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { isLogFilterMatched } from "@/sync-realtime/filter.js";
-import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import type {
   Block,
   CallTrace,
@@ -9,21 +7,18 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { SyncBlock, SyncLog, SyncTransaction } from "@/types/sync.js";
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
-  type Hash,
   type Hex,
   checksumAddress,
   decodeAbiParameters,
   decodeFunctionData,
   decodeFunctionResult,
   hexToBigInt,
-  hexToNumber,
 } from "viem";
 import type { Source } from "./source.js";
 
@@ -98,71 +93,6 @@ export type CallTraceEvent = {
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
   };
-};
-
-/**
- *  Create `RawEvent`s from underlying data types
- *
- * Note: This function doesn't support factories,
- * call traces, or transaction receipts
- */
-export const buildEvents = (
-  sources: Source[],
-  {
-    block,
-    logs,
-    transactions,
-  }: Omit<Extract<RealtimeSyncEvent, { type: "block" }>, "type">,
-) => {
-  const events: RawEvent[] = [];
-
-  const transactionCache = new Map<Hash, SyncTransaction>();
-  for (const transaction of transactions) {
-    transactionCache.set(transaction.hash, transaction);
-  }
-
-  for (let i = 0; i < sources.length; i++) {
-    const filter = sources[i]!.filter;
-    switch (filter.type) {
-      case "log": {
-        for (const log of logs) {
-          if (isLogFilterMatched({ filter, block, log })) {
-            events.push({
-              chainId: filter.chainId,
-              sourceIndex: i,
-              checkpoint: encodeCheckpoint({
-                blockTimestamp: hexToNumber(block.timestamp),
-                chainId: BigInt(filter.chainId),
-                blockNumber: hexToBigInt(log.blockNumber),
-                transactionIndex: hexToBigInt(log.transactionIndex),
-                eventType: EVENT_TYPES.logs,
-                eventIndex: hexToBigInt(log.logIndex),
-              }),
-              log: convertLog(log),
-              block: convertBlock(block),
-              transaction: convertTransaction(
-                transactionCache.get(log.transactionHash)!,
-              ),
-            });
-          }
-        }
-        break;
-      }
-
-      case "block":
-        // Not implemented
-        break;
-
-      case "callTrace":
-        // Not implemented
-        break;
-
-      default:
-        never(filter);
-    }
-  }
-
-  return events.sort((a, b) => (a < b ? -1 : 1));
 };
 
 export const decodeEvents = (
@@ -370,6 +300,7 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
   return decodedArg[0];
 }
 
+// @ts-ignore
 const convertBlock = (block: SyncBlock): Block => ({
   baseFeePerGas: block.baseFeePerGas ? hexToBigInt(block.baseFeePerGas) : null,
   difficulty: hexToBigInt(block.difficulty),
@@ -394,6 +325,7 @@ const convertBlock = (block: SyncBlock): Block => ({
   transactionsRoot: block.transactionsRoot,
 });
 
+// @ts-ignore
 const convertLog = (log: SyncLog): Log => ({
   id: `${log.blockHash}-${log.logIndex}`,
   address: checksumAddress(log.address!),
@@ -407,6 +339,7 @@ const convertLog = (log: SyncLog): Log => ({
   transactionIndex: Number(log.transactionIndex),
 });
 
+// @ts-ignore
 const convertTransaction = (transaction: SyncTransaction): Transaction => ({
   blockHash: transaction.blockHash,
   blockNumber: hexToBigInt(transaction.blockNumber),
