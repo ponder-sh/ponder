@@ -513,6 +513,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
              * defined has become finalized.
              */
             if (localSync.isComplete()) {
+              args.common.metrics.ponder_realtime_is_connected.set(
+                { network: network.name },
+                0,
+              );
               args.common.logger.info({
                 service: "sync",
                 msg: `Synced final end block for '${network.name}' (${hexToNumber(localSync.endBlock!.number)}), killing realtime sync service`,
@@ -534,7 +538,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             const checkpoint = getChainsCheckpoint("latest")!;
 
             await args.syncStore.pruneByBlock({
-              fromBlock: hexToNumber(event.block.number),
+              blocks: event.reorgedBlocks,
               chainId: network.chainId,
             });
 
@@ -588,6 +592,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               }),
             onFatalError: args.onFatalError,
           });
+          args.common.metrics.ponder_realtime_is_connected.set(
+            { network: network.name },
+            1,
+          );
           realtimeSync.start(localSync.finalizedBlock);
           realtimeSyncs.set(network, realtimeSync);
         }
