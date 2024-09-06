@@ -563,6 +563,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
            * defined has become finalized.
            */
           if (isSyncExhaustive(blockProgress)) {
+            args.common.metrics.ponder_realtime_is_connected.set(
+              { network: network.name },
+              0,
+            );
             args.common.logger.info({
               service: "sync",
               msg: `Synced final end block for '${network.name}' (${hexToNumber(blockProgress.end!.number)}), killing realtime sync service`,
@@ -607,6 +611,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         status[network.name]!.ready = true;
 
         if (isSyncExhaustive(blockProgress) === false) {
+          args.common.metrics.ponder_realtime_is_connected.set(
+            { network: network.name },
+            1,
+          );
           realtimeSync.start(blockProgress.finalized);
         }
       }
