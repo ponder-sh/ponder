@@ -21,6 +21,7 @@ import {
 } from "@/sync/source.js";
 import type { CallTrace, Log, TransactionReceipt } from "@/types/eth.js";
 import type {
+  LightBlock,
   SyncBlock,
   SyncCallTrace,
   SyncLog,
@@ -74,6 +75,7 @@ export type SyncStore = {
   }): Promise<Set<Address>>;
   insertLogs(args: {
     logs: { log: SyncLog; block?: SyncBlock }[];
+    shouldUpdateCheckpoint: boolean;
     chainId: number;
   }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
@@ -113,8 +115,8 @@ export type SyncStore = {
     blockNumber: bigint;
     chainId: number;
   }): Promise<string | null>;
-  pruneRpcRequestByBlock(args: {
-    fromBlock: number;
+  pruneByBlock(args: {
+    blocks: Pick<LightBlock, "hash" | "number">[];
     chainId: number;
   }): Promise<void>;
   pruneByChain(args: {
@@ -532,7 +534,7 @@ export const createSyncStore = ({
 
       return new Set<Address>([...result.map(({ address }) => address)]);
     }),
-  insertLogs: async ({ logs, chainId }) => {
+  insertLogs: async ({ logs, shouldUpdateCheckpoint, chainId }) => {
     if (logs.length === 0) return;
     await db.wrap({ method: "insertLogs" }, async () => {
       // Calculate `batchSize` based on how many parameters the
@@ -541,6 +543,14 @@ export const createSyncStore = ({
         common.options.databaseMaxQueryParameters /
           Object.keys(encodeLog({ log: logs[0]!.log, chainId, sql })).length,
       );
+
+      /**
+       * As an optimization, logs that are matched by a factory do
+       * not contain a checkpoint, because not corresponding block is
+       * fetched (no block.timestamp). However, when a log is matched by
+       * both a log filter and a factory, the checkpoint must be included
+       * in the db.
+       */
 
       for (let i = 0; i < logs.length; i += batchSize) {
         await db
@@ -551,9 +561,13 @@ export const createSyncStore = ({
               .map(({ log, block }) => encodeLog({ log, block, chainId, sql })),
           )
           .onConflict((oc) =>
-            oc.column("id").doUpdateSet((eb) => ({
-              checkpoint: eb.ref("excluded.checkpoint"),
-            })),
+            oc.column("id").$call((qb) =>
+              shouldUpdateCheckpoint
+                ? qb.doUpdateSet((eb) => ({
+                    checkpoint: eb.ref("excluded.checkpoint"),
+                  }))
+                : qb.doNothing(),
+            ),
           )
           .execute();
       }
@@ -883,149 +897,161 @@ export const createSyncStore = ({
           qb.where("number", "<=", formatBig(sql, filter.toBlock!)),
         );
 
-    const rows = await db.wrap({ method: "getEvents" }, async () => {
-      let query:
-        | SelectQueryBuilder<
-            PonderSyncSchema,
-            "logs" | "callTraces" | "blocks",
-            {
-              filterIndex: number;
-              checkpoint: string;
-              chainId: number;
-              blockHash: string;
-              transactionHash: string;
-              logId: string;
-              callTraceId: string;
-            }
-          >
-        | undefined;
+    const rows = await db.wrap(
+      {
+        method: "getEvents",
+        shouldRetry(error) {
+          return error.message.includes("statement timeout") === false;
+        },
+      },
+      async () => {
+        let query:
+          | SelectQueryBuilder<
+              PonderSyncSchema,
+              "logs" | "callTraces" | "blocks",
+              {
+                filterIndex: number;
+                checkpoint: string;
+                chainId: number;
+                blockHash: string;
+                transactionHash: string;
+                logId: string;
+                callTraceId: string;
+              }
+            >
+          | undefined;
 
-      for (let i = 0; i < filters.length; i++) {
-        const filter = filters[i]!;
+        for (let i = 0; i < filters.length; i++) {
+          const filter = filters[i]!;
 
-        const _query =
-          filter.type === "log"
-            ? logSQL(filter, db, i)
-            : filter.type === "callTrace"
-              ? callTraceSQL(filter, db, i)
-              : blockSQL(filter, db, i);
+          const _query =
+            filter.type === "log"
+              ? logSQL(filter, db, i)
+              : filter.type === "callTrace"
+                ? callTraceSQL(filter, db, i)
+                : blockSQL(filter, db, i);
 
-        // @ts-ignore
-        query = query === undefined ? _query : query.unionAll(_query);
-      }
+          // @ts-ignore
+          query = query === undefined ? _query : query.unionAll(_query);
+        }
 
-      return await db
-        .with("event", () => query!)
-        .selectFrom("event")
-        .select([
-          "event.filterIndex as event_filterIndex",
-          "event.checkpoint as event_checkpoint",
-        ])
-        .innerJoin("blocks", "blocks.hash", "event.blockHash")
-        .select([
-          "blocks.baseFeePerGas as block_baseFeePerGas",
-          "blocks.difficulty as block_difficulty",
-          "blocks.extraData as block_extraData",
-          "blocks.gasLimit as block_gasLimit",
-          "blocks.gasUsed as block_gasUsed",
-          "blocks.hash as block_hash",
-          "blocks.logsBloom as block_logsBloom",
-          "blocks.miner as block_miner",
-          "blocks.mixHash as block_mixHash",
-          "blocks.nonce as block_nonce",
-          "blocks.number as block_number",
-          "blocks.parentHash as block_parentHash",
-          "blocks.receiptsRoot as block_receiptsRoot",
-          "blocks.sha3Uncles as block_sha3Uncles",
-          "blocks.size as block_size",
-          "blocks.stateRoot as block_stateRoot",
-          "blocks.timestamp as block_timestamp",
-          "blocks.totalDifficulty as block_totalDifficulty",
-          "blocks.transactionsRoot as block_transactionsRoot",
-        ])
-        .leftJoin("logs", "logs.id", "event.logId")
-        .select([
-          "logs.address as log_address",
-          "logs.blockHash as log_blockHash",
-          "logs.blockNumber as log_blockNumber",
-          "logs.chainId as log_chainId",
-          "logs.data as log_data",
-          "logs.id as log_id",
-          "logs.logIndex as log_logIndex",
-          "logs.topic0 as log_topic0",
-          "logs.topic1 as log_topic1",
-          "logs.topic2 as log_topic2",
-          "logs.topic3 as log_topic3",
-          "logs.transactionHash as log_transactionHash",
-          "logs.transactionIndex as log_transactionIndex",
-        ])
-        .leftJoin("transactions", "transactions.hash", "event.transactionHash")
-        .select([
-          "transactions.accessList as tx_accessList",
-          "transactions.blockHash as tx_blockHash",
-          "transactions.blockNumber as tx_blockNumber",
-          "transactions.from as tx_from",
-          "transactions.gas as tx_gas",
-          "transactions.gasPrice as tx_gasPrice",
-          "transactions.hash as tx_hash",
-          "transactions.input as tx_input",
-          "transactions.maxFeePerGas as tx_maxFeePerGas",
-          "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-          "transactions.nonce as tx_nonce",
-          "transactions.r as tx_r",
-          "transactions.s as tx_s",
-          "transactions.to as tx_to",
-          "transactions.transactionIndex as tx_transactionIndex",
-          "transactions.type as tx_type",
-          "transactions.value as tx_value",
-          "transactions.v as tx_v",
-        ])
-        .leftJoin("callTraces", "callTraces.id", "event.callTraceId")
-        .select([
-          "callTraces.id as callTrace_id",
-          "callTraces.callType as callTrace_callType",
-          "callTraces.from as callTrace_from",
-          "callTraces.gas as callTrace_gas",
-          "callTraces.input as callTrace_input",
-          "callTraces.to as callTrace_to",
-          "callTraces.value as callTrace_value",
-          "callTraces.blockHash as callTrace_blockHash",
-          "callTraces.blockNumber as callTrace_blockNumber",
-          "callTraces.gasUsed as callTrace_gasUsed",
-          "callTraces.output as callTrace_output",
-          "callTraces.subtraces as callTrace_subtraces",
-          "callTraces.traceAddress as callTrace_traceAddress",
-          "callTraces.transactionHash as callTrace_transactionHash",
-          "callTraces.transactionPosition as callTrace_transactionPosition",
-        ])
-        .leftJoin(
-          "transactionReceipts",
-          "transactionReceipts.transactionHash",
-          "event.transactionHash",
-        )
-        .select([
-          "transactionReceipts.blockHash as txr_blockHash",
-          "transactionReceipts.blockNumber as txr_blockNumber",
-          "transactionReceipts.contractAddress as txr_contractAddress",
-          "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
-          "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
-          "transactionReceipts.from as txr_from",
-          "transactionReceipts.gasUsed as txr_gasUsed",
-          "transactionReceipts.logs as txr_logs",
-          "transactionReceipts.logsBloom as txr_logsBloom",
-          "transactionReceipts.status as txr_status",
-          "transactionReceipts.to as txr_to",
-          "transactionReceipts.transactionHash as txr_transactionHash",
-          "transactionReceipts.transactionIndex as txr_transactionIndex",
-          "transactionReceipts.type as txr_type",
-        ])
-        .where("event.checkpoint", ">", from)
-        .where("event.checkpoint", "<=", to)
-        .orderBy("event.checkpoint", "asc")
-        .orderBy("event.filterIndex", "asc")
-        .limit(limit)
-        .execute();
-    });
+        return await db
+          .with("event", () => query!)
+          .selectFrom("event")
+          .select([
+            "event.filterIndex as event_filterIndex",
+            "event.checkpoint as event_checkpoint",
+          ])
+          .innerJoin("blocks", "blocks.hash", "event.blockHash")
+          .select([
+            "blocks.baseFeePerGas as block_baseFeePerGas",
+            "blocks.difficulty as block_difficulty",
+            "blocks.extraData as block_extraData",
+            "blocks.gasLimit as block_gasLimit",
+            "blocks.gasUsed as block_gasUsed",
+            "blocks.hash as block_hash",
+            "blocks.logsBloom as block_logsBloom",
+            "blocks.miner as block_miner",
+            "blocks.mixHash as block_mixHash",
+            "blocks.nonce as block_nonce",
+            "blocks.number as block_number",
+            "blocks.parentHash as block_parentHash",
+            "blocks.receiptsRoot as block_receiptsRoot",
+            "blocks.sha3Uncles as block_sha3Uncles",
+            "blocks.size as block_size",
+            "blocks.stateRoot as block_stateRoot",
+            "blocks.timestamp as block_timestamp",
+            "blocks.totalDifficulty as block_totalDifficulty",
+            "blocks.transactionsRoot as block_transactionsRoot",
+          ])
+          .leftJoin("logs", "logs.id", "event.logId")
+          .select([
+            "logs.address as log_address",
+            "logs.blockHash as log_blockHash",
+            "logs.blockNumber as log_blockNumber",
+            "logs.chainId as log_chainId",
+            "logs.data as log_data",
+            "logs.id as log_id",
+            "logs.logIndex as log_logIndex",
+            "logs.topic0 as log_topic0",
+            "logs.topic1 as log_topic1",
+            "logs.topic2 as log_topic2",
+            "logs.topic3 as log_topic3",
+            "logs.transactionHash as log_transactionHash",
+            "logs.transactionIndex as log_transactionIndex",
+          ])
+          .leftJoin(
+            "transactions",
+            "transactions.hash",
+            "event.transactionHash",
+          )
+          .select([
+            "transactions.accessList as tx_accessList",
+            "transactions.blockHash as tx_blockHash",
+            "transactions.blockNumber as tx_blockNumber",
+            "transactions.from as tx_from",
+            "transactions.gas as tx_gas",
+            "transactions.gasPrice as tx_gasPrice",
+            "transactions.hash as tx_hash",
+            "transactions.input as tx_input",
+            "transactions.maxFeePerGas as tx_maxFeePerGas",
+            "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+            "transactions.nonce as tx_nonce",
+            "transactions.r as tx_r",
+            "transactions.s as tx_s",
+            "transactions.to as tx_to",
+            "transactions.transactionIndex as tx_transactionIndex",
+            "transactions.type as tx_type",
+            "transactions.value as tx_value",
+            "transactions.v as tx_v",
+          ])
+          .leftJoin("callTraces", "callTraces.id", "event.callTraceId")
+          .select([
+            "callTraces.id as callTrace_id",
+            "callTraces.callType as callTrace_callType",
+            "callTraces.from as callTrace_from",
+            "callTraces.gas as callTrace_gas",
+            "callTraces.input as callTrace_input",
+            "callTraces.to as callTrace_to",
+            "callTraces.value as callTrace_value",
+            "callTraces.blockHash as callTrace_blockHash",
+            "callTraces.blockNumber as callTrace_blockNumber",
+            "callTraces.gasUsed as callTrace_gasUsed",
+            "callTraces.output as callTrace_output",
+            "callTraces.subtraces as callTrace_subtraces",
+            "callTraces.traceAddress as callTrace_traceAddress",
+            "callTraces.transactionHash as callTrace_transactionHash",
+            "callTraces.transactionPosition as callTrace_transactionPosition",
+          ])
+          .leftJoin(
+            "transactionReceipts",
+            "transactionReceipts.transactionHash",
+            "event.transactionHash",
+          )
+          .select([
+            "transactionReceipts.blockHash as txr_blockHash",
+            "transactionReceipts.blockNumber as txr_blockNumber",
+            "transactionReceipts.contractAddress as txr_contractAddress",
+            "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+            "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+            "transactionReceipts.from as txr_from",
+            "transactionReceipts.gasUsed as txr_gasUsed",
+            "transactionReceipts.logs as txr_logs",
+            "transactionReceipts.logsBloom as txr_logsBloom",
+            "transactionReceipts.status as txr_status",
+            "transactionReceipts.to as txr_to",
+            "transactionReceipts.transactionHash as txr_transactionHash",
+            "transactionReceipts.transactionIndex as txr_transactionIndex",
+            "transactionReceipts.type as txr_type",
+          ])
+          .where("event.checkpoint", ">", from)
+          .where("event.checkpoint", "<=", to)
+          .orderBy("event.checkpoint", "asc")
+          .orderBy("event.filterIndex", "asc")
+          .limit(limit)
+          .execute();
+      },
+    );
 
     const events = rows.map((_row) => {
       // Without this cast, the block_ and tx_ fields are all nullable
@@ -1247,12 +1273,25 @@ export const createSyncStore = ({
 
       return result?.result ?? null;
     }),
-  pruneRpcRequestByBlock: async ({ fromBlock, chainId }) =>
-    db.wrap({ method: "pruneRpcRequestByBlock" }, async () => {
+  pruneByBlock: async ({ blocks, chainId }) =>
+    db.wrap({ method: "pruneByBlock" }, async () => {
+      if (blocks.length === 0) return;
+
+      const hashes = blocks.map(({ hash }) => hash);
+      const numbers = blocks.map(({ number }) =>
+        formatBig(sql, hexToBigInt(number)),
+      );
+
+      await db.deleteFrom("blocks").where("hash", "in", hashes).execute();
+      await db.deleteFrom("logs").where("blockHash", "in", hashes).execute();
+      await db
+        .deleteFrom("callTraces")
+        .where("blockHash", "in", hashes)
+        .execute();
       await db
         .deleteFrom("rpcRequestResults")
         .where("chainId", "=", chainId)
-        .where("blockNumber", ">", formatBig(sql, fromBlock))
+        .where("blockNumber", "in", numbers)
         .execute();
     }),
   pruneByChain: async ({ fromBlock, chainId }) =>

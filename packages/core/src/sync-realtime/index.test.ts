@@ -244,6 +244,7 @@ test("handleBlock() block event", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(5);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
+    filters: expect.any(Object),
     block: expect.any(Object),
     logs: expect.any(Object),
     transactions: expect.any(Object),
@@ -353,6 +354,7 @@ test("handleReorg() finds common ancestor", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "reorg",
     block: expect.any(Object),
+    reorgedBlocks: [expect.any(Object), expect.any(Object), expect.any(Object)],
   });
 
   expect(realtimeSync.localChain).toHaveLength(2);

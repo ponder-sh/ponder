@@ -13,10 +13,11 @@ import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
-import { type RealtimeEvent, createSync } from "@/sync/multichain.js";
+import { type RealtimeEvent, createSync } from "@/sync/index.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
+  encodeCheckpoint,
   isCheckpointEqual,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -103,7 +104,7 @@ export async function run({
       realtimeQueue.add(realtimeEvent);
     },
     onFatalError,
-    initialCheckpoint,
+    initialCheckpoint: encodeCheckpoint(initialCheckpoint),
   });
 
   const handleEvents = async (events: Event[], checkpoint: string) => {
@@ -191,6 +192,8 @@ export async function run({
     schema,
   });
 
+  await metadataStore.setStatus(sync.getStatus());
+
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
     if (isCheckpointEqual(initialCheckpoint, zeroCheckpoint)) {
@@ -217,6 +220,7 @@ export async function run({
         decodeEvents(common, sources, events),
         checkpoint,
       );
+      await metadataStore.setStatus(sync.getStatus());
       if (result.status === "killed") {
         return;
       } else if (result.status === "error") {

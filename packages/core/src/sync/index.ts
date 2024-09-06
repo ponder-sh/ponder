@@ -19,6 +19,7 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { estimate } from "@/utils/estimate.js";
 import { mergeAsyncGenerators } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
@@ -263,33 +264,35 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     }
   };
 
-  // const updateRealtimeStatus = ({
-  //   checkpoint,
-  //   rawEvents,
-  //   network,
-  // }: {
-  //   checkpoint: string;
-  //   rawEvents: RawBlockEvent[];
-  //   network: Network;
-  // }) => {
-  //   const localBlock = rawEvents.findLast(
-  //     ({ block }) =>
-  //       encodeCheckpoint(blockToCheckpoint(block, network.chainId, "up")) <=
-  //       checkpoint,
-  //   )?.block;
-  //   if (localBlock !== undefined) {
-  //     status[network.name]!.block = {
-  //       timestamp: hexToNumber(localBlock.timestamp),
-  //       number: hexToNumber(localBlock.number),
-  //     };
-  //   }
-  // };
+  const updateRealtimeStatus = ({
+    checkpoint,
+    // rawEvents,
+    network,
+  }: {
+    checkpoint: string;
+    // rawEvents: RawBlockEvent[];
+    network: Network;
+  }) => {
+    const localBlock = localSyncData
+      .get(network)!
+      .realtimeSync.localChain.findLast(
+        (block) =>
+          encodeCheckpoint(blockToCheckpoint(block, network.chainId, "up")) <=
+          checkpoint,
+      );
+    if (localBlock !== undefined) {
+      status[network.name]!.block = {
+        timestamp: hexToNumber(localBlock.timestamp),
+        number: hexToNumber(localBlock.number),
+      };
+    }
+  };
 
   /**
    * Estimate optimal range (seconds) to query at a time, eventually
    * used to determine `to` passed to `getEvents`
    */
-  let estimateSeconds = 10_000;
+  let estimateSeconds = 1_000;
   /**
    * Omnichain `getEvents`
    *
@@ -347,8 +350,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       while (true) {
         if (isKilled) return;
-        if (from === to) return;
+        if (from === to) break;
         const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
+        let consecutiveErrors = 0;
+
         // convert `estimateSeconds` to checkpoint
         const estimatedTo = encodeCheckpoint({
           ...zeroCheckpoint,
@@ -357,30 +362,38 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             maxCheckpoint.blockTimestamp,
           ),
         });
-        const { events, cursor } = await args.syncStore.getEvents({
-          filters: args.sources.map(({ filter }) => filter),
-          from,
-          to: to < estimatedTo ? to : estimatedTo,
-          limit: getEventsMaxBatchSize,
-        });
 
-        for (const network of args.networks) {
-          updateStatus({ events, checkpoint: cursor, network });
+        try {
+          const { events, cursor } = await args.syncStore.getEvents({
+            filters: args.sources.map(({ filter }) => filter),
+            from,
+            to: to < estimatedTo ? to : estimatedTo,
+            limit: getEventsMaxBatchSize,
+          });
+          consecutiveErrors = 0;
+
+          for (const network of args.networks) {
+            updateStatus({ events, checkpoint: cursor, network });
+          }
+
+          estimateSeconds = estimate({
+            from: decodeCheckpoint(from).blockTimestamp,
+            to: decodeCheckpoint(cursor).blockTimestamp,
+            target: getEventsMaxBatchSize,
+            result: events.length,
+            min: 10,
+            max: 86_400,
+            prev: estimateSeconds,
+            maxIncrease: 1.08,
+          });
+
+          yield { events, checkpoint: to };
+          from = cursor;
+        } catch (error) {
+          // Handle errors by reducing the requested range by 10x
+          estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+          if (++consecutiveErrors > 4) throw error;
         }
-
-        const fromTime = decodeCheckpoint(from).blockTimestamp;
-        const cursorTime = decodeCheckpoint(cursor).blockTimestamp;
-        const receivedDensity = (cursorTime - fromTime) / (events.length || 1);
-
-        // Use range and number of events returned to update estimate
-        // 10 <= estimate(new) <= estimate(prev) * 2
-        estimateSeconds = Math.min(
-          Math.max(10, Math.round(receivedDensity * getEventsMaxBatchSize)),
-          estimateSeconds * 2,
-        );
-
-        yield { events, checkpoint: to };
-        from = cursor;
       }
     }
   }
@@ -459,7 +472,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               limit: args.common.options.syncEventsQuerySize,
             });
 
-            updateStatus({ events, checkpoint: cursor, network });
+            for (const network of args.networks) {
+              updateRealtimeStatus({ checkpoint: cursor, network });
+            }
             args.onRealtimeEvent({ type: "block", checkpoint: to, events });
 
             from = cursor;
@@ -518,8 +533,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           blockProgress.latest = event.block;
           const checkpoint = getChainsCheckpoint("latest")!;
 
-          await args.syncStore.pruneRpcRequestByBlock({
-            fromBlock: hexToNumber(event.block.number),
+          await args.syncStore.pruneByBlock({
+            blocks: event.reorgedBlocks,
             chainId: network.chainId,
           });
 

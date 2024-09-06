@@ -38,7 +38,7 @@ export type HistoricalSync = {
   latestBlock: SyncBlock | undefined;
   /** Extract raw data for `interval`. */
   sync(interval: Interval): Promise<void>;
-  initializeMetrics(finalizedBlock: SyncBlock, showStart: boolean): void;
+  initializeMetrics(finalizedBlock: SyncBlock, isInitialCall: boolean): void;
   kill(): void;
 };
 
@@ -107,9 +107,25 @@ export const createHistoricalSync = async (
     return earliestCompletedInterval[1];
   });
 
-  if (_latestCompletedBlocks.every((block) => block !== undefined)) {
+  const _minCompletedBlock = Math.min(
+    ...(_latestCompletedBlocks.filter(
+      (block) => block !== undefined,
+    ) as number[]),
+  );
+
+  /**  Filter i has known progress if a completed interval is found or if
+   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
+   * is > `_minCompletedBlock`.
+   */
+  if (
+    _latestCompletedBlocks.every(
+      (block, i) =>
+        block !== undefined ||
+        args.sources[i]!.filter.fromBlock > _minCompletedBlock,
+    )
+  ) {
     latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: Math.min(...(_latestCompletedBlocks as number[])),
+      blockNumber: _minCompletedBlock,
     });
   }
 
@@ -122,6 +138,8 @@ export const createHistoricalSync = async (
     let address: Address | Address[] | undefined;
     if (isAddressFactory(filter.address)) {
       const childAddresses = await syncAddress(filter.address, interval);
+      // Exit early if no child addresses are found
+      if (childAddresses.length === 0) return;
       if (
         childAddresses.length < args.common.options.factoryAddressCountThreshold
       ) {
@@ -174,6 +192,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
+      shouldUpdateCheckpoint: true,
       chainId: args.network.chainId,
     });
 
@@ -296,6 +315,7 @@ export const createHistoricalSync = async (
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),
+      shouldUpdateCheckpoint: false,
       chainId: args.network.chainId,
     });
   };
@@ -505,8 +525,14 @@ export const createHistoricalSync = async (
       blockCache.clear();
       transactionsCache.clear();
     },
-    initializeMetrics(finalizedBlock, showStart) {
-      args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
+    initializeMetrics(finalizedBlock, isInitialCall) {
+      if (isInitialCall) {
+        args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
+        args.common.metrics.ponder_realtime_is_connected.set(
+          { network: args.network.name },
+          0,
+        );
+      }
 
       for (const source of args.sources) {
         const label = {
@@ -518,7 +544,7 @@ export const createHistoricalSync = async (
         if (source.filter.fromBlock > hexToNumber(finalizedBlock.number)) {
           args.common.metrics.ponder_historical_total_blocks.set(label, 0);
 
-          if (showStart) {
+          if (isInitialCall) {
             args.common.logger.warn({
               service: "historical",
               msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
@@ -551,7 +577,7 @@ export const createHistoricalSync = async (
             cachedBlocks,
           );
 
-          if (showStart) {
+          if (isInitialCall) {
             args.common.logger.info({
               service: "historical",
               msg: `Started syncing '${source.networkName}' for '${
