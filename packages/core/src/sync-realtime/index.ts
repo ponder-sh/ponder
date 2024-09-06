@@ -3,8 +3,10 @@ import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { syncBlockToLightBlock } from "@/sync/index.js";
 import {
+  type BlockFilter,
   type CallTraceFilter,
   type Factory,
+  type Filter,
   type LogFilter,
   type Source,
   isAddressFactory,
@@ -31,6 +33,7 @@ import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hash, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 import {
+  isBlockFilterMatched,
   isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
@@ -55,6 +58,7 @@ type CreateRealtimeSyncParameters = {
 export type RealtimeSyncEvent =
   | {
       type: "block";
+      filters: Set<Filter>;
       block: SyncBlock;
       logs: SyncLog[];
       callTraces: SyncCallTrace[];
@@ -97,6 +101,7 @@ export const createRealtimeSync = (
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
   const callTraceFilters: CallTraceFilter[] = [];
+  const blockFilters: BlockFilter[] = [];
 
   for (const source of args.sources) {
     if (source.type === "contract") {
@@ -113,6 +118,8 @@ export const createRealtimeSync = (
       if (isAddressFactory(_address)) {
         factories.push(_address);
       }
+    } else if (source.type === "block") {
+      blockFilters.push(source.filter);
     }
   }
 
@@ -132,7 +139,7 @@ export const createRealtimeSync = (
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
     });
 
-    const { logs, callTraces, transactions, transactionReceipts } =
+    const { logs, callTraces, transactions, transactionReceipts, filters } =
       await extract(block);
 
     if (logs.length > 0 || callTraces.length > 0) {
@@ -166,6 +173,7 @@ export const createRealtimeSync = (
 
     args.onEvent({
       type: "block",
+      filters,
       block,
       logs,
       callTraces,
@@ -347,12 +355,15 @@ export const createRealtimeSync = (
     // Get Matched
     ////////
 
+    const matchedFilters = new Set<Filter>();
+
     // Insert `logs` that contain factory child addresses
     const _logs = logs.filter((log) =>
       factories.some((filter) => isLogFactoryMatched({ filter, log })),
     );
     await args.syncStore.insertLogs({
       logs: _logs.map((log) => ({ log })),
+      shouldUpdateCheckpoint: false,
       chainId: args.network.chainId,
     });
 
@@ -368,9 +379,9 @@ export const createRealtimeSync = (
       }
     }
 
-    // Remove logs that don't match a filter
-    logs = logs.filter((log) =>
-      logFilters.some((filter) => {
+    // Remove logs that don't match a filter, record matched log filters
+    logs = logs.filter((log) => {
+      const isFilterMatched = logFilters.map((filter) => {
         const isMatched = isLogFilterMatched({ filter, block, log });
 
         if (isAddressFactory(filter.address)) {
@@ -378,12 +389,18 @@ export const createRealtimeSync = (
         }
 
         return isMatched;
-      }),
-    );
+      });
 
-    // Remote call traces that don't match a filter
-    callTraces = callTraces.filter((callTrace) =>
-      callTraceFilters.some((filter) => {
+      for (let i = 0; i < logFilters.length; i++) {
+        if (isFilterMatched[i]!) matchedFilters.add(logFilters[i]!);
+      }
+
+      return isFilterMatched.some((m) => m);
+    });
+
+    // Remove call traces that don't match a filter, record matched call trace filters
+    callTraces = callTraces.filter((callTrace) => {
+      const isFilterMatched = callTraceFilters.map((filter) => {
         const isMatched = isCallTraceFilterMatched({
           filter,
           block,
@@ -395,8 +412,23 @@ export const createRealtimeSync = (
         }
 
         return isMatched;
-      }),
+      });
+
+      for (let i = 0; i < callTraceFilters.length; i++) {
+        if (isFilterMatched[i]!) matchedFilters.add(callTraceFilters[i]!);
+      }
+
+      return isFilterMatched.some((m) => m);
+    });
+
+    // Record matched block filters
+    const isFilterMatched = blockFilters.map((filter) =>
+      isBlockFilterMatched({ filter, block }),
     );
+
+    for (let i = 0; i < blockFilters.length; i++) {
+      if (isFilterMatched[i]!) matchedFilters.add(blockFilters[i]!);
+    }
 
     ////////
     // Transactions
@@ -446,6 +478,7 @@ export const createRealtimeSync = (
     );
 
     return {
+      filters: matchedFilters,
       logs,
       callTraces,
       transactions,

@@ -1,5 +1,30 @@
 # @ponder/core
 
+## 0.5.20
+
+### Patch Changes
+
+- [#1063](https://github.com/ponder-sh/ponder/pull/1063) [`d849b052c16b774d5d5eaa6e3f77b4ac26983088`](https://github.com/ponder-sh/ponder/commit/d849b052c16b774d5d5eaa6e3f77b4ac26983088) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in 0.5.9 where extra blocks were being written to the database during the realtime sync.
+
+- [#1070](https://github.com/ponder-sh/ponder/pull/1070) [`2b28d8368f531ce61556e706504e6372a620fd78`](https://github.com/ponder-sh/ponder/commit/2b28d8368f531ce61556e706504e6372a620fd78) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing out of order events when a contract is used as both a normal contract and a factory.
+
+- [#1068](https://github.com/ponder-sh/ponder/pull/1068) [`a1557d9a16ea6d6a4060838d06f03c4a251da1b9`](https://github.com/ponder-sh/ponder/commit/a1557d9a16ea6d6a4060838d06f03c4a251da1b9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with factory contracts fetching and writing extra logs to the database.
+
+- Updated dependencies [[`7c17ff32e8907b4a38d74cea2a431b689236048c`](https://github.com/ponder-sh/ponder/commit/7c17ff32e8907b4a38d74cea2a431b689236048c)]:
+  - @ponder/utils@0.1.8
+
+## 0.5.19
+
+### Patch Changes
+
+- [#1059](https://github.com/ponder-sh/ponder/pull/1059) [`7b8129dd2817fd7749511b5d0937a2818a9365c0`](https://github.com/ponder-sh/ponder/commit/7b8129dd2817fd7749511b5d0937a2818a9365c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved precision of historical sync cache for faster startup times.
+
+## 0.5.18
+
+### Patch Changes
+
+- [#1056](https://github.com/ponder-sh/ponder/pull/1056) [`313267cbe93679b9b18a38929ee07b3a2008bb0f`](https://github.com/ponder-sh/ponder/commit/313267cbe93679b9b18a38929ee07b3a2008bb0f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.5.9 that caused events to be missed in realtime when indexing multiple chains. This issue does not affect database integrity, but affected apps should restart to ensure all events are indexed.
+
 ## 0.5.17
 
 ### Patch Changes

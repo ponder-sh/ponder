@@ -126,9 +126,25 @@ export const createHistoricalSync = async (
     return earliestCompletedInterval[1];
   });
 
-  if (_latestCompletedBlocks.every((block) => block !== undefined)) {
+  const _minCompletedBlock = Math.min(
+    ...(_latestCompletedBlocks.filter(
+      (block) => block !== undefined,
+    ) as number[]),
+  );
+
+  /**  Filter i has known progress if a completed interval is found or if
+   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
+   * is > `_minCompletedBlock`.
+   */
+  if (
+    _latestCompletedBlocks.every(
+      (block, i) =>
+        block !== undefined ||
+        args.sources[i]!.filter.fromBlock > _minCompletedBlock,
+    )
+  ) {
     latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: Math.min(...(_latestCompletedBlocks as number[])),
+      blockNumber: _minCompletedBlock,
     });
   }
 
@@ -226,6 +242,8 @@ export const createHistoricalSync = async (
     let address: Address | Address[] | undefined;
     if (isAddressFactory(filter.address)) {
       const childAddresses = await syncAddress(filter.address, interval);
+      // Exit early if no child addresses are found
+      if (childAddresses.length === 0) return;
       if (
         childAddresses.length < args.common.options.factoryAddressCountThreshold
       ) {
@@ -278,6 +296,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
+      shouldUpdateCheckpoint: true,
       chainId: args.network.chainId,
     });
 
@@ -400,6 +419,7 @@ export const createHistoricalSync = async (
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),
+      shouldUpdateCheckpoint: false,
       chainId: args.network.chainId,
     });
   };

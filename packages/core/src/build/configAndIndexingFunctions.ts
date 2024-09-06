@@ -263,8 +263,6 @@ export async function buildConfigAndIndexingFunctions({
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chainId }),
-        maxHistoricalTaskConcurrency:
-          network.maxHistoricalTaskConcurrency ?? 20,
         disableCache: network.disableCache ?? false,
       } satisfies Network;
     }),
