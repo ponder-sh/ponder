@@ -350,7 +350,7 @@ export const createHistoricalSync = async (
 
       // Update `latestBlock` if `block` is closer to tip.
       if (
-        hexToBigInt(block.number) > hexToBigInt(latestBlock?.number ?? "0x0")
+        hexToBigInt(block.number) >= hexToBigInt(latestBlock?.number ?? "0x0")
       ) {
         latestBlock = block;
       }

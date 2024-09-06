@@ -300,6 +300,8 @@ test("startRealtime()", async (context) => {
     initialCheckpoint: zeroCheckpoint,
   });
 
+  await drainAsyncGenerator(sync.getEvents());
+
   sync.startRealtime();
 
   const status = sync.getStatus();

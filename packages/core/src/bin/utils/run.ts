@@ -17,7 +17,6 @@ import { type RealtimeEvent, createSync } from "@/sync/index.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
-  encodeCheckpoint,
   isCheckpointEqual,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -104,7 +103,7 @@ export async function run({
       realtimeQueue.add(realtimeEvent);
     },
     onFatalError,
-    initialCheckpoint: encodeCheckpoint(initialCheckpoint),
+    initialCheckpoint,
   });
 
   const handleEvents = async (events: Event[], checkpoint: string) => {

@@ -16,6 +16,7 @@ import {
   checkpointMin,
   decodeCheckpoint,
   encodeCheckpoint,
+  isCheckpointEqual,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -107,6 +108,36 @@ export const isSyncExhaustive = (blockProgress: BlockProgress) => {
   );
 };
 
+/** Returns the checkpoint for a given block tag. */
+export const getChainCheckpoint = ({
+  blockProgress,
+  network,
+  tag,
+}: {
+  blockProgress: BlockProgress;
+  network: Network;
+  tag: "start" | "latest" | "finalized" | "end";
+}): string | undefined => {
+  if (tag === "end" && blockProgress.end === undefined) {
+    return undefined;
+  }
+
+  if (tag === "latest" && isSyncExhaustive(blockProgress)) {
+    return undefined;
+  }
+
+  const block = blockProgress[tag]!;
+  return encodeCheckpoint(
+    blockToCheckpoint(
+      block,
+      network.chainId,
+      // The checkpoint returned by this function is meant to be used in
+      // a closed interval (includes endpoints), so "start" should be inclusive.
+      tag === "start" ? "down" : "up",
+    ),
+  );
+};
+
 type CreateSyncParameters = {
   common: Common;
   syncStore: SyncStore;
@@ -114,7 +145,7 @@ type CreateSyncParameters = {
   networks: Network[];
   onRealtimeEvent(event: RealtimeEvent): void;
   onFatalError(error: Error): void;
-  initialCheckpoint: string;
+  initialCheckpoint: Checkpoint;
 };
 
 export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
@@ -219,7 +250,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   ): string | undefined => {
     const checkpoints = Array.from(localSyncData.entries()).map(
       ([network, { blockProgress }]) =>
-        getChainCheckpoint(blockProgress, network, tag),
+        getChainCheckpoint({ blockProgress, network, tag }),
     );
 
     if (tag === "end" && checkpoints.some((c) => c === undefined)) {
@@ -322,14 +353,28 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
      * use that. Otherwise, use `startBlock`
      */
     const start =
-      args.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
-        ? args.initialCheckpoint
+      isCheckpointEqual(args.initialCheckpoint, zeroCheckpoint) === false
+        ? encodeCheckpoint(args.initialCheckpoint)
         : getChainsCheckpoint("start")!;
 
     // Cursor used to track progress.
     let from = start;
 
     for await (const _ of syncGenerator) {
+      /**
+       * `latest` is used to calculate the `to` checkpoint, if any
+       * network hasn't yet ingested a block, run another iteration of this loop.
+       * It is an invariant that `latestBlock` will eventually be defined. See the
+       * implementation of `LocalSync.latestBlock` for more detail.
+       */
+      if (
+        Array.from(localSyncData.values()).some(
+          ({ blockProgress }) => blockProgress.latest === undefined,
+        )
+      ) {
+        continue;
+      }
+
       /**
        * Calculate the mininum "latest" checkpoint, falling back to `end` if
        * all networks have completed.
@@ -597,32 +642,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   };
 };
 
-/** Returns the checkpoint for a given block tag. */
-export const getChainCheckpoint = (
-  blockProgress: BlockProgress,
-  network: Network,
-  tag: "start" | "latest" | "finalized" | "end",
-): string | undefined => {
-  if (tag === "end" && blockProgress.end === undefined) {
-    return undefined;
-  }
-
-  if (tag === "latest" && isSyncExhaustive(blockProgress)) {
-    return undefined;
-  }
-
-  const block = blockProgress[tag]!;
-  return encodeCheckpoint(
-    blockToCheckpoint(
-      block,
-      network.chainId,
-      // The checkpoint returned by this function is meant to be used in
-      // a closed interval (includes endpoints), so "start" should be inclusive.
-      tag === "start" ? "down" : "up",
-    ),
-  );
-};
-
 /** ... */
 export const syncDiagnostic = async ({
   common,
@@ -741,13 +760,17 @@ export async function* localHistoricalSyncHelper({
     // Update cursor to record progress
     fromBlock = interval[1] + 1;
 
+    blockProgress.latest = historicalSync.latestBlock;
     if (blockProgress.latest === undefined) continue;
 
     yield;
 
     if (isSyncExhaustive(blockProgress)) return;
     // Dynamically refetch `finalized` block if it is considered "stale"
-    if (blockProgress.finalized === blockProgress.latest) {
+    if (
+      hexToNumber(blockProgress.finalized.number) ===
+      hexToNumber(blockProgress.latest.number)
+    ) {
       const staleSeconds = Date.now() / 1000 - latestFinalizedFetch;
       if (staleSeconds <= common.options.syncHandoffStaleSeconds) {
         return;
