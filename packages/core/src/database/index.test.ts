@@ -527,13 +527,13 @@ test("kill releases the namespace lock", async (context) => {
       ? JSON.parse(row!.value!).is_locked
       : // @ts-ignore
         row!.value!.is_locked,
-  ).toBe(true);
+  ).toBe(1);
   expect(
     database.dialect === "sqlite"
       ? JSON.parse(rowAfterKill!.value!).is_locked
       : // @ts-ignore
         rowAfterKill!.value!.is_locked,
-  ).toBe(false);
+  ).toBe(0);
 
   await databaseTwo.kill();
 });

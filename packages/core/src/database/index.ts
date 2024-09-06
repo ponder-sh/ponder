@@ -35,7 +35,6 @@ import {
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import {
-  type Kysely,
   Migrator,
   PostgresDialect,
   type Transaction,
@@ -78,8 +77,8 @@ export type Database<
 };
 
 type PonderApp = {
-  is_locked: boolean;
-  is_dev: boolean;
+  is_locked: 0 | 1;
+  is_dev: 0 | 1;
   heartbeat_at: number;
   build_id: string;
   checkpoint: string;
@@ -116,9 +115,13 @@ type Driver<dialect extends "sqlite" | "postgres"> = dialect extends "sqlite"
     };
 
 type QueryBuilder = {
+  /** For updating metadata and handling reorgs */
   internal: HeadlessKysely<PonderInternalSchema>;
+  /** For indexing-store methods in user code */
   user: HeadlessKysely<any>;
+  /** Used in api functions */
   readonly: HeadlessKysely<unknown>;
+  /** Used to interact with the sync-store */
   sync: HeadlessKysely<PonderSyncSchema>;
 };
 
@@ -410,19 +413,6 @@ export const createDatabase = (args: {
   ////////
   // Helpers
   ////////
-
-  const getApp = async (db: Kysely<PonderInternalSchema>) => {
-    const row = await db
-      .selectFrom("_ponder_meta")
-      .where("key", "=", "app")
-      .select("value")
-      .executeTakeFirst();
-
-    if (row === undefined) return undefined;
-    const app: PonderApp =
-      dialect === "sqlite" ? JSON.parse(row.value!) : row.value;
-    return app;
-  };
 
   const encodeApp = (app: PonderApp) => {
     return dialect === "sqlite" ? JSON.stringify(app) : (app as any);
@@ -835,11 +825,22 @@ export const createDatabase = (args: {
               }
             };
 
-            const previousApp = await getApp(tx);
+            const row = await tx
+              .selectFrom("_ponder_meta")
+              .where("key", "=", "app")
+              .select("value")
+              .executeTakeFirst();
+
+            const previousApp: PonderApp | undefined =
+              row === undefined
+                ? undefined
+                : dialect === "sqlite"
+                  ? JSON.parse(row.value!)
+                  : row.value;
 
             const newApp = {
-              is_locked: true,
-              is_dev: args.common.options.command === "dev",
+              is_locked: 1,
+              is_dev: args.common.options.command === "dev" ? 1 : 0,
               heartbeat_at: Date.now(),
               build_id: buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
@@ -885,8 +886,8 @@ export const createDatabase = (args: {
               args.common.options.databaseHeartbeatTimeout;
 
             if (
-              previousApp.is_dev === false &&
-              previousApp.is_locked &&
+              previousApp.is_dev === 0 &&
+              previousApp.is_locked === 1 &&
               Date.now() <= expiry
             ) {
               return { status: "locked", expiry } as const;
@@ -909,8 +910,8 @@ export const createDatabase = (args: {
                 .set({
                   value: encodeApp({
                     ...previousApp,
-                    is_locked: true,
-                    is_dev: false,
+                    is_locked: 1,
+                    is_dev: 0,
                     heartbeat_at: Date.now(),
                   }),
                 })
@@ -1036,21 +1037,26 @@ export const createDatabase = (args: {
 
       heartbeatInterval = setInterval(async () => {
         try {
-          const app = await getApp(qb.internal);
+          const heartbeat = Date.now();
+
           await qb.internal
             .updateTable("_ponder_meta")
             .where("key", "=", "app")
             .set({
-              value: encodeApp({ ...app!, heartbeat_at: Date.now() }),
+              value:
+                dialect === "sqlite"
+                  ? sql`json_set(value, '$.heartbeat_at', ${heartbeat})`
+                  : sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
             })
             .execute();
 
           args.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${app?.heartbeat_at} (build_id=${buildId})`,
+            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${buildId})`,
           });
         } catch (err) {
           const error = err as Error;
+          console.log(error);
           args.common.logger.error({
             service: "database",
             msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
@@ -1132,12 +1138,14 @@ export const createDatabase = (args: {
     },
     async finalize({ checkpoint }) {
       await qb.internal.wrap({ method: "finalize" }, async () => {
-        const app = await getApp(qb.internal);
         await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
           .set({
-            value: encodeApp({ ...app!, checkpoint }),
+            value:
+              dialect === "sqlite"
+                ? sql`json_set(value, '$.checkpoint', ${checkpoint})`
+                : sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
           })
           .execute();
 
@@ -1161,16 +1169,17 @@ export const createDatabase = (args: {
     async kill() {
       clearInterval(heartbeatInterval);
 
-      const app = await getApp(qb.internal);
-      if (app) {
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: encodeApp({ ...app, is_locked: false }),
-          })
-          .execute();
-      }
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value:
+            dialect === "sqlite"
+              ? sql`json_set(value, '$.is_locked', 0)`
+              : sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
+
       args.common.logger.debug({
         service: "database",
         msg: `Released lock on schema '${namespace}'`,
