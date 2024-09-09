@@ -1,5 +1,11 @@
+import { types } from "@electric-sql/pglite";
 import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
+
+const parse = {
+  [types.NUMERIC]: (x: string | null) => (x === null ? null : BigInt(x)),
+  [types.INT8]: (x: string | null) => (x === null ? null : Number(x)),
+};
 
 // See https://github.com/brianc/node-pg-types for details.
 // Use BigInt for `numeric` types.

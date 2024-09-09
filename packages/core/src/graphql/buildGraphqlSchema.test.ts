@@ -3048,10 +3048,7 @@ test("metadata", async (context) => {
     },
   );
 
-  const metadataStore = getMetadataStore({
-    dialect: database.dialect,
-    db: database.qb.user,
-  });
+  const metadataStore = getMetadataStore({ db: database.qb.user });
 
   await metadataStore.setStatus({
     mainnet: {

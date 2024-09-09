@@ -16,10 +16,7 @@ test("getMetadata() empty", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
-  const metadataStore = getMetadataStore({
-    dialect: database.dialect,
-    db: database.qb.user,
-  });
+  const metadataStore = getMetadataStore({ db: database.qb.user });
 
   const status = await metadataStore.getStatus();
 
@@ -32,10 +29,7 @@ test("setMetadata()", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
-  const metadataStore = getMetadataStore({
-    dialect: database.dialect,
-    db: database.qb.user,
-  });
+  const metadataStore = getMetadataStore({ db: database.qb.user });
 
   await metadataStore.setStatus({
     mainnet: { block: { number: 10, timestamp: 10 }, ready: false },
