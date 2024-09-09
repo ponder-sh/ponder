@@ -20,12 +20,10 @@ import {
 const DEFAULT_LIMIT = 50 as const;
 
 export const getReadonlyStore = ({
-  dialect,
   schema,
   db,
   common,
 }: {
-  dialect: "sqlite" | "postgres";
   schema: Schema;
   db: HeadlessKysely<any>;
   common: Common;
@@ -43,7 +41,6 @@ export const getReadonlyStore = ({
       const encodedId = encodeValue({
         value: id,
         column: table.id,
-        dialect,
       });
 
       const record = await db
@@ -54,7 +51,7 @@ export const getReadonlyStore = ({
 
       if (record === undefined) return null;
 
-      return decodeRecord({ record, table, dialect });
+      return decodeRecord({ record, table });
     });
   },
   findMany: async ({
@@ -78,20 +75,14 @@ export const getReadonlyStore = ({
       let query = db.selectFrom(tableName).selectAll();
 
       if (where) {
-        query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, dialect }),
-        );
+        query = query.where((eb) => buildWhereConditions({ eb, where, table }));
       }
 
       const orderByConditions = buildOrderByConditions({ orderBy, table });
       for (const [column, direction] of orderByConditions) {
         query = query.orderBy(
           column,
-          dialect === "sqlite"
-            ? direction
-            : direction === "asc"
-              ? sql`asc nulls first`
-              : sql`desc nulls last`,
+          direction === "asc" ? sql`asc nulls first` : sql`desc nulls last`,
         );
       }
       const orderDirection = orderByConditions[0]![1];
@@ -117,7 +108,7 @@ export const getReadonlyStore = ({
         const records = await query
           .execute()
           .then((records) =>
-            records.map((record) => decodeRecord({ record, table, dialect })),
+            records.map((record) => decodeRecord({ record, table })),
           );
 
         if (records.length === limit + 1) {
@@ -148,7 +139,6 @@ export const getReadonlyStore = ({
           encodeValue({
             value,
             column: table[columnName] as MaterialColumn,
-            dialect,
           }),
         ]) satisfies [string, any][];
         query = query
@@ -160,7 +150,7 @@ export const getReadonlyStore = ({
         const records = await query
           .execute()
           .then((records) =>
-            records.map((record) => decodeRecord({ record, table, dialect })),
+            records.map((record) => decodeRecord({ record, table })),
           );
 
         if (records.length === 0) {
@@ -214,7 +204,6 @@ export const getReadonlyStore = ({
           encodeValue({
             value,
             column: table[columnName] as MaterialColumn,
-            dialect,
           }),
         ]) satisfies [string, any][];
         query = query
@@ -233,7 +222,7 @@ export const getReadonlyStore = ({
 
         const records = await query.execute().then((records) =>
           records
-            .map((record) => decodeRecord({ record, table, dialect }))
+            .map((record) => decodeRecord({ record, table }))
             // Reverse the records again, back to the original order.
             .reverse(),
         );

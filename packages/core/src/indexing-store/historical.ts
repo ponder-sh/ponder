@@ -78,14 +78,12 @@ type StoreCache = {
 };
 
 export const getHistoricalStore = ({
-  dialect,
   schema,
   readonlyStore,
   db,
   common,
   isCacheExhaustive: _isCacheExhaustive,
 }: {
-  dialect: "sqlite" | "postgres";
   schema: Schema;
   readonlyStore: ReadonlyStore;
   db: HeadlessKysely<any>;
@@ -211,7 +209,6 @@ export const getHistoricalStore = ({
                       record,
                       table,
                       schema,
-                      dialect,
                       skipValidation: true,
                     }),
                   );
@@ -272,7 +269,6 @@ export const getHistoricalStore = ({
                       record,
                       table,
                       schema,
-                      dialect,
                       skipValidation: true,
                     }),
                   );
@@ -346,7 +342,6 @@ export const getHistoricalStore = ({
     const encodedId = encodeValue({
       value: id,
       column: table.id,
-      dialect,
     });
 
     const record = await db
@@ -357,7 +352,7 @@ export const getHistoricalStore = ({
 
     if (record === undefined) return null;
 
-    return decodeRecord({ record, table, dialect });
+    return decodeRecord({ record, table });
   };
 
   return {
@@ -595,7 +590,7 @@ export const getHistoricalStore = ({
         const query = db
           .selectFrom(tableName)
           .selectAll()
-          .where((eb) => buildWhereConditions({ eb, where, table, dialect }))
+          .where((eb) => buildWhereConditions({ eb, where, table }))
           .orderBy("id", "asc");
 
         const records: UserRecord[] = [];
@@ -616,7 +611,6 @@ export const getHistoricalStore = ({
                 const current = decodeRecord({
                   record: latestRecord,
                   table,
-                  dialect,
                 });
                 const updateObject = data({ current });
                 // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
@@ -626,7 +620,7 @@ export const getHistoricalStore = ({
                     record: updateObject,
                     table,
                     schema,
-                    dialect,
+
                     skipValidation: false,
                   }),
                 };
@@ -643,9 +637,7 @@ export const getHistoricalStore = ({
                 records.push(record);
               }
 
-              return records.map((record) =>
-                decodeRecord({ record, table, dialect }),
-              );
+              return records.map((record) => decodeRecord({ record, table }));
             },
           );
 
@@ -657,7 +649,6 @@ export const getHistoricalStore = ({
             cursor = encodeValue({
               value: _records[_records.length - 1]!.id,
               column: table.id,
-              dialect,
             });
           }
         }
@@ -669,7 +660,7 @@ export const getHistoricalStore = ({
             record: data,
             table,
             schema,
-            dialect,
+
             skipValidation: false,
           });
 
@@ -678,9 +669,7 @@ export const getHistoricalStore = ({
               db
                 .selectFrom(tableName)
                 .select("id")
-                .where((eb) =>
-                  buildWhereConditions({ eb, where, table, dialect }),
-                ),
+                .where((eb) => buildWhereConditions({ eb, where, table })),
             )
             .updateTable(tableName)
             .set(updateRecord)
@@ -692,9 +681,7 @@ export const getHistoricalStore = ({
               throw parseStoreError(err, data);
             });
 
-          return records.map((record) =>
-            decodeRecord({ record, table, dialect }),
-          );
+          return records.map((record) => decodeRecord({ record, table }));
         });
       }
     },
@@ -826,11 +813,7 @@ export const getHistoricalStore = ({
 
           const deletedRecord = await db
             .deleteFrom(tableName)
-            .where(
-              "id",
-              "=",
-              encodeValue({ value: id, column: table.id, dialect }),
-            )
+            .where("id", "=", encodeValue({ value: id, column: table.id }))
             .returning(["id"])
             .executeTakeFirst()
             .catch((err) => {

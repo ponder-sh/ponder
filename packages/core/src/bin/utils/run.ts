@@ -59,11 +59,9 @@ export async function run({
   const syncStore = createSyncStore({
     common,
     db: database.qb.sync,
-    dialect: database.dialect,
   });
 
   const metadataStore = getMetadataStore({
-    dialect: database.dialect,
     db: database.qb.user,
   });
 
@@ -136,14 +134,12 @@ export async function run({
   });
 
   const readonlyStore = getReadonlyStore({
-    dialect: database.dialect,
     schema,
     db: database.qb.user,
     common,
   });
 
   const historicalStore = getHistoricalStore({
-    dialect: database.dialect,
     schema,
     readonlyStore,
     db: database.qb.user,
@@ -226,7 +222,6 @@ export async function run({
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
-        dialect: database.dialect,
         schema,
         db: database.qb.user,
         common,

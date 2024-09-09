@@ -3,10 +3,8 @@ import type { Status } from "@/sync/index.js";
 import type { MetadataStore } from "./store.js";
 
 export const getMetadataStore = ({
-  dialect,
   db,
 }: {
-  dialect: "sqlite" | "postgres";
   db: HeadlessKysely<any>;
 }): MetadataStore => ({
   getStatus: async () => {
@@ -19,9 +17,7 @@ export const getMetadataStore = ({
 
       if (metadata!.value === null) return null;
 
-      return dialect === "sqlite"
-        ? (JSON.parse(metadata!.value) as Status)
-        : (metadata!.value as Status);
+      return metadata!.value as Status;
     });
   },
   setStatus: (status: Status) => {
@@ -30,11 +26,11 @@ export const getMetadataStore = ({
         .insertInto("_ponder_meta")
         .values({
           key: "status",
-          value: dialect === "sqlite" ? JSON.stringify(status) : status,
+          value: status,
         })
         .onConflict((oc) =>
           oc.column("key").doUpdateSet({
-            value: dialect === "sqlite" ? JSON.stringify(status) : status,
+            value: status,
           }),
         )
         .execute();

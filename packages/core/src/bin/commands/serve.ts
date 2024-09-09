@@ -69,9 +69,9 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const { databaseConfig, schema } = api.build;
 
-  if (databaseConfig.kind === "sqlite") {
+  if (databaseConfig.kind === "pglite") {
     await shutdown({
-      reason: "The 'ponder serve' command does not support SQLite",
+      reason: "The 'ponder serve' command does not support PGlite",
       code: 1,
     });
     return cleanup;
