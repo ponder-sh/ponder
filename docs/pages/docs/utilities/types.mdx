@@ -190,8 +190,7 @@ export default createConfig({
 The type of a database in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import type { DatabaseConfig } from "@/generated";
-import { createConfig } from "@ponder/core";
+import { createConfig, type DatabaseConfig } from "@ponder/core";
 
 const database = {
   kind: "postgres",
