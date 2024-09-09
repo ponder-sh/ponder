@@ -1,5 +1,18 @@
+import type { Hex } from "viem";
+
 export type Scalar = "string" | "int" | "float" | "boolean" | "hex" | "bigint";
 export type ID = "string" | "int" | "bigint" | "hex";
+
+export type ScalarType = {
+  string: string;
+  int: number;
+  float: number;
+  boolean: boolean;
+  hex: Hex;
+  bigint: bigint;
+};
+
+export type DefaultToValue<T extends Scalar> = ScalarType[T] | null | undefined;
 
 export type ScalarColumn<
   scalar extends Scalar = Scalar,
@@ -10,6 +23,7 @@ export type ScalarColumn<
   " scalar": scalar;
   " optional": optional;
   " list": list;
+  " defaultTo": DefaultToValue<scalar>;
 };
 
 export type IdColumn<id extends ID = ID> = ScalarColumn<id, false, false>;
@@ -29,6 +43,7 @@ export type JSONColumn<type = any, optional extends boolean = boolean> = {
   " type": "json";
   " json": type;
   " optional": optional;
+  " defaultTo": DefaultToValue<"string">;
 };
 
 export type OneColumn<reference extends string = string> = {
@@ -54,6 +69,7 @@ export type EnumColumn<
   " enum": _enum;
   " optional": optional;
   " list": list;
+  " defaultTo": DefaultToValue<"string">;
 };
 
 export type Index<

@@ -388,7 +388,7 @@ function decodeValue({
   } else if (column[" scalar"] === "boolean") {
     return value === 1;
   } else if (column[" scalar"] === "hex") {
-    return bytesToHex(value as Buffer);
+    return bytesToHex(value as Uint8Array);
   } else if (column[" scalar"] === "bigint" && dialect === "sqlite") {
     return decodeToBigInt(value as string);
   } else {

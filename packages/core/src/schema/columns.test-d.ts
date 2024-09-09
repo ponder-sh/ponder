@@ -8,12 +8,13 @@ test("base", () => {
   assertType<keyof typeof c>(
     {} as unknown as "optional" | "list" | "references",
   );
-  assertType<Omit<typeof c, "optional" | "list" | "references">>(
+  assertType<Omit<typeof c, "optional" | "list" | "references" | "defaultTo">>(
     {} as unknown as {
       " type": "scalar";
       " scalar": "string";
       " optional": false;
       " list": false;
+      " defaultTo": undefined;
     },
   );
 });
@@ -29,6 +30,7 @@ test("optional", () => {
       " scalar": "string";
       " optional": true;
       " list": false;
+      " defaultTo": undefined;
     },
   );
 });
@@ -44,6 +46,7 @@ test("list", () => {
       " scalar": "string";
       " optional": false;
       " list": true;
+      " defaultTo": undefined;
     },
   );
 });
@@ -58,6 +61,7 @@ test("optional + list", () => {
       " scalar": "string";
       " optional": true;
       " list": true;
+      " defaultTo": undefined;
     },
   );
 });
@@ -72,6 +76,7 @@ test("list + optional", () => {
       " scalar": "string";
       " optional": true;
       " list": true;
+      " defaultTo": undefined;
     },
   );
 });
@@ -123,11 +128,12 @@ test("json", () => {
   const c = json();
   //    ^?
 
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "defaultTo">>(
     {} as unknown as {
       " type": "json";
       " json": unknown;
       " optional": false;
+      " defaultTo": undefined;
     },
   );
 });
@@ -136,11 +142,12 @@ test("json w/ type", () => {
   const c = json<{ a: number; b: string }>();
   //    ^?
 
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "defaultTo">>(
     {} as unknown as {
       " type": "json";
       " json": { a: number; b: string };
       " optional": false;
+      " defaultTo": undefined;
     },
   );
 });
@@ -154,6 +161,7 @@ test("json optional", () => {
       " type": "json";
       " json": unknown;
       " optional": true;
+      " defaultTo": undefined;
     },
   );
 });
@@ -185,12 +193,13 @@ test("enum", () => {
   //    ^?
 
   assertType<keyof typeof e>({} as unknown as "optional" | "list");
-  assertType<Omit<typeof e, "optional" | "list">>(
+  assertType<Omit<typeof e, "optional" | "list" | "defaultTo">>(
     {} as unknown as {
       " type": "enum";
       " enum": "enum";
       " optional": false;
       " list": false;
+      " defaultTo": undefined;
     },
   );
 });
@@ -206,6 +215,7 @@ test("enum optional", () => {
       " enum": "enum";
       " optional": true;
       " list": false;
+      " defaultTo": undefined;
     },
   );
 });
@@ -221,6 +231,7 @@ test("enum optional + list", () => {
       " enum": "enum";
       " optional": true;
       " list": true;
+      " defaultTo": undefined;
     },
   );
 });
@@ -236,6 +247,7 @@ test("enum list + optional", () => {
       " enum": "enum";
       " optional": true;
       " list": true;
+      " defaultTo": undefined;
     },
   );
 });

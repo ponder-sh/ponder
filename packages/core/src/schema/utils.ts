@@ -36,6 +36,10 @@ export const isOptionalColumn = (column: Column): boolean => {
   return column[" optional"];
 };
 
+export const isDefaultSet = (column: Column): boolean => {
+  return (column as any)[" defaultTo"] !== undefined;
+};
+
 export const isListColumn = (column: Column): boolean => {
   if (
     isManyColumn(column) ||
