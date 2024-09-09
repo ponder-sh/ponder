@@ -10,7 +10,6 @@ import {
   isScalarColumn,
 } from "@/schema/utils.js";
 import { getTables } from "@/schema/utils.js";
-import { type Table, TableAliasProxyHandler } from "drizzle-orm";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import {
@@ -20,11 +19,9 @@ import {
   numeric as PgNumeric,
   text as PgText,
 } from "drizzle-orm/pg-core";
-import type { View } from "drizzle-orm/sql";
 import type { Pool } from "pg";
 import { PgHexBuilder } from "./hex.js";
 import { PgListBuilder } from "./list.js";
-import type { BuildAliasTable } from "./select.js";
 
 export const createDrizzleDb = (database: Database) => {
   const drizzle = drizzlePg(database.driver.readonly as Pool);
@@ -34,13 +31,6 @@ export const createDrizzleDb = (database: Database) => {
     execute: (query: any) => drizzle.execute(query),
   };
 };
-
-export function alias<tableOrView extends Table | View, alias extends string>(
-  table: tableOrView,
-  alias: alias,
-): BuildAliasTable<tableOrView, alias> {
-  return new Proxy(table, new TableAliasProxyHandler(alias, false)) as any;
-}
 
 type PostgresTable = Parameters<typeof pgTable>[1];
 type DrizzleTable = { [tableName: string]: any };
