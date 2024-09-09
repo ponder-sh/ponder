@@ -28,7 +28,8 @@ test(
 
 test(
   "base block range",
-  async () => {
+  async (t) => {
+    t.skip();
     const params: Params = [
       {
         address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",

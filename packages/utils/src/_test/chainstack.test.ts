@@ -1,12 +1,13 @@
 import { InvalidParamsRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
+import { type Params, UNI, fromBlock, getRequest, validUrl } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_CHAINSTACK_1!);
+const invalidRPC = !validUrl(process.env.RPC_URL_CHAINSTACK_1);
 const maxBlockRange = 110n;
 
-test(
+test.skipIf(invalidRPC)(
   "chainstack success",
   async () => {
     const logs = await request({
@@ -25,7 +26,7 @@ test(
   { timeout: 15_000 },
 );
 
-test(
+test.skipIf(invalidRPC)(
   "chainstack block range",
   async () => {
     const params: Params = [

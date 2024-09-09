@@ -21,3 +21,5 @@ export const getRequest = (url: string, chain: Chain = mainnet) => {
 };
 
 export const fromBlock = 18_000_000n;
+
+export const validUrl = (url?: string) => url?.startsWith("https://");

@@ -1,11 +1,19 @@
 import { LimitExceededRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
+import {
+  type Params,
+  UNI,
+  WETH,
+  fromBlock,
+  getRequest,
+  validUrl,
+} from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_INFURA_1!);
+const invalidRPC = !validUrl(process.env.RPC_URL_INFURA_1);
 
-test(
+test.skipIf(invalidRPC)(
   "infura success",
   async () => {
     const logs = await request({
@@ -24,7 +32,7 @@ test(
   { timeout: 15_000 },
 );
 
-test("infura block range", async () => {
+test.skipIf(invalidRPC)("infura block range", async () => {
   const params: Params = [
     {
       address: WETH,

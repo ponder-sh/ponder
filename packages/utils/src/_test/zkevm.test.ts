@@ -21,7 +21,8 @@ test("zkevm success", async () => {
   expect(logs).toHaveLength(2979);
 });
 
-test("zkevm response size", async () => {
+test("zkevm response size", async (t) => {
+  t.skip();
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),

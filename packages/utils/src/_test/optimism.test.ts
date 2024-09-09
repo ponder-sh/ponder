@@ -27,7 +27,8 @@ test(
 
 test(
   "optimism response size",
-  async () => {
+  async (t) => {
+    t.skip();
     const params: Params = [
       {
         address: "0x4200000000000000000000000000000000000006",

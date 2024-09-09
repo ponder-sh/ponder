@@ -1,13 +1,14 @@
 import { LimitExceededRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { type Params, getRequest, validUrl } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_COINBASE_8453!);
+const invalidRPC = !validUrl(process.env.RPC_URL_COINBASE_8453);
 const fromBlock = 10_000_000n;
 const maxBlockRange = 999n;
 
-test("coinbase success", async () => {
+test.skipIf(invalidRPC)("coinbase success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -22,7 +23,7 @@ test("coinbase success", async () => {
   expect(logs).toHaveLength(77);
 });
 
-test(
+test.skipIf(invalidRPC)(
   "coinbase block range",
   async () => {
     const params: Params = [
