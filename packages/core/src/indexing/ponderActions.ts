@@ -5,11 +5,12 @@ import type {
   Account,
   Chain,
   Client,
-  ContractFunctionConfig,
+  ContractFunctionArgs,
+  ContractFunctionName,
   GetBalanceParameters,
   GetBalanceReturnType,
-  GetBytecodeParameters,
-  GetBytecodeReturnType,
+  GetCodeParameters,
+  GetCodeReturnType,
   GetEnsNameParameters,
   GetEnsNameReturnType,
   GetStorageAtParameters,
@@ -23,7 +24,8 @@ import type {
 } from "viem";
 import {
   getBalance as viemGetBalance,
-  getBytecode as viemGetBytecode,
+  getCode as viemGetCode,
+  getEnsName as viemGetEnsName,
   getStorageAt as viemGetStorageAt,
   multicall as viemMulticall,
   readContract as viemReadContract,
@@ -48,34 +50,34 @@ export type PonderActions = {
   getBalance: (
     args: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & BlockOptions,
   ) => Promise<GetBalanceReturnType>;
-  getBytecode: (
-    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
-      BlockOptions,
-  ) => Promise<GetBytecodeReturnType>;
+  getCode: (
+    args: Omit<GetCodeParameters, "blockTag" | "blockNumber"> & BlockOptions,
+  ) => Promise<GetCodeReturnType>;
   getStorageAt: (
     args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> &
       BlockOptions,
   ) => Promise<GetStorageAtReturnType>;
   multicall: <
-    TContracts extends ContractFunctionConfig[],
-    TAllowFailure extends boolean = true,
+    const contracts extends readonly unknown[],
+    allowFailure extends boolean = true,
   >(
     args: Omit<
-      MulticallParameters<TContracts, TAllowFailure>,
+      MulticallParameters<contracts, allowFailure>,
       "blockTag" | "blockNumber"
     > &
       BlockOptions,
-  ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
+  ) => Promise<MulticallReturnType<contracts, allowFailure>>;
   readContract: <
-    const TAbi extends Abi | readonly unknown[],
-    TFunctionName extends string,
+    const abi extends Abi | readonly unknown[],
+    functionName extends ContractFunctionName<abi, "pure" | "view">,
+    const args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
   >(
     args: Omit<
-      ReadContractParameters<TAbi, TFunctionName>,
+      ReadContractParameters<abi, functionName, args>,
       "blockTag" | "blockNumber"
     > &
       BlockOptions,
-  ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
+  ) => Promise<ReadContractReturnType<abi, functionName, args>>;
   getEnsName: (
     args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
   ) => Promise<GetEnsNameReturnType>;
@@ -110,13 +112,13 @@ export const buildCachedActions = (
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
       }),
-    getBytecode: ({
+    getCode: ({
       cache,
       blockNumber: userBlockNumber,
       ...args
-    }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> &
-      BlockOptions): Promise<GetBytecodeReturnType> =>
-      viemGetBytecode(client, {
+    }: Omit<GetCodeParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetCodeReturnType> =>
+      viemGetCode(client, {
         ...args,
         ...(cache === "immutable"
           ? { blockTag: "latest" }
@@ -135,17 +137,17 @@ export const buildCachedActions = (
           : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
       }),
     multicall: <
-      TContracts extends ContractFunctionConfig[],
-      TAllowFailure extends boolean = true,
+      const contracts extends readonly unknown[],
+      allowFailure extends boolean = true,
     >({
       cache,
       blockNumber: userBlockNumber,
       ...args
     }: Omit<
-      MulticallParameters<TContracts, TAllowFailure>,
+      MulticallParameters<contracts, allowFailure>,
       "blockTag" | "blockNumber"
     > &
-      BlockOptions): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
+      BlockOptions): Promise<MulticallReturnType<contracts, allowFailure>> =>
       viemMulticall(client, {
         ...args,
         ...(cache === "immutable"
@@ -154,23 +156,40 @@ export const buildCachedActions = (
       }),
     // @ts-ignore
     readContract: <
-      const TAbi extends Abi | readonly unknown[],
-      TFunctionName extends string,
+      const abi extends Abi | readonly unknown[],
+      functionName extends ContractFunctionName<abi, "pure" | "view">,
+      const args extends ContractFunctionArgs<
+        abi,
+        "pure" | "view",
+        functionName
+      >,
     >({
       cache,
       blockNumber: userBlockNumber,
       ...args
     }: Omit<
-      ReadContractParameters<TAbi, TFunctionName>,
+      ReadContractParameters<abi, functionName, args>,
       "blockTag" | "blockNumber"
     > &
-      BlockOptions): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
+      BlockOptions): Promise<ReadContractReturnType<abi, functionName, args>> =>
       viemReadContract(client, {
         ...args,
         ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
-      } as ReadContractParameters<TAbi, TFunctionName>),
+      } as ReadContractParameters<abi, functionName, args>),
+    getEnsName: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetEnsNameReturnType> =>
+      viemGetEnsName(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
   });
 };
 
