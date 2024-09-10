@@ -269,7 +269,7 @@ test("Context client", () => {
     | "readContract"
     | "multicall"
     | "getStorageAt"
-    | "getBytecode"
+    | "getCode"
     | "getBalance"
     | "getEnsName";
 
