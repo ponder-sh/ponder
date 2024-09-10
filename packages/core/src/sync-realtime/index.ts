@@ -98,7 +98,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let localChain: LightBlock[] = [];
-  let queue: Queue<void, BlockWithEventData>;
+  let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -139,12 +139,11 @@ export const createRealtimeSync = (
    */
   const handleBlock = async ({
     block,
-    filters,
     logs,
     callTraces,
     transactions,
     transactionReceipts,
-  }: BlockWithEventData) => {
+  }: Omit<BlockWithEventData, "filters">) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
@@ -167,9 +166,11 @@ export const createRealtimeSync = (
      *  because `extract` doesn't have factory address information.
      */
 
+    const matchedFilters = new Set<Filter>();
+
     // Remove logs that don't match a filter, accounting for factory addresses
-    logs = logs.filter((log) =>
-      logFilters.some((filter) => {
+    logs = logs.filter((log) => {
+      const isFilterMatched = logFilters.map((filter) => {
         const isMatched = isLogFilterMatched({ filter, block, log });
 
         if (isAddressFactory(filter.address)) {
@@ -177,12 +178,18 @@ export const createRealtimeSync = (
         }
 
         return isMatched;
-      }),
-    );
+      });
+
+      for (let i = 0; i < logFilters.length; i++) {
+        if (isFilterMatched[i]!) matchedFilters.add(logFilters[i]!);
+      }
+
+      return isFilterMatched.some((m) => m);
+    });
 
     // Remove call traces that don't match a filter, accounting for factory addresses
-    callTraces = callTraces.filter((callTrace) =>
-      callTraceFilters.some((filter) => {
+    callTraces = callTraces.filter((callTrace) => {
+      const isFilterMatched = callTraceFilters.map((filter) => {
         const isMatched = isCallTraceFilterMatched({
           filter,
           block,
@@ -194,8 +201,23 @@ export const createRealtimeSync = (
         }
 
         return isMatched;
-      }),
+      });
+
+      for (let i = 0; i < callTraceFilters.length; i++) {
+        if (isFilterMatched[i]!) matchedFilters.add(callTraceFilters[i]!);
+      }
+
+      return isFilterMatched.some((m) => m);
+    });
+
+    // Record matched block filters
+    const isFilterMatched = blockFilters.map((filter) =>
+      isBlockFilterMatched({ filter, block }),
     );
+
+    for (let i = 0; i < blockFilters.length; i++) {
+      if (isFilterMatched[i]!) matchedFilters.add(blockFilters[i]!);
+    }
 
     if (logs.length > 0 || callTraces.length > 0) {
       const _text: string[] = [];
@@ -228,7 +250,7 @@ export const createRealtimeSync = (
 
     args.onEvent({
       type: "block",
-      filters,
+      filters: matchedFilters,
       block,
       logs,
       callTraces,
@@ -352,7 +374,7 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<BlockWithEventData> => {
+  ): Promise<Omit<BlockWithEventData, "filters">> => {
     ////////
     // Logs
     ////////
@@ -422,8 +444,6 @@ export const createRealtimeSync = (
     // Get Matched
     ////////
 
-    const matchedFilters = new Set<Filter>();
-
     // Insert `logs` that contain factory child addresses
     const _logs = logs.filter((log) =>
       factories.some((filter) => isLogFactoryMatched({ filter, log })),
@@ -449,15 +469,6 @@ export const createRealtimeSync = (
         }),
       ),
     );
-
-    // Record matched block filters
-    const isFilterMatched = blockFilters.map((filter) =>
-      isBlockFilterMatched({ filter, block }),
-    );
-
-    for (let i = 0; i < blockFilters.length; i++) {
-      if (isFilterMatched[i]!) matchedFilters.add(blockFilters[i]!);
-    }
 
     ////////
     // Transactions
@@ -508,7 +519,6 @@ export const createRealtimeSync = (
 
     return {
       block,
-      filters: matchedFilters,
       logs,
       callTraces,
       transactions,
@@ -539,7 +549,7 @@ export const createRealtimeSync = (
         browser: false,
         concurrency: 1,
         initialStart: true,
-        worker: async ({ block, ...rest }: BlockWithEventData) => {
+        worker: async ({ block, ...rest }) => {
           const latestLocalBlock = getLatestLocalBlock();
 
           // We already saw and handled this block. No-op.
