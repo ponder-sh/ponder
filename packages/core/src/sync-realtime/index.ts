@@ -180,7 +180,7 @@ export const createRealtimeSync = (
       }),
     );
 
-    // Remote call traces that don't match a filter, accounting for factory addresses
+    // Remove call traces that don't match a filter, accounting for factory addresses
     callTraces = callTraces.filter((callTrace) =>
       callTraceFilters.some((filter) => {
         const isMatched = isCallTraceFilterMatched({
@@ -344,13 +344,15 @@ export const createRealtimeSync = (
   };
 
   /**
-   * Request and filter all relevant data pertaining to `block` and `args.sources`
+   * Fetch all data (logs, traces, receipts) for the specified block required by `args.sources`
    *
    * Note: The data returned by this function may include false positives. This
    * is due to the fact that factory addresses are unknown and are always
    * treated as "matched".
    */
-  const extract = async (block: SyncBlock): Promise<BlockWithEventData> => {
+  const fetchBlockEventData = async (
+    block: SyncBlock,
+  ): Promise<BlockWithEventData> => {
     ////////
     // Logs
     ////////
@@ -437,7 +439,7 @@ export const createRealtimeSync = (
       logFilters.some((filter) => isLogFilterMatched({ filter, block, log })),
     );
 
-    // Remote call traces that don't match a filter
+    // Remove call traces that don't match a filter
     callTraces = callTraces.filter((callTrace) =>
       callTraceFilters.some((filter) =>
         isCallTraceFilterMatched({
@@ -579,7 +581,7 @@ export const createRealtimeSync = (
                 missingBlockRange.map((blockNumber) =>
                   _eth_getBlockByNumber(args.requestQueue, {
                     blockNumber,
-                  }).then((block) => extract(block)),
+                  }).then((block) => fetchBlockEventData(block)),
                 ),
               );
 
@@ -669,7 +671,7 @@ export const createRealtimeSync = (
         try {
           const block = await _eth_getBlockByNumber(args.requestQueue, {
             blockTag: "latest",
-          }).then((block) => extract(block));
+          }).then((block) => fetchBlockEventData(block));
 
           consecutiveErrors = 0;
 
