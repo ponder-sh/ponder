@@ -3,8 +3,10 @@ import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { syncBlockToLightBlock } from "@/sync/index.js";
 import {
+  type BlockFilter,
   type CallTraceFilter,
   type Factory,
+  type Filter,
   type LogFilter,
   type Source,
   isAddressFactory,
@@ -31,13 +33,14 @@ import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hash, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 import {
+  isBlockFilterMatched,
   isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
 } from "./filter.js";
 
 export type RealtimeSync = {
-  start(finalizedBlock: LightBlock): Promise<Queue<void, BlockData>>;
+  start(finalizedBlock: LightBlock): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
   localChain: LightBlock[];
 };
@@ -52,8 +55,9 @@ type CreateRealtimeSyncParameters = {
   onFatalError: (error: Error) => void;
 };
 
-type BlockData = {
+type BlockWithEventData = {
   block: SyncBlock;
+  filters: Set<Filter>;
   logs: SyncLog[];
   callTraces: SyncCallTrace[];
   transactions: SyncTransaction[];
@@ -63,7 +67,7 @@ type BlockData = {
 export type RealtimeSyncEvent =
   | ({
       type: "block";
-    } & BlockData)
+    } & BlockWithEventData)
   | {
       type: "finalize";
       block: LightBlock;
@@ -71,6 +75,7 @@ export type RealtimeSyncEvent =
   | {
       type: "reorg";
       block: LightBlock;
+      reorgedBlocks: LightBlock[];
     };
 
 const ERROR_TIMEOUT = [
@@ -93,13 +98,14 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let localChain: LightBlock[] = [];
-  let queue: Queue<void, BlockData>;
+  let queue: Queue<void, BlockWithEventData>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
   const callTraceFilters: CallTraceFilter[] = [];
+  const blockFilters: BlockFilter[] = [];
 
   for (const source of args.sources) {
     if (source.type === "contract") {
@@ -116,6 +122,8 @@ export const createRealtimeSync = (
       if (isAddressFactory(_address)) {
         factories.push(_address);
       }
+    } else if (source.type === "block") {
+      blockFilters.push(source.filter);
     }
   }
 
@@ -131,11 +139,12 @@ export const createRealtimeSync = (
    */
   const handleBlock = async ({
     block,
+    filters,
     logs,
     callTraces,
     transactions,
     transactionReceipts,
-  }: BlockData) => {
+  }: BlockWithEventData) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
@@ -219,6 +228,7 @@ export const createRealtimeSync = (
 
     args.onEvent({
       type: "block",
+      filters,
       block,
       logs,
       callTraces,
@@ -285,6 +295,11 @@ export const createRealtimeSync = (
       msg: `Detected forked '${args.network.name}' block at height ${hexToNumber(block.number)}`,
     });
 
+    // Record blocks that have been removed from the local chain.
+    const reorgedBlocks = localChain.filter(
+      (lb) => hexToNumber(lb.number) >= hexToNumber(block.number),
+    );
+
     // Prune the local chain of blocks that have been reorged out
     localChain = localChain.filter(
       (lb) => hexToNumber(lb.number) < hexToNumber(block.number),
@@ -297,7 +312,7 @@ export const createRealtimeSync = (
       const parentBlock = getLatestLocalBlock();
 
       if (parentBlock.hash === remoteBlock.parentHash) {
-        args.onEvent({ type: "reorg", block: parentBlock });
+        args.onEvent({ type: "reorg", block: parentBlock, reorgedBlocks });
 
         args.common.logger.warn({
           service: "realtime",
@@ -314,7 +329,8 @@ export const createRealtimeSync = (
         remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
           hash: remoteBlock.parentHash,
         });
-        localChain.pop();
+        // Add tip to `reorgedBlocks`
+        reorgedBlocks.push(localChain.pop()!);
       }
     }
 
@@ -334,7 +350,7 @@ export const createRealtimeSync = (
    * is due to the fact that factory addresses are unknown and are always
    * treated as "matched".
    */
-  const extract = async (block: SyncBlock): Promise<BlockData> => {
+  const extract = async (block: SyncBlock): Promise<BlockWithEventData> => {
     ////////
     // Logs
     ////////
@@ -404,12 +420,15 @@ export const createRealtimeSync = (
     // Get Matched
     ////////
 
+    const matchedFilters = new Set<Filter>();
+
     // Insert `logs` that contain factory child addresses
     const _logs = logs.filter((log) =>
       factories.some((filter) => isLogFactoryMatched({ filter, log })),
     );
     await args.syncStore.insertLogs({
       logs: _logs.map((log) => ({ log })),
+      shouldUpdateCheckpoint: false,
       chainId: args.network.chainId,
     });
 
@@ -428,6 +447,15 @@ export const createRealtimeSync = (
         }),
       ),
     );
+
+    // Record matched block filters
+    const isFilterMatched = blockFilters.map((filter) =>
+      isBlockFilterMatched({ filter, block }),
+    );
+
+    for (let i = 0; i < blockFilters.length; i++) {
+      if (isFilterMatched[i]!) matchedFilters.add(blockFilters[i]!);
+    }
 
     ////////
     // Transactions
@@ -478,6 +506,7 @@ export const createRealtimeSync = (
 
     return {
       block,
+      filters: matchedFilters,
       logs,
       callTraces,
       transactions,
@@ -508,7 +537,7 @@ export const createRealtimeSync = (
         browser: false,
         concurrency: 1,
         initialStart: true,
-        worker: async ({ block, ...rest }: BlockData) => {
+        worker: async ({ block, ...rest }: BlockWithEventData) => {
           const latestLocalBlock = getLatestLocalBlock();
 
           // We already saw and handled this block. No-op.

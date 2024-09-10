@@ -169,6 +169,7 @@ export const create = ({
     clientByChainId[network.chainId] = createClient({
       transport,
       chain: network.chain,
+      // @ts-ignore
     }).extend(cachedActions);
   }
 

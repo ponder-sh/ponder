@@ -15,6 +15,7 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { estimate } from "@/utils/estimate.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
@@ -254,7 +255,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * Estimate optimal range (seconds) to query at a time, eventually
    * used to determine `to` passed to `getEvents`
    */
-  let estimateSeconds = 10_000;
+  let estimateSeconds = 1_000;
   /**
    * Omnichain `getEvents`
    *
@@ -313,7 +314,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       while (true) {
         if (isKilled) return;
         if (from === to) break;
+
         const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
+        let consecutiveErrors = 0;
+
         // convert `estimateSeconds` to checkpoint
         const estimatedTo = encodeCheckpoint({
           ...zeroCheckpoint,
@@ -322,28 +326,36 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             maxCheckpoint.blockTimestamp,
           ),
         });
-        const { events, cursor } = await args.syncStore.getEvents({
-          filters: args.sources.map(({ filter }) => filter),
-          from,
-          to: to < estimatedTo ? to : estimatedTo,
-          limit: getEventsMaxBatchSize,
-        });
 
-        updateStatus(events, cursor, false);
+        try {
+          const { events, cursor } = await args.syncStore.getEvents({
+            filters: args.sources.map(({ filter }) => filter),
+            from,
+            to: to < estimatedTo ? to : estimatedTo,
+            limit: getEventsMaxBatchSize,
+          });
+          consecutiveErrors = 0;
 
-        const fromTime = decodeCheckpoint(from).blockTimestamp;
-        const cursorTime = decodeCheckpoint(cursor).blockTimestamp;
-        const receivedDensity = (cursorTime - fromTime) / (events.length || 1);
+          updateStatus(events, cursor, false);
 
-        // Use range and number of events returned to update estimate
-        // 10 <= estimate(new) <= estimate(prev) * 2
-        estimateSeconds = Math.min(
-          Math.max(10, Math.round(receivedDensity * getEventsMaxBatchSize)),
-          estimateSeconds * 2,
-        );
+          estimateSeconds = estimate({
+            from: decodeCheckpoint(from).blockTimestamp,
+            to: decodeCheckpoint(cursor).blockTimestamp,
+            target: getEventsMaxBatchSize,
+            result: events.length,
+            min: 10,
+            max: 86_400,
+            prev: estimateSeconds,
+            maxIncrease: 1.08,
+          });
 
-        yield { events, checkpoint: to };
-        from = cursor;
+          yield { events, checkpoint: to };
+          from = cursor;
+        } catch (error) {
+          // Handle errors by reducing the requested range by 10x
+          estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+          if (++consecutiveErrors > 4) throw error;
+        }
       }
 
       // Exit condition: All network have completed historical sync.
@@ -408,10 +420,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          */
         case "block":
           {
-            const filters = args.sources
-              .filter(({ filter }) => filter.chainId === network.chainId)
-              .map(({ filter }) => filter);
-
             // Update local sync, record checkpoint before and after
             let from = getChainsCheckpoint("latest")!;
             localSync.latestBlock = event.block;
@@ -422,9 +430,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             const chainId = network.chainId;
 
             await Promise.all([
-              args.syncStore.insertBlocks({ blocks: [event.block], chainId }),
+              args.syncStore.insertBlocks({
+                blocks: event.filters.size === 0 ? [] : [event.block],
+                chainId,
+              }),
               args.syncStore.insertLogs({
                 logs: event.logs.map((log) => ({ log, block: event.block })),
+                shouldUpdateCheckpoint: true,
                 chainId,
               }),
               args.syncStore.insertTransactions({
@@ -452,7 +464,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               if (isKilled) return;
               if (from === to) break;
               const { events, cursor } = await args.syncStore.getEvents({
-                filters,
+                filters: args.sources.map(({ filter }) => filter),
                 from,
                 to,
                 limit: args.common.options.syncEventsQuerySize,
@@ -501,6 +513,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
              * defined has become finalized.
              */
             if (localSync.isComplete()) {
+              args.common.metrics.ponder_realtime_is_connected.set(
+                { network: network.name },
+                0,
+              );
               args.common.logger.info({
                 service: "sync",
                 msg: `Synced final end block for '${network.name}' (${hexToNumber(localSync.endBlock!.number)}), killing realtime sync service`,
@@ -522,7 +538,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             const checkpoint = getChainsCheckpoint("latest")!;
 
             await args.syncStore.pruneByBlock({
-              fromBlock: hexToNumber(event.block.number),
+              blocks: event.reorgedBlocks,
               chainId: network.chainId,
             });
 
@@ -576,6 +592,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               }),
             onFatalError: args.onFatalError,
           });
+          args.common.metrics.ponder_realtime_is_connected.set(
+            { network: network.name },
+            1,
+          );
           realtimeSync.start(localSync.finalizedBlock);
           realtimeSyncs.set(network, realtimeSync);
         }

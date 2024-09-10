@@ -27,7 +27,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
   }
 
   wrap = async <T>(
-    options: { method: string },
+    options: { method: string; shouldRetry?: (error: Error) => boolean },
     fn: () => Promise<T>,
     // TypeScript can't infer that we always return or throw.
     // @ts-ignore
@@ -70,7 +70,10 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           firstError = error;
         }
 
-        if (error instanceof NonRetryableError) {
+        if (
+          error instanceof NonRetryableError ||
+          options.shouldRetry?.(error) === false
+        ) {
           this.common.logger.warn({
             service: this.name,
             msg: `Failed '${options.method}' database method `,

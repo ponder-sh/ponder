@@ -217,6 +217,7 @@ export namespace Virtual {
         | "name"
         | "pollingInterval"
         | "transport"
+        | "ccipRead"
       >
     >;
     db: {

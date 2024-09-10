@@ -1,5 +1,46 @@
 # @ponder/core
 
+## 0.5.21
+
+### Patch Changes
+
+- [#1077](https://github.com/ponder-sh/ponder/pull/1077) [`0f6213f7d907ea0de27deebb994823d20f379349`](https://github.com/ponder-sh/ponder/commit/0f6213f7d907ea0de27deebb994823d20f379349) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed "ponder_realtime_is_connected" metric.
+
+- [#1075](https://github.com/ponder-sh/ponder/pull/1075) [`6f1a57947e2062ce2f8d1a59068fe751bfc764ef`](https://github.com/ponder-sh/ponder/commit/6f1a57947e2062ce2f8d1a59068fe751bfc764ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of reorg handling, that in some cases was leading to query timeouts and stalled indexing.
+
+## 0.5.20
+
+### Patch Changes
+
+- [#1063](https://github.com/ponder-sh/ponder/pull/1063) [`d849b052c16b774d5d5eaa6e3f77b4ac26983088`](https://github.com/ponder-sh/ponder/commit/d849b052c16b774d5d5eaa6e3f77b4ac26983088) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in 0.5.9 where extra blocks were being written to the database during the realtime sync.
+
+- [#1070](https://github.com/ponder-sh/ponder/pull/1070) [`2b28d8368f531ce61556e706504e6372a620fd78`](https://github.com/ponder-sh/ponder/commit/2b28d8368f531ce61556e706504e6372a620fd78) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing out of order events when a contract is used as both a normal contract and a factory.
+
+- [#1068](https://github.com/ponder-sh/ponder/pull/1068) [`a1557d9a16ea6d6a4060838d06f03c4a251da1b9`](https://github.com/ponder-sh/ponder/commit/a1557d9a16ea6d6a4060838d06f03c4a251da1b9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with factory contracts fetching and writing extra logs to the database.
+
+- Updated dependencies [[`7c17ff32e8907b4a38d74cea2a431b689236048c`](https://github.com/ponder-sh/ponder/commit/7c17ff32e8907b4a38d74cea2a431b689236048c)]:
+  - @ponder/utils@0.1.8
+
+## 0.5.19
+
+### Patch Changes
+
+- [#1059](https://github.com/ponder-sh/ponder/pull/1059) [`7b8129dd2817fd7749511b5d0937a2818a9365c0`](https://github.com/ponder-sh/ponder/commit/7b8129dd2817fd7749511b5d0937a2818a9365c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved precision of historical sync cache for faster startup times.
+
+## 0.5.18
+
+### Patch Changes
+
+- [#1056](https://github.com/ponder-sh/ponder/pull/1056) [`313267cbe93679b9b18a38929ee07b3a2008bb0f`](https://github.com/ponder-sh/ponder/commit/313267cbe93679b9b18a38929ee07b3a2008bb0f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.5.9 that caused events to be missed in realtime when indexing multiple chains. This issue does not affect database integrity, but affected apps should restart to ensure all events are indexed.
+
+## 0.5.17
+
+### Patch Changes
+
+- [#1050](https://github.com/ponder-sh/ponder/pull/1050) [`b3225f46f905addfa6e8eb9d5f181a595d2b0858`](https://github.com/ponder-sh/ponder/commit/b3225f46f905addfa6e8eb9d5f181a595d2b0858) Thanks [@jwahdatehagh](https://github.com/jwahdatehagh)! - Fixed a bug that caused a build error when including `BigInt` literals in the config object (e.g. in `filter.args`).
+
+- [#1051](https://github.com/ponder-sh/ponder/pull/1051) [`aa2aecd8d0f6157cef849bd77f94ec9e7fd0a05e`](https://github.com/ponder-sh/ponder/commit/aa2aecd8d0f6157cef849bd77f94ec9e7fd0a05e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed misconfigured Postgres pool size for `ponder serve`.
+
 ## 0.5.16
 
 ### Patch Changes

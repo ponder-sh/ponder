@@ -1078,7 +1078,7 @@ test("ponderActions getBalance()", async (context) => {
   await cleanup();
 });
 
-test("ponderActions getBytecode()", async (context) => {
+test("ponderActions getCode()", async (context) => {
   const { common, sources, networks, erc20 } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
@@ -1105,7 +1105,7 @@ test("ponderActions getBytecode()", async (context) => {
     schema,
   });
 
-  const bytecode = await indexingService.clientByChainId[1]!.getBytecode({
+  const bytecode = await indexingService.clientByChainId[1]!.getCode({
     address: erc20.address,
   });
 

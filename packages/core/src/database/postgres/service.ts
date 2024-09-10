@@ -101,7 +101,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.syncPool = createPool({
       ...poolConfig,
       application_name: `${userNamespace}_sync`,
-      max: readonlyMax,
+      max: syncMax,
     });
     this.indexingPool = createPool({
       ...poolConfig,
@@ -111,7 +111,7 @@ export class PostgresDatabaseService implements BaseDatabaseService {
     this.readonlyPool = createReadonlyPool({
       ...poolConfig,
       application_name: `${userNamespace}_readonly`,
-      max: syncMax,
+      max: readonlyMax,
     });
 
     this.db = new HeadlessKysely<InternalTables>({
