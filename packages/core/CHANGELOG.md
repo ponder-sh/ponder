@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.5.22
+
+### Patch Changes
+
+- [#1087](https://github.com/ponder-sh/ponder/pull/1087) [`8fb12bcc6dc79d70f0da86ef6deeda3509096303`](https://github.com/ponder-sh/ponder/commit/8fb12bcc6dc79d70f0da86ef6deeda3509096303) Thanks [@kyscott18](https://github.com/kyscott18)! - Upgraded `@hono/node-server` to fix a bug where HTTP TRACE requests would throw an error.
+
 ## 0.5.21
 
 ### Patch Changes
