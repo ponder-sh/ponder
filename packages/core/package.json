@@ -55,7 +55,7 @@
     "commander": "^12.0.0",
     "conf": "^12.0.0",
     "dataloader": "^2.2.2",
-    "detect-package-manager": "^3.0.1",
+    "detect-package-manager": "^3.0.2",
     "dotenv": "^16.3.1",
     "drizzle-orm": "^0.31.2",
     "glob": "^10.3.10",
