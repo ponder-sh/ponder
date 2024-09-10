@@ -103,7 +103,7 @@ A generic type that requires a table name from `ponder.schema.ts` and returns th
 ```ts filename="src/helpers.ts" {1}
 import { ponder, type Schema } from "@/generated";
 
-function helper(account: Schema<"Account">) {
+function helper(account: Schema["Account"]) {
   account;
   // ^? {
   //      id: bigint;
@@ -123,8 +123,7 @@ The `@ponder/core` package exports a utility type for each option passed to `cre
 The type of a contract in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import type { ContractConfig } from "@/generated";
-import { createConfig } from "@ponder/core";
+import { createConfig, type ContractConfig } from "@ponder/core";
 import { Erc20Abi } from "./abis/Erc20Abi.ts";
 
 const Erc20 = {
@@ -146,8 +145,7 @@ export default createConfig({
 The type of a network in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import type { NetworkConfig } from "@/generated";
-import { createConfig } from "@ponder/core";
+import { createConfig, type NetworkConfig } from "@ponder/core";
 import { http } from "viem";
 
 const mainnet = {
@@ -168,8 +166,7 @@ export default createConfig({
 The type of a block source in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import type { BlockConfig } from "@/generated";
-import { createConfig } from "@ponder/core";
+import { createconfig, type blockconfig } from "@ponder/core";
 
 const ChainlinkPriceOracle = {
   network: "mainnet",
