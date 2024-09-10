@@ -164,7 +164,7 @@ export const createHistoricalSync = async (
     /** Explicitly set because of the complexity of factory contracts. */
     address: Address | Address[] | undefined;
   }): Promise<SyncLog[]> => {
-    /** Use the recommended range if available, else don't chunk the interval at all. */
+    //  Use the recommended range if available, else don't chunk the interval at all.
 
     const metadata = getLogsRequestMetadata.get(filter);
     const intervals = metadata
@@ -177,10 +177,17 @@ export const createHistoricalSync = async (
     const topics =
       "eventSelector" in filter ? [filter.eventSelector] : filter.topics;
 
-    // Batch large arrays of addresses
+    // Batch large arrays of addresses, handling arrays that are empty or over the threshold
+
     let addressBatches: (Address | Address[] | undefined)[];
     if (address === undefined || typeof address === "string") {
       addressBatches = [address];
+    } else if (address.length === 0) {
+      return [];
+    } else if (
+      address.length > args.common.options.factoryAddressCountThreshold
+    ) {
+      addressBatches = [undefined];
     } else {
       addressBatches = [];
       for (let i = 0; i < address.length; i += 50) {
@@ -254,29 +261,13 @@ export const createHistoricalSync = async (
 
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
     // Resolve `filter.address`
-    let address: Address | Address[] | undefined;
-    if (isAddressFactory(filter.address)) {
-      const childAddresses = await syncAddress(filter.address, interval);
-      // Exit early if no child addresses are found
-      if (childAddresses.length === 0) return;
-      if (
-        childAddresses.length < args.common.options.factoryAddressCountThreshold
-      ) {
-        address = childAddresses;
-      } else {
-        address = undefined;
-      }
-    } else {
-      address = filter.address;
-    }
+    const address = isAddressFactory(filter.address)
+      ? await syncAddress(filter.address, interval)
+      : filter.address;
 
     if (isKilled) return;
 
-    const logs = await getLogsDynamic({
-      filter,
-      interval,
-      address,
-    });
+    const logs = await getLogsDynamic({ filter, interval, address });
 
     if (isKilled) return;
 
