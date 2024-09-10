@@ -35,7 +35,6 @@ import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
   type Hash,
-  type LogTopic,
   type RpcError,
   hexToBigInt,
   hexToNumber,
@@ -82,9 +81,9 @@ export const createHistoricalSync = async (
     LogFilter | LogFactory,
     {
       /** Estimate optimal range to use for "eth_getLogs" requests */
-      range: number;
-      /** `true` if an exact range has been suggested by the error message */
-      isSuggestedByError: boolean;
+      estimatedRange: number;
+      /** Range suggested by an error message */
+      confirmedRange?: number;
     }
   >();
   /**
@@ -155,71 +154,84 @@ export const createHistoricalSync = async (
   /**
    * Split "eth_getLogs" requests into ranges inferred from errors.
    */
-  const logRequestHelper = async ({
-    address,
-    topics,
-    interval,
+  const getLogsDynamic = async ({
     filter,
+    address,
+    interval,
   }: {
-    address?: Address | Address[];
-    topics?: LogTopic[];
-    interval: Interval;
     filter: LogFilter | LogFactory;
+    interval: Interval;
+    /** Explicitly set because of the complexity of factory contracts. */
+    address: Address | Address[] | undefined;
   }): Promise<SyncLog[]> => {
-    /**
-     * Use the recommended range if available, else don't chunk the interval at all
-     */
+    /** Use the recommended range if available, else don't chunk the interval at all. */
 
-    let intervals: Interval[];
-    if (getLogsRequestMetadata.has(filter)) {
-      intervals = getChunks({
-        interval,
-        maxChunkSize: getLogsRequestMetadata.get(filter)!.range,
-      });
+    const metadata = getLogsRequestMetadata.get(filter);
+    const intervals = metadata
+      ? getChunks({
+          interval,
+          maxChunkSize: metadata.confirmedRange ?? metadata.estimatedRange,
+        })
+      : [interval];
+
+    const topics =
+      "eventSelector" in filter ? [filter.eventSelector] : filter.topics;
+
+    // Batch large arrays of addresses
+    let addressBatches: (Address | Address[] | undefined)[];
+    if (address === undefined || typeof address === "string") {
+      addressBatches = [address];
     } else {
-      intervals = [interval];
+      addressBatches = [];
+      for (let i = 0; i < address.length; i += 50) {
+        addressBatches.push(address.slice(i, i + 50));
+      }
     }
 
     const logs = await Promise.all(
-      intervals.map((interval) =>
-        _eth_getLogs(args.requestQueue, {
-          address,
-          topics,
-          fromBlock: interval[0],
-          toBlock: interval[1],
-        }).catch((error) => {
-          const getLogsErrorResponse = getLogsRetryHelper({
-            params: [
-              {
-                address,
-                topics,
-                fromBlock: toHex(interval[0]),
-                toBlock: toHex(interval[1]),
-              },
-            ],
-            error: error as RpcError,
-          });
+      intervals.flatMap((interval) =>
+        addressBatches.map((address) =>
+          _eth_getLogs(args.requestQueue, {
+            address,
+            topics,
+            fromBlock: interval[0],
+            toBlock: interval[1],
+          }).catch((error) => {
+            const getLogsErrorResponse = getLogsRetryHelper({
+              params: [
+                {
+                  address,
+                  topics,
+                  fromBlock: toHex(interval[0]),
+                  toBlock: toHex(interval[1]),
+                },
+              ],
+              error: error as RpcError,
+            });
 
-          if (getLogsErrorResponse.shouldRetry === false) throw error;
+            if (getLogsErrorResponse.shouldRetry === false) throw error;
 
-          const range =
-            hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
-            hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
+            const range =
+              hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+              hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
 
-          args.common.logger.debug({
-            service: "sync",
-            msg: `Caught eth_getLogs error on '${
-              args.network.name
-            }', updating recommended range to ${range}.`,
-          });
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Caught eth_getLogs error on '${
+                args.network.name
+              }', updating recommended range to ${range}.`,
+            });
 
-          getLogsRequestMetadata.set(filter, {
-            range,
-            isSuggestedByError: getLogsErrorResponse.isSuggestedRange,
-          });
+            getLogsRequestMetadata.set(filter, {
+              estimatedRange: range,
+              confirmedRange: getLogsErrorResponse.isSuggestedRange
+                ? range
+                : undefined,
+            });
 
-          return logRequestHelper({ address, topics, interval, filter });
-        }),
+            return getLogsDynamic({ address, interval, filter });
+          }),
+        ),
       ),
     ).then((logs) => logs.flat());
 
@@ -228,9 +240,12 @@ export const createHistoricalSync = async (
      * error has been received but the error didn't suggest a range.
      */
 
-    if (getLogsRequestMetadata.get(filter)?.isSuggestedByError === false) {
-      getLogsRequestMetadata.get(filter)!.range = Math.round(
-        getLogsRequestMetadata.get(filter)!.range * 1.05,
+    if (
+      getLogsRequestMetadata.has(filter) &&
+      getLogsRequestMetadata.get(filter)!.confirmedRange === undefined
+    ) {
+      getLogsRequestMetadata.get(filter)!.estimatedRange = Math.round(
+        getLogsRequestMetadata.get(filter)!.estimatedRange * 1.05,
       );
     }
 
@@ -257,29 +272,11 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    // Request logs, batching of large arrays of addresses
-    let logs: SyncLog[];
-    if (Array.isArray(address) && address.length > 50) {
-      const _promises: Promise<SyncLog[]>[] = [];
-      for (let i = 0; i < address.length; i += 50) {
-        _promises.push(
-          logRequestHelper({
-            address: address.slice(i, i + 50),
-            topics: filter.topics,
-            interval,
-            filter,
-          }),
-        );
-      }
-      logs = await Promise.all(_promises).then((logs) => logs.flat());
-    } else {
-      logs = await logRequestHelper({
-        address,
-        topics: filter.topics,
-        interval,
-        filter,
-      });
-    }
+    const logs = await getLogsDynamic({
+      filter,
+      interval,
+      address,
+    });
 
     if (isKilled) return;
 
@@ -407,11 +404,10 @@ export const createHistoricalSync = async (
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
-    const logs = await logRequestHelper({
-      address: filter.address,
-      topics: [filter.eventSelector],
-      interval,
+    const logs = await getLogsDynamic({
       filter,
+      interval,
+      address: filter.address,
     });
 
     if (isKilled) return;
