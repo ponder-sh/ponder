@@ -35,9 +35,6 @@
   },
   "packageManager": "pnpm@8.6.10",
   "pnpm": {
-    "patchedDependencies": {
-      "detect-package-manager@3.0.1": "patches/detect-package-manager@3.0.1.patch"
-    },
     "peerDependencyRules": {
       "ignoreMissing": ["node-fetch"]
     }

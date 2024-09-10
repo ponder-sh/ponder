@@ -72,6 +72,7 @@ export type RealtimeSyncEvent =
   | {
       type: "reorg";
       block: LightBlock;
+      reorgedBlocks: LightBlock[];
     };
 
 const ERROR_TIMEOUT = [
@@ -240,6 +241,11 @@ export const createRealtimeSync = (
       msg: `Detected forked '${args.network.name}' block at height ${hexToNumber(block.number)}`,
     });
 
+    // Record blocks that have been removed from the local chain.
+    const reorgedBlocks = localChain.filter(
+      (lb) => hexToNumber(lb.number) >= hexToNumber(block.number),
+    );
+
     // Prune the local chain of blocks that have been reorged out
     localChain = localChain.filter(
       (lb) => hexToNumber(lb.number) < hexToNumber(block.number),
@@ -252,7 +258,7 @@ export const createRealtimeSync = (
       const parentBlock = getLatestLocalBlock();
 
       if (parentBlock.hash === remoteBlock.parentHash) {
-        args.onEvent({ type: "reorg", block: parentBlock });
+        args.onEvent({ type: "reorg", block: parentBlock, reorgedBlocks });
 
         args.common.logger.warn({
           service: "realtime",
@@ -269,7 +275,8 @@ export const createRealtimeSync = (
         remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
           hash: remoteBlock.parentHash,
         });
-        localChain.pop();
+        // Add tip to `reorgedBlocks`
+        reorgedBlocks.push(localChain.pop()!);
       }
     }
 

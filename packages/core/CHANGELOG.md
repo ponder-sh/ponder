@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.5.21
+
+### Patch Changes
+
+- [#1077](https://github.com/ponder-sh/ponder/pull/1077) [`0f6213f7d907ea0de27deebb994823d20f379349`](https://github.com/ponder-sh/ponder/commit/0f6213f7d907ea0de27deebb994823d20f379349) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed "ponder_realtime_is_connected" metric.
+
+- [#1075](https://github.com/ponder-sh/ponder/pull/1075) [`6f1a57947e2062ce2f8d1a59068fe751bfc764ef`](https://github.com/ponder-sh/ponder/commit/6f1a57947e2062ce2f8d1a59068fe751bfc764ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of reorg handling, that in some cases was leading to query timeouts and stalled indexing.
+
 ## 0.5.20
 
 ### Patch Changes
