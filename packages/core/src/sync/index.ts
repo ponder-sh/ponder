@@ -100,8 +100,10 @@ export const blockToCheckpoint = (
 
 /** Returns true if all possible blocks have been synced. */
 export const isSyncExhaustive = (blockProgress: BlockProgress) => {
-  if (blockProgress.end === undefined || blockProgress.latest === undefined)
+  if (blockProgress.end === undefined || blockProgress.latest === undefined) {
     return false;
+  }
+
   return (
     hexToNumber(blockProgress.latest.number) >=
     hexToNumber(blockProgress.end.number)
@@ -211,6 +213,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
         onFatalError: args.onFatalError,
       });
+
+      historicalSync.initializeMetrics(
+        blockProgress.finalized as SyncBlock,
+        true,
+      );
 
       localSyncData.set(network, {
         requestQueue,
@@ -335,18 +342,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * networks. This approach is not future proof.
    */
   async function* getEvents() {
-    const syncGenerator = mergeAsyncGenerators(
-      Array.from(localSyncData.entries()).map(
-        ([network, { requestQueue, blockProgress, historicalSync }]) =>
-          localHistoricalSyncHelper({
-            common: args.common,
-            network,
-            requestQueue,
-            blockProgress,
-            historicalSync,
-          }),
-      ),
-    );
+    let latestFinalizedFetch = Date.now();
 
     /**
      * Calculate start checkpoint, if `initialCheckpoint` is non-zero,
@@ -360,86 +356,156 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     // Cursor used to track progress.
     let from = start;
 
-    for await (const _ of syncGenerator) {
-      /**
-       * `latest` is used to calculate the `to` checkpoint, if any
-       * network hasn't yet ingested a block, run another iteration of this loop.
-       * It is an invariant that `latestBlock` will eventually be defined. See the
-       * implementation of `LocalSync.latestBlock` for more detail.
-       */
-      if (
-        Array.from(localSyncData.values()).some(
-          ({ blockProgress }) => blockProgress.latest === undefined,
-        )
-      ) {
-        continue;
-      }
+    while (true) {
+      const syncGenerator = mergeAsyncGenerators(
+        Array.from(localSyncData.values()).map(
+          ({ blockProgress, historicalSync }) =>
+            localHistoricalSyncHelper({
+              blockProgress,
+              historicalSync,
+            }),
+        ),
+      );
 
-      /**
-       * Calculate the mininum "latest" checkpoint, falling back to `end` if
-       * all networks have completed.
-       *
-       * `end`: If every network has an `endBlock` and it's less than
-       * `finalized`, use that. Otherwise, use `finalized`
-       */
-      const end =
-        getChainsCheckpoint("end") !== undefined &&
-        getChainsCheckpoint("end")! < getChainsCheckpoint("finalized")!
-          ? getChainsCheckpoint("end")!
-          : getChainsCheckpoint("finalized")!;
-      const to = getChainsCheckpoint("latest") ?? end;
+      for await (const _ of syncGenerator) {
+        /**
+         * `latest` is used to calculate the `to` checkpoint, if any
+         * network hasn't yet ingested a block, run another iteration of this loop.
+         * It is an invariant that `latestBlock` will eventually be defined. See the
+         * implementation of `LocalSync.latestBlock` for more detail.
+         */
+        if (
+          Array.from(localSyncData.values()).some(
+            ({ blockProgress }) => blockProgress.latest === undefined,
+          )
+        ) {
+          continue;
+        }
 
-      /*
-       * Extract events with `syncStore.getEvents()`, paginating to
-       * avoid loading too many events into memory.
-       */
-      while (true) {
-        if (isKilled) return;
-        if (from === to) break;
-        const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
-        let consecutiveErrors = 0;
+        /**
+         * Calculate the mininum "latest" checkpoint, falling back to `end` if
+         * all networks have completed.
+         *
+         * `end`: If every network has an `endBlock` and it's less than
+         * `finalized`, use that. Otherwise, use `finalized`
+         */
+        const end =
+          getChainsCheckpoint("end") !== undefined &&
+          getChainsCheckpoint("end")! < getChainsCheckpoint("finalized")!
+            ? getChainsCheckpoint("end")!
+            : getChainsCheckpoint("finalized")!;
+        const to = getChainsCheckpoint("latest") ?? end;
 
-        // convert `estimateSeconds` to checkpoint
-        const estimatedTo = encodeCheckpoint({
-          ...zeroCheckpoint,
-          blockTimestamp: Math.min(
-            decodeCheckpoint(from).blockTimestamp + estimateSeconds,
-            maxCheckpoint.blockTimestamp,
-          ),
-        });
+        /*
+         * Extract events with `syncStore.getEvents()`, paginating to
+         * avoid loading too many events into memory.
+         */
+        while (true) {
+          if (isKilled) return;
+          if (from === to) break;
+          const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
+          let consecutiveErrors = 0;
 
-        try {
-          const { events, cursor } = await args.syncStore.getEvents({
-            filters: args.sources.map(({ filter }) => filter),
-            from,
-            to: to < estimatedTo ? to : estimatedTo,
-            limit: getEventsMaxBatchSize,
+          // convert `estimateSeconds` to checkpoint
+          const estimatedTo = encodeCheckpoint({
+            ...zeroCheckpoint,
+            blockTimestamp: Math.min(
+              decodeCheckpoint(from).blockTimestamp + estimateSeconds,
+              maxCheckpoint.blockTimestamp,
+            ),
           });
-          consecutiveErrors = 0;
 
-          for (const network of args.networks) {
-            updateStatus({ events, checkpoint: cursor, network });
+          try {
+            const { events, cursor } = await args.syncStore.getEvents({
+              filters: args.sources.map(({ filter }) => filter),
+              from,
+              to: to < estimatedTo ? to : estimatedTo,
+              limit: getEventsMaxBatchSize,
+            });
+            consecutiveErrors = 0;
+
+            for (const network of args.networks) {
+              updateStatus({ events, checkpoint: cursor, network });
+            }
+
+            estimateSeconds = estimate({
+              from: decodeCheckpoint(from).blockTimestamp,
+              to: decodeCheckpoint(cursor).blockTimestamp,
+              target: getEventsMaxBatchSize,
+              result: events.length,
+              min: 10,
+              max: 86_400,
+              prev: estimateSeconds,
+              maxIncrease: 1.08,
+            });
+
+            yield { events, checkpoint: to };
+            from = cursor;
+          } catch (error) {
+            // Handle errors by reducing the requested range by 10x
+            estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+            if (++consecutiveErrors > 4) throw error;
           }
-
-          estimateSeconds = estimate({
-            from: decodeCheckpoint(from).blockTimestamp,
-            to: decodeCheckpoint(cursor).blockTimestamp,
-            target: getEventsMaxBatchSize,
-            result: events.length,
-            min: 10,
-            max: 86_400,
-            prev: estimateSeconds,
-            maxIncrease: 1.08,
-          });
-
-          yield { events, checkpoint: to };
-          from = cursor;
-        } catch (error) {
-          // Handle errors by reducing the requested range by 10x
-          estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
-          if (++consecutiveErrors > 4) throw error;
         }
       }
+
+      /** `true` if all networks have synced all known finalized blocks.  */
+      const allHistoricalSyncExhaustive = Array.from(
+        localSyncData.values(),
+      ).every(({ blockProgress }) => {
+        if (isSyncExhaustive(blockProgress)) return true;
+
+        // Determine if `finalized` block is considered "stale"
+        const staleSeconds = (Date.now() - latestFinalizedFetch) / 1_000;
+        if (staleSeconds <= args.common.options.syncHandoffStaleSeconds) {
+          return true;
+        }
+
+        return false;
+      });
+
+      if (allHistoricalSyncExhaustive) break;
+
+      /**
+       * At least one network has a `finalized` block that is considered "stale".
+       */
+
+      latestFinalizedFetch = Date.now();
+
+      await Promise.all(
+        Array.from(localSyncData.entries()).map(
+          async ([
+            network,
+            { requestQueue, blockProgress, historicalSync },
+          ]) => {
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Refetching '${network.name}' finalized block`,
+            });
+
+            const latestBlock = await _eth_getBlockByNumber(requestQueue, {
+              blockTag: "latest",
+            });
+
+            const finalizedBlockNumber = Math.max(
+              0,
+              hexToNumber(latestBlock.number) - network.finalityBlockCount,
+            );
+
+            blockProgress.finalized = await _eth_getBlockByNumber(
+              requestQueue,
+              {
+                blockNumber: finalizedBlockNumber,
+              },
+            );
+
+            historicalSync.initializeMetrics(
+              blockProgress.finalized as SyncBlock,
+              false,
+            );
+          },
+        ),
+      );
     }
   }
 
@@ -707,15 +773,9 @@ export const syncDiagnostic = async ({
 
 /** Predictive pagination for `historicalSync.sync()` */
 export async function* localHistoricalSyncHelper({
-  common,
-  network,
-  requestQueue,
   blockProgress,
   historicalSync,
 }: {
-  common: Common;
-  network: Network;
-  requestQueue: RequestQueue;
   blockProgress: BlockProgress;
   historicalSync: HistoricalSync;
 }): AsyncGenerator {
@@ -724,16 +784,19 @@ export async function* localHistoricalSyncHelper({
    * determine `interval` passed to `historicalSync.sync()`.
    */
   let estimateRange = 25;
-  let latestFinalizedFetch = Date.now() / 1_000;
   // Cursor to track progress.
   let fromBlock = hexToNumber(blockProgress.start.number);
   // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
   // is defined (a cache hit has occurred)
   if (historicalSync.latestBlock !== undefined) {
-    fromBlock = hexToNumber(historicalSync.latestBlock.number);
+    fromBlock = Math.min(
+      hexToNumber(historicalSync.latestBlock.number) + 1,
+      hexToNumber(blockProgress.finalized.number),
+      blockProgress.end
+        ? hexToNumber(blockProgress.end.number)
+        : Number.POSITIVE_INFINITY,
+    );
   }
-
-  historicalSync.initializeMetrics(blockProgress.finalized as SyncBlock, true);
 
   while (true) {
     /**
@@ -773,41 +836,12 @@ export async function* localHistoricalSyncHelper({
 
     yield;
 
-    if (isSyncExhaustive(blockProgress)) return;
-    // Dynamically refetch `finalized` block if it is considered "stale"
     if (
+      isSyncExhaustive(blockProgress) ||
       hexToNumber(blockProgress.finalized.number) ===
-      hexToNumber(blockProgress.latest.number)
+        hexToNumber(blockProgress.latest.number)
     ) {
-      const staleSeconds = Date.now() / 1000 - latestFinalizedFetch;
-      if (staleSeconds <= common.options.syncHandoffStaleSeconds) {
-        return;
-      }
-
-      common.logger.debug({
-        service: "sync",
-        msg: `Refetching '${network.name}' finalized block`,
-      });
-
-      const latestBlock = await _eth_getBlockByNumber(requestQueue, {
-        blockTag: "latest",
-      });
-
-      const finalizedBlockNumber = Math.max(
-        0,
-        hexToNumber(latestBlock.number) - network.finalityBlockCount,
-      );
-
-      blockProgress.finalized = await _eth_getBlockByNumber(requestQueue, {
-        blockNumber: finalizedBlockNumber,
-      });
-
-      historicalSync.initializeMetrics(
-        blockProgress.finalized as SyncBlock,
-        false,
-      );
-
-      latestFinalizedFetch = Date.now() / 1_000;
+      return;
     }
   }
 }
