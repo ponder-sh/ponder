@@ -103,7 +103,7 @@ A generic type that requires a table name from `ponder.schema.ts` and returns th
 ```ts filename="src/helpers.ts" {1}
 import { ponder, type Schema } from "@/generated";
 
-function helper(account: Schema<"Account">) {
+function helper(account: Schema["Account"]) {
   account;
   // ^? {
   //      id: bigint;
