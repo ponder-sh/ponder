@@ -67,12 +67,8 @@ export type SyncStore = {
   }): Promise<Interval[]>;
   getChildAddresses(args: {
     filter: Factory;
-    limit: number;
+    limit?: number;
   }): Promise<Address[]>;
-  filterChildAddresses(args: {
-    filter: Factory;
-    addresses: Address[];
-  }): Promise<Set<Address>>;
   insertLogs(args: {
     logs: { log: SyncLog; block?: SyncBlock }[];
     shouldUpdateCheckpoint: boolean;
@@ -508,31 +504,9 @@ export const createSyncStore = ({
         .selectFrom("logs")
         .$call((qb) => logFactorySQL(sql, qb, filter))
         .orderBy("id asc")
-        .limit(limit)
+        .$if(limit !== undefined, (qb) => qb.limit(limit!))
         .execute()
         .then((addresses) => addresses.map(({ childAddress }) => childAddress));
-    }),
-  filterChildAddresses: ({ filter, addresses }) =>
-    db.wrap({ method: "filterChildAddresses" }, async () => {
-      const result = await db
-        .with(
-          "addresses(address)",
-          () =>
-            ksql`( values ${ksql.join(addresses.map((a) => ksql`( ${ksql.val(a)} )`))} )`,
-        )
-        .with("childAddresses", (db) =>
-          db.selectFrom("logs").$call((qb) => logFactorySQL(sql, qb, filter)),
-        )
-        .selectFrom("addresses")
-        .where(
-          "addresses.address",
-          "in",
-          ksql`(SELECT "childAddress" FROM "childAddresses")`,
-        )
-        .selectAll()
-        .execute();
-
-      return new Set<Address>([...result.map(({ address }) => address)]);
     }),
   insertLogs: async ({ logs, shouldUpdateCheckpoint, chainId }) => {
     if (logs.length === 0) return;

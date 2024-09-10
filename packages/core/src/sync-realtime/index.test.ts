@@ -44,14 +44,13 @@ const getRequestQueue = async (requestQueue: RequestQueue) => {
 
 test("createRealtimeSyncService()", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
     requestQueue: requestQueues[0],
     sources,
-    syncStore,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
   });
@@ -63,7 +62,7 @@ test("createRealtimeSyncService()", async (context) => {
 
 test("start() handles block", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 4,
@@ -71,7 +70,6 @@ test("start() handles block", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -79,7 +77,10 @@ test("start() handles block", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map(),
+  });
   await queue.onIdle();
 
   expect(realtimeSync.localChain).toHaveLength(1);
@@ -91,7 +92,7 @@ test("start() handles block", async (context) => {
 
 test("start() no-op when receiving same block twice", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 4,
@@ -99,7 +100,6 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -107,7 +107,10 @@ test("start() no-op when receiving same block twice", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map(),
+  });
   await queue.onIdle();
 
   await _eth_getBlockByNumber(requestQueues[0], { blockNumber: 5 }).then(
@@ -126,7 +129,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
 test("start() gets missing block", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 0,
@@ -134,7 +137,6 @@ test("start() gets missing block", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -142,7 +144,13 @@ test("start() gets missing block", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
 
   await queue.onIdle();
 
@@ -155,7 +163,7 @@ test("start() gets missing block", async (context) => {
 
 test("start() retries on error", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 0,
@@ -167,7 +175,6 @@ test("start() retries on error", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue,
     sources,
@@ -177,7 +184,13 @@ test("start() retries on error", async (context) => {
 
   requestSpy.mockRejectedValueOnce(new Error());
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
 
   await queue.onIdle();
 
@@ -190,7 +203,7 @@ test("start() retries on error", async (context) => {
 
 test("kill()", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 3,
@@ -198,7 +211,6 @@ test("kill()", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -206,7 +218,13 @@ test("kill()", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  await realtimeSync.start(finalizedBlock);
+  await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
 
   await realtimeSync.kill();
 
@@ -217,7 +235,7 @@ test("kill()", async (context) => {
 
 test("handleBlock() block event", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
 
@@ -229,7 +247,6 @@ test("handleBlock() block event", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -237,7 +254,13 @@ test("handleBlock() block event", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
   await queue.onIdle();
 
   expect(realtimeSync.localChain).toHaveLength(5);
@@ -247,6 +270,7 @@ test("handleBlock() block event", async (context) => {
     type: "block",
     filters: expect.any(Object),
     block: expect.any(Object),
+    factoryLogs: expect.any(Object),
     logs: expect.any(Object),
     transactions: expect.any(Object),
     callTraces: expect.any(Object),
@@ -264,6 +288,12 @@ test("handleBlock() block event", async (context) => {
   expect(data[2]?.logs).toHaveLength(0);
   expect(data[3]?.logs).toHaveLength(1);
   expect(data[4]?.logs).toHaveLength(0);
+
+  expect(data[0]?.factoryLogs).toHaveLength(0);
+  expect(data[1]?.factoryLogs).toHaveLength(0);
+  expect(data[2]?.factoryLogs).toHaveLength(1);
+  expect(data[3]?.factoryLogs).toHaveLength(0);
+  expect(data[4]?.factoryLogs).toHaveLength(0);
 
   expect(data[0]?.callTraces).toHaveLength(0);
   expect(data[1]?.callTraces).toHaveLength(0);
@@ -284,7 +314,7 @@ test("handleBlock() block event", async (context) => {
 
 test("handleBlock() finalize event", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 0,
@@ -298,7 +328,6 @@ test("handleBlock() finalize event", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -308,7 +337,13 @@ test("handleBlock() finalize event", async (context) => {
 
   await testClient.mine({ blocks: 4 });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
   await queue.onIdle();
 
   expect(onEvent).toHaveBeenCalledWith({
@@ -327,7 +362,7 @@ test("handleBlock() finalize event", async (context) => {
 
 test("handleReorg() finds common ancestor", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 0,
@@ -337,7 +372,6 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -345,7 +379,13 @@ test("handleReorg() finds common ancestor", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
 
   await _eth_getBlockByNumber(requestQueues[0], { blockNumber: 3 }).then(
     // @ts-ignore
@@ -368,7 +408,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
 test("handleReorg() throws error for deep reorg", async (context) => {
   const { common, networks, requestQueues, sources } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { cleanup } = await setupDatabaseServices(context);
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 0,
@@ -376,7 +416,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    syncStore,
     network: networks[0],
     requestQueue: await getRequestQueue(requestQueues[0]),
     sources,
@@ -384,7 +423,13 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     onFatalError: vi.fn(),
   });
 
-  const queue = await realtimeSync.start(finalizedBlock);
+  const queue = await realtimeSync.start({
+    finalizedBlock,
+    childAddresses: new Map([
+      [sources[1].filter.address, new Set()],
+      [sources[2].filter.toAddress, new Set()],
+    ]),
+  });
   await queue.onIdle();
 
   const block = await _eth_getBlockByNumber(requestQueues[0], {

@@ -1,6 +1,5 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import { syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
@@ -9,6 +8,7 @@ import {
   type Filter,
   type LogFilter,
   type Source,
+  getChildAddress,
   isAddressFactory,
 } from "@/sync/source.js";
 import type {
@@ -40,7 +40,10 @@ import {
 } from "./filter.js";
 
 export type RealtimeSync = {
-  start(finalizedBlock: LightBlock): Promise<Queue<void, BlockWithEventData>>;
+  start(args: {
+    finalizedBlock: LightBlock;
+    childAddresses: Map<Factory, Set<Address>>;
+  }): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
   localChain: LightBlock[];
 };
@@ -50,7 +53,6 @@ type CreateRealtimeSyncParameters = {
   network: Network;
   requestQueue: RequestQueue;
   sources: Source[];
-  syncStore: SyncStore;
   onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 };
@@ -59,6 +61,7 @@ type BlockWithEventData = {
   block: SyncBlock;
   filters: Set<Filter>;
   logs: SyncLog[];
+  factoryLogs: SyncLog[];
   callTraces: SyncCallTrace[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
@@ -91,6 +94,7 @@ export const createRealtimeSync = (
   ////////
   let isKilled = false;
   let finalizedBlock: LightBlock;
+  let childAddresses: Map<Factory, Set<Address>>;
   /**
    * Blocks and logs that have been ingested and are
    * waiting to be finalized. It is an invariant that
@@ -139,6 +143,7 @@ export const createRealtimeSync = (
    */
   const handleBlock = async ({
     block,
+    factoryLogs,
     logs,
     callTraces,
     transactions,
@@ -148,18 +153,6 @@ export const createRealtimeSync = (
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
     });
-
-    // Get all addresses from `logs` that are from a factory
-    const childAddresses = new Set<Address>();
-    for (const filter of factories) {
-      if (logs.length > 0) {
-        const _childAddresses = await args.syncStore.filterChildAddresses({
-          filter,
-          addresses: logs.map(({ address }) => address),
-        });
-        for (const address of _childAddresses) childAddresses.add(address);
-      }
-    }
 
     /**
      * `logs` and `callTraces` must be filtered again (already filtered in `extract`)
@@ -174,7 +167,9 @@ export const createRealtimeSync = (
         const isMatched = isLogFilterMatched({ filter, block, log });
 
         if (isAddressFactory(filter.address)) {
-          return isMatched && childAddresses.has(log.address);
+          return (
+            isMatched && childAddresses.get(filter.address)!.has(log.address)
+          );
         }
 
         return isMatched;
@@ -197,7 +192,10 @@ export const createRealtimeSync = (
         });
 
         if (isAddressFactory(filter.toAddress)) {
-          return isMatched && childAddresses.has(callTrace.action.to);
+          return (
+            isMatched &&
+            childAddresses.get(filter.toAddress)!.has(callTrace.action.to)
+          );
         }
 
         return isMatched;
@@ -252,6 +250,7 @@ export const createRealtimeSync = (
       type: "block",
       filters: matchedFilters,
       block,
+      factoryLogs,
       logs,
       callTraces,
       transactions,
@@ -321,6 +320,8 @@ export const createRealtimeSync = (
     const reorgedBlocks = localChain.filter(
       (lb) => hexToNumber(lb.number) >= hexToNumber(block.number),
     );
+
+    // TODO(kyle) prune `childAddresses`
 
     // Prune the local chain of blocks that have been reorged out
     localChain = localChain.filter(
@@ -444,14 +445,21 @@ export const createRealtimeSync = (
     // Get Matched
     ////////
 
-    // Insert `logs` that contain factory child addresses
-    const _logs = logs.filter((log) =>
-      factories.some((filter) => isLogFactoryMatched({ filter, log })),
-    );
-    await args.syncStore.insertLogs({
-      logs: _logs.map((log) => ({ log })),
-      shouldUpdateCheckpoint: false,
-      chainId: args.network.chainId,
+    // Record `logs` that contain factory child addresses
+    const factoryLogs = logs.filter((log) => {
+      const isFilterMatched = factories.map((filter) =>
+        isLogFactoryMatched({ filter, log }),
+      );
+
+      for (let i = 0; i < factories.length; i++) {
+        if (isFilterMatched[i]!) {
+          childAddresses
+            .get(factories[i]!)!
+            .add(getChildAddress({ log, factory: factories[i]! }));
+        }
+      }
+
+      return isFilterMatched.some((m) => m);
     });
 
     // Remove logs that don't match a filter
@@ -519,6 +527,7 @@ export const createRealtimeSync = (
 
     return {
       block,
+      factoryLogs,
       logs,
       callTraces,
       transactions,
@@ -533,8 +542,9 @@ export const createRealtimeSync = (
   };
 
   return {
-    start(_finalizedBlock) {
-      finalizedBlock = _finalizedBlock;
+    start(startArgs) {
+      finalizedBlock = startArgs.finalizedBlock;
+      childAddresses = startArgs.childAddresses;
       /**
        * The queue reacts to a new block. The four states are:
        * 1) Block is the same as the one just processed, no-op.

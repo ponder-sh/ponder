@@ -319,30 +319,6 @@ test("getChildAddresses() empty", async (context) => {
   cleanup();
 });
 
-test("filterChildAddresses()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData();
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcData.block3.logs[0] }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  const addresses = await syncStore.filterChildAddresses({
-    filter: context.sources[1].filter.address as Factory,
-    addresses: [
-      context.erc20.address,
-      context.factory.address,
-      context.factory.pair,
-    ],
-  });
-
-  expect(addresses.size).toBe(1);
-
-  cleanup();
-});
-
 test("insertLogs()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();

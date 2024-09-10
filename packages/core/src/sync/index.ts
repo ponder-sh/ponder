@@ -19,11 +19,11 @@ import { estimate } from "@/utils/estimate.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
-import { type Transport, hexToBigInt, hexToNumber } from "viem";
+import { type Address, type Transport, hexToBigInt, hexToNumber } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import type { RawEvent } from "./events.js";
 import { type LocalSync, createLocalSync } from "./local.js";
-import type { Source } from "./source.js";
+import { type Factory, type Source, isAddressFactory } from "./source.js";
 import { cachedTransport } from "./transport.js";
 
 export type Sync = {
@@ -435,7 +435,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
                 chainId,
               }),
               args.syncStore.insertLogs({
-                logs: event.logs.map((log) => ({ log, block: event.block })),
+                logs: event.logs
+                  .map((log) => ({ log, block: event.block }))
+                  /// @ts-ignore
+                  .concat(event.factoryLogs.map((log) => ({ log }))),
                 shouldUpdateCheckpoint: true,
                 chainId,
               }),
@@ -554,7 +557,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
   return {
     getEvents,
-    startRealtime() {
+    async startRealtime() {
       for (const network of args.networks) {
         const localSync = localSyncs.get(network)!;
 
@@ -580,7 +583,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             sources: args.sources.filter(
               ({ filter }) => filter.chainId === network.chainId,
             ),
-            syncStore: args.syncStore,
             onEvent: (event) =>
               eventQueue.add({ network, event }).catch((error) => {
                 args.common.logger.error({
@@ -596,7 +598,27 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             { network: network.name },
             1,
           );
-          realtimeSync.start(localSync.finalizedBlock);
+
+          const childAddresses = new Map<Factory, Set<Address>>();
+
+          for (const { filter } of args.sources) {
+            if (
+              filter.chainId === network.chainId &&
+              "address" in filter &&
+              isAddressFactory(filter.address)
+            ) {
+              const addresses = await args.syncStore.getChildAddresses({
+                filter: filter.address,
+              });
+
+              childAddresses.set(filter.address, new Set(addresses));
+            }
+          }
+
+          realtimeSync.start({
+            finalizedBlock: localSync.finalizedBlock,
+            childAddresses,
+          });
           realtimeSyncs.set(network, realtimeSync);
         }
       }
