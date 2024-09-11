@@ -170,53 +170,47 @@ export const createRealtimeSync = (
 
     // Remove logs that don't match a filter, accounting for factory addresses
     logs = logs.filter((log) => {
-      const isFilterMatched = logFilters.map((filter) => {
-        const isMatched = isLogFilterMatched({ filter, block, log });
+      let isMatched = false;
 
-        if (isAddressFactory(filter.address)) {
-          return isMatched && childAddresses.has(log.address);
+      for (const filter of logFilters) {
+        if (
+          isLogFilterMatched({ filter, block, log }) &&
+          (isAddressFactory(filter.address)
+            ? childAddresses.has(log.address)
+            : true)
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
         }
-
-        return isMatched;
-      });
-
-      for (let i = 0; i < logFilters.length; i++) {
-        if (isFilterMatched[i]!) matchedFilters.add(logFilters[i]!);
       }
 
-      return isFilterMatched.some((m) => m);
+      return isMatched;
     });
 
     // Remove call traces that don't match a filter, accounting for factory addresses
     callTraces = callTraces.filter((callTrace) => {
-      const isFilterMatched = callTraceFilters.map((filter) => {
-        const isMatched = isCallTraceFilterMatched({
-          filter,
-          block,
-          callTrace,
-        });
+      let isMatched = false;
 
-        if (isAddressFactory(filter.toAddress)) {
-          return isMatched && childAddresses.has(callTrace.action.to);
+      for (const filter of callTraceFilters) {
+        if (
+          isCallTraceFilterMatched({ filter, block, callTrace }) &&
+          (isAddressFactory(filter.toAddress)
+            ? childAddresses.has(callTrace.action.to)
+            : true)
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
         }
-
-        return isMatched;
-      });
-
-      for (let i = 0; i < callTraceFilters.length; i++) {
-        if (isFilterMatched[i]!) matchedFilters.add(callTraceFilters[i]!);
       }
 
-      return isFilterMatched.some((m) => m);
+      return isMatched;
     });
 
     // Record matched block filters
-    const isFilterMatched = blockFilters.map((filter) =>
-      isBlockFilterMatched({ filter, block }),
-    );
-
-    for (let i = 0; i < blockFilters.length; i++) {
-      if (isFilterMatched[i]!) matchedFilters.add(blockFilters[i]!);
+    for (const filter of blockFilters) {
+      if (isBlockFilterMatched({ filter, block })) {
+        matchedFilters.add(filter);
+      }
     }
 
     if (logs.length > 0 || callTraces.length > 0) {
