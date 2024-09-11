@@ -185,7 +185,7 @@ export const createHistoricalSync = async (
     } else if (address.length === 0) {
       return [];
     } else if (
-      address.length > args.common.options.factoryAddressCountThreshold
+      address.length >= args.common.options.factoryAddressCountThreshold
     ) {
       addressBatches = [undefined];
     } else {
