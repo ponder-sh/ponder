@@ -213,10 +213,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         onFatalError: args.onFatalError,
       });
 
-      historicalSync.initializeMetrics(
-        blockProgress.finalized as SyncBlock,
-        true,
-      );
+      historicalSync.initializeMetrics(blockProgress.finalized, true);
 
       localSyncData.set(network, {
         requestQueue,
@@ -465,9 +462,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       if (allHistoricalSyncExhaustive) break;
 
-      /**
-       * At least one network has a `finalized` block that is considered "stale".
-       */
+      /** At least one network has a `finalized` block that is considered "stale". */
 
       latestFinalizedFetch = Date.now();
 
@@ -498,10 +493,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               },
             );
 
-            historicalSync.initializeMetrics(
-              blockProgress.finalized as SyncBlock,
-              false,
-            );
+            historicalSync.initializeMetrics(blockProgress.finalized, false);
           },
         ),
       );

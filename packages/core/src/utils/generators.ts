@@ -1,21 +1,27 @@
+import { promiseWithResolvers } from "@ponder/common";
+
 export async function* mergeAsyncGenerators<T>(
   generators: AsyncGenerator<T>[],
 ): AsyncGenerator<T> {
-  const nextPromises = generators.map((generator) => generator.next());
+  const results: T[] = [];
+  let count = generators.length;
+  let pwr = promiseWithResolvers<void>();
 
-  while (nextPromises.length > 0) {
-    const { value, done, index } = await Promise.race(
-      nextPromises.map(async (promise, i) =>
-        promise.then(({ value, done }) => ({ value, done, index: i })),
-      ),
-    );
+  generators.map(async (generator) => {
+    for await (const result of generator) {
+      results.push(result);
+      pwr.resolve();
+    }
 
-    if (done === false) {
-      nextPromises[index] = generators[index]!.next();
-      yield value;
+    count--;
+  });
+
+  while (count > 0) {
+    if (results.length > 0) {
+      yield results.shift()!;
     } else {
-      nextPromises.splice(index, 1);
-      generators.splice(index, 1);
+      await pwr.promise;
+      pwr = promiseWithResolvers<void>();
     }
   }
 }
