@@ -77,7 +77,7 @@ export const buildUiState = () => {
     },
 
     port: 0,
-    hostname: "0.0.0.0",
+    hostname: "localhost",
   };
 
   return ui;
