@@ -454,39 +454,29 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       latestFinalizedFetch = Date.now();
 
       await Promise.all(
-        Array.from(localSyncContext.entries())
-          .filter(
-            ([_, { syncProgress }]) => isSyncComplete(syncProgress) === false,
-          )
-          .map(
-            async ([
-              network,
-              { requestQueue, syncProgress, historicalSync },
-            ]) => {
-              args.common.logger.debug({
-                service: "sync",
-                msg: `Refetching '${network.name}' finalized block`,
-              });
+        Array.from(localSyncContext.entries()).map(
+          async ([network, { requestQueue, syncProgress, historicalSync }]) => {
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Refetching '${network.name}' finalized block`,
+            });
 
-              const latestBlock = await _eth_getBlockByNumber(requestQueue, {
-                blockTag: "latest",
-              });
+            const latestBlock = await _eth_getBlockByNumber(requestQueue, {
+              blockTag: "latest",
+            });
 
-              const finalizedBlockNumber = Math.max(
-                0,
-                hexToNumber(latestBlock.number) - network.finalityBlockCount,
-              );
+            const finalizedBlockNumber = Math.max(
+              0,
+              hexToNumber(latestBlock.number) - network.finalityBlockCount,
+            );
 
-              syncProgress.finalized = await _eth_getBlockByNumber(
-                requestQueue,
-                {
-                  blockNumber: finalizedBlockNumber,
-                },
-              );
+            syncProgress.finalized = await _eth_getBlockByNumber(requestQueue, {
+              blockNumber: finalizedBlockNumber,
+            });
 
-              historicalSync.initializeMetrics(syncProgress.finalized, false);
-            },
-          ),
+            historicalSync.initializeMetrics(syncProgress.finalized, false);
+          },
+        ),
       );
     }
   }

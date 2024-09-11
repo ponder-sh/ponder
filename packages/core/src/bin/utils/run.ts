@@ -13,7 +13,6 @@ import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync } from "@/sync/index.js";
 import {
-  type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
   zeroCheckpoint,
