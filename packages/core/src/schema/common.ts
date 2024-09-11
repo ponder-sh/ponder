@@ -12,7 +12,7 @@ export type ScalarType = {
   bigint: bigint;
 };
 
-export type DefaultToValue<T extends Scalar> = ScalarType[T] | null | undefined;
+export type DefaultValue<T extends Scalar> = ScalarType[T] | null | undefined;
 
 export type ScalarColumn<
   scalar extends Scalar = Scalar,
@@ -23,7 +23,7 @@ export type ScalarColumn<
   " scalar": scalar;
   " optional": optional;
   " list": list;
-  " defaultTo": DefaultToValue<scalar>;
+  " default": DefaultValue<scalar>;
 };
 
 export type IdColumn<id extends ID = ID> = ScalarColumn<id, false, false>;
@@ -43,7 +43,7 @@ export type JSONColumn<type = any, optional extends boolean = boolean> = {
   " type": "json";
   " json": type;
   " optional": optional;
-  " defaultTo": DefaultToValue<"string">;
+  " default": DefaultValue<"string">;
 };
 
 export type OneColumn<reference extends string = string> = {
@@ -69,7 +69,7 @@ export type EnumColumn<
   " enum": _enum;
   " optional": optional;
   " list": list;
-  " defaultTo": DefaultToValue<"string">;
+  " default": DefaultValue<"string">;
 };
 
 export type Index<

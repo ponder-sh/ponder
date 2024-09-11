@@ -1,6 +1,6 @@
 import type { Prettify } from "@/types/utils.js";
 import type {
-  DefaultToValue,
+  DefaultValue,
   EnumColumn,
   Index,
   JSONColumn,
@@ -9,8 +9,8 @@ import type {
   ScalarColumn,
 } from "./common.js";
 
-type DefaultTo<column extends BuilderScalarColumn> = (
-  val: DefaultToValue<column[" scalar"]>,
+type Default<column extends BuilderScalarColumn> = (
+  val: DefaultValue<column[" scalar"]>,
 ) => BuilderScalarColumn<
   column[" scalar"],
   column[" optional"],
@@ -18,15 +18,15 @@ type DefaultTo<column extends BuilderScalarColumn> = (
 >;
 
 const defaultTo =
-  <column extends BuilderScalarColumn>(col: column): DefaultTo<column> =>
+  <column extends BuilderScalarColumn>(col: column): Default<column> =>
   // @ts-expect-error
-  (val: DefaultToValue<column[" scalar"]>) => {
+  (val: DefaultValue<column[" scalar"]>) => {
     const newCol = {
       " type": col[" type"],
       " scalar": col[" scalar"],
       " optional": col[" optional"],
       " list": col[" list"],
-      " defaultTo": val,
+      " default": val,
     } as const;
 
     if (newCol[" list"]) {
@@ -56,7 +56,7 @@ const optional =
       " scalar": col[" scalar"],
       " optional": true,
       " list": col[" list"],
-      " defaultTo": col[" defaultTo"],
+      " default": col[" default"],
     } as const;
 
     if (newCol[" list"]) {
@@ -84,7 +84,7 @@ const list =
       " type": col[" type"],
       " scalar": col[" scalar"],
       " optional": col[" optional"],
-      " defaultTo": col[" defaultTo"],
+      " default": col[" default"],
       " list": true,
     } as const;
 
@@ -98,22 +98,22 @@ const list =
     }
   };
 
-type EnumDefaultTo<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
+type EnumDefault<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
   column[" enum"],
   true,
   column[" list"]
 >;
 
-const enumDefaultTo =
-  <column extends BuilderEnumColumn>(col: column): EnumDefaultTo<column> =>
+const enumDefault =
+  <column extends BuilderEnumColumn>(col: column): EnumDefault<column> =>
   // @ts-expect-error
-  (val: DefaultToValue<"string">) => {
+  (val: DefaultValue<"string">) => {
     const newCol = {
       " type": col[" type"],
       " enum": col[" enum"],
       " list": col[" list"],
       " optional": col[" optional"],
-      " defaultTo": val,
+      " default": val,
     } as const;
 
     return {
@@ -137,7 +137,7 @@ const enumOptional =
       " type": col[" type"],
       " enum": col[" enum"],
       " list": col[" list"],
-      " defaultTo": col[" defaultTo"],
+      " default": col[" default"],
       " optional": true,
     } as const;
 
@@ -165,7 +165,7 @@ const enumList =
       " type": col[" type"],
       " enum": col[" enum"],
       " optional": col[" optional"],
-      " defaultTo": col[" defaultTo"],
+      " default": col[" default"],
       " list": true,
     } as const;
 
@@ -330,20 +330,20 @@ const references =
     }
   };
 
-type JSONDefaultTo<column extends BuilderJSONColumn> = () => BuilderJSONColumn<
+type JSONDefault<column extends BuilderJSONColumn> = () => BuilderJSONColumn<
   column[" json"],
   column[" optional"]
 >;
 
-const jsonDefaultTo =
-  <column extends BuilderJSONColumn>(col: column): JSONDefaultTo<column> =>
+const jsonDefault =
+  <column extends BuilderJSONColumn>(col: column): JSONDefault<column> =>
   // @ts-expect-error
-  (val: DefaultToValue<"string">) => {
+  (val: DefaultValue<"string">) => {
     const newCol = {
       " type": "json",
       " json": {} as (typeof col)[" json"],
       " optional": col[" optional"],
-      " defaultTo": val,
+      " default": val,
     } as const;
     return {
       ...newCol,
@@ -363,11 +363,11 @@ const jsonOptional =
       " type": "json",
       " json": {} as (typeof col)[" json"],
       " optional": true,
-      " defaultTo": col[" defaultTo"],
+      " default": col[" default"],
     } as const;
     return {
       ...newCol,
-      defaultTo: jsonDefaultTo(newCol),
+      default: jsonDefault(newCol),
     };
   };
 
@@ -379,12 +379,12 @@ const scalarColumn =
       " scalar": _scalar,
       " optional": false,
       " list": false,
-      " defaultTo": undefined as DefaultToValue<scalar>,
+      " default": undefined as DefaultValue<scalar>,
     } as const;
 
     return {
       ...column,
-      defaultTo: defaultTo(column),
+      default: defaultTo(column),
       optional: optional(column),
       list: list(column),
       references: references(column),
@@ -437,7 +437,7 @@ export type BuilderScalarColumn<
          */
         list: List<base>;
         references: References<base>;
-        defaultTo: DefaultTo<base>;
+        default: Default<base>;
       }
     : base & {
         /**
@@ -553,7 +553,7 @@ export type BuilderJSONColumn<
        * }));
        */
       optional: JSONOptional<base>;
-      defaultTo: JSONDefaultTo<base>;
+      default: JSONDefault<base>;
     }
   : base;
 
@@ -618,7 +618,7 @@ export type BuilderEnumColumn<
          * }));
          */
         list: EnumList<base>;
-        defaultTo: EnumDefaultTo<base>;
+        default: EnumDefault<base>;
       }
     : base & {
         /**
@@ -705,13 +705,13 @@ export const json = <type = any>(): BuilderJSONColumn<type, false> => {
     " type": "json",
     " json": {} as type,
     " optional": false,
-    " defaultTo": undefined,
+    " default": undefined,
   } as const;
 
   return {
     ...column,
     optional: jsonOptional(column),
-    defaultTo: jsonDefaultTo(column),
+    default: jsonDefault(column),
   };
 };
 
@@ -741,14 +741,14 @@ export const _enum = <_enum extends string>(
     " enum": __enum,
     " optional": false,
     " list": false,
-    " defaultTo": undefined,
+    " default": undefined,
   } as const;
 
   return {
     ...column,
     optional: enumOptional(column),
     list: enumList(column),
-    defaultTo: enumDefaultTo(column),
+    default: enumDefault(column),
   };
 };
 
