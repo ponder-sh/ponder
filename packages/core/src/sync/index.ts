@@ -16,7 +16,6 @@ import {
   checkpointMin,
   decodeCheckpoint,
   encodeCheckpoint,
-  isCheckpointEqual,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -147,7 +146,7 @@ type CreateSyncParameters = {
   networks: Network[];
   onRealtimeEvent(event: RealtimeEvent): void;
   onFatalError(error: Error): void;
-  initialCheckpoint: Checkpoint;
+  initialCheckpoint: string;
 };
 
 export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
@@ -349,8 +348,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
      * use that. Otherwise, use `startBlock`
      */
     const start =
-      isCheckpointEqual(args.initialCheckpoint, zeroCheckpoint) === false
-        ? encodeCheckpoint(args.initialCheckpoint)
+      args.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
+        ? args.initialCheckpoint
         : getChainsCheckpoint("start")!;
 
     // Cursor used to track progress.

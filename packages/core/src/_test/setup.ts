@@ -10,14 +10,13 @@ import { createTelemetry } from "@/common/telemetry.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
-import { SqliteDatabaseService } from "@/database/sqlite/service.js";
+import { type Database, createDatabase } from "@/database/index.js";
 import { createSchema } from "@/index.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import { getRealtimeStore } from "@/indexing-store/realtime.js";
 import type { IndexingStore, ReadonlyStore } from "@/indexing-store/store.js";
+import type { Schema } from "@/schema/common.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -114,13 +113,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-type DatabaseServiceSetup = Parameters<DatabaseService["setup"]>[0] & {
+type DatabaseServiceSetup = {
+  buildId: string;
+  schema: Schema;
   indexing: "realtime" | "historical";
 };
-const defaultSchema = createSchema(() => ({}));
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   buildId: "test",
-  schema: defaultSchema,
+  schema: createSchema(() => ({})),
   indexing: "historical",
 };
 
@@ -128,65 +128,52 @@ export async function setupDatabaseServices(
   context: TestContext,
   overrides: Partial<DatabaseServiceSetup> = {},
 ): Promise<{
-  database: DatabaseService;
-  namespaceInfo: NamespaceInfo;
+  database: Database;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
   readonlyStore: ReadonlyStore;
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
-  let database: SqliteDatabaseService | PostgresDatabaseService;
+  const database = createDatabase({
+    common: context.common,
+    databaseConfig: context.databaseConfig,
+    schema: config.schema,
+  });
 
-  if (context.databaseConfig.kind === "sqlite") {
-    database = new SqliteDatabaseService({
-      common: context.common,
-      directory: context.databaseConfig.directory,
-    });
-  } else {
-    database = new PostgresDatabaseService({
-      common: context.common,
-      poolConfig: context.databaseConfig.poolConfig,
-      userNamespace: context.databaseConfig.schema,
-    });
-  }
+  await database.setup(config);
 
-  const result = await database.setup(config);
-
-  await database.migrateSyncStore();
+  await database.migrateSync();
 
   const syncStore = createSyncStore({
     common: context.common,
-    sql: database.kind,
-    db: database.syncDb,
+    dialect: database.dialect,
+    db: database.qb.sync,
   });
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
+    dialect: database.dialect,
     schema: config.schema,
-    namespaceInfo: result.namespaceInfo,
-    db: database.indexingDb,
+    db: database.qb.user,
     common: context.common,
   });
 
   const indexingStore =
     config.indexing === "historical"
       ? getHistoricalStore({
-          encoding: database.kind,
+          dialect: database.dialect,
           schema: config.schema,
           readonlyStore,
-          namespaceInfo: result.namespaceInfo,
-          db: database.indexingDb,
+          db: database.qb.user,
           common: context.common,
           isCacheExhaustive: true,
         })
       : {
           ...readonlyStore,
           ...getRealtimeStore({
-            encoding: database.kind,
+            dialect: database.dialect,
             schema: config.schema,
-            namespaceInfo: result.namespaceInfo,
-            db: database.indexingDb,
+            db: database.qb.user,
             common: context.common,
           }),
         };
@@ -195,7 +182,6 @@ export async function setupDatabaseServices(
 
   return {
     database,
-    namespaceInfo: result.namespaceInfo,
     readonlyStore,
     indexingStore,
     syncStore,

@@ -1,7 +1,6 @@
 import type { Common } from "@/common/common.js";
 import { StoreError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import type { MaterialColumn, Schema, Table } from "@/schema/common.js";
 import type { UserId } from "@/types/schema.js";
 import { sql } from "kysely";
@@ -21,15 +20,13 @@ import {
 const DEFAULT_LIMIT = 50 as const;
 
 export const getReadonlyStore = ({
-  encoding,
+  dialect,
   schema,
-  namespaceInfo,
   db,
   common,
 }: {
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
   schema: Schema;
-  namespaceInfo: Pick<NamespaceInfo, "userNamespace">;
   db: HeadlessKysely<any>;
   common: Common;
 }): ReadonlyStore => ({
@@ -46,11 +43,10 @@ export const getReadonlyStore = ({
       const encodedId = encodeValue({
         value: id,
         column: table.id,
-        encoding,
+        dialect,
       });
 
       const record = await db
-        .withSchema(namespaceInfo.userNamespace)
         .selectFrom(tableName)
         .selectAll()
         .where("id", "=", encodedId)
@@ -58,7 +54,7 @@ export const getReadonlyStore = ({
 
       if (record === undefined) return null;
 
-      return decodeRecord({ record, table, encoding });
+      return decodeRecord({ record, table, dialect });
     });
   },
   findMany: async ({
@@ -79,14 +75,11 @@ export const getReadonlyStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.findMany` }, async () => {
-      let query = db
-        .withSchema(namespaceInfo.userNamespace)
-        .selectFrom(tableName)
-        .selectAll();
+      let query = db.selectFrom(tableName).selectAll();
 
       if (where) {
         query = query.where((eb) =>
-          buildWhereConditions({ eb, where, table, encoding }),
+          buildWhereConditions({ eb, where, table, dialect }),
         );
       }
 
@@ -94,7 +87,7 @@ export const getReadonlyStore = ({
       for (const [column, direction] of orderByConditions) {
         query = query.orderBy(
           column,
-          encoding === "sqlite"
+          dialect === "sqlite"
             ? direction
             : direction === "asc"
               ? sql`asc nulls first`
@@ -124,7 +117,7 @@ export const getReadonlyStore = ({
         const records = await query
           .execute()
           .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
+            records.map((record) => decodeRecord({ record, table, dialect })),
           );
 
         if (records.length === limit + 1) {
@@ -155,7 +148,7 @@ export const getReadonlyStore = ({
           encodeValue({
             value,
             column: table[columnName] as MaterialColumn,
-            encoding,
+            dialect,
           }),
         ]) satisfies [string, any][];
         query = query
@@ -167,7 +160,7 @@ export const getReadonlyStore = ({
         const records = await query
           .execute()
           .then((records) =>
-            records.map((record) => decodeRecord({ record, table, encoding })),
+            records.map((record) => decodeRecord({ record, table, dialect })),
           );
 
         if (records.length === 0) {
@@ -221,7 +214,7 @@ export const getReadonlyStore = ({
           encodeValue({
             value,
             column: table[columnName] as MaterialColumn,
-            encoding,
+            dialect,
           }),
         ]) satisfies [string, any][];
         query = query
@@ -240,7 +233,7 @@ export const getReadonlyStore = ({
 
         const records = await query.execute().then((records) =>
           records
-            .map((record) => decodeRecord({ record, table, encoding }))
+            .map((record) => decodeRecord({ record, table, dialect }))
             // Reverse the records again, back to the original order.
             .reverse(),
         );

@@ -5,7 +5,6 @@ import {
   UniqueConstraintError,
 } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { NamespaceInfo } from "@/database/service.js";
 import type { Schema, Table } from "@/schema/common.js";
 import {
   getTables,
@@ -79,18 +78,16 @@ type StoreCache = {
 };
 
 export const getHistoricalStore = ({
-  encoding,
+  dialect,
   schema,
   readonlyStore,
-  namespaceInfo,
   db,
   common,
   isCacheExhaustive: _isCacheExhaustive,
 }: {
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
   schema: Schema;
   readonlyStore: ReadonlyStore;
-  namespaceInfo: NamespaceInfo;
   db: HeadlessKysely<any>;
   common: Common;
   isCacheExhaustive: boolean;
@@ -214,13 +211,12 @@ export const getHistoricalStore = ({
                       record,
                       table,
                       schema,
-                      encoding,
+                      dialect,
                       skipValidation: true,
                     }),
                   );
 
                 await db
-                  .withSchema(namespaceInfo.userNamespace)
                   .insertInto(tableName)
                   .values(_insertRecords)
                   .execute()
@@ -276,13 +272,12 @@ export const getHistoricalStore = ({
                       record,
                       table,
                       schema,
-                      encoding,
+                      dialect,
                       skipValidation: true,
                     }),
                   );
 
                 await db
-                  .withSchema(namespaceInfo.userNamespace)
                   .insertInto(tableName)
                   .values(_updateRecords)
                   .onConflict((oc) =>
@@ -351,11 +346,10 @@ export const getHistoricalStore = ({
     const encodedId = encodeValue({
       value: id,
       column: table.id,
-      encoding,
+      dialect,
     });
 
     const record = await db
-      .withSchema(namespaceInfo.userNamespace)
       .selectFrom(tableName)
       .selectAll()
       .where("id", "=", encodedId)
@@ -363,7 +357,7 @@ export const getHistoricalStore = ({
 
     if (record === undefined) return null;
 
-    return decodeRecord({ record, table, encoding });
+    return decodeRecord({ record, table, dialect });
   };
 
   return {
@@ -599,10 +593,9 @@ export const getHistoricalStore = ({
 
       if (typeof data === "function") {
         const query = db
-          .withSchema(namespaceInfo.userNamespace)
           .selectFrom(tableName)
           .selectAll()
-          .where((eb) => buildWhereConditions({ eb, where, table, encoding }))
+          .where((eb) => buildWhereConditions({ eb, where, table, dialect }))
           .orderBy("id", "asc");
 
         const records: UserRecord[] = [];
@@ -623,7 +616,7 @@ export const getHistoricalStore = ({
                 const current = decodeRecord({
                   record: latestRecord,
                   table,
-                  encoding,
+                  dialect,
                 });
                 const updateObject = data({ current });
                 // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
@@ -633,13 +626,12 @@ export const getHistoricalStore = ({
                     record: updateObject,
                     table,
                     schema,
-                    encoding,
+                    dialect,
                     skipValidation: false,
                   }),
                 };
 
                 const record = await db
-                  .withSchema(namespaceInfo.userNamespace)
                   .updateTable(tableName)
                   .set(updateRecord)
                   .where("id", "=", latestRecord.id)
@@ -652,7 +644,7 @@ export const getHistoricalStore = ({
               }
 
               return records.map((record) =>
-                decodeRecord({ record, table, encoding }),
+                decodeRecord({ record, table, dialect }),
               );
             },
           );
@@ -665,7 +657,7 @@ export const getHistoricalStore = ({
             cursor = encodeValue({
               value: _records[_records.length - 1]!.id,
               column: table.id,
-              encoding,
+              dialect,
             });
           }
         }
@@ -677,21 +669,19 @@ export const getHistoricalStore = ({
             record: data,
             table,
             schema,
-            encoding,
+            dialect,
             skipValidation: false,
           });
 
           const records = await db
             .with("latestRows(id)", (db) =>
               db
-                .withSchema(namespaceInfo.userNamespace)
                 .selectFrom(tableName)
                 .select("id")
                 .where((eb) =>
-                  buildWhereConditions({ eb, where, table, encoding }),
+                  buildWhereConditions({ eb, where, table, dialect }),
                 ),
             )
-            .withSchema(namespaceInfo.userNamespace)
             .updateTable(tableName)
             .set(updateRecord)
             .from("latestRows")
@@ -703,7 +693,7 @@ export const getHistoricalStore = ({
             });
 
           return records.map((record) =>
-            decodeRecord({ record, table, encoding }),
+            decodeRecord({ record, table, dialect }),
           );
         });
       }
@@ -835,12 +825,11 @@ export const getHistoricalStore = ({
           const table = (schema[tableName] as { table: Table }).table;
 
           const deletedRecord = await db
-            .withSchema(namespaceInfo.userNamespace)
             .deleteFrom(tableName)
             .where(
               "id",
               "=",
-              encodeValue({ value: id, column: table.id, encoding }),
+              encodeValue({ value: id, column: table.id, dialect }),
             )
             .returning(["id"])
             .executeTakeFirst()

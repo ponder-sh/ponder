@@ -21,19 +21,19 @@ test("runtime select", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({ tableName: "table", id: "kyle" });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db.select().from(drizzleTables.table);
 
@@ -50,19 +50,19 @@ test("select hex", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({ tableName: "table", id: "0x1" });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db.select().from(drizzleTables.table);
 
@@ -79,19 +79,19 @@ test("select bigint", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({ tableName: "table", id: 1n });
   await (indexingStore as HistoricalStore).flush({ isFullFlush: true });
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db.select().from(drizzleTables.table);
 
@@ -109,8 +109,10 @@ test("select json", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "table",
@@ -125,11 +127,9 @@ test("select json", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db.select().from(drizzleTables.table);
 
@@ -148,8 +148,10 @@ test("select enum", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "table",
@@ -160,11 +162,9 @@ test("select enum", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db.select().from(drizzleTables.table);
 
@@ -182,8 +182,10 @@ test("select list", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "table",
@@ -196,11 +198,9 @@ test("select list", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db.select().from(drizzleTables.table);
 
@@ -223,8 +223,10 @@ test("select with join", async (context) => {
     }),
   }));
 
-  const { database, cleanup, indexingStore, namespaceInfo } =
-    await setupDatabaseServices(context, { schema });
+  const { database, cleanup, indexingStore } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.create({
     tableName: "account",
@@ -243,11 +245,9 @@ test("select with join", async (context) => {
 
   const db = createDrizzleDb(database) as unknown as DrizzleDb;
 
-  const drizzleTables = createDrizzleTables(
-    schema,
-    database,
-    namespaceInfo.userNamespace,
-  ) as Context<typeof schema>["tables"];
+  const drizzleTables = createDrizzleTables(schema, database) as Context<
+    typeof schema
+  >["tables"];
 
   const rows = await db
     .select()

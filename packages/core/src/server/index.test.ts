@@ -7,14 +7,13 @@ import type { Context } from "@/hono/context.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
-import { createServer } from "./service.js";
+import { createServer } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 test("port", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server1 = await createServer({
     common: context.common,
@@ -22,7 +21,6 @@ test("port", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const server2 = await createServer({
@@ -31,7 +29,6 @@ test("port", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   expect(server2.port).toBeGreaterThanOrEqual(server1.port + 1);
@@ -41,9 +38,8 @@ test("port", async (context) => {
   await cleanup();
 });
 
-test("not healthy", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+test("not ready", async (context) => {
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -51,10 +47,9 @@ test("not healthy", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
-  const response = await server.hono.request("/health");
+  const response = await server.hono.request("/ready");
 
   expect(response.status).toBe(503);
 
@@ -62,9 +57,8 @@ test("not healthy", async (context) => {
   await cleanup();
 });
 
-test("healthy", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+test("ready", async (context) => {
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -72,14 +66,31 @@ test("healthy", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   await getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo,
-    db: database.indexingDb,
+    dialect: database.dialect,
+    db: database.qb.user,
   }).setStatus({});
+
+  const response = await server.hono.request("/ready");
+
+  expect(response.status).toBe(200);
+
+  await server.kill();
+  await cleanup();
+});
+
+test("health", async (context) => {
+  const { database, cleanup } = await setupDatabaseServices(context);
+
+  const server = await createServer({
+    common: context.common,
+    app: new Hono(),
+    routes: [],
+    schema: {},
+    database,
+  });
 
   const response = await server.hono.request("/health");
 
@@ -90,19 +101,14 @@ test("healthy", async (context) => {
 });
 
 test("healthy PUT", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
-    common: {
-      ...context.common,
-      options: { ...context.common.options, maxHealthcheckDuration: 0 },
-    },
+    common: context.common,
     app: new Hono(),
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/health", {
@@ -116,8 +122,7 @@ test("healthy PUT", async (context) => {
 });
 
 test("metrics", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -125,7 +130,6 @@ test("metrics", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/metrics");
@@ -137,8 +141,7 @@ test("metrics", async (context) => {
 });
 
 test("metrics error", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -146,7 +149,6 @@ test("metrics error", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
@@ -161,8 +163,7 @@ test("metrics error", async (context) => {
 });
 
 test("metrics PUT", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -170,7 +171,6 @@ test("metrics PUT", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/metrics", {
@@ -184,8 +184,7 @@ test("metrics PUT", async (context) => {
 });
 
 test("metrics unmatched route", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -193,7 +192,6 @@ test("metrics unmatched route", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   await server.hono.request("/graphql");
@@ -211,8 +209,7 @@ test("metrics unmatched route", async (context) => {
 });
 
 test("missing route", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -220,7 +217,6 @@ test("missing route", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/kevin");
@@ -232,8 +228,7 @@ test("missing route", async (context) => {
 });
 
 test("custom api route", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -243,7 +238,6 @@ test("custom api route", async (context) => {
     ],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/hi");
@@ -256,8 +250,7 @@ test("custom api route", async (context) => {
 });
 
 test("custom hono route", async (context) => {
-  const { database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context);
+  const { database, cleanup } = await setupDatabaseServices(context);
 
   const app = new Hono().get("/hi", (c) => c.text("hi"));
 
@@ -267,7 +260,6 @@ test("custom hono route", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   const response = await server.hono.request("/hi");
@@ -282,7 +274,7 @@ test("custom hono route", async (context) => {
 // Note that this test doesn't work because the `hono.request` method doesn't actually
 // create a socket connection, it just calls the request handler function directly.
 test.skip("kill", async (context) => {
-  const { database, namespaceInfo } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -290,7 +282,6 @@ test.skip("kill", async (context) => {
     routes: [],
     schema: {},
     database,
-    dbNamespace: namespaceInfo.userNamespace,
   });
 
   await server.kill();
