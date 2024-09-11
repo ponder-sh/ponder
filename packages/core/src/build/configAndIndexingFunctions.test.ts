@@ -47,7 +47,6 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -81,7 +80,6 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -141,7 +139,6 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -174,7 +171,6 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -203,7 +199,6 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
         network: {
           mainnet: {
             address: address2,
@@ -235,7 +230,6 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });

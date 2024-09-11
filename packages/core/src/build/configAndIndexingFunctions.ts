@@ -5,7 +5,6 @@ import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import {
   type Network,
-  getDefaultMaxBlockRange,
   getFinalityBlockCount,
   getRpcUrlsForClient,
   isRpcUrlPublic,
@@ -212,7 +211,6 @@ export async function buildConfigAndIndexingFunctions({
         transport: network.transport({ chain }),
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
-        defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         disableCache: network.disableCache ?? false,
       } satisfies Network;
@@ -312,7 +310,6 @@ export async function buildConfigAndIndexingFunctions({
 
           startBlock,
           endBlock,
-          maxBlockRange: contract.maxBlockRange,
         };
       }
 
@@ -364,7 +361,6 @@ export async function buildConfigAndIndexingFunctions({
 
             startBlock,
             endBlock,
-            maxBlockRange: overrides.maxBlockRange ?? contract.maxBlockRange,
           };
         });
     })
@@ -521,7 +517,6 @@ export async function buildConfigAndIndexingFunctions({
         abiFunctions,
         name: rawContract.name,
         networkName: rawContract.networkName,
-        maxBlockRange: rawContract.maxBlockRange,
       } as const;
 
       const resolvedFactory = rawContract?.factory;

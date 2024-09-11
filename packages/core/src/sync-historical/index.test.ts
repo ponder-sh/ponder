@@ -526,25 +526,3 @@ test("syncAddress() handles many addresses", async (context) => {
 
   await cleanup();
 });
-
-test("sync() chunks requests", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  context.sources[0].maxBlockRange = 1;
-
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  const spy = vi.spyOn(context.requestQueues[0], "request");
-
-  await historicalSync.sync([0, 5]);
-
-  expect(spy).toHaveBeenCalledTimes(8);
-
-  await cleanup();
-});
