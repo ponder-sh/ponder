@@ -385,7 +385,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          */
         while (true) {
           if (isKilled) return;
-          if (from === to) break;
+          if (from >= to) break;
           const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
           let consecutiveErrors = 0;
 

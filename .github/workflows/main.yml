@@ -104,7 +104,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 8.6.10
+          version: 9.10.0
 
       - name: Install Node
         if: ${{ matrix.runtime-version == 'Node' }}
