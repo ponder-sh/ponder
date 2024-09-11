@@ -712,15 +712,15 @@ export const createRealtimeSync = (
     async kill() {
       clearInterval(interval);
       isKilled = true;
-      queue.pause();
-      queue.clear();
+      queue?.pause();
+      queue?.clear();
 
       args.common.logger.debug({
         service: "realtime",
         msg: `Killed '${args.network.name}' realtime sync`,
       });
 
-      await queue.onIdle();
+      await queue?.onIdle();
     },
     get localChain() {
       return localChain;

@@ -12,7 +12,12 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
+import type {
+  LightBlock,
+  SyncBlock,
+  SyncCallTrace,
+  SyncLog,
+} from "@/types/sync.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
@@ -46,7 +51,10 @@ export type HistoricalSync = {
   latestBlock: SyncBlock | undefined;
   /** Extract raw data for `interval`. */
   sync(interval: Interval): Promise<void>;
-  initializeMetrics(finalizedBlock: SyncBlock, isInitialCall: boolean): void;
+  initializeMetrics(
+    finalizedBlock: LightBlock | SyncBlock,
+    isInitialCall: boolean,
+  ): void;
   kill(): void;
 };
 
@@ -441,7 +449,7 @@ export const createHistoricalSync = async (
 
       // Update `latestBlock` if `block` is closer to tip.
       if (
-        hexToBigInt(block.number) > hexToBigInt(latestBlock?.number ?? "0x0")
+        hexToBigInt(block.number) >= hexToBigInt(latestBlock?.number ?? "0x0")
       ) {
         latestBlock = block;
       }

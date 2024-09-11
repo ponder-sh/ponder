@@ -48,6 +48,7 @@ export const createRequestQueue = ({
   network: Network;
   common: Common;
 }): RequestQueue => {
+  // @ts-ignore
   const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {

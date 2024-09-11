@@ -57,7 +57,7 @@ type UpdateEntry = {
  * Cache entries that mirror the database. Can be `null`,
  * meaning the entry doesn't exist in the cache.
  */
-type FindEntry = {
+export type FindEntry = {
   type: "find";
   opIndex: number;
   bytes: number;
@@ -66,7 +66,7 @@ type FindEntry = {
 
 type Entry = InsertEntry | UpdateEntry | FindEntry;
 
-type Key = string | number;
+export type Key = string | number;
 
 /**
  * An in-memory representation of the indexing store. Every entry is
@@ -845,7 +845,7 @@ export const getHistoricalStore = ({
   };
 };
 
-const getBytesSize = (value: UserRecord | UserValue) => {
+export const getBytesSize = (value: UserRecord | UserValue) => {
   // size of metadata
   let size = 16;
 
