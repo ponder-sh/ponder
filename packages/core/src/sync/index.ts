@@ -64,16 +64,11 @@ export type Status = {
   };
 };
 
-// type RawBlockEvent = Omit<
-//   Extract<RealtimeSyncEvent, { type: "block" }>,
-//   "type"
-// >;
-
-export type BlockProgress = {
+export type SyncProgress = {
   start: SyncBlock | LightBlock;
   end: SyncBlock | LightBlock | undefined;
+  current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
-  latest: SyncBlock | LightBlock | undefined;
 };
 
 export const syncBlockToLightBlock = ({
@@ -97,37 +92,40 @@ export const blockToCheckpoint = (
   };
 };
 
-/** Returns true if all possible blocks have been synced. */
-export const isSyncExhaustive = (blockProgress: BlockProgress) => {
-  if (blockProgress.end === undefined || blockProgress.latest === undefined) {
+/**
+ * Returns true if all filters have a defined end block and the current
+ * sync progress has reached the final end block.
+ */
+export const isSyncComplete = (syncProgress: SyncProgress) => {
+  if (syncProgress.end === undefined || syncProgress.current === undefined) {
     return false;
   }
 
   return (
-    hexToNumber(blockProgress.latest.number) >=
-    hexToNumber(blockProgress.end.number)
+    hexToNumber(syncProgress.current.number) >=
+    hexToNumber(syncProgress.end.number)
   );
 };
 
 /** Returns the checkpoint for a given block tag. */
 export const getChainCheckpoint = ({
-  blockProgress,
+  syncProgress,
   network,
   tag,
 }: {
-  blockProgress: BlockProgress;
+  syncProgress: SyncProgress;
   network: Network;
-  tag: "start" | "latest" | "finalized" | "end";
+  tag: "start" | "current" | "finalized" | "end";
 }): string | undefined => {
-  if (tag === "end" && blockProgress.end === undefined) {
+  if (tag === "end" && syncProgress.end === undefined) {
     return undefined;
   }
 
-  if (tag === "latest" && isSyncExhaustive(blockProgress)) {
+  if (tag === "current" && isSyncComplete(syncProgress)) {
     return undefined;
   }
 
-  const block = blockProgress[tag]!;
+  const block = syncProgress[tag]!;
   return encodeCheckpoint(
     blockToCheckpoint(
       block,
@@ -150,20 +148,13 @@ type CreateSyncParameters = {
 };
 
 export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
-  const localSyncData = new Map<
+  const localSyncContext = new Map<
     Network,
     {
       requestQueue: RequestQueue;
-      blockProgress: BlockProgress;
+      syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
-      /**
-       * Unfinalized raw events.
-       *
-       * It is an invariant that all blocks are linked to each other,
-       * `block.parentHash` => `block.hash`.
-       */
-      // rawEvents: RawBlockEvent[];
     }
   >();
   const status: Status = {};
@@ -179,14 +170,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const sources = args.sources.filter(
         ({ filter }) => filter.chainId === network.chainId,
       );
-      const blockProgress: BlockProgress = {
+      const syncProgress: SyncProgress = {
         ...(await syncDiagnostic({
           common: args.common,
           sources,
           requestQueue,
           network,
         })),
-        latest: undefined,
+        current: undefined,
       };
       const historicalSync = await createHistoricalSync({
         common: args.common,
@@ -213,14 +204,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         onFatalError: args.onFatalError,
       });
 
-      historicalSync.initializeMetrics(blockProgress.finalized, true);
+      historicalSync.initializeMetrics(syncProgress.finalized, true);
 
-      localSyncData.set(network, {
+      localSyncContext.set(network, {
         requestQueue,
-        blockProgress,
+        syncProgress,
         historicalSync,
         realtimeSync,
-        // rawEvents: [],
       });
       status[network.name] = { block: null, ready: false };
     }),
@@ -230,7 +220,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   for (const network of args.networks) {
     if (network.disableCache) {
       const startBlock = hexToNumber(
-        localSyncData.get(network)!.blockProgress.start.number,
+        localSyncContext.get(network)!.syncProgress.start.number,
       );
 
       args.common.logger.warn({
@@ -248,19 +238,19 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   /**
    * Returns the minimum checkpoint across all chains.
    */
-  const getChainsCheckpoint = (
-    tag: "start" | "latest" | "finalized" | "end",
+  const getOmnichainCheckpoint = (
+    tag: "start" | "end" | "current" | "finalized",
   ): string | undefined => {
-    const checkpoints = Array.from(localSyncData.entries()).map(
-      ([network, { blockProgress }]) =>
-        getChainCheckpoint({ blockProgress, network, tag }),
+    const checkpoints = Array.from(localSyncContext.entries()).map(
+      ([network, { syncProgress }]) =>
+        getChainCheckpoint({ syncProgress, network, tag }),
     );
 
     if (tag === "end" && checkpoints.some((c) => c === undefined)) {
       return undefined;
     }
 
-    if (tag === "latest" && checkpoints.every((c) => c === undefined)) {
+    if (tag === "current" && checkpoints.every((c) => c === undefined)) {
       return undefined;
     }
 
@@ -271,7 +261,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     );
   };
 
-  const updateStatus = ({
+  const updateHistoricalStatus = ({
     events,
     checkpoint,
     network,
@@ -300,14 +290,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
   const updateRealtimeStatus = ({
     checkpoint,
-    // rawEvents,
     network,
   }: {
     checkpoint: string;
-    // rawEvents: RawBlockEvent[];
     network: Network;
   }) => {
-    const localBlock = localSyncData
+    const localBlock = localSyncContext
       .get(network)!
       .realtimeSync.localChain.findLast(
         (block) =>
@@ -347,17 +335,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     const start =
       args.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
         ? args.initialCheckpoint
-        : getChainsCheckpoint("start")!;
+        : getOmnichainCheckpoint("start")!;
 
     // Cursor used to track progress.
     let from = start;
 
     while (true) {
       const syncGenerator = mergeAsyncGenerators(
-        Array.from(localSyncData.values()).map(
-          ({ blockProgress, historicalSync }) =>
-            localHistoricalSyncHelper({
-              blockProgress,
+        Array.from(localSyncContext.values()).map(
+          ({ syncProgress, historicalSync }) =>
+            localHistoricalSyncGenerator({
+              syncProgress,
               historicalSync,
             }),
         ),
@@ -365,32 +353,31 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       for await (const _ of syncGenerator) {
         /**
-         * `latest` is used to calculate the `to` checkpoint, if any
+         * `current` is used to calculate the `to` checkpoint, if any
          * network hasn't yet ingested a block, run another iteration of this loop.
-         * It is an invariant that `latestBlock` will eventually be defined. See the
-         * implementation of `LocalSync.latestBlock` for more detail.
+         * It is an invariant that `latestBlock` will eventually be defined.
          */
         if (
-          Array.from(localSyncData.values()).some(
-            ({ blockProgress }) => blockProgress.latest === undefined,
+          Array.from(localSyncContext.values()).some(
+            ({ syncProgress }) => syncProgress.current === undefined,
           )
         ) {
           continue;
         }
 
         /**
-         * Calculate the mininum "latest" checkpoint, falling back to `end` if
+         * Calculate the mininum "current" checkpoint, falling back to `end` if
          * all networks have completed.
          *
          * `end`: If every network has an `endBlock` and it's less than
          * `finalized`, use that. Otherwise, use `finalized`
          */
         const end =
-          getChainsCheckpoint("end") !== undefined &&
-          getChainsCheckpoint("end")! < getChainsCheckpoint("finalized")!
-            ? getChainsCheckpoint("end")!
-            : getChainsCheckpoint("finalized")!;
-        const to = getChainsCheckpoint("latest") ?? end;
+          getOmnichainCheckpoint("end") !== undefined &&
+          getOmnichainCheckpoint("end")! < getOmnichainCheckpoint("finalized")!
+            ? getOmnichainCheckpoint("end")!
+            : getOmnichainCheckpoint("finalized")!;
+        const to = getOmnichainCheckpoint("current") ?? end;
 
         /*
          * Extract events with `syncStore.getEvents()`, paginating to
@@ -421,7 +408,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             consecutiveErrors = 0;
 
             for (const network of args.networks) {
-              updateStatus({ events, checkpoint: cursor, network });
+              updateHistoricalStatus({ events, checkpoint: cursor, network });
             }
 
             estimateSeconds = estimate({
@@ -447,9 +434,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       /** `true` if all networks have synced all known finalized blocks.  */
       const allHistoricalSyncExhaustive = Array.from(
-        localSyncData.values(),
-      ).every(({ blockProgress }) => {
-        if (isSyncExhaustive(blockProgress)) return true;
+        localSyncContext.values(),
+      ).every(({ syncProgress }) => {
+        if (isSyncComplete(syncProgress)) return true;
 
         // Determine if `finalized` block is considered "stale"
         const staleSeconds = (Date.now() - latestFinalizedFetch) / 1_000;
@@ -467,11 +454,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       latestFinalizedFetch = Date.now();
 
       await Promise.all(
-        Array.from(localSyncData.entries()).map(
-          async ([
-            network,
-            { requestQueue, blockProgress, historicalSync },
-          ]) => {
+        Array.from(localSyncContext.entries()).map(
+          async ([network, { requestQueue, syncProgress, historicalSync }]) => {
             args.common.logger.debug({
               service: "sync",
               msg: `Refetching '${network.name}' finalized block`,
@@ -486,14 +470,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               hexToNumber(latestBlock.number) - network.finalityBlockCount,
             );
 
-            blockProgress.finalized = await _eth_getBlockByNumber(
-              requestQueue,
-              {
-                blockNumber: finalizedBlockNumber,
-              },
-            );
+            syncProgress.finalized = await _eth_getBlockByNumber(requestQueue, {
+              blockNumber: finalizedBlockNumber,
+            });
 
-            historicalSync.initializeMetrics(blockProgress.finalized, false);
+            historicalSync.initializeMetrics(syncProgress.finalized, false);
           },
         ),
       );
@@ -517,7 +498,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       network,
       event,
     }: { network: Network; event: RealtimeSyncEvent }) => {
-      const { blockProgress, realtimeSync } = localSyncData.get(network)!;
+      const { syncProgress, realtimeSync } = localSyncContext.get(network)!;
 
       switch (event.type) {
         /**
@@ -525,9 +506,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          */
         case "block": {
           // Update local sync, record checkpoint before and after
-          let from = getChainsCheckpoint("latest")!;
-          blockProgress.latest = event.block;
-          const to = getChainsCheckpoint("latest")!;
+          let from = getOmnichainCheckpoint("current")!;
+          syncProgress.current = event.block;
+          const to = getOmnichainCheckpoint("current")!;
 
           // Add block, logs, transactions, receipts, and traces to the sync-store.
 
@@ -590,16 +571,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         case "finalize": {
           // Newly finalized range
           const interval = [
-            hexToNumber(blockProgress.finalized.number),
+            hexToNumber(syncProgress.finalized.number),
             hexToNumber(event.block.number),
           ] satisfies Interval;
 
           // Update local sync, record checkpoint before and after
-          const prev = getChainsCheckpoint("finalized")!;
-          blockProgress.finalized = event.block;
-          const checkpoint = getChainsCheckpoint("finalized")!;
+          const prev = getOmnichainCheckpoint("finalized")!;
+          syncProgress.finalized = event.block;
+          const checkpoint = getOmnichainCheckpoint("finalized")!;
 
-          blockProgress.finalized = event.block;
+          syncProgress.finalized = event.block;
 
           // Insert an interval for the newly finalized range.
           await Promise.all(
@@ -619,14 +600,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
            * The realtime service can be killed if `endBlock` is
            * defined has become finalized.
            */
-          if (isSyncExhaustive(blockProgress)) {
+          if (isSyncComplete(syncProgress)) {
             args.common.metrics.ponder_realtime_is_connected.set(
               { network: network.name },
               0,
             );
             args.common.logger.info({
               service: "sync",
-              msg: `Synced final end block for '${network.name}' (${hexToNumber(blockProgress.end!.number)}), killing realtime sync service`,
+              msg: `Synced final end block for '${network.name}' (${hexToNumber(syncProgress.end!.number)}), killing realtime sync service`,
             });
             await realtimeSync.kill();
           }
@@ -636,8 +617,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          * Handle a reorg with a new common ancestor block being found.
          */
         case "reorg": {
-          blockProgress.latest = event.block;
-          const checkpoint = getChainsCheckpoint("latest")!;
+          syncProgress.current = event.block;
+          const checkpoint = getOmnichainCheckpoint("current")!;
 
           await args.syncStore.pruneByBlock({
             blocks: event.reorgedBlocks,
@@ -659,41 +640,41 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     getEvents,
     startRealtime() {
       for (const network of args.networks) {
-        const { blockProgress, realtimeSync } = localSyncData.get(network)!;
+        const { syncProgress, realtimeSync } = localSyncContext.get(network)!;
 
         status[network.name]!.block = {
-          number: hexToNumber(blockProgress.latest!.number),
-          timestamp: hexToNumber(blockProgress.latest!.timestamp),
+          number: hexToNumber(syncProgress.current!.number),
+          timestamp: hexToNumber(syncProgress.current!.timestamp),
         };
         status[network.name]!.ready = true;
 
-        if (isSyncExhaustive(blockProgress) === false) {
+        if (isSyncComplete(syncProgress) === false) {
           args.common.metrics.ponder_realtime_is_connected.set(
             { network: network.name },
             1,
           );
-          realtimeSync.start(blockProgress.finalized);
+          realtimeSync.start(syncProgress.finalized);
         }
       }
     },
     getStartCheckpoint() {
-      return getChainsCheckpoint("start")!;
+      return getOmnichainCheckpoint("start")!;
     },
     getFinalizedCheckpoint() {
-      return getChainsCheckpoint("finalized")!;
+      return getOmnichainCheckpoint("finalized")!;
     },
     getStatus() {
       return status;
     },
     getCachedTransport(network) {
-      const { requestQueue } = localSyncData.get(network)!;
+      const { requestQueue } = localSyncContext.get(network)!;
       return cachedTransport({ requestQueue, syncStore: args.syncStore });
     },
     async kill() {
       isKilled = true;
       const promises: Promise<void>[] = [];
       for (const network of args.networks) {
-        const { historicalSync, realtimeSync } = localSyncData.get(network)!;
+        const { historicalSync, realtimeSync } = localSyncContext.get(network)!;
         historicalSync.kill();
         promises.push(realtimeSync.kill());
       }
@@ -763,11 +744,11 @@ export const syncDiagnostic = async ({
 };
 
 /** Predictive pagination for `historicalSync.sync()` */
-export async function* localHistoricalSyncHelper({
-  blockProgress,
+export async function* localHistoricalSyncGenerator({
+  syncProgress,
   historicalSync,
 }: {
-  blockProgress: BlockProgress;
+  syncProgress: SyncProgress;
   historicalSync: HistoricalSync;
 }): AsyncGenerator {
   /**
@@ -776,15 +757,15 @@ export async function* localHistoricalSyncHelper({
    */
   let estimateRange = 25;
   // Cursor to track progress.
-  let fromBlock = hexToNumber(blockProgress.start.number);
+  let fromBlock = hexToNumber(syncProgress.start.number);
   // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
   // is defined (a cache hit has occurred)
   if (historicalSync.latestBlock !== undefined) {
     fromBlock = Math.min(
       hexToNumber(historicalSync.latestBlock.number) + 1,
-      hexToNumber(blockProgress.finalized.number),
-      blockProgress.end
-        ? hexToNumber(blockProgress.end.number)
+      hexToNumber(syncProgress.finalized.number),
+      syncProgress.end
+        ? hexToNumber(syncProgress.end.number)
         : Number.POSITIVE_INFINITY,
     );
   }
@@ -799,7 +780,7 @@ export async function* localHistoricalSyncHelper({
     const interval: Interval = [
       fromBlock,
       Math.min(
-        hexToNumber(blockProgress.finalized.number),
+        hexToNumber(syncProgress.finalized.number),
         fromBlock + estimateRange,
       ),
     ];
@@ -822,15 +803,15 @@ export async function* localHistoricalSyncHelper({
     // Update cursor to record progress
     fromBlock = interval[1] + 1;
 
-    blockProgress.latest = historicalSync.latestBlock;
-    if (blockProgress.latest === undefined) continue;
+    syncProgress.current = historicalSync.latestBlock;
+    if (syncProgress.current === undefined) continue;
 
     yield;
 
     if (
-      isSyncExhaustive(blockProgress) ||
-      hexToNumber(blockProgress.finalized.number) ===
-        hexToNumber(blockProgress.latest.number)
+      isSyncComplete(syncProgress) ||
+      hexToNumber(syncProgress.finalized.number) ===
+        hexToNumber(syncProgress.current.number)
     ) {
       return;
     }
