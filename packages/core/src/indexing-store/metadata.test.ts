@@ -13,16 +13,12 @@ beforeEach(setupIsolatedDatabase);
 const schema = createSchema(() => ({}));
 
 test("getMetadata() empty", async (context) => {
-  const { database, namespaceInfo, cleanup } = await setupDatabaseServices(
-    context,
-    {
-      schema,
-    },
-  );
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo,
-    db: database.indexingDb,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   const status = await metadataStore.getStatus();
@@ -33,16 +29,12 @@ test("getMetadata() empty", async (context) => {
 });
 
 test("setMetadata()", async (context) => {
-  const { database, namespaceInfo, cleanup } = await setupDatabaseServices(
-    context,
-    {
-      schema,
-    },
-  );
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo,
-    db: database.indexingDb,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   await metadataStore.setStatus({

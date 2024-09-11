@@ -74,7 +74,7 @@ type CreateSyncParameters = {
   networks: Network[];
   onRealtimeEvent(event: RealtimeEvent): void;
   onFatalError(error: Error): void;
-  initialCheckpoint: Checkpoint;
+  initialCheckpoint: string;
 };
 
 export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
@@ -272,9 +272,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
      * use that. Otherwise, use `start`
      */
     const start =
-      encodeCheckpoint(args.initialCheckpoint) !==
-      encodeCheckpoint(zeroCheckpoint)
-        ? encodeCheckpoint(args.initialCheckpoint)
+      args.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
+        ? args.initialCheckpoint
         : getChainsCheckpoint("start")!;
 
     // Cursor used to track progress.

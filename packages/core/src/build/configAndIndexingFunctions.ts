@@ -99,32 +99,6 @@ export async function buildConfigAndIndexingFunctions({
         msg: `Using '${schema}' database schema for indexed tables (${source})`,
       });
 
-      let publishSchema: string | undefined = undefined;
-      if (config.database.publishSchema !== undefined) {
-        publishSchema = config.database.publishSchema;
-        source = "from ponder.config.ts";
-      } else if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
-        publishSchema = "public";
-        source = "default for Railway deployment";
-      }
-      if (publishSchema !== undefined) {
-        logs.push({
-          level: "info",
-          msg: `Using '${publishSchema}' database schema for published views (${source})`,
-        });
-      } else {
-        logs.push({
-          level: "debug",
-          msg: "Will not publish views (publish schema was not set in ponder.config.ts)",
-        });
-      }
-
-      if (schema !== undefined && schema === publishSchema) {
-        throw new Error(
-          `Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('${schema}').`,
-        );
-      }
-
       const poolConfig = {
         max: config.database.poolConfig?.max ?? 30,
         connectionString,
@@ -134,7 +108,6 @@ export async function buildConfigAndIndexingFunctions({
         kind: "postgres",
         poolConfig,
         schema,
-        publishSchema,
       };
     } else {
       logs.push({
@@ -184,36 +157,12 @@ export async function buildConfigAndIndexingFunctions({
         msg: `Using '${schema}' database schema for indexed tables (${source})`,
       });
 
-      let publishSchema: string | undefined = undefined;
-      if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
-        publishSchema = "public";
-        source = "default for Railway deployment";
-      }
-      if (publishSchema !== undefined) {
-        logs.push({
-          level: "info",
-          msg: `Using '${publishSchema}' database schema for published views (${source})`,
-        });
-      } else {
-        logs.push({
-          level: "debug",
-          msg: "Will not publish views (publish schema was not set in ponder.config.ts)",
-        });
-      }
-
-      if (schema !== undefined && schema === publishSchema) {
-        throw new Error(
-          `Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('${schema}').`,
-        );
-      }
-
       const poolConfig = { max: 30, connectionString };
 
       databaseConfig = {
         kind: "postgres",
         poolConfig,
         schema,
-        publishSchema,
       };
     } else {
       // Fall back to SQLite.
@@ -846,19 +795,8 @@ export async function buildConfigAndIndexingFunctions({
     return hasSources;
   });
 
-  const optionsConfig: Partial<Options> = {};
-  if (config.options?.maxHealthcheckDuration !== undefined) {
-    optionsConfig.maxHealthcheckDuration =
-      config.options.maxHealthcheckDuration;
-    logs.push({
-      level: "info",
-      msg: `Set max healthcheck duration to ${optionsConfig.maxHealthcheckDuration} seconds (from ponder.config.ts)`,
-    });
-  }
-
   return {
     databaseConfig,
-    optionsConfig,
     networks: networksWithSources,
     sources,
     indexingFunctions,
@@ -888,7 +826,6 @@ export async function safeBuildConfigAndIndexingFunctions({
       networks: result.networks,
       indexingFunctions: result.indexingFunctions,
       databaseConfig: result.databaseConfig,
-      optionsConfig: result.optionsConfig,
       logs: result.logs,
     } as const;
   } catch (_error) {

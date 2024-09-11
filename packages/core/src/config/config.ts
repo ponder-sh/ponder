@@ -35,11 +35,6 @@ type DatabaseConfig =
       };
     };
 
-export type OptionsConfig = {
-  /** Maximum number of seconds to wait for historical indexing to complete before responding as healthy. If historical indexing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
-  maxHealthcheckDuration?: number;
-};
-
 export type NetworkConfig<network> = {
   /** Chain ID of the network. */
   chainId: network extends { chainId: infer chainId extends number }
@@ -204,7 +199,6 @@ export const createConfig = <
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
-  options?: OptionsConfig;
   blocks?: BlockFiltersConfig<networks, blocks>;
 }): CreateConfigReturnType<networks, contracts, blocks> =>
   config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
@@ -213,7 +207,6 @@ export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   database?: DatabaseConfig;
-  options?: OptionsConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
   };
@@ -223,6 +216,5 @@ export type CreateConfigReturnType<networks, contracts, blocks> = {
   networks: networks;
   contracts: contracts;
   database?: DatabaseConfig;
-  options?: OptionsConfig;
   blocks: blocks;
 };

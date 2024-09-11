@@ -9,5 +9,4 @@ export type DatabaseConfig =
       kind: "postgres";
       poolConfig: PoolConfig;
       schema: string;
-      publishSchema?: string | undefined;
     };
