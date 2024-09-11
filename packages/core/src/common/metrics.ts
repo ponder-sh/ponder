@@ -343,7 +343,7 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     0,
   );
   const progress =
-    totalBlocks === 0 ? 0 : (completedBlocks + cachedBlocks) / totalBlocks;
+    totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
 
   return {
     overall: { totalBlocks, cachedBlocks, completedBlocks, progress },

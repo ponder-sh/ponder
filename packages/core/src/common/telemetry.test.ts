@@ -46,6 +46,7 @@ test("telemetry calls fetch with event body", async (context) => {
     properties: { duration_seconds: process.uptime() },
   });
 
+  await wait(0);
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -76,6 +77,7 @@ test("telemetry does not submit events if telemetry is disabled", async (context
     properties: { duration_seconds: process.uptime() },
   });
 
+  await wait(0);
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(0);
@@ -94,6 +96,7 @@ test("telemetry throws if event is submitted after kill", async (context) => {
     });
   }
 
+  await wait(0);
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
