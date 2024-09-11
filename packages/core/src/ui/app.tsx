@@ -6,6 +6,7 @@ import Table from "./Table.js";
 
 export type UiState = {
   port: number;
+  hostname: string;
 
   historical: {
     overall: {
@@ -76,13 +77,14 @@ export const buildUiState = () => {
     },
 
     port: 0,
+    hostname: "localhost",
   };
 
   return ui;
 };
 
 const App = (ui: UiState) => {
-  const { historical, indexing, port } = ui;
+  const { historical, indexing, port, hostname } = ui;
 
   if (indexing.hasError) {
     return (
@@ -374,7 +376,9 @@ const App = (ui: UiState) => {
       <Box flexDirection="column">
         <Text bold>GraphQL </Text>
         <Box flexDirection="row">
-          <Text>Server live at http://localhost:{port}</Text>
+          <Text>
+            Server live at http://{hostname}:{port}
+          </Text>
         </Box>
       </Box>
     </Box>
