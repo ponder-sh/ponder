@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.5.23
+
+### Patch Changes
+
+- [#1096](https://github.com/ponder-sh/ponder/pull/1096) [`9b4a07716ad790e3bb3bac02d9af81f934b14a81`](https://github.com/ponder-sh/ponder/commit/9b4a07716ad790e3bb3bac02d9af81f934b14a81) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed metrics for event sources with unfinalized start blocks.
+
+- [#1064](https://github.com/ponder-sh/ponder/pull/1064) [`5760e6ff2e067807cb7e29a5b1bf5677b1d0dd82`](https://github.com/ponder-sh/ponder/commit/5760e6ff2e067807cb7e29a5b1bf5677b1d0dd82) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a bug where the terminal UI would display the wrong hostname.
+
 ## 0.5.22
 
 ### Patch Changes
