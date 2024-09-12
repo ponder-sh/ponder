@@ -19,7 +19,8 @@ type DefaultTo<column extends BuilderScalarColumn> = (
 
 const defaultTo =
   <column extends BuilderScalarColumn>(col: column): DefaultTo<column> =>
-  (val: DefaultValue<column[" scalar"]>): any => {
+  // @ts-expect-error
+  (val: DefaultValue<column[" scalar"]>) => {
     const scalar = col[" scalar"];
     let v = val;
     if (scalar === "hex") {
