@@ -20,8 +20,16 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
+import { formatPercentage } from "@/utils/format.js";
 import { mergeAsyncGenerators } from "@/utils/generators.js";
-import type { Interval } from "@/utils/interval.js";
+import {
+  type Interval,
+  intervalDifference,
+  intervalIntersection,
+  intervalIntersectionMany,
+  intervalSum,
+  sortIntervals,
+} from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
@@ -67,6 +75,7 @@ export type Status = {
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
   end: SyncBlock | LightBlock | undefined;
+  cached: SyncBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
 };
@@ -105,6 +114,16 @@ export const isSyncComplete = (syncProgress: SyncProgress) => {
     hexToNumber(syncProgress.current.number) >=
     hexToNumber(syncProgress.end.number)
   );
+};
+
+/** Returns the closest-to-tip block that is part of the historical sync. */
+export const getHistoricalLast = (syncProgress: SyncProgress) => {
+  return syncProgress.end === undefined
+    ? syncProgress.finalized
+    : hexToNumber(syncProgress.end.number) >
+        hexToNumber(syncProgress.finalized.number)
+      ? syncProgress.finalized
+      : syncProgress.end;
 };
 
 /** Returns the checkpoint for a given block tag. */
@@ -170,15 +189,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const sources = args.sources.filter(
         ({ filter }) => filter.chainId === network.chainId,
       );
-      const syncProgress: SyncProgress = {
-        ...(await syncDiagnostic({
-          common: args.common,
-          sources,
-          requestQueue,
-          network,
-        })),
-        current: undefined,
-      };
+
       const historicalSync = await createHistoricalSync({
         common: args.common,
         sources,
@@ -203,8 +214,21 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
         onFatalError: args.onFatalError,
       });
-
-      historicalSync.initializeMetrics(syncProgress.finalized, true);
+      const cached = await getCachedBlock({
+        sources,
+        requestQueue,
+        historicalSync,
+      });
+      const syncProgress: SyncProgress = {
+        ...(await syncDiagnostic({
+          common: args.common,
+          sources,
+          requestQueue,
+          network,
+        })),
+        cached,
+        current: cached,
+      };
 
       localSyncContext.set(network, {
         requestQueue,
@@ -340,16 +364,23 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     // Cursor used to track progress.
     let from = start;
 
+    let showLogs = true;
     while (true) {
       const syncGenerator = mergeAsyncGenerators(
-        Array.from(localSyncContext.values()).map(
-          ({ syncProgress, historicalSync }) =>
+        Array.from(localSyncContext.entries()).map(
+          ([network, { syncProgress, historicalSync }]) =>
             localHistoricalSyncGenerator({
+              common: args.common,
+              network,
               syncProgress,
               historicalSync,
+              showLogs,
             }),
         ),
       );
+
+      // Only show logs on the first iteration
+      showLogs = false;
 
       for await (const _ of syncGenerator) {
         /**
@@ -455,7 +486,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       await Promise.all(
         Array.from(localSyncContext.entries()).map(
-          async ([network, { requestQueue, syncProgress, historicalSync }]) => {
+          async ([network, { requestQueue, syncProgress }]) => {
             args.common.logger.debug({
               service: "sync",
               msg: `Refetching '${network.name}' finalized block`,
@@ -474,7 +505,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               blockNumber: finalizedBlockNumber,
             });
 
-            historicalSync.initializeMetrics(syncProgress.finalized, false);
+            const historicalLast = getHistoricalLast(syncProgress);
+
+            // Set metric "ponder_historical_total_blocks"
+            args.common.metrics.ponder_historical_total_blocks.set(
+              { network: network.name },
+              hexToNumber(historicalLast.number) -
+                hexToNumber(syncProgress.start.number) +
+                1,
+            );
           },
         ),
       );
@@ -743,13 +782,71 @@ export const syncDiagnostic = async ({
   };
 };
 
-/** Predictive pagination for `historicalSync.sync()` */
-export async function* localHistoricalSyncGenerator({
-  syncProgress,
+/** Returns the closest-to-tip block that has been synced for all `sources`. */
+export const getCachedBlock = ({
+  sources,
+  requestQueue,
   historicalSync,
 }: {
+  sources: Source[];
+  requestQueue: RequestQueue;
+  historicalSync: HistoricalSync;
+}): Promise<SyncBlock> | undefined => {
+  const latestCompletedBlocks = sources.map(({ filter }) => {
+    const requiredInterval = [
+      filter.fromBlock,
+      filter.toBlock ?? Number.POSITIVE_INFINITY,
+    ] satisfies Interval;
+    const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
+
+    const completedIntervals = sortIntervals(
+      intervalIntersection([requiredInterval], cachedIntervals),
+    );
+
+    if (completedIntervals.length === 0) return undefined;
+
+    const earliestCompletedInterval = completedIntervals[0]!;
+    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
+    return earliestCompletedInterval[1];
+  });
+
+  const minCompletedBlock = Math.min(
+    ...(latestCompletedBlocks.filter(
+      (block) => block !== undefined,
+    ) as number[]),
+  );
+
+  /**  Filter i has known progress if a completed interval is found or if
+   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
+   * is > `_minCompletedBlock`.
+   */
+  if (
+    latestCompletedBlocks.every(
+      (block, i) =>
+        block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
+    )
+  ) {
+    return _eth_getBlockByNumber(requestQueue, {
+      blockNumber: minCompletedBlock,
+    });
+  }
+
+  return undefined;
+};
+
+/** Predictive pagination and metrics for `historicalSync.sync()` */
+export async function* localHistoricalSyncGenerator({
+  common,
+  network,
+  syncProgress,
+  historicalSync,
+  showLogs,
+}: {
+  common: Common;
+  network: Network;
   syncProgress: SyncProgress;
   historicalSync: HistoricalSync;
+  showLogs: boolean;
 }): AsyncGenerator {
   // Return immediately if the `syncProgress.start` is unfinalized
   if (
@@ -757,8 +854,52 @@ export async function* localHistoricalSyncGenerator({
     hexToNumber(syncProgress.finalized.number)
   ) {
     syncProgress.current = syncProgress.finalized;
+
+    if (showLogs) {
+      common.logger.warn({
+        service: "historical",
+        msg: `Skipped historical sync for '${network.name}' because the start block is not finalized`,
+      });
+    }
+
     return;
   }
+
+  const historicalLast = getHistoricalLast(syncProgress);
+
+  // Intialize metrics
+
+  const interval = [
+    hexToNumber(syncProgress.start.number),
+    hexToNumber(historicalLast.number),
+  ] satisfies Interval;
+
+  const total = interval[1] - interval[0] + 1;
+
+  const required = intervalSum(
+    intervalDifference(
+      [interval],
+      intervalIntersectionMany(
+        Array.from(historicalSync.intervalsCache.values()),
+      ),
+    ),
+  );
+
+  const label = { network: network.name };
+  // Set "ponder_historical_total_blocks"
+  common.metrics.ponder_historical_total_blocks.set(label, total);
+  // Set "ponder_historical_sync_cached_blocks"
+  common.metrics.ponder_historical_cached_blocks.set(label, total - required);
+
+  if (showLogs) {
+    common.logger.info({
+      service: "historical",
+      msg: `Started syncing '${network.name}' with ${formatPercentage(
+        (total - required) / total,
+      )} cached`,
+    });
+  }
+
   /**
    * Estimate optimal range (blocks) to sync at a time, eventually to be used to
    * determine `interval` passed to `historicalSync.sync()`.
@@ -767,16 +908,25 @@ export async function* localHistoricalSyncGenerator({
   // Cursor to track progress.
   let fromBlock = hexToNumber(syncProgress.start.number);
 
-  // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
-  // is defined (a cache hit has occurred)
-  if (historicalSync.latestBlock !== undefined) {
-    fromBlock = Math.min(
-      hexToNumber(historicalSync.latestBlock.number) + 1,
-      hexToNumber(syncProgress.finalized.number),
-      syncProgress.end
-        ? hexToNumber(syncProgress.end.number)
-        : Number.POSITIVE_INFINITY,
-    );
+  // Handle a cache hit by fast forwarding and potentially exiting
+  if (syncProgress.cached !== undefined) {
+    // `getEvents` can make progress without calling `sync`, so immediately "yield"
+    yield;
+
+    if (
+      hexToNumber(syncProgress.cached.number) ===
+      hexToNumber(historicalLast.number)
+    ) {
+      if (showLogs) {
+        common.logger.info({
+          service: "historical",
+          msg: `Skipped historical sync for '${network.name}' because all blocks are cached.`,
+        });
+      }
+      return;
+    }
+
+    fromBlock = hexToNumber(syncProgress.cached.number) + 1;
   }
 
   while (true) {
@@ -788,15 +938,18 @@ export async function* localHistoricalSyncGenerator({
      */
     const interval: Interval = [
       fromBlock,
-      Math.min(
-        hexToNumber(syncProgress.finalized.number),
-        fromBlock + estimateRange,
-      ),
+      Math.min(fromBlock + estimateRange, hexToNumber(historicalLast.number)),
     ];
 
     const endClock = startClock();
-    await historicalSync.sync(interval);
+    syncProgress.current = await historicalSync.sync(interval);
     const duration = endClock();
+
+    common.metrics.ponder_historical_duration.observe(label, duration);
+    common.metrics.ponder_historical_completed_blocks.inc(
+      label,
+      interval[1] - interval[0] + 1,
+    );
 
     // Use the duration and interval of the last call to `sync` to update estimate
     // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
@@ -811,9 +964,6 @@ export async function* localHistoricalSyncGenerator({
 
     // Update cursor to record progress
     fromBlock = interval[1] + 1;
-
-    if (historicalSync.latestBlock === undefined) continue;
-    syncProgress.current = historicalSync.latestBlock;
 
     yield;
 

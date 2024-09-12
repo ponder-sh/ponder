@@ -12,20 +12,12 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type {
-  LightBlock,
-  SyncBlock,
-  SyncCallTrace,
-  SyncLog,
-} from "@/types/sync.js";
+import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
   getChunks,
   intervalDifference,
-  intervalIntersection,
-  intervalSum,
-  sortIntervals,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -47,14 +39,12 @@ import {
 } from "viem";
 
 export type HistoricalSync = {
-  /** Closest-to-tip block that is synced. */
-  latestBlock: SyncBlock | undefined;
-  /** Extract raw data for `interval`. */
-  sync(interval: Interval): Promise<void>;
-  initializeMetrics(
-    finalizedBlock: LightBlock | SyncBlock,
-    isInitialCall: boolean,
-  ): void;
+  intervalsCache: Map<Filter, Interval[]>;
+  /**
+   * Extract raw data for `interval` and return the closest-to-tip block
+   * that is synced.
+   */
+  sync(interval: Interval): Promise<SyncBlock>;
   kill(): void;
 };
 
@@ -99,7 +89,7 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  const intervalsCache: Map<Filter | Factory, Interval[]> = new Map();
+  const intervalsCache: Map<Filter, Interval[]> = new Map();
 
   // Populate `intervalsCache` by querying the sync-store.
   for (const { filter } of args.sources) {
@@ -107,53 +97,8 @@ export const createHistoricalSync = async (
     intervalsCache.set(filter, intervals);
   }
 
-  // Closest-to-tip block that has been fully injested.
+  // Closest-to-tip block that has been synced.
   let latestBlock: SyncBlock | undefined;
-
-  /**
-   * Attempt to initialize `latestBlock` to the minimum completed block
-   * across all filters. This is only possible if every filter has made
-   * some progress.
-   */
-  const _latestCompletedBlocks = args.sources.map(({ filter }) => {
-    const requiredInterval = [
-      filter.fromBlock,
-      filter.toBlock ?? Number.POSITIVE_INFINITY,
-    ] satisfies Interval;
-    const cachedIntervals = intervalsCache.get(filter)!;
-
-    const completedIntervals = sortIntervals(
-      intervalIntersection([requiredInterval], cachedIntervals),
-    );
-
-    if (completedIntervals.length === 0) return undefined;
-
-    const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
-    return earliestCompletedInterval[1];
-  });
-
-  const _minCompletedBlock = Math.min(
-    ...(_latestCompletedBlocks.filter(
-      (block) => block !== undefined,
-    ) as number[]),
-  );
-
-  /**  Filter i has known progress if a completed interval is found or if
-   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
-   * is > `_minCompletedBlock`.
-   */
-  if (
-    _latestCompletedBlocks.every(
-      (block, i) =>
-        block !== undefined ||
-        args.sources[i]!.filter.fromBlock > _minCompletedBlock,
-    )
-  ) {
-    latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: _minCompletedBlock,
-    });
-  }
 
   ////////
   // Helper functions for specific sync tasks
@@ -479,16 +424,11 @@ export const createHistoricalSync = async (
   const interval = setInterval(async () => {
     const historical = await getHistoricalSyncProgress(args.common.metrics);
 
-    for (const {
-      networkName,
-      sourceName,
-      progress,
-      eta,
-    } of historical.sources) {
+    for (const { networkName, progress, eta } of historical.networks) {
       if (progress === 1 || networkName !== args.network.name) return;
       args.common.logger.info({
         service: "historical",
-        msg: `Syncing '${networkName}' for '${sourceName}' with ${formatPercentage(
+        msg: `Syncing '${networkName}' with ${formatPercentage(
           progress ?? 0,
         )} complete${eta !== undefined ? ` and ~${formatEta(eta)} remaining` : ""}`,
       });
@@ -496,9 +436,7 @@ export const createHistoricalSync = async (
   }, 10_000);
 
   return {
-    get latestBlock() {
-      return latestBlock;
-    },
+    intervalsCache,
     async sync(_interval) {
       await Promise.all(
         args.sources.map(async (source) => {
@@ -540,15 +478,6 @@ export const createHistoricalSync = async (
                 switch (filter.type) {
                   case "log": {
                     await syncLogFilter(filter, interval);
-                    // TODO(kyle) more frequently updating metrics
-                    args.common.metrics.ponder_historical_completed_blocks.inc(
-                      {
-                        network: source.networkName,
-                        source: source.name,
-                        type: source.filter.type,
-                      },
-                      interval[1] - interval[0] + 1,
-                    );
                     break;
                   }
 
@@ -557,15 +486,6 @@ export const createHistoricalSync = async (
                       getChunks({ interval, maxChunkSize: 10 }).map(
                         async (interval) => {
                           await syncTraceFilter(filter, interval);
-
-                          args.common.metrics.ponder_historical_completed_blocks.inc(
-                            {
-                              network: source.networkName,
-                              source: source.name,
-                              type: source.filter.type,
-                            },
-                            interval[1] - interval[0] + 1,
-                          );
                         },
                       ),
                     );
@@ -576,15 +496,6 @@ export const createHistoricalSync = async (
                 }
               } else {
                 await syncBlockFilter(source.filter, interval);
-
-                args.common.metrics.ponder_historical_completed_blocks.inc(
-                  {
-                    network: source.networkName,
-                    source: source.name,
-                    type: source.filter.type,
-                  },
-                  interval[1] - interval[0] + 1,
-                );
               }
             }),
           );
@@ -614,71 +525,8 @@ export const createHistoricalSync = async (
       ]);
       blockCache.clear();
       transactionsCache.clear();
-    },
-    initializeMetrics(finalizedBlock, isInitialCall) {
-      if (isInitialCall) {
-        args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
-        args.common.metrics.ponder_realtime_is_connected.set(
-          { network: args.network.name },
-          0,
-        );
-      }
 
-      for (const source of args.sources) {
-        const label = {
-          network: source.networkName,
-          source: source.name,
-          type: source.filter.type,
-        };
-
-        if (source.filter.fromBlock > hexToNumber(finalizedBlock.number)) {
-          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
-
-          if (isInitialCall) {
-            args.common.logger.warn({
-              service: "historical",
-              msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
-            });
-          }
-
-          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
-          args.common.metrics.ponder_historical_cached_blocks.set(label, 0);
-        } else {
-          const interval = [
-            source.filter.fromBlock,
-            source.filter.toBlock ?? hexToNumber(finalizedBlock.number),
-          ] satisfies Interval;
-
-          const requiredIntervals = intervalDifference(
-            [interval],
-            intervalsCache.get(source.filter)!,
-          );
-
-          const totalBlocks = interval[1] - interval[0] + 1;
-          const cachedBlocks = totalBlocks - intervalSum(requiredIntervals);
-
-          args.common.metrics.ponder_historical_total_blocks.set(
-            label,
-            totalBlocks,
-          );
-
-          args.common.metrics.ponder_historical_cached_blocks.set(
-            label,
-            cachedBlocks,
-          );
-
-          if (isInitialCall) {
-            args.common.logger.info({
-              service: "historical",
-              msg: `Started syncing '${source.networkName}' for '${
-                source.name
-              }' with ${formatPercentage(
-                Math.min(1, cachedBlocks / (totalBlocks || 1)),
-              )} cached`,
-            });
-          }
-        }
-      }
+      return latestBlock!;
     },
     kill() {
       isKilled = true;

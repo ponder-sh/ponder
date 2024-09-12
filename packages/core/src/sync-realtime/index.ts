@@ -593,7 +593,7 @@ export const createRealtimeSync = (
                 service: "realtime",
                 msg: `Fetched ${missingBlockRange.length} missing '${
                   args.network.name
-                }' blocks from ${latestLocalBlock.number + 1} to ${Math.min(
+                }' blocks from ${hexToNumber(latestLocalBlock.number) + 1} to ${Math.min(
                   hexToNumber(block.number),
                   hexToNumber(latestLocalBlock.number) + MAX_QUEUED_BLOCKS,
                 )}`,
