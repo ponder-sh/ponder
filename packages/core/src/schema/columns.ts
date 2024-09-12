@@ -11,15 +11,10 @@ import type {
 
 type Default<column extends BuilderScalarColumn> = (
   val: DefaultValue<column[" scalar"]>,
-) => BuilderScalarColumn<
-  column[" scalar"],
-  column[" optional"],
-  column[" list"]
->;
+) => BuilderScalarColumn;
 
 const defaultTo =
   <column extends BuilderScalarColumn>(col: column): Default<column> =>
-  // @ts-expect-error
   (val: DefaultValue<column[" scalar"]>) => {
     const scalar = col[" scalar"];
     let v = val as string;
