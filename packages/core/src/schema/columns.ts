@@ -17,9 +17,10 @@ type DefaultTo<column extends BuilderScalarColumn> = (
   column[" list"]
 >;
 
+type DefaultToReturnType<T extends ScalarColumn> = ReturnType<DefaultTo<T>>;
+
 const defaultTo =
   <column extends BuilderScalarColumn>(col: column): DefaultTo<column> =>
-  // @ts-expect-error
   (val: DefaultValue<column[" scalar"]>) => {
     const scalar = col[" scalar"];
     let v = val;
@@ -42,7 +43,7 @@ const defaultTo =
       list: list(newCol),
       references: references(newCol),
       optional: optional(newCol),
-    };
+    } as DefaultToReturnType<column>;
   };
 
 type Optional<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
