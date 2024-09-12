@@ -751,6 +751,14 @@ export async function* localHistoricalSyncGenerator({
   syncProgress: SyncProgress;
   historicalSync: HistoricalSync;
 }): AsyncGenerator {
+  // Return immediately if the `syncProgress.start` is unfinalized
+  if (
+    hexToNumber(syncProgress.start.number) >
+    hexToNumber(syncProgress.finalized.number)
+  ) {
+    syncProgress.current = syncProgress.finalized;
+    return;
+  }
   /**
    * Estimate optimal range (blocks) to sync at a time, eventually to be used to
    * determine `interval` passed to `historicalSync.sync()`.
@@ -758,11 +766,6 @@ export async function* localHistoricalSyncGenerator({
   let estimateRange = 25;
   // Cursor to track progress.
   let fromBlock = hexToNumber(syncProgress.start.number);
-  // Return early if the `syncProgress.start` is unfinalized
-  if (fromBlock > hexToNumber(syncProgress.finalized.number)) {
-    syncProgress.current = syncProgress.finalized;
-    return;
-  }
 
   // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
   // is defined (a cache hit has occurred)
