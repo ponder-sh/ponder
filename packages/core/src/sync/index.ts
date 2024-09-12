@@ -758,6 +758,12 @@ export async function* localHistoricalSyncGenerator({
   let estimateRange = 25;
   // Cursor to track progress.
   let fromBlock = hexToNumber(syncProgress.start.number);
+  // Return early if the `syncProgress.start` is unfinalized
+  if (fromBlock > hexToNumber(syncProgress.finalized.number)) {
+    syncProgress.current = syncProgress.finalized;
+    return;
+  }
+
   // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
   // is defined (a cache hit has occurred)
   if (historicalSync.latestBlock !== undefined) {
@@ -803,8 +809,8 @@ export async function* localHistoricalSyncGenerator({
     // Update cursor to record progress
     fromBlock = interval[1] + 1;
 
+    if (historicalSync.latestBlock === undefined) continue;
     syncProgress.current = historicalSync.latestBlock;
-    if (syncProgress.current === undefined) continue;
 
     yield;
 
