@@ -43,6 +43,7 @@ import {
 export type HistoricalSync = {
   /** Closest-to-tip block that is synced. */
   latestBlock: SyncBlock | undefined;
+  intervalsCache: Map<Filter, Interval[]>;
   /** Extract raw data for `interval`. */
   sync(interval: Interval): Promise<void>;
   kill(): void;
@@ -89,7 +90,7 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  const intervalsCache: Map<Filter | Factory, Interval[]> = new Map();
+  const intervalsCache: Map<Filter, Interval[]> = new Map();
 
   // Populate `intervalsCache` by querying the sync-store.
   for (const { filter } of args.sources) {
@@ -484,6 +485,7 @@ export const createHistoricalSync = async (
     get latestBlock() {
       return latestBlock;
     },
+    intervalsCache,
     async sync(_interval) {
       await Promise.all(
         args.sources.map(async (source) => {

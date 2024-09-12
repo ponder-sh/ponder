@@ -250,7 +250,7 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     .then((metrics) => metrics.values);
   const syncDurationSum: { [network: string]: number } = {};
   for (const m of syncDurationMetric) {
-    if (m.metricName === "ponder_historical_sync_duration_sum") {
+    if (m.metricName === "ponder_historical_duration_sum") {
       syncDurationSum[m.labels.network!] = m.value;
     }
   }
