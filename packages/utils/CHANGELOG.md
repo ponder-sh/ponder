@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.1.8
+
+### Patch Changes
+
+- [#1065](https://github.com/ponder-sh/ponder/pull/1065) [`7c17ff32e8907b4a38d74cea2a431b689236048c`](https://github.com/ponder-sh/ponder/commit/7c17ff32e8907b4a38d74cea2a431b689236048c) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retry range detection for coinbase rpcs.
+
 ## 0.1.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.5.13",
+  "version": "0.5.23",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -35,7 +35,7 @@
   "peerDependencies": {
     "hono": ">=4.5",
     "typescript": ">=5.0.4",
-    "viem": ">=1.16"
+    "viem": ">=2"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -48,14 +48,14 @@
     "@escape.tech/graphql-armor-max-aliases": "^2.3.0",
     "@escape.tech/graphql-armor-max-depth": "^2.2.0",
     "@escape.tech/graphql-armor-max-tokens": "^2.3.0",
-    "@hono/node-server": "^1.11.2",
+    "@hono/node-server": "^1.12.2",
     "@ponder/utils": "workspace:*",
     "abitype": "^0.10.2",
     "better-sqlite3": "^11.1.2",
     "commander": "^12.0.0",
     "conf": "^12.0.0",
     "dataloader": "^2.2.2",
-    "detect-package-manager": "^3.0.1",
+    "detect-package-manager": "^3.0.2",
     "dotenv": "^16.3.1",
     "drizzle-orm": "^0.31.2",
     "glob": "^10.3.10",

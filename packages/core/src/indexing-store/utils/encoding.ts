@@ -52,13 +52,13 @@ export function encodeRecord({
   record,
   table,
   schema,
-  encoding,
+  dialect,
   skipValidation,
 }: {
   record: Partial<UserRecord>;
   table: Table;
   schema: Schema;
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
   skipValidation: boolean;
 }): DatabaseRecord {
   const instance: DatabaseRecord = {};
@@ -72,7 +72,7 @@ export function encodeRecord({
     instance[columnName] = encodeValue({
       value,
       column,
-      encoding,
+      dialect,
     });
   }
 
@@ -86,11 +86,11 @@ export function encodeValue(
   {
     value,
     column,
-    encoding,
+    dialect,
   }: {
     value: UserValue;
     column: MaterialColumn;
-    encoding: "sqlite" | "postgres";
+    dialect: "sqlite" | "postgres";
   },
   // @ts-ignore
 ): DatabaseValue {
@@ -108,7 +108,7 @@ export function encodeValue(
     }
 
     case "json": {
-      if (encoding === "postgres") return value as Object;
+      if (dialect === "postgres") return value as Object;
       return JSON.stringify(value);
     }
 
@@ -138,7 +138,7 @@ export function encodeValue(
         case "hex":
           return Buffer.from(hexToBytes(value as Hex));
         case "bigint":
-          return encoding === "sqlite"
+          return dialect === "sqlite"
             ? encodeAsText(value as bigint)
             : (value as bigint);
         case "boolean":
@@ -343,11 +343,11 @@ function validateValue({
 export function decodeRecord({
   record,
   table,
-  encoding,
+  dialect,
 }: {
   record: DatabaseRecord;
   table: Table;
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
 }): UserRecord {
   const instance = {} as UserRecord;
 
@@ -356,7 +356,7 @@ export function decodeRecord({
       instance[columnName] = decodeValue({
         value: record[columnName]!,
         column,
-        encoding,
+        dialect,
       });
     }
   }
@@ -367,11 +367,11 @@ export function decodeRecord({
 function decodeValue({
   value,
   column,
-  encoding,
+  dialect,
 }: {
   value: DatabaseValue;
   column: ScalarColumn | ReferenceColumn | EnumColumn | JSONColumn;
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
 }): UserValue {
   if (value === null) return null;
   else if (isEnumColumn(column)) {
@@ -380,7 +380,7 @@ function decodeValue({
     }
     return value as UserValue;
   } else if (isJSONColumn(column)) {
-    return encoding === "postgres" ? value : JSON.parse(value as string);
+    return dialect === "postgres" ? value : JSON.parse(value as string);
   } else if (isListColumn(column)) {
     return column[" scalar"] === "bigint"
       ? JSON.parse(value as string).map(BigInt)
@@ -389,7 +389,7 @@ function decodeValue({
     return value === 1;
   } else if (column[" scalar"] === "hex") {
     return bytesToHex(value as Buffer);
-  } else if (column[" scalar"] === "bigint" && encoding === "sqlite") {
+  } else if (column[" scalar"] === "bigint" && dialect === "sqlite") {
     return decodeToBigInt(value as string);
   } else {
     return value as UserValue;

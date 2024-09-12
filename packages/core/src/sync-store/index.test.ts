@@ -24,7 +24,7 @@ beforeEach(setupIsolatedDatabase);
 
 test("setup creates tables", async (context) => {
   const { cleanup, database } = await setupDatabaseServices(context);
-  const tables = await database.syncDb.introspection.getTables();
+  const tables = await database.qb.sync.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
 
   expect(tableNames).toContain("blocks");
@@ -291,6 +291,7 @@ test("getChildAddresses()", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0] }],
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
 
@@ -324,6 +325,7 @@ test("filterChildAddresses()", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0] }],
+    shouldUpdateCheckpoint: false,
     chainId: 1,
   });
 
@@ -347,10 +349,11 @@ test("insertLogs()", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
 
   cleanup();
@@ -362,14 +365,16 @@ test("insertLogs() with duplicates", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
 
   cleanup();
@@ -381,10 +386,11 @@ test("insertLogs() creates checkpoint", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   const checkpoint = decodeCheckpoint(logs[0]!.checkpoint!);
 
   expect(checkpoint.blockTimestamp).toBe(
@@ -399,13 +405,47 @@ test("insertLogs() creates checkpoint", async (context) => {
   cleanup();
 });
 
+test("insertLogs() upserts checkpoint", async (context) => {
+  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block3.logs[0] }],
+    shouldUpdateCheckpoint: false,
+    chainId: 1,
+  });
+
+  let logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  expect(logs[0]!.checkpoint).toBe(null);
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
+    chainId: 1,
+  });
+
+  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  expect(logs[0]!.checkpoint).not.toBe(null);
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcData.block3.logs[0] }],
+    shouldUpdateCheckpoint: false,
+    chainId: 1,
+  });
+
+  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  expect(logs[0]!.checkpoint).not.toBe(null);
+
+  cleanup();
+});
+
 test("insertBlocks()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
 
-  const blocks = await database.syncDb
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -421,7 +461,7 @@ test("insertBlocks() with duplicates", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
 
-  const blocks = await database.syncDb
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -439,7 +479,7 @@ test("insertBlocks() creates checkpoint", async (context) => {
     chainId: 1,
   });
 
-  const blocks = await database.syncDb
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -484,7 +524,7 @@ test("insertTransactions()", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.syncDb
+  const transactions = await database.qb.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
@@ -506,7 +546,7 @@ test("insertTransactions() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.syncDb
+  const transactions = await database.qb.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
@@ -545,7 +585,7 @@ test("insertTransactionReceipts()", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.qb.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
@@ -567,7 +607,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.qb.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
@@ -608,7 +648,7 @@ test("insertCallTraces()", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.syncDb
+  const traces = await database.qb.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
@@ -628,7 +668,7 @@ test("insertCallTraces() creates checkpoint", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.syncDb
+  const traces = await database.qb.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
@@ -663,7 +703,7 @@ test("insertCallTraces() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.syncDb
+  const traces = await database.qb.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
@@ -678,6 +718,7 @@ test("getEvents() returns events", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
@@ -717,6 +758,7 @@ test("getEvents() handles log filter logic", async (context) => {
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
@@ -727,6 +769,7 @@ test("getEvents() handles log filter logic", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
@@ -753,10 +796,12 @@ test("getEvents() handles log factory", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
@@ -783,10 +828,12 @@ test("getEvents() handles multiple log factories", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block4.logs[0], block: rpcData.block4.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
@@ -880,6 +927,7 @@ test("getEvents() handles block bounds", async (context) => {
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
@@ -894,6 +942,7 @@ test("getEvents() handles block bounds", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
@@ -926,6 +975,7 @@ test("getEvents() pagination", async (context) => {
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
@@ -968,9 +1018,12 @@ test("pruneByBlock", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
 
-  await syncStore.pruneByBlock({ fromBlock: 2, chainId: 1 });
+  await syncStore.pruneByBlock({
+    blocks: [rpcData.block3.block, rpcData.block4.block],
+    chainId: 1,
+  });
 
-  const blocks = await database.syncDb
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -1035,25 +1088,25 @@ test("pruneByChain deletes filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 0 });
 
-  const logFilterIntervals = await database.syncDb
+  const logFilterIntervals = await database.qb.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
   expect(logFilterIntervals).toHaveLength(1);
 
-  const factoryLogFilterIntervals = await database.syncDb
+  const factoryLogFilterIntervals = await database.qb.sync
     .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .execute();
   expect(factoryLogFilterIntervals).toHaveLength(1);
 
-  const traceFilterIntervals = await database.syncDb
+  const traceFilterIntervals = await database.qb.sync
     .selectFrom("traceFilterIntervals")
     .selectAll()
     .execute();
   expect(traceFilterIntervals).toHaveLength(1);
 
-  const factoryTraceFilterIntervals = await database.syncDb
+  const factoryTraceFilterIntervals = await database.qb.sync
     .selectFrom("factoryTraceFilterIntervals")
     .selectAll()
     .execute();
@@ -1117,7 +1170,7 @@ test("pruneByChain updates filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const logFilterIntervals = await database.syncDb
+  const logFilterIntervals = await database.qb.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1125,7 +1178,7 @@ test("pruneByChain updates filters", async (context) => {
   expect(logFilterIntervals).toHaveLength(2);
   expect(Number(logFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const factoryLogFilterIntervals = await database.syncDb
+  const factoryLogFilterIntervals = await database.qb.sync
     .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1133,7 +1186,7 @@ test("pruneByChain updates filters", async (context) => {
   expect(factoryLogFilterIntervals).toHaveLength(2);
   expect(Number(factoryLogFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const traceFilterIntervals = await database.syncDb
+  const traceFilterIntervals = await database.qb.sync
     .selectFrom("traceFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1141,7 +1194,7 @@ test("pruneByChain updates filters", async (context) => {
   expect(traceFilterIntervals).toHaveLength(2);
   expect(Number(traceFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const factoryTraceFilterIntervals = await database.syncDb
+  const factoryTraceFilterIntervals = await database.qb.sync
     .selectFrom("factoryTraceFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1174,7 +1227,7 @@ test("pruneByChain deletes block filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const blockFilterIntervals = await database.syncDb
+  const blockFilterIntervals = await database.qb.sync
     .selectFrom("blockFilterIntervals")
     .selectAll()
     .execute();
@@ -1205,7 +1258,7 @@ test("pruneByChain updates block filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const blockFilterIntervals = await database.syncDb
+  const blockFilterIntervals = await database.qb.sync
     .selectFrom("blockFilterIntervals")
     .selectAll()
     .orderBy("endBlock", "asc")
@@ -1226,6 +1279,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
       { log: rpcData.block2.logs[0], block: rpcData.block2.block },
       { log: rpcData.block2.logs[1], block: rpcData.block2.block },
     ],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertTransactions({
@@ -1247,6 +1301,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertLogs({
     logs: [{ log: rpcData.block3.logs[0], block: rpcData.block3.block }],
+    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertTransactions({
@@ -1266,20 +1321,20 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 3 });
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
-  const blocks = await database.syncDb
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
-  const callTraces = await database.syncDb
+  const callTraces = await database.qb.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
-  const transactions = await database.syncDb
+  const transactions = await database.qb.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.qb.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();

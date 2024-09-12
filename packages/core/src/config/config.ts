@@ -10,8 +10,6 @@ export type BlockConfig = {
   startBlock?: number;
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
   endBlock?: number;
-  /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
-  maxBlockRange?: number;
 };
 
 type DatabaseConfig =
@@ -34,11 +32,6 @@ type DatabaseConfig =
         max?: number;
       };
     };
-
-export type OptionsConfig = {
-  /** Maximum number of seconds to wait for historical indexing to complete before responding as healthy. If historical indexing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
-  maxHealthcheckDuration?: number;
-};
 
 export type NetworkConfig<network> = {
   /** Chain ID of the network. */
@@ -64,8 +57,6 @@ export type NetworkConfig<network> = {
   pollingInterval?: number;
   /** Maximum number of RPC requests per second. Default: `50`. */
   maxRequestsPerSecond?: number;
-  /** (Deprecated) Maximum concurrency of tasks during the historical sync. Default: `20`. */
-  maxHistoricalTaskConcurrency?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
 };
@@ -206,7 +197,6 @@ export const createConfig = <
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
-  options?: OptionsConfig;
   blocks?: BlockFiltersConfig<networks, blocks>;
 }): CreateConfigReturnType<networks, contracts, blocks> =>
   config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
@@ -215,7 +205,6 @@ export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   database?: DatabaseConfig;
-  options?: OptionsConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
   };
@@ -225,6 +214,5 @@ export type CreateConfigReturnType<networks, contracts, blocks> = {
   networks: networks;
   contracts: contracts;
   database?: DatabaseConfig;
-  options?: OptionsConfig;
   blocks: blocks;
 };

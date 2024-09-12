@@ -24,6 +24,8 @@ export type GetLogsRetryHelperReturnType =
       shouldRetry: true;
       /** Suggested values to use for (fromBlock, toBlock) in follow-up eth_getLogs requests. */
       ranges: { fromBlock: Hex; toBlock: Hex }[];
+      /** `true` if the error message suggested to use this range on retry. */
+      isSuggestedRange: boolean;
     }
   | {
       shouldRetry: false;
@@ -50,6 +52,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -71,6 +74,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -86,6 +90,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -107,6 +112,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -125,6 +131,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -143,6 +150,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -163,6 +171,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -183,6 +192,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -203,6 +213,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -223,6 +234,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -241,6 +253,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -261,6 +274,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: false,
     } as const;
   }
 
@@ -278,6 +292,7 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
     } as const;
   }
 
@@ -300,6 +315,26 @@ export const getLogsRetryHelper = ({
     return {
       shouldRetry: true,
       ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
+  // coinbase
+  match = sError.match(/please limit the query to at most ([\d,.]+) blocks/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")) - 1n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
     } as const;
   }
 

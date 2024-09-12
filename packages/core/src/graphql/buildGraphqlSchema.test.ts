@@ -3041,15 +3041,16 @@ test("filter type has correct suffixes and types", () => {
 test("metadata", async (context) => {
   const schema = createSchema(() => ({}));
 
-  const { indexingStore, cleanup, database, namespaceInfo } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, cleanup, database } = await setupDatabaseServices(
+    context,
+    {
       schema,
-    });
+    },
+  );
 
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    db: database.indexingDb,
-    namespaceInfo,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   await metadataStore.setStatus({

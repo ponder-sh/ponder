@@ -47,7 +47,6 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -81,7 +80,6 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -141,7 +139,6 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -174,7 +171,6 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -203,7 +199,6 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
         network: {
           mainnet: {
             address: address2,
@@ -235,7 +230,6 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -818,83 +812,6 @@ test("buildConfigAndIndexingFunctions() database throws with RAILWAY_DEPLOYMENT_
     }),
   ).rejects.toThrow(
     "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
-  );
-
-  vi.unstubAllEnvs();
-});
-
-test("buildConfigAndIndexingFunctions() database with postgres uses publish schema defined in config", async () => {
-  const config = createConfig({
-    database: { kind: "postgres", publishSchema: "custom-publish" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-  vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
-  vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
-    },
-    schema: "multichain-indexer_b39cb9b7",
-    publishSchema: "custom-publish",
-  });
-
-  vi.unstubAllEnvs();
-});
-
-test("buildConfigAndIndexingFunctions() database with postgres uses 'public' as publish schema if on Railway", async () => {
-  const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-  vi.stubEnv("RAILWAY_DEPLOYMENT_ID", "b39cb9b7-7ef8-4dc4-8035-74344c11c4f2");
-  vi.stubEnv("RAILWAY_SERVICE_NAME", "multichain-indexer");
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
-    },
-    schema: "multichain-indexer_b39cb9b7",
-    publishSchema: "public",
-  });
-
-  vi.unstubAllEnvs();
-});
-
-test("buildConfigAndIndexingFunctions() database with postgres throws if schema and publishSchema are the same", async () => {
-  const config = createConfig({
-    database: { kind: "postgres", schema: "public", publishSchema: "public" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-
-  await expect(() =>
-    buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions: [],
-      options,
-    }),
-  ).rejects.toThrow(
-    "Invalid database configuration: 'publishSchema' cannot be the same as 'schema' ('public').",
   );
 
   vi.unstubAllEnvs();

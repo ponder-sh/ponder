@@ -4,8 +4,8 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import { createServer } from "@/server/service.js";
+import { createDatabase } from "@/database/index.js";
+import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -67,9 +67,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const { databaseConfig, optionsConfig, schema } = api.build;
-
-  common.options = { ...common.options, ...optionsConfig };
+  const { databaseConfig, schema } = api.build;
 
   if (databaseConfig.kind === "sqlite") {
     await shutdown({
@@ -79,22 +77,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  if (databaseConfig.publishSchema === undefined) {
-    await shutdown({
-      reason: "The 'ponder serve' command requires 'publishSchema' to be set",
-      code: 1,
-    });
-    return cleanup;
-  }
-
-  const { poolConfig, schema: userNamespace } = databaseConfig;
-  const database = new PostgresDatabaseService({
+  const database = createDatabase({
     common,
-    poolConfig,
-    userNamespace,
-    // Ensures that the `readonly` connection pool gets
-    // allocated the maximum number of connections.
-    isReadonly: true,
+    schema,
+    databaseConfig,
   });
 
   const server = await createServer({
@@ -103,7 +89,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     schema,
     database,
-    dbNamespace: databaseConfig.publishSchema,
   });
 
   cleanupReloadable = async () => {

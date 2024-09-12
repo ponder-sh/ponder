@@ -1,9 +1,7 @@
 import type { ApiBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { DatabaseService } from "@/database/service.js";
-import { SqliteDatabaseService } from "@/database/sqlite/service.js";
-import { createServer } from "@/server/service.js";
+import { createDatabase } from "@/database/index.js";
+import { createServer } from "@/server/index.js";
 
 /**
  * Starts the server for the specified build.
@@ -15,24 +13,13 @@ export async function runServer({
   common: Common;
   build: ApiBuild;
 }) {
-  const { databaseConfig, optionsConfig, schema } = build;
+  const { databaseConfig, schema } = build;
 
-  common.options = { ...common.options, ...optionsConfig };
-
-  let database: DatabaseService;
-
-  if (databaseConfig.kind === "sqlite") {
-    const { directory } = databaseConfig;
-    database = new SqliteDatabaseService({ common, directory });
-  } else {
-    const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
-    database = new PostgresDatabaseService({
-      common,
-      poolConfig,
-      userNamespace,
-      publishSchema,
-    });
-  }
+  const database = createDatabase({
+    common,
+    schema,
+    databaseConfig,
+  });
 
   const server = await createServer({
     app: build.app,
@@ -40,8 +27,6 @@ export async function runServer({
     common,
     schema,
     database,
-    dbNamespace:
-      databaseConfig.kind === "sqlite" ? "public" : databaseConfig.schema,
   });
 
   return async () => {

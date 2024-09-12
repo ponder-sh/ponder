@@ -58,3 +58,5 @@ export {
   max,
   min,
 } from "drizzle-orm";
+
+export { alias } from "@/drizzle/runtime.js";

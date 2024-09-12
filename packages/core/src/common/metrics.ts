@@ -30,10 +30,10 @@ export class MetricsService {
 
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
-  ponder_historical_sync_duration: prometheus.Histogram<"network">;
-  ponder_historical_sync_total_blocks: prometheus.Gauge<"network">;
-  ponder_historical_sync_cached_blocks: prometheus.Gauge<"network">;
-  ponder_historical_sync_completed_blocks: prometheus.Gauge<"network">;
+  ponder_historical_duration: prometheus.Histogram<"network">;
+  ponder_historical_total_blocks: prometheus.Gauge<"network">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -113,27 +113,27 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_historical_sync_duration = new prometheus.Histogram({
-      name: "ponder_historical_sync_duration",
+    this.ponder_historical_duration = new prometheus.Histogram({
+      name: "ponder_historical_duration",
       help: "Duration of historical sync execution",
       labelNames: ["network"] as const,
       buckets: httpRequestDurationMs,
       registers: [this.registry],
     });
-    this.ponder_historical_sync_total_blocks = new prometheus.Gauge({
-      name: "ponder_historical_sync_total_blocks",
+    this.ponder_historical_total_blocks = new prometheus.Gauge({
+      name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
       labelNames: ["network"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_sync_cached_blocks = new prometheus.Gauge({
-      name: "ponder_historical_sync_cached_blocks",
+    this.ponder_historical_cached_blocks = new prometheus.Gauge({
+      name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
       labelNames: ["network"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_sync_completed_blocks = new prometheus.Gauge({
-      name: "ponder_historical_sync_completed_blocks",
+    this.ponder_historical_completed_blocks = new prometheus.Gauge({
+      name: "ponder_historical_completed_blocks",
       help: "Number of blocks that have been processed for the historical sync",
       labelNames: ["network", "source", "type"] as const,
       registers: [this.registry],
@@ -245,7 +245,7 @@ export class MetricsService {
 export async function getHistoricalSyncProgress(metrics: MetricsService) {
   // Historical sync table
 
-  const syncDurationMetric = await metrics.ponder_historical_sync_duration
+  const syncDurationMetric = await metrics.ponder_historical_duration
     .get()
     .then((metrics) => metrics.values);
   const syncDurationSum: { [network: string]: number } = {};
@@ -265,16 +265,15 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
       return acc;
     }, {});
 
-  const cachedBlocksMetric = await metrics.ponder_historical_sync_cached_blocks
+  const cachedBlocksMetric = await metrics.ponder_historical_cached_blocks
     .get()
     .then(({ values }) => reduceBlockMetrics(values));
-  const totalBlocksMetric = await metrics.ponder_historical_sync_total_blocks
+  const totalBlocksMetric = await metrics.ponder_historical_total_blocks
     .get()
     .then(({ values }) => reduceBlockMetrics(values));
-  const completedBlocksMetric =
-    await metrics.ponder_historical_sync_completed_blocks
-      .get()
-      .then(({ values }) => reduceBlockMetrics(values));
+  const completedBlocksMetric = await metrics.ponder_historical_completed_blocks
+    .get()
+    .then(({ values }) => reduceBlockMetrics(values));
 
   const networks = Object.entries(totalBlocksMetric).map(
     ([network, totalBlocks]) => {
@@ -316,7 +315,7 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     0,
   );
   const progress =
-    totalBlocks === 0 ? 0 : (completedBlocks + cachedBlocks) / totalBlocks;
+    totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
 
   return {
     overall: progress,

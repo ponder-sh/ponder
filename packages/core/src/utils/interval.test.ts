@@ -1,9 +1,11 @@
 import { expect, test } from "vitest";
 import {
+  getChunks,
   intervalDifference,
   intervalIntersection,
   intervalSum,
   intervalUnion,
+  sortIntervals,
 } from "./interval.js";
 
 test("intervalSum handles empty input", () => {
@@ -193,4 +195,36 @@ test("intervalDifference does not mutate inputs", () => {
   intervalDifference([initial], remove);
 
   expect(initial).toStrictEqual([6, 17]);
+});
+
+test("sortIntervals", () => {
+  let result = sortIntervals([
+    [1, 5],
+    [4, 7],
+  ]);
+  expect(result).toStrictEqual([
+    [1, 5],
+    [4, 7],
+  ]);
+
+  result = sortIntervals([
+    [4, 7],
+    [1, 5],
+  ]);
+  expect(result).toStrictEqual([
+    [1, 5],
+    [4, 7],
+  ]);
+});
+
+test("getChunks", () => {
+  const result = getChunks({ interval: [1, 9], maxChunkSize: 2 });
+
+  expect(result).toStrictEqual([
+    [1, 2],
+    [3, 4],
+    [5, 6],
+    [7, 8],
+    [9, 9],
+  ]);
 });

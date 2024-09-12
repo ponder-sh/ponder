@@ -7,6 +7,7 @@ import {
 import { testClient } from "@/_test/utils.js";
 import {
   decodeCheckpoint,
+  encodeCheckpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -62,7 +63,7 @@ test("createSync()", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   expect(sync).toBeDefined();
@@ -82,7 +83,7 @@ test("getEvents() returns events", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -105,7 +106,7 @@ test("getEvents() with cache", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -119,7 +120,7 @@ test("getEvents() with cache", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -147,7 +148,7 @@ test("getEvents() end block", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -173,7 +174,7 @@ test("getEvents() multichain", async (context) => {
     networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -196,7 +197,7 @@ test("getEvents() updates status", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -229,7 +230,7 @@ test("getEvents() pagination", async (context) => {
     networks: [network],
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -250,7 +251,7 @@ test("getEvents() initialCheckpoint", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: maxCheckpoint,
+    initialCheckpoint: encodeCheckpoint(maxCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -275,7 +276,7 @@ test("getEvents() refetches finalized block", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await wait(1000);
@@ -297,8 +298,10 @@ test("startRealtime()", async (context) => {
     networks: context.networks,
     onRealtimeEvent: () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
+
+  await drainAsyncGenerator(sync.getEvents());
 
   sync.startRealtime();
 
@@ -330,7 +333,7 @@ test("onEvent() handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -364,7 +367,7 @@ test("onEvent() handles finalize", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await testClient.mine({ blocks: 4 });
@@ -384,7 +387,7 @@ test("onEvent() handles finalize", async (context) => {
 
 test.todo("onEvent() handles reorg");
 
-test("onEvent() multichain", async (context) => {
+test("onEvent() multichain end block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
@@ -397,11 +400,47 @@ test("onEvent() multichain", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: () => {
-      promise.resolve();
+    onRealtimeEvent: (event) => {
+      if (event.type === "block") {
+        if (event.events.length > 0) {
+          promise.resolve();
+        }
+      }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  sync.startRealtime();
+
+  await promise.promise;
+
+  await sync.kill();
+
+  await cleanup();
+});
+test("onEvent() multichain gets all events", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { networks, sources } = getMultichainNetworksAndSources(context);
+
+  const promise = promiseWithResolvers<void>();
+
+  const sync = await createSync({
+    syncStore,
+    sources: [sources[0], sources[1]],
+    common: context.common,
+    networks,
+    onRealtimeEvent: (event) => {
+      if (event.type === "block") {
+        if (event.events.length > 0) {
+          promise.resolve();
+        }
+      }
+    },
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -433,7 +472,7 @@ test("onEvent() handles endBlock finalization", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await testClient.mine({ blocks: 4 });
@@ -463,7 +502,7 @@ test("onEvent() handles errors", async (context) => {
     onFatalError: () => {
       promise.resolve();
     },
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
