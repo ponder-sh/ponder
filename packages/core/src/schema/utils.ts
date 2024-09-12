@@ -37,7 +37,7 @@ export const isOptionalColumn = (column: Column): boolean => {
 };
 
 export const isDefaultSet = (column: Column): boolean => {
-  return (column as any)[" defaultTo"] !== undefined;
+  return (column as any)[" default"] !== undefined;
 };
 
 export const isListColumn = (column: Column): boolean => {
@@ -96,4 +96,14 @@ export const getEnums = (schema: Schema): { [enumName: string]: Enum } => {
 
 export const extractReferenceTable = (ref: ReferenceColumn): string => {
   return ref[" reference"].split(".")[0]!;
+};
+
+export const encodeSchema = (schema: Schema) => {
+  return JSON.stringify(
+    {
+      tables: getTables(schema),
+      enums: getEnums(schema),
+    },
+    (_k, v) => (typeof v === "bigint" ? `${v}n` : v),
+  );
 };

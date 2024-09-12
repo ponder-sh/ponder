@@ -21,24 +21,24 @@ const defaultTo =
   <column extends BuilderScalarColumn>(col: column): Default<column> =>
   // @ts-expect-error
   (val: DefaultValue<column[" scalar"]>) => {
+    const scalar = col[" scalar"];
+    let v = val as string;
+    if (scalar === "hex" && v && v.startsWith("0x")) {
+      v = v.slice(2);
+    }
     const newCol = {
       " type": col[" type"],
-      " scalar": col[" scalar"],
+      " scalar": scalar,
       " optional": col[" optional"],
       " list": col[" list"],
-      " default": val,
+      " default": v,
     } as const;
-
-    if (newCol[" list"]) {
-      return newCol;
-    } else {
-      return {
-        ...newCol,
-        list: list(newCol),
-        references: references(newCol),
-        optional: optional(newCol),
-      };
-    }
+    return {
+      ...newCol,
+      list: list(newCol),
+      references: references(newCol),
+      optional: optional(newCol),
+    };
   };
 
 type Optional<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
