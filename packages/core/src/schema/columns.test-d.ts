@@ -24,7 +24,7 @@ test("optional", () => {
   //    ^?
 
   assertType<keyof typeof c>({} as unknown as "list" | "references");
-  assertType<Omit<typeof c, "list" | "references">>(
+  assertType<Omit<typeof c, "list" | "references" | "default">>(
     {} as unknown as {
       " type": "scalar";
       " scalar": "string";
@@ -40,7 +40,7 @@ test("list", () => {
   //    ^?
 
   assertType<keyof typeof c>({} as unknown as "optional");
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "scalar";
       " scalar": "string";

@@ -9,17 +9,25 @@ import type {
   ScalarColumn,
 } from "./common.js";
 
-type Default<column extends BuilderScalarColumn> = (
+type DefaultTo<column extends BuilderScalarColumn> = (
   val: DefaultValue<column[" scalar"]>,
-) => BuilderScalarColumn;
+) => BuilderScalarColumn<
+  column[" scalar"],
+  column[" optional"],
+  column[" list"]
+>;
 
 const defaultTo =
-  <column extends BuilderScalarColumn>(col: column): Default<column> =>
-  (val: DefaultValue<column[" scalar"]>) => {
+  <column extends BuilderScalarColumn>(col: column): DefaultTo<column> =>
+  (val: DefaultValue<column[" scalar"]>): any => {
     const scalar = col[" scalar"];
-    let v = val as string;
-    if (scalar === "hex" && v && v.startsWith("0x")) {
-      v = v.slice(2);
+    let v = val;
+    if (scalar === "hex") {
+      let value = val as string;
+      if (value?.startsWith("0x")) {
+        value = value.slice(2);
+      }
+      v = value as DefaultValue<column[" scalar"]>;
     }
     const newCol = {
       " type": col[" type"],
@@ -432,7 +440,7 @@ export type BuilderScalarColumn<
          */
         list: List<base>;
         references: References<base>;
-        default: Default<base>;
+        default: DefaultTo<base>;
       }
     : base & {
         /**
