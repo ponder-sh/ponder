@@ -165,7 +165,7 @@ test("getEvents() multichain", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  sources[1].filter.toBlock = 0;
+  sources[1].filter.toBlock = 1;
 
   const sync = await createSync({
     syncStore,
