@@ -25,8 +25,10 @@ import { mergeAsyncGenerators } from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
+  intervalIntersection,
   intervalIntersectionMany,
   intervalSum,
+  sortIntervals,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
@@ -73,6 +75,7 @@ export type Status = {
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
   end: SyncBlock | LightBlock | undefined;
+  cached: SyncBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
 };
@@ -186,15 +189,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const sources = args.sources.filter(
         ({ filter }) => filter.chainId === network.chainId,
       );
-      const syncProgress: SyncProgress = {
-        ...(await syncDiagnostic({
-          common: args.common,
-          sources,
-          requestQueue,
-          network,
-        })),
-        current: undefined,
-      };
+
       const historicalSync = await createHistoricalSync({
         common: args.common,
         sources,
@@ -219,6 +214,21 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
         onFatalError: args.onFatalError,
       });
+      const cached = await getCachedBlock({
+        sources,
+        requestQueue,
+        historicalSync,
+      });
+      const syncProgress: SyncProgress = {
+        ...(await syncDiagnostic({
+          common: args.common,
+          sources,
+          requestQueue,
+          network,
+        })),
+        cached,
+        current: cached,
+      };
 
       localSyncContext.set(network, {
         requestQueue,
@@ -772,6 +782,58 @@ export const syncDiagnostic = async ({
   };
 };
 
+/** Returns the closest-to-tip block that has been synced for all `sources`. */
+export const getCachedBlock = ({
+  sources,
+  requestQueue,
+  historicalSync,
+}: {
+  sources: Source[];
+  requestQueue: RequestQueue;
+  historicalSync: HistoricalSync;
+}): Promise<SyncBlock> | undefined => {
+  const latestCompletedBlocks = sources.map(({ filter }) => {
+    const requiredInterval = [
+      filter.fromBlock,
+      filter.toBlock ?? Number.POSITIVE_INFINITY,
+    ] satisfies Interval;
+    const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
+
+    const completedIntervals = sortIntervals(
+      intervalIntersection([requiredInterval], cachedIntervals),
+    );
+
+    if (completedIntervals.length === 0) return undefined;
+
+    const earliestCompletedInterval = completedIntervals[0]!;
+    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
+    return earliestCompletedInterval[1];
+  });
+
+  const minCompletedBlock = Math.min(
+    ...(latestCompletedBlocks.filter(
+      (block) => block !== undefined,
+    ) as number[]),
+  );
+
+  /**  Filter i has known progress if a completed interval is found or if
+   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
+   * is > `_minCompletedBlock`.
+   */
+  if (
+    latestCompletedBlocks.every(
+      (block, i) =>
+        block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
+    )
+  ) {
+    return _eth_getBlockByNumber(requestQueue, {
+      blockNumber: minCompletedBlock,
+    });
+  }
+
+  return undefined;
+};
+
 /** Predictive pagination and metrics for `historicalSync.sync()` */
 export async function* localHistoricalSyncGenerator({
   common,
@@ -846,15 +908,13 @@ export async function* localHistoricalSyncGenerator({
   // Cursor to track progress.
   let fromBlock = hexToNumber(syncProgress.start.number);
 
-  // Attempt move the `fromBlock` forward if `historicalSync.latestBlock`
-  // is defined (a cache hit has occurred)
-  if (historicalSync.latestBlock !== undefined) {
-    syncProgress.current = historicalSync.latestBlock;
-
+  // Handle a cache hit by fast forwarding and potentially exiting
+  if (syncProgress.cached !== undefined) {
+    // `getEvents` can make progress without calling `sync`, so immediately "yield"
     yield;
 
     if (
-      hexToNumber(historicalSync.latestBlock.number) ===
+      hexToNumber(syncProgress.cached.number) ===
       hexToNumber(historicalLast.number)
     ) {
       if (showLogs) {
@@ -866,7 +926,7 @@ export async function* localHistoricalSyncGenerator({
       return;
     }
 
-    fromBlock = hexToNumber(historicalSync.latestBlock.number) + 1;
+    fromBlock = hexToNumber(syncProgress.cached.number) + 1;
   }
 
   while (true) {
@@ -882,7 +942,7 @@ export async function* localHistoricalSyncGenerator({
     ];
 
     const endClock = startClock();
-    await historicalSync.sync(interval);
+    syncProgress.current = await historicalSync.sync(interval);
     const duration = endClock();
 
     common.metrics.ponder_historical_duration.observe(label, duration);
@@ -904,9 +964,6 @@ export async function* localHistoricalSyncGenerator({
 
     // Update cursor to record progress
     fromBlock = interval[1] + 1;
-
-    if (historicalSync.latestBlock === undefined) continue;
-    syncProgress.current = historicalSync.latestBlock;
 
     yield;
 

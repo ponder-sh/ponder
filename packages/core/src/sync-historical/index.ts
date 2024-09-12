@@ -18,8 +18,6 @@ import {
   type Interval,
   getChunks,
   intervalDifference,
-  intervalIntersection,
-  sortIntervals,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -41,11 +39,12 @@ import {
 } from "viem";
 
 export type HistoricalSync = {
-  /** Closest-to-tip block that is synced. */
-  latestBlock: SyncBlock | undefined;
   intervalsCache: Map<Filter, Interval[]>;
-  /** Extract raw data for `interval`. */
-  sync(interval: Interval): Promise<void>;
+  /**
+   * Extract raw data for `interval` and return the closest-to-tip block
+   * that is synced.
+   */
+  sync(interval: Interval): Promise<SyncBlock>;
   kill(): void;
 };
 
@@ -98,53 +97,8 @@ export const createHistoricalSync = async (
     intervalsCache.set(filter, intervals);
   }
 
-  // Closest-to-tip block that has been fully injested.
+  // Closest-to-tip block that has been synced.
   let latestBlock: SyncBlock | undefined;
-
-  /**
-   * Attempt to initialize `latestBlock` to the minimum completed block
-   * across all filters. This is only possible if every filter has made
-   * some progress.
-   */
-  const _latestCompletedBlocks = args.sources.map(({ filter }) => {
-    const requiredInterval = [
-      filter.fromBlock,
-      filter.toBlock ?? Number.POSITIVE_INFINITY,
-    ] satisfies Interval;
-    const cachedIntervals = intervalsCache.get(filter)!;
-
-    const completedIntervals = sortIntervals(
-      intervalIntersection([requiredInterval], cachedIntervals),
-    );
-
-    if (completedIntervals.length === 0) return undefined;
-
-    const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
-    return earliestCompletedInterval[1];
-  });
-
-  const _minCompletedBlock = Math.min(
-    ...(_latestCompletedBlocks.filter(
-      (block) => block !== undefined,
-    ) as number[]),
-  );
-
-  /**  Filter i has known progress if a completed interval is found or if
-   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
-   * is > `_minCompletedBlock`.
-   */
-  if (
-    _latestCompletedBlocks.every(
-      (block, i) =>
-        block !== undefined ||
-        args.sources[i]!.filter.fromBlock > _minCompletedBlock,
-    )
-  ) {
-    latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: _minCompletedBlock,
-    });
-  }
 
   ////////
   // Helper functions for specific sync tasks
@@ -482,9 +436,6 @@ export const createHistoricalSync = async (
   }, 10_000);
 
   return {
-    get latestBlock() {
-      return latestBlock;
-    },
     intervalsCache,
     async sync(_interval) {
       await Promise.all(
@@ -527,7 +478,6 @@ export const createHistoricalSync = async (
                 switch (filter.type) {
                   case "log": {
                     await syncLogFilter(filter, interval);
-
                     break;
                   }
 
@@ -575,6 +525,8 @@ export const createHistoricalSync = async (
       ]);
       blockCache.clear();
       transactionsCache.clear();
+
+      return latestBlock!;
     },
     kill() {
       isKilled = true;

@@ -268,7 +268,7 @@ test("sync() with cache hit", async (context) => {
   });
   await historicalSync.sync([0, 5]);
 
-  expect(spy).toHaveBeenCalledTimes(1);
+  expect(spy).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
