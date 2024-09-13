@@ -101,12 +101,13 @@ test("references + optional", () => {
   const c = string().references("OtherTable.id").optional();
   //    ^?
 
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "reference";
       " scalar": "string";
       " optional": true;
       " reference": "OtherTable.id";
+      " default": undefined;
     },
   );
 });
@@ -121,6 +122,7 @@ test("optional + references", () => {
       " scalar": "string";
       " optional": true;
       " reference": "OtherTable.id";
+      " default": undefined;
     },
   );
 });

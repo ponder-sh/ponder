@@ -17,21 +17,22 @@ type DefaultTo<column extends BuilderScalarColumn> = (
   column[" list"]
 >;
 
-type DefaultToReturnType<T extends ScalarColumn> = ReturnType<DefaultTo<T>>;
+type DefaultToReturnType<T extends BuilderScalarColumn = BuilderScalarColumn> =
+  ReturnType<DefaultTo<T>>;
 
 const defaultTo =
   <column extends BuilderScalarColumn>(col: column): DefaultTo<column> =>
   (val: DefaultValue<column[" scalar"]>) => {
-    const scalar = col[" scalar"];
     const newCol = {
       " type": col[" type"],
-      " scalar": scalar,
+      " scalar": col[" scalar"],
       " optional": col[" optional"],
       " list": col[" list"],
       " default": val,
-    } as const;
+    } as column;
     return {
       ...newCol,
+      default: defaultTo(newCol),
       list: list(newCol),
       references: references(newCol),
       optional: optional(newCol),
@@ -41,12 +42,14 @@ const defaultTo =
 type Optional<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
   column[" scalar"],
   true,
-  column[" list"]
+  column[" list"],
+  column[" scalar"] | null | undefined
 >;
+
+type OptionalReturn<C extends BuilderScalarColumn> = ReturnType<Optional<C>>;
 
 const optional =
   <column extends BuilderScalarColumn>(col: column): Optional<column> =>
-  // @ts-expect-error
   () => {
     const newCol = {
       " type": col[" type"],
@@ -56,15 +59,12 @@ const optional =
       " default": col[" default"],
     } as const;
 
-    if (newCol[" list"]) {
-      return newCol;
-    } else {
-      return {
-        ...newCol,
-        list: list(newCol),
-        references: references(newCol),
-      };
-    }
+    return {
+      ...newCol,
+      default: defaultTo(newCol),
+      list: list(newCol),
+      references: references(newCol),
+    } as OptionalReturn<column>;
   };
 
 type List<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
@@ -73,9 +73,11 @@ type List<column extends BuilderScalarColumn> = () => BuilderScalarColumn<
   true
 >;
 
+type ListDefaultReturn<C extends BuilderScalarColumn = BuilderScalarColumn> =
+  ReturnType<List<C>>;
+
 const list =
   <column extends BuilderScalarColumn>(col: column): List<column> =>
-  // @ts-expect-error
   () => {
     const newCol = {
       " type": col[" type"],
@@ -85,25 +87,22 @@ const list =
       " list": true,
     } as const;
 
-    if (newCol[" optional"]) {
-      return newCol;
-    } else {
-      return {
-        ...newCol,
-        optional: optional(newCol),
-      };
-    }
+    return {
+      ...newCol,
+      default: defaultTo(newCol),
+      optional: optional(newCol),
+    } as ListDefaultReturn<column>;
   };
 
-type EnumDefault<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
-  column[" enum"],
-  true,
-  column[" list"]
->;
+type EnumDefault<column extends BuilderEnumColumn> = (
+  val: DefaultValue<"string">,
+) => BuilderEnumColumn<column[" enum"], column[" optional"], column[" list"]>;
+
+type EnumDefaultReturn<C extends BuilderEnumColumn = BuilderEnumColumn> =
+  ReturnType<EnumDefault<C>>;
 
 const enumDefault =
   <column extends BuilderEnumColumn>(col: column): EnumDefault<column> =>
-  // @ts-expect-error
   (val: DefaultValue<"string">) => {
     const newCol = {
       " type": col[" type"],
@@ -117,7 +116,7 @@ const enumDefault =
       ...newCol,
       list: enumList(newCol),
       optional: enumOptional(newCol),
-    };
+    } as EnumDefaultReturn<column>;
   };
 
 type EnumOptional<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
@@ -128,7 +127,6 @@ type EnumOptional<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
 
 const enumOptional =
   <column extends BuilderEnumColumn>(col: column): EnumOptional<column> =>
-  // @ts-expect-error
   () => {
     const newCol = {
       " type": col[" type"],
@@ -138,14 +136,11 @@ const enumOptional =
       " optional": true,
     } as const;
 
-    if (newCol[" list"]) {
-      return newCol;
-    } else {
-      return {
-        ...newCol,
-        list: enumList(newCol),
-      };
-    }
+    return {
+      ...newCol,
+      list: enumList(newCol),
+      default: enumDefault(newCol),
+    };
   };
 
 type EnumList<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
@@ -154,9 +149,11 @@ type EnumList<column extends BuilderEnumColumn> = () => BuilderEnumColumn<
   true
 >;
 
+type EnumListReturn<C extends BuilderEnumColumn = BuilderEnumColumn> =
+  ReturnType<EnumList<C>>;
+
 const enumList =
   <column extends BuilderEnumColumn>(col: column): EnumList<column> =>
-  // @ts-expect-error
   () => {
     const newCol = {
       " type": col[" type"],
@@ -166,14 +163,11 @@ const enumList =
       " list": true,
     } as const;
 
-    if (newCol[" optional"]) {
-      return newCol;
-    } else {
-      return {
-        ...newCol,
-        optional: enumOptional(newCol),
-      };
-    }
+    return {
+      ...newCol,
+      optional: enumOptional(newCol),
+      default: enumDefault(newCol),
+    } as EnumListReturn<column>;
   };
 
 type Asc<index extends Index> = () => BuilderIndex<
@@ -288,36 +282,56 @@ const nullsLast =
     }
   };
 
-type ReferenceDefault<column extends BuilderReferenceColumn> =
-  () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
+type ReferenceDefault<column extends BuilderReferenceColumn> = (
+  val: DefaultValue<column[" scalar"]>,
+) => BuilderReferenceColumn<
+  column[" scalar"],
+  column[" optional"],
+  column[" reference"]
+>;
 
 const referenceDefault =
   <column extends BuilderReferenceColumn>(
     col: column,
   ): ReferenceDefault<column> =>
-  () => {
-    return {
+  (val: DefaultValue<any>) => {
+    const newCol = {
       " type": col[" type"],
       " scalar": col[" scalar"],
-      " optional": true,
+      " optional": col[" optional"],
       " reference": col[" reference"],
+      " default": val,
+    } as const;
+    return {
+      ...newCol,
+      optional: referenceOptional(newCol),
+      default: referenceDefault(newCol),
     };
   };
 
 type ReferenceOptional<column extends BuilderReferenceColumn> =
   () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
 
+type ReferenceOptionalReturn<
+  C extends BuilderReferenceColumn = BuilderReferenceColumn,
+> = ReturnType<ReferenceOptional<C>>;
+
 const referenceOptional =
   <column extends BuilderReferenceColumn>(
     col: column,
   ): ReferenceOptional<column> =>
   () => {
-    return {
+    const newCol = {
       " type": col[" type"],
       " scalar": col[" scalar"],
-      " optional": true,
+      " default": col[" default"],
       " reference": col[" reference"],
-    };
+      " optional": true,
+    } as const;
+    return {
+      ...newCol,
+      default: referenceDefault(newCol),
+    } as ReferenceOptionalReturn<column>;
   };
 
 type References<column extends BuilderScalarColumn> = <
@@ -334,18 +348,14 @@ const references =
       " type": "reference",
       " scalar": col[" scalar"],
       " optional": col[" optional"],
+      " default": col[" default"],
       " reference": ref,
     } as const;
-
-    if (newCol[" optional"]) {
-      return newCol;
-    } else {
-      return {
-        ...newCol,
-        optional: referenceOptional(newCol),
-        default: referenceDefault(newCol),
-      };
-    }
+    return {
+      ...newCol,
+      optional: referenceOptional(newCol),
+      default: referenceDefault(newCol),
+    };
   };
 
 type JSONDefault<column extends BuilderJSONColumn> = (
@@ -359,9 +369,6 @@ type JSONDefaultReturn<C extends BuilderJSONColumn> = ReturnType<
 const jsonDefault =
   <column extends BuilderJSONColumn>(col: column): JSONDefault<column> =>
   (val: DefaultValue<any>) => {
-    if (val === undefined || val === null) {
-      return col as JSONDefaultReturn<column>;
-    }
     // there is currently a lot of wiggle room to pass things like bigints
     // or other types into this function. needs more validation
     const newCol = {
@@ -405,7 +412,7 @@ const scalarColumn =
       " scalar": _scalar,
       " optional": false,
       " list": false,
-      " default": undefined as DefaultValue<scalar>,
+      " default": undefined,
     } as const;
 
     return {
@@ -414,13 +421,18 @@ const scalarColumn =
       optional: optional(column),
       list: list(column),
       references: references(column),
-    };
+    } as BuilderScalarColumn<scalar, false, false>;
   };
 
 export type BuilderScalarColumn<
   scalar extends Scalar = Scalar,
   optional extends boolean = boolean,
   list extends boolean = boolean,
+  _default extends optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined = optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined,
   ///
   base extends ScalarColumn<scalar, optional, list> = ScalarColumn<
     scalar,
@@ -503,6 +515,7 @@ export type BuilderScalarColumn<
          * }));
          */
         references: References<base>;
+        default: DefaultTo<base>;
       }
   : optional extends false
     ? base & {
@@ -522,6 +535,7 @@ export type BuilderScalarColumn<
          * }));
          */
         optional: Optional<base>;
+        default: DefaultTo<base>;
       }
     : base;
 
@@ -529,13 +543,20 @@ export type BuilderReferenceColumn<
   scalar extends Scalar = Scalar,
   optional extends boolean = boolean,
   reference extends string = string,
+  _default extends optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined = optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined,
   ///
   base extends ReferenceColumn<scalar, optional, reference> = ReferenceColumn<
     scalar,
     optional,
     reference
   >,
-> = optional extends false
+> = {
+  default: ReferenceDefault<base>;
+} & optional extends false
   ? base & {
       /**
        * Mark the column as optional.
@@ -553,13 +574,17 @@ export type BuilderReferenceColumn<
        * })
        */
       optional: ReferenceOptional<base>;
-      default: ReferenceDefault<base>;
     }
   : base;
 
 export type BuilderJSONColumn<
   type = any,
   optional extends boolean = boolean,
+  _default extends optional extends false
+    ? type | undefined
+    : type | null | undefined = optional extends false
+    ? type | undefined
+    : type | null | undefined,
   ///
   base extends JSONColumn<type, optional> = JSONColumn<type, optional>,
 > = optional extends false
@@ -602,6 +627,11 @@ export type BuilderEnumColumn<
   _enum extends string = string,
   optional extends boolean = boolean,
   list extends boolean = boolean,
+  _default extends optional extends false
+    ? _enum | undefined
+    : _enum | null | undefined = optional extends false
+    ? _enum | undefined
+    : _enum | null | undefined,
   ///
   base extends EnumColumn<_enum, optional, list> = EnumColumn<
     _enum,
@@ -768,7 +798,7 @@ export const _enum = <_enum extends string>(
     " enum": __enum,
     " optional": false,
     " list": false,
-    " default": undefined,
+    " default": undefined as unknown as _enum,
   } as const;
 
   return {

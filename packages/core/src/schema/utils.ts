@@ -3,6 +3,7 @@ import type { ColumnDefinitionBuilder } from "kysely";
 import type {
   Column,
   Constraints,
+  DefaultColumn,
   Enum,
   EnumColumn,
   JSONColumn,
@@ -47,7 +48,7 @@ export const isColumnHex = (column: Column): boolean =>
 
 export const applyDefault = (
   col: ColumnDefinitionBuilder,
-  column: ScalarColumn | JSONColumn | EnumColumn,
+  column: DefaultColumn,
 ) => {
   if (isDefaultColumn(column)) {
     if (isColumnHex(column)) {

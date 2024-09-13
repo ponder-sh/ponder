@@ -1,7 +1,7 @@
 import type { Hex } from "viem";
 
-export type Scalar = "string" | "int" | "float" | "boolean" | "hex" | "bigint";
 export type ID = "string" | "int" | "bigint" | "hex";
+export type Scalar = ID | "float" | "boolean";
 
 export type ScalarType = {
   string: string;
@@ -12,18 +12,23 @@ export type ScalarType = {
   bigint: bigint;
 };
 
-export type DefaultValue<T extends Scalar> = ScalarType[T] | null | undefined;
+export type DefaultValue<T extends Scalar> = ScalarType[T];
 
 export type ScalarColumn<
   scalar extends Scalar = Scalar,
   optional extends boolean = boolean,
   list extends boolean = boolean,
+  _default extends optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined = optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined,
 > = {
   " type": "scalar";
   " scalar": scalar;
   " optional": optional;
   " list": list;
-  " default": DefaultValue<scalar>;
+  " default": _default;
 };
 
 export type IdColumn<id extends ID = ID> = ScalarColumn<id, false, false>;
@@ -32,18 +37,32 @@ export type ReferenceColumn<
   scalar extends Scalar = Scalar,
   optional extends boolean = boolean,
   reference extends string = string,
+  _default extends optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined = optional extends false
+    ? scalar | undefined
+    : scalar | null | undefined,
 > = {
   " type": "reference";
   " scalar": scalar;
   " optional": optional;
   " reference": reference;
+  " default": _default;
 };
 
-export type JSONColumn<type = any, optional extends boolean = boolean> = {
+export type JSONColumn<
+  type = any,
+  optional extends boolean = boolean,
+  _default extends optional extends false
+    ? type | undefined
+    : type | null | undefined = optional extends false
+    ? type | undefined
+    : type | null | undefined,
+> = {
   " type": "json";
   " json": type;
   " optional": optional;
-  " default": type;
+  " default": _default;
 };
 
 export type OneColumn<reference extends string = string> = {
@@ -64,12 +83,17 @@ export type EnumColumn<
   _enum extends string = string,
   optional extends boolean = boolean,
   list extends boolean = boolean,
+  _default extends optional extends false
+    ? _enum | undefined
+    : _enum | null | undefined = optional extends false
+    ? _enum | undefined
+    : _enum | null | undefined,
 > = {
   " type": "enum";
   " enum": _enum;
   " optional": optional;
   " list": list;
-  " default": DefaultValue<"string">;
+  " default": _default;
 };
 
 export type Index<
@@ -209,3 +233,9 @@ export type ExtractNonVirtualColumnNames<
     ? columnNames
     : never
   : never;
+
+export type DefaultColumn =
+  | ScalarColumn
+  | JSONColumn
+  | EnumColumn
+  | ReferenceColumn;
