@@ -33,7 +33,6 @@ export type UiState = {
       eventName: string;
       count: number;
       averageDuration: number;
-      errorCount: number;
     }[];
   };
 
@@ -202,12 +201,6 @@ const App = (ui: UiState) => {
           columns={[
             { title: "Event", key: "eventName", align: "left" },
             { title: "Count", key: "count", align: "right" },
-            {
-              title: "Error count",
-              key: "errorCount",
-              align: "right",
-              format: (v, row) => (row.count > 0 ? v : "-"),
-            },
             {
               title: "Duration (avg)",
               key: "averageDuration",

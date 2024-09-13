@@ -367,11 +367,7 @@ export async function getIndexingProgress(metrics: MetricsService) {
     const averageDuration =
       durationCount === 0 ? 0 : durationSum / durationCount;
 
-    const errorCount =
-      indexingFunctionErrorMetric.find((e) => e.labels.event === eventName)
-        ?.value ?? 0;
-
-    return { eventName, count, averageDuration, errorCount };
+    return { eventName, count, averageDuration };
   });
 
   const totalEvents = events.reduce((a, e) => a + e.count, 0);
