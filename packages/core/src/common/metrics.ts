@@ -421,20 +421,24 @@ export async function getHistoricalAppProgress(metrics: MetricsService) {
           remainingSeconds) /
         indexing.overall.completedSeconds;
 
-  const indexingProgress =
-    indexing.overall.totalSeconds === 0
-      ? undefined
-      : indexing.overall.completedSeconds / indexing.overall.totalSeconds;
-
   const eta =
     maxSync?.eta === undefined && indexingEta === undefined
       ? undefined
-      : Math.max(maxSync?.eta ?? 0, indexingEta ?? 0);
+      : maxSync?.eta === undefined &&
+          maxSync?.progress !== undefined &&
+          maxSync?.progress !== 1
+        ? undefined
+        : Math.max(maxSync?.eta ?? 0, indexingEta ?? 0);
+
+  // Edge case: If all matched events occurred in the same unix timestamp (second), progress will
+  // be zero, even though indexing is complete. When this happens, totalEvents will be non-zero.
+  const indexingProgress =
+    indexing.overall.progress === 0 && indexing.overall.totalEvents > 0
+      ? 1
+      : indexing.overall.progress;
 
   const progress =
-    maxSync?.progress === undefined || indexingProgress === undefined
-      ? undefined
-      : maxSync!.progress * indexingProgress;
+    maxSync?.progress === undefined ? 0 : maxSync!.progress * indexingProgress;
 
   return { eta, progress };
 }

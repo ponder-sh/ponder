@@ -36,6 +36,11 @@ export type UiState = {
     }[];
   };
 
+  app: {
+    progress: number;
+    eta: number | undefined;
+  };
+
   realtimeSyncNetworks: {
     name: string;
     isConnected: boolean;
@@ -63,6 +68,11 @@ export const buildUiState = () => {
       events: [],
     },
 
+    app: {
+      progress: 0,
+      eta: undefined,
+    },
+
     port: 0,
     hostname: "localhost",
   };
@@ -71,7 +81,7 @@ export const buildUiState = () => {
 };
 
 const App = (ui: UiState) => {
-  const { historical, indexing, port, hostname } = ui;
+  const { historical, indexing, app, port, hostname } = ui;
 
   if (indexing.hasError) {
     return (
@@ -112,17 +122,13 @@ const App = (ui: UiState) => {
           <Text color="yellowBright">in progress</Text>)
         </Text>
         <Box flexDirection="row">
-          <ProgressBar current={historical.overall} end={1} width={50} />
           <Text>
             {" "}
             {historical.overall === 1 ? (
               <Text color="greenBright">done</Text>
-            ) : (
-              formatPercentage(historical.overall)
-            )}{" "}
+            ) : null}
           </Text>
         </Box>
-        <Text> </Text>
 
         <Table
           rows={historical.networks}
@@ -141,18 +147,6 @@ const App = (ui: UiState) => {
               align: "right",
             },
             { title: "Total", key: "totalBlocks", align: "right" },
-            {
-              title: "Progress",
-              key: "progress",
-              align: "right",
-              format: (v) => (v ? formatPercentage(v) : "-"),
-            },
-            {
-              title: "ETA",
-              key: "eta",
-              align: "right",
-              format: (v) => (v ? formatEta(v) : "-"),
-            },
           ]}
         />
         <Text> </Text>
@@ -162,14 +156,7 @@ const App = (ui: UiState) => {
 
   let indexingElement: JSX.Element;
 
-  // Edge case: If all matched events occurred in the same unix timestamp (second), progress will
-  // be zero, even though indexing is complete. When this happens, totalEvents will be non-zero.
-  const indexingProgress =
-    indexing.overall.progress === 0 && indexing.overall.totalEvents > 0
-      ? 1
-      : indexing.overall.progress;
-
-  if (indexingProgress === 0) {
+  if (app.progress === 0) {
     indexingElement = (
       <>
         <Text bold={true}>Indexing </Text>
@@ -178,22 +165,17 @@ const App = (ui: UiState) => {
       </>
     );
   } else {
-    const effectiveProgress = indexingProgress * historical.overall;
     indexingElement = (
       <>
         <Text>
           <Text bold={true}>Indexing </Text>(
-          {effectiveProgress === 1 ? (
+          {app.progress === 1 ? (
             <Text color="greenBright">done</Text>
           ) : (
             <Text color="yellowBright">in progress</Text>
           )}
           )
         </Text>
-        <Box flexDirection="row">
-          <ProgressBar current={effectiveProgress} end={1} width={50} />
-          <Text> ({indexing.overall.totalEvents} events)</Text>
-        </Box>
         <Text> </Text>
 
         <Table
@@ -224,8 +206,19 @@ const App = (ui: UiState) => {
       <Text> </Text>
 
       {historicalElement}
-
       {indexingElement}
+
+      <Box flexDirection="row">
+        <ProgressBar current={app.progress} end={1} width={50} />
+        <Text>
+          {" "}
+          {formatPercentage(app.progress)}
+          {app.eta === undefined || app.eta === 0
+            ? null
+            : ` (${formatEta(app.eta)} eta)`}
+        </Text>
+      </Box>
+      <Text> </Text>
 
       {/* <Text bold={true}>Historical sync</Text>
       {historical.overall.progress > 0 ? (
@@ -281,7 +274,6 @@ const App = (ui: UiState) => {
       ) : (
         <Text>Waiting to start...</Text>
       )} */}
-
       {/* <Text bold={true}>Indexing</Text>
       {indexing.overall.progress > 0 ? (
         <>
@@ -328,7 +320,6 @@ const App = (ui: UiState) => {
         <Text>Waiting to start...</Text>
       )}
       <Text> </Text> */}
-
       {/* {realtimeSyncNetworks.length > 0 && (
         <Box flexDirection="column">
           <Text bold={true}>Realtime sync </Text>
@@ -343,7 +334,6 @@ const App = (ui: UiState) => {
           <Text> </Text>
         </Box>
       )} */}
-
       <Box flexDirection="column">
         <Text bold>GraphQL </Text>
         <Box flexDirection="row">

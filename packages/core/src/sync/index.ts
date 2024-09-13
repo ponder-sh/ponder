@@ -162,7 +162,7 @@ type CreateSyncParameters = {
   syncStore: SyncStore;
   sources: Source[];
   networks: Network[];
-  onRealtimeEvent(event: RealtimeEvent): void;
+  onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
   initialCheckpoint: string;
 };
@@ -439,24 +439,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             });
             consecutiveErrors = 0;
 
-            getHistoricalAppProgress(args.common.metrics).then(
-              ({ eta, progress }) => {
-                if (events.length === 0) return;
-
-                if (eta === undefined || progress === undefined) {
-                  args.common.logger.info({
-                    service: "app",
-                    msg: `Indexed ${events.length} events`,
-                  });
-                } else {
-                  args.common.logger.info({
-                    service: "app",
-                    msg: `Indexed ${events.length} events with ${formatPercentage(progress)} and ${formatEta(eta)} remaining`,
-                  });
-                }
-              },
-            );
-
             for (const network of args.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });
             }
@@ -474,6 +456,24 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
             yield { events, checkpoint: to };
             from = cursor;
+
+            getHistoricalAppProgress(args.common.metrics).then(
+              ({ eta, progress }) => {
+                if (events.length === 0) return;
+
+                if (eta === undefined || progress === undefined) {
+                  args.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${events.length} events`,
+                  });
+                } else {
+                  args.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${events.length} events with ${formatPercentage(progress)} and ${formatEta(eta)} remaining`,
+                  });
+                }
+              },
+            );
           } catch (error) {
             // Handle errors by reducing the requested range by 10x
             estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
@@ -616,7 +616,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             for (const network of args.networks) {
               updateRealtimeStatus({ checkpoint: cursor, network });
             }
-            args.onRealtimeEvent({ type: "block", checkpoint: to, events });
+            args
+              .onRealtimeEvent({ type: "block", checkpoint: to, events })
+              .then(() => {
+                if (events.length > 0 && isKilled === false) {
+                  args.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${events.length} events`,
+                  });
+                }
+              });
 
             from = cursor;
           }

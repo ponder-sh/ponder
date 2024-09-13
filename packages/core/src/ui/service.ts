@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import {
+  getHistoricalAppProgress,
   getHistoricalSyncProgress,
   getIndexingProgress,
 } from "@/common/metrics.js";
@@ -51,6 +52,9 @@ export class UiService {
 
       // Indexing
       this.ui.indexing = await getIndexingProgress(metrics);
+
+      // App
+      this.ui.app = await getHistoricalAppProgress(metrics);
 
       // Server
       const port = (await metrics.ponder_http_server_port.get()).values[0]!
