@@ -31,7 +31,6 @@ export type UiState = {
     };
     events: {
       eventName: string;
-      networkName: string;
       count: number;
       averageDuration: number;
       errorCount: number;
@@ -202,7 +201,6 @@ const App = (ui: UiState) => {
           rows={indexing.events}
           columns={[
             { title: "Event", key: "eventName", align: "left" },
-            { title: "Network", key: "networkName", align: "left" },
             { title: "Count", key: "count", align: "right" },
             {
               title: "Error count",

@@ -20,13 +20,13 @@ export class MetricsService {
 
   ponder_indexing_total_seconds: prometheus.Gauge;
   ponder_indexing_completed_seconds: prometheus.Gauge;
-  ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
+  ponder_indexing_completed_events: prometheus.Gauge<"event">;
 
   ponder_indexing_completed_timestamp: prometheus.Gauge;
   ponder_indexing_has_error: prometheus.Gauge;
 
-  ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
-  ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
+  ponder_indexing_function_duration: prometheus.Histogram<"event">;
+  ponder_indexing_function_error_total: prometheus.Counter<"event">;
 
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
@@ -349,33 +349,29 @@ export async function getIndexingProgress(metrics: MetricsService) {
     await metrics.ponder_indexing_function_duration.get()
   ).values;
 
-  const indexingDurationSum: Record<string, Record<string, number>> = {};
-  const indexingDurationCount: Record<string, Record<string, number>> = {};
+  const indexingDurationSum: Record<string, number> = {};
+  const indexingDurationCount: Record<string, number> = {};
   for (const m of indexingFunctionDurationMetric) {
     if (m.metricName === "ponder_indexing_function_duration_sum")
-      (indexingDurationSum[m.labels.event!] ??= {})[m.labels.network!] =
-        m.value;
+      indexingDurationSum[m.labels.event!] = m.value;
     if (m.metricName === "ponder_indexing_function_duration_count")
-      (indexingDurationCount[m.labels.event!] ??= {})[m.labels.network!] =
-        m.value;
+      indexingDurationCount[m.labels.event!] = m.value;
   }
 
   const events = indexingCompletedEventsMetric.map((m) => {
     const eventName = m.labels.event as string;
-    const networkName = m.labels.network as string;
     const count = m.value;
 
-    const durationSum = indexingDurationSum[eventName]?.[networkName] ?? 0;
-    const durationCount = indexingDurationCount[eventName]?.[networkName] ?? 0;
+    const durationSum = indexingDurationSum[eventName] ?? 0;
+    const durationCount = indexingDurationCount[eventName] ?? 0;
     const averageDuration =
       durationCount === 0 ? 0 : durationSum / durationCount;
 
     const errorCount =
-      indexingFunctionErrorMetric.find(
-        (e) => e.labels.event === eventName && e.labels.network === networkName,
-      )?.value ?? 0;
+      indexingFunctionErrorMetric.find((e) => e.labels.event === eventName)
+        ?.value ?? 0;
 
-    return { eventName, networkName, count, averageDuration, errorCount };
+    return { eventName, count, averageDuration, errorCount };
   });
 
   const totalEvents = events.reduce((a, e) => a + e.count, 0);

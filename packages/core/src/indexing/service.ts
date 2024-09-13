@@ -3,7 +3,6 @@ import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
-
 import type { Sync } from "@/sync/index.js";
 import {
   type ContractSource,
@@ -62,7 +61,7 @@ export type Service = {
   isKilled: boolean;
 
   eventCount: {
-    [eventName: string]: { [networkName: string]: number };
+    [eventName: string]: number;
   };
   startCheckpoint: Checkpoint;
 
@@ -174,10 +173,7 @@ export const create = ({
   // build eventCount
   const eventCount: Service["eventCount"] = {};
   for (const eventName of Object.keys(indexingFunctions)) {
-    eventCount[eventName] = {};
-    for (const network of networks) {
-      eventCount[eventName]![network.name] = 0;
-    }
+    eventCount[eventName] = 0;
   }
 
   return {
@@ -244,7 +240,7 @@ export const processSetupEvents = async (
       )! as ContractSource;
 
       if (indexingService.isKilled) return { status: "killed" };
-      indexingService.eventCount[eventName]![source.networkName]++;
+      indexingService.eventCount[eventName]++;
 
       const result = await executeSetup(indexingService, {
         event: {
@@ -279,8 +275,6 @@ export const processEvents = async (
   | { status: "success" }
   | { status: "killed" }
 > => {
-  const eventCounts: { [eventName: string]: number } = {};
-
   for (let i = 0; i < events.length; i++) {
     if (indexingService.isKilled) return { status: "killed" };
 
@@ -288,9 +282,7 @@ export const processEvents = async (
 
     switch (event.type) {
       case "log": {
-        indexingService.eventCount[event.name]![
-          indexingService.networkByChainId[event.chainId]!.name
-        ]++;
+        indexingService.eventCount[event.name]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -302,9 +294,6 @@ export const processEvents = async (
           return result;
         }
 
-        if (eventCounts[event.name] === undefined) eventCounts[event.name] = 0;
-        eventCounts[event.name]++;
-
         indexingService.common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
@@ -314,9 +303,7 @@ export const processEvents = async (
       }
 
       case "block": {
-        indexingService.eventCount[event.name]![
-          indexingService.networkByChainId[event.chainId]!.name
-        ]++;
+        indexingService.eventCount[event.name]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -328,9 +315,6 @@ export const processEvents = async (
           return result;
         }
 
-        if (eventCounts[event.name] === undefined) eventCounts[event.name] = 0;
-        eventCounts[event.name]++;
-
         indexingService.common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
@@ -340,9 +324,7 @@ export const processEvents = async (
       }
 
       case "callTrace": {
-        indexingService.eventCount[event.name]![
-          indexingService.networkByChainId[event.chainId]!.name
-        ]++;
+        indexingService.eventCount[event.name]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -353,9 +335,6 @@ export const processEvents = async (
         if (result.status !== "success") {
           return result;
         }
-
-        if (eventCounts[event.name] === undefined) eventCounts[event.name] = 0;
-        eventCounts[event.name]++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -404,20 +383,6 @@ export const processEvents = async (
   // set completed events
   updateCompletedEvents(indexingService);
 
-  for (const [eventName, count] of Object.entries(eventCounts)) {
-    if (count === 1) {
-      indexingService.common.logger.info({
-        service: "indexing",
-        msg: `Indexed 1 '${eventName}' event`,
-      });
-    } else {
-      indexingService.common.logger.info({
-        service: "indexing",
-        msg: `Indexed ${count} '${eventName}' events`,
-      });
-    }
-  }
-
   return { status: "success" };
 };
 
@@ -441,16 +406,13 @@ export const updateTotalSeconds = (
 
 const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {
-    for (const network of Object.keys(indexingService.eventCount[event]!)) {
-      const metricLabel = {
-        event,
-        network,
-      };
-      indexingService.common.metrics.ponder_indexing_completed_events.set(
-        metricLabel,
-        indexingService.eventCount[event]![network]!,
-      );
-    }
+    const metricLabel = {
+      event,
+    };
+    indexingService.common.metrics.ponder_indexing_completed_events.set(
+      metricLabel,
+      indexingService.eventCount[event]!,
+    );
   }
 };
 
@@ -471,9 +433,7 @@ const executeSetup = async (
     clientByChainId,
   } = indexingService;
   const indexingFunction = indexingFunctions[event.name];
-
-  const networkName = networkByChainId[event.chainId]!.name;
-  const metricLabel = { event: event.name, network: networkName };
+  const metricLabel = { event: event.name };
 
   try {
     // set currentEvent
@@ -508,7 +468,7 @@ const executeSetup = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -535,9 +495,7 @@ const executeLog = async (
     clientByChainId,
   } = indexingService;
   const indexingFunction = indexingFunctions[event.name];
-
-  const networkName = networkByChainId[event.chainId]!.name;
-  const metricLabel = { event: event.name, network: networkName };
+  const metricLabel = { event: event.name };
 
   try {
     // set currentEvent
@@ -574,7 +532,7 @@ const executeLog = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -603,11 +561,7 @@ const executeBlock = async (
     clientByChainId,
   } = indexingService;
   const indexingFunction = indexingFunctions[event.name];
-
-  const metricLabel = {
-    event: event.name,
-    network: networkByChainId[event.chainId]!.name,
-  };
+  const metricLabel = { event: event.name };
 
   try {
     // set currentEvent
@@ -678,9 +632,7 @@ const executeCallTrace = async (
     clientByChainId,
   } = indexingService;
   const indexingFunction = indexingFunctions[event.name];
-
-  const networkName = networkByChainId[event.chainId]!.name;
-  const metricLabel = { event: event.name, network: networkName };
+  const metricLabel = { event: event.name };
 
   try {
     // set currentEvent
@@ -717,7 +669,7 @@ const executeCallTrace = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkName}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
