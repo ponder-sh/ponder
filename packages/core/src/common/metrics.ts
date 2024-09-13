@@ -373,3 +373,68 @@ export async function getIndexingProgress(metrics: MetricsService) {
     events,
   };
 }
+
+export async function getHistoricalAppProgress(metrics: MetricsService) {
+  const sync = await getHistoricalSyncProgress(metrics);
+  const indexing = await getIndexingProgress(metrics);
+  const decodingSum = await metrics.ponder_indexing_abi_decoding_duration
+    .get()
+    .then(
+      (m) =>
+        m.values.find(
+          (v) => v.metricName === "ponder_indexing_abi_decoding_duration_sum",
+        )?.value,
+    );
+  const getEventsSum = await metrics.ponder_database_method_duration
+    .get()
+    .then(
+      (m) =>
+        m.values.find(
+          (v) =>
+            v.labels.method === "getEvents" &&
+            v.metricName === "ponder_database_method_duration_sum",
+        )?.value,
+    );
+  const indexingSum = indexing.events.reduce(
+    (acc, cur) => acc + cur.averageDuration * cur.count,
+    0,
+  );
+
+  let maxSync: (typeof sync)["networks"][number] | undefined;
+  for (const networkSync of sync.networks) {
+    if (
+      maxSync === undefined ||
+      maxSync.eta === undefined ||
+      (networkSync.eta && networkSync.eta > maxSync.eta)
+    ) {
+      maxSync = networkSync;
+    }
+  }
+
+  const remainingSeconds =
+    indexing.overall.totalSeconds - indexing.overall.completedSeconds;
+
+  const indexingEta =
+    indexing.overall.completedSeconds === 0
+      ? undefined
+      : (((decodingSum ?? 0) + (getEventsSum ?? 0) + indexingSum) *
+          remainingSeconds) /
+        indexing.overall.completedSeconds;
+
+  const indexingProgress =
+    indexing.overall.totalSeconds === 0
+      ? undefined
+      : indexing.overall.completedSeconds / indexing.overall.totalSeconds;
+
+  const eta =
+    maxSync?.eta === undefined && indexingEta === undefined
+      ? undefined
+      : Math.max(maxSync?.eta ?? 0, indexingEta ?? 0);
+
+  const progress =
+    maxSync?.progress === undefined || indexingProgress === undefined
+      ? undefined
+      : maxSync!.progress * indexingProgress;
+
+  return { eta, progress };
+}

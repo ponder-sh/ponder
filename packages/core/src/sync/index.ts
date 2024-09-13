@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { getHistoricalAppProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
   type HistoricalSync,
@@ -20,7 +21,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
-import { formatPercentage } from "@/utils/format.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
 import { mergeAsyncGenerators } from "@/utils/generators.js";
 import {
   type Interval,
@@ -437,6 +438,24 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               limit: getEventsMaxBatchSize,
             });
             consecutiveErrors = 0;
+
+            getHistoricalAppProgress(args.common.metrics).then(
+              ({ eta, progress }) => {
+                if (events.length === 0) return;
+
+                if (eta === undefined || progress === undefined) {
+                  args.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${events.length} events`,
+                  });
+                } else {
+                  args.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${events.length} events with ${formatPercentage(progress)} and ${formatEta(eta)} remaining`,
+                  });
+                }
+              },
+            );
 
             for (const network of args.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });
