@@ -57,6 +57,9 @@ export class UiService {
         .value;
       this.ui.port = port;
 
+      if (this.common.options.hostname)
+        this.ui.hostname = this.common.options.hostname;
+
       if (this.isKilled) return;
       this.render?.();
     }, 17);

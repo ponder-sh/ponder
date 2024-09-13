@@ -6,16 +6,11 @@ import Table from "./Table.js";
 
 export type UiState = {
   port: number;
+  hostname: string;
 
   historical: {
-    overall: {
-      totalBlocks: number;
-      cachedBlocks: number;
-      completedBlocks: number;
-      progress: number;
-    };
-    sources: {
-      sourceName: string;
+    overall: number;
+    networks: {
       networkName: string;
       totalBlocks: number;
       completedBlocks: number;
@@ -52,13 +47,8 @@ export type UiState = {
 export const buildUiState = () => {
   const ui: UiState = {
     historical: {
-      overall: {
-        totalBlocks: 0,
-        cachedBlocks: 0,
-        completedBlocks: 0,
-        progress: 0,
-      },
-      sources: [],
+      overall: 0,
+      networks: [],
     },
 
     realtimeSyncNetworks: [],
@@ -76,13 +66,14 @@ export const buildUiState = () => {
     },
 
     port: 0,
+    hostname: "localhost",
   };
 
   return ui;
 };
 
 const App = (ui: UiState) => {
-  const { historical, indexing, port } = ui;
+  const { historical, indexing, port, hostname } = ui;
 
   if (indexing.hasError) {
     return (
@@ -97,7 +88,7 @@ const App = (ui: UiState) => {
   }
 
   let historicalElement: JSX.Element;
-  if (historical.overall.progress === 0) {
+  if (historical.overall === 0) {
     historicalElement = (
       <>
         <Text bold={true}>Historical sync</Text>
@@ -105,7 +96,7 @@ const App = (ui: UiState) => {
         <Text> </Text>
       </>
     );
-  } else if (historical.overall.progress === 1) {
+  } else if (historical.overall === 1) {
     historicalElement = (
       <>
         <Text>
@@ -123,30 +114,21 @@ const App = (ui: UiState) => {
           <Text color="yellowBright">in progress</Text>)
         </Text>
         <Box flexDirection="row">
-          <ProgressBar
-            current={historical.overall.progress}
-            end={1}
-            width={50}
-          />
+          <ProgressBar current={historical.overall} end={1} width={50} />
           <Text>
             {" "}
-            {historical.overall.progress === 1 ? (
+            {historical.overall === 1 ? (
               <Text color="greenBright">done</Text>
             ) : (
-              formatPercentage(historical.overall.progress)
+              formatPercentage(historical.overall)
             )}{" "}
-            (
-            {historical.overall.cachedBlocks +
-              historical.overall.completedBlocks}{" "}
-            blocks)
           </Text>
         </Box>
         <Text> </Text>
 
         <Table
-          rows={historical.sources}
+          rows={historical.networks}
           columns={[
-            { title: "Source", key: "sourceName", align: "left" },
             { title: "Network", key: "networkName", align: "left" },
             {
               title: "Cached",
@@ -198,7 +180,7 @@ const App = (ui: UiState) => {
       </>
     );
   } else {
-    const effectiveProgress = indexingProgress * historical.overall.progress;
+    const effectiveProgress = indexingProgress * historical.overall;
     indexingElement = (
       <>
         <Text>
@@ -374,7 +356,9 @@ const App = (ui: UiState) => {
       <Box flexDirection="column">
         <Text bold>GraphQL </Text>
         <Box flexDirection="row">
-          <Text>Server live at http://localhost:{port}</Text>
+          <Text>
+            Server live at http://{hostname}:{port}
+          </Text>
         </Box>
       </Box>
     </Box>

@@ -18,13 +18,11 @@ During local development, Ponder uses SQLite database files located in the `.pon
 <FileTree>
   <FileTree.Folder name=".ponder/sqlite" open>
     <FileTree.File name="public.db" />
-    <FileTree.File name="ponder.db" />
     <FileTree.File name="ponder_sync.db" />
   </FileTree.Folder>
 </FileTree>
 
 - **`public.db`**: Contains a live indexed table for each table in `ponder.schema.ts`. It's safe to read data from this database during local development and testing.
-- **`ponder.db`**: Contains internal tables that support chain reorg reconciliation.
 - **`ponder_sync.db`**: Contains raw blockchain data that has been cached locally.
 
 Note: SQLite sometimes creates a `-shm` and `-wal` file alongside database files. Do not modify or delete them.
@@ -199,17 +197,7 @@ export default createConfig({
 });
 ```
 
-Like with SQLite, Ponder also uses the `ponder` and `ponder_sync` Postgres database schemas for internal tables and cached RPC data.
-
-#### Multiple instances
-
-To run multiple Ponder instances against the same database, each instance **must** use a different database schema.
-
-Before `0.4`, Ponder used a random schema name for each instance. This solved the isolation problem, but made it difficult to know where to look for indexed data, and cluttered the database.
-
-<Callout>
-	When using a platform with zero-downtime deployments like Railway, Ponder uses a unique schema for each deployment. [Read more](/docs/production/zero-downtime#direct-sql-with-zero-downtime) on zero-downtime deployments for direct SQL.
-</Callout>
+Like with SQLite, Ponder also uses the `ponder_sync` Postgres database schemas for cached RPC data.
 
 ### Connect using `psql`
 

@@ -30,16 +30,10 @@ export class MetricsService {
 
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
-  ponder_historical_start_timestamp: prometheus.Gauge<"network">;
-  ponder_historical_total_blocks: prometheus.Gauge<
-    "network" | "source" | "type"
-  >;
-  ponder_historical_cached_blocks: prometheus.Gauge<
-    "network" | "source" | "type"
-  >;
-  ponder_historical_completed_blocks: prometheus.Gauge<
-    "network" | "source" | "type"
-  >;
+  ponder_historical_duration: prometheus.Histogram<"network">;
+  ponder_historical_total_blocks: prometheus.Gauge<"network">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -119,22 +113,23 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_historical_start_timestamp = new prometheus.Gauge({
-      name: "ponder_historical_start_timestamp",
-      help: "Unix timestamp (ms) when the historical sync service started",
+    this.ponder_historical_duration = new prometheus.Histogram({
+      name: "ponder_historical_duration",
+      help: "Duration of historical sync execution",
       labelNames: ["network"] as const,
+      buckets: httpRequestDurationMs,
       registers: [this.registry],
     });
     this.ponder_historical_total_blocks = new prometheus.Gauge({
       name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
-      labelNames: ["network", "source", "type"] as const,
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_cached_blocks = new prometheus.Gauge({
       name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
-      labelNames: ["network", "source", "type"] as const,
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completed_blocks = new prometheus.Gauge({
@@ -249,39 +244,24 @@ export class MetricsService {
 
 export async function getHistoricalSyncProgress(metrics: MetricsService) {
   // Historical sync table
-  const startTimestampMetric =
-    (await metrics.ponder_historical_start_timestamp.get()).values?.[0]
-      ?.value ?? Date.now();
+
+  const syncDurationMetric = await metrics.ponder_historical_duration
+    .get()
+    .then((metrics) => metrics.values);
+  const syncDurationSum: { [network: string]: number } = {};
+  for (const m of syncDurationMetric) {
+    if (m.metricName === "ponder_historical_duration_sum") {
+      syncDurationSum[m.labels.network!] = m.value;
+    }
+  }
 
   /** Aggregate block metrics for different "types" of sources. */
-  const reduceBlockMetrics = (
-    values: prometheus.MetricValue<"network" | "source" | "type">[],
-  ) =>
+  const reduceBlockMetrics = (values: prometheus.MetricValue<"network">[]) =>
     values.reduce<{
-      [id: string]: {
-        labels: { source: string; network: string };
-        value: number;
-      };
+      [network: string]: number;
     }>((acc, cur) => {
-      const id = `${cur.labels.source}_${cur.labels.network}_${
-        cur.labels.type === "block" ? "block" : "contract"
-      }`;
-
-      if (acc[id] === undefined) {
-        acc[id] = {
-          labels: {
-            source: cur.labels.source as string,
-            network: cur.labels.network as string,
-          },
-          value: cur.value,
-        };
-      } else {
-        // Note: entries in `values` with the same `id` have the same "total"
-        // block range. Using `Math.min()` ensures that a contract with both
-        // "callTrace" and "log" type sources are displayed correctly.
-        acc[id]!.value = Math.min(acc[id]!.value, cur.value);
-      }
-
+      const network = cur.labels.network as string;
+      acc[network] = cur.value;
       return acc;
     }, {});
 
@@ -295,21 +275,14 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     .get()
     .then(({ values }) => reduceBlockMetrics(values));
 
-  const sources = Object.entries(totalBlocksMetric).map(
-    ([
-      id,
-      {
-        labels: { source, network },
-        value: totalBlocks,
-      },
-    ]) => {
-      const cachedBlocks = cachedBlocksMetric[id]?.value;
-      const completedBlocks = completedBlocksMetric[id]?.value ?? 0;
+  const networks = Object.entries(totalBlocksMetric).map(
+    ([network, totalBlocks]) => {
+      const cachedBlocks = cachedBlocksMetric[network];
+      const completedBlocks = completedBlocksMetric[network] ?? 0;
 
       // If cachedBlocks is not set, setup is not complete.
       if (cachedBlocks === undefined) {
         return {
-          sourceName: source,
           networkName: network,
           totalBlocks,
           completedBlocks,
@@ -319,13 +292,12 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
       const progress =
         totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
 
-      const elapsed = Date.now() - startTimestampMetric;
+      const elapsed = syncDurationSum[network]!;
       const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
       // The ETA is low quality if we've completed only one or two blocks.
       const eta = completedBlocks >= 3 ? total - elapsed : undefined;
 
       return {
-        sourceName: source,
         networkName: network,
         totalBlocks,
         cachedBlocks,
@@ -336,18 +308,18 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     },
   );
 
-  const totalBlocks = sources.reduce((a, c) => a + c.totalBlocks, 0);
-  const cachedBlocks = sources.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
-  const completedBlocks = sources.reduce(
+  const totalBlocks = networks.reduce((a, c) => a + c.totalBlocks, 0);
+  const cachedBlocks = networks.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
+  const completedBlocks = networks.reduce(
     (a, c) => a + (c.completedBlocks ?? 0),
     0,
   );
   const progress =
-    totalBlocks === 0 ? 0 : (completedBlocks + cachedBlocks) / totalBlocks;
+    totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
 
   return {
-    overall: { totalBlocks, cachedBlocks, completedBlocks, progress },
-    sources,
+    overall: progress,
+    networks,
   };
 }
 

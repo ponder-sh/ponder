@@ -1,5 +1,4 @@
 import BetterSqlite3 from "better-sqlite3";
-
 import { ensureDirExists } from "./exists.js";
 import { prettyPrint } from "./print.js";
 

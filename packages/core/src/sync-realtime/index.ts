@@ -141,7 +141,7 @@ export const createRealtimeSync = (
    * 1 block ahead of the local chain.
    * @returns true if a reorg occurred
    */
-  const handleBlock = async ({
+  const handleBlock = ({
     block,
     factoryLogs,
     logs,
@@ -163,58 +163,47 @@ export const createRealtimeSync = (
 
     // Remove logs that don't match a filter, accounting for factory addresses
     logs = logs.filter((log) => {
-      const isFilterMatched = logFilters.map((filter) => {
-        const isMatched = isLogFilterMatched({ filter, block, log });
+      let isMatched = false;
 
-        if (isAddressFactory(filter.address)) {
-          return (
-            isMatched && childAddresses.get(filter.address)!.has(log.address)
-          );
+      for (const filter of logFilters) {
+        if (
+          isLogFilterMatched({ filter, block, log }) &&
+          (isAddressFactory(filter.address)
+            ? childAddresses.get(filter.address)!.has(log.address)
+            : true)
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
         }
-
-        return isMatched;
-      });
-
-      for (let i = 0; i < logFilters.length; i++) {
-        if (isFilterMatched[i]!) matchedFilters.add(logFilters[i]!);
       }
 
-      return isFilterMatched.some((m) => m);
+      return isMatched;
     });
 
     // Remove call traces that don't match a filter, accounting for factory addresses
     callTraces = callTraces.filter((callTrace) => {
-      const isFilterMatched = callTraceFilters.map((filter) => {
-        const isMatched = isCallTraceFilterMatched({
-          filter,
-          block,
-          callTrace,
-        });
+      let isMatched = false;
 
-        if (isAddressFactory(filter.toAddress)) {
-          return (
-            isMatched &&
-            childAddresses.get(filter.toAddress)!.has(callTrace.action.to)
-          );
+      for (const filter of callTraceFilters) {
+        if (
+          isCallTraceFilterMatched({ filter, block, callTrace }) &&
+          (isAddressFactory(filter.toAddress)
+            ? childAddresses.get(filter.toAddress)!.has(callTrace.action.to)
+            : true)
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
         }
-
-        return isMatched;
-      });
-
-      for (let i = 0; i < callTraceFilters.length; i++) {
-        if (isFilterMatched[i]!) matchedFilters.add(callTraceFilters[i]!);
       }
 
-      return isFilterMatched.some((m) => m);
+      return isMatched;
     });
 
     // Record matched block filters
-    const isFilterMatched = blockFilters.map((filter) =>
-      isBlockFilterMatched({ filter, block }),
-    );
-
-    for (let i = 0; i < blockFilters.length; i++) {
-      if (isFilterMatched[i]!) matchedFilters.add(blockFilters[i]!);
+    for (const filter of blockFilters) {
+      if (isBlockFilterMatched({ filter, block })) {
+        matchedFilters.add(filter);
+      }
     }
 
     if (logs.length > 0 || callTraces.length > 0) {
@@ -447,19 +436,18 @@ export const createRealtimeSync = (
 
     // Record `logs` that contain factory child addresses
     const factoryLogs = logs.filter((log) => {
-      const isFilterMatched = factories.map((filter) =>
-        isLogFactoryMatched({ filter, log }),
-      );
+      let isMatched = false;
 
-      for (let i = 0; i < factories.length; i++) {
-        if (isFilterMatched[i]!) {
+      for (const filter of factories) {
+        if (isLogFactoryMatched({ filter, log })) {
           childAddresses
-            .get(factories[i]!)!
-            .add(getChildAddress({ log, factory: factories[i]! }));
+            .get(filter)!
+            .add(getChildAddress({ log, factory: filter }));
+          isMatched = true;
         }
       }
 
-      return isFilterMatched.some((m) => m);
+      return isMatched;
     });
 
     // Remove logs that don't match a filter
@@ -609,7 +597,7 @@ export const createRealtimeSync = (
                 service: "realtime",
                 msg: `Fetched ${missingBlockRange.length} missing '${
                   args.network.name
-                }' blocks from ${latestLocalBlock.number + 1} to ${Math.min(
+                }' blocks from ${hexToNumber(latestLocalBlock.number) + 1} to ${Math.min(
                   hexToNumber(block.number),
                   hexToNumber(latestLocalBlock.number) + MAX_QUEUED_BLOCKS,
                 )}`,
@@ -640,7 +628,7 @@ export const createRealtimeSync = (
 
             // New block is exactly one block ahead of the local chain.
             // Attempt to ingest it.
-            await handleBlock({ block, ...rest });
+            handleBlock({ block, ...rest });
 
             // Reset the error state after successfully completing the happy path.
             consecutiveErrors = 0;
@@ -728,15 +716,15 @@ export const createRealtimeSync = (
     async kill() {
       clearInterval(interval);
       isKilled = true;
-      queue.pause();
-      queue.clear();
+      queue?.pause();
+      queue?.clear();
 
       args.common.logger.debug({
         service: "realtime",
         msg: `Killed '${args.network.name}' realtime sync`,
       });
 
-      await queue.onIdle();
+      await queue?.onIdle();
     },
     get localChain() {
       return localChain;

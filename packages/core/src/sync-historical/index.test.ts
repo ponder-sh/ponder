@@ -5,8 +5,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
-import { getRawRPCData, publicClient } from "@/_test/utils.js";
-import type { SyncBlock } from "@/types/sync.js";
+import { getRawRPCData } from "@/_test/utils.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -82,11 +81,11 @@ test("sync() with log filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
 
   expect(logs).toHaveLength(2);
 
-  const intervals = await database.syncDb
+  const intervals = await database.qb.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
@@ -111,18 +110,18 @@ test("sync() with log filter and transaction receipts", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
 
   expect(logs).toHaveLength(2);
 
-  const transactionReceipts = await database.syncDb
+  const transactionReceipts = await database.qb.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
 
   expect(transactionReceipts).toHaveLength(2);
 
-  const intervals = await database.syncDb
+  const intervals = await database.qb.sync
     .selectFrom("logFilterIntervals")
     .selectAll()
     .execute();
@@ -145,14 +144,14 @@ test("sync() with block filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const blocks = await database.syncDb
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
 
   expect(blocks).toHaveLength(3);
 
-  const intervals = await database.syncDb
+  const intervals = await database.qb.sync
     .selectFrom("blockFilterIntervals")
     .selectAll()
     .execute();
@@ -175,11 +174,11 @@ test("sync() with log factory", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
 
   expect(logs).toHaveLength(2);
 
-  const intervals = await database.syncDb
+  const intervals = await database.qb.sync
     .selectFrom("factoryLogFilterIntervals")
     .selectAll()
     .execute();
@@ -202,14 +201,14 @@ test("sync() with trace filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const callTraces = await database.syncDb
+  const callTraces = await database.qb.sync
     .selectFrom("callTraces")
     .selectAll()
     .execute();
 
   expect(callTraces).toHaveLength(4);
 
-  const intervals = await database.syncDb
+  const intervals = await database.qb.sync
     .selectFrom("traceFilterIntervals")
     .selectAll()
     .execute();
@@ -232,10 +231,10 @@ test("sync() with many filters", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(4);
 
-  const blocks = await database.syncDb
+  const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -269,203 +268,7 @@ test("sync() with cache hit", async (context) => {
   });
   await historicalSync.sync([0, 5]);
 
-  expect(spy).toHaveBeenCalledTimes(1);
-
-  await cleanup();
-});
-
-test("initializeMetrics()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: context.sources,
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  const finalizeBlock = await publicClient.request({
-    method: "eth_getBlockByNumber",
-    params: ["latest", false],
-  });
-
-  historicalSync.initializeMetrics(finalizeBlock as SyncBlock, true);
-
-  const totalBlocksMetric = (
-    await context.common.metrics.ponder_historical_total_blocks.get()
-  ).values;
-  const cachedBlocksMetric = (
-    await context.common.metrics.ponder_historical_cached_blocks.get()
-  ).values;
-
-  expect(totalBlocksMetric).toEqual(
-    expect.arrayContaining([
-      {
-        labels: { network: "mainnet", source: "Erc20", type: "log" },
-        value: 6,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Pair_factory", type: "log" },
-      //   value: 6,
-      // },
-      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 6 },
-      {
-        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
-        value: 5,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Factory", type: "trace" },
-      //   value: 6,
-      // },
-    ]),
-  );
-
-  expect(cachedBlocksMetric).toEqual(
-    expect.arrayContaining([
-      {
-        labels: { network: "mainnet", source: "Erc20", type: "log" },
-        value: 0,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Pair_factory", type: "log" },
-      //   value: 0,
-      // },
-      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 0 },
-      {
-        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
-        value: 0,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Factory", type: "trace" },
-      //   value: 0,
-      // },
-    ]),
-  );
-
-  await cleanup();
-});
-
-test("initializeMetrics() with cache hit", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  let historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: context.sources,
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  await historicalSync.sync([0, 5]);
-
-  historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: context.sources,
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  const finalizeBlock = await publicClient.request({
-    method: "eth_getBlockByNumber",
-    params: ["latest", false],
-  });
-
-  historicalSync.initializeMetrics(finalizeBlock as SyncBlock, true);
-
-  const totalBlocksMetric = (
-    await context.common.metrics.ponder_historical_total_blocks.get()
-  ).values;
-  const cachedBlocksMetric = (
-    await context.common.metrics.ponder_historical_cached_blocks.get()
-  ).values;
-
-  expect(totalBlocksMetric).toEqual(
-    expect.arrayContaining([
-      {
-        labels: { network: "mainnet", source: "Erc20", type: "log" },
-        value: 6,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Pair_factory", type: "log" },
-      //   value: 6,
-      // },
-      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 6 },
-      {
-        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
-        value: 5,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Factory", type: "trace" },
-      //   value: 6,
-      // },
-    ]),
-  );
-
-  expect(cachedBlocksMetric).toEqual(
-    expect.arrayContaining([
-      {
-        labels: { network: "mainnet", source: "Erc20", type: "log" },
-        value: 6,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Pair_factory", type: "log" },
-      //   value: 0,
-      // },
-      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 6 },
-      {
-        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
-        value: 5,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Factory", type: "trace" },
-      //   value: 0,
-      // },
-    ]),
-  );
-
-  await cleanup();
-});
-
-test("sync() updates metrics", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: context.sources,
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  await historicalSync.sync([0, 5]);
-
-  const completedBlocksMetric = (
-    await context.common.metrics.ponder_historical_completed_blocks.get()
-  ).values;
-
-  expect(completedBlocksMetric).toEqual(
-    expect.arrayContaining([
-      {
-        labels: { network: "mainnet", source: "Erc20", type: "log" },
-        value: 6,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Pair_factory", type: "log" },
-      //   value: 0,
-      // },
-      { labels: { network: "mainnet", source: "Pair", type: "log" }, value: 6 },
-      {
-        labels: { network: "mainnet", source: "OddBlocks", type: "block" },
-        value: 5,
-      },
-      // {
-      //   labels: { network: "mainnet", source: "Factory", type: "trace" },
-      //   value: 0,
-      // },
-    ]),
-  );
+  expect(spy).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
@@ -521,30 +324,8 @@ test("syncAddress() handles many addresses", async (context) => {
 
   await historicalSync.sync([0, 10 + 5 + 2]);
 
-  const logs = await database.syncDb.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(14);
-
-  await cleanup();
-});
-
-test("sync() chunks requests", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  context.sources[0].maxBlockRange = 1;
-
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
-    syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
-  });
-
-  const spy = vi.spyOn(context.requestQueues[0], "request");
-
-  await historicalSync.sync([0, 5]);
-
-  expect(spy).toHaveBeenCalledTimes(8);
 
   await cleanup();
 });

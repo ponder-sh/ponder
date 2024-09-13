@@ -21,7 +21,6 @@ export type ContractMetadata = {
   abiFunctions: AbiFunctions;
   name: string;
   networkName: string;
-  maxBlockRange?: number;
 };
 export type BlockMetadata = {
   type: "block";

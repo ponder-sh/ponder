@@ -46,17 +46,17 @@ export default createConfig({
       network: {
         mainnet: {
           address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-          startBlock: Number(latestBlockMainnet.number) - 65,
+          startBlock: Number(latestBlockMainnet.number),
         },
         base: {
-          startBlock: Number(latestBlockBase.number) - 60,
+          startBlock: Number(latestBlockBase.number),
         },
         optimism: {
-          startBlock: Number(latestBlockOptimism.number) - 60,
+          startBlock: Number(latestBlockOptimism.number),
         },
         polygon: {
           address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
-          startBlock: Number(latestBlockPolygon.number) - 200,
+          startBlock: Number(latestBlockPolygon.number),
         },
       },
     },
