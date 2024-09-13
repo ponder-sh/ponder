@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
@@ -13,7 +12,6 @@ import {
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
 import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
   getChunks,
@@ -420,21 +418,6 @@ export const createHistoricalSync = async (
     });
   };
 
-  // Emit progress update logs on an interval for each source.
-  const interval = setInterval(async () => {
-    const historical = await getHistoricalSyncProgress(args.common.metrics);
-
-    for (const { networkName, progress, eta } of historical.networks) {
-      if (progress === 1 || networkName !== args.network.name) return;
-      args.common.logger.info({
-        service: "historical",
-        msg: `Syncing '${networkName}' with ${formatPercentage(
-          progress ?? 0,
-        )} complete${eta !== undefined ? ` and ~${formatEta(eta)} remaining` : ""}`,
-      });
-    }
-  }, 10_000);
-
   return {
     intervalsCache,
     async sync(_interval) {
@@ -530,7 +513,6 @@ export const createHistoricalSync = async (
     },
     kill() {
       isKilled = true;
-      clearInterval(interval);
     },
   };
 };

@@ -714,12 +714,6 @@ export const createRealtimeSync = (
       isKilled = true;
       queue?.pause();
       queue?.clear();
-
-      args.common.logger.debug({
-        service: "realtime",
-        msg: `Killed '${args.network.name}' realtime sync`,
-      });
-
       await queue?.onIdle();
     },
     get localChain() {
