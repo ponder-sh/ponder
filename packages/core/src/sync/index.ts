@@ -713,7 +713,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
           realtimeSync.start({
             finalizedBlock: syncProgress.finalized,
-            childAddresses,
+            initialChildAddresses: childAddresses,
           });
         }
       }

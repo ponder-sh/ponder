@@ -42,7 +42,7 @@ import {
 export type RealtimeSync = {
   start(args: {
     finalizedBlock: LightBlock;
-    childAddresses: Map<Factory, Set<Address>>;
+    initialChildAddresses: Map<Factory, Set<Address>>;
   }): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
   localChain: LightBlock[];
@@ -94,7 +94,9 @@ export const createRealtimeSync = (
   ////////
   let isKilled = false;
   let finalizedBlock: LightBlock;
-  let childAddresses: Map<Factory, Set<Address>>;
+  let finalizedChildAddresses: Map<Factory, Set<Address>>;
+  const unfinalizedChildAddresses = new Map<Factory, Set<Address>>();
+  const factoryLogsPerBlock = new Map<Hash, SyncLog[]>();
   /**
    * Blocks and logs that have been ingested and are
    * waiting to be finalized. It is an invariant that
@@ -129,6 +131,10 @@ export const createRealtimeSync = (
     } else if (source.type === "block") {
       blockFilters.push(source.filter);
     }
+  }
+
+  for (const factory of factories) {
+    unfinalizedChildAddresses.set(factory, new Set());
   }
 
   /**
@@ -169,7 +175,8 @@ export const createRealtimeSync = (
         if (
           isLogFilterMatched({ filter, block, log }) &&
           (isAddressFactory(filter.address)
-            ? childAddresses.get(filter.address)!.has(log.address)
+            ? finalizedChildAddresses.get(filter.address)!.has(log.address) ||
+              unfinalizedChildAddresses.get(filter.address)!.has(log.address)
             : true)
         ) {
           matchedFilters.add(filter);
@@ -188,7 +195,12 @@ export const createRealtimeSync = (
         if (
           isCallTraceFilterMatched({ filter, block, callTrace }) &&
           (isAddressFactory(filter.toAddress)
-            ? childAddresses.get(filter.toAddress)!.has(callTrace.action.to)
+            ? finalizedChildAddresses
+                .get(filter.toAddress)!
+                .has(callTrace.action.to) ||
+              unfinalizedChildAddresses
+                .get(filter.toAddress)!
+                .has(callTrace.action.to)
             : true)
         ) {
           matchedFilters.add(filter);
@@ -276,10 +288,57 @@ export const createRealtimeSync = (
         }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${pendingFinalizedBlock.number}`,
       });
 
+      const finalizedBlocks = localChain.filter(
+        (lb) =>
+          hexToNumber(lb.number) <= hexToNumber(pendingFinalizedBlock.number),
+      );
+
       localChain = localChain.filter(
         (lb) =>
           hexToNumber(lb.number) > hexToNumber(pendingFinalizedBlock.number),
       );
+
+      // add child address from newly finalized blocks to `finalizedChildAddresses`
+      for (const filter of factories) {
+        for (const { hash } of finalizedBlocks) {
+          const factoryLogs = factoryLogsPerBlock.get(hash);
+          if (factoryLogs !== undefined) {
+            for (const log of factoryLogs) {
+              if (isLogFactoryMatched({ filter, log })) {
+                finalizedChildAddresses
+                  .get(filter)!
+                  .add(getChildAddress({ log, factory: filter }));
+              }
+            }
+          }
+        }
+      }
+
+      // recompute `unfinalizedChildAddresses`
+      unfinalizedChildAddresses.clear();
+
+      for (const filter of factories) {
+        unfinalizedChildAddresses.set(filter, new Set());
+        for (const { hash } of localChain) {
+          const factoryLogs = factoryLogsPerBlock.get(hash);
+          if (factoryLogs !== undefined) {
+            for (const log of factoryLogs) {
+              if (isLogFactoryMatched({ filter, log })) {
+                unfinalizedChildAddresses
+                  .get(filter)!
+                  .add(getChildAddress({ log, factory: filter }));
+              }
+            }
+          }
+        }
+      }
+
+      // delete finalized blocks from `factoryLogsPerBlock`
+      for (const { hash } of finalizedBlocks) {
+        if (factoryLogsPerBlock.has(hash)) {
+          factoryLogsPerBlock.delete(hash);
+        }
+      }
 
       finalizedBlock = pendingFinalizedBlock;
 
@@ -310,12 +369,36 @@ export const createRealtimeSync = (
       (lb) => hexToNumber(lb.number) >= hexToNumber(block.number),
     );
 
-    // TODO(kyle) prune `childAddresses`
-
     // Prune the local chain of blocks that have been reorged out
     localChain = localChain.filter(
       (lb) => hexToNumber(lb.number) < hexToNumber(block.number),
     );
+
+    // recompute `unfinalizedChildAddresses`
+    unfinalizedChildAddresses.clear();
+
+    for (const filter of factories) {
+      unfinalizedChildAddresses.set(filter, new Set());
+      for (const { hash } of localChain) {
+        const factoryLogs = factoryLogsPerBlock.get(hash);
+        if (factoryLogs !== undefined) {
+          for (const log of factoryLogs) {
+            if (isLogFactoryMatched({ filter, log })) {
+              unfinalizedChildAddresses
+                .get(filter)!
+                .add(getChildAddress({ log, factory: filter }));
+            }
+          }
+        }
+      }
+    }
+
+    // delete reorged blocks from `factoryLogsPerBlock`
+    for (const { hash } of reorgedBlocks) {
+      if (factoryLogsPerBlock.has(hash)) {
+        factoryLogsPerBlock.delete(hash);
+      }
+    }
 
     // Block we are attempting to fit into the local chain.
     let remoteBlock = block;
@@ -440,7 +523,13 @@ export const createRealtimeSync = (
 
       for (const filter of factories) {
         if (isLogFactoryMatched({ filter, log })) {
-          childAddresses
+          if (factoryLogsPerBlock.has(block.hash) === false) {
+            factoryLogsPerBlock.set(block.hash, []);
+          }
+
+          factoryLogsPerBlock.get(block.hash)!.push(log);
+
+          unfinalizedChildAddresses
             .get(filter)!
             .add(getChildAddress({ log, factory: filter }));
           isMatched = true;
@@ -532,7 +621,7 @@ export const createRealtimeSync = (
   return {
     start(startArgs) {
       finalizedBlock = startArgs.finalizedBlock;
-      childAddresses = startArgs.childAddresses;
+      finalizedChildAddresses = startArgs.initialChildAddresses;
       /**
        * The queue reacts to a new block. The four states are:
        * 1) Block is the same as the one just processed, no-op.

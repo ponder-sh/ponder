@@ -79,7 +79,7 @@ test("start() handles block", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map(),
+    initialChildAddresses: new Map(),
   });
   await queue.onIdle();
 
@@ -109,7 +109,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map(),
+    initialChildAddresses: new Map(),
   });
   await queue.onIdle();
 
@@ -146,7 +146,7 @@ test("start() gets missing block", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
@@ -186,7 +186,7 @@ test("start() retries on error", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
@@ -220,7 +220,7 @@ test("kill()", async (context) => {
 
   await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
@@ -256,7 +256,7 @@ test("handleBlock() block event", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
@@ -339,7 +339,7 @@ test("handleBlock() finalize event", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
@@ -381,7 +381,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
@@ -425,7 +425,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
 
   const queue = await realtimeSync.start({
     finalizedBlock,
-    childAddresses: new Map([
+    initialChildAddresses: new Map([
       [sources[1].filter.address, new Set()],
       [sources[2].filter.toAddress, new Set()],
     ]),
