@@ -675,11 +675,25 @@ export const createRealtimeSync = (
         try {
           const block = await _eth_getBlockByNumber(args.requestQueue, {
             blockTag: "latest",
-          }).then((block) => fetchBlockEventData(block));
+          });
+
+          const latestLocalBlock = getLatestLocalBlock();
+
+          // We already saw and handled this block. No-op.
+          if (latestLocalBlock.hash === block.hash) {
+            args.common.logger.trace({
+              service: "realtime",
+              msg: `Skipped processing '${args.network.name}' block ${hexToNumber(block.number)}, already synced`,
+            });
+
+            return;
+          }
+
+          const blockWithEventData = await fetchBlockEventData(block);
 
           consecutiveErrors = 0;
 
-          return queue.add(block);
+          return queue.add(blockWithEventData);
         } catch (_error) {
           if (isKilled) return;
 
