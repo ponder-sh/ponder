@@ -23,20 +23,12 @@ const defaultTo =
   <column extends BuilderScalarColumn>(col: column): DefaultTo<column> =>
   (val: DefaultValue<column[" scalar"]>) => {
     const scalar = col[" scalar"];
-    let v = val;
-    if (scalar === "hex") {
-      let value = val as string;
-      if (value?.startsWith("0x")) {
-        value = value.slice(2);
-      }
-      v = value as DefaultValue<column[" scalar"]>;
-    }
     const newCol = {
       " type": col[" type"],
       " scalar": scalar,
       " optional": col[" optional"],
       " list": col[" list"],
-      " default": v,
+      " default": val,
     } as const;
     return {
       ...newCol,
@@ -295,6 +287,23 @@ const nullsLast =
       return newIndex;
     }
   };
+
+type ReferenceDefault<column extends BuilderReferenceColumn> =
+  () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
+
+const referenceDefault =
+  <column extends BuilderReferenceColumn>(
+    col: column,
+  ): ReferenceDefault<column> =>
+  () => {
+    return {
+      " type": col[" type"],
+      " scalar": col[" scalar"],
+      " optional": true,
+      " reference": col[" reference"],
+    };
+  };
+
 type ReferenceOptional<column extends BuilderReferenceColumn> =
   () => BuilderReferenceColumn<column[" scalar"], true, column[" reference"]>;
 
@@ -331,29 +340,41 @@ const references =
     if (newCol[" optional"]) {
       return newCol;
     } else {
-      return { ...newCol, optional: referenceOptional(newCol) };
+      return {
+        ...newCol,
+        optional: referenceOptional(newCol),
+        default: referenceDefault(newCol),
+      };
     }
   };
 
-type JSONDefault<column extends BuilderJSONColumn> = () => BuilderJSONColumn<
-  column[" json"],
-  column[" optional"]
+type JSONDefault<column extends BuilderJSONColumn> = (
+  val: DefaultValue<any>,
+) => BuilderJSONColumn<column[" json"], column[" optional"]>;
+
+type JSONDefaultReturn<C extends BuilderJSONColumn> = ReturnType<
+  JSONDefault<C>
 >;
 
 const jsonDefault =
   <column extends BuilderJSONColumn>(col: column): JSONDefault<column> =>
-  // @ts-expect-error
-  (val: DefaultValue<"string">) => {
+  (val: DefaultValue<any>) => {
+    if (val === undefined || val === null) {
+      return col as JSONDefaultReturn<column>;
+    }
+    // there is currently a lot of wiggle room to pass things like bigints
+    // or other types into this function. needs more validation
     const newCol = {
       " type": "json",
       " json": {} as (typeof col)[" json"],
       " optional": col[" optional"],
-      " default": val,
+      " default": JSON.stringify(val),
     } as const;
     return {
       ...newCol,
       optional: jsonOptional(newCol),
-    };
+      default: jsonDefault(newCol),
+    } as JSONDefaultReturn<column>;
   };
 
 type JSONOptional<column extends BuilderJSONColumn> = () => BuilderJSONColumn<
@@ -532,6 +553,7 @@ export type BuilderReferenceColumn<
        * })
        */
       optional: ReferenceOptional<base>;
+      default: ReferenceDefault<base>;
     }
   : base;
 
@@ -710,7 +732,7 @@ export const json = <type = any>(): BuilderJSONColumn<type, false> => {
     " type": "json",
     " json": {} as type,
     " optional": false,
-    " default": undefined,
+    " default": undefined as any,
   } as const;
 
   return {

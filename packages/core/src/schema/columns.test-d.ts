@@ -86,12 +86,13 @@ test("references", () => {
   //    ^?
 
   assertType<keyof typeof c>({} as unknown as "optional");
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "reference";
       " scalar": "string";
       " optional": false;
       " reference": "OtherTable.id";
+      " default": undefined;
     },
   );
 });
@@ -147,7 +148,7 @@ test("json w/ type", () => {
       " type": "json";
       " json": { a: number; b: string };
       " optional": false;
-      " default": undefined;
+      " default": any;
     },
   );
 });

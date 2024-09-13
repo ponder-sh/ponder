@@ -43,7 +43,7 @@ export type JSONColumn<type = any, optional extends boolean = boolean> = {
   " type": "json";
   " json": type;
   " optional": optional;
-  " default": DefaultValue<"string">;
+  " default": type;
 };
 
 export type OneColumn<reference extends string = string> = {

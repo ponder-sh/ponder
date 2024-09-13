@@ -1,3 +1,5 @@
+import { replaceBigInts } from "@ponder/utils";
+import type { ColumnDefinitionBuilder } from "kysely";
 import type {
   Column,
   Constraints,
@@ -36,8 +38,25 @@ export const isOptionalColumn = (column: Column): boolean => {
   return column[" optional"];
 };
 
-export const isDefaultSet = (column: Column): boolean => {
+export const isDefaultColumn = (column: Column): boolean => {
   return (column as any)[" default"] !== undefined;
+};
+
+export const isColumnHex = (column: Column): boolean =>
+  isScalarColumn(column) && column[" scalar"] === "hex";
+
+export const applyDefault = (
+  col: ColumnDefinitionBuilder,
+  column: ScalarColumn | JSONColumn | EnumColumn,
+) => {
+  if (isDefaultColumn(column)) {
+    if (isColumnHex(column)) {
+      col = col.defaultTo(`\\x${(column[" default"] as string).slice(2)}`);
+    } else {
+      col = col.defaultTo(column[" default"]);
+    }
+  }
+  return col;
 };
 
 export const isListColumn = (column: Column): boolean => {
@@ -104,6 +123,6 @@ export const encodeSchema = (schema: Schema) => {
       tables: getTables(schema),
       enums: getEnums(schema),
     },
-    (_k, v) => (typeof v === "bigint" ? `${v}n` : v),
+    (_k, v) => replaceBigInts(v, (n) => `${n}`),
   );
 };
