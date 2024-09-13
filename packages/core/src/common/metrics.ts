@@ -26,7 +26,6 @@ export class MetricsService {
   ponder_indexing_has_error: prometheus.Gauge;
 
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
-  ponder_indexing_function_error_total: prometheus.Counter<"event">;
 
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
@@ -100,19 +99,12 @@ export class MetricsService {
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_function_error_total = new prometheus.Counter({
-      name: "ponder_indexing_function_error_total",
-      help: "Total number of errors encountered during indexing function execution",
-      labelNames: ["network", "event"] as const,
-      registers: [this.registry],
-    });
     this.ponder_indexing_abi_decoding_duration = new prometheus.Histogram({
       name: "ponder_indexing_abi_decoding_duration",
       help: "Total time spent decoding log arguments and call trace arguments and results",
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-
     this.ponder_historical_duration = new prometheus.Histogram({
       name: "ponder_historical_duration",
       help: "Duration of historical sync execution",
@@ -341,9 +333,6 @@ export async function getIndexingProgress(metrics: MetricsService) {
 
   const indexingCompletedEventsMetric = (
     await metrics.ponder_indexing_completed_events.get()
-  ).values;
-  const indexingFunctionErrorMetric = (
-    await metrics.ponder_indexing_function_error_total.get()
   ).values;
   const indexingFunctionDurationMetric = (
     await metrics.ponder_indexing_function_duration.get()

@@ -458,8 +458,6 @@ const executeSetup = async (
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error;
 
-    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
-
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
     addStackTrace(error, common.options);
@@ -520,8 +518,6 @@ const executeLog = async (
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error & { meta?: string[] };
-
-    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
@@ -586,7 +582,6 @@ const executeBlock = async (
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error & { meta?: string[] };
-    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
@@ -657,8 +652,6 @@ const executeCallTrace = async (
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
     const error = _error as Error & { meta?: string[] };
-
-    common.metrics.ponder_indexing_function_error_total.inc(metricLabel);
 
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
