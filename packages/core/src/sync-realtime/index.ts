@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import { syncBlockToLightBlock } from "@/sync/index.js";
+import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
   type CallTraceFilter,
@@ -41,7 +41,7 @@ import {
 
 export type RealtimeSync = {
   start(args: {
-    finalizedBlock: LightBlock;
+    syncProgress: Pick<SyncProgress, "finalized">;
     initialChildAddresses: Map<Factory, Set<Address>>;
   }): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
@@ -335,9 +335,7 @@ export const createRealtimeSync = (
 
       // delete finalized blocks from `factoryLogsPerBlock`
       for (const { hash } of finalizedBlocks) {
-        if (factoryLogsPerBlock.has(hash)) {
-          factoryLogsPerBlock.delete(hash);
-        }
+        factoryLogsPerBlock.delete(hash);
       }
 
       finalizedBlock = pendingFinalizedBlock;
@@ -395,9 +393,7 @@ export const createRealtimeSync = (
 
     // delete reorged blocks from `factoryLogsPerBlock`
     for (const { hash } of reorgedBlocks) {
-      if (factoryLogsPerBlock.has(hash)) {
-        factoryLogsPerBlock.delete(hash);
-      }
+      factoryLogsPerBlock.delete(hash);
     }
 
     // Block we are attempting to fit into the local chain.
@@ -620,7 +616,7 @@ export const createRealtimeSync = (
 
   return {
     start(startArgs) {
-      finalizedBlock = startArgs.finalizedBlock;
+      finalizedBlock = startArgs.syncProgress.finalized;
       finalizedChildAddresses = startArgs.initialChildAddresses;
       /**
        * The queue reacts to a new block. The four states are:

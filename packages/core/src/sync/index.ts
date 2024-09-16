@@ -560,7 +560,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             args.syncStore.insertLogs({
               logs: event.logs
                 .map((log) => ({ log, block: event.block }))
-                /// @ts-ignore
+                // @ts-ignore
                 .concat(event.factoryLogs.map((log) => ({ log }))),
               shouldUpdateCheckpoint: true,
               chainId,
@@ -695,7 +695,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             1,
           );
 
-          const childAddresses = new Map<Factory, Set<Address>>();
+          const initialChildAddresses = new Map<Factory, Set<Address>>();
 
           for (const { filter } of args.sources) {
             if (
@@ -707,14 +707,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
                 filter: filter.address,
               });
 
-              childAddresses.set(filter.address, new Set(addresses));
+              initialChildAddresses.set(filter.address, new Set(addresses));
             }
           }
 
-          realtimeSync.start({
-            finalizedBlock: syncProgress.finalized,
-            initialChildAddresses: childAddresses,
-          });
+          realtimeSync.start({ syncProgress, initialChildAddresses });
         }
       }
     },
