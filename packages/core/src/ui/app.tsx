@@ -1,3 +1,4 @@
+import type { getAppProgress, getSyncProgress } from "@/common/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
@@ -8,17 +9,7 @@ export type UiState = {
   port: number;
   hostname: string;
 
-  historical: {
-    overall: number;
-    networks: {
-      networkName: string;
-      totalBlocks: number;
-      completedBlocks: number;
-      cachedBlocks?: number;
-      progress?: number;
-      eta?: number;
-    }[];
-  };
+  sync: Awaited<ReturnType<typeof getSyncProgress>>;
 
   indexing: {
     hasError: boolean;
@@ -36,10 +27,7 @@ export type UiState = {
     }[];
   };
 
-  app: {
-    progress: number;
-    eta: number | undefined;
-  };
+  app: Awaited<ReturnType<typeof getAppProgress>>;
 
   realtimeSyncNetworks: {
     name: string;
@@ -49,10 +37,7 @@ export type UiState = {
 
 export const buildUiState = () => {
   const ui: UiState = {
-    historical: {
-      overall: 0,
-      networks: [],
-    },
+    sync: [],
 
     realtimeSyncNetworks: [],
 
@@ -71,6 +56,7 @@ export const buildUiState = () => {
     app: {
       progress: 0,
       eta: undefined,
+      mode: undefined,
     },
 
     port: 0,
@@ -81,7 +67,7 @@ export const buildUiState = () => {
 };
 
 const App = (ui: UiState) => {
-  const { historical, indexing, app, port, hostname } = ui;
+  const { sync, indexing, app, port, hostname } = ui;
 
   if (indexing.hasError) {
     return (
@@ -95,71 +81,52 @@ const App = (ui: UiState) => {
     );
   }
 
-  let historicalElement: JSX.Element;
-  if (historical.overall === 0) {
-    historicalElement = (
+  const syncElement =
+    sync.length === 0 ? (
       <>
-        <Text bold={true}>Historical sync</Text>
+        <Text bold={true}>Sync</Text>
+        <Text> </Text>
         <Text>Waiting to start...</Text>
         <Text> </Text>
       </>
-    );
-  } else if (historical.overall === 1) {
-    historicalElement = (
+    ) : (
       <>
-        <Text>
-          <Text bold={true}>Historical sync </Text>(
-          <Text color="greenBright">done</Text>)
-        </Text>
+        <Text bold={true}>Sync</Text>
         <Text> </Text>
-      </>
-    );
-  } else {
-    historicalElement = (
-      <>
-        <Text>
-          <Text bold={true}>Historical sync </Text>(
-          <Text color="yellowBright">in progress</Text>)
-        </Text>
-        <Box flexDirection="row">
-          <Text>
-            {" "}
-            {historical.overall === 1 ? (
-              <Text color="greenBright">done</Text>
-            ) : null}
-          </Text>
-        </Box>
-
         <Table
-          rows={historical.networks}
+          rows={sync}
           columns={[
             { title: "Network", key: "networkName", align: "left" },
             {
-              title: "Cached",
-              key: "cachedBlocks",
+              title: "Block",
+              key: "block",
               align: "right",
-              format: (_, row) =>
-                row.cachedBlocks !== undefined ? row.cachedBlocks : "-",
             },
+            // {
+            //   title: "Events",
+            //   key: "events",
+            //   align: "right",
+            // },
+            { title: "Status", key: "status", align: "right" },
             {
-              title: "Completed",
-              key: "completedBlocks",
+              title: "RPC req/s",
+              key: "rps",
               align: "right",
+              format: (_, row) => row.rps.toFixed(1),
             },
-            { title: "Total", key: "totalBlocks", align: "right" },
           ]}
         />
         <Text> </Text>
       </>
     );
-  }
 
   let indexingElement: JSX.Element;
 
-  if (app.progress === 0) {
+  if (indexing.events.length === 0) {
     indexingElement = (
       <>
         <Text bold={true}>Indexing </Text>
+        <Text> </Text>
         <Text>Waiting to start...</Text>
         <Text> </Text>
       </>
@@ -167,15 +134,8 @@ const App = (ui: UiState) => {
   } else {
     indexingElement = (
       <>
-        <Text>
-          <Text bold={true}>Indexing </Text>(
-          {app.progress === 1 ? (
-            <Text color="greenBright">done</Text>
-          ) : (
-            <Text color="yellowBright">in progress</Text>
-          )}
-          )
-        </Text>
+        <Text bold={true}>Indexing </Text>
+
         <Text> </Text>
 
         <Table
@@ -205,11 +165,34 @@ const App = (ui: UiState) => {
     <Box flexDirection="column">
       <Text> </Text>
 
-      {historicalElement}
+      {syncElement}
       {indexingElement}
 
+      <>
+        <Box flexDirection="row">
+          <Text bold={true}>Progress </Text>
+          {app.mode === undefined || app.progress === 0 ? null : (
+            <Text>
+              (
+              {app.mode === "historical" ? (
+                <Text color="yellowBright">backfilling</Text>
+              ) : app.mode === "realtime" ? (
+                <Text color="greenBright">live</Text>
+              ) : (
+                <Text color="greenBright">complete</Text>
+              )}
+              )
+            </Text>
+          )}
+        </Box>
+        <Text> </Text>
+      </>
+
       <Box flexDirection="row">
-        <ProgressBar current={app.progress} end={1} width={50} />
+        <Text> </Text>
+        <Text>
+          <ProgressBar current={app.progress} end={1} width={50} />
+        </Text>
         <Text>
           {" "}
           {formatPercentage(app.progress)}
@@ -220,120 +203,6 @@ const App = (ui: UiState) => {
       </Box>
       <Text> </Text>
 
-      {/* <Text bold={true}>Historical sync</Text>
-      {historical.overall.progress > 0 ? (
-        <>
-          <Box flexDirection="row">
-            <ProgressBar
-              current={historical.overall.progress}
-              end={1}
-              width={40}
-            />
-            <Text>
-              {" "}
-              {historical.overall.progress === 1 ? (
-                <Text color="greenBright">done</Text>
-              ) : (
-                formatPercentage(historical.overall.progress)
-              )}{" "}
-              ({historical.overall.totalBlocks} blocks)
-            </Text>
-          </Box>
-          <Text> </Text>
-
-          <Table
-            rows={historical.contracts}
-            columns={[
-              { title: "Contract", key: "contractName", align: "left" },
-              { title: "Network", key: "networkName", align: "left" },
-              { title: "Total blocks", key: "totalBlocks", align: "right" },
-              {
-                title: "Cached %",
-                key: "cachedBlocks",
-                align: "right",
-                format: (_, row) =>
-                  row.cachedBlocks !== undefined
-                    ? formatPercentage(row.cachedBlocks / row.totalBlocks)
-                    : "-",
-              },
-              {
-                title: "Progress",
-                key: "progress",
-                align: "right",
-                format: (v) => (v ? formatPercentage(v) : "-"),
-              },
-              {
-                title: "ETA",
-                key: "eta",
-                align: "right",
-                format: (v) => (v ? formatEta(v) : "-"),
-              },
-            ]}
-          />
-        </>
-      ) : (
-        <Text>Waiting to start...</Text>
-      )} */}
-      {/* <Text bold={true}>Indexing</Text>
-      {indexing.overall.progress > 0 ? (
-        <>
-          <Box flexDirection="row">
-            <ProgressBar
-              current={indexing.overall.progress}
-              end={1}
-              width={40}
-            />
-            <Text>
-              {" "}
-              {indexing.overall.progress === 1 ? (
-                <Text color="greenBright">up to date</Text>
-              ) : (
-                formatPercentage(indexing.overall.progress)
-              )}{" "}
-              ({indexing.overall.totalEvents} events)
-            </Text>
-          </Box>
-          <Text> </Text>
-
-          <Table
-            rows={indexing.events}
-            columns={[
-              { title: "Event", key: "eventName", align: "left" },
-              { title: "Network", key: "networkName", align: "left" },
-              { title: "Count", key: "count", align: "right" },
-              {
-                title: "Error count",
-                key: "errorCount",
-                align: "right",
-                format: (v, row) => (row.count > 0 ? v : "-"),
-              },
-              {
-                title: "Duration (avg)",
-                key: "averageDuration",
-                align: "right",
-                format: (v) => (v > 0 ? `${v.toFixed(2)}ms` : "-"),
-              },
-            ]}
-          />
-        </>
-      ) : (
-        <Text>Waiting to start...</Text>
-      )}
-      <Text> </Text> */}
-      {/* {realtimeSyncNetworks.length > 0 && (
-        <Box flexDirection="column">
-          <Text bold={true}>Realtime sync </Text>
-          {realtimeSyncNetworks.map(({ name, isConnected }) => (
-            <Box flexDirection="row" key={name}>
-              <Text>
-                {name.slice(0, 1).toUpperCase() + name.slice(1)} (
-                {isConnected ? "live" : "disconnected"})
-              </Text>
-            </Box>
-          ))}
-          <Text> </Text>
-        </Box>
-      )} */}
       <Box flexDirection="column">
         <Text bold>GraphQL </Text>
         <Box flexDirection="row">

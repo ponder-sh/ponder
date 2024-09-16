@@ -1,5 +1,5 @@
 import type { Common } from "@/common/common.js";
-import { getHistoricalAppProgress } from "@/common/metrics.js";
+import { getAppProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
   type HistoricalSync,
@@ -220,6 +220,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         requestQueue,
         historicalSync,
       });
+
+      // Update "ponder_sync_block" metric
+      if (cached !== undefined) {
+        args.common.metrics.ponder_sync_block.set(
+          { network: network.name },
+          hexToNumber(cached.number),
+        );
+      }
+
       const syncProgress: SyncProgress = {
         ...(await syncDiagnostic({
           common: args.common,
@@ -230,6 +239,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         cached,
         current: cached,
       };
+
+      args.common.metrics.ponder_sync_is_realtime.set(
+        { network: network.name },
+        0,
+      );
+      args.common.metrics.ponder_sync_is_complete.set(
+        { network: network.name },
+        0,
+      );
 
       localSyncContext.set(network, {
         requestQueue,
@@ -457,23 +475,21 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             yield { events, checkpoint: to };
             from = cursor;
 
-            getHistoricalAppProgress(args.common.metrics).then(
-              ({ eta, progress }) => {
-                if (events.length === 0) return;
+            getAppProgress(args.common.metrics).then(({ eta, progress }) => {
+              if (events.length === 0) return;
 
-                if (eta === undefined || progress === undefined) {
-                  args.common.logger.info({
-                    service: "app",
-                    msg: `Indexed ${events.length} events`,
-                  });
-                } else {
-                  args.common.logger.info({
-                    service: "app",
-                    msg: `Indexed ${events.length} events with ${formatPercentage(progress)} and ${formatEta(eta)} remaining`,
-                  });
-                }
-              },
-            );
+              if (eta === undefined || progress === undefined) {
+                args.common.logger.info({
+                  service: "app",
+                  msg: `Indexed ${events.length} events`,
+                });
+              } else {
+                args.common.logger.info({
+                  service: "app",
+                  msg: `Indexed ${events.length} events with ${formatPercentage(progress)} and ${formatEta(eta)} remaining`,
+                });
+              }
+            });
           } catch (error) {
             // Handle errors by reducing the requested range by 10x
             estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
@@ -567,6 +583,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           let from = getOmnichainCheckpoint("current")!;
           syncProgress.current = event.block;
           const to = getOmnichainCheckpoint("current")!;
+
+          // Update "ponder_sync_block" metric
+          args.common.metrics.ponder_sync_block.set(
+            { network: network.name },
+            hexToNumber(syncProgress.current.number),
+          );
 
           // Add block, logs, transactions, receipts, and traces to the sync-store.
 
@@ -668,9 +690,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
            * defined has become finalized.
            */
           if (isSyncComplete(syncProgress)) {
-            args.common.metrics.ponder_realtime_is_connected.set(
+            args.common.metrics.ponder_sync_is_realtime.set(
               { network: network.name },
               0,
+            );
+            args.common.metrics.ponder_sync_is_complete.set(
+              { network: network.name },
+              1,
             );
             args.common.logger.info({
               service: "sync",
@@ -686,6 +712,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         case "reorg": {
           syncProgress.current = event.block;
           const checkpoint = getOmnichainCheckpoint("current")!;
+
+          // Update "ponder_sync_block" metric
+          args.common.metrics.ponder_sync_block.set(
+            { network: network.name },
+            hexToNumber(syncProgress.current.number),
+          );
 
           await args.syncStore.pruneByBlock({
             blocks: event.reorgedBlocks,
@@ -715,8 +747,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         };
         status[network.name]!.ready = true;
 
-        if (isSyncComplete(syncProgress) === false) {
-          args.common.metrics.ponder_realtime_is_connected.set(
+        if (isSyncComplete(syncProgress)) {
+          args.common.metrics.ponder_sync_is_complete.set(
+            { network: network.name },
+            1,
+          );
+        } else {
+          args.common.metrics.ponder_sync_is_realtime.set(
             { network: network.name },
             1,
           );
@@ -883,12 +920,24 @@ export async function* localHistoricalSyncGenerator({
   ) {
     syncProgress.current = syncProgress.finalized;
 
+    // Update "ponder_sync_block" metric
+    common.metrics.ponder_sync_block.set(
+      { network: network.name },
+      hexToNumber(syncProgress.current.number),
+    );
+
     if (showLogs) {
       common.logger.warn({
         service: "historical",
         msg: `Skipped historical sync for '${network.name}' because the start block is not finalized`,
       });
     }
+
+    const label = { network: network.name };
+    // Set "ponder_historical_total_blocks"
+    common.metrics.ponder_historical_total_blocks.set(label, 0);
+    // Set "ponder_historical_sync_cached_blocks"
+    common.metrics.ponder_historical_cached_blocks.set(label, 0);
 
     return;
   }
@@ -972,6 +1021,12 @@ export async function* localHistoricalSyncGenerator({
     const endClock = startClock();
     syncProgress.current = await historicalSync.sync(interval);
     const duration = endClock();
+
+    // Update "ponder_sync_block" metric
+    common.metrics.ponder_sync_block.set(
+      { network: network.name },
+      hexToNumber(syncProgress.current.number),
+    );
 
     common.metrics.ponder_historical_duration.observe(label, duration);
     common.metrics.ponder_historical_completed_blocks.inc(

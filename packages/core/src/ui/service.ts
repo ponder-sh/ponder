@@ -1,8 +1,8 @@
 import type { Common } from "@/common/common.js";
 import {
-  getHistoricalAppProgress,
-  getHistoricalSyncProgress,
+  getAppProgress,
   getIndexingProgress,
+  getSyncProgress,
 } from "@/common/metrics.js";
 import { buildUiState, setupInkApp } from "./app.js";
 
@@ -28,45 +28,27 @@ export class UiService {
     const metrics = this.common.metrics;
 
     this.renderInterval = setInterval(async () => {
-      // Historical sync
-      this.ui.historical = await getHistoricalSyncProgress(metrics);
-
-      // Realtime sync
-      // const connectedNetworks = (
-      //   await metrics.ponder_realtime_is_connected.get()
-      // ).values
-      //   .filter((m) => m.value === 1)
-      //   .map((m) => m.labels.network)
-      //   .filter((n): n is string => typeof n === "string");
-      // const allNetworks = [
-      //   ...new Set(
-      //     sources
-      //       .filter((s) => s.endBlock === undefined)
-      //       .map((s) => s.networkName),
-      //   ),
-      // ];
-      // this.ui.realtimeSyncNetworks = allNetworks.map((networkName) => ({
-      //   name: networkName,
-      //   isConnected: connectedNetworks.includes(networkName),
-      // }));
+      // Sync
+      this.ui.sync = await getSyncProgress(metrics);
 
       // Indexing
       this.ui.indexing = await getIndexingProgress(metrics);
 
       // App
-      this.ui.app = await getHistoricalAppProgress(metrics);
+      this.ui.app = await getAppProgress(metrics);
 
       // Server
       const port = (await metrics.ponder_http_server_port.get()).values[0]!
         .value;
       this.ui.port = port;
 
-      if (this.common.options.hostname)
+      if (this.common.options.hostname) {
         this.ui.hostname = this.common.options.hostname;
+      }
 
       if (this.isKilled) return;
       this.render?.();
-    }, 17);
+    }, 100);
   }
 
   setReloadableError() {
