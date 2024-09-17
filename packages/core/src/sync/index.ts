@@ -475,9 +475,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             yield { events, checkpoint: to };
             from = cursor;
 
-            const { eta, progress } = await await getAppProgress(
-              args.common.metrics,
-            );
+            // underlying metrics collection is actually synchronous
+            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+            const { eta, progress } = await getAppProgress(args.common.metrics);
 
             if (events.length > 0) {
               if (eta === undefined || progress === undefined) {
