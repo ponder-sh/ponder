@@ -17,7 +17,7 @@ export type UiState = {
   app: Awaited<ReturnType<typeof getAppProgress>>;
 };
 
-export const buildUiState = () => {
+export const buildUiState = (): UiState => {
   return {
     port: 0,
     hostname: "localhost",
@@ -38,7 +38,7 @@ export const buildUiState = () => {
       eta: undefined,
       mode: undefined,
     },
-  } satisfies UiState;
+  };
 };
 
 const App = (ui: UiState) => {
@@ -113,7 +113,7 @@ const App = (ui: UiState) => {
               key: "averageDuration",
               align: "right",
               format: (v) =>
-                v > 0 ? (v < 0.01 ? "<0.01" : v.toFixed(2)) : "-",
+                v > 0 ? (v < 0.001 ? "<0.001" : v.toFixed(3)) : "-",
             },
           ]}
         />
@@ -137,11 +137,8 @@ const App = (ui: UiState) => {
         )}
       </Box>
       <Text> </Text>
-
       <Box flexDirection="row">
-        <Text>
-          <ProgressBar current={app.progress} end={1} width={48} />
-        </Text>
+        <ProgressBar current={app.progress} end={1} width={48} />
         <Text>
           {" "}
           {formatPercentage(app.progress)}
