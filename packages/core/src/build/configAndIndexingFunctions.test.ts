@@ -413,7 +413,7 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
 
   const result = await safeBuildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
 
@@ -662,7 +662,7 @@ test("buildConfigAndIndexingFunctions() database uses sqlite if specified even i
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -683,7 +683,7 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_URL e
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -711,7 +711,7 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_PRIVA
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -739,7 +739,7 @@ test("buildConfigAndIndexingFunctions() throws for postgres database with no con
   await expect(() =>
     buildConfigAndIndexingFunctions({
       config,
-      rawIndexingFunctions: [],
+      rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
       options,
     }),
   ).rejects.toThrow(
@@ -762,7 +762,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses pool config"
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -787,7 +787,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses RAILWAY_DEPL
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -813,7 +813,7 @@ test("buildConfigAndIndexingFunctions() database throws with RAILWAY_DEPLOYMENT_
   await expect(() =>
     buildConfigAndIndexingFunctions({
       config,
-      rawIndexingFunctions: [],
+      rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
       options,
     }),
   ).rejects.toThrow(
@@ -836,7 +836,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses publish sche
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -863,7 +863,7 @@ test("buildConfigAndIndexingFunctions() database with postgres uses 'public' as 
 
   const { databaseConfig } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [],
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
   expect(databaseConfig).toMatchObject({
@@ -890,7 +890,7 @@ test("buildConfigAndIndexingFunctions() database with postgres throws if schema 
   await expect(() =>
     buildConfigAndIndexingFunctions({
       config,
-      rawIndexingFunctions: [],
+      rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
       options,
     }),
   ).rejects.toThrow(
