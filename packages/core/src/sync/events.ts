@@ -1,4 +1,10 @@
 import type { Common } from "@/common/common.js";
+import {
+  isBlockFilterMatched,
+  isCallTraceFilterMatched,
+  isLogFilterMatched,
+} from "@/sync-realtime/filter.js";
+import type { BlockWithEventData } from "@/sync-realtime/index.js";
 import type {
   Block,
   CallTrace,
@@ -6,21 +12,36 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
-import type { SyncBlock, SyncLog, SyncTransaction } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncCallTrace,
+  SyncLog,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/types/sync.js";
+import {
+  EVENT_TYPES,
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
+  type Address,
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
+  type Hash,
   type Hex,
   checksumAddress,
   decodeAbiParameters,
   decodeFunctionData,
   decodeFunctionResult,
   hexToBigInt,
+  hexToNumber,
 } from "viem";
-import type { Source } from "./source.js";
+import { type Factory, type Source, isAddressFactory } from "./source.js";
 
 export type RawEvent = {
   chainId: number;
@@ -93,6 +114,149 @@ export type CallTraceEvent = {
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
   };
+};
+
+/**
+ * Create `RawEvent`s from raw data types
+ */
+export const buildEvents = (
+  sources: Source[],
+  {
+    block,
+    logs,
+    transactions,
+    transactionReceipts,
+    callTraces,
+  }: BlockWithEventData,
+  childAddresses: Map<Factory, Set<Address>>,
+) => {
+  const events: RawEvent[] = [];
+
+  const transactionCache = new Map<Hash, SyncTransaction>();
+  const transactionReceiptCache = new Map<Hash, SyncTransactionReceipt>();
+  const traceByTransactionHash = new Map<Hash, SyncCallTrace[]>();
+  for (const transaction of transactions) {
+    transactionCache.set(transaction.hash, transaction);
+  }
+  for (const transactionReceipt of transactionReceipts) {
+    transactionReceiptCache.set(
+      transactionReceipt.transactionHash,
+      transactionReceipt,
+    );
+  }
+  for (const callTrace of callTraces) {
+    if (traceByTransactionHash.has(callTrace.transactionHash) === false) {
+      traceByTransactionHash.set(callTrace.transactionHash, []);
+    }
+    traceByTransactionHash.get(callTrace.transactionHash)!.push(callTrace);
+  }
+
+  for (let i = 0; i < sources.length; i++) {
+    const filter = sources[i]!.filter;
+    switch (filter.type) {
+      case "log": {
+        for (const log of logs) {
+          if (
+            isLogFilterMatched({ filter, block, log }) &&
+            (isAddressFactory(filter.address)
+              ? childAddresses.get(filter.address)!.has(log.address)
+              : true)
+          ) {
+            events.push({
+              chainId: filter.chainId,
+              sourceIndex: i,
+              checkpoint: encodeCheckpoint({
+                blockTimestamp: hexToNumber(block.timestamp),
+                chainId: BigInt(filter.chainId),
+                blockNumber: hexToBigInt(log.blockNumber),
+                transactionIndex: hexToBigInt(log.transactionIndex),
+                eventType: EVENT_TYPES.logs,
+                eventIndex: hexToBigInt(log.logIndex),
+              }),
+              log: convertLog(log),
+              block: convertBlock(block),
+              transaction: convertTransaction(
+                transactionCache.get(log.transactionHash)!,
+              ),
+              transactionReceipt: filter.includeTransactionReceipts
+                ? convertTransactionReceipt(
+                    transactionReceiptCache.get(log.transactionHash)!,
+                  )
+                : undefined,
+            });
+          }
+        }
+        break;
+      }
+
+      case "block": {
+        if (isBlockFilterMatched({ filter, block })) {
+          events.push({
+            chainId: filter.chainId,
+            sourceIndex: i,
+            checkpoint: encodeCheckpoint({
+              blockTimestamp: hexToNumber(block.timestamp),
+              chainId: BigInt(filter.chainId),
+              blockNumber: hexToBigInt(block.number),
+              transactionIndex: maxCheckpoint.transactionIndex,
+              eventType: EVENT_TYPES.blocks,
+              eventIndex: zeroCheckpoint.eventIndex,
+            }),
+            block: convertBlock(block),
+          });
+        }
+        break;
+      }
+
+      case "callTrace": {
+        for (const callTraces of Array.from(traceByTransactionHash.values())) {
+          // Use lexographical sort of stringified `traceAddress`.
+          callTraces.sort((a, b) => {
+            return a.traceAddress < b.traceAddress ? -1 : 1;
+          });
+
+          for (let i = 0; i < callTraces.length; i++) {
+            const callTrace = callTraces[i]!;
+            if (
+              isCallTraceFilterMatched({ filter, block, callTrace }) &&
+              (isAddressFactory(filter.toAddress)
+                ? childAddresses.get(filter.toAddress)!.has(callTrace.action.to)
+                : true)
+            ) {
+              events.push({
+                chainId: filter.chainId,
+                sourceIndex: i,
+                checkpoint: encodeCheckpoint({
+                  blockTimestamp: hexToNumber(block.timestamp),
+                  chainId: BigInt(filter.chainId),
+                  blockNumber: hexToBigInt(callTrace.blockNumber),
+                  transactionIndex: BigInt(callTrace.transactionPosition),
+                  eventType: EVENT_TYPES.callTraces,
+                  eventIndex: BigInt(i),
+                }),
+                trace: convertCallTrace(callTrace),
+                block: convertBlock(block),
+                transaction: convertTransaction(
+                  transactionCache.get(callTrace.transactionHash)!,
+                ),
+                transactionReceipt: filter.includeTransactionReceipts
+                  ? convertTransactionReceipt(
+                      transactionReceiptCache.get(callTrace.transactionHash)!,
+                    )
+                  : undefined,
+              });
+            }
+          }
+        }
+
+        break;
+      }
+      default:
+        never(filter);
+    }
+  }
+
+  return events.sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
 };
 
 export const decodeEvents = (
@@ -299,8 +463,6 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
 }
-
-// @ts-ignore
 const convertBlock = (block: SyncBlock): Block => ({
   baseFeePerGas: block.baseFeePerGas ? hexToBigInt(block.baseFeePerGas) : null,
   difficulty: hexToBigInt(block.difficulty),
@@ -325,7 +487,6 @@ const convertBlock = (block: SyncBlock): Block => ({
   transactionsRoot: block.transactionsRoot,
 });
 
-// @ts-ignore
 const convertLog = (log: SyncLog): Log => ({
   id: `${log.blockHash}-${log.logIndex}`,
   address: checksumAddress(log.address!),
@@ -339,7 +500,6 @@ const convertLog = (log: SyncLog): Log => ({
   transactionIndex: Number(log.transactionIndex),
 });
 
-// @ts-ignore
 const convertTransaction = (transaction: SyncTransaction): Transaction => ({
   blockHash: transaction.blockHash,
   blockNumber: hexToBigInt(transaction.blockNumber),
@@ -390,4 +550,73 @@ const convertTransaction = (transaction: SyncTransaction): Transaction => ({
               // @ts-ignore
               type: transaction.type,
             }),
+});
+
+const convertTransactionReceipt = (
+  transactionReceipt: SyncTransactionReceipt,
+): TransactionReceipt => ({
+  blockHash: transactionReceipt.blockHash,
+  blockNumber: hexToBigInt(transactionReceipt.blockNumber),
+  contractAddress: transactionReceipt.contractAddress
+    ? checksumAddress(transactionReceipt.contractAddress)
+    : null,
+  cumulativeGasUsed: hexToBigInt(transactionReceipt.cumulativeGasUsed),
+  effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
+  from: checksumAddress(transactionReceipt.from),
+  gasUsed: hexToBigInt(transactionReceipt.gasUsed),
+  logs: transactionReceipt.logs.map((log) => ({
+    id: `${log.blockHash}-${log.logIndex}`,
+    address: checksumAddress(log.address),
+    blockHash: log.blockHash!,
+    blockNumber: hexToBigInt(log.blockNumber!),
+    data: log.data,
+    logIndex: hexToNumber(log.logIndex!),
+    removed: false,
+    topics: [
+      log.topics[0] ?? null,
+      log.topics[1] ?? null,
+      log.topics[2] ?? null,
+      log.topics[3] ?? null,
+    ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+    transactionHash: log.transactionHash!,
+    transactionIndex: hexToNumber(log.transactionIndex!),
+  })),
+  logsBloom: transactionReceipt.logsBloom,
+  status:
+    transactionReceipt.status === "0x1"
+      ? "success"
+      : transactionReceipt.status === "0x0"
+        ? "reverted"
+        : (transactionReceipt.status as TransactionReceipt["status"]),
+  to: transactionReceipt.to ? checksumAddress(transactionReceipt.to) : null,
+  transactionHash: transactionReceipt.transactionHash,
+  transactionIndex: Number(transactionReceipt.transactionIndex),
+  type:
+    transactionReceipt.type === "0x0"
+      ? "legacy"
+      : transactionReceipt.type === "0x1"
+        ? "eip2930"
+        : transactionReceipt.type === "0x2"
+          ? "eip1559"
+          : transactionReceipt.type === "0x7e"
+            ? "deposit"
+            : transactionReceipt.type,
+});
+
+const convertCallTrace = (callTrace: SyncCallTrace): CallTrace => ({
+  id: `${callTrace.transactionHash}-${JSON.stringify(callTrace.traceAddress)}`,
+  from: checksumAddress(callTrace.action.from),
+  to: checksumAddress(callTrace.action.to),
+  gas: hexToBigInt(callTrace.action.gas),
+  value: hexToBigInt(callTrace.action.value),
+  input: callTrace.action.input,
+  output: callTrace.result!.output,
+  gasUsed: hexToBigInt(callTrace.result!.gasUsed),
+  subtraces: callTrace.subtraces,
+  traceAddress: callTrace.traceAddress,
+  blockHash: callTrace.blockHash,
+  blockNumber: hexToBigInt(callTrace.blockNumber),
+  transactionHash: callTrace.transactionHash,
+  transactionIndex: callTrace.transactionPosition,
+  callType: callTrace.action.callType as CallTrace["callType"],
 });

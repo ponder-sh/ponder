@@ -57,7 +57,7 @@ type CreateRealtimeSyncParameters = {
   onFatalError: (error: Error) => void;
 };
 
-type BlockWithEventData = {
+export type BlockWithEventData = {
   block: SyncBlock;
   filters: Set<Filter>;
   logs: SyncLog[];
