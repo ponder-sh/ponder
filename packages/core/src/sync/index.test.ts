@@ -61,7 +61,7 @@ test("createSync()", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -81,7 +81,7 @@ test("getEvents() returns events", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -104,7 +104,7 @@ test("getEvents() with cache", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -118,7 +118,7 @@ test("getEvents() with cache", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -146,7 +146,7 @@ test("getEvents() end block", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -172,7 +172,7 @@ test("getEvents() multichain", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -195,7 +195,7 @@ test("getEvents() updates status", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -228,7 +228,7 @@ test("getEvents() pagination", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: [network],
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -249,7 +249,7 @@ test("getEvents() initialCheckpoint", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(maxCheckpoint),
   });
@@ -274,7 +274,7 @@ test("getEvents() refetches finalized block", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -296,7 +296,7 @@ test("startRealtime()", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
@@ -326,7 +326,7 @@ test("onEvent() handles block", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
         promise.resolve();
@@ -360,7 +360,7 @@ test("onEvent() handles finalize", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
         promise.resolve();
@@ -400,7 +400,7 @@ test("onEvent() multichain end block", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         if (event.events.length > 0) {
           promise.resolve();
@@ -432,7 +432,7 @@ test("onEvent() multichain gets all events", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         if (event.events.length > 0) {
           promise.resolve();
@@ -466,7 +466,7 @@ test("onEvent() handles endBlock finalization", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         promise.resolve();
       }
@@ -498,7 +498,7 @@ test("onEvent() handles errors", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();
     },

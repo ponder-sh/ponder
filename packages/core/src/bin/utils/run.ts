@@ -81,7 +81,7 @@ export async function run({
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {
-      realtimeQueue.add(realtimeEvent);
+      return realtimeQueue.add(realtimeEvent);
     },
     onFatalError,
     initialCheckpoint,

@@ -20,24 +20,23 @@ export class MetricsService {
 
   ponder_indexing_total_seconds: prometheus.Gauge;
   ponder_indexing_completed_seconds: prometheus.Gauge;
-  ponder_indexing_completed_events: prometheus.Gauge<"network" | "event">;
+  ponder_indexing_completed_events: prometheus.Gauge<"event">;
 
   ponder_indexing_completed_timestamp: prometheus.Gauge;
   ponder_indexing_has_error: prometheus.Gauge;
 
-  ponder_indexing_function_duration: prometheus.Histogram<"network" | "event">;
-  ponder_indexing_function_error_total: prometheus.Counter<"network" | "event">;
-
+  ponder_indexing_function_duration: prometheus.Histogram<"event">;
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
+
+  ponder_sync_block: prometheus.Gauge<"network">;
+  ponder_sync_is_realtime: prometheus.Gauge<"network">;
+  ponder_sync_is_complete: prometheus.Gauge<"network">;
 
   ponder_historical_duration: prometheus.Histogram<"network">;
   ponder_historical_total_blocks: prometheus.Gauge<"network">;
   ponder_historical_cached_blocks: prometheus.Gauge<"network">;
   ponder_historical_completed_blocks: prometheus.Gauge<"network">;
 
-  ponder_realtime_is_connected: prometheus.Gauge<"network">;
-  ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
-  ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
   ponder_realtime_reorg_total: prometheus.Counter<"network">;
 
   ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
@@ -100,16 +99,29 @@ export class MetricsService {
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_function_error_total = new prometheus.Counter({
-      name: "ponder_indexing_function_error_total",
-      help: "Total number of errors encountered during indexing function execution",
-      labelNames: ["network", "event"] as const,
-      registers: [this.registry],
-    });
     this.ponder_indexing_abi_decoding_duration = new prometheus.Histogram({
       name: "ponder_indexing_abi_decoding_duration",
       help: "Total time spent decoding log arguments and call trace arguments and results",
       buckets: databaseQueryDurationMs,
+      registers: [this.registry],
+    });
+
+    this.ponder_sync_block = new prometheus.Gauge({
+      name: "ponder_sync_block",
+      help: "Closest-to-tip synced block number",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_sync_is_realtime = new prometheus.Gauge({
+      name: "ponder_sync_is_realtime",
+      help: "Boolean (0 or 1) indicating if the sync is realtime mode",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_sync_is_complete = new prometheus.Gauge({
+      name: "ponder_sync_is_complete",
+      help: "Boolean (0 or 1) indicating if the sync has synced all blocks",
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
 
@@ -139,24 +151,6 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_realtime_is_connected = new prometheus.Gauge({
-      name: "ponder_realtime_is_connected",
-      help: "Boolean (0 or 1) indicating if the historical sync service is connected",
-      labelNames: ["network"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_realtime_latest_block_number = new prometheus.Gauge({
-      name: "ponder_realtime_latest_block_number",
-      help: "Block number of the latest synced block",
-      labelNames: ["network"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_realtime_latest_block_timestamp = new prometheus.Gauge({
-      name: "ponder_realtime_latest_block_timestamp",
-      help: "Block timestamp of the latest synced block",
-      labelNames: ["network"] as const,
-      registers: [this.registry],
-    });
     this.ponder_realtime_reorg_total = new prometheus.Counter({
       name: "ponder_realtime_reorg_total",
       help: "Count of how many re-orgs have occurred.",
@@ -242,9 +236,19 @@ export class MetricsService {
   }
 }
 
-export async function getHistoricalSyncProgress(metrics: MetricsService) {
-  // Historical sync table
+const rps: { [network: string]: { count: number; timestamp: number }[] } = {};
 
+export async function getSyncProgress(metrics: MetricsService): Promise<
+  {
+    networkName: string;
+    block: number | undefined;
+    // events: number;
+    status: "historical" | "realtime" | "complete";
+    progress: number;
+    eta: number | undefined;
+    rps: number;
+  }[]
+> {
   const syncDurationMetric = await metrics.ponder_historical_duration
     .get()
     .then((metrics) => metrics.values);
@@ -255,72 +259,80 @@ export async function getHistoricalSyncProgress(metrics: MetricsService) {
     }
   }
 
-  /** Aggregate block metrics for different "types" of sources. */
-  const reduceBlockMetrics = (values: prometheus.MetricValue<"network">[]) =>
-    values.reduce<{
-      [network: string]: number;
-    }>((acc, cur) => {
-      const network = cur.labels.network as string;
-      acc[network] = cur.value;
-      return acc;
-    }, {});
-
-  const cachedBlocksMetric = await metrics.ponder_historical_cached_blocks
-    .get()
-    .then(({ values }) => reduceBlockMetrics(values));
-  const totalBlocksMetric = await metrics.ponder_historical_total_blocks
-    .get()
-    .then(({ values }) => reduceBlockMetrics(values));
-  const completedBlocksMetric = await metrics.ponder_historical_completed_blocks
-    .get()
-    .then(({ values }) => reduceBlockMetrics(values));
-
-  const networks = Object.entries(totalBlocksMetric).map(
-    ([network, totalBlocks]) => {
-      const cachedBlocks = cachedBlocksMetric[network];
-      const completedBlocks = completedBlocksMetric[network] ?? 0;
-
-      // If cachedBlocks is not set, setup is not complete.
-      if (cachedBlocks === undefined) {
-        return {
-          networkName: network,
-          totalBlocks,
-          completedBlocks,
-        };
-      }
-
-      const progress =
-        totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
-
-      const elapsed = syncDurationSum[network]!;
-      const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-      // The ETA is low quality if we've completed only one or two blocks.
-      const eta = completedBlocks >= 3 ? total - elapsed : undefined;
-
-      return {
-        networkName: network,
-        totalBlocks,
-        cachedBlocks,
-        completedBlocks,
-        progress,
-        eta,
-      };
-    },
-  );
-
-  const totalBlocks = networks.reduce((a, c) => a + c.totalBlocks, 0);
-  const cachedBlocks = networks.reduce((a, c) => a + (c.cachedBlocks ?? 0), 0);
-  const completedBlocks = networks.reduce(
-    (a, c) => a + (c.completedBlocks ?? 0),
-    0,
-  );
-  const progress =
-    totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
-
-  return {
-    overall: progress,
-    networks,
+  const extractMetric = (
+    metric: prometheus.MetricObjectWithValues<
+      prometheus.MetricValue<"network">
+    >,
+    network: string,
+  ) => {
+    return metric.values.find((m) => m.labels.network === network)?.value;
   };
+
+  const totalBlocksMetric = await metrics.ponder_historical_total_blocks.get();
+  const cachedBlocksMetric =
+    await metrics.ponder_historical_cached_blocks.get();
+  const completedBlocksMetric =
+    await metrics.ponder_historical_completed_blocks.get();
+  const syncBlockMetric = await metrics.ponder_sync_block.get();
+  const syncIsRealtimeMetrics = await metrics.ponder_sync_is_realtime.get();
+  const syncIsCompleteMetrics = await metrics.ponder_sync_is_complete.get();
+
+  const requestCount: { [network: string]: number } = {};
+  const rpcRequestMetrics = await metrics.ponder_rpc_request_duration.get();
+  for (const m of rpcRequestMetrics.values) {
+    if (m.metricName === "ponder_rpc_request_duration_count") {
+      if (requestCount[m.labels.network!] === undefined) {
+        requestCount[m.labels.network!] = 0;
+      }
+      requestCount[m.labels.network!] += m.value;
+    }
+  }
+
+  for (const [networkName, count] of Object.entries(requestCount)) {
+    if (rps[networkName] === undefined) {
+      rps[networkName] = [{ count, timestamp: Date.now() }];
+    } else {
+      rps[networkName]!.push({ count, timestamp: Date.now() });
+    }
+
+    if (rps[networkName]!.length > 100) {
+      rps[networkName]!.shift();
+    }
+  }
+
+  return totalBlocksMetric.values.map(({ value, labels }) => {
+    const network = labels.network as string;
+    const totalBlocks = value;
+    const cachedBlocks = extractMetric(cachedBlocksMetric, network) ?? 0;
+    const completedBlocks = extractMetric(completedBlocksMetric, network) ?? 0;
+    const syncBlock = extractMetric(syncBlockMetric, network);
+    const isRealtime = extractMetric(syncIsRealtimeMetrics, network);
+    const isComplete = extractMetric(syncIsCompleteMetrics, network);
+
+    const progress =
+      totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
+    const elapsed = syncDurationSum[network]!;
+    const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
+    // The ETA is low quality if we've completed only one or two blocks.
+    const eta = completedBlocks >= 3 ? total - elapsed : undefined;
+
+    const _length = rps[labels.network!]!.length;
+    const _firstRps = rps[labels.network!]![0]!;
+    const _lastRps = rps[labels.network!]![_length - 1]!;
+
+    const requests = _lastRps.count - (_length > 1 ? _firstRps.count : 0);
+    const seconds =
+      _length === 1 ? 0.1 : (_lastRps.timestamp - _firstRps.timestamp) / 1_000;
+
+    return {
+      networkName: network,
+      block: syncBlock,
+      progress,
+      status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
+      eta,
+      rps: requests / seconds,
+    } as const;
+  });
 }
 
 export async function getIndexingProgress(metrics: MetricsService) {
@@ -342,40 +354,29 @@ export async function getIndexingProgress(metrics: MetricsService) {
   const indexingCompletedEventsMetric = (
     await metrics.ponder_indexing_completed_events.get()
   ).values;
-  const indexingFunctionErrorMetric = (
-    await metrics.ponder_indexing_function_error_total.get()
-  ).values;
   const indexingFunctionDurationMetric = (
     await metrics.ponder_indexing_function_duration.get()
   ).values;
 
-  const indexingDurationSum: Record<string, Record<string, number>> = {};
-  const indexingDurationCount: Record<string, Record<string, number>> = {};
+  const indexingDurationSum: Record<string, number> = {};
+  const indexingDurationCount: Record<string, number> = {};
   for (const m of indexingFunctionDurationMetric) {
     if (m.metricName === "ponder_indexing_function_duration_sum")
-      (indexingDurationSum[m.labels.event!] ??= {})[m.labels.network!] =
-        m.value;
+      indexingDurationSum[m.labels.event!] = m.value;
     if (m.metricName === "ponder_indexing_function_duration_count")
-      (indexingDurationCount[m.labels.event!] ??= {})[m.labels.network!] =
-        m.value;
+      indexingDurationCount[m.labels.event!] = m.value;
   }
 
   const events = indexingCompletedEventsMetric.map((m) => {
     const eventName = m.labels.event as string;
-    const networkName = m.labels.network as string;
     const count = m.value;
 
-    const durationSum = indexingDurationSum[eventName]?.[networkName] ?? 0;
-    const durationCount = indexingDurationCount[eventName]?.[networkName] ?? 0;
+    const durationSum = indexingDurationSum[eventName] ?? 0;
+    const durationCount = indexingDurationCount[eventName] ?? 0;
     const averageDuration =
       durationCount === 0 ? 0 : durationSum / durationCount;
 
-    const errorCount =
-      indexingFunctionErrorMetric.find(
-        (e) => e.labels.event === eventName && e.labels.network === networkName,
-      )?.value ?? 0;
-
-    return { eventName, networkName, count, averageDuration, errorCount };
+    return { eventName, count, averageDuration };
   });
 
   const totalEvents = events.reduce((a, e) => a + e.count, 0);
@@ -390,5 +391,90 @@ export async function getIndexingProgress(metrics: MetricsService) {
       totalEvents,
     },
     events,
+  };
+}
+
+export async function getAppProgress(metrics: MetricsService): Promise<{
+  mode: "historical" | "realtime" | "complete" | undefined;
+  progress: number;
+  eta: number | undefined;
+}> {
+  const sync = await getSyncProgress(metrics);
+  const indexing = await getIndexingProgress(metrics);
+  const decodingSum = await metrics.ponder_indexing_abi_decoding_duration
+    .get()
+    .then(
+      (m) =>
+        m.values.find(
+          (v) => v.metricName === "ponder_indexing_abi_decoding_duration_sum",
+        )?.value,
+    );
+  const getEventsSum = await metrics.ponder_database_method_duration
+    .get()
+    .then(
+      (m) =>
+        m.values.find(
+          (v) =>
+            v.labels.method === "getEvents" &&
+            v.metricName === "ponder_database_method_duration_sum",
+        )?.value,
+    );
+  const indexingSum = indexing.events.reduce(
+    (acc, cur) => acc + cur.averageDuration * cur.count,
+    0,
+  );
+
+  let maxSync: (typeof sync)[number] | undefined;
+  for (const networkSync of sync) {
+    if (
+      maxSync === undefined ||
+      maxSync.eta === undefined ||
+      (networkSync.eta && networkSync.eta > maxSync.eta)
+    ) {
+      maxSync = networkSync;
+    }
+  }
+
+  const remainingSeconds =
+    indexing.overall.totalSeconds - indexing.overall.completedSeconds;
+
+  const indexingEta =
+    indexing.overall.completedSeconds === 0
+      ? undefined
+      : (((decodingSum ?? 0) + (getEventsSum ?? 0) + indexingSum) *
+          remainingSeconds) /
+        indexing.overall.completedSeconds;
+
+  const eta = sync.every((n) => n.progress === 1)
+    ? indexingEta
+    : maxSync?.eta === undefined && indexingEta === undefined
+      ? undefined
+      : maxSync?.eta === undefined && maxSync?.progress !== undefined
+        ? undefined
+        : Math.max(maxSync?.eta ?? 0, indexingEta ?? 0);
+
+  // Edge case: If all matched events occurred in the same unix timestamp (second), progress will
+  // be zero, even though indexing is complete. When this happens, totalEvents will be non-zero.
+  const indexingProgress =
+    indexing.overall.progress === 0 && indexing.overall.totalEvents > 0
+      ? 1
+      : indexing.overall.progress;
+
+  const progress = sync.every((n) => n.progress === 1)
+    ? indexingProgress
+    : maxSync?.progress === undefined
+      ? 0
+      : maxSync!.progress * indexingProgress;
+
+  return {
+    mode: sync.some((n) => n.status === "realtime")
+      ? "realtime"
+      : sync.every((n) => n.status === "complete")
+        ? "complete"
+        : sync.length === 0
+          ? undefined
+          : "historical",
+    progress,
+    eta,
   };
 }

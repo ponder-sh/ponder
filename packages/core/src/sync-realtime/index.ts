@@ -252,15 +252,6 @@ export const createRealtimeSync = (
       transactionReceipts,
     });
 
-    args.common.metrics.ponder_realtime_latest_block_number.set(
-      { network: args.network.name },
-      hexToNumber(block.number),
-    );
-    args.common.metrics.ponder_realtime_latest_block_timestamp.set(
-      { network: args.network.name },
-      hexToNumber(block.timestamp),
-    );
-
     // Determine if a new range has become finalized by evaluating if the
     // latest block number is 2 * finalityBlockCount >= finalized block number.
     // Essentially, there is a range the width of finalityBlockCount that is entirely
@@ -728,12 +719,6 @@ export const createRealtimeSync = (
       isKilled = true;
       queue?.pause();
       queue?.clear();
-
-      args.common.logger.debug({
-        service: "realtime",
-        msg: `Killed '${args.network.name}' realtime sync`,
-      });
-
       await queue?.onIdle();
     },
     get localChain() {
