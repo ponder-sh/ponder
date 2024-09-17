@@ -8,7 +8,52 @@ import Architecture from "../../public/architecture.svg";
 
 # Migration guide
 
+## 0.6.0
+
+### Updated `viem` to `>=2`
+
+This release updates the `viem` peer dependency requirement to `>=2`. The `context.client` action `getBytecode` was renamed to `getCode`.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm add viem@latest
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn add viem@latest
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm install viem@latest
+```
+</Tabs.Tab>
+</Tabs>
+
+### Simplified Postgres schema pattern
+
+Starting with this release, the indexed tables, reorg tables, and metadata table for a Ponder app are contained in one Postgres schema, specified by the user in `ponder.config.ts` (defaults to `public`). This means the shared `ponder` schema is no longer used. (Note: The `ponder_sync` schema is still in use).
+
+This release also removes the view publishing pattern and the `publishSchema` option from `ponder.config.ts`, which may disrupt production setups using horizontal scaling or direct SQL. If you relied on the publish pattern, please [get in touch on Telegram](https://t.me/kevinkoste) and we'll work to get you unblocked.
+
+### Added `/ready`, updated `/health`
+
+The new `/ready` endpoint returns an HTTP `200` response once the app **is ready to serve requests**. This means that historical indexing is complete and the app is indexing events in realtime.
+
+The existing `/health` endpoint now returns an HTTP `200` response as soon as the process starts. (This release removes the `maxHealthcheckDuration` option, which previously governed the behavior of `/health`.)
+
+For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/deploy#railway) for more details.
+
+### Metrics updates
+
+Please see the [changelog](https://github.com/ponder-sh/ponder/blob/main/packages/core/CHANGELOG.md#060) for specifics.
+
 ## 0.5.0
+
+### `hono` peer dependency
 
 **Breaking:** This release adds [Hono](https://hono.dev) as a peer dependency. After upgrading, install `hono` in your project.
 
