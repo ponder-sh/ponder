@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.5.24
+
+### Patch Changes
+
+- [#1105](https://github.com/ponder-sh/ponder/pull/1105) [`b7a3bb586c7a12eaf05f070a3bbae38139d7607d`](https://github.com/ponder-sh/ponder/commit/b7a3bb586c7a12eaf05f070a3bbae38139d7607d) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug introduced in `0.4.33` where the `--trace`, `--debug`, `-v`, and `-vv` CLI options and the `PONDER_LOG_LEVEL` env var did not correctly set the log level. (The `--log-level` option still worked).
+
+- [#1106](https://github.com/ponder-sh/ponder/pull/1106) [`ad7907468ab529c61ccdecb0001802b51e17bb2c`](https://github.com/ponder-sh/ponder/commit/ad7907468ab529c61ccdecb0001802b51e17bb2c) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error message when registering no indexing functions.
+
 ## 0.5.23
 
 ### Patch Changes
