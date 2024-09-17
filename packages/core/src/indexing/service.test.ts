@@ -515,13 +515,8 @@ test("processEvents eventCount", async (context) => {
   expect(result).toStrictEqual({ status: "success" });
 
   expect(indexingService.eventCount).toStrictEqual({
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      {
-        mainnet: 2,
-      },
-    "Pair:Swap": {
-      mainnet: 1,
-    },
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 2,
+    "Pair:Swap": 1,
   });
 
   await cleanup();
