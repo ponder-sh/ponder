@@ -1,4 +1,8 @@
-import type { getAppProgress, getSyncProgress } from "@/common/metrics.js";
+import type {
+  getAppProgress,
+  getIndexingProgress,
+  getSyncProgress,
+} from "@/common/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
@@ -11,35 +15,14 @@ export type UiState = {
 
   sync: Awaited<ReturnType<typeof getSyncProgress>>;
 
-  indexing: {
-    hasError: boolean;
-    overall: {
-      completedSeconds: number;
-      totalSeconds: number;
-      progress: number;
-      completedToTimestamp: number;
-      totalEvents: number;
-    };
-    events: {
-      eventName: string;
-      count: number;
-      averageDuration: number;
-    }[];
-  };
+  indexing: Awaited<ReturnType<typeof getIndexingProgress>>;
 
   app: Awaited<ReturnType<typeof getAppProgress>>;
-
-  realtimeSyncNetworks: {
-    name: string;
-    isConnected: boolean;
-  }[];
 };
 
 export const buildUiState = () => {
   const ui: UiState = {
     sync: [],
-
-    realtimeSyncNetworks: [],
 
     indexing: {
       hasError: false,

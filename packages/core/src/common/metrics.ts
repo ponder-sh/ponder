@@ -29,7 +29,6 @@ export class MetricsService {
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
   ponder_sync_block: prometheus.Gauge<"network">;
-  // ponder_sync_events: prometheus.Gauge<"network">;
   ponder_sync_is_realtime: prometheus.Gauge<"network">;
   ponder_sync_is_complete: prometheus.Gauge<"network">;
 
@@ -302,24 +301,17 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   }
 
   return totalBlocksMetric.values.map(({ value, labels }) => {
+    const network = labels.network as string;
     const totalBlocks = value;
-    const cachedBlocks =
-      extractMetric(cachedBlocksMetric, labels.network as string) ?? 0;
-    const completedBlocks =
-      extractMetric(completedBlocksMetric, labels.network as string) ?? 0;
-    const syncBlock = extractMetric(syncBlockMetric, labels.network as string);
-    const isRealtime = extractMetric(
-      syncIsRealtimeMetrics,
-      labels.network as string,
-    );
-    const isComplete = extractMetric(
-      syncIsCompleteMetrics,
-      labels.network as string,
-    );
+    const cachedBlocks = extractMetric(cachedBlocksMetric, network) ?? 0;
+    const completedBlocks = extractMetric(completedBlocksMetric, network) ?? 0;
+    const syncBlock = extractMetric(syncBlockMetric, network);
+    const isRealtime = extractMetric(syncIsRealtimeMetrics, network);
+    const isComplete = extractMetric(syncIsCompleteMetrics, network);
 
     const progress =
       totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
-    const elapsed = syncDurationSum[labels.network as string]!;
+    const elapsed = syncDurationSum[network]!;
     const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
     // The ETA is low quality if we've completed only one or two blocks.
     const eta = completedBlocks >= 3 ? total - elapsed : undefined;
@@ -333,7 +325,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       _length === 1 ? 0.1 : (_lastRps.timestamp - _firstRps.timestamp) / 1_000;
 
     return {
-      networkName: labels.network as string,
+      networkName: network,
       block: syncBlock,
       progress,
       status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
