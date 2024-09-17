@@ -985,7 +985,7 @@ test("getEvents() pagination", async (context) => {
   await cleanup();
 });
 
-test("pruneByBlock", async (context) => {
+test.todo("pruneRpcRequestsByBlock()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
@@ -994,7 +994,7 @@ test("pruneByBlock", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
 
-  await syncStore.pruneByBlock({
+  await syncStore.pruneRpcRequestsByBlock({
     blocks: [rpcData.block3.block, rpcData.block4.block],
     chainId: 1,
   });

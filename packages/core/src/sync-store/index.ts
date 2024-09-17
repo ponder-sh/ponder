@@ -111,7 +111,7 @@ export type SyncStore = {
     blockNumber: bigint;
     chainId: number;
   }): Promise<string | null>;
-  pruneByBlock(args: {
+  pruneRpcRequestsByBlock(args: {
     blocks: Pick<LightBlock, "hash" | "number">[];
     chainId: number;
   }): Promise<void>;
@@ -1261,21 +1261,14 @@ export const createSyncStore = ({
 
       return result?.result ?? null;
     }),
-  pruneByBlock: async ({ blocks, chainId }) =>
+  pruneRpcRequestsByBlock: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneByBlock" }, async () => {
       if (blocks.length === 0) return;
 
-      const hashes = blocks.map(({ hash }) => hash);
       const numbers = blocks.map(({ number }) =>
         formatBig(dialect, hexToBigInt(number)),
       );
 
-      await db.deleteFrom("blocks").where("hash", "in", hashes).execute();
-      await db.deleteFrom("logs").where("blockHash", "in", hashes).execute();
-      await db
-        .deleteFrom("callTraces")
-        .where("blockHash", "in", hashes)
-        .execute();
       await db
         .deleteFrom("rpcRequestResults")
         .where("chainId", "=", chainId)
