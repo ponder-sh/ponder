@@ -3,4 +3,4 @@
 "@ponder/utils": minor
 ---
 
-Updated `viem` peer dependency to v2.
+Updated `viem` peer dependency to `>=2`.

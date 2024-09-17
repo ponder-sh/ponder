@@ -2,4 +2,4 @@
 "@ponder/core": minor
 ---
 
-Dynamically estimate block ranges used in "eth_getLogs" requests.
+Improved `eth_getLogs` retry behavior. Now, the sync engine automatically determines the optimal block range for `eth_getLogs` requests.

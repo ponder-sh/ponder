@@ -2,4 +2,4 @@
 "@ponder/core": minor
 ---
 
-Removed deprecated config "maxHistoricalTaskConcurrency".
+Removed the `maxHistoricalTaskConcurrency` option from the `networks` object in `ponder.config.ts`.
