@@ -26,10 +26,10 @@ import {
   type Interval,
   intervalDifference,
   intervalIntersection,
-  intervalIntersectionMany,
   intervalSum,
   sortIntervals,
 } from "@/utils/interval.js";
+import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
@@ -888,21 +888,31 @@ export async function* localHistoricalSyncGenerator({
 
   // Intialize metrics
 
-  const interval = [
+  const totalInterval = [
     hexToNumber(syncProgress.start.number),
     hexToNumber(historicalLast.number),
   ] satisfies Interval;
 
-  const total = interval[1] - interval[0] + 1;
-
-  const required = intervalSum(
+  const requiredIntervals = Array.from(
+    historicalSync.intervalsCache.entries(),
+  ).flatMap(([filter, interval]) =>
     intervalDifference(
-      [interval],
-      intervalIntersectionMany(
-        Array.from(historicalSync.intervalsCache.values()),
-      ),
+      [
+        [
+          filter.fromBlock,
+          Math.min(
+            filter.toBlock ?? Number.POSITIVE_INFINITY,
+            totalInterval[1],
+          ),
+        ],
+      ],
+      interval,
     ),
   );
+
+  const required = intervalSum(intervalUnion(requiredIntervals));
+
+  const total = totalInterval[1] - totalInterval[0] + 1;
 
   const label = { network: network.name };
   // Set "ponder_historical_total_blocks"
