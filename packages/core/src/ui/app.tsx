@@ -107,7 +107,15 @@ const App = (ui: UiState) => {
             //   key: "events",
             //   align: "right",
             // },
-            { title: "Status", key: "status", align: "right" },
+            {
+              title: "Status",
+              key: "status",
+              align: "right",
+              format: (_, row) =>
+                row.status === "historical"
+                  ? `${row.status} (${formatPercentage(row.progress)})`
+                  : row.status,
+            },
             {
               title: "RPC req/s",
               key: "rps",

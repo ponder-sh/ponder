@@ -486,7 +486,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               } else {
                 args.common.logger.info({
                   service: "app",
-                  msg: `Indexed ${events.length} events with ${formatPercentage(progress)} and ${formatEta(eta)} remaining`,
+                  msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
                 });
               }
             });
