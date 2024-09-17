@@ -475,9 +475,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             yield { events, checkpoint: to };
             from = cursor;
 
-            getAppProgress(args.common.metrics).then(({ eta, progress }) => {
-              if (events.length === 0) return;
+            const { eta, progress } = await await getAppProgress(
+              args.common.metrics,
+            );
 
+            if (events.length > 0) {
               if (eta === undefined || progress === undefined) {
                 args.common.logger.info({
                   service: "app",
@@ -489,7 +491,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
                   msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
                 });
               }
-            });
+            }
           } catch (error) {
             // Handle errors by reducing the requested range by 10x
             estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
