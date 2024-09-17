@@ -12,18 +12,16 @@ import Table from "./Table.js";
 export type UiState = {
   port: number;
   hostname: string;
-
   sync: Awaited<ReturnType<typeof getSyncProgress>>;
-
   indexing: Awaited<ReturnType<typeof getIndexingProgress>>;
-
   app: Awaited<ReturnType<typeof getAppProgress>>;
 };
 
 export const buildUiState = () => {
-  const ui: UiState = {
+  return {
+    port: 0,
+    hostname: "localhost",
     sync: [],
-
     indexing: {
       hasError: false,
       overall: {
@@ -35,18 +33,12 @@ export const buildUiState = () => {
       },
       events: [],
     },
-
     app: {
       progress: 0,
       eta: undefined,
       mode: undefined,
     },
-
-    port: 0,
-    hostname: "localhost",
-  };
-
-  return ui;
+  } satisfies UiState;
 };
 
 const App = (ui: UiState) => {
@@ -64,32 +56,23 @@ const App = (ui: UiState) => {
     );
   }
 
-  const syncElement =
-    sync.length === 0 ? (
-      <>
-        <Text bold={true}>Sync</Text>
-        <Text> </Text>
+  return (
+    <Box flexDirection="column">
+      <Text> </Text>
+
+      <Text bold={true}>Sync</Text>
+      <Text> </Text>
+      {sync.length === 0 ? (
         <Text>Waiting to start...</Text>
-        <Text> </Text>
-      </>
-    ) : (
-      <>
-        <Text bold={true}>Sync</Text>
-        <Text> </Text>
+      ) : (
         <Table
           rows={sync}
           columns={[
-            { title: "Network", key: "networkName", align: "left" },
             {
-              title: "Block",
-              key: "block",
-              align: "right",
+              title: "Network",
+              key: "networkName",
+              align: "left",
             },
-            // {
-            //   title: "Events",
-            //   key: "events",
-            //   align: "right",
-            // },
             {
               title: "Status",
               key: "status",
@@ -100,89 +83,64 @@ const App = (ui: UiState) => {
                   : row.status,
             },
             {
-              title: "RPC req/s",
+              title: "Block",
+              key: "block",
+              align: "right",
+            },
+            {
+              title: "RPC (req/s)",
               key: "rps",
               align: "right",
               format: (_, row) => row.rps.toFixed(1),
             },
           ]}
         />
-        <Text> </Text>
-      </>
-    );
+      )}
+      <Text> </Text>
 
-  let indexingElement: JSX.Element;
-
-  if (indexing.events.length === 0) {
-    indexingElement = (
-      <>
-        <Text bold={true}>Indexing </Text>
-        <Text> </Text>
+      <Text bold={true}>Indexing</Text>
+      <Text> </Text>
+      {indexing.events.length === 0 ? (
         <Text>Waiting to start...</Text>
-        <Text> </Text>
-      </>
-    );
-  } else {
-    indexingElement = (
-      <>
-        <Text bold={true}>Indexing </Text>
-
-        <Text> </Text>
-
+      ) : (
         <Table
           rows={indexing.events}
           columns={[
             { title: "Event", key: "eventName", align: "left" },
             { title: "Count", key: "count", align: "right" },
             {
-              title: "Duration (avg)",
+              title: "Duration (ms)",
               key: "averageDuration",
               align: "right",
               format: (v) =>
-                v > 0
-                  ? v < 1
-                    ? `${(v * 1_000).toFixed(2)}μs`
-                    : `${v.toFixed(2)}ms`
-                  : "-",
+                v > 0 ? (v < 0.01 ? "<0.01" : v.toFixed(2)) : "-",
             },
           ]}
         />
-        <Text> </Text>
-      </>
-    );
-  }
-
-  return (
-    <Box flexDirection="column">
+      )}
       <Text> </Text>
 
-      {syncElement}
-      {indexingElement}
-
-      <>
-        <Box flexDirection="row">
-          <Text bold={true}>Progress </Text>
-          {app.mode === undefined || app.progress === 0 ? null : (
-            <Text>
-              (
-              {app.mode === "historical" ? (
-                <Text color="yellowBright">backfilling</Text>
-              ) : app.mode === "realtime" ? (
-                <Text color="greenBright">live</Text>
-              ) : (
-                <Text color="greenBright">complete</Text>
-              )}
-              )
-            </Text>
-          )}
-        </Box>
-        <Text> </Text>
-      </>
+      <Box flexDirection="row">
+        <Text bold={true}>Progress </Text>
+        {app.mode === undefined || app.progress === 0 ? null : (
+          <Text>
+            (
+            {app.mode === "historical" ? (
+              <Text color="yellowBright">historical</Text>
+            ) : app.mode === "realtime" ? (
+              <Text color="greenBright">live</Text>
+            ) : (
+              <Text color="greenBright">complete</Text>
+            )}
+            )
+          </Text>
+        )}
+      </Box>
+      <Text> </Text>
 
       <Box flexDirection="row">
-        <Text> </Text>
         <Text>
-          <ProgressBar current={app.progress} end={1} width={50} />
+          <ProgressBar current={app.progress} end={1} width={48} />
         </Text>
         <Text>
           {" "}
