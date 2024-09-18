@@ -1,5 +1,28 @@
 # @ponder/core
 
+## 0.6.0
+
+### Minor Changes
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - Deprecated the `maxBlockRange` option from the `networks` object in `ponder.config.ts`.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - BREAKING: Metrics changes. Replaced `ponder_historical_start_timestamp` with `ponder_historical_duration`, which improves the accuracy of sync duration estimates. Removed `ponder_indexing_function_error_total`. Removed the "network" label from `ponder_indexing_function_duration` and `ponder_indexing_completed_events`. Removed the "source" and "type" labels from `ponder_historical_total_blocks`, `ponder_historical_cached_blocks`, and `ponder_historical_completed_blocks`. Replaced `ponder_realtime_is_connected`, `ponder_realtime_latest_block_number`, and `ponder_realtime_latest_block_timestamp` with `ponder_sync_block`, `ponder_sync_is_realtime`, and `ponder_sync_is_complete`.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - BREAKING: Introduced the `/ready` endpoint, which returns an HTTP `200` response once the app has finished historical indexing and is ready to serve requests. Changed the behavior of the `/health` endpoint. Now, `/health` returns an HTTP `200` response as soon as the process starts. Removed the `maxHealthcheckDuration` option from `ponder.config.ts`, and removed the top-level `options` property. Read the [migration guide](https://ponder.sh/docs/migration-guide#060) for more details.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - BREAKING: Simplified Postgres schema usage pattern. Now, the indexed tables, reorg tables, and metadata table for a Ponder app are contained in one Postgres schema, specified by the user in `ponder.config.ts` (defaults to `public`). Removed usage of the shared `ponder` schema. Removed the view publishing pattern and removed the `publishSchema` option from `ponder.config.ts`. Fixed an issue where the `Schema is locked by a different Ponder app` warning would appear when running `ponder dev`. Read the [migration guide](https://ponder.sh/docs/migration-guide#060) for more details.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed the `maxHistoricalTaskConcurrency` option from the `networks` object in `ponder.config.ts`.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `viem` peer dependency to `>=2`. Renamed the `context.client` action `getBytecode` to `getCode`. The `getEnsName` action is now supported. Improved performance of address checksum operations.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `eth_getLogs` retry behavior. Now, the sync engine automatically determines the optimal block range for `eth_getLogs` requests.
+
+### Patch Changes
+
+- Updated dependencies [[`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f), [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f)]:
+  - @ponder/utils@0.2.0
+
 ## 0.5.24
 
 ### Patch Changes
