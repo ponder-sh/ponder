@@ -41,8 +41,7 @@ const ponder = new Command("ponder")
   )
   .option(
     "--log-level <LEVEL>",
-    'Minimum log level ("error", "warn", "info", "debug", or "trace")',
-    "info",
+    'Minimum log level ("error", "warn", "info", "debug", or "trace", default: "info")',
   )
   .option(
     "--log-format <FORMAT>",

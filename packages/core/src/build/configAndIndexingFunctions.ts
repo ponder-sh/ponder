@@ -790,6 +790,12 @@ export async function buildConfigAndIndexingFunctions({
     return hasSources;
   });
 
+  if (Object.keys(indexingFunctions).length === 0) {
+    throw new Error(
+      "Validation failed: Found 0 registered indexing functions.",
+    );
+  }
+
   return {
     databaseConfig,
     networks: networksWithSources,
