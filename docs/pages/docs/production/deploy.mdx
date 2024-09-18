@@ -8,33 +8,18 @@ import { Callout } from "nextra/components";
 
 # Deploy
 
-## Database schema
+You can deploy your Ponder app to any cloud environment that supports Node.js.
 
-Ponder uses a single database schema for user tables, metadata, and reorg information. This schema follows a strict set of rules to avoid two Ponder apps writing to the same tables or accidentally dropping tables from a running Ponder app.
+- [Railway](#railway)
+- [Self-hosting](#self-hosting)
 
-<Callout type="default">
-  The default schema is "public" but gets [overriden](/docs/production/deploy#zero-downtime-deployments) when executing on Railway. This behavior can be configured in [`ponder.config.ts`](/docs/api-reference/config#postgres)
-</Callout>
+## Railway
 
-## Cached indexing
-
-## Healthchecks
-
-### `/health`
-
-Returns a `200` status code immediately after the app starts running
-
-### `/ready`
-
-Returns a `200` status code after the app has completed the historical backfill and is available to serve traffic
-
-## Railway (recommended)
-
-[Railway](https://railway.app) is currently the best place to deploy Ponder apps. Most Ponder apps cost ~$5 per month, and the deployment process is simple.
+[Railway](https://railway.app)'s general-purpose cloud platform is a great starting point for most Ponder apps.
 
 <Steps>
 
-### Sign up or log in to Railway
+### Log in to Railway
 
 Connect your GitHub account, and make sure that your Ponder app has been pushed to remote.
 
@@ -43,37 +28,107 @@ Connect your GitHub account, and make sure that your Ponder app has been pushed 
 From the Railway console:
 
 1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list
-2. Click **Add variables**, then add your project's RPC URL (e.g. `PONDER_RPC_URL_1`) and any other environment variables
-3. Expose your service to the public internet. Open the **Settings** tab and click **Generate Domain** under **Networking**
-4. Set a healthcheck path. In the **Settings** tab, enter `/ready` for **Healthcheck Path** under **Deploy**
+2. Click **Add variables**, then add RPC URLs (e.g. `PONDER_RPC_URL_1`) and other environment variables
+3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain** 
+4. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `86400` seconds (1 day)
 
 <Callout type="warning">
-  _Monorepo users:_ Update the service **Root Directory** and/or **Start Command**
-  to run `ponder start` at the Ponder project root. For example, set the root
+  _Monorepo users:_ Configure the **Root Directory** and **Start Command**
+  such that `ponder start` runs at the Ponder project root. For example, set the root
   directory to `packages/ponder` or set the start command to `cd packages/ponder
   && pnpm start`.
 </Callout>
 
-### Create a Postgres database service
+### Create a Postgres database
 
-1. From your project's dashboard, click **New** → **Database** → **Add PostgreSQL**.
-2. Go back to your service. Open **Variables** tab and click on **New Variable**
-3. Click on **Add Reference**, select `DATABASE_URL`, and click on **Add**
+From the new project dashboard:
 
-After a moment, your Ponder service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
+1. Click **Create** → **Database** → **Add PostgreSQL**
+2. Open the **Variables** tab for the Ponder app service, click **New Variable** → **Add Reference** → select `DATABASE_URL` and click **Add**
+
+After a moment, the Ponder app service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
 </Steps>
 
-### Zero downtime deployments
+## Self hosting
 
-Ponder uses a unique database schema for each deployment on Railway. By default, this allows for zero downtime deployments with reindexing occurring on every redployment. 
+In general, hosting a Ponder app is similar to hosting a normal Node.js HTTP server. Rather than offer a step-by-step guide, this section describes the key Ponder-specific quirks to consider when self-hosting.
+
+### Database connection
 
 <Callout type="warning">
-  **Healthcheck Timeout** must be set higher than the time it takes to complete the historical backfill.
+  You app will have performance issues if the roundtrip database latency exceeds ~20 milliseconds. This is common when using a database in different private network or region.
 </Callout>
 
-### Manual redployments
+In production, Ponder works best with a Postgres database in the same private network. Set the `DATABASE_URL` environment variable to the connection string of your Postgres database, or manually override the `database.connectionString` option in `ponder.config.ts`.
 
-## Other environments
+```ts filename="ponder.config.ts" {6}
+import { createConfig } from "@ponder/core";
 
-Ponder has not been thoroughly tested on cloud providers other than Railway. However, Ponder apps should work in any environment that supports Node.js and can connect to a Postgres database.
+export default createConfig({
+  database: {
+    kind: "postgres",
+    connectionString: "postgres://user:password@mycloud.internal:5432/database",
+  },
+  // ... more config
+});
+```
+
+### Database schema
+
+When a Ponder app starts up, it attempts to create user tables (defined in `ponder.schema.ts`) in the target schema. If another Ponder app is currently using that schema, the app will crash shortly after startup with the error `Schema 'public' is locked by a different Ponder app`. This locking mechanism avoids issues caused by two Ponder apps writing to the same tables simultaneously.
+
+The default schema is `public`. This works fine during development, but causes problems in production when multiple deployments share the same database. During a zero-downtime redeployment, the new deployment will fail because the `public` schema is locked by the old deployment.
+
+To avoid this problem, set the `schema` option in `ponder.config.ts` to a deployment-specific value. The best choice for `schema` depends on your environment - on Railway, Ponder automatically detects and uses the `RAILWAY_DEPLOYMENT_ID` environment variable. In a Kubernetes cluster, the pod name is often a great choice:
+
+<div class="code-columns">
+
+```yaml filename="ponder.yaml" {17-21}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ponder-deployment
+spec:
+  selector:
+    matchLabels:
+      app: ponder
+  template:
+    metadata:
+      labels:
+        app: ponder
+    spec:
+      containers:
+      - name: ponder
+        # ...
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+```
+
+```ts filename="ponder.config.ts" {7}
+import { createConfig } from "@ponder/core";
+
+export default createConfig({
+  database: {
+    kind: "postgres",
+    connectionString: process.env.DATABASE_URL,
+    schema: process.env.POD_NAME,
+  },
+  // ... more config
+});
+```
+</div>
+
+### Health checks & probes
+
+<Callout type="info">
+  The `0.6` release added the `/ready` endpoint and simplified `/health`. Read the [migration guide](/docs/migration-guide#060).
+</Callout>
+
+Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
+
+- **`/health`**: Returns an HTTP `200` response immediately after the process starts.
+- **`/ready`**: Returns an HTTP `200` response once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns an HTTP `503` response.
