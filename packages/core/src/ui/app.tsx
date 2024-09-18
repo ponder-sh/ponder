@@ -76,7 +76,7 @@ const App = (ui: UiState) => {
             {
               title: "Status",
               key: "status",
-              align: "right",
+              align: "left",
               format: (_, row) =>
                 row.status === "historical"
                   ? `${row.status} (${formatPercentage(row.progress)})`
