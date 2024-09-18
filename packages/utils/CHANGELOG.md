@@ -1,5 +1,13 @@
 # @ponder/utils
 
+## 0.2.0
+
+### Minor Changes
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `viem` peer dependency to `>=2`.
+
+- [#1074](https://github.com/ponder-sh/ponder/pull/1074) [`d9656a9af390f6c0a375cbbabfc85f90f510b13f`](https://github.com/ponder-sh/ponder/commit/d9656a9af390f6c0a375cbbabfc85f90f510b13f) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `isSuggestedRange` property to the return type of `getLogsRetryHelper`.
+
 ## 0.1.8
 
 ### Patch Changes
