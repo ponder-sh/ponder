@@ -6,6 +6,7 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
+import type { SyncBlock, SyncLog, SyncTransaction } from "@/types/sync.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import type { AbiEvent, AbiParameter } from "abitype";
@@ -13,9 +14,11 @@ import {
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
   type Hex,
+  checksumAddress,
   decodeAbiParameters,
   decodeFunctionData,
   decodeFunctionResult,
+  hexToBigInt,
 } from "viem";
 import type { Source } from "./source.js";
 
@@ -29,6 +32,8 @@ export type RawEvent = {
   transactionReceipt?: TransactionReceipt;
   trace?: CallTrace;
 };
+
+export type Event = LogEvent | BlockEvent | CallTraceEvent;
 
 export type SetupEvent = {
   type: "setup";
@@ -89,8 +94,6 @@ export type CallTraceEvent = {
     transactionReceipt?: TransactionReceipt;
   };
 };
-
-export type Event = LogEvent | BlockEvent | CallTraceEvent;
 
 export const decodeEvents = (
   common: Common,
@@ -296,3 +299,95 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
 }
+
+// @ts-ignore
+const convertBlock = (block: SyncBlock): Block => ({
+  baseFeePerGas: block.baseFeePerGas ? hexToBigInt(block.baseFeePerGas) : null,
+  difficulty: hexToBigInt(block.difficulty),
+  extraData: block.extraData,
+  gasLimit: hexToBigInt(block.gasLimit),
+  gasUsed: hexToBigInt(block.gasUsed),
+  hash: block.hash,
+  logsBloom: block.logsBloom,
+  miner: checksumAddress(block.miner),
+  mixHash: block.mixHash,
+  nonce: block.nonce,
+  number: hexToBigInt(block.number),
+  parentHash: block.parentHash,
+  receiptsRoot: block.receiptsRoot,
+  sha3Uncles: block.sha3Uncles,
+  size: hexToBigInt(block.size),
+  stateRoot: block.stateRoot,
+  timestamp: hexToBigInt(block.timestamp),
+  totalDifficulty: block.totalDifficulty
+    ? hexToBigInt(block.totalDifficulty)
+    : null,
+  transactionsRoot: block.transactionsRoot,
+});
+
+// @ts-ignore
+const convertLog = (log: SyncLog): Log => ({
+  id: `${log.blockHash}-${log.logIndex}`,
+  address: checksumAddress(log.address!),
+  blockHash: log.blockHash,
+  blockNumber: hexToBigInt(log.blockNumber),
+  data: log.data,
+  logIndex: Number(log.logIndex),
+  removed: false,
+  topics: log.topics,
+  transactionHash: log.transactionHash,
+  transactionIndex: Number(log.transactionIndex),
+});
+
+// @ts-ignore
+const convertTransaction = (transaction: SyncTransaction): Transaction => ({
+  blockHash: transaction.blockHash,
+  blockNumber: hexToBigInt(transaction.blockNumber),
+  from: checksumAddress(transaction.from),
+  gas: hexToBigInt(transaction.gas),
+  hash: transaction.hash,
+  input: transaction.input,
+  nonce: Number(transaction.nonce),
+  r: transaction.r,
+  s: transaction.s,
+  to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+  transactionIndex: Number(transaction.transactionIndex),
+  value: hexToBigInt(transaction.value),
+  v: transaction.v ? hexToBigInt(transaction.v) : null,
+  ...(transaction.type === "0x0"
+    ? {
+        type: "legacy",
+        gasPrice: hexToBigInt(transaction.gasPrice),
+      }
+    : transaction.type === "0x1"
+      ? {
+          type: "eip2930",
+          gasPrice: hexToBigInt(transaction.gasPrice),
+          accessList: transaction.accessList,
+        }
+      : transaction.type === "0x2"
+        ? {
+            type: "eip1559",
+            maxFeePerGas: hexToBigInt(transaction.maxFeePerGas),
+            maxPriorityFeePerGas: hexToBigInt(transaction.maxPriorityFeePerGas),
+          }
+        : // @ts-ignore
+          transaction.type === "0x7e"
+          ? {
+              type: "deposit",
+              // @ts-ignore
+              maxFeePerGas: transaction.maxFeePerGas
+                ? // @ts-ignore
+                  hexToBigInt(transaction.maxFeePerGas)
+                : undefined,
+              // @ts-ignore
+              maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
+                ? // @ts-ignore
+                  hexToBigInt(transaction.maxPriorityFeePerGas)
+                : undefined,
+            }
+          : {
+              // @ts-ignore
+              type: transaction.type,
+            }),
+});

@@ -39,14 +39,26 @@ export function Table<TRow extends { [key: string]: any }>(props: {
 
   return (
     <Box flexDirection="column">
+      {/* Top Line */}
+      {/* <Box flexDirection="row" key="top">
+        <Text>┌</Text>
+        {columnWidths.map((width, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+          <Text key={index}>
+            {"─".repeat(width + 2)}
+            {index < columns.length - 1 ? "┬" : "┐"}
+          </Text>
+        ))}
+      </Box> */}
+
       {/* Column Titles */}
       <Box flexDirection="row" key="title">
-        {columns.map(({ title, align }, index) => (
+        {columns.map(({ title }, index) => (
           <React.Fragment key={`title-${title}`}>
             <Text>│</Text>
             <Box
               width={columnWidths[index]}
-              justifyContent={align === "left" ? "flex-start" : "flex-end"}
+              justifyContent="flex-start"
               marginX={1}
             >
               <Text bold wrap="truncate-end">
@@ -59,7 +71,7 @@ export function Table<TRow extends { [key: string]: any }>(props: {
       </Box>
 
       {/* Separator Line */}
-      <Box flexDirection="row" key="border">
+      <Box flexDirection="row" key="separator">
         <Text>├</Text>
         {columnWidths.map((width, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
@@ -93,6 +105,18 @@ export function Table<TRow extends { [key: string]: any }>(props: {
           <Text>│</Text>
         </Box>
       ))}
+
+      {/* Bottom Line */}
+      {/* <Box flexDirection="row" key="bottom">
+        <Text>└</Text>
+        {columnWidths.map((width, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+          <Text key={index}>
+            {"─".repeat(width + 2)}
+            {index < columns.length - 1 ? "┴" : "┘"}
+          </Text>
+        ))}
+      </Box> */}
     </Box>
   );
 }

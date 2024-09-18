@@ -13,7 +13,6 @@ import {
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { hash } from "@/utils/hash.js";
 import { beforeEach, expect, test } from "vitest";
 
 beforeEach(setupCommon);
@@ -44,10 +43,6 @@ const hexSchema = createSchema((p) => ({
 
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
-}
-
-function calculateLogTableName(tableName: string) {
-  return hash(["public", "test", tableName]);
 }
 
 test("create() inserts a record", async (context) => {
@@ -212,11 +207,13 @@ test("create() accepts float fields as float and returns as float", async (conte
 });
 
 test("create() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -225,9 +222,8 @@ test("create() inserts into the log table", async (context) => {
     data: { name: "Skip", age: 12 },
   });
 
-  const logs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -318,11 +314,13 @@ test("update() updates a record using an update function", async (context) => {
 });
 
 test("update() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -344,9 +342,8 @@ test("update() inserts into the log table", async (context) => {
     data: { name: "Peanut Butter" },
   });
 
-  const logs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -455,11 +452,13 @@ test("upsert() updates a record using an update function", async (context) => {
 });
 
 test("upsert() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -481,9 +480,8 @@ test("upsert() inserts into the log table", async (context) => {
     update: { name: "Jelly" },
   });
 
-  const logs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -531,11 +529,13 @@ test("delete() removes a record", async (context) => {
 });
 
 test("delete() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.create({
     tableName: "Pet",
@@ -555,9 +555,8 @@ test("delete() inserts into the log table", async (context) => {
     id: "id1",
   });
 
-  const logs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -628,11 +627,13 @@ test("createMany() inserts a large number of entities", async (context) => {
 });
 
 test("createMany() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -644,9 +645,8 @@ test("createMany() inserts into the log table", async (context) => {
     ],
   });
 
-  const logs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 
@@ -705,11 +705,13 @@ test("updateMany() updates multiple entities", async (context) => {
 });
 
 test("updateMany() inserts into the log table", async (context) => {
-  const { indexingStore, database, namespaceInfo, cleanup } =
-    await setupDatabaseServices(context, {
+  const { indexingStore, database, cleanup } = await setupDatabaseServices(
+    context,
+    {
       schema,
       indexing: "realtime",
-    });
+    },
+  );
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -728,9 +730,8 @@ test("updateMany() inserts into the log table", async (context) => {
     data: { bigAge: 300n },
   });
 
-  const logs = await database.indexingDb
-    .withSchema(namespaceInfo.internalNamespace)
-    .selectFrom(calculateLogTableName("Pet"))
+  const logs = await database.qb.user
+    .selectFrom("_ponder_reorg__Pet")
     .selectAll()
     .execute();
 

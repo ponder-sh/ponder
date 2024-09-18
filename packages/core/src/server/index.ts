@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
-import type { DatabaseService } from "@/database/service.js";
+import type { Database } from "@/database/index.js";
 import { createDrizzleDb, createDrizzleTables } from "@/drizzle/runtime.js";
 import { graphql } from "@/graphql/index.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
@@ -27,31 +27,25 @@ export async function createServer({
   common,
   schema,
   database,
-  dbNamespace,
 }: {
   app: Hono;
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
-  database: DatabaseService;
-  dbNamespace: string;
+  database: Database;
 }): Promise<Server> {
   // Create hono app
 
-  const startTime = Date.now();
-
   const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
+    dialect: database.dialect,
     schema,
-    namespaceInfo: { userNamespace: dbNamespace },
-    db: database.readonlyDb,
+    db: database.qb.readonly,
     common,
   });
 
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo: { userNamespace: dbNamespace },
-    db: database.readonlyDb,
+    dialect: database.dialect,
+    db: database.qb.readonly,
   });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
@@ -99,7 +93,7 @@ export async function createServer({
   });
 
   const db = createDrizzleDb(database);
-  const tables = createDrizzleTables(schema, database, dbNamespace);
+  const tables = createDrizzleTables(schema, database);
 
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
@@ -122,24 +116,16 @@ export async function createServer({
         return c.json(error as Error, 500);
       }
     })
-    .get("/health", async (c) => {
+    .get("/health", (c) => {
+      return c.text("", 200);
+    })
+    .get("/ready", async (c) => {
       const status = await metadataStore.getStatus();
 
       if (
         status !== null &&
         Object.values(status).every(({ ready }) => ready === true)
       ) {
-        return c.text("", 200);
-      }
-
-      const elapsed = (Date.now() - startTime) / 1000;
-      const max = common.options.maxHealthcheckDuration;
-
-      if (elapsed > max) {
-        common.logger.warn({
-          service: "server",
-          msg: `Historical indexing duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
-        });
         return c.text("", 200);
       }
 

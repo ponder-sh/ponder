@@ -17,7 +17,6 @@ export type Options = {
 
   port: number;
   hostname?: string;
-  maxHealthcheckDuration: number;
 
   telemetryUrl: string;
   telemetryDisabled: boolean;
@@ -90,7 +89,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     port,
     hostname,
-    maxHealthcheckDuration: 240, // 4 minutes
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),

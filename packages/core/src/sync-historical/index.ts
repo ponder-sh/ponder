@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { getHistoricalSyncProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
@@ -13,14 +12,10 @@ import {
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
 import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   type Interval,
   getChunks,
   intervalDifference,
-  intervalIntersection,
-  intervalSum,
-  sortIntervals,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -31,14 +26,23 @@ import {
   _trace_filter,
 } from "@/utils/rpc.js";
 import { dedupe } from "@ponder/common";
-import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
+import { getLogsRetryHelper } from "@ponder/utils";
+import {
+  type Address,
+  type Hash,
+  type RpcError,
+  hexToBigInt,
+  hexToNumber,
+  toHex,
+} from "viem";
 
 export type HistoricalSync = {
-  /** Closest-to-tip block that is synced. */
-  latestBlock: SyncBlock | undefined;
-  /** Extract raw data for `interval`. */
-  sync(interval: Interval): Promise<void>;
-  initializeMetrics(finalizedBlock: SyncBlock, isInitialCall: boolean): void;
+  intervalsCache: Map<Filter, Interval[]>;
+  /**
+   * Extract raw data for `interval` and return the closest-to-tip block
+   * that is synced.
+   */
+  sync(interval: Interval): Promise<SyncBlock>;
   kill(): void;
 };
 
@@ -65,15 +69,25 @@ export const createHistoricalSync = async (
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
   const transactionsCache = new Set<Hash>();
-
-  // const logMetadata = new Map<LogFilter, { range: number }>();
-
+  /**
+   * Data about the range passed to "eth_getLogs" for all log
+   *  filters and log factories.
+   */
+  const getLogsRequestMetadata = new Map<
+    LogFilter | LogFactory,
+    {
+      /** Estimate optimal range to use for "eth_getLogs" requests */
+      estimatedRange: number;
+      /** Range suggested by an error message */
+      confirmedRange?: number;
+    }
+  >();
   /**
    * Intervals that have been completed for all filters in `args.sources`.
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  const intervalsCache: Map<Filter | Factory, Interval[]> = new Map();
+  const intervalsCache: Map<Filter, Interval[]> = new Map();
 
   // Populate `intervalsCache` by querying the sync-store.
   for (const { filter } of args.sources) {
@@ -81,101 +95,130 @@ export const createHistoricalSync = async (
     intervalsCache.set(filter, intervals);
   }
 
-  // Closest-to-tip block that has been fully injested.
+  // Closest-to-tip block that has been synced.
   let latestBlock: SyncBlock | undefined;
-
-  /**
-   * Attempt to initialize `latestBlock` to the minimum completed block
-   * across all filters. This is only possible if every filter has made
-   * some progress.
-   */
-  const _latestCompletedBlocks = args.sources.map(({ filter }) => {
-    const requiredInterval = [
-      filter.fromBlock,
-      filter.toBlock ?? Number.POSITIVE_INFINITY,
-    ] satisfies Interval;
-    const cachedIntervals = intervalsCache.get(filter)!;
-
-    const completedIntervals = sortIntervals(
-      intervalIntersection([requiredInterval], cachedIntervals),
-    );
-
-    if (completedIntervals.length === 0) return undefined;
-
-    const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
-    return earliestCompletedInterval[1];
-  });
-
-  const _minCompletedBlock = Math.min(
-    ...(_latestCompletedBlocks.filter(
-      (block) => block !== undefined,
-    ) as number[]),
-  );
-
-  /**  Filter i has known progress if a completed interval is found or if
-   * `_latestCompletedBlocks[i]` is undefined but `sources[i].filter.fromBlock`
-   * is > `_minCompletedBlock`.
-   */
-  if (
-    _latestCompletedBlocks.every(
-      (block, i) =>
-        block !== undefined ||
-        args.sources[i]!.filter.fromBlock > _minCompletedBlock,
-    )
-  ) {
-    latestBlock = await _eth_getBlockByNumber(args.requestQueue, {
-      blockNumber: _minCompletedBlock,
-    });
-  }
 
   ////////
   // Helper functions for specific sync tasks
   ////////
 
+  /**
+   * Split "eth_getLogs" requests into ranges inferred from errors.
+   */
+  const getLogsDynamic = async ({
+    filter,
+    address,
+    interval,
+  }: {
+    filter: LogFilter | LogFactory;
+    interval: Interval;
+    /** Explicitly set because of the complexity of factory contracts. */
+    address: Address | Address[] | undefined;
+  }): Promise<SyncLog[]> => {
+    //  Use the recommended range if available, else don't chunk the interval at all.
+
+    const metadata = getLogsRequestMetadata.get(filter);
+    const intervals = metadata
+      ? getChunks({
+          interval,
+          maxChunkSize: metadata.confirmedRange ?? metadata.estimatedRange,
+        })
+      : [interval];
+
+    const topics =
+      "eventSelector" in filter ? [filter.eventSelector] : filter.topics;
+
+    // Batch large arrays of addresses, handling arrays that are empty or over the threshold
+
+    let addressBatches: (Address | Address[] | undefined)[];
+    if (address === undefined || typeof address === "string") {
+      addressBatches = [address];
+    } else if (address.length === 0) {
+      return [];
+    } else if (
+      address.length >= args.common.options.factoryAddressCountThreshold
+    ) {
+      addressBatches = [undefined];
+    } else {
+      addressBatches = [];
+      for (let i = 0; i < address.length; i += 50) {
+        addressBatches.push(address.slice(i, i + 50));
+      }
+    }
+
+    const logs = await Promise.all(
+      intervals.flatMap((interval) =>
+        addressBatches.map((address) =>
+          _eth_getLogs(args.requestQueue, {
+            address,
+            topics,
+            fromBlock: interval[0],
+            toBlock: interval[1],
+          }).catch((error) => {
+            const getLogsErrorResponse = getLogsRetryHelper({
+              params: [
+                {
+                  address,
+                  topics,
+                  fromBlock: toHex(interval[0]),
+                  toBlock: toHex(interval[1]),
+                },
+              ],
+              error: error as RpcError,
+            });
+
+            if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+            const range =
+              hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+              hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
+
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Caught eth_getLogs error on '${
+                args.network.name
+              }', updating recommended range to ${range}.`,
+            });
+
+            getLogsRequestMetadata.set(filter, {
+              estimatedRange: range,
+              confirmedRange: getLogsErrorResponse.isSuggestedRange
+                ? range
+                : undefined,
+            });
+
+            return getLogsDynamic({ address, interval, filter });
+          }),
+        ),
+      ),
+    ).then((logs) => logs.flat());
+
+    /**
+     * Dynamically increase the range used in "eth_getLogs" if an
+     * error has been received but the error didn't suggest a range.
+     */
+
+    if (
+      getLogsRequestMetadata.has(filter) &&
+      getLogsRequestMetadata.get(filter)!.confirmedRange === undefined
+    ) {
+      getLogsRequestMetadata.get(filter)!.estimatedRange = Math.round(
+        getLogsRequestMetadata.get(filter)!.estimatedRange * 1.05,
+      );
+    }
+
+    return logs;
+  };
+
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
     // Resolve `filter.address`
-    let address: Address | Address[] | undefined;
-    if (isAddressFactory(filter.address)) {
-      const childAddresses = await syncAddress(filter.address, interval);
-      // Exit early if no child addresses are found
-      if (childAddresses.length === 0) return;
-      if (
-        childAddresses.length < args.common.options.factoryAddressCountThreshold
-      ) {
-        address = childAddresses;
-      } else {
-        address = undefined;
-      }
-    } else {
-      address = filter.address;
-    }
+    const address = isAddressFactory(filter.address)
+      ? await syncAddress(filter.address, interval)
+      : filter.address;
 
     if (isKilled) return;
 
-    // Request logs, batching of large arrays of addresses
-    let logs: SyncLog[];
-    if (Array.isArray(address) && address.length > 50) {
-      const _promises: Promise<SyncLog[]>[] = [];
-      for (let i = 0; i < address.length; i += 50) {
-        _promises.push(
-          _eth_getLogs(args.requestQueue, {
-            address: address.slice(i, i + 50),
-            topics: filter.topics,
-            fromBlock: interval[0],
-            toBlock: interval[1],
-          }),
-        );
-      }
-      logs = await Promise.all(_promises).then((logs) => logs.flat());
-    } else {
-      logs = await _eth_getLogs(args.requestQueue, {
-        address,
-        topics: filter.topics,
-        fromBlock: interval[0],
-        toBlock: interval[1],
-      });
-    }
+    const logs = await getLogsDynamic({ filter, interval, address });
 
     if (isKilled) return;
 
@@ -303,11 +346,10 @@ export const createHistoricalSync = async (
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
-    const logs = await _eth_getLogs(args.requestQueue, {
+    const logs = await getLogsDynamic({
+      filter,
+      interval,
       address: filter.address,
-      topics: [filter.eventSelector],
-      fromBlock: interval[0],
-      toBlock: interval[1],
     });
 
     if (isKilled) return;
@@ -350,7 +392,7 @@ export const createHistoricalSync = async (
 
       // Update `latestBlock` if `block` is closer to tip.
       if (
-        hexToBigInt(block.number) > hexToBigInt(latestBlock?.number ?? "0x0")
+        hexToBigInt(block.number) >= hexToBigInt(latestBlock?.number ?? "0x0")
       ) {
         latestBlock = block;
       }
@@ -376,30 +418,8 @@ export const createHistoricalSync = async (
     });
   };
 
-  // Emit progress update logs on an interval for each source.
-  const interval = setInterval(async () => {
-    const historical = await getHistoricalSyncProgress(args.common.metrics);
-
-    for (const {
-      networkName,
-      sourceName,
-      progress,
-      eta,
-    } of historical.sources) {
-      if (progress === 1 || networkName !== args.network.name) return;
-      args.common.logger.info({
-        service: "historical",
-        msg: `Syncing '${networkName}' for '${sourceName}' with ${formatPercentage(
-          progress ?? 0,
-        )} complete${eta !== undefined ? ` and ~${formatEta(eta)} remaining` : ""}`,
-      });
-    }
-  }, 10_000);
-
   return {
-    get latestBlock() {
-      return latestBlock;
-    },
+    intervalsCache,
     async sync(_interval) {
       await Promise.all(
         args.sources.map(async (source) => {
@@ -433,8 +453,6 @@ export const createHistoricalSync = async (
           // Request last block of interval
           const blockPromise = syncBlock(BigInt(interval[1]));
 
-          // TODO(kyle) use filter metadata for recommended "eth_getLogs" chunk size
-
           // sync required intervals, account for chunk sizes
           await Promise.all(
             requiredIntervals.map(async (interval) => {
@@ -442,23 +460,7 @@ export const createHistoricalSync = async (
                 const filter = source.filter;
                 switch (filter.type) {
                   case "log": {
-                    const maxChunkSize =
-                      source.maxBlockRange ?? args.network.defaultMaxBlockRange;
-                    await Promise.all(
-                      getChunks({ interval, maxChunkSize }).map(
-                        async (interval) => {
-                          await syncLogFilter(filter, interval);
-                          args.common.metrics.ponder_historical_completed_blocks.inc(
-                            {
-                              network: source.networkName,
-                              source: source.name,
-                              type: source.filter.type,
-                            },
-                            interval[1] - interval[0] + 1,
-                          );
-                        },
-                      ),
-                    );
+                    await syncLogFilter(filter, interval);
                     break;
                   }
 
@@ -467,15 +469,6 @@ export const createHistoricalSync = async (
                       getChunks({ interval, maxChunkSize: 10 }).map(
                         async (interval) => {
                           await syncTraceFilter(filter, interval);
-
-                          args.common.metrics.ponder_historical_completed_blocks.inc(
-                            {
-                              network: source.networkName,
-                              source: source.name,
-                              type: source.filter.type,
-                            },
-                            interval[1] - interval[0] + 1,
-                          );
                         },
                       ),
                     );
@@ -486,15 +479,6 @@ export const createHistoricalSync = async (
                 }
               } else {
                 await syncBlockFilter(source.filter, interval);
-
-                args.common.metrics.ponder_historical_completed_blocks.inc(
-                  {
-                    network: source.networkName,
-                    source: source.name,
-                    type: source.filter.type,
-                  },
-                  interval[1] - interval[0] + 1,
-                );
               }
             }),
           );
@@ -524,75 +508,11 @@ export const createHistoricalSync = async (
       ]);
       blockCache.clear();
       transactionsCache.clear();
-    },
-    initializeMetrics(finalizedBlock, isInitialCall) {
-      if (isInitialCall) {
-        args.common.metrics.ponder_historical_start_timestamp.set(Date.now());
-        args.common.metrics.ponder_realtime_is_connected.set(
-          { network: args.network.name },
-          0,
-        );
-      }
 
-      for (const source of args.sources) {
-        const label = {
-          network: source.networkName,
-          source: source.name,
-          type: source.filter.type,
-        };
-
-        if (source.filter.fromBlock > hexToNumber(finalizedBlock.number)) {
-          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
-
-          if (isInitialCall) {
-            args.common.logger.warn({
-              service: "historical",
-              msg: `Skipped syncing '${source.networkName}' for '${source.name}' because the start block is not finalized`,
-            });
-          }
-
-          args.common.metrics.ponder_historical_total_blocks.set(label, 0);
-          args.common.metrics.ponder_historical_cached_blocks.set(label, 0);
-        } else {
-          const interval = [
-            source.filter.fromBlock,
-            source.filter.toBlock ?? hexToNumber(finalizedBlock.number),
-          ] satisfies Interval;
-
-          const requiredIntervals = intervalDifference(
-            [interval],
-            intervalsCache.get(source.filter)!,
-          );
-
-          const totalBlocks = interval[1] - interval[0] + 1;
-          const cachedBlocks = totalBlocks - intervalSum(requiredIntervals);
-
-          args.common.metrics.ponder_historical_total_blocks.set(
-            label,
-            totalBlocks,
-          );
-
-          args.common.metrics.ponder_historical_cached_blocks.set(
-            label,
-            cachedBlocks,
-          );
-
-          if (isInitialCall) {
-            args.common.logger.info({
-              service: "historical",
-              msg: `Started syncing '${source.networkName}' for '${
-                source.name
-              }' with ${formatPercentage(
-                Math.min(1, cachedBlocks / (totalBlocks || 1)),
-              )} cached`,
-            });
-          }
-        }
-      }
+      return latestBlock!;
     },
     kill() {
       isKilled = true;
-      clearInterval(interval);
     },
   };
 };

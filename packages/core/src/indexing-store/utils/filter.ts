@@ -89,12 +89,12 @@ export function buildWhereConditions({
   eb,
   where,
   table,
-  encoding,
+  dialect,
 }: {
   eb: ExpressionBuilder<any, string>;
   where: Record<string, any>;
   table: Table;
-  encoding: "sqlite" | "postgres";
+  dialect: "sqlite" | "postgres";
 }) {
   const exprs: ExpressionWrapper<any, string, any>[] = [];
 
@@ -107,7 +107,7 @@ export function buildWhereConditions({
       }
 
       const nestedExprs = rhs.map((nestedWhere) =>
-        buildWhereConditions({ eb, where: nestedWhere, table, encoding }),
+        buildWhereConditions({ eb, where: nestedWhere, table, dialect }),
       );
 
       exprs.push(eb[columnName === "AND" ? "and" : "or"](nestedExprs));
@@ -183,7 +183,7 @@ export function buildWhereConditions({
           }
           return v;
         }
-        return encodeValue({ value: v, column, encoding });
+        return encodeValue({ value: v, column, dialect });
       };
 
       const [comparator, encodedValue] = filterEncodingFn!(value, encode);

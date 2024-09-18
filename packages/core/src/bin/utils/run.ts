@@ -1,9 +1,7 @@
 import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
-import { PostgresDatabaseService } from "@/database/postgres/service.js";
-import type { DatabaseService, NamespaceInfo } from "@/database/service.js";
-import { SqliteDatabaseService } from "@/database/sqlite/service.js";
+import { createDatabase } from "@/database/index.js";
 import { getHistoricalStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { getReadonlyStore } from "@/indexing-store/readonly.js";
@@ -15,9 +13,8 @@ import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync } from "@/sync/index.js";
 import {
-  type Checkpoint,
   decodeCheckpoint,
-  isCheckpointEqual,
+  encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
@@ -40,7 +37,6 @@ export async function run({
   const {
     buildId,
     databaseConfig,
-    optionsConfig,
     networks,
     sources,
     graphqlSchema,
@@ -48,46 +44,31 @@ export async function run({
     indexingFunctions,
   } = build;
 
-  common.options = { ...common.options, ...optionsConfig };
-
   let isKilled = false;
-  let database: DatabaseService;
-  let namespaceInfo: NamespaceInfo;
-  let initialCheckpoint: Checkpoint;
 
-  if (databaseConfig.kind === "sqlite") {
-    const { directory } = databaseConfig;
-    database = new SqliteDatabaseService({ common, directory });
-    [namespaceInfo, initialCheckpoint] = await database
-      .setup({ schema, buildId })
-      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
-  } else {
-    const { poolConfig, schema: userNamespace, publishSchema } = databaseConfig;
-    database = new PostgresDatabaseService({
-      common,
-      poolConfig,
-      userNamespace,
-      publishSchema,
-    });
-    [namespaceInfo, initialCheckpoint] = await database
-      .setup({ schema, buildId })
-      .then(({ namespaceInfo, checkpoint }) => [namespaceInfo, checkpoint]);
-  }
+  const database = createDatabase({
+    common,
+    schema,
+    databaseConfig,
+  });
+  const { checkpoint: initialCheckpoint } = await database.setup({
+    buildId,
+  });
+
   const syncStore = createSyncStore({
     common,
-    db: database.syncDb,
-    sql: database.kind,
+    db: database.qb.sync,
+    dialect: database.dialect,
   });
 
   const metadataStore = getMetadataStore({
-    encoding: database.kind,
-    namespaceInfo,
-    db: database.indexingDb,
+    dialect: database.dialect,
+    db: database.qb.user,
   });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
-  await database.migrateSyncStore();
+  await database.migrateSync();
 
   runCodegen({ common, graphqlSchema });
 
@@ -100,7 +81,7 @@ export async function run({
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {
-      realtimeQueue.add(realtimeEvent);
+      return realtimeQueue.add(realtimeEvent);
     },
     onFatalError,
     initialCheckpoint,
@@ -112,14 +93,6 @@ export async function run({
     indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
 
     return await indexingService.processEvents({ events });
-  };
-
-  const handleReorg = async (checkpoint: string) => {
-    await database.revert({ checkpoint, namespaceInfo });
-  };
-
-  const handleFinalize = async (checkpoint: string) => {
-    await database.updateFinalizedCheckpoint({ checkpoint });
   };
 
   const realtimeQueue = createQueue({
@@ -148,11 +121,11 @@ export async function run({
           break;
         }
         case "reorg":
-          await handleReorg(event.checkpoint);
+          await database.revert({ checkpoint: event.checkpoint });
           break;
 
         case "finalize":
-          await handleFinalize(event.checkpoint);
+          await database.finalize({ checkpoint: event.checkpoint });
           break;
 
         default:
@@ -162,21 +135,19 @@ export async function run({
   });
 
   const readonlyStore = getReadonlyStore({
-    encoding: database.kind,
+    dialect: database.dialect,
     schema,
-    namespaceInfo,
-    db: database.indexingDb,
+    db: database.qb.user,
     common,
   });
 
   const historicalStore = getHistoricalStore({
-    encoding: database.kind,
+    dialect: database.dialect,
     schema,
     readonlyStore,
-    namespaceInfo,
-    db: database.indexingDb,
+    db: database.qb.user,
     common,
-    isCacheExhaustive: isCheckpointEqual(zeroCheckpoint, initialCheckpoint),
+    isCacheExhaustive: encodeCheckpoint(zeroCheckpoint) === initialCheckpoint,
   });
 
   let indexingStore: IndexingStore = historicalStore;
@@ -195,7 +166,7 @@ export async function run({
 
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
-    if (isCheckpointEqual(initialCheckpoint, zeroCheckpoint)) {
+    if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
       const result = await indexingService.processSetupEvents({
         sources,
         networks,
@@ -250,20 +221,16 @@ export async function run({
       msg: "Completed historical indexing",
     });
 
-    if (database.kind === "postgres") {
-      await database.publish();
-    }
-    await handleFinalize(sync.getFinalizedCheckpoint());
+    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     await database.createIndexes({ schema });
 
     indexingStore = {
       ...readonlyStore,
       ...getRealtimeStore({
-        encoding: database.kind,
+        dialect: database.dialect,
         schema,
-        namespaceInfo,
-        db: database.indexingDb,
+        db: database.qb.user,
         common,
       }),
     };

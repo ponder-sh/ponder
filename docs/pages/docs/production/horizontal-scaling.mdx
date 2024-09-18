@@ -48,7 +48,8 @@ Other than the start command, the `ponder serve` service should have the same co
 1. Click **New** → **GitHub repo** and select your Ponder repo from the list.
 2. Open the **Settings** tab for the new service and update the **Start Command** to `ponder serve`.
 3. Open the **Variables** tab, click on **New Variable** → **Add Reference** and select `DATABASE_URL`. Be sure to use the same database as the `ponder start` service.
-4. Set a healthcheck path. On the **Settings** tab, go to **Deploy** → **Healthcheck Path** and enter `/health`.
+4. [set schema]
+5. Set a healthcheck path. On the **Settings** tab, go to **Deploy** → **Healthcheck Path** and enter `/health`.
 
 ### Create replicas
 

@@ -7,6 +7,7 @@ import {
 import { testClient } from "@/_test/utils.js";
 import {
   decodeCheckpoint,
+  encodeCheckpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -60,9 +61,9 @@ test("createSync()", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   expect(sync).toBeDefined();
@@ -80,9 +81,9 @@ test("getEvents() returns events", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -103,9 +104,9 @@ test("getEvents() with cache", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -117,9 +118,9 @@ test("getEvents() with cache", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -145,9 +146,9 @@ test("getEvents() end block", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -164,16 +165,16 @@ test("getEvents() multichain", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
-  sources[1].filter.toBlock = 0;
+  sources[1].filter.toBlock = 1;
 
   const sync = await createSync({
     syncStore,
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -194,9 +195,9 @@ test("getEvents() updates status", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -227,9 +228,9 @@ test("getEvents() pagination", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: [network],
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -248,9 +249,9 @@ test("getEvents() initialCheckpoint", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: maxCheckpoint,
+    initialCheckpoint: encodeCheckpoint(maxCheckpoint),
   });
 
   const events = await drainAsyncGenerator(sync.getEvents());
@@ -273,9 +274,9 @@ test("getEvents() refetches finalized block", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await wait(1000);
@@ -295,10 +296,12 @@ test("startRealtime()", async (context) => {
     sources: [context.sources[4]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
+
+  await drainAsyncGenerator(sync.getEvents());
 
   sync.startRealtime();
 
@@ -323,14 +326,14 @@ test("onEvent() handles block", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
         promise.resolve();
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -357,14 +360,14 @@ test("onEvent() handles finalize", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
         promise.resolve();
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await testClient.mine({ blocks: 4 });
@@ -397,7 +400,7 @@ test("onEvent() multichain end block", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         if (event.events.length > 0) {
           promise.resolve();
@@ -405,7 +408,7 @@ test("onEvent() multichain end block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -429,7 +432,7 @@ test("onEvent() multichain gets all events", async (context) => {
     sources: [sources[0], sources[1]],
     common: context.common,
     networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         if (event.events.length > 0) {
           promise.resolve();
@@ -437,7 +440,7 @@ test("onEvent() multichain gets all events", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -463,13 +466,13 @@ test("onEvent() handles endBlock finalization", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: (event) => {
+    onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         promise.resolve();
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await testClient.mine({ blocks: 4 });
@@ -495,11 +498,11 @@ test("onEvent() handles errors", async (context) => {
     sources: [context.sources[0]],
     common: context.common,
     networks: context.networks,
-    onRealtimeEvent: () => {},
+    onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();
     },
-    initialCheckpoint: zeroCheckpoint,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await drainAsyncGenerator(sync.getEvents());
