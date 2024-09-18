@@ -12,8 +12,8 @@ export async function* mergeAsyncGenerators<T>(
       results.push(result);
       pwr.resolve();
     }
-    pwr.resolve();
     count--;
+    pwr.resolve();
   });
 
   while (count > 0) {
