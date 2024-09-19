@@ -389,7 +389,7 @@ function decodeValue({
     return value === 1;
   } else if (column[" scalar"] === "hex") {
     return bytesToHex(value as Uint8Array);
-  } else if (column[" scalar"] === "bigint" && encoding === "sqlite") {
+  } else if (column[" scalar"] === "bigint" && dialect === "sqlite") {
     return decodeToBigInt(value as string);
   } else {
     return value as UserValue;

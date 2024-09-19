@@ -14,6 +14,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "kysely";
+import { hexToBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { type Database, createDatabase } from "./index.js";
 
@@ -57,6 +58,40 @@ const schemaTwo = createSchema((p) => ({
     name: p.string(),
   }),
 }));
+
+const dogWithDefaults = createSchema((p) => ({
+  Dog: p.createTable({
+    id: p.string().default("0"),
+    name: p.string().default("firstname"),
+    age: p.int().default(5).optional(),
+    bigAge: p.bigint().default(5n).optional(),
+    bowl: p.hex().default(zeroAddress),
+    toys: p.json().default({
+      bone: "sofa",
+      ball: "bed",
+    }),
+    commands: p.json().default([
+      "sit",
+      "stay",
+      {
+        paw: {
+          right: true,
+          left: false,
+        },
+      },
+    ]),
+  }),
+}));
+
+type Dog = {
+  id: string;
+  name: string;
+  age: string;
+  bigAge: bigint;
+  bowl: string;
+  toys: {};
+  commands: (string | {})[];
+};
 
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
@@ -759,6 +794,97 @@ test("revert() updates versions with intermediate logs", async (context) => {
   await cleanup();
 });
 
+test("information about columns can be queried", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    schema: dogWithDefaults,
+    databaseConfig: context.databaseConfig,
+  });
+  await database.setup({ buildId: "abc" });
+
+  const defaults = await getTableDefaults(database, "Dog");
+  const dogTable = dogWithDefaults.Dog.table;
+  for (const [column, metadata] of Object.entries(defaults)) {
+    expect(dogTable[column as keyof typeof dogTable]).not.to.be.empty;
+    expect(metadata.default).to.be.toBeTypeOf("string");
+    expect(metadata.type).to.be.toBeTypeOf("string");
+  }
+  await database.kill();
+});
+
+test("default values are populated during insertion", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    schema: dogWithDefaults,
+    databaseConfig: context.databaseConfig,
+  });
+  await database.setup({ buildId: "abc" });
+
+  const { rows } = await database.qb.internal.executeQuery<Dog[]>(
+    (database.dialect === "sqlite"
+      ? sql`
+    INSERT INTO Dog
+    DEFAULT VALUES
+    RETURNING *
+    `
+      : sql`INSERT INTO "Dog"(id, name, age, "bigAge", bowl, toys)
+      VALUES(DEFAULT, DEFAULT, DEFAULT, DEFAULT, DEFAULT, DEFAULT)
+      RETURNING *`
+    ).compile(database.qb.internal),
+  );
+  const sqliteRows = [
+    {
+      id: "0",
+      name: "firstname",
+      age: 5,
+      bigAge: "5",
+      bowl: `\\x${zeroAddress.slice(2)}`,
+      commands: JSON.stringify([
+        "sit",
+        "stay",
+        {
+          paw: {
+            right: true,
+            left: false,
+          },
+        },
+      ]),
+      toys: JSON.stringify({
+        bone: "sofa",
+        ball: "bed",
+      }),
+    },
+  ];
+  const pgRows = [
+    {
+      id: "0",
+      name: "firstname",
+      age: 5,
+      bigAge: 5n,
+      bowl: Buffer.from(hexToBytes(zeroAddress)),
+      commands: [
+        "sit",
+        "stay",
+        {
+          paw: {
+            right: true,
+            left: false,
+          },
+        },
+      ],
+      toys: {
+        bone: "sofa",
+        ball: "bed",
+      },
+    },
+  ];
+  expect(rows).to.deep.equal(
+    database.dialect === "sqlite" ? sqliteRows : pgRows,
+  );
+
+  await database.kill();
+});
+
 async function getUserTableNames(database: Database) {
   const { rows } = await database.qb.internal.executeQuery<{ name: string }>(
     database.dialect === "sqlite"
@@ -792,4 +918,49 @@ async function getUserIndexNames(database: Database, tableName: string) {
   `.compile(database.qb.internal),
   );
   return rows.map((r) => r.name);
+}
+
+async function getTableDefaults(db: Database, tableName: string) {
+  if (db.dialect === "sqlite") {
+    const { rows } = await db.qb.internal.executeQuery<{
+      name: string;
+      type: string;
+      dflt_value: string | null;
+    }>(
+      sql`SELECT * from ${sql.raw(db.namespace)}.pragma_table_info('${sql.raw(tableName)}')`.compile(
+        db.qb.internal,
+      ),
+    );
+    return rows.reduce(
+      (obj, column) => {
+        obj[column.name] = {
+          type: column.type,
+          default: column.dflt_value,
+        };
+        return obj;
+      },
+      {} as Record<string, { type: string; default: any }>,
+    );
+  } else {
+    const { rows } = await db.qb.internal.executeQuery<{
+      column_name: string;
+      data_type: string;
+      column_default: string;
+    }>(
+      sql`SELECT *
+FROM information_schema.columns
+WHERE table_schema = '${sql.raw(db.namespace)}'
+  AND table_name   = '${sql.raw(tableName)}'`.compile(db.qb.internal),
+    );
+    return rows.reduce(
+      (obj, column) => {
+        obj[column.column_name] = {
+          type: column.data_type,
+          default: column.column_default,
+        };
+        return obj;
+      },
+      {} as Record<string, { type: string; default: any }>,
+    );
+  }
 }
