@@ -1,5 +1,7 @@
 # eslint-config-ponder
 
+## 0.6.1
+
 ## 0.6.0
 
 ## 0.5.24
