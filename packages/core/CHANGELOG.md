@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.2
+
+### Patch Changes
+
+- [#1113](https://github.com/ponder-sh/ponder/pull/1113) [`6c3b6cff1358cd0d8c30d2983183ba806797dedf`](https://github.com/ponder-sh/ponder/commit/6c3b6cff1358cd0d8c30d2983183ba806797dedf) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed address validation in config.
+
 ## 0.6.1
 
 ### Patch Changes
