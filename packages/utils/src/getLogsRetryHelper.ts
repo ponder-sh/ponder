@@ -338,6 +338,22 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // publicnode
+  match = sError.match(/exceed maximum block range: 50000/);
+  if (match !== null) {
+    const ranges = chunk({ params, range: 50_000n });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,
