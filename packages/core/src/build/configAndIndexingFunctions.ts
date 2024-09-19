@@ -571,16 +571,10 @@ export async function buildConfigAndIndexingFunctions({
         return [logSource];
       }
 
-      const validatedAddress = Array.isArray(resolvedAddress)
-        ? resolvedAddress.map((r) => toLowerCase(r))
-        : resolvedAddress
-          ? toLowerCase(resolvedAddress)
-          : undefined;
-
-      if (validatedAddress !== undefined) {
-        for (const address of Array.isArray(validatedAddress)
-          ? validatedAddress
-          : [validatedAddress]) {
+      if (resolvedAddress !== undefined) {
+        for (const address of Array.isArray(resolvedAddress)
+          ? resolvedAddress
+          : [resolvedAddress]) {
           if (!address.startsWith("0x"))
             throw new Error(
               `Validation failed: Invalid prefix for address '${address}'. Got '${address.slice(
@@ -594,6 +588,12 @@ export async function buildConfigAndIndexingFunctions({
             );
         }
       }
+
+      const validatedAddress = Array.isArray(resolvedAddress)
+        ? resolvedAddress.map((r) => toLowerCase(r))
+        : resolvedAddress !== undefined
+          ? toLowerCase(resolvedAddress)
+          : undefined;
 
       const logSource = {
         ...contractMetadata,
