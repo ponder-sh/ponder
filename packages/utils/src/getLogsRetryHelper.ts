@@ -339,9 +339,12 @@ export const getLogsRetryHelper = ({
   }
 
   // publicnode
-  match = sError.match(/exceed maximum block range: 50000/);
+  match = sError.match(/maximum block range: ([\d,.]+)/);
   if (match !== null) {
-    const ranges = chunk({ params, range: 50_000n });
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
 
     if (isRangeUnchanged(params, ranges)) {
       return { shouldRetry: false } as const;

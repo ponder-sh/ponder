@@ -40,4 +40,3 @@ jobs:
           RPC_URL_ALCHEMY_1: ${{ secrets.RPC_URL_ALCHEMY_1 }}
           RPC_URL_INFURA_1: ${{ secrets.RPC_URL_INFURA_1 }}
           RPC_URL_QUICKNODE_1: ${{ secrets.RPC_URL_QUICKNODE_1 }}
-          RPC_URL_PUBLICNODE_1: ${{ secrets.RPC_URL_PUBLICNODE_1 }}
