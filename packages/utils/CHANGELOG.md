@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.1
+
+### Patch Changes
+
+- [#1110](https://github.com/ponder-sh/ponder/pull/1110) [`6a5c8a54b9d976fa760c863512044d82702d0bb7`](https://github.com/ponder-sh/ponder/commit/6a5c8a54b9d976fa760c863512044d82702d0bb7) Thanks [@chenxsan](https://github.com/chenxsan)! - Added retry mechanism for publicnode.
+
 ## 0.2.0
 
 ### Minor Changes
