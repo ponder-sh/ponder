@@ -390,6 +390,33 @@ test("buildConfigAndIndexingFunctions() validates against specifying both factor
   );
 });
 
+test("buildConfigAndIndexingFunctions() validates address empty string", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    },
+    contracts: {
+      a: {
+        network: "mainnet",
+        abi: [event0],
+        // @ts-expect-error
+        address: "",
+      },
+    },
+  }) as Config;
+
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid prefix for address ''. Got '', expected '0x'.",
+  );
+});
+
 test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
     networks: {
