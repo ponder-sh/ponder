@@ -640,13 +640,22 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               }
             }
 
-            args.onRealtimeEvent({
-              type: "block",
-              checkpoint: to,
-              events: events.sort((a, b) =>
-                a.checkpoint < b.checkpoint ? -1 : 1,
-              ),
-            });
+            args
+              .onRealtimeEvent({
+                type: "block",
+                checkpoint: to,
+                events: events.sort((a, b) =>
+                  a.checkpoint < b.checkpoint ? -1 : 1,
+                ),
+              })
+              .then(() => {
+                if (events.length > 0 && isKilled === false) {
+                  args.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${events.length} events`,
+                  });
+                }
+              });
           }
 
           break;
