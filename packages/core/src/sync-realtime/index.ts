@@ -53,7 +53,7 @@ type CreateRealtimeSyncParameters = {
   network: Network;
   requestQueue: RequestQueue;
   sources: Source[];
-  onEvent: (event: RealtimeSyncEvent) => void;
+  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
 };
 
@@ -262,7 +262,7 @@ export const createRealtimeSync = (
     // @ts-ignore
     block.transactions = undefined;
 
-    args.onEvent({
+    await args.onEvent({
       type: "block",
       filters: matchedFilters,
       block,
@@ -346,7 +346,7 @@ export const createRealtimeSync = (
 
       finalizedBlock = pendingFinalizedBlock;
 
-      args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
+      await args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
     }
 
     args.common.logger.debug({
@@ -403,7 +403,7 @@ export const createRealtimeSync = (
       }
     }
 
-    args.onEvent({ type: "reorg", block: remoteBlock, reorgedBlocks });
+    await args.onEvent({ type: "reorg", block: remoteBlock, reorgedBlocks });
 
     args.common.logger.warn({
       service: "realtime",

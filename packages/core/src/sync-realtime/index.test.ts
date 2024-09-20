@@ -83,7 +83,7 @@ test("start() handles block", async (context) => {
   });
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
   await realtimeSync.kill();
 
@@ -120,7 +120,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
   await realtimeSync.kill();
 
@@ -154,7 +154,7 @@ test("start() gets missing block", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(5);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(5);
 
   await realtimeSync.kill();
 
@@ -194,7 +194,7 @@ test("start() retries on error", async (context) => {
 
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(0);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
   await realtimeSync.kill();
 
@@ -228,7 +228,7 @@ test("kill()", async (context) => {
 
   await realtimeSync.kill();
 
-  expect(realtimeSync.localChain).toHaveLength(0);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
   await cleanup();
 });
@@ -239,7 +239,9 @@ test("handleBlock() block event", async (context) => {
 
   const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
 
-  const onEvent = vi.fn((_data) => data.push(_data));
+  const onEvent = vi.fn(async (_data) => {
+    data.push(_data);
+  });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
     blockNumber: 0,
@@ -263,7 +265,7 @@ test("handleBlock() block event", async (context) => {
   });
   await queue.onIdle();
 
-  expect(realtimeSync.localChain).toHaveLength(5);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(5);
 
   expect(onEvent).toHaveBeenCalledTimes(5);
   expect(onEvent).toHaveBeenCalledWith({
@@ -316,7 +318,7 @@ test("handleBlock() finalize event", async (context) => {
 
   const data: Extract<RealtimeSyncEvent, { type: "finalize" }>[] = [];
 
-  const onEvent = vi.fn((_data) => {
+  const onEvent = vi.fn(async (_data) => {
     if (_data.type === "finalize") data.push(_data);
   });
 
@@ -345,7 +347,7 @@ test("handleBlock() finalize event", async (context) => {
     block: expect.any(Object),
   });
 
-  expect(realtimeSync.localChain).toHaveLength(5);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(5);
 
   expect(data[0]?.block.number).toBe("0x4");
 
@@ -393,7 +395,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     reorgedBlocks: [expect.any(Object), expect.any(Object), expect.any(Object)],
   });
 
-  expect(realtimeSync.localChain).toHaveLength(2);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
   await realtimeSync.kill();
 
@@ -436,11 +438,11 @@ test("handleReorg() throws error for deep reorg", async (context) => {
       ...block,
       number: "0x6",
       hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
-      parentHash: realtimeSync.localChain[3]!.hash,
+      parentHash: realtimeSync.unfinalizedBlocks[3]!.hash,
     },
   });
 
-  expect(realtimeSync.localChain).toHaveLength(0);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
   await realtimeSync.kill();
 

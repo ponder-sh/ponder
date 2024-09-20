@@ -505,6 +505,8 @@ test("onEvent() handles errors", async (context) => {
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
+  await testClient.mine({ blocks: 4 });
+
   await drainAsyncGenerator(sync.getEvents());
 
   const spy = vi.spyOn(syncStore, "insertTransactions");
