@@ -9,6 +9,7 @@ import { getReadonlyStore } from "@/indexing-store/readonly.js";
 import type { Schema } from "@/schema/common.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
+import { migrate } from "drizzle-orm/pglite/migrator";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -32,6 +33,7 @@ export async function createServer({
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
+  offchainSchema?: { [name: string]: unknown };
   database: Database;
 }): Promise<Server> {
   // Create hono app
@@ -93,7 +95,9 @@ export async function createServer({
   });
 
   const db = createDrizzleDb(database);
-  const tables = createDrizzleTables(schema, database);
+  const tables = createDrizzleTables({ schema, database });
+
+  await migrate(db, { migrationsFolder: common.options.migrationsDir });
 
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {

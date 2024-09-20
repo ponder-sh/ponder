@@ -27,7 +27,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
-import { createPool, createReadonlyPool } from "@/utils/pg.js";
+import { createPool } from "@/utils/pg.js";
 import {
   type SqliteDatabase,
   createReadonlySqliteDatabase,
@@ -247,7 +247,7 @@ export const createDatabase = (args: {
         application_name: `${namespace}_user`,
         max: userMax,
       }),
-      readonly: createReadonlyPool({
+      readonly: createPool({
         ...args.databaseConfig.poolConfig,
         application_name: `${namespace}_readonly`,
         max: readonlyMax,

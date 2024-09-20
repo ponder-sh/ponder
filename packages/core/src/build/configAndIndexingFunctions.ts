@@ -174,6 +174,10 @@ export async function buildConfigAndIndexingFunctions({
     }
   }
 
+  if (databaseConfig.kind === "sqlite") {
+    throw new Error("Only postgres is supported for this experimental release");
+  }
+
   const networks: Network[] = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
       const { chainId, transport } = network;

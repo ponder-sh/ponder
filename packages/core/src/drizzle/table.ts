@@ -9,18 +9,18 @@ import type {
 } from "@/schema/common.js";
 import type { InferColumnType } from "@/schema/infer.js";
 import type { BuildColumns, ColumnBuilderBase } from "drizzle-orm";
-import type { TableWithColumns } from "./select.js";
+import type { PgTableWithColumns } from "drizzle-orm/pg-core";
 
 /**
  * Performs type transformation between Ponder and Drizzle column representation.
  *
- * @returns TableWithColumns
+ * @returns PgTableWithColumns
  */
 export type DrizzleTable<
   tableName extends string,
   table extends PonderTable,
   schema extends PonderSchema,
-> = TableWithColumns<{
+> = PgTableWithColumns<{
   name: tableName;
   schema: undefined;
   columns: BuildColumns<
@@ -33,6 +33,7 @@ export type DrizzleTable<
         data: InferColumnType<table[columnName], schema>;
         driverParam: unknown;
         enumValues: undefined;
+        generated: undefined;
         notNull: (table[columnName] &
           (
             | ScalarColumn
@@ -45,7 +46,7 @@ export type DrizzleTable<
         primaryKey: columnName extends "id" ? true : false;
       }>;
     },
-    "common"
+    "pg"
   >;
-  dialect: "common";
+  dialect: "pg";
 }>;

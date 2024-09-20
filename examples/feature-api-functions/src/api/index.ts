@@ -1,6 +1,8 @@
 import { ponder } from "@/generated";
-import { count, desc, eq, graphql, or, replaceBigInts } from "@ponder/core";
+import { graphql, replaceBigInts } from "@ponder/core";
+import { count, desc, eq, or } from "drizzle-orm";
 import { formatEther, getAddress } from "viem";
+import * as offchainSchema from "../../ponder.offchain";
 
 ponder.use("/graphql", graphql());
 
@@ -43,5 +45,30 @@ ponder.get("/whale-transfers", async (c) => {
     .limit(10);
 
   if (result.length === 0) return c.text("Not found", 500);
+  return c.json(replaceBigInts(result, (b) => formatEther(b)));
+});
+
+ponder.get("/register/:address", async (c) => {
+  const account = getAddress(c.req.param("address"));
+  await c.db.insert(offchainSchema.metadata).values({ account });
+
+  return c.text("", 200);
+});
+
+ponder.get("/user-transfers", async (c) => {
+  // Top 5 largest transfers to registered users
+  const result = await c.db
+    .select({
+      amount: c.tables.TransferEvent.amount,
+      account: offchainSchema.metadata.account,
+    })
+    .from(c.tables.TransferEvent)
+    .innerJoin(
+      offchainSchema.metadata,
+      eq(c.tables.TransferEvent.toId, offchainSchema.metadata.account),
+    )
+    .orderBy(c.tables.TransferEvent.amount)
+    .limit(5);
+
   return c.json(replaceBigInts(result, (b) => formatEther(b)));
 });

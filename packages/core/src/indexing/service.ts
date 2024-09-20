@@ -240,7 +240,7 @@ export const processSetupEvents = async (
       )! as ContractSource;
 
       if (indexingService.isKilled) return { status: "killed" };
-      indexingService.eventCount[eventName]++;
+      indexingService.eventCount[eventName]!++;
 
       const result = await executeSetup(indexingService, {
         event: {
@@ -282,7 +282,7 @@ export const processEvents = async (
 
     switch (event.type) {
       case "log": {
-        indexingService.eventCount[event.name]++;
+        indexingService.eventCount[event.name]!++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -303,7 +303,7 @@ export const processEvents = async (
       }
 
       case "block": {
-        indexingService.eventCount[event.name]++;
+        indexingService.eventCount[event.name]!++;
 
         indexingService.common.logger.trace({
           service: "indexing",
@@ -324,7 +324,7 @@ export const processEvents = async (
       }
 
       case "callTrace": {
-        indexingService.eventCount[event.name]++;
+        indexingService.eventCount[event.name]!++;
 
         indexingService.common.logger.trace({
           service: "indexing",

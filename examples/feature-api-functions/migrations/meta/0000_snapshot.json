@@ -1,5 +1,5 @@
 {
-  "id": "fefece60-8cf5-4461-a55d-52e62085ac74",
+  "id": "a14201cb-be7c-4893-b690-69665c18479c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,11 +14,11 @@
           "primaryKey": true,
           "notNull": true
         },
-        "value": {
-          "name": "value",
-          "type": "text",
+        "account": {
+          "name": "account",
+          "type": "bytea",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         }
       },
       "indexes": {},
