@@ -67,7 +67,7 @@ export type SyncStore = {
   }): Promise<Interval[]>;
   getChildAddresses(args: {
     filter: Factory;
-    limit: number;
+    limit?: number;
   }): Promise<Address[]>;
   filterChildAddresses(args: {
     filter: Factory;
@@ -115,7 +115,7 @@ export type SyncStore = {
     blockNumber: bigint;
     chainId: number;
   }): Promise<string | null>;
-  pruneByBlock(args: {
+  pruneRpcRequestResult(args: {
     blocks: Pick<LightBlock, "hash" | "number">[];
     chainId: number;
   }): Promise<void>;
@@ -508,7 +508,7 @@ export const createSyncStore = ({
         .selectFrom("logs")
         .$call((qb) => logFactorySQL(dialect, qb, filter))
         .orderBy("id asc")
-        .limit(limit)
+        .$if(limit !== undefined, (qb) => qb.limit(limit!))
         .execute()
         .then((addresses) => addresses.map(({ childAddress }) => childAddress));
     }),
@@ -1289,21 +1289,14 @@ export const createSyncStore = ({
 
       return result?.result ?? null;
     }),
-  pruneByBlock: async ({ blocks, chainId }) =>
+  pruneRpcRequestResult: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneByBlock" }, async () => {
       if (blocks.length === 0) return;
 
-      const hashes = blocks.map(({ hash }) => hash);
       const numbers = blocks.map(({ number }) =>
         formatBig(dialect, hexToBigInt(number)),
       );
 
-      await db.deleteFrom("blocks").where("hash", "in", hashes).execute();
-      await db.deleteFrom("logs").where("blockHash", "in", hashes).execute();
-      await db
-        .deleteFrom("callTraces")
-        .where("blockHash", "in", hashes)
-        .execute();
       await db
         .deleteFrom("rpcRequestResults")
         .where("chainId", "=", chainId)

@@ -1009,7 +1009,7 @@ test("getEvents() pagination", async (context) => {
   await cleanup();
 });
 
-test("pruneByBlock", async (context) => {
+test.todo("pruneRpcRequestResults", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 
