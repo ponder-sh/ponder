@@ -621,8 +621,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               const sources = args.sources.filter(
                 ({ filter }) => filter.chainId === network.chainId,
               );
-              // TODO(kyle) build `childAddresses`
-              // TODO(kyle) handle data that isn't finalized
               for (const blockWithEventData of unfinalizedEventData) {
                 const checkpoint = encodeCheckpoint(
                   blockToCheckpoint(
@@ -634,12 +632,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
                 if (checkpoint > from && checkpoint <= to) {
                   events.push(
+                    // TODO(kyle) build `childAddresses`
+                    // Can we use `finalizedChildAddresses` + `unfinalizedChildAddresses`
+                    // or are they going to be out of sync?
                     ...buildEvents(sources, blockWithEventData, new Map()),
                   );
                 }
               }
             }
-
+            // TODO(kyle) handle data that is finalized, using `getEvents()`
             args
               .onRealtimeEvent({
                 type: "block",
