@@ -11,8 +11,8 @@ export const ponderEnv = `// This file enables type checking and editor autocomp
 declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
 
-  type config = typeof import("./ponder.config.ts").default;
-  type schema = typeof import("./ponder.schema.ts").default;
+  type config = typeof import("[[CONFIG]]").default;
+  type schema = typeof import("[[SCHEMA]]").default;
 
   export const ponder: Virtual.Registry<config, schema>;
 
@@ -40,9 +40,22 @@ export function runCodegen({
   common: Common;
   graphqlSchema: GraphQLSchema;
 }) {
+  // Replace the placeholder with the actual path to the config file
+  const relativeConfigFile = path.relative(
+    common.options.rootDir,
+    common.options.configFile,
+  );
+  const relativeSchemaFile = path.relative(
+    common.options.rootDir,
+    common.options.schemaFile,
+  );
+  const ponderEnvWithPath = ponderEnv
+    .replace("[[CONFIG]]", `./${relativeConfigFile}`)
+    .replace("[[SCHEMA]]", `./${relativeSchemaFile}`);
+
   writeFileSync(
     path.join(common.options.rootDir, "ponder-env.d.ts"),
-    ponderEnv,
+    ponderEnvWithPath,
     "utf8",
   );
 
