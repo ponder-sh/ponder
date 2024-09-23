@@ -1049,7 +1049,11 @@ export async function* localHistoricalSyncGenerator({
         continue;
       }
     } else {
-      syncProgress.current = syncBlock;
+      if (interval[1] === hexToNumber(historicalLast.number)) {
+        syncProgress.current = historicalLast;
+      } else {
+        syncProgress.current = syncBlock;
+      }
 
       const duration = endClock();
 
