@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@ponder/common": "0.0.0",
+    "@ponder/core": "0.6.2",
+    "create-ponder": "0.6.2",
+    "eslint-config-ponder": "0.6.2",
+    "@ponder/utils": "0.2.1"
+  },
+  "changesets": []
+}
