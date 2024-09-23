@@ -320,6 +320,7 @@ export const start = async (
         });
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+        await buildService.viteNodeRunner.executeId("@/generated");
 
         const result = await executeIndexingFunctions(buildService);
         if (result.status === "error") {
@@ -333,6 +334,7 @@ export const start = async (
         const files = glob.sync(buildService.apiPattern);
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+        await buildService.viteNodeRunner.executeId("@/generated");
 
         const result = await executeApiRoutes(buildService);
         if (result.status === "error") {
