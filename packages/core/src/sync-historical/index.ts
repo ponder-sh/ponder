@@ -42,7 +42,7 @@ export type HistoricalSync = {
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
    */
-  sync(interval: Interval): Promise<SyncBlock>;
+  sync(interval: Interval): Promise<SyncBlock | undefined>;
   kill(): void;
 };
 
@@ -509,7 +509,7 @@ export const createHistoricalSync = async (
       blockCache.clear();
       transactionsCache.clear();
 
-      return latestBlock!;
+      return latestBlock;
     },
     kill() {
       isKilled = true;
