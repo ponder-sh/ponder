@@ -239,7 +239,7 @@ export const getRawRPCData = async () => {
       block: blocks[0],
       transactions: [],
       transactionReceipts: [],
-      traces: [
+      callTraces: [
         {
           action: {
             from: ALICE,
@@ -293,7 +293,7 @@ export const getRawRPCData = async () => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[1]?.number,
       ),
-      traces: [
+      callTraces: [
         {
           action: {
             callType: "call",
@@ -363,7 +363,7 @@ export const getRawRPCData = async () => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[2]?.number,
       ),
-      traces: [
+      callTraces: [
         {
           action: {
             callType: "call",
@@ -403,7 +403,7 @@ export const getRawRPCData = async () => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[3]?.number,
       ),
-      traces: [
+      callTraces: [
         {
           action: {
             callType: "call",
@@ -441,7 +441,7 @@ export const getRawRPCData = async () => {
       block: blocks[4]!,
       transactions: [],
       transactionReceipts: [],
-      traces: [],
+      callTraces: [],
     },
   } as unknown as {
     block1: {
@@ -449,35 +449,35 @@ export const getRawRPCData = async () => {
       block: SyncBlock;
       transactions: [];
       transactionReceipts: [];
-      traces: [SyncCreateTrace, SyncCreateTrace];
+      callTraces: [SyncCreateTrace, SyncCreateTrace];
     };
     block2: {
       logs: [SyncLog, SyncLog];
       block: SyncBlock;
       transactions: [SyncTransaction, SyncTransaction];
       transactionReceipts: [SyncTransactionReceipt, SyncTransactionReceipt];
-      traces: [SyncCallTrace, SyncCallTrace];
+      callTraces: [SyncCallTrace, SyncCallTrace];
     };
     block3: {
       logs: [SyncLog];
       block: SyncBlock;
       transactions: [SyncTransaction];
       transactionReceipts: [SyncTransactionReceipt];
-      traces: [SyncCallTrace];
+      callTraces: [SyncCallTrace];
     };
     block4: {
       logs: [SyncLog];
       block: SyncBlock;
       transactions: [SyncTransaction];
       transactionReceipts: [SyncTransactionReceipt];
-      traces: [SyncCallTrace];
+      callTraces: [SyncCallTrace];
     };
     block5: {
       logs: [];
       block: SyncBlock;
       transactions: [];
       transactionReceipts: [];
-      traces: [];
+      callTraces: [];
     };
   };
 };
@@ -592,7 +592,7 @@ export const getEventsTrace = async (
 
   return [
     {
-      trace: rpcData.block3.traces[0],
+      trace: rpcData.block3.callTraces[0],
       block: rpcData.block3.block,
       transaction: rpcData.block3.transactions[0]!,
       transactionReceipt: rpcData.block3.transactionReceipts[0]!,

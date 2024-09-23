@@ -132,7 +132,7 @@ export const buildEvents = ({
   unfinalizedChildAddresses,
 }: {
   sources: Source[];
-  blockWithEventData: BlockWithEventData;
+  blockWithEventData: Omit<BlockWithEventData, "filters" | "factoryLogs">;
   finalizedChildAddresses: Map<Factory, Set<Address>>;
   unfinalizedChildAddresses: Map<Factory, Set<Address>>;
 }) => {
@@ -190,6 +190,7 @@ export const buildEvents = ({
                     transactionReceiptCache.get(log.transactionHash)!,
                   )
                 : undefined,
+              trace: undefined,
             });
           }
         }
@@ -210,6 +211,10 @@ export const buildEvents = ({
               eventIndex: zeroCheckpoint.eventIndex,
             }),
             block: convertBlock(block),
+            log: undefined,
+            trace: undefined,
+            transaction: undefined,
+            transactionReceipt: undefined,
           });
         }
         break;
@@ -222,8 +227,8 @@ export const buildEvents = ({
             return a.traceAddress < b.traceAddress ? -1 : 1;
           });
 
-          for (let i = 0; i < callTraces.length; i++) {
-            const callTrace = callTraces[i]!;
+          for (let j = 0; j < callTraces.length; j++) {
+            const callTrace = callTraces[j]!;
             if (
               isCallTraceFilterMatched({ filter, block, callTrace }) &&
               (isAddressFactory(filter.toAddress)
@@ -244,8 +249,9 @@ export const buildEvents = ({
                   blockNumber: hexToBigInt(callTrace.blockNumber),
                   transactionIndex: BigInt(callTrace.transactionPosition),
                   eventType: EVENT_TYPES.callTraces,
-                  eventIndex: BigInt(i),
+                  eventIndex: BigInt(j),
                 }),
+                log: undefined,
                 trace: convertCallTrace(callTrace),
                 block: convertBlock(block),
                 transaction: convertTransaction(

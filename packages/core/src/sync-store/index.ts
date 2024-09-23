@@ -1080,11 +1080,13 @@ export const createSyncStore = ({
       const hasLog = row.log_id !== null;
       const hasTransaction = row.tx_hash !== null;
       const hasCallTrace = row.callTrace_id !== null;
-      const hasTransactionReceipt = row.txr_blockHash !== null;
+      const hasTransactionReceipt =
+        (filter.type === "log" || filter.type === "callTrace") &&
+        filter.includeTransactionReceipts;
 
       return {
         chainId: filter.chainId,
-        sourceIndex: row.event_filterIndex,
+        sourceIndex: Number(row.event_filterIndex),
         checkpoint: row.event_checkpoint,
         block: {
           baseFeePerGas: row.block_baseFeePerGas
@@ -1211,6 +1213,7 @@ export const createSyncStore = ({
               from: checksumAddress(row.txr_from),
               gasUsed: parseBig(dialect, row.txr_gasUsed),
               logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                id: `${log.blockHash}-${log.logIndex}`,
                 address: checksumAddress(log.address),
                 blockHash: log.blockHash,
                 blockNumber: hexToBigInt(log.blockNumber),

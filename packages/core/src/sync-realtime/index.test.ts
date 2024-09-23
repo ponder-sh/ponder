@@ -27,14 +27,14 @@ const getRequestQueue = async (requestQueue: RequestQueue) => {
         const blockNumber = request.params[0];
         const traces: SyncTrace[] =
           blockNumber === rpcData.block1.block.number
-            ? rpcData.block1.traces
+            ? rpcData.block1.callTraces
             : blockNumber === rpcData.block2.block.number
-              ? rpcData.block2.traces
+              ? rpcData.block2.callTraces
               : blockNumber === rpcData.block3.block.number
-                ? rpcData.block3.traces
+                ? rpcData.block3.callTraces
                 : blockNumber === rpcData.block4.block.number
-                  ? rpcData.block4.traces
-                  : rpcData.block5.traces;
+                  ? rpcData.block4.callTraces
+                  : rpcData.block5.callTraces;
 
         return Promise.resolve(traces);
       } else return requestQueue.request(request);

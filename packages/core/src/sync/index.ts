@@ -185,6 +185,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   >();
   const status: Status = {};
   let isKilled = false;
+  let unindexedEvents: RawEvent[] = [];
 
   // Instantiate `localSyncData` and `status`
   await Promise.all(
@@ -595,7 +596,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        unfinalizedEventData.push({
+        const blockWithEventData = {
           block: event.block,
           filters: event.filters,
           logs: event.logs,
@@ -603,46 +604,33 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           callTraces: event.callTraces,
           transactions: event.transactions,
           transactionReceipts: event.transactionReceipts,
-        });
+        };
+
+        unfinalizedEventData.push(blockWithEventData);
+
+        unindexedEvents.push(
+          ...buildEvents({
+            sources: args.sources.filter(
+              ({ filter }) => filter.chainId === network.chainId,
+            ),
+            blockWithEventData,
+            finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
+            unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
+          }),
+        );
 
         if (to > from) {
           for (const network of args.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          const events: RawEvent[] = [];
+          const events: RawEvent[] = unindexedEvents.filter(
+            ({ checkpoint }) => checkpoint <= to,
+          );
+          unindexedEvents = unindexedEvents.filter(
+            ({ checkpoint }) => checkpoint > to,
+          );
 
-          for (const network of args.networks) {
-            const sources = args.sources.filter(
-              ({ filter }) => filter.chainId === network.chainId,
-            );
-
-            for (const blockWithEventData of localSyncContext.get(network)!
-              .unfinalizedEventData) {
-              const checkpoint = encodeCheckpoint(
-                blockToCheckpoint(
-                  blockWithEventData.block,
-                  network.chainId,
-                  "up",
-                ),
-              );
-
-              const { finalizedChildAddresses, unfinalizedChildAddresses } =
-                localSyncContext.get(network)!.realtimeSync;
-
-              if (checkpoint > from && checkpoint <= to) {
-                events.push(
-                  ...buildEvents({
-                    sources,
-                    blockWithEventData,
-                    finalizedChildAddresses,
-                    unfinalizedChildAddresses,
-                  }),
-                );
-              }
-            }
-          }
-          // TODO(kyle) handle data that is finalized, using `getEvents()`
           args
             .onRealtimeEvent({
               type: "block",
