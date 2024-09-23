@@ -46,6 +46,8 @@ export type RealtimeSync = {
   }): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
   unfinalizedBlocks: LightBlock[];
+  finalizedChildAddresses: Map<Factory, Set<Address>>;
+  unfinalizedChildAddresses: Map<Factory, Set<Address>>;
 };
 
 type CreateRealtimeSyncParameters = {
@@ -822,6 +824,12 @@ export const createRealtimeSync = (
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;
+    },
+    get finalizedChildAddresses() {
+      return finalizedChildAddresses;
+    },
+    get unfinalizedChildAddresses() {
+      return unfinalizedChildAddresses;
     },
   };
 };

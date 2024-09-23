@@ -616,7 +616,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             const sources = args.sources.filter(
               ({ filter }) => filter.chainId === network.chainId,
             );
-            for (const blockWithEventData of unfinalizedEventData) {
+
+            for (const blockWithEventData of localSyncContext.get(network)!
+              .unfinalizedEventData) {
               const checkpoint = encodeCheckpoint(
                 blockToCheckpoint(
                   blockWithEventData.block,
@@ -625,12 +627,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
                 ),
               );
 
+              const { finalizedChildAddresses, unfinalizedChildAddresses } =
+                localSyncContext.get(network)!.realtimeSync;
+
               if (checkpoint > from && checkpoint <= to) {
                 events.push(
-                  // TODO(kyle) build `childAddresses`
-                  // Can we use `finalizedChildAddresses` + `unfinalizedChildAddresses`
-                  // or are they going to be out of sync?
-                  ...buildEvents(sources, blockWithEventData, new Map()),
+                  ...buildEvents({
+                    sources,
+                    blockWithEventData,
+                    finalizedChildAddresses,
+                    unfinalizedChildAddresses,
+                  }),
                 );
               }
             }

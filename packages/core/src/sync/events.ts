@@ -119,17 +119,23 @@ export type CallTraceEvent = {
 /**
  * Create `RawEvent`s from raw data types
  */
-export const buildEvents = (
-  sources: Source[],
-  {
+export const buildEvents = ({
+  sources,
+  blockWithEventData: {
     block,
     logs,
     transactions,
     transactionReceipts,
     callTraces,
-  }: BlockWithEventData,
-  childAddresses: Map<Factory, Set<Address>>,
-) => {
+  },
+  finalizedChildAddresses,
+  unfinalizedChildAddresses,
+}: {
+  sources: Source[];
+  blockWithEventData: BlockWithEventData;
+  finalizedChildAddresses: Map<Factory, Set<Address>>;
+  unfinalizedChildAddresses: Map<Factory, Set<Address>>;
+}) => {
   const events: RawEvent[] = [];
 
   const transactionCache = new Map<Hash, SyncTransaction>();
@@ -159,7 +165,8 @@ export const buildEvents = (
           if (
             isLogFilterMatched({ filter, block, log }) &&
             (isAddressFactory(filter.address)
-              ? childAddresses.get(filter.address)!.has(log.address)
+              ? finalizedChildAddresses.get(filter.address)!.has(log.address) ||
+                unfinalizedChildAddresses.get(filter.address)!.has(log.address)
               : true)
           ) {
             events.push({
@@ -220,7 +227,12 @@ export const buildEvents = (
             if (
               isCallTraceFilterMatched({ filter, block, callTrace }) &&
               (isAddressFactory(filter.toAddress)
-                ? childAddresses.get(filter.toAddress)!.has(callTrace.action.to)
+                ? finalizedChildAddresses
+                    .get(filter.toAddress)!
+                    .has(callTrace.action.to) ||
+                  unfinalizedChildAddresses
+                    .get(filter.toAddress)!
+                    .has(callTrace.action.to)
                 : true)
             ) {
               events.push({
