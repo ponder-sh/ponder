@@ -885,7 +885,7 @@ export const syncDiagnostic = async ({
    */
   const end = sources.some(({ filter }) => filter.toBlock === undefined)
     ? undefined
-    : Math.min(...sources.map(({ filter }) => filter.toBlock!));
+    : Math.max(...sources.map(({ filter }) => filter.toBlock!));
 
   const [remoteChainId, startBlock, endBlock, latestBlock] = await Promise.all([
     requestQueue.request({ method: "eth_chainId" }),
@@ -1102,34 +1102,55 @@ export async function* localHistoricalSyncGenerator({
     ];
 
     const endClock = startClock();
-    syncProgress.current = await historicalSync.sync(interval);
-    const duration = endClock();
 
-    // Update "ponder_sync_block" metric
-    common.metrics.ponder_sync_block.set(
-      { network: network.name },
-      hexToNumber(syncProgress.current.number),
-    );
-
-    common.metrics.ponder_historical_duration.observe(label, duration);
-    common.metrics.ponder_historical_completed_blocks.inc(
-      label,
-      interval[1] - interval[0] + 1,
-    );
-
-    // Use the duration and interval of the last call to `sync` to update estimate
-    // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-    estimateRange = Math.min(
-      Math.max(
-        25,
-        Math.round((1_000 * (interval[1] - interval[0])) / duration),
-      ),
-      estimateRange * 2,
-      100_000,
-    );
+    const syncBlock = await historicalSync.sync(interval);
 
     // Update cursor to record progress
     fromBlock = interval[1] + 1;
+
+    if (syncBlock === undefined) {
+      /**
+       * `syncBlock` will be undefined if a cache hit occur in `historicalSync.sync()`.
+       * If the all known blocks are synced, then update `syncProgress.current`, else
+       * progress to the next iteration.
+       */
+      if (interval[1] === hexToNumber(historicalLast.number)) {
+        syncProgress.current = historicalLast;
+      } else {
+        continue;
+      }
+    } else {
+      if (interval[1] === hexToNumber(historicalLast.number)) {
+        syncProgress.current = historicalLast;
+      } else {
+        syncProgress.current = syncBlock;
+      }
+
+      const duration = endClock();
+
+      // Update "ponder_sync_block" metric
+      common.metrics.ponder_sync_block.set(
+        { network: network.name },
+        hexToNumber(syncProgress.current.number),
+      );
+
+      common.metrics.ponder_historical_duration.observe(label, duration);
+      common.metrics.ponder_historical_completed_blocks.inc(
+        label,
+        interval[1] - interval[0] + 1,
+      );
+
+      // Use the duration and interval of the last call to `sync` to update estimate
+      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
+      estimateRange = Math.min(
+        Math.max(
+          25,
+          Math.round((1_000 * (interval[1] - interval[0])) / duration),
+        ),
+        estimateRange * 2,
+        100_000,
+      );
+    }
 
     yield;
 
