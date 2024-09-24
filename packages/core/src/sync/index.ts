@@ -778,8 +778,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         localSyncContext.get(network)!.unfinalizedEventData =
           unfinalizedEventData.filter(
             (led) =>
-              hexToNumber(led.block.number) < hexToNumber(event.block.number),
+              hexToNumber(led.block.number) <= hexToNumber(event.block.number),
           );
+
+        unindexedEvents = unindexedEvents.filter(
+          (event) => event.checkpoint <= checkpoint,
+        );
 
         await args.syncStore.pruneRpcRequestResult({
           blocks: event.reorgedBlocks,
