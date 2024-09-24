@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.6.3
+
+### Patch Changes
+
+- [#1118](https://github.com/ponder-sh/ponder/pull/1118) [`91cc17009eb8446c949eb8e352492dd8dff23b78`](https://github.com/ponder-sh/ponder/commit/91cc17009eb8446c949eb8e352492dd8dff23b78) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `0.6.0` that caused a crash shortly after startup for some apps with a partial cache hit.
+
+- [#1121](https://github.com/ponder-sh/ponder/pull/1121) [`2612ba2284f928303ad96db0496a7f1853c52de5`](https://github.com/ponder-sh/ponder/commit/2612ba2284f928303ad96db0496a7f1853c52de5) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned vite version. Some newer versions were known to cause hot reloading bugs.
+
 ## 0.6.2
 
 ### Patch Changes
