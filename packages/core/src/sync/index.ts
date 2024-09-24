@@ -682,6 +682,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               hexToNumber(ued.block.number) > hexToNumber(event.block.number),
           );
 
+        if (
+          getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
+          getOmnichainCheckpoint("current")!
+        ) {
+          args.common.logger.warn({
+            service: "sync",
+            msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
+          });
+        }
+
         // Add finalized blocks, logs, transactions, receipts, and traces and intervals to the sync-store.
 
         await Promise.all([
