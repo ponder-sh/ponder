@@ -4,7 +4,6 @@ import {
   kill,
   processEvents,
   processSetupEvents,
-  updateIndexingStore,
   updateTotalSeconds,
 } from "./service.js";
 import type { Context, Service } from "./service.js";
@@ -14,7 +13,6 @@ const methods = {
   kill,
   processEvents,
   processSetupEvents,
-  updateIndexingStore,
   updateTotalSeconds,
 };
 

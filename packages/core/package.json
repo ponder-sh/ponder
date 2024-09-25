@@ -12,6 +12,8 @@
   "files": [
     "dist",
     "src/**/*.ts",
+    "src/graphql/**.*.ts",
+    "src/indexing-store/**.*.ts",
     "!src/**/*.test.ts",
     "!src/**/*.test-d.ts",
     "!src/_test/**/*"
@@ -35,7 +37,6 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "drizzle-kit": "^0.24.2",
     "drizzle-orm": "^0.31.2",
     "hono": ">=4.5",
     "typescript": ">=5.0.4",

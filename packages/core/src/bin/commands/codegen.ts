@@ -1,5 +1,5 @@
 import { createBuildService } from "@/build/index.js";
-import { runCodegen } from "@/common/codegen.js";
+// import { runCodegen } from "@/common/codegen.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -57,7 +57,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "codegen" },
   });
 
-  runCodegen({ common, graphqlSchema: indexing.build.graphqlSchema });
+  // runCodegen({ common, graphqlSchema: indexing.build.graphqlSchema });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
   logger.info({ service: "codegen", msg: "Wrote schema.graphql" });

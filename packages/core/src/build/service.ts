@@ -6,13 +6,10 @@ import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
 import type { PonderRoutes } from "@/hono/index.js";
-import type { Schema } from "@/schema/common.js";
 import type { Source } from "@/sync/source.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
-import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
@@ -26,7 +23,6 @@ import {
   safeBuildConfigAndIndexingFunctions,
 } from "./configAndIndexingFunctions.js";
 import { vitePluginPonder } from "./plugin.js";
-import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 const BUILD_ID_VERSION = "1";
@@ -53,8 +49,8 @@ type BaseBuild = {
   sources: Source[];
   networks: Network[];
   // Schema
-  schema: Schema;
-  graphqlSchema: GraphQLSchema;
+  schema: Record<string, unknown>;
+  // graphqlSchema: GraphQLSchema;
   offchainSchema?: { [name: string]: unknown };
 };
 
@@ -492,7 +488,7 @@ const executeConfig = async (
 const executeSchema = async (
   buildService: Service,
 ): Promise<
-  | { status: "success"; schema: Schema; contentHash: string }
+  | { status: "success"; schema: Record<string, unknown>; contentHash: string }
   | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
@@ -509,13 +505,13 @@ const executeSchema = async (
     return executeResult;
   }
 
-  const schema = executeResult.exports.default as Schema;
+  const schema = executeResult.exports;
 
-  const contentHash = createHash("sha256")
-    .update(serialize(schema))
-    .digest("hex");
+  // const contentHash = createHash("sha256")
+  //   .update(serialize(schema))
+  //   .digest("hex");
 
-  return { status: "success", schema, contentHash };
+  return { status: "success", schema, contentHash: "0x" };
 };
 
 const executeOffchainSchema = async (
@@ -653,7 +649,7 @@ const executeApiRoutes = async (
 const validateAndBuild = async (
   { common }: Pick<Service, "common">,
   config: { config: Config; contentHash: string },
-  schema: { schema: Schema; contentHash: string },
+  schema: { schema: Record<string, unknown>; contentHash: string },
   offchainSchemaResult: { offchainSchema?: { [name: string]: unknown } },
   indexingFunctions: {
     indexingFunctions: RawIndexingFunctions;
@@ -661,24 +657,24 @@ const validateAndBuild = async (
   },
 ): Promise<IndexingBuildResult> => {
   // Validate and build the schema
-  const buildSchemaResult = safeBuildSchema({
-    schema: schema.schema,
-  });
-  if (buildSchemaResult.status === "error") {
-    common.logger.error({
-      service: "build",
-      msg: "Error while building schema:",
-      error: buildSchemaResult.error,
-    });
+  // const buildSchemaResult = safeBuildSchema({
+  //   schema: schema.schema,
+  // });
+  // if (buildSchemaResult.status === "error") {
+  //   common.logger.error({
+  //     service: "build",
+  //     msg: "Error while building schema:",
+  //     error: buildSchemaResult.error,
+  //   });
 
-    return buildSchemaResult;
-  }
+  //   return buildSchemaResult;
+  // }
 
-  for (const log of buildSchemaResult.logs) {
-    common.logger[log.level]({ service: "build", msg: log.msg });
-  }
+  // for (const log of buildSchemaResult.logs) {
+  //   common.logger[log.level]({ service: "build", msg: log.msg });
+  // }
 
-  const graphqlSchema = buildGraphQLSchema(buildSchemaResult.schema);
+  // const graphqlSchema = buildGraphQLSchema(buildSchemaResult.schema);
 
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
@@ -721,9 +717,9 @@ const validateAndBuild = async (
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
-      schema: buildSchemaResult.schema,
+      schema: schema.schema,
       offchainSchema: offchainSchemaResult.offchainSchema,
-      graphqlSchema,
+      // graphqlSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
     },

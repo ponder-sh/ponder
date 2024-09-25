@@ -1,35 +1,29 @@
-import type { Schema } from "@/schema/common.js";
 import type { ApiRegistry } from "@/types/api.js";
 import type { BlankInput, HandlerResponse, Input, Next } from "hono/types";
 import type { Context, MiddlewareContext } from "./context.js";
 
 export type Handler<
-  schema extends Schema = Schema,
   path extends string = any,
   input extends Input = BlankInput,
   response extends HandlerResponse<any> = any,
-> = (c: Context<schema, path, input>) => response;
+> = (c: Context<path, input>) => response;
 
 export type MiddlewareHandler<
-  schema extends Schema = Schema,
   path extends string = string,
   input extends Input = {},
-> = (
-  c: MiddlewareContext<schema, path, input>,
-  next: Next,
-) => Promise<Response | void>;
+> = (c: MiddlewareContext<path, input>, next: Next) => Promise<Response | void>;
 
 type BasePath = "/";
 
-export type HandlerInterface<schema extends Schema> = {
+export type HandlerInterface = {
   // app.get(handler)
   <
     path extends string = BasePath,
     input extends Input = BlankInput,
     response extends HandlerResponse<any> = any,
   >(
-    handler: Handler<schema, path, input, response>,
-  ): ApiRegistry<schema>;
+    handler: Handler<path, input, response>,
+  ): ApiRegistry;
 
   // app.get(handler x2)
   <
@@ -38,11 +32,8 @@ export type HandlerInterface<schema extends Schema> = {
     input2 extends Input = input,
     response extends HandlerResponse<any> = any,
   >(
-    ...handlers: [
-      Handler<schema, path, input>,
-      Handler<schema, path, input2, response>,
-    ]
-  ): ApiRegistry<schema>;
+    ...handlers: [Handler<path, input>, Handler<path, input2, response>]
+  ): ApiRegistry;
 
   // app.get(path, handler)
   <
@@ -51,8 +42,8 @@ export type HandlerInterface<schema extends Schema> = {
     input extends Input = BlankInput,
   >(
     path: path,
-    handler: Handler<schema, path, input, response>,
-  ): ApiRegistry<schema>;
+    handler: Handler<path, input, response>,
+  ): ApiRegistry;
 
   // app.get(handler x 3)
   <
@@ -63,11 +54,11 @@ export type HandlerInterface<schema extends Schema> = {
     input3 extends Input = input & input2,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      Handler<schema, path, input3, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      Handler<path, input3, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x2)
   <
@@ -78,10 +69,10 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      Handler<schema, path, input2, response>,
+      MiddlewareHandler<path, input>,
+      Handler<path, input2, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 4)
   <
@@ -93,12 +84,12 @@ export type HandlerInterface<schema extends Schema> = {
     input4 extends Input = input & input2 & input3,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      Handler<schema, path, input4, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      Handler<path, input4, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x3)
   <
@@ -110,11 +101,11 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      Handler<schema, path, input3, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      Handler<path, input3, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 5)
   <
@@ -127,13 +118,13 @@ export type HandlerInterface<schema extends Schema> = {
     input5 extends Input = input & input2 & input3 & input4,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      Handler<schema, path, input5, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      Handler<path, input5, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x4)
   <
@@ -146,12 +137,12 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      Handler<schema, path, input4, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      Handler<path, input4, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 6)
   <
@@ -165,14 +156,14 @@ export type HandlerInterface<schema extends Schema> = {
     input6 extends Input = input & input2 & input3 & input4 & input5,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      Handler<schema, path, input6, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      Handler<path, input6, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x5)
   <
@@ -186,13 +177,13 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      Handler<schema, path, input5, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      Handler<path, input5, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 7)
   <
@@ -207,15 +198,15 @@ export type HandlerInterface<schema extends Schema> = {
     input7 extends Input = input & input2 & input3 & input4 & input5 & input6,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      Handler<schema, path, input7, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      Handler<path, input7, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x6)
   <
@@ -230,14 +221,14 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      Handler<schema, path, input6, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      Handler<path, input6, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 8)
   <
@@ -259,16 +250,16 @@ export type HandlerInterface<schema extends Schema> = {
       input7,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      MiddlewareHandler<schema, path, input7>,
-      Handler<schema, path, input8, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      Handler<path, input8, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x7)
   <
@@ -284,15 +275,15 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      Handler<schema, path, input7, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      Handler<path, input7, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 9)
   <
@@ -322,17 +313,17 @@ export type HandlerInterface<schema extends Schema> = {
       input8,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      MiddlewareHandler<schema, path, input7>,
-      MiddlewareHandler<schema, path, input8>,
-      Handler<schema, path, input9, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
+      Handler<path, input9, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x8)
   <
@@ -355,16 +346,16 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      MiddlewareHandler<schema, path, input7>,
-      Handler<schema, path, input8, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      Handler<path, input8, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(handler x 10)
   <
@@ -403,18 +394,18 @@ export type HandlerInterface<schema extends Schema> = {
       input9,
   >(
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      MiddlewareHandler<schema, path, input7>,
-      MiddlewareHandler<schema, path, input8>,
-      MiddlewareHandler<schema, path, input9>,
-      Handler<schema, path, input10, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
+      MiddlewareHandler<path, input9>,
+      Handler<path, input10, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x9)
   <
@@ -445,17 +436,17 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      MiddlewareHandler<schema, path, input7>,
-      MiddlewareHandler<schema, path, input8>,
-      Handler<schema, path, input9, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
+      Handler<path, input9, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x10)
   <
@@ -495,18 +486,18 @@ export type HandlerInterface<schema extends Schema> = {
   >(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path, input>,
-      MiddlewareHandler<schema, path, input2>,
-      MiddlewareHandler<schema, path, input3>,
-      MiddlewareHandler<schema, path, input4>,
-      MiddlewareHandler<schema, path, input5>,
-      MiddlewareHandler<schema, path, input6>,
-      MiddlewareHandler<schema, path, input7>,
-      MiddlewareHandler<schema, path, input8>,
-      MiddlewareHandler<schema, path, input9>,
-      Handler<schema, path, input10, response>,
+      MiddlewareHandler<path, input>,
+      MiddlewareHandler<path, input2>,
+      MiddlewareHandler<path, input3>,
+      MiddlewareHandler<path, input4>,
+      MiddlewareHandler<path, input5>,
+      MiddlewareHandler<path, input6>,
+      MiddlewareHandler<path, input7>,
+      MiddlewareHandler<path, input8>,
+      MiddlewareHandler<path, input9>,
+      Handler<path, input10, response>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(...handlers[])
   <
@@ -514,8 +505,8 @@ export type HandlerInterface<schema extends Schema> = {
     input extends Input = BlankInput,
     response extends HandlerResponse<any> = any,
   >(
-    ...handlers: Handler<schema, path, input, response>[]
-  ): ApiRegistry<schema>;
+    ...handlers: Handler<path, input, response>[]
+  ): ApiRegistry;
 
   // app.get(path, ...handlers[])
   <
@@ -524,237 +515,231 @@ export type HandlerInterface<schema extends Schema> = {
     response extends HandlerResponse<any> = any,
   >(
     path: path,
-    ...handlers: Handler<schema, path, input, response>[]
-  ): ApiRegistry<schema>;
+    ...handlers: Handler<path, input, response>[]
+  ): ApiRegistry;
 
   // app.get(path)
-  <path extends string>(path: path): ApiRegistry<schema>;
+  <path extends string>(path: path): ApiRegistry;
 };
 
-export interface MiddlewareHandlerInterface<schema extends Schema> {
+export interface MiddlewareHandlerInterface {
   //// app.use(...handlers[])
-  (...handlers: MiddlewareHandler<schema, BasePath>[]): ApiRegistry<schema>;
+  (...handlers: MiddlewareHandler<BasePath>[]): ApiRegistry;
 
   // app.use(handler)
-  (handler: MiddlewareHandler<schema, BasePath>): ApiRegistry<schema>;
+  (handler: MiddlewareHandler<BasePath>): ApiRegistry;
 
   // app.use(handler x2)
   <path extends string = BasePath>(
-    ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-    ]
-  ): ApiRegistry<schema>;
+    ...handlers: [MiddlewareHandler<path>, MiddlewareHandler<path>]
+  ): ApiRegistry;
 
   // app.get(path, handler)
   <path extends string>(
     path: path,
-    handler: MiddlewareHandler<schema, path>,
-  ): ApiRegistry<schema>;
+    handler: MiddlewareHandler<path>,
+  ): ApiRegistry;
 
   // app.use(handler x3)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x2)
   <path extends string>(
     path: path,
-    ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-    ]
-  ): ApiRegistry<schema>;
+    ...handlers: [MiddlewareHandler<path>, MiddlewareHandler<path>]
+  ): ApiRegistry;
 
   // app.use(handler x4)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x3)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.use(handler x5)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x4)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.use(handler x6)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x5)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.use(handler x7)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x6)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.use(handler x8)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x7)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.use(handler x9)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x8)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.use(handler x10)
   <path extends string = BasePath>(
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   // app.get(path, handler x9)
   <path extends string>(
     path: path,
     ...handlers: [
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
-      MiddlewareHandler<schema, path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
+      MiddlewareHandler<path>,
     ]
-  ): ApiRegistry<schema>;
+  ): ApiRegistry;
 
   //// app.use(path, ...handlers[])
   <path extends string>(
     path: path,
-    ...handlers: MiddlewareHandler<schema, path>[]
-  ): ApiRegistry<schema>;
+    ...handlers: MiddlewareHandler<path>[]
+  ): ApiRegistry;
 }

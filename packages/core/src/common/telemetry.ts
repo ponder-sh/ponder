@@ -6,7 +6,6 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { IndexingBuild } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
-import { getTables } from "@/schema/utils.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
@@ -270,7 +269,7 @@ function getPackageJson(rootDir: string) {
 }
 
 export function buildPayload(build: IndexingBuild) {
-  const table_count = Object.keys(getTables(build.schema)).length;
+  // const table_count = Object.keys(getTables(build.schema)).length;
   const indexing_function_count = Object.values(build.indexingFunctions).reduce(
     (acc, f) => acc + Object.keys(f).length,
     0,
@@ -280,7 +279,7 @@ export function buildPayload(build: IndexingBuild) {
     database_kind: build.databaseConfig.kind,
     contract_count: build.sources.length,
     network_count: build.networks.length,
-    table_count,
+    table_count: 1,
     indexing_function_count,
   };
 }
