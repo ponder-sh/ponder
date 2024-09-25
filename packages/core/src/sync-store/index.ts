@@ -637,13 +637,7 @@ export const createSyncStore = ({
                 encodeTransaction({ transaction, chainId, dialect }),
               ),
           )
-          .onConflict((oc) =>
-            oc.column("hash").doUpdateSet((eb) => ({
-              blockHash: eb.ref("excluded.blockHash"),
-              blockNumber: eb.ref("excluded.blockNumber"),
-              transactionIndex: eb.ref("excluded.transactionIndex"),
-            })),
-          )
+          .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
       }
     });
@@ -687,19 +681,7 @@ export const createSyncStore = ({
                 }),
               ),
           )
-          .onConflict((oc) =>
-            oc.column("transactionHash").doUpdateSet((eb) => ({
-              blockHash: eb.ref("excluded.blockHash"),
-              blockNumber: eb.ref("excluded.blockNumber"),
-              contractAddress: eb.ref("excluded.contractAddress"),
-              cumulativeGasUsed: eb.ref("excluded.cumulativeGasUsed"),
-              effectiveGasPrice: eb.ref("excluded.effectiveGasPrice"),
-              gasUsed: eb.ref("excluded.gasUsed"),
-              logs: eb.ref("excluded.logs"),
-              logsBloom: eb.ref("excluded.logsBloom"),
-              transactionIndex: eb.ref("excluded.transactionIndex"),
-            })),
-          )
+          .onConflict((oc) => oc.column("transactionHash").doNothing())
           .execute();
       }
     });
