@@ -17,9 +17,12 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
       isOwner: false,
     });
   } else {
-    await context.db.update(schema.account).set({
-      balance: from[0]!.balance - event.args.amount,
-    });
+    await context.db
+      .update(schema.account)
+      .set({
+        balance: from[0]!.balance - event.args.amount,
+      })
+      .where(eq(schema.account.address, event.args.from));
   }
 
   // Create an "account" for the recipient, or update the balance if it already exists.
@@ -36,9 +39,12 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
       isOwner: false,
     });
   } else {
-    await context.db.update(schema.account).set({
-      balance: to[0]!.balance + event.args.amount,
-    });
+    await context.db
+      .update(schema.account)
+      .set({
+        balance: to[0]!.balance + event.args.amount,
+      })
+      .where(eq(schema.account.address, event.args.to));
   }
 
   // add row to "transfer_event".
@@ -52,19 +58,20 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 
 ponder.on("ERC20:Approval", async ({ event, context }) => {
   // upsert "allowance".
-  await context.db
-    .insert(schema.allowance)
-    .values({
-      owner: event.args.owner,
-      spender: event.args.spender,
-      amount: event.args.amount,
-    })
-    .onConflictDoUpdate({
-      target: [schema.allowance.spender, schema.allowance.owner],
-      set: {
-        amount: event.args.amount,
-      },
-    });
+
+  // await context.db
+  //   .insert(schema.allowance)
+  //   .values({
+  //     owner: event.args.owner,
+  //     spender: event.args.spender,
+  //     amount: event.args.amount,
+  //   })
+  //   .onConflictDoUpdate({
+  //     target: [schema.allowance.spender, schema.allowance.owner],
+  //     set: {
+  //       amount: event.args.amount,
+  //     },
+  //   });
 
   // add row to "approval_event".
   await context.db.insert(schema.approvalEvent).values({

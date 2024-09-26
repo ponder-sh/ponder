@@ -1,9 +1,14 @@
-import { is } from "drizzle-orm";
+import { Table, is } from "drizzle-orm";
 import {
-  type PgColumn,
+  PgColumn,
   PgEnumColumn,
   type PgTable,
+  type TableConfig,
   getTableConfig,
+  integer,
+  pgTable,
+  serial,
+  varchar,
 } from "drizzle-orm/pg-core";
 
 export const pgNativeTypes = new Set([
@@ -223,4 +228,25 @@ export const getPrimaryKeyColumns = (table: PgTable): string[] => {
   const pkColumn = tableConfig.columns.find((c) => c.primary)!;
 
   return [pkColumn.name];
+};
+
+export const getReorgTable = (table: PgTable<TableConfig>) => {
+  const config = getTableConfig(table);
+
+  const t = pgTable(`_ponder_reorg__${config.name}`, {
+    operation_id: serial("operation_id").notNull().primaryKey(),
+    operation: integer("operation").notNull(),
+    checkpoint: varchar("checkpoint", {
+      length: 75,
+    }).notNull(),
+  });
+
+  for (const [field, col] of Object.entries(table)) {
+    if (is(col, PgColumn)) {
+      // @ts-ignore
+      t[Table.Symbol.Columns][field] = col;
+    }
+  }
+
+  return t;
 };
