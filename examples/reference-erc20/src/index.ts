@@ -1,32 +1,47 @@
 import { ponder } from "@/generated";
+import { eq } from "drizzle-orm";
 import * as schema from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
-  // // Create an Account for the sender, or update the balance if it already exists.
-  // await Account.upsert({
-  //   id: event.args.from,
-  //   create: {
-  //     balance: BigInt(0),
-  //     isOwner: false,
-  //   },
-  //   update: ({ current }) => ({
-  //     balance: current.balance - event.args.amount,
-  //   }),
-  // });
+  // Create an "account" for the sender, or update the balance if it already exists.
 
-  // // Create an Account for the recipient, or update the balance if it already exists.
-  // await Account.upsert({
-  //   id: event.args.to,
-  //   create: {
-  //     balance: event.args.amount,
-  //     isOwner: false,
-  //   },
-  //   update: ({ current }) => ({
-  //     balance: current.balance + event.args.amount,
-  //   }),
-  // });
+  const from = await context.db
+    .select()
+    .from(schema.account)
+    .where(eq(schema.account.address, event.args.from));
 
-  // Create a TransferEvent.
+  if (from.length === 0) {
+    await context.db.insert(schema.account).values({
+      address: event.args.from,
+      balance: 0n,
+      isOwner: false,
+    });
+  } else {
+    await context.db.update(schema.account).set({
+      balance: from[0]!.balance - event.args.amount,
+    });
+  }
+
+  // Create an "account" for the recipient, or update the balance if it already exists.
+
+  const to = await context.db
+    .select()
+    .from(schema.account)
+    .where(eq(schema.account.address, event.args.to));
+
+  if (to.length === 0) {
+    await context.db.insert(schema.account).values({
+      address: event.args.to,
+      balance: 0n,
+      isOwner: false,
+    });
+  } else {
+    await context.db.update(schema.account).set({
+      balance: to[0]!.balance + event.args.amount,
+    });
+  }
+
+  // add row to "transfer_event".
   await context.db.insert(schema.transferEvent).values({
     amount: event.args.amount,
     timestamp: Number(event.block.timestamp),
@@ -36,20 +51,22 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 });
 
 ponder.on("ERC20:Approval", async ({ event, context }) => {
-  // // Create or update the Allowance.
-  // await Allowance.upsert({
-  //   id: allowanceId,
-  //   create: {
-  //     ownerId: event.args.owner,
-  //     spenderId: event.args.spender,
-  //     amount: event.args.amount,
-  //   },
-  //   update: {
-  //     amount: event.args.amount,
-  //   },
-  // });
+  // upsert "allowance".
+  await context.db
+    .insert(schema.allowance)
+    .values({
+      owner: event.args.owner,
+      spender: event.args.spender,
+      amount: event.args.amount,
+    })
+    .onConflictDoUpdate({
+      target: [schema.allowance.spender, schema.allowance.owner],
+      set: {
+        amount: event.args.amount,
+      },
+    });
 
-  // Create an ApprovalEvent.
+  // add row to "approval_event".
   await context.db.insert(schema.approvalEvent).values({
     amount: event.args.amount,
     timestamp: Number(event.block.timestamp),

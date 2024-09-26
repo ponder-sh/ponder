@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
+import type { Schema } from "@/drizzle/index.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { startClock } from "@/utils/timer.js";
@@ -27,8 +28,8 @@ export async function createServer({
   app: Hono;
   routes: PonderRoutes;
   common: Common;
-  schema: Record<string, unknown>;
-  offchainSchema?: { [name: string]: unknown };
+  schema: Schema;
+  offchainSchema?: Schema;
   database: Database;
 }): Promise<Server> {
   // Create hono app

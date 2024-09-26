@@ -1,10 +1,10 @@
-import child_process from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import { type Drizzle, createDrizzleDb } from "@/drizzle/index.js";
+import { type Drizzle, type Schema, createDrizzleDb } from "@/drizzle/index.js";
+import { generateTableSQL, getPrimaryKeyColumns } from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
@@ -25,10 +25,22 @@ import {
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import { is } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { PgTable } from "drizzle-orm/pg-core";
-import { Migrator, PostgresDialect, WithSchemaPlugin, sql } from "kysely";
-import { SqliteDialect } from "kysely";
+import {
+  PgTable,
+  getTableConfig,
+  integer,
+  pgTable,
+  serial,
+  varchar,
+} from "drizzle-orm/pg-core";
+import {
+  Migrator,
+  PostgresDialect,
+  SqliteDialect,
+  type Transaction,
+  WithSchemaPlugin,
+  sql,
+} from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
@@ -80,7 +92,6 @@ type PonderInternalSchema = {
   };
 } & {
   [_: `_ponder_reorg__${string}`]: {
-    id: unknown;
     operation_id: number;
     checkpoint: string;
     operation: 0 | 1 | 2;
@@ -113,7 +124,7 @@ type QueryBuilder = {
 
 export const createDatabase = (args: {
   common: Common;
-  schema: Record<string, unknown>;
+  schema: Schema;
   databaseConfig: DatabaseConfig;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
@@ -388,66 +399,85 @@ export const createDatabase = (args: {
     return dialect === "sqlite" ? JSON.stringify(app) : (app as any);
   };
 
-  // const revert = async ({
-  //   tableName,
-  //   checkpoint,
-  //   tx,
-  // }: {
-  //   tableName: string;
-  //   checkpoint: string;
-  //   tx: Transaction<PonderInternalSchema>;
-  // }) => {
-  //   const rows = await tx
-  //     .deleteFrom(`_ponder_reorg__${tableName}`)
-  //     .returningAll()
-  //     .where("checkpoint", ">", checkpoint)
-  //     .execute();
+  const revert = async ({
+    tableName,
+    checkpoint,
+    tx,
+  }: {
+    tableName: string;
+    checkpoint: string;
+    tx: Transaction<PonderInternalSchema>;
+  }) => {
+    const primaryKeyColumns = getPrimaryKeyColumns(
+      args.schema[tableName] as PgTable,
+    );
 
-  //   const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
+    const rows = await tx
+      .deleteFrom(`_ponder_reorg__${tableName}`)
+      .returningAll()
+      .where("checkpoint", ">", checkpoint)
+      .execute();
 
-  //   // undo operation
-  //   for (const log of reversed) {
-  //     if (log.operation === 0) {
-  //       // Create
-  //       await tx
-  //         .deleteFrom(tableName)
-  //         .where("id", "=", log.id as any)
-  //         .execute();
-  //     } else if (log.operation === 1) {
-  //       // Update
+    const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
 
-  //       // @ts-ignore
-  //       log.operation_id = undefined;
-  //       // @ts-ignore
-  //       log.checkpoint = undefined;
-  //       // @ts-ignore
-  //       log.operation = undefined;
-  //       await tx
-  //         .updateTable(tableName)
-  //         .set(log as any)
-  //         .where("id", "=", log.id as any)
-  //         .execute();
-  //     } else {
-  //       // Delete
+    // undo operation
+    for (const log of reversed) {
+      if (log.operation === 0) {
+        // Create
+        await tx
+          // @ts-ignore
+          .deleteFrom(tableName)
+          .$call((qb) => {
+            for (const name of primaryKeyColumns) {
+              // @ts-ignore
+              qb = qb.where(name, "=", log[name]);
+            }
+            return qb;
+          })
+          .execute();
+      } else if (log.operation === 1) {
+        // Update
 
-  //       // @ts-ignore
-  //       log.operation_id = undefined;
-  //       // @ts-ignore
-  //       log.checkpoint = undefined;
-  //       // @ts-ignore
-  //       log.operation = undefined;
-  //       await tx
-  //         .insertInto(tableName)
-  //         .values(log as any)
-  //         .execute();
-  //     }
-  //   }
+        // @ts-ignore
+        log.operation_id = undefined;
+        // @ts-ignore
+        log.checkpoint = undefined;
+        // @ts-ignore
+        log.operation = undefined;
+        await tx
+          // @ts-ignore
+          .updateTable(tableName)
+          .set(log as any)
+          .$call((qb) => {
+            for (const name of primaryKeyColumns) {
+              // @ts-ignore
+              qb = qb.where(name, "=", log[name]);
+            }
+            return qb;
+          })
+          .execute();
+      } else {
+        // Delete
 
-  //   args.common.logger.info({
-  //     service: "database",
-  //     msg: `Reverted ${rows.length} unfinalized operations from '${tableName}' table`,
-  //   });
-  // };
+        // @ts-ignore
+        log.operation_id = undefined;
+        // @ts-ignore
+        log.checkpoint = undefined;
+        // @ts-ignore
+        log.operation = undefined;
+        await tx
+          // @ts-ignore
+          .insertInto(tableName)
+          .values(log as any)
+          .execute();
+      }
+    }
+
+    args.common.logger.info({
+      service: "database",
+      msg: `Reverted ${rows.length} unfinalized operations from '${tableName}' table`,
+    });
+  };
 
   return {
     dialect,
@@ -488,13 +518,9 @@ export const createDatabase = (args: {
       });
     },
     async setup({ buildId }) {
-      const tableNames = Object.entries(args.schema)
-        .filter(([_, o]) => {
-          return is(o, PgTable);
-        })
-        .map(([name]) => name);
-
-      // TODO(kyle) handle schema
+      const tableNames = Object.values(args.schema)
+        .filter((table): table is PgTable => is(table, PgTable))
+        .map((table) => getTableConfig(table).name);
 
       ////////
       // Migrate
@@ -670,77 +696,43 @@ export const createDatabase = (args: {
             ////////
 
             const createUserTables = async () => {
-              child_process.execSync(
-                `drizzle-kit generate --schema ${args.common.options.schemaFile} --dialect postgresql --out ${path.join(
-                  args.common.options.ponderDir,
-                  "drizzle",
-                )}`,
-              );
-              await migrate(drizzle, {
-                migrationsFolder: path.join(
-                  args.common.options.ponderDir,
-                  "drizzle",
-                ),
-                migrationsSchema: namespace,
-                migrationsTable: "_ponder_migration",
-              });
+              for (const table of Object.values(args.schema)) {
+                if (is(table, PgTable)) {
+                  await sql
+                    .raw(generateTableSQL({ table, namespace }))
+                    .execute(tx);
+                }
+              }
             };
 
-            // const createReorgTables = async () => {
-            //   for (const [tableName, table] of Object.entries(
-            //     getTables(args.schema),
-            //   )) {
-            //     await tx.schema
-            //       .createTable(`_ponder_reorg__${tableName}`)
-            //       .$call((builder) => {
-            //         for (const [columnName, column] of Object.entries(
-            //           table.table,
-            //         )) {
-            //           if e(isOneColumn(column)) continue;
-            //           if (isManyColumn(column)) continue;
-            //           if (isEnumColumn(column)) {
-            //             // Handle enum types
-            //             // Omit the CHECK constraint because its included in the user table
-            //             builder = builder.addColumn(columnName, "text");
-            //           } else if (isListColumn(column)) {
-            //             // Handle scalar list columns
-            //             builder = builder.addColumn(columnName, "text");
-            //           } else if (isJSONColumn(column)) {
-            //             // Handle json columns
-            //             builder = builder.addColumn(columnName, "jsonb");
-            //           } else {
-            //             // Non-list base columns
-            //             builder = builder.addColumn(
-            //               columnName,
-            //               (dialect === "sqlite"
-            //                 ? scalarToSqliteType
-            //                 : scalarToPostgresType)[column[" scalar"]],
-            //               (col) => {
-            //                 if (columnName === "id") col = col.notNull();
-            //                 return col;
-            //               },
-            //             );
-            //           }
-            //         }
+            const createReorgTables = async () => {
+              for (const table of Object.values(args.schema)) {
+                if (is(table, PgTable)) {
+                  const extraColumns = Object.values(
+                    pgTable("", {
+                      operation_id: serial("operation_id")
+                        .notNull()
+                        .primaryKey(),
+                      operation: integer("operation").notNull(),
+                      checkpoint: varchar("checkpoint", {
+                        length: 75,
+                      }).notNull(),
+                    }),
+                  );
 
-            //         builder = builder
-            //           .addColumn(
-            //             "operation_id",
-            //             dialect === "sqlite" ? "integer" : "serial",
-            //             (col) => col.notNull().primaryKey(),
-            //           )
-            //           .addColumn("checkpoint", "varchar(75)", (col) =>
-            //             col.notNull(),
-            //           )
-            //           .addColumn("operation", "integer", (col) =>
-            //             col.notNull(),
-            //           );
-
-            //         return builder;
-            //       })
-            //       .execute();
-            //   }
-            // };
+                  await sql
+                    .raw(
+                      generateTableSQL({
+                        table,
+                        namespace,
+                        extraColumns,
+                        namePrefix: "_ponder_reorg__",
+                      }),
+                    )
+                    .execute(tx);
+                }
+              }
+            };
 
             const row = await tx
               .selectFrom("_ponder_meta")
@@ -785,7 +777,7 @@ export const createDatabase = (args: {
               });
 
               await createUserTables();
-              // await createReorgTables();
+              await createReorgTables();
 
               return {
                 status: "success",
@@ -914,11 +906,6 @@ export const createDatabase = (args: {
 
               await tx.schema.dropTable(tableName).ifExists().execute();
 
-              await tx.schema
-                .dropTable("_ponder_migration")
-                .ifExists()
-                .execute();
-
               args.common.logger.debug({
                 service: "database",
                 msg: `Dropped '${tableName}' table left by previous build`,
@@ -926,7 +913,7 @@ export const createDatabase = (args: {
             }
 
             await createUserTables();
-            // await createReorgTables();
+            await createReorgTables();
 
             return {
               status: "success",
@@ -1047,21 +1034,19 @@ export const createDatabase = (args: {
     //     }),
     //   );
     // },
-    async revert() {
-      // const tableNames = Object.entries(args.schema)
-      //   .filter(([_, o]) => {
-      //     return is(o, PgTable);
-      //   })
-      //   .map(([name]) => name);
-      // await qb.internal.wrap({ method: "revert" }, () =>
-      //   Promise.all(
-      //     tableNames.map((tableName) =>
-      //       qb.internal
-      //         .transaction()
-      //         .execute((tx) => revert({ tableName, checkpoint, tx })),
-      //     ),
-      //   ),
-      // );
+    async revert({ checkpoint }) {
+      const tableNames = Object.values(args.schema)
+        .filter((table): table is PgTable => is(table, PgTable))
+        .map((table) => getTableConfig(table).name);
+      await qb.internal.wrap({ method: "revert" }, () =>
+        Promise.all(
+          tableNames.map((tableName) =>
+            qb.internal
+              .transaction()
+              .execute((tx) => revert({ tableName, checkpoint, tx })),
+          ),
+        ),
+      );
     },
     async finalize({ checkpoint }) {
       await qb.internal.wrap({ method: "finalize" }, async () => {
@@ -1076,20 +1061,18 @@ export const createDatabase = (args: {
           })
           .execute();
 
-        // const tableNames = Object.entries(args.schema)
-        //   .filter(([_, o]) => {
-        //     return is(o, PgTable);
-        //   })
-        //   .map(([name]) => name);
+        const tableNames = Object.values(args.schema)
+          .filter((table): table is PgTable => is(table, PgTable))
+          .map((table) => getTableConfig(table).name);
 
-        // await Promise.all(
-        //   tableNames.map((tableName) =>
-        //     qb.internal
-        //       .deleteFrom(`_ponder_reorg__${tableName}`)
-        //       .where("checkpoint", "<=", checkpoint)
-        //       .execute(),
-        //   ),
-        // );
+        await Promise.all(
+          tableNames.map((tableName) =>
+            qb.internal
+              .deleteFrom(`_ponder_reorg__${tableName}`)
+              .where("checkpoint", "<=", checkpoint)
+              .execute(),
+          ),
+        );
       });
 
       const decoded = decodeCheckpoint(checkpoint);

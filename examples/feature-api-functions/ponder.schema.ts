@@ -1,50 +1,57 @@
-import { createSchema } from "@ponder/core";
+import { ponderBigint, ponderHex } from "@ponder/core";
+import {
+  boolean,
+  index,
+  integer,
+  pgSchema,
+  pgTable,
+  primaryKey,
+  serial,
+} from "drizzle-orm/pg-core";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    balance: p.bigint(),
-    isOwner: p.boolean(),
+export const account = pgTable("account", {
+  address: ponderHex("address").notNull().primaryKey(),
+  balance: ponderBigint("balance").notNull(),
+  isOwner: boolean("is_owner").notNull(),
+});
 
-    allowances: p.many("Allowance.ownerId"),
-    approvalOwnerEvents: p.many("ApprovalEvent.ownerId"),
-    approvalSpenderEvents: p.many("ApprovalEvent.spenderId"),
-    transferFromEvents: p.many("TransferEvent.fromId"),
-    transferToEvents: p.many("TransferEvent.toId"),
+export const allowance = pgTable(
+  "allowance",
+  {
+    owner: ponderHex("owner"),
+    spender: ponderHex("spender"),
+    amount: ponderBigint("amount"),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.spender] }),
   }),
-  Allowance: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
+);
 
-    ownerId: p.hex().references("Account.id"),
-    spenderId: p.hex().references("Account.id"),
-
-    owner: p.one("ownerId"),
-    spender: p.one("spenderId"),
+export const transferEvent = pgTable(
+  "transfer_event",
+  {
+    id: serial("id").primaryKey(),
+    amount: ponderBigint("amount").$type<bigint>(),
+    timestamp: integer("timestamp"),
+    from: ponderHex("from"),
+    to: ponderHex("to"),
+  },
+  (table) => ({
+    fromIdx: index("from_index").on(table.from),
   }),
-  TransferEvent: p.createTable(
-    {
-      id: p.string(),
-      amount: p.bigint(),
-      timestamp: p.int(),
+);
 
-      fromId: p.hex().references("Account.id"),
-      toId: p.hex().references("Account.id"),
+export const approvalEvent = pgTable("approval_event", {
+  id: serial("id").primaryKey(),
+  amount: ponderBigint("amount"),
+  timestamp: integer("timestamp"),
+  owner: ponderHex("from"),
+  spender: ponderHex("to"),
+});
 
-      from: p.one("fromId"),
-      to: p.one("toId"),
-    },
-    { fromIdIndex: p.index("fromId") },
-  ),
-  ApprovalEvent: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    timestamp: p.int(),
+export const offchainSchema = pgSchema("offchain");
 
-    ownerId: p.hex().references("Account.id"),
-    spenderId: p.hex().references("Account.id"),
-
-    owner: p.one("ownerId"),
-    spender: p.one("spenderId"),
-  }),
-}));
+export const metadata = offchainSchema.table("metadata", {
+  id: serial("id").primaryKey(),
+  account: ponderHex("account").notNull(),
+});

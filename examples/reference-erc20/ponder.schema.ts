@@ -17,9 +17,9 @@ export const account = pgTable("account", {
 export const allowance = pgTable(
   "allowance",
   {
-    owner: ponderHex("owner"),
-    spender: ponderHex("spender"),
-    amount: ponderBigint("amount"),
+    owner: ponderHex("owner").notNull(),
+    spender: ponderHex("spender").notNull(),
+    amount: ponderBigint("amount").notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.owner, table.spender] }),
@@ -30,10 +30,10 @@ export const transferEvent = pgTable(
   "transfer_event",
   {
     id: serial("id").primaryKey(),
-    amount: ponderBigint("amount"),
-    timestamp: integer("timestamp"),
-    from: ponderHex("from"),
-    to: ponderHex("to"),
+    amount: ponderBigint("amount").notNull(),
+    timestamp: integer("timestamp").notNull(),
+    from: ponderHex("from").notNull(),
+    to: ponderHex("to").notNull(),
   },
   (table) => ({
     fromIdx: index("from_index").on(table.from),
@@ -42,8 +42,8 @@ export const transferEvent = pgTable(
 
 export const approvalEvent = pgTable("approval_event", {
   id: serial("id").primaryKey(),
-  amount: ponderBigint("amount"),
-  timestamp: integer("timestamp"),
-  owner: ponderHex("from"),
-  spender: ponderHex("to"),
+  amount: ponderBigint("amount").notNull(),
+  timestamp: integer("timestamp").notNull(),
+  owner: ponderHex("from").notNull(),
+  spender: ponderHex("to").notNull(),
 });

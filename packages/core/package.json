@@ -12,8 +12,6 @@
   "files": [
     "dist",
     "src/**/*.ts",
-    "src/graphql/**.*.ts",
-    "src/indexing-store/**.*.ts",
     "!src/**/*.test.ts",
     "!src/**/*.test-d.ts",
     "!src/_test/**/*"

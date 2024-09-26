@@ -12,51 +12,23 @@ import {
 } from "drizzle-orm/pg-core";
 import { bytesToHex, hexToBytes } from "viem";
 
-// export class PgHexBuilder extends PgColumnBuilder {
-//   static override readonly [entityKind]: string = "PgHexBuilder";
-
-//   constructor(columnName: string) {
-//     super(columnName, "buffer", "PgHex");
-//   }
-
-//   build(table: AnyPgTable) {
-//     return new PgHex(table, this.config);
-//   }
-// }
-
-// export class PgHex extends PgColumn {
-//   static override readonly [entityKind]: string = "PgHex";
-
-//   getSQLType(): string {
-//     return "bytea";
-//   }
-
-//   override mapFromDriverValue(value: Buffer) {
-//     return bytesToHex(value);
-//   }
-
-//   override mapToDriverValue(value: `0x${string}`): Buffer {
-//     return Buffer.from(hexToBytes(value));
-//   }
-// }
-
 export type PgHexBuilderInitial<TName extends string> = PgHexBuilder<{
   name: TName;
-  dataType: "number";
+  dataType: "string";
   columnType: "PgHex";
-  data: number;
-  driverParam: string | number;
+  data: `0x${string}`;
+  driverParam: Buffer;
   enumValues: undefined;
   generated: undefined;
 }>;
 
 export class PgHexBuilder<
-  T extends ColumnBuilderBaseConfig<"number", "PgHex">,
+  T extends ColumnBuilderBaseConfig<"string", "PgHex">,
 > extends PgColumnBuilder<T> {
   static readonly [entityKind]: string = "PgHexBuilder";
 
   constructor(name: T["name"]) {
-    super(name, "number", "PgHex");
+    super(name, "string", "PgHex");
   }
 
   /** @internal */
@@ -72,7 +44,7 @@ export class PgHexBuilder<
 }
 
 export class PgHex<
-  T extends ColumnBaseConfig<"number", "PgHex">,
+  T extends ColumnBaseConfig<"string", "PgHex">,
 > extends PgColumn<T> {
   static readonly [entityKind]: string = "PgHex";
 

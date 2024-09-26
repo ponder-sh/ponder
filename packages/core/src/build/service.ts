@@ -6,6 +6,7 @@ import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
+import type { Schema } from "@/drizzle/index.js";
 import type { PonderRoutes } from "@/hono/index.js";
 import type { Source } from "@/sync/source.js";
 import { serialize } from "@/utils/serialize.js";
@@ -49,9 +50,8 @@ type BaseBuild = {
   sources: Source[];
   networks: Network[];
   // Schema
-  schema: Record<string, unknown>;
-  // graphqlSchema: GraphQLSchema;
-  offchainSchema?: { [name: string]: unknown };
+  schema: Schema;
+  offchainSchema?: Schema;
 };
 
 export type IndexingBuild = BaseBuild & {
@@ -488,7 +488,7 @@ const executeConfig = async (
 const executeSchema = async (
   buildService: Service,
 ): Promise<
-  | { status: "success"; schema: Record<string, unknown>; contentHash: string }
+  | { status: "success"; schema: Schema; contentHash: string }
   | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
@@ -517,7 +517,7 @@ const executeSchema = async (
 const executeOffchainSchema = async (
   buildService: Service,
 ): Promise<
-  | { status: "success"; offchainSchema?: { [name: string]: unknown } }
+  | { status: "success"; offchainSchema?: Schema }
   | { status: "error"; error: Error }
 > => {
   if (fs.existsSync(buildService.common.options.offchainSchemaFile) === false) {
@@ -649,33 +649,13 @@ const executeApiRoutes = async (
 const validateAndBuild = async (
   { common }: Pick<Service, "common">,
   config: { config: Config; contentHash: string },
-  schema: { schema: Record<string, unknown>; contentHash: string },
-  offchainSchemaResult: { offchainSchema?: { [name: string]: unknown } },
+  schema: { schema: Schema; contentHash: string },
+  offchainSchemaResult: { offchainSchema?: Schema },
   indexingFunctions: {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   },
 ): Promise<IndexingBuildResult> => {
-  // Validate and build the schema
-  // const buildSchemaResult = safeBuildSchema({
-  //   schema: schema.schema,
-  // });
-  // if (buildSchemaResult.status === "error") {
-  //   common.logger.error({
-  //     service: "build",
-  //     msg: "Error while building schema:",
-  //     error: buildSchemaResult.error,
-  //   });
-
-  //   return buildSchemaResult;
-  // }
-
-  // for (const log of buildSchemaResult.logs) {
-  //   common.logger[log.level]({ service: "build", msg: log.msg });
-  // }
-
-  // const graphqlSchema = buildGraphQLSchema(buildSchemaResult.schema);
-
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
@@ -719,7 +699,6 @@ const validateAndBuild = async (
       sources: buildConfigAndIndexingFunctionsResult.sources,
       schema: schema.schema,
       offchainSchema: offchainSchemaResult.offchainSchema,
-      // graphqlSchema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
     },
