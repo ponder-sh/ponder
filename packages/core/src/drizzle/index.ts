@@ -17,7 +17,6 @@ import {
   type NodePgQueryResultHKT,
 } from "drizzle-orm/node-postgres";
 import {
-  type PgDeleteBase,
   PgDialect,
   type PgInsertValue,
   type PgQueryResultHKT,
@@ -25,6 +24,7 @@ import {
   type PgTable,
   type PgUpdateSetSource,
   PgDatabase as _PgDatabase,
+  PgDeleteBase as _PgDeleteBase,
   PgInsertBase as _PgInsertBase,
   PgInsertBuilder as _PgInsertBuilder,
   PgUpdateBase as _PgUpdateBase,
@@ -95,7 +95,7 @@ class PgDatabase<
   override delete<TTable extends PgTable>(
     table: TTable,
   ): PgDeleteBase<TTable, TQueryResult> {
-    return super.delete(table);
+    return new PgDeleteBase(table, this.session, this.dialect);
   }
 }
 
@@ -224,6 +224,81 @@ class PgUpdateBase<
   TDynamic extends boolean = false,
   TExcludedMethods extends string = never,
 > extends _PgUpdateBase<
+  TTable,
+  TQueryResult,
+  TReturning,
+  TDynamic,
+  TExcludedMethods
+> {
+  override execute: ReturnType<this["prepare"]>["execute"] = async (
+    placeholderValues,
+  ) => {
+    this.config.fields = getTableColumns<PgTable>(this.config.table);
+    this.config.setOperators = [];
+    const fieldsList = Object.entries(this.config.fields).map(
+      ([name, field]) => ({
+        path: [name],
+        field,
+      }),
+    );
+
+    const select = await this.session
+      .prepareQuery(
+        this.dialect.sqlToQuery(this.dialect.buildSelectQuery(this.config)),
+        fieldsList,
+        undefined,
+        true,
+      )
+      .execute(placeholderValues);
+
+    const operation = new Param(1);
+    const checkpoint = new Param(encodeCheckpoint(zeroCheckpoint));
+
+    const values = select.map((entry) => {
+      const result: Record<string, Param | SQL> = {};
+      const cols = this.config.table[Table.Symbol.Columns];
+      for (const colKey of Object.keys(entry)) {
+        const colValue = entry[colKey as keyof typeof entry];
+        result[colKey] = is(colValue, SQL)
+          ? colValue
+          : new Param(colValue, cols[colKey]);
+      }
+      result.operation = operation;
+      result.checkpoint = checkpoint;
+
+      return result;
+    });
+
+    const table = this.config.table;
+    this.config.table = getReorgTable(this.config.table);
+    this.config.values = values;
+
+    await this.session
+      .prepareQuery(
+        this.dialect.sqlToQuery(this.dialect.buildInsertQuery(this.config)),
+      )
+      .execute(placeholderValues);
+
+    this.config.table = table;
+
+    return this.session
+      .prepareQuery(
+        this.dialect.sqlToQuery(this.getSQL()),
+        this.config.returning,
+        undefined,
+        true,
+      )
+      .execute(placeholderValues);
+  };
+}
+
+class PgDeleteBase<
+  TTable extends PgTable,
+  TQueryResult extends PgQueryResultHKT,
+  TReturning extends Record<string, unknown> | undefined = undefined,
+  TDynamic extends boolean = false,
+  TExcludedMethods extends string = never,
+> extends _PgDeleteBase<
   TTable,
   TQueryResult,
   TReturning,
