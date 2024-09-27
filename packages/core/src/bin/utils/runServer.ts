@@ -13,7 +13,7 @@ export async function runServer({
   common: Common;
   build: ApiBuild;
 }) {
-  const { databaseConfig, schema, offchainSchema } = build;
+  const { databaseConfig, schema } = build;
 
   const database = await createDatabase({
     common,
@@ -26,7 +26,6 @@ export async function runServer({
     routes: build.routes,
     common,
     schema,
-    offchainSchema,
     database,
   });
 

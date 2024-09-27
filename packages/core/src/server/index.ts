@@ -29,7 +29,6 @@ export async function createServer({
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
-  offchainSchema?: Schema;
   database: Database;
 }): Promise<Server> {
   // Create hono app
