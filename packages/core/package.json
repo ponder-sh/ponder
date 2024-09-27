@@ -24,9 +24,16 @@
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
-    "types": "./dist/index.d.ts",
-    "import": "./dist/index.js",
-    "require": "./dist/index.cjs"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./db": {
+      "types": "./dist/drizzle/db.d.ts",
+      "import": "./dist/drizzle/db.js",
+      "require": "./dist/drizzle/db.cjs"
+    }
   },
   "scripts": {
     "build": "tsup",
@@ -35,7 +42,6 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "drizzle-kit": "^0.24.2",
     "drizzle-orm": "^0.31.2",
     "hono": ">=4.5",
     "typescript": ">=5.0.4",

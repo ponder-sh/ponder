@@ -3,24 +3,19 @@ import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import type { Schema } from "@/schema/common.js";
 import {
-  getEnums,
-  getTables,
-  isEnumColumn,
-  isJSONColumn,
-  isListColumn,
-  isManyColumn,
-  isOneColumn,
-  isOptionalColumn,
-} from "@/schema/utils.js";
+  type Drizzle,
+  type Schema,
+  createDrizzleDb,
+  onchain,
+} from "@/drizzle/index.js";
+import { generateTableSQL, getPrimaryKeyColumns } from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
 } from "@/sync-store/postgres/migrations.js";
 import { migrationProvider as sqliteMigrationProvider } from "@/sync-store/sqlite/migrations.js";
-import type { UserTable } from "@/types/schema.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -34,14 +29,24 @@ import {
   createSqliteDatabase,
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
+import { is } from "drizzle-orm";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import {
+  PgTable,
+  getTableConfig,
+  integer,
+  pgTable,
+  serial,
+  varchar,
+} from "drizzle-orm/pg-core";
 import {
   Migrator,
   PostgresDialect,
+  SqliteDialect,
   type Transaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";
-import { SqliteDialect } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
@@ -53,6 +58,7 @@ export type Database<
   namespace: string;
   driver: Driver<dialect>;
   qb: QueryBuilder;
+  drizzle: Drizzle<Schema>;
   migrateSync(): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
@@ -72,7 +78,7 @@ export type Database<
   setup(args: { buildId: string }): Promise<{ checkpoint: string }>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
-  createIndexes(args: { schema: Schema }): Promise<void>;
+  // createIndexes(args: { schema: Schema }): Promise<void>;
   kill(): Promise<void>;
 };
 
@@ -92,13 +98,10 @@ type PonderInternalSchema = {
   };
 } & {
   [_: `_ponder_reorg__${string}`]: {
-    id: unknown;
     operation_id: number;
     checkpoint: string;
     operation: 0 | 1 | 2;
   };
-} & {
-  [tableName: string]: UserTable;
 };
 
 type Driver<dialect extends "sqlite" | "postgres"> = dialect extends "sqlite"
@@ -125,29 +128,11 @@ type QueryBuilder = {
   sync: HeadlessKysely<PonderSyncSchema>;
 };
 
-const scalarToSqliteType = {
-  boolean: "integer",
-  int: "integer",
-  float: "real",
-  string: "text",
-  bigint: "varchar(79)",
-  hex: "blob",
-} as const;
-
-const scalarToPostgresType = {
-  boolean: "integer",
-  int: "integer",
-  float: "float8",
-  string: "text",
-  bigint: "numeric(78, 0)",
-  hex: "bytea",
-} as const;
-
-export const createDatabase = (args: {
+export const createDatabase = async (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
 
@@ -315,6 +300,22 @@ export const createDatabase = (args: {
     };
   }
 
+  /**
+   * Reset the prototype so `table instanceof PgTable` evaluates to true.
+   */
+  for (const table of Object.values(args.schema)) {
+    // @ts-ignore
+    if (onchain in table) {
+      Object.setPrototypeOf(table, PgTable.prototype);
+    }
+  }
+
+  const drizzle = createDrizzleDb({ driver }, { schema: args.schema });
+
+  await migrate(drizzle, {
+    migrationsFolder: args.common.options.migrationsDir,
+  });
+
   // Register metrics
   if (dialect === "sqlite") {
     args.common.metrics.registry.removeSingleMetric(
@@ -427,6 +428,10 @@ export const createDatabase = (args: {
     checkpoint: string;
     tx: Transaction<PonderInternalSchema>;
   }) => {
+    const primaryKeyColumns = getPrimaryKeyColumns(
+      args.schema[tableName] as PgTable,
+    );
+
     const rows = await tx
       .deleteFrom(`_ponder_reorg__${tableName}`)
       .returningAll()
@@ -440,8 +445,15 @@ export const createDatabase = (args: {
       if (log.operation === 0) {
         // Create
         await tx
+          // @ts-ignore
           .deleteFrom(tableName)
-          .where("id", "=", log.id as any)
+          .$call((qb) => {
+            for (const name of primaryKeyColumns) {
+              // @ts-ignore
+              qb = qb.where(name, "=", log[name]);
+            }
+            return qb;
+          })
           .execute();
       } else if (log.operation === 1) {
         // Update
@@ -453,9 +465,16 @@ export const createDatabase = (args: {
         // @ts-ignore
         log.operation = undefined;
         await tx
+          // @ts-ignore
           .updateTable(tableName)
           .set(log as any)
-          .where("id", "=", log.id as any)
+          .$call((qb) => {
+            for (const name of primaryKeyColumns) {
+              // @ts-ignore
+              qb = qb.where(name, "=", log[name]);
+            }
+            return qb;
+          })
           .execute();
       } else {
         // Delete
@@ -467,6 +486,7 @@ export const createDatabase = (args: {
         // @ts-ignore
         log.operation = undefined;
         await tx
+          // @ts-ignore
           .insertInto(tableName)
           .values(log as any)
           .execute();
@@ -484,6 +504,7 @@ export const createDatabase = (args: {
     namespace,
     driver,
     qb,
+    drizzle,
     async migrateSync() {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
@@ -491,6 +512,7 @@ export const createDatabase = (args: {
         if (dialect === "postgres") {
           await moveLegacyTables({
             common: args.common,
+            // @ts-expect-error
             db: qb.internal,
             newSchemaName: "ponder_sync",
           });
@@ -516,6 +538,10 @@ export const createDatabase = (args: {
       });
     },
     async setup({ buildId }) {
+      const tableNames = Object.values(args.schema)
+        .filter((table): table is PgTable => is(table, PgTable))
+        .map((table) => getTableConfig(table).name);
+
       ////////
       // Migrate
       ////////
@@ -600,8 +626,11 @@ export const createDatabase = (args: {
         }
       } else {
         const hasPonderSchema = await qb.internal
+          // @ts-ignore
           .selectFrom("information_schema.schemata")
+          // @ts-ignore
           .select("schema_name")
+          // @ts-ignore
           .where("schema_name", "=", "ponder")
           .executeTakeFirst()
           .then((schema) => schema?.schema_name === "ponder");
@@ -610,14 +639,18 @@ export const createDatabase = (args: {
           await qb.internal.wrap({ method: "setup" }, async () => {
             const namespaceCount = await qb.internal
               .withSchema("ponder")
+              // @ts-ignore
               .selectFrom("namespace_lock")
               .select(sql`count(*)`.as("count"))
               .executeTakeFirst();
 
             const tableNames = await qb.internal
               .withSchema("ponder")
+              // @ts-ignore
               .selectFrom("namespace_lock")
+              // @ts-ignore
               .select("schema")
+              // @ts-ignore
               .where("namespace", "=", namespace)
               .executeTakeFirst()
               .then((schema: any | undefined) =>
@@ -636,7 +669,9 @@ export const createDatabase = (args: {
 
               await qb.internal
                 .withSchema("ponder")
+                // @ts-ignore
                 .deleteFrom("namespace_lock")
+                // @ts-ignore
                 .where("namespace", "=", namespace)
                 .execute();
 
@@ -681,147 +716,41 @@ export const createDatabase = (args: {
             ////////
 
             const createUserTables = async () => {
-              for (const [tableName, table] of Object.entries(
-                getTables(args.schema),
-              )) {
-                await tx.schema
-                  .createTable(tableName)
-                  .$call((builder) => {
-                    for (const [columnName, column] of Object.entries(
-                      table.table,
-                    )) {
-                      if (isOneColumn(column)) continue;
-                      if (isManyColumn(column)) continue;
-                      if (isEnumColumn(column)) {
-                        // Handle enum types
-                        builder = builder.addColumn(
-                          columnName,
-                          "text",
-                          (col) => {
-                            if (isOptionalColumn(column) === false)
-                              col = col.notNull();
-                            if (isListColumn(column) === false) {
-                              col = col.check(
-                                sql`${sql.ref(columnName)} in (${sql.join(
-                                  getEnums(args.schema)[column[" enum"]]!.map(
-                                    (v) => sql.lit(v),
-                                  ),
-                                )})`,
-                              );
-                            }
-                            return col;
-                          },
-                        );
-                      } else if (isListColumn(column)) {
-                        // Handle scalar list columns
-                        builder = builder.addColumn(
-                          columnName,
-                          "text",
-                          (col) => {
-                            if (isOptionalColumn(column) === false)
-                              col = col.notNull();
-                            return col;
-                          },
-                        );
-                      } else if (isJSONColumn(column)) {
-                        // Handle json columns
-                        builder = builder.addColumn(
-                          columnName,
-                          "jsonb",
-                          (col) => {
-                            if (isOptionalColumn(column) === false)
-                              col = col.notNull();
-                            return col;
-                          },
-                        );
-                      } else {
-                        // Non-list base columns
-                        builder = builder.addColumn(
-                          columnName,
-                          (dialect === "sqlite"
-                            ? scalarToSqliteType
-                            : scalarToPostgresType)[column[" scalar"]],
-                          (col) => {
-                            if (isOptionalColumn(column) === false)
-                              col = col.notNull();
-                            if (columnName === "id") col = col.primaryKey();
-                            return col;
-                          },
-                        );
-                      }
-                    }
-
-                    return builder;
-                  })
-                  .execute()
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
-                      `Unable to create table '${namespace}'.'${tableName}' because a table with that name already exists. Is there another application using the '${namespace}' database schema?`,
-                    );
-                  });
-
-                args.common.logger.info({
-                  service: "database",
-                  msg: `Created table '${namespace}'.'${tableName}'`,
-                });
+              for (const table of Object.values(args.schema)) {
+                if (is(table, PgTable)) {
+                  await sql
+                    .raw(generateTableSQL({ table, namespace }))
+                    .execute(tx);
+                }
               }
             };
 
             const createReorgTables = async () => {
-              for (const [tableName, table] of Object.entries(
-                getTables(args.schema),
-              )) {
-                await tx.schema
-                  .createTable(`_ponder_reorg__${tableName}`)
-                  .$call((builder) => {
-                    for (const [columnName, column] of Object.entries(
-                      table.table,
-                    )) {
-                      if (isOneColumn(column)) continue;
-                      if (isManyColumn(column)) continue;
-                      if (isEnumColumn(column)) {
-                        // Handle enum types
-                        // Omit the CHECK constraint because its included in the user table
-                        builder = builder.addColumn(columnName, "text");
-                      } else if (isListColumn(column)) {
-                        // Handle scalar list columns
-                        builder = builder.addColumn(columnName, "text");
-                      } else if (isJSONColumn(column)) {
-                        // Handle json columns
-                        builder = builder.addColumn(columnName, "jsonb");
-                      } else {
-                        // Non-list base columns
-                        builder = builder.addColumn(
-                          columnName,
-                          (dialect === "sqlite"
-                            ? scalarToSqliteType
-                            : scalarToPostgresType)[column[" scalar"]],
-                          (col) => {
-                            if (columnName === "id") col = col.notNull();
-                            return col;
-                          },
-                        );
-                      }
-                    }
+              for (const table of Object.values(args.schema)) {
+                if (is(table, PgTable)) {
+                  const extraColumns = Object.values(
+                    pgTable("", {
+                      operation_id: serial("operation_id")
+                        .notNull()
+                        .primaryKey(),
+                      operation: integer("operation").notNull(),
+                      checkpoint: varchar("checkpoint", {
+                        length: 75,
+                      }).notNull(),
+                    }),
+                  );
 
-                    builder = builder
-                      .addColumn(
-                        "operation_id",
-                        dialect === "sqlite" ? "integer" : "serial",
-                        (col) => col.notNull().primaryKey(),
-                      )
-                      .addColumn("checkpoint", "varchar(75)", (col) =>
-                        col.notNull(),
-                      )
-                      .addColumn("operation", "integer", (col) =>
-                        col.notNull(),
-                      );
-
-                    return builder;
-                  })
-                  .execute();
+                  await sql
+                    .raw(
+                      generateTableSQL({
+                        table,
+                        namespace,
+                        extraColumns,
+                        namePrefix: "_ponder_reorg__",
+                      }),
+                    )
+                    .execute(tx);
+                }
               }
             };
 
@@ -844,7 +773,7 @@ export const createDatabase = (args: {
               heartbeat_at: Date.now(),
               build_id: buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: Object.keys(getTables(args.schema)),
+              table_names: tableNames,
             } satisfies PonderApp;
 
             /**
@@ -928,23 +857,23 @@ export const createDatabase = (args: {
               });
 
               // Remove indexes
-              for (const [tableName, table] of Object.entries(
-                getTables(args.schema),
-              )) {
-                if (table.constraints === undefined) continue;
+              // for (const [tableName, table] of Object.entries(
+              //   getTables(args.schema),
+              // )) {
+              //   if (table.constraints === undefined) continue;
 
-                for (const name of Object.keys(table.constraints)) {
-                  await tx.schema
-                    .dropIndex(`${tableName}_${name}`)
-                    .ifExists()
-                    .execute();
+              //   for (const name of Object.keys(table.constraints)) {
+              //     await tx.schema
+              //       .dropIndex(`${tableName}_${name}`)
+              //       .ifExists()
+              //       .execute();
 
-                  args.common.logger.info({
-                    service: "database",
-                    msg: `Dropped index '${tableName}_${name}' in schema '${namespace}'`,
-                  });
-                }
-              }
+              //     args.common.logger.info({
+              //       service: "database",
+              //       msg: `Dropped index '${tableName}_${name}' in schema '${namespace}'`,
+              //     });
+              //   }
+              // }
 
               // Revert unfinalized data
 
@@ -956,13 +885,13 @@ export const createDatabase = (args: {
                 msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
               });
 
-              for (const tableName of Object.keys(getTables(args.schema))) {
-                await revert({
-                  tableName,
-                  checkpoint: previousApp.checkpoint,
-                  tx,
-                });
-              }
+              // for (const tableName of tableNames) {
+              //   await revert({
+              //     tableName,
+              //     checkpoint: previousApp.checkpoint,
+              //     tx,
+              //   });
+              // }
 
               return {
                 status: "success",
@@ -1056,7 +985,6 @@ export const createDatabase = (args: {
           });
         } catch (err) {
           const error = err as Error;
-          console.log(error);
           args.common.logger.error({
             service: "database",
             msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
@@ -1069,66 +997,69 @@ export const createDatabase = (args: {
 
       return { checkpoint: result.checkpoint };
     },
-    async createIndexes() {
-      await Promise.all(
-        Object.entries(getTables(args.schema)).flatMap(([tableName, table]) => {
-          if (table.constraints === undefined) return [];
+    // async createIndexes() {
+    //   await Promise.all(
+    //     Object.entries(getTables(args.schema)).flatMap(([tableName, table]) => {
+    //       if (table.constraints === undefined) return [];
 
-          return Object.entries(table.constraints).map(
-            async ([name, index]) => {
-              await qb.internal.wrap({ method: "createIndexes" }, async () => {
-                const indexName = `${tableName}_${name}`;
+    //       return Object.entries(table.constraints).map(
+    //         async ([name, index]) => {
+    //           await qb.internal.wrap({ method: "createIndexes" }, async () => {
+    //             const indexName = `${tableName}_${name}`;
 
-                const indexColumn = index[" column"];
-                const order = index[" order"];
-                const nulls = index[" nulls"];
+    //             const indexColumn = index[" column"];
+    //             const order = index[" order"];
+    //             const nulls = index[" nulls"];
 
-                if (dialect === "sqlite") {
-                  const columns = Array.isArray(indexColumn)
-                    ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-                    : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
+    //             if (dialect === "sqlite") {
+    //               const columns = Array.isArray(indexColumn)
+    //                 ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+    //                 : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
 
-                  await qb.internal.executeQuery(
-                    sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
-                      tableName,
-                    )} (${sql.raw(columns)})`.compile(qb.internal),
-                  );
-                } else {
-                  const columns = Array.isArray(indexColumn)
-                    ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-                    : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
-                        nulls === "first"
-                          ? "NULLS FIRST"
-                          : nulls === "last"
-                            ? "NULLS LAST"
-                            : ""
-                      }`;
+    //               await qb.internal.executeQuery(
+    //                 sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
+    //                   tableName,
+    //                 )} (${sql.raw(columns)})`.compile(qb.internal),
+    //               );
+    //             } else {
+    //               const columns = Array.isArray(indexColumn)
+    //                 ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+    //                 : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
+    //                     nulls === "first"
+    //                       ? "NULLS FIRST"
+    //                       : nulls === "last"
+    //                         ? "NULLS LAST"
+    //                         : ""
+    //                   }`;
 
-                  await qb.internal.executeQuery(
-                    sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
-                      `${namespace}.${tableName}`,
-                    )} (${sql.raw(columns)})`.compile(qb.internal),
-                  );
-                }
-              });
+    //               await qb.internal.executeQuery(
+    //                 sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
+    //                   `${namespace}.${tableName}`,
+    //                 )} (${sql.raw(columns)})`.compile(qb.internal),
+    //               );
+    //             }
+    //           });
 
-              args.common.logger.info({
-                service: "database",
-                msg: `Created index '${tableName}_${name}' on columns (${
-                  Array.isArray(index[" column"])
-                    ? index[" column"].join(", ")
-                    : index[" column"]
-                }) in schema '${namespace}'`,
-              });
-            },
-          );
-        }),
-      );
-    },
+    //           args.common.logger.info({
+    //             service: "database",
+    //             msg: `Created index '${tableName}_${name}' on columns (${
+    //               Array.isArray(index[" column"])
+    //                 ? index[" column"].join(", ")
+    //                 : index[" column"]
+    //             }) in schema '${namespace}'`,
+    //           });
+    //         },
+    //       );
+    //     }),
+    //   );
+    // },
     async revert({ checkpoint }) {
+      const tableNames = Object.values(args.schema)
+        .filter((table): table is PgTable => is(table, PgTable))
+        .map((table) => getTableConfig(table).name);
       await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
-          Object.keys(getTables(args.schema)).map((tableName) =>
+          tableNames.map((tableName) =>
             qb.internal
               .transaction()
               .execute((tx) => revert({ tableName, checkpoint, tx })),
@@ -1149,8 +1080,12 @@ export const createDatabase = (args: {
           })
           .execute();
 
+        const tableNames = Object.values(args.schema)
+          .filter((table): table is PgTable => is(table, PgTable))
+          .map((table) => getTableConfig(table).name);
+
         await Promise.all(
-          Object.keys(getTables(args.schema)).map((tableName) =>
+          tableNames.map((tableName) =>
             qb.internal
               .deleteFrom(`_ponder_reorg__${tableName}`)
               .where("checkpoint", "<=", checkpoint)

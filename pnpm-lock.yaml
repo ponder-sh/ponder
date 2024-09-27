@@ -17,9 +17,6 @@ importers:
       '@changesets/cli':
         specifier: ^2.26.2
         version: 2.27.1
-      drizzle-kit:
-        specifier: ^0.22.8
-        version: 0.22.8
       drizzle-orm:
         specifier: ^0.33.0
         version: 0.33.0(@opentelemetry/api@1.7.0)(@types/better-sqlite3@7.6.10)(@types/pg@8.10.9)(@types/react@18.2.46)(better-sqlite3@11.1.2)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
@@ -148,7 +145,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       drizzle-kit:
-        specifier: ^0.22.8
+        specifier: 0.22.8
         version: 0.22.8
       drizzle-orm:
         specifier: ^0.33.0
@@ -431,6 +428,12 @@ importers:
       '@ponder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      drizzle-kit:
+        specifier: 0.22.8
+        version: 0.22.8
+      drizzle-orm:
+        specifier: ^0.33.0
+        version: 0.33.0(@opentelemetry/api@1.7.0)(@types/better-sqlite3@7.6.10)(@types/pg@8.10.9)(@types/react@18.2.46)(better-sqlite3@11.1.2)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       hono:
         specifier: ^4.5.0
         version: 4.5.0
@@ -511,7 +514,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1ce7535a517406b9aec7ea1ea27c1b41376f712c
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/8f24d6b04c92975e0795b5868aa0d783251cdeaa
 
   examples/with-foundry/ponder:
     dependencies:
@@ -4800,9 +4803,9 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/1ce7535a517406b9aec7ea1ea27c1b41376f712c:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1ce7535a517406b9aec7ea1ea27c1b41376f712c}
-    version: 1.9.2
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/8f24d6b04c92975e0795b5868aa0d783251cdeaa:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/8f24d6b04c92975e0795b5868aa0d783251cdeaa}
+    version: 1.9.3
 
   form-data@2.3.3:
     resolution: {integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==}
@@ -12879,7 +12882,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/1ce7535a517406b9aec7ea1ea27c1b41376f712c: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/8f24d6b04c92975e0795b5868aa0d783251cdeaa: {}
 
   form-data@2.3.3:
     dependencies:

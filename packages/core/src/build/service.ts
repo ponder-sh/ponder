@@ -6,13 +6,11 @@ import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
+import type { Schema } from "@/drizzle/index.js";
 import type { PonderRoutes } from "@/hono/index.js";
-import type { Schema } from "@/schema/common.js";
 import type { Source } from "@/sync/source.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
-import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
@@ -26,7 +24,6 @@ import {
   safeBuildConfigAndIndexingFunctions,
 } from "./configAndIndexingFunctions.js";
 import { vitePluginPonder } from "./plugin.js";
-import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 const BUILD_ID_VERSION = "1";
@@ -54,8 +51,6 @@ type BaseBuild = {
   networks: Network[];
   // Schema
   schema: Schema;
-  graphqlSchema: GraphQLSchema;
-  offchainSchema?: { [name: string]: unknown };
 };
 
 export type IndexingBuild = BaseBuild & {
@@ -190,7 +185,6 @@ export const start = async (
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
   const configResult = await executeConfig(buildService);
   const schemaResult = await executeSchema(buildService);
-  const offchainSchemaResult = await executeOffchainSchema(buildService);
   const indexingResult = await executeIndexingFunctions(buildService);
   const apiResult = await executeApiRoutes(buildService);
 
@@ -204,12 +198,6 @@ export const start = async (
     return {
       indexing: { status: "error", error: schemaResult.error },
       api: { status: "error", error: schemaResult.error },
-    };
-  }
-  if (offchainSchemaResult.status === "error") {
-    return {
-      indexing: { status: "error", error: offchainSchemaResult.error },
-      api: { status: "error", error: offchainSchemaResult.error },
     };
   }
   if (indexingResult.status === "error") {
@@ -227,7 +215,6 @@ export const start = async (
 
   let cachedConfigResult = configResult;
   let cachedSchemaResult = schemaResult;
-  let cachedOffchainSchemaResult = offchainSchemaResult;
   let cachedIndexingResult = indexingResult;
   let cachedApiResult = apiResult;
 
@@ -278,9 +265,7 @@ export const start = async (
       const hasSchemaUpdate = invalidated.includes(
         common.options.schemaFile.replace(/\\/g, "/"),
       );
-      const hasOffchainSchemaUpdate = invalidated.includes(
-        common.options.offchainSchemaFile.replace(/\\/g, "/"),
-      );
+
       const hasIndexingUpdate = invalidated.some(
         (file) =>
           buildService.indexingRegex.test(file) &&
@@ -295,7 +280,6 @@ export const start = async (
       if (
         !hasConfigUpdate &&
         !hasSchemaUpdate &&
-        !hasOffchainSchemaUpdate &&
         !hasIndexingUpdate &&
         !hasApiUpdate
       ) {
@@ -325,16 +309,6 @@ export const start = async (
           return;
         }
         cachedSchemaResult = result;
-      }
-
-      if (hasOffchainSchemaUpdate) {
-        const result = await executeOffchainSchema(buildService);
-        if (result.status === "error") {
-          onIndexingBuild({ status: "error", error: result.error });
-          return;
-        }
-
-        cachedOffchainSchemaResult = result;
       }
 
       if (hasIndexingUpdate) {
@@ -382,7 +356,6 @@ export const start = async (
         buildService,
         cachedConfigResult,
         cachedSchemaResult,
-        cachedOffchainSchemaResult,
         cachedIndexingResult,
       );
       if (indexingBuildResult.status === "error") {
@@ -392,7 +365,7 @@ export const start = async (
       }
 
       // If schema or config is updated, rebuild both api and indexing
-      if (hasConfigUpdate || hasSchemaUpdate || hasOffchainSchemaUpdate) {
+      if (hasConfigUpdate || hasSchemaUpdate) {
         onIndexingBuild(indexingBuildResult);
         onApiBuild(
           validateAndBuildApi(
@@ -429,7 +402,6 @@ export const start = async (
     buildService,
     configResult,
     schemaResult,
-    offchainSchemaResult,
     indexingResult,
   );
 
@@ -509,42 +481,14 @@ const executeSchema = async (
     return executeResult;
   }
 
-  const schema = executeResult.exports.default as Schema;
+  const schema = executeResult.exports;
 
+  // TODO(kyle) hash the contents
   const contentHash = createHash("sha256")
-    .update(serialize(schema))
+    .update(fs.readFileSync(buildService.common.options.schemaFile))
     .digest("hex");
 
   return { status: "success", schema, contentHash };
-};
-
-const executeOffchainSchema = async (
-  buildService: Service,
-): Promise<
-  | { status: "success"; offchainSchema?: { [name: string]: unknown } }
-  | { status: "error"; error: Error }
-> => {
-  if (fs.existsSync(buildService.common.options.offchainSchemaFile) === false) {
-    return { status: "success" };
-  }
-
-  const executeResult = await executeFile(buildService, {
-    file: buildService.common.options.offchainSchemaFile,
-  });
-
-  if (executeResult.status === "error") {
-    buildService.common.logger.error({
-      service: "build",
-      msg: "Error while executing 'ponder.offchain.ts':",
-      error: executeResult.error,
-    });
-
-    return executeResult;
-  }
-
-  const offchainSchema = executeResult.exports;
-
-  return { status: "success", offchainSchema };
 };
 
 const executeIndexingFunctions = async (
@@ -654,32 +598,11 @@ const validateAndBuild = async (
   { common }: Pick<Service, "common">,
   config: { config: Config; contentHash: string },
   schema: { schema: Schema; contentHash: string },
-  offchainSchemaResult: { offchainSchema?: { [name: string]: unknown } },
   indexingFunctions: {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   },
 ): Promise<IndexingBuildResult> => {
-  // Validate and build the schema
-  const buildSchemaResult = safeBuildSchema({
-    schema: schema.schema,
-  });
-  if (buildSchemaResult.status === "error") {
-    common.logger.error({
-      service: "build",
-      msg: "Error while building schema:",
-      error: buildSchemaResult.error,
-    });
-
-    return buildSchemaResult;
-  }
-
-  for (const log of buildSchemaResult.logs) {
-    common.logger[log.level]({ service: "build", msg: log.msg });
-  }
-
-  const graphqlSchema = buildGraphQLSchema(buildSchemaResult.schema);
-
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
@@ -721,9 +644,7 @@ const validateAndBuild = async (
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
-      schema: buildSchemaResult.schema,
-      offchainSchema: offchainSchemaResult.offchainSchema,
-      graphqlSchema,
+      schema: schema.schema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
     },

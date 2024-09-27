@@ -1,5 +1,4 @@
 export { createConfig } from "@/config/config.js";
-export { createSchema } from "@/schema/schema.js";
 export type {
   Block,
   Log,
@@ -24,6 +23,4 @@ export type NetworkConfig = Prettify<Config["networks"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
-export { graphql } from "@/graphql/index.js";
-
-export { ponderHex, ponderBigint } from "@/drizzle/runtime.js";
+// export { graphql } from "@/graphql/index.js";

@@ -8,7 +8,6 @@ export type Options = {
 
   configFile: string;
   schemaFile: string;
-  offchainSchemaFile: string;
   rootDir: string;
   indexingDir: string;
   apiDir: string;
@@ -83,7 +82,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),
-    offchainSchemaFile: path.join(rootDir, "ponder.offchain.ts"),
     indexingDir: path.join(rootDir, "src"),
     apiDir: path.join(rootDir, "src", "api"),
     generatedDir: path.join(rootDir, "generated"),

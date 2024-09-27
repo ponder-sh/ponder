@@ -1,15 +1,15 @@
 import { ponder } from "@/generated";
-import { graphql, replaceBigInts } from "@ponder/core";
-import { count, desc, eq, or } from "drizzle-orm";
+import { replaceBigInts } from "@ponder/core";
+import { count, desc, eq, or } from "@ponder/core/db";
 import { formatEther, getAddress } from "viem";
-import * as offchainSchema from "../../ponder.offchain";
+import * as schema from "../../ponder.schema";
 
-ponder.use("/graphql", graphql());
+// ponder.use("/graphql", graphql());
 
 ponder.get("/count", async (c) => {
   const result = await c.db
     .select({ count: count() })
-    .from(c.tables.TransferEvent);
+    .from(schema.transferEvent);
 
   if (result.length === 0) return c.text("0");
   return c.text(String(result[0]!.count));
@@ -17,13 +17,15 @@ ponder.get("/count", async (c) => {
 
 ponder.get("/count/:address", async (c) => {
   const account = getAddress(c.req.param("address"));
-  const { TransferEvent } = c.tables;
 
   const result = await c.db
     .select({ count: count() })
-    .from(c.tables.TransferEvent)
+    .from(schema.transferEvent)
     .where(
-      or(eq(TransferEvent.fromId, account), eq(TransferEvent.toId, account)),
+      or(
+        eq(schema.transferEvent.from, account),
+        eq(schema.transferEvent.to, account),
+      ),
     );
 
   if (result.length === 0) return c.text("0");
@@ -31,18 +33,19 @@ ponder.get("/count/:address", async (c) => {
 });
 
 ponder.get("/whale-transfers", async (c) => {
-  const { TransferEvent, Account } = c.tables;
-
   // Top 10 transfers from whale accounts
   const result = await c.db
     .select({
-      sender: Account.id,
-      senderBalance: Account.balance,
-      amount: TransferEvent.amount,
+      sender: schema.account.address,
+      senderBalance: schema.account.balance,
+      amount: schema.transferEvent.amount,
     })
-    .from(TransferEvent)
-    .innerJoin(Account, eq(TransferEvent.fromId, Account.id))
-    .orderBy(desc(Account.balance))
+    .from(schema.transferEvent)
+    .innerJoin(
+      schema.account,
+      eq(schema.transferEvent.from, schema.account.address),
+    )
+    .orderBy(desc(schema.account.balance))
     .limit(10);
 
   if (result.length === 0) return c.text("Not found", 500);
@@ -51,7 +54,7 @@ ponder.get("/whale-transfers", async (c) => {
 
 ponder.get("/register/:address", async (c) => {
   const account = getAddress(c.req.param("address"));
-  await c.db.insert(offchainSchema.metadata).values({ account });
+  await c.db.insert(schema.metadata).values({ account });
 
   return c.text("Success", 200);
 });
@@ -60,15 +63,15 @@ ponder.get("/user-transfers", async (c) => {
   // Top 20 largest transfers to registered users
   const result = await c.db
     .select({
-      amount: c.tables.TransferEvent.amount,
-      account: offchainSchema.metadata.account,
+      amount: schema.transferEvent.amount,
+      account: schema.metadata.account,
     })
-    .from(c.tables.TransferEvent)
+    .from(schema.transferEvent)
     .innerJoin(
-      offchainSchema.metadata,
-      eq(c.tables.TransferEvent.toId, offchainSchema.metadata.account),
+      schema.metadata,
+      eq(schema.transferEvent.to, schema.metadata.account),
     )
-    .orderBy(desc(c.tables.TransferEvent.amount))
+    .orderBy(desc(schema.transferEvent.amount))
     .limit(20);
 
   return c.json(replaceBigInts(result, (b) => formatEther(b)));
