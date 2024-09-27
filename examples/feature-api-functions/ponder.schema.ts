@@ -1,57 +1,58 @@
-import { ponderBigint, ponderHex } from "@ponder/core";
 import {
   boolean,
+  evmBigint,
+  evmHex,
   index,
   integer,
-  pgSchema,
-  pgTable,
+  offchainSchema,
+  onchainTable,
   primaryKey,
   serial,
-} from "drizzle-orm/pg-core";
+} from "@ponder/core/db";
 
-export const account = pgTable("account", {
-  address: ponderHex("address").notNull().primaryKey(),
-  balance: ponderBigint("balance").notNull(),
+export const account = onchainTable("account", {
+  address: evmHex("address").primaryKey(),
+  balance: evmBigint("balance").notNull(),
   isOwner: boolean("is_owner").notNull(),
 });
 
-export const allowance = pgTable(
+export const allowance = onchainTable(
   "allowance",
   {
-    owner: ponderHex("owner"),
-    spender: ponderHex("spender"),
-    amount: ponderBigint("amount"),
+    owner: evmHex("owner"),
+    spender: evmHex("spender"),
+    amount: evmBigint("amount").notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.owner, table.spender] }),
   }),
 );
 
-export const transferEvent = pgTable(
+export const transferEvent = onchainTable(
   "transfer_event",
   {
     id: serial("id").primaryKey(),
-    amount: ponderBigint("amount").$type<bigint>(),
+    amount: evmBigint("amount").$type<bigint>(),
     timestamp: integer("timestamp"),
-    from: ponderHex("from"),
-    to: ponderHex("to"),
+    from: evmHex("from"),
+    to: evmHex("to"),
   },
   (table) => ({
     fromIdx: index("from_index").on(table.from),
   }),
 );
 
-export const approvalEvent = pgTable("approval_event", {
+export const approvalEvent = onchainTable("approval_event", {
   id: serial("id").primaryKey(),
-  amount: ponderBigint("amount"),
+  amount: evmBigint("amount"),
   timestamp: integer("timestamp"),
-  owner: ponderHex("from"),
-  spender: ponderHex("to"),
+  owner: evmHex("from"),
+  spender: evmHex("to"),
 });
 
-export const offchainSchema = pgSchema("offchain");
+export const schema = offchainSchema("offchain");
 
-export const metadata = offchainSchema.table("metadata", {
+export const metadata = schema.table("metadata", {
   id: serial("id").primaryKey(),
-  account: ponderHex("account").notNull(),
+  account: evmHex("account").notNull(),
 });

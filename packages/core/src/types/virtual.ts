@@ -239,5 +239,5 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-  } & ApiRegistry;
+  } & ApiRegistry<schema>;
 }

@@ -1,6 +1,6 @@
 import { ponder } from "@/generated";
 import { replaceBigInts } from "@ponder/core";
-import { count, desc, eq, or } from "drizzle-orm";
+import { count, desc, eq, or } from "@ponder/core/db";
 import { formatEther, getAddress } from "viem";
 import * as schema from "../../ponder.schema";
 

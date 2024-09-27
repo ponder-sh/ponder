@@ -24,5 +24,3 @@ export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
 // export { graphql } from "@/graphql/index.js";
-
-export { ponderHex, ponderBigint } from "@/drizzle/index.js";

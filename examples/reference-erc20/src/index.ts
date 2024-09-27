@@ -1,5 +1,5 @@
 import { ponder } from "@/generated";
-import { and, eq } from "drizzle-orm";
+import { and, eq } from "@ponder/core/db";
 import * as schema from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {

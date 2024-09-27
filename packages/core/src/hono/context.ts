@@ -1,8 +1,12 @@
-import type { Drizzle } from "@/drizzle/index.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { Env, Context as HonoContext, Input } from "hono";
 
-export type Context<path extends string = string, input extends Input = {}> = {
-  db: Drizzle;
+export type Context<
+  schema extends Schema = Schema,
+  path extends string = string,
+  input extends Input = {},
+> = {
+  db: Drizzle<schema>;
 } & {
   /**
    * Hono request object.
@@ -43,8 +47,9 @@ export type Context<path extends string = string, input extends Input = {}> = {
 };
 
 export type MiddlewareContext<
+  schema extends Schema = Schema,
   path extends string = string,
   input extends Input = {},
 > = {
-  db: Drizzle;
+  db: Drizzle<schema>;
 } & HonoContext<Env, path, input>;

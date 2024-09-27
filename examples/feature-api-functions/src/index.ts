@@ -1,70 +1,94 @@
 import { ponder } from "@/generated";
+import { and, eq } from "drizzle-orm";
+import * as schema from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
-  const { Account, TransferEvent } = context.db;
+  // Create an "account" for the sender, or update the balance if it already exists.
 
-  // Create an Account for the sender, or update the balance if it already exists.
-  await Account.upsert({
-    id: event.args.from,
-    create: {
-      balance: BigInt(0),
-      isOwner: false,
-    },
-    update: ({ current }) => ({
-      balance: current.balance - event.args.amount,
-    }),
+  const from = await context.db.query.account.findFirst({
+    where: eq(schema.account.address, event.args.from),
   });
 
-  // Create an Account for the recipient, or update the balance if it already exists.
-  await Account.upsert({
-    id: event.args.to,
-    create: {
-      balance: event.args.amount,
+  if (from === undefined) {
+    await context.db.insert(schema.account).values({
+      address: event.args.from,
+      balance: 0n,
       isOwner: false,
-    },
-    update: ({ current }) => ({
-      balance: current.balance + event.args.amount,
-    }),
+    });
+  } else {
+    await context.db
+      .update(schema.account)
+      .set({
+        balance: from.balance - event.args.amount,
+      })
+      .where(eq(schema.account.address, event.args.from));
+  }
+
+  // Create an "account" for the recipient, or update the balance if it already exists.
+
+  const to = await context.db.query.account.findFirst({
+    where: eq(schema.account.address, event.args.to),
   });
 
-  // Create a TransferEvent.
-  await TransferEvent.create({
-    id: event.log.id,
-    data: {
-      fromId: event.args.from,
-      toId: event.args.to,
-      amount: event.args.amount,
-      timestamp: Number(event.block.timestamp),
-    },
+  if (to === undefined) {
+    await context.db.insert(schema.account).values({
+      address: event.args.to,
+      balance: 0n,
+      isOwner: false,
+    });
+  } else {
+    await context.db
+      .update(schema.account)
+      .set({
+        balance: to.balance + event.args.amount,
+      })
+      .where(eq(schema.account.address, event.args.to));
+  }
+
+  // add row to "transfer_event".
+  await context.db.insert(schema.transferEvent).values({
+    amount: event.args.amount,
+    timestamp: Number(event.block.timestamp),
+    from: event.args.from,
+    to: event.args.to,
   });
 });
 
 ponder.on("ERC20:Approval", async ({ event, context }) => {
-  const { Allowance, ApprovalEvent } = context.db;
+  // upsert "allowance".
 
-  const allowanceId = `${event.args.owner}-${event.args.spender}`;
-
-  // Create or update the Allowance.
-  await Allowance.upsert({
-    id: allowanceId,
-    create: {
-      ownerId: event.args.owner,
-      spenderId: event.args.spender,
-      amount: event.args.amount,
-    },
-    update: {
-      amount: event.args.amount,
-    },
+  const allowance = await context.db.query.allowance.findFirst({
+    where: and(
+      eq(schema.allowance.spender, event.args.spender),
+      eq(schema.allowance.owner, event.args.owner),
+    ),
   });
 
-  // Create an ApprovalEvent.
-  await ApprovalEvent.create({
-    id: event.log.id,
-    data: {
-      ownerId: event.args.owner,
-      spenderId: event.args.spender,
+  if (allowance === undefined) {
+    await context.db.insert(schema.allowance).values({
+      owner: event.args.owner,
+      spender: event.args.spender,
       amount: event.args.amount,
-      timestamp: Number(event.block.timestamp),
-    },
+    });
+  } else {
+    await context.db
+      .update(schema.allowance)
+      .set({
+        amount: event.args.amount,
+      })
+      .where(
+        and(
+          eq(schema.allowance.spender, event.args.spender),
+          eq(schema.allowance.owner, event.args.owner),
+        ),
+      );
+  }
+
+  // add row to "approval_event".
+  await context.db.insert(schema.approvalEvent).values({
+    amount: event.args.amount,
+    timestamp: Number(event.block.timestamp),
+    owner: event.args.owner,
+    spender: event.args.spender,
   });
 });

@@ -40,7 +40,7 @@ export async function run({
 
   let isKilled = false;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common,
     schema,
     databaseConfig,

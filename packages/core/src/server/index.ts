@@ -89,8 +89,6 @@ export async function createServer({
     }
   });
 
-  // const db = createDrizzleDb(database);
-
   // await migrate(db, { migrationsFolder: common.options.migrationsDir });
 
   // context required for graphql middleware and hono middleware

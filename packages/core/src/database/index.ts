@@ -3,7 +3,12 @@ import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import { type Drizzle, type Schema, createDrizzleDb } from "@/drizzle/index.js";
+import {
+  type Drizzle,
+  type Schema,
+  createDrizzleDb,
+  onchain,
+} from "@/drizzle/index.js";
 import { generateTableSQL, getPrimaryKeyColumns } from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
@@ -25,6 +30,7 @@ import {
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 import { is } from "drizzle-orm";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
   PgTable,
   getTableConfig,
@@ -122,11 +128,11 @@ type QueryBuilder = {
   sync: HeadlessKysely<PonderSyncSchema>;
 };
 
-export const createDatabase = (args: {
+export const createDatabase = async (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
 
@@ -294,7 +300,21 @@ export const createDatabase = (args: {
     };
   }
 
+  /**
+   * Reset the prototype so `table instanceof PgTable` evaluates to true.
+   */
+  for (const table of Object.values(args.schema)) {
+    // @ts-ignore
+    if (onchain in table) {
+      Object.setPrototypeOf(table, PgTable.prototype);
+    }
+  }
+
   const drizzle = createDrizzleDb({ driver }, { schema: args.schema });
+
+  await migrate(drizzle, {
+    migrationsFolder: args.common.options.migrationsDir,
+  });
 
   // Register metrics
   if (dialect === "sqlite") {

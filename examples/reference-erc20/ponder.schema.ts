@@ -1,49 +1,50 @@
-import { ponderBigint, ponderHex } from "@ponder/core";
 import {
   boolean,
+  evmBigint,
+  evmHex,
   index,
   integer,
-  pgTable,
+  onchainTable,
   primaryKey,
   serial,
-} from "drizzle-orm/pg-core";
+} from "@ponder/core/db";
 
-export const account = pgTable("account", {
-  address: ponderHex("address").notNull().primaryKey(),
-  balance: ponderBigint("balance").notNull(),
+export const account = onchainTable("account", {
+  address: evmHex("address").primaryKey(),
+  balance: evmBigint("balance").notNull(),
   isOwner: boolean("is_owner").notNull(),
 });
 
-export const allowance = pgTable(
+export const allowance = onchainTable(
   "allowance",
   {
-    owner: ponderHex("owner").notNull(),
-    spender: ponderHex("spender").notNull(),
-    amount: ponderBigint("amount").notNull(),
+    owner: evmHex("owner"),
+    spender: evmHex("spender"),
+    amount: evmBigint("amount").notNull(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.owner, table.spender] }),
   }),
 );
 
-export const transferEvent = pgTable(
+export const transferEvent = onchainTable(
   "transfer_event",
   {
     id: serial("id").primaryKey(),
-    amount: ponderBigint("amount").notNull(),
+    amount: evmBigint("amount").notNull(),
     timestamp: integer("timestamp").notNull(),
-    from: ponderHex("from").notNull(),
-    to: ponderHex("to").notNull(),
+    from: evmHex("from").notNull(),
+    to: evmHex("to").notNull(),
   },
   (table) => ({
     fromIdx: index("from_index").on(table.from),
   }),
 );
 
-export const approvalEvent = pgTable("approval_event", {
+export const approvalEvent = onchainTable("approval_event", {
   id: serial("id").primaryKey(),
-  amount: ponderBigint("amount").notNull(),
+  amount: evmBigint("amount").notNull(),
   timestamp: integer("timestamp").notNull(),
-  owner: ponderHex("from").notNull(),
-  spender: ponderHex("to").notNull(),
+  owner: evmHex("from").notNull(),
+  spender: evmHex("to").notNull(),
 });

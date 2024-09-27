@@ -2,7 +2,7 @@ import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import type { Database } from "@/database/index.js";
-import type { Drizzle } from "@/drizzle/index.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { Sync } from "@/sync/index.js";
 import {
   type ContractSource,
@@ -33,7 +33,7 @@ import { type ReadOnlyClient, buildCachedActions } from "./ponderActions.js";
 export type Context = {
   network: { chainId: number; name: string };
   client: ReadOnlyClient;
-  db: Drizzle;
+  db: Drizzle<Schema>;
   contracts: Record<
     string,
     {
@@ -64,7 +64,6 @@ export type Service = {
    */
   currentEvent: {
     contextState: {
-      encodedCheckpoint: string;
       blockNumber: bigint;
     };
     context: Context;
@@ -92,7 +91,6 @@ export const create = ({
   database: Database;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
-    encodedCheckpoint: undefined!,
     blockNumber: undefined!,
   };
   const clientByChainId: Service["clientByChainId"] = {};

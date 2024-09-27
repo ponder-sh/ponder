@@ -32,18 +32,11 @@ import {
   PgInsertBuilder as _PgInsertBuilder,
   PgUpdateBase as _PgUpdateBase,
   PgUpdateBuilder as _PgUpdateBuilder,
-  numeric,
 } from "drizzle-orm/pg-core";
-import {} from "drizzle-orm/pg-core";
 import type { Pool } from "pg";
-import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { getReorgTable } from "./sql.js";
 
-export const ponderHex = <name extends string>(
-  columnName: name,
-): PgHexBuilderInitial<name> => new PgHexBuilder(columnName);
-export const ponderBigint = <name extends string>(columnName: name) =>
-  numeric<name>(columnName, { precision: 78 }).$type<bigint>();
+export const onchain = Symbol.for("ponder:onchain");
 
 export type Drizzle<
   TSchema extends Record<string, unknown> = Record<string, never>,
@@ -100,8 +93,7 @@ class PgDatabase<
   override insert<TTable extends PgTable>(
     table: TTable,
   ): _PgInsertBuilder<TTable, TQueryResult> {
-    // TODO(kyle) detect offchain
-    return this.mode === "historical"
+    return this.mode === "historical" || !(onchain in table)
       ? super.insert(table)
       : new PgInsertBuilder(
           this.checkpoint!,
@@ -114,7 +106,7 @@ class PgDatabase<
   override update<TTable extends PgTable>(
     table: TTable,
   ): _PgUpdateBuilder<TTable, TQueryResult> {
-    return this.mode === "historical"
+    return this.mode === "historical" || !(onchain in table)
       ? super.update(table)
       : new PgUpdateBuilder(
           this.checkpoint!,
@@ -128,7 +120,7 @@ class PgDatabase<
     table: TTable,
   ): _PgDeleteBase<TTable, TQueryResult> {
     // @ts-ignore
-    return this.mode === "historical"
+    return this.mode === "historical" || !(onchain in table)
       ? super.delete(table)
       : new PgDeleteBase(this.checkpoint!, table, this.session, this.dialect);
   }
