@@ -52,7 +52,7 @@ export type Database<
   namespace: string;
   driver: Driver<dialect>;
   qb: QueryBuilder;
-  drizzle: Drizzle;
+  drizzle: Drizzle<Schema>;
   migrateSync(): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
@@ -294,7 +294,7 @@ export const createDatabase = (args: {
     };
   }
 
-  const drizzle = createDrizzleDb({ driver });
+  const drizzle = createDrizzleDb({ driver }, { schema: args.schema });
 
   // Register metrics
   if (dialect === "sqlite") {

@@ -9,6 +9,8 @@ import {
   Table,
   type TablesRelationalConfig,
   type UpdateSet,
+  createTableRelationsHelpers,
+  extractTablesRelationalConfig,
   getTableColumns,
   is,
 } from "drizzle-orm";
@@ -53,15 +55,26 @@ export const createDrizzleDb = <
   TSchema extends Record<string, unknown> = Record<string, never>,
 >(
   database: Pick<Database, "driver">,
-  _config: DrizzleConfig<TSchema> = {},
+  config: DrizzleConfig<TSchema> = {},
 ): Drizzle<TSchema> => {
   const dialect = new PgDialect();
 
-  // TODO(kyle) include schema for relational queries
+  let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+  if (config.schema) {
+    const tablesConfig = extractTablesRelationalConfig(
+      config.schema,
+      createTableRelationsHelpers,
+    );
+    schema = {
+      fullSchema: config.schema,
+      schema: tablesConfig.tables,
+      tableNamesMap: tablesConfig.tableNamesMap,
+    };
+  }
 
   const driver = new NodePgDriver(database.driver.user as Pool, dialect);
-  const session = driver.createSession(undefined);
-  return new PgDatabase(dialect, session, undefined);
+  const session = driver.createSession(schema);
+  return new PgDatabase(dialect, session, schema) as Drizzle<TSchema>;
 };
 
 class PgDatabase<

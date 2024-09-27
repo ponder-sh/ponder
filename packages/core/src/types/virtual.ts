@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Drizzle } from "@/drizzle/index.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type {
   Block,
@@ -156,6 +156,7 @@ export namespace Virtual {
 
   export type Context<
     config extends Config,
+    schema extends Schema,
     name extends EventNames<config>,
     ///
     sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
@@ -217,23 +218,24 @@ export namespace Virtual {
         | "ccipRead"
       >
     >;
-    db: Drizzle;
+    db: Drizzle<schema>;
   };
 
   export type IndexingFunctionArgs<
     config extends Config,
+    schema extends Schema,
     name extends EventNames<config>,
   > = {
     event: Event<config, name>;
-    context: Context<config, name>;
+    context: Context<config, schema, name>;
   };
 
-  export type Registry<config extends Config> = {
+  export type Registry<config extends Config, schema extends Schema> = {
     on: <name extends EventNames<config>>(
       _name: name,
       indexingFunction: (
         args: { event: Event<config, name> } & {
-          context: Prettify<Context<config, name>>;
+          context: Prettify<Context<config, schema, name>>;
         },
       ) => Promise<void> | void,
     ) => void;

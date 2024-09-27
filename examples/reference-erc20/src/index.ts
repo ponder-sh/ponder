@@ -1,16 +1,15 @@
 import { ponder } from "@/generated";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   // Create an "account" for the sender, or update the balance if it already exists.
 
-  const from = await context.db
-    .select()
-    .from(schema.account)
-    .where(eq(schema.account.address, event.args.from));
+  const from = await context.db.query.account.findFirst({
+    where: eq(schema.account.address, event.args.from),
+  });
 
-  if (from.length === 0) {
+  if (from === undefined) {
     await context.db.insert(schema.account).values({
       address: event.args.from,
       balance: 0n,
@@ -20,19 +19,18 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
     await context.db
       .update(schema.account)
       .set({
-        balance: from[0]!.balance - event.args.amount,
+        balance: from.balance - event.args.amount,
       })
       .where(eq(schema.account.address, event.args.from));
   }
 
   // Create an "account" for the recipient, or update the balance if it already exists.
 
-  const to = await context.db
-    .select()
-    .from(schema.account)
-    .where(eq(schema.account.address, event.args.to));
+  const to = await context.db.query.account.findFirst({
+    where: eq(schema.account.address, event.args.to),
+  });
 
-  if (to.length === 0) {
+  if (to === undefined) {
     await context.db.insert(schema.account).values({
       address: event.args.to,
       balance: 0n,
@@ -42,7 +40,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
     await context.db
       .update(schema.account)
       .set({
-        balance: to[0]!.balance + event.args.amount,
+        balance: to.balance + event.args.amount,
       })
       .where(eq(schema.account.address, event.args.to));
   }
@@ -59,19 +57,32 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 ponder.on("ERC20:Approval", async ({ event, context }) => {
   // upsert "allowance".
 
-  // await context.db
-  //   .insert(schema.allowance)
-  //   .values({
-  //     owner: event.args.owner,
-  //     spender: event.args.spender,
-  //     amount: event.args.amount,
-  //   })
-  //   .onConflictDoUpdate({
-  //     target: [schema.allowance.spender, schema.allowance.owner],
-  //     set: {
-  //       amount: event.args.amount,
-  //     },
-  //   });
+  const allowance = await context.db.query.allowance.findFirst({
+    where: and(
+      eq(schema.allowance.spender, event.args.spender),
+      eq(schema.allowance.owner, event.args.owner),
+    ),
+  });
+
+  if (allowance === undefined) {
+    await context.db.insert(schema.allowance).values({
+      owner: event.args.owner,
+      spender: event.args.spender,
+      amount: event.args.amount,
+    });
+  } else {
+    await context.db
+      .update(schema.allowance)
+      .set({
+        amount: event.args.amount,
+      })
+      .where(
+        and(
+          eq(schema.allowance.spender, event.args.spender),
+          eq(schema.allowance.owner, event.args.owner),
+        ),
+      );
+  }
 
   // add row to "approval_event".
   await context.db.insert(schema.approvalEvent).values({
