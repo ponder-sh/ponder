@@ -1,11 +1,11 @@
 import type { Database } from "@/database/index.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import {
   type DrizzleConfig,
   type ExtractTablesWithRelations,
   Param,
   type RelationalSchemaConfig,
   SQL,
+  type Subquery,
   Table,
   type TablesRelationalConfig,
   type UpdateSet,
@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/node-postgres";
 import {
   PgDialect,
+  type PgInsertConfig,
   type PgInsertValue,
   type PgQueryResultHKT,
   type PgSession,
@@ -69,8 +70,10 @@ class PgDatabase<
   TSchema extends
     TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > extends _PgDatabase<TQueryResult, TFullSchema, TSchema> {
+  checkpoint: string | undefined;
+  mode: "historical" | "realtime";
+
   constructor(
-    // getRuntimeinfo() => {isRealtime}
     /** @internal */
     readonly dialect: PgDialect,
     /** @internal */
@@ -78,24 +81,43 @@ class PgDatabase<
     schema: RelationalSchemaConfig<TSchema> | undefined,
   ) {
     super(dialect, session, schema);
+    this.mode = "historical";
   }
 
   override insert<TTable extends PgTable>(
     table: TTable,
-  ): PgInsertBuilder<TTable, TQueryResult> {
-    return new PgInsertBuilder(table, this.session, this.dialect);
+  ): _PgInsertBuilder<TTable, TQueryResult> {
+    // TODO(kyle) detect offchain
+    return this.mode === "historical"
+      ? super.insert(table)
+      : new PgInsertBuilder(
+          this.checkpoint!,
+          table,
+          this.session,
+          this.dialect,
+        );
   }
 
   override update<TTable extends PgTable>(
     table: TTable,
-  ): PgUpdateBuilder<TTable, TQueryResult> {
-    return new PgUpdateBuilder(table, this.session, this.dialect);
+  ): _PgUpdateBuilder<TTable, TQueryResult> {
+    return this.mode === "historical"
+      ? super.update(table)
+      : new PgUpdateBuilder(
+          this.checkpoint!,
+          table,
+          this.session,
+          this.dialect,
+        );
   }
 
   override delete<TTable extends PgTable>(
     table: TTable,
-  ): PgDeleteBase<TTable, TQueryResult> {
-    return new PgDeleteBase(table, this.session, this.dialect);
+  ): _PgDeleteBase<TTable, TQueryResult> {
+    // @ts-ignore
+    return this.mode === "historical"
+      ? super.delete(table)
+      : new PgDeleteBase(this.checkpoint!, table, this.session, this.dialect);
   }
 }
 
@@ -103,6 +125,16 @@ class PgInsertBuilder<
   TTable extends PgTable,
   TQueryResult extends PgQueryResultHKT,
 > extends _PgInsertBuilder<TTable, TQueryResult> {
+  constructor(
+    private checkpoint: string,
+    table: TTable,
+    session: PgSession,
+    dialect: PgDialect,
+    withList?: Subquery[],
+  ) {
+    super(table, session, dialect, withList);
+  }
+
   override values(
     value: PgInsertValue<TTable>,
   ): PgInsertBase<TTable, TQueryResult>;
@@ -130,10 +162,15 @@ class PgInsertBuilder<
     });
 
     return new PgInsertBase(
+      this.checkpoint,
+      // @ts-ignore
       this.table,
       mappedValues,
+      // @ts-ignore
       this.session,
+      // @ts-ignore
       this.dialect,
+      // @ts-ignore
       this.withList,
     );
   }
@@ -143,6 +180,16 @@ class PgUpdateBuilder<
   TTable extends PgTable,
   TQueryResult extends PgQueryResultHKT,
 > extends _PgUpdateBuilder<TTable, TQueryResult> {
+  constructor(
+    private checkpoint: string,
+    table: TTable,
+    session: PgSession,
+    dialect: PgDialect,
+    withList?: Subquery[],
+  ) {
+    super(table, session, dialect, withList);
+  }
+
   override set(
     values: PgUpdateSetSource<TTable>,
   ): PgUpdateBase<TTable, TQueryResult> {
@@ -162,10 +209,15 @@ class PgUpdateBuilder<
     }
 
     return new PgUpdateBase<TTable, TQueryResult>(
+      this.checkpoint,
+      // @ts-ignore
       this.table,
       Object.fromEntries(entries),
+      // @ts-ignore
       this.session,
+      // @ts-ignore
       this.dialect,
+      // @ts-ignore
       this.withList,
     );
   }
@@ -184,31 +236,51 @@ class PgInsertBase<
   TDynamic,
   TExcludedMethods
 > {
+  constructor(
+    private checkpoint: string,
+    table: TTable,
+    values: PgInsertConfig["values"],
+    session: PgSession,
+    dialect: PgDialect,
+    withList?: Subquery[],
+  ) {
+    super(table, values, session, dialect, withList);
+  }
+
   override execute: ReturnType<this["prepare"]>["execute"] = async (
     placeholderValues,
   ) => {
     const operation = new Param(0);
-    const checkpoint = new Param(encodeCheckpoint(zeroCheckpoint));
+    const checkpoint = new Param(this.checkpoint);
 
+    // @ts-ignore
     for (const v of this.config.values) {
       v.operation = operation;
       v.checkpoint = checkpoint;
     }
 
+    // @ts-ignore
     const table = this.config.table;
+    // @ts-ignore
     this.config.table = getReorgTable(this.config.table);
 
+    // @ts-ignore
     await this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.dialect.buildInsertQuery(this.config)),
       )
       .execute(placeholderValues);
 
+    // @ts-ignore
     this.config.table = table;
 
+    // @ts-ignore
     return this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.getSQL()),
+        // @ts-ignore
         this.config.returning,
         undefined,
         true,
@@ -230,11 +302,25 @@ class PgUpdateBase<
   TDynamic,
   TExcludedMethods
 > {
+  constructor(
+    private checkpoint: string,
+    table: TTable,
+    set: UpdateSet,
+    session: PgSession,
+    dialect: PgDialect,
+    withList?: Subquery[],
+  ) {
+    super(table, set, session, dialect, withList);
+  }
+
   override execute: ReturnType<this["prepare"]>["execute"] = async (
     placeholderValues,
   ) => {
+    // @ts-ignore
     this.config.fields = getTableColumns<PgTable>(this.config.table);
+    // @ts-ignore
     this.config.setOperators = [];
+    // @ts-ignore
     const fieldsList = Object.entries(this.config.fields).map(
       ([name, field]) => ({
         path: [name],
@@ -242,8 +328,10 @@ class PgUpdateBase<
       }),
     );
 
+    // @ts-ignore
     const select = await this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.dialect.buildSelectQuery(this.config)),
         fieldsList,
         undefined,
@@ -252,10 +340,12 @@ class PgUpdateBase<
       .execute(placeholderValues);
 
     const operation = new Param(1);
-    const checkpoint = new Param(encodeCheckpoint(zeroCheckpoint));
+    const checkpoint = new Param(this.checkpoint);
 
+    // @ts-ignore
     const values = select.map((entry) => {
       const result: Record<string, Param | SQL> = {};
+      // @ts-ignore
       const cols = this.config.table[Table.Symbol.Columns];
       for (const colKey of Object.keys(entry)) {
         const colValue = entry[colKey as keyof typeof entry];
@@ -269,21 +359,30 @@ class PgUpdateBase<
       return result;
     });
 
+    // @ts-ignore
     const table = this.config.table;
+    // @ts-ignore
     this.config.table = getReorgTable(this.config.table);
+    // @ts-ignore
     this.config.values = values;
 
+    // @ts-ignore
     await this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.dialect.buildInsertQuery(this.config)),
       )
       .execute(placeholderValues);
 
+    // @ts-ignore
     this.config.table = table;
 
+    // @ts-ignore
     return this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.getSQL()),
+        // @ts-ignore
         this.config.returning,
         undefined,
         true,
@@ -305,11 +404,24 @@ class PgDeleteBase<
   TDynamic,
   TExcludedMethods
 > {
+  constructor(
+    private checkpoint: string,
+    table: TTable,
+    session: PgSession,
+    dialect: PgDialect,
+    withList?: Subquery[],
+  ) {
+    super(table, session, dialect, withList);
+  }
+
   override execute: ReturnType<this["prepare"]>["execute"] = async (
     placeholderValues,
   ) => {
+    // @ts-ignore
     this.config.fields = getTableColumns<PgTable>(this.config.table);
+    // @ts-ignore
     this.config.setOperators = [];
+    // @ts-ignore
     const fieldsList = Object.entries(this.config.fields).map(
       ([name, field]) => ({
         path: [name],
@@ -317,8 +429,10 @@ class PgDeleteBase<
       }),
     );
 
+    // @ts-ignore
     const select = await this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.dialect.buildSelectQuery(this.config)),
         fieldsList,
         undefined,
@@ -326,11 +440,13 @@ class PgDeleteBase<
       )
       .execute(placeholderValues);
 
-    const operation = new Param(1);
-    const checkpoint = new Param(encodeCheckpoint(zeroCheckpoint));
+    const operation = new Param(2);
+    const checkpoint = new Param(this.checkpoint);
 
+    // @ts-ignore
     const values = select.map((entry) => {
       const result: Record<string, Param | SQL> = {};
+      // @ts-ignore
       const cols = this.config.table[Table.Symbol.Columns];
       for (const colKey of Object.keys(entry)) {
         const colValue = entry[colKey as keyof typeof entry];
@@ -344,21 +460,30 @@ class PgDeleteBase<
       return result;
     });
 
+    // @ts-ignore
     const table = this.config.table;
+    // @ts-ignore
     this.config.table = getReorgTable(this.config.table);
+    // @ts-ignore
     this.config.values = values;
 
+    // @ts-ignore
     await this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.dialect.buildInsertQuery(this.config)),
       )
       .execute(placeholderValues);
 
+    // @ts-ignore
     this.config.table = table;
 
+    // @ts-ignore
     return this.session
       .prepareQuery(
+        // @ts-ignore
         this.dialect.sqlToQuery(this.getSQL()),
+        // @ts-ignore
         this.config.returning,
         undefined,
         true,

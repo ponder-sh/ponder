@@ -414,7 +414,7 @@ const executeSetup = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.contextState.encodedCheckpoint = event.checkpoint;
+    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.block;
 
     const endClock = startClock();
@@ -474,7 +474,7 @@ const executeLog = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.contextState.encodedCheckpoint = event.checkpoint;
+    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
@@ -538,7 +538,7 @@ const executeBlock = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.contextState.encodedCheckpoint = event.checkpoint;
+    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
@@ -608,7 +608,7 @@ const executeCallTrace = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.contextState.encodedCheckpoint = event.checkpoint;
+    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();

@@ -197,19 +197,9 @@ export async function run({
 
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
+    database.drizzle.mode = "realtime";
+
     // await database.createIndexes({ schema });
-
-    // indexingStore = {
-    //   ...readonlyStore,
-    //   ...getRealtimeStore({
-    //     dialect: database.dialect,
-    //     schema,
-    //     db: database.qb.user,
-    //     common,
-    //   }),
-    // };
-
-    // indexingService.updateIndexingStore({ indexingStore, schema });
 
     sync.startRealtime();
 
