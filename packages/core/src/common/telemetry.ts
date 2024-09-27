@@ -269,7 +269,7 @@ function getPackageJson(rootDir: string) {
 }
 
 export function buildPayload(build: IndexingBuild) {
-  // const table_count = Object.keys(getTables(build.schema)).length;
+  const table_count = Object.keys(build.schema).length;
   const indexing_function_count = Object.values(build.indexingFunctions).reduce(
     (acc, f) => acc + Object.keys(f).length,
     0,
@@ -279,7 +279,7 @@ export function buildPayload(build: IndexingBuild) {
     database_kind: build.databaseConfig.kind,
     contract_count: build.sources.length,
     network_count: build.networks.length,
-    table_count: 1,
+    table_count,
     indexing_function_count,
   };
 }

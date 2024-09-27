@@ -483,11 +483,12 @@ const executeSchema = async (
 
   const schema = executeResult.exports;
 
-  // const contentHash = createHash("sha256")
-  //   .update(serialize(schema))
-  //   .digest("hex");
+  // TODO(kyle) hash the contents
+  const contentHash = createHash("sha256")
+    .update(fs.readFileSync(buildService.common.options.schemaFile))
+    .digest("hex");
 
-  return { status: "success", schema, contentHash: "0x" };
+  return { status: "success", schema, contentHash };
 };
 
 const executeIndexingFunctions = async (

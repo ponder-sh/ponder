@@ -985,7 +985,6 @@ export const createDatabase = async (args: {
           });
         } catch (err) {
           const error = err as Error;
-          console.log(error);
           args.common.logger.error({
             service: "database",
             msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
