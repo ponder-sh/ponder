@@ -35,7 +35,13 @@ import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
-import { type Address, type Transport, hexToBigInt, hexToNumber } from "viem";
+import {
+  type Address,
+  type Hash,
+  type Transport,
+  hexToBigInt,
+  hexToNumber,
+} from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import { type RawEvent, buildEvents } from "./events.js";
 import { type Factory, type Source, isAddressFactory } from "./source.js";
@@ -781,8 +787,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               hexToNumber(led.block.number) <= hexToNumber(event.block.number),
           );
 
+        const reorgedHashes = new Set<Hash>();
+        for (const b of event.reorgedBlocks) {
+          reorgedHashes.add(b.hash);
+        }
+
         unindexedEvents = unindexedEvents.filter(
-          (event) => event.checkpoint <= checkpoint,
+          (e) => reorgedHashes.has(e.block.hash) === false,
         );
 
         await args.syncStore.pruneRpcRequestResult({
