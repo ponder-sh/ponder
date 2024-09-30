@@ -40,6 +40,7 @@ export {
   sumDistinct,
   max,
   min,
+  relations,
 } from "drizzle-orm";
 
 export {
