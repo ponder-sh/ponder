@@ -159,6 +159,7 @@ Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contain
 
 ```ts filename="src/api/index.ts" {3,5}
 import { ponder } from "@/generated";
+import { eq } from "@ponder/core";
 
 ponder.get("/account/:address", async (c) => {
   const { Account } = c.tables;
@@ -167,7 +168,7 @@ ponder.get("/account/:address", async (c) => {
   const account = await c.db
     .select()
     .from(Account)
-    .where({ id: address })
+    .where(eq(Accout.address, address))
     .first();
 
   if (account) {
