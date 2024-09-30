@@ -661,6 +661,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        * Handle a new block being finalized.
        */
       case "finalize": {
+        // Newly finalized range
+        const interval = [
+          hexToNumber(syncProgress.finalized.number),
+          hexToNumber(event.block.number),
+        ] satisfies Interval;
+
         // Update local sync, record checkpoint before and after
         const prev = getOmnichainCheckpoint("finalized")!;
         syncProgress.finalized = event.block;
@@ -670,12 +676,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         if (checkpoint > prev) {
           args.onRealtimeEvent({ type: "finalize", checkpoint });
         }
-
-        // Newly finalized range
-        const interval = [
-          hexToNumber(syncProgress.finalized.number),
-          hexToNumber(event.block.number),
-        ] satisfies Interval;
 
         const finalizedEventData = unfinalizedEventData.filter(
           (ued) =>
