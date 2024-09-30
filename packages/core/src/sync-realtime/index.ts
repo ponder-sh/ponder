@@ -405,13 +405,15 @@ export const createRealtimeSync = (
       }
     }
 
-    await args.onEvent({ type: "reorg", block: remoteBlock, reorgedBlocks });
+    const commonAncestor = getLatestUnfinalizedBlock();
+
+    await args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
 
     args.common.logger.warn({
       service: "realtime",
-      msg: `Reconciled ${hexToNumber(block.number) - hexToNumber(remoteBlock.number)}-block reorg on '${
+      msg: `Reconciled ${reorgedBlocks.length}-block reorg on '${
         args.network.name
-      }' with common ancestor block ${hexToNumber(remoteBlock.number)}`,
+      }' with common ancestor block ${hexToNumber(commonAncestor.number)}`,
     });
 
     // recompute `unfinalizedChildAddresses`
@@ -530,9 +532,6 @@ export const createRealtimeSync = (
 
           factoryLogsPerBlock.get(block.hash)!.push(log);
 
-          // unfinalizedChildAddresses
-          //   .get(filter)!
-          //   .add(getChildAddress({ log, factory: filter }));
           isMatched = true;
         }
       }
