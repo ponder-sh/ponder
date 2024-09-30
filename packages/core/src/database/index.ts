@@ -419,6 +419,12 @@ export const createDatabase = async (args: {
     return dialect === "sqlite" ? JSON.stringify(app) : (app as any);
   };
 
+  /**
+   * Undo operations in user tables by using the `_ponder_reorg` metadata.
+   *
+   * Note: `_ponder_reorg` tables may contain operations that have not been applied to the
+   *       underlying tables, but only be 1 operation at most.
+   */
   const revert = async ({
     tableName,
     checkpoint,
@@ -489,6 +495,8 @@ export const createDatabase = async (args: {
           // @ts-ignore
           .insertInto(tableName)
           .values(log as any)
+          // @ts-ignore
+          .onConflict((oc) => oc.columns(primaryKeyColumns).doNothing())
           .execute();
       }
     }
