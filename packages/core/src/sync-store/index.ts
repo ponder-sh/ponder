@@ -427,6 +427,7 @@ export const createSyncStore = ({
                   .selectFrom(`${table}Intervals`)
                   .where(idCol, "=", fragment.id)
                   .select("id")
+                  .orderBy("startBlock asc")
                   .limit(common.options.syncStoreMaxIntervals),
               )
               .returning(["startBlock", "endBlock"])
