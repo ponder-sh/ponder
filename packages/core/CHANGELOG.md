@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.4
+
+### Patch Changes
+
+- [#1124](https://github.com/ponder-sh/ponder/pull/1124) [`75dc61d2c3bbbdfc0dd00fa8713428de7d0518c1`](https://github.com/ponder-sh/ponder/commit/75dc61d2c3bbbdfc0dd00fa8713428de7d0518c1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing "getIntervals" to error on startup for some large, long-running apps.
+
 ## 0.6.3
 
 ### Patch Changes
