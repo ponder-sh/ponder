@@ -429,6 +429,7 @@ export const createSyncStore = ({
                   .select("id")
                   .limit(common.options.syncStoreMaxIntervals),
               )
+              .orderBy("startBlock asc")
               .returning(["startBlock", "endBlock"])
               .execute();
 
