@@ -270,7 +270,7 @@ export const createRealtimeSync = (
         service: "realtime",
         msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
           args.network.name
-        }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${pendingFinalizedBlock.number}`,
+        }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${hexToNumber(pendingFinalizedBlock.number)}`,
       });
 
       localChain = localChain.filter(
