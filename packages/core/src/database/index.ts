@@ -312,9 +312,11 @@ export const createDatabase = async (args: {
 
   const drizzle = createDrizzleDb({ driver }, { schema: args.schema });
 
-  await migrate(drizzle, {
-    migrationsFolder: args.common.options.migrationsDir,
-  });
+  if (fs.existsSync(args.common.options.migrationsDir)) {
+    await migrate(drizzle, {
+      migrationsFolder: args.common.options.migrationsDir,
+    });
+  }
 
   // Register metrics
   if (dialect === "sqlite") {
@@ -893,13 +895,13 @@ export const createDatabase = async (args: {
                 msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
               });
 
-              // for (const tableName of tableNames) {
-              //   await revert({
-              //     tableName,
-              //     checkpoint: previousApp.checkpoint,
-              //     tx,
-              //   });
-              // }
+              for (const tableName of tableNames) {
+                await revert({
+                  tableName,
+                  checkpoint: previousApp.checkpoint,
+                  tx,
+                });
+              }
 
               return {
                 status: "success",
