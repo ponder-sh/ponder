@@ -1,7 +1,7 @@
 import { onchainTable } from "@/drizzle/db.js";
 import { integer, text } from "drizzle-orm/pg-core";
 import { test } from "vitest";
-import type { Delete, Find, Insert, Update } from "./db.js";
+import type { Delete, Find, Insert, Update, Upsert } from "./db.js";
 
 test("find", () => {
   const table = onchainTable("table", {
@@ -34,6 +34,35 @@ test("update", () => {
   const update: Update = () => {};
   const t = update(table, { id: "kevin" }).set({ other: 52 });
   //    ^?
+});
+
+test("upsert", async () => {
+  const table = onchainTable("table", {
+    id: text("id").primaryKey(),
+    other: integer("other"),
+  });
+
+  const upsert: Upsert = () => {};
+  const t1 = await upsert(table, { id: "kevin" }).insert({ other: 52 });
+  //    ^?
+  const t2 = await upsert(table, { id: "kevin" }).update({ other: 52 });
+  //    ^?
+  const t3 = await upsert(table, { id: "kevin" })
+    //  ^?
+    .insert({ other: 52 })
+    .update({ other: 52 });
+  const t4 = await upsert(table, { id: "kevin" })
+    //  ^?
+    .update({ other: 52 })
+    .insert({ other: 52 });
+  const t5 = await upsert(table, { id: "kevin" })
+    //  ^?
+    .insert({ other: 52 })
+    .update((cur) => ({ other: cur.other ?? 99 }));
+  const t6 = await upsert(table, { id: "kevin" })
+    //  ^?
+    .update((cur) => ({ other: cur.other ?? 99 }))
+    .insert({ other: 52 });
 });
 
 test("delete", () => {

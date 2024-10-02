@@ -16,7 +16,7 @@ const getKeyConditional = (table: Table, key: Object): SQL<unknown> => {
 export const createIndexingStore = ({
   database,
 }: { database: Database }): IndexingStore => {
-  return {
+  const indexingStore = {
     // @ts-ignore
     find(table, key) {
       return database.drizzle
@@ -45,9 +45,78 @@ export const createIndexingStore = ({
       };
     },
     // @ts-ignore
+    upsert(table, key) {
+      return {
+        insert(valuesI: any) {
+          return {
+            async update(valuesU: any) {
+              const row = await indexingStore.find(table, key);
+
+              if (row === undefined) {
+                await indexingStore
+                  .insert(table)
+                  .values({ ...key, ...valuesI });
+              } else {
+                if (typeof valuesU === "function") {
+                  const values = valuesU(row);
+                  await indexingStore.update(table, key).set(values);
+                } else {
+                  await indexingStore.update(table, key).set(valuesU);
+                }
+              }
+            },
+            // biome-ignore lint/suspicious/noThenProperty: <explanation>
+            async then() {
+              const row = await indexingStore.find(table, key);
+              if (row === undefined) {
+                await indexingStore
+                  .insert(table)
+                  .values({ ...key, ...valuesI });
+              }
+            },
+          };
+        },
+        update(valuesU: any) {
+          return {
+            async insert(valuesI: any) {
+              const row = await indexingStore.find(table, key);
+
+              if (row === undefined) {
+                await indexingStore
+                  .insert(table)
+                  .values({ ...key, ...valuesI });
+              } else {
+                if (typeof valuesU === "function") {
+                  const values = valuesU(row);
+                  await indexingStore.update(table, key).set(values);
+                } else {
+                  await indexingStore.update(table, key).set(valuesU);
+                }
+              }
+            },
+            // biome-ignore lint/suspicious/noThenProperty: <explanation>
+            async then() {
+              const row = await indexingStore.find(table, key);
+              if (row !== undefined) {
+                if (typeof valuesU === "function") {
+                  const values = valuesU(row);
+                  await indexingStore.update(table, key).set(values);
+                } else {
+                  await indexingStore.update(table, key).set(valuesU);
+                }
+              }
+            },
+          };
+        },
+      };
+    },
+    // @ts-ignore
     async delete(table, key) {
       await database.drizzle.delete(table).where(getKeyConditional(table, key));
     },
     raw: database.drizzle,
-  };
+  } satisfies IndexingStore;
+
+  // @ts-ignore
+  return indexingStore;
 };

@@ -11,6 +11,8 @@ export type Db<schema extends Schema> = {
   find: Find;
   insert: Insert;
   update: Update;
+  upsert: Upsert;
+  delete: Delete;
   raw: Drizzle<schema>;
 };
 
@@ -60,6 +62,31 @@ export type Update = <table extends Table>(
   key: Key<Table>,
 ) => {
   set: (values: Partial<InferInsertModel<table>>) => Promise<void>;
+};
+
+/**
+ * If row exists, update, else insert
+ */
+export type Upsert = <table extends Table>(
+  table: table,
+  key: Key<Table>,
+) => {
+  insert: (values: Omit<InferInsertModel<table>, InferPrimaryKey<table>>) => {
+    update: (
+      values:
+        | Partial<InferInsertModel<table>>
+        | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
+    ) => Promise<void>;
+  } & Promise<void>;
+  update: (
+    values:
+      | Partial<InferInsertModel<table>>
+      | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
+  ) => {
+    insert: (
+      values: Omit<InferInsertModel<table>, InferPrimaryKey<table>>,
+    ) => Promise<void>;
+  } & Promise<void>;
 };
 
 /**
