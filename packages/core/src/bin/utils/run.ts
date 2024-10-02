@@ -109,6 +109,8 @@ export async function run({
 
           if (result.status === "error") onReloadableError(result.error);
 
+          // TODO(kyle) update _ponder_reorg__ table checkpoint
+
           await metadataStore.setStatus(status);
 
           break;
@@ -197,9 +199,8 @@ export async function run({
 
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
-    database.drizzle.mode = "realtime";
-
     // await database.createIndexes({ schema });
+    await database.createTriggers();
 
     sync.startRealtime();
 
