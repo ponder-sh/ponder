@@ -1,12 +1,11 @@
 import { ponder } from "@/generated";
-import { and, eq } from "@ponder/core/db";
 import * as schema from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   // Create an "account" for the sender, or update the balance if it already exists.
 
-  const from = await context.db.query.account.findFirst({
-    where: eq(schema.account.address, event.args.from),
+  const from = await context.db.find(schema.account, {
+    address: event.args.from,
   });
 
   if (from === undefined) {
@@ -16,18 +15,15 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
       isOwner: false,
     });
   } else {
-    await context.db
-      .update(schema.account)
-      .set({
-        balance: from.balance - event.args.amount,
-      })
-      .where(eq(schema.account.address, event.args.from));
+    await context.db.update(schema.account, { address: event.args.from }).set({
+      balance: from.balance - event.args.amount,
+    });
   }
 
   // Create an "account" for the recipient, or update the balance if it already exists.
 
-  const to = await context.db.query.account.findFirst({
-    where: eq(schema.account.address, event.args.to),
+  const to = await context.db.find(schema.account, {
+    address: event.args.to,
   });
 
   if (to === undefined) {
@@ -37,12 +33,9 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
       isOwner: false,
     });
   } else {
-    await context.db
-      .update(schema.account)
-      .set({
-        balance: to.balance + event.args.amount,
-      })
-      .where(eq(schema.account.address, event.args.to));
+    await context.db.update(schema.account, { address: event.args.to }).set({
+      balance: to.balance + event.args.amount,
+    });
   }
 
   // add row to "transfer_event".
@@ -57,11 +50,9 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 ponder.on("ERC20:Approval", async ({ event, context }) => {
   // upsert "allowance".
 
-  const allowance = await context.db.query.allowance.findFirst({
-    where: and(
-      eq(schema.allowance.spender, event.args.spender),
-      eq(schema.allowance.owner, event.args.owner),
-    ),
+  const allowance = await context.db.find(schema.allowance, {
+    spender: event.args.spender,
+    owner: event.args.owner,
   });
 
   if (allowance === undefined) {
@@ -72,16 +63,13 @@ ponder.on("ERC20:Approval", async ({ event, context }) => {
     });
   } else {
     await context.db
-      .update(schema.allowance)
+      .update(schema.allowance, {
+        spender: event.args.spender,
+        owner: event.args.owner,
+      })
       .set({
         amount: event.args.amount,
-      })
-      .where(
-        and(
-          eq(schema.allowance.spender, event.args.spender),
-          eq(schema.allowance.owner, event.args.owner),
-        ),
-      );
+      });
   }
 
   // add row to "approval_event".
