@@ -139,7 +139,7 @@ export type IsSerialPrimaryKey<
 export type Find = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
-    : PonderTypeError<`.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
+    : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<Table>,
 ) => Promise<InferSelectModel<table> | undefined>;
 

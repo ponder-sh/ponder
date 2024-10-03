@@ -91,6 +91,15 @@ export class CheckConstraintError extends NonRetryableError {
   }
 }
 
+export class InvalidStoreMethodError extends NonRetryableError {
+  override name = "InvalidStoreMethodError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, CheckConstraintError.prototype);
+  }
+}
+
 export class BigIntSerializationError extends NonRetryableError {
   override name = "BigIntSerializationError";
 

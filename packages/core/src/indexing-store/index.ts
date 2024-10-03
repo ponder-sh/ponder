@@ -1,7 +1,9 @@
+import { InvalidStoreMethodError } from "@/common/errors.js";
 import type { Database } from "@/database/index.js";
-import type { Schema } from "@/drizzle/index.js";
+import { type Schema, onchain } from "@/drizzle/index.js";
 import type { Db } from "@/types/db.js";
 import { type SQL, type Table, and, eq } from "drizzle-orm";
+import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 
 export type IndexingStore = Db<Schema>;
 
@@ -13,40 +15,69 @@ const getKeyConditional = (table: Table, key: Object): SQL<unknown> => {
   );
 };
 
+const checkOnchainTable = (
+  table: Table,
+  method: "find" | "insert" | "update" | "upsert" | "delete",
+) => {
+  if (onchain in table) return;
+
+  throw new InvalidStoreMethodError(
+    method === "find"
+      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
+      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
+  );
+};
+
 export const createIndexingStore = ({
   database,
 }: { database: Database }): IndexingStore => {
+  const wrap = database.qb.user.wrap;
+
   const indexingStore = {
-    // @ts-ignore
-    find(table, key) {
-      return database.drizzle
-        .select()
-        .from(table)
-        .where(getKeyConditional(table, key))
-        .then((res) => (res.length === 0 ? undefined : res[0]));
-    },
-    // @ts-ignore
+    find: (table, key) =>
+      // @ts-ignore
+      wrap({ method: `${getTableConfig(table).name}.find()` }, () => {
+        checkOnchainTable(table as Table, "find");
+        return database.drizzle
+          .select()
+          .from(table as PgTable)
+          .where(getKeyConditional(table as PgTable, key))
+          .then((res) => (res.length === 0 ? undefined : res[0]));
+      }),
     insert(table) {
       return {
-        values: async (values: any) => {
-          await database.drizzle.insert(table).values(values);
-        },
+        values: (values: any) =>
+          wrap(
+            { method: `${getTableConfig(table as PgTable).name}.insert()` },
+            async () => {
+              checkOnchainTable(table as Table, "insert");
+              await database.drizzle.insert(table as PgTable).values(values);
+            },
+          ),
       };
     },
     // @ts-ignore
     update(table, key) {
       return {
-        set: async (values: any) => {
-          if (typeof values === "function") {
-            const row = await indexingStore.find(table, key);
-            await indexingStore.update(table, key).set(values(row));
-          } else {
-            await database.drizzle
-              .update(table)
-              .set(values)
-              .where(getKeyConditional(table, key));
-          }
-        },
+        set: (values: any) =>
+          wrap(
+            { method: `${getTableConfig(table as PgTable).name}.update()` },
+            async () => {
+              checkOnchainTable(table as Table, "update");
+              if (typeof values === "function") {
+                const row = await indexingStore.find(
+                  table as Table & { [onchain]: true },
+                  key,
+                );
+                await indexingStore.update(table, key).set(values(row));
+              } else {
+                await database.drizzle
+                  .update(table as PgTable)
+                  .set(values)
+                  .where(getKeyConditional(table as PgTable, key));
+              }
+            },
+          ),
       };
     },
     // @ts-ignore
@@ -54,71 +85,109 @@ export const createIndexingStore = ({
       return {
         insert(valuesI: any) {
           return {
-            async update(valuesU: any) {
-              const row = await indexingStore.find(table, key);
+            update: (valuesU: any) =>
+              wrap(
+                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
+                async () => {
+                  checkOnchainTable(table as Table, "upsert");
+                  const row = await indexingStore.find(
+                    table as Table & { [onchain]: true },
+                    key,
+                  );
 
-              if (row === undefined) {
-                await indexingStore
-                  .insert(table)
-                  .values({ ...key, ...valuesI });
-              } else {
-                if (typeof valuesU === "function") {
-                  const values = valuesU(row);
-                  await indexingStore.update(table, key).set(values);
-                } else {
-                  await indexingStore.update(table, key).set(valuesU);
-                }
-              }
-            },
+                  if (row === undefined) {
+                    await indexingStore
+                      .insert(table)
+                      .values({ ...key, ...valuesI });
+                  } else {
+                    if (typeof valuesU === "function") {
+                      const values = valuesU(row);
+                      await indexingStore.update(table, key).set(values);
+                    } else {
+                      await indexingStore.update(table, key).set(valuesU);
+                    }
+                  }
+                },
+              ),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            async then() {
-              const row = await indexingStore.find(table, key);
-              if (row === undefined) {
-                await indexingStore
-                  .insert(table)
-                  .values({ ...key, ...valuesI });
-              }
-            },
+            then: () =>
+              wrap(
+                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
+                async () => {
+                  checkOnchainTable(table as Table, "upsert");
+                  const row = await indexingStore.find(
+                    table as Table & { [onchain]: true },
+                    key,
+                  );
+                  if (row === undefined) {
+                    await indexingStore
+                      .insert(table)
+                      .values({ ...key, ...valuesI });
+                  }
+                },
+              ),
           };
         },
         update(valuesU: any) {
           return {
-            async insert(valuesI: any) {
-              const row = await indexingStore.find(table, key);
+            insert: (valuesI: any) =>
+              wrap(
+                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
+                async () => {
+                  checkOnchainTable(table as Table, "upsert");
+                  const row = await indexingStore.find(
+                    table as Table & { [onchain]: true },
+                    key,
+                  );
 
-              if (row === undefined) {
-                await indexingStore
-                  .insert(table)
-                  .values({ ...key, ...valuesI });
-              } else {
-                if (typeof valuesU === "function") {
-                  const values = valuesU(row);
-                  await indexingStore.update(table, key).set(values);
-                } else {
-                  await indexingStore.update(table, key).set(valuesU);
-                }
-              }
-            },
+                  if (row === undefined) {
+                    await indexingStore
+                      .insert(table)
+                      .values({ ...key, ...valuesI });
+                  } else {
+                    if (typeof valuesU === "function") {
+                      const values = valuesU(row);
+                      await indexingStore.update(table, key).set(values);
+                    } else {
+                      await indexingStore.update(table, key).set(valuesU);
+                    }
+                  }
+                },
+              ),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            async then() {
-              const row = await indexingStore.find(table, key);
-              if (row !== undefined) {
-                if (typeof valuesU === "function") {
-                  const values = valuesU(row);
-                  await indexingStore.update(table, key).set(values);
-                } else {
-                  await indexingStore.update(table, key).set(valuesU);
-                }
-              }
-            },
+            then: () =>
+              wrap(
+                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
+                async () => {
+                  checkOnchainTable(table as Table, "upsert");
+                  const row = await indexingStore.find(
+                    table as Table & { [onchain]: true },
+                    key,
+                  );
+                  if (row !== undefined) {
+                    if (typeof valuesU === "function") {
+                      const values = valuesU(row);
+                      await indexingStore.update(table, key).set(values);
+                    } else {
+                      await indexingStore.update(table, key).set(valuesU);
+                    }
+                  }
+                },
+              ),
           };
         },
       };
     },
-    // @ts-ignore
-    async delete(table, key) {
-      await database.drizzle.delete(table).where(getKeyConditional(table, key));
-    },
+    delete: (table, key) =>
+      wrap(
+        { method: `${getTableConfig(table as PgTable).name}.delete()` },
+        async () => {
+          checkOnchainTable(table as Table, "upsert");
+          await database.drizzle
+            .delete(table as Table)
+            .where(getKeyConditional(table as Table, key));
+        },
+      ),
     raw: database.drizzle,
   } satisfies IndexingStore;
 
