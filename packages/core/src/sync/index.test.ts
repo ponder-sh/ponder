@@ -161,6 +161,14 @@ test("getEvents() end block", async (context) => {
   await cleanup();
 });
 
+// TODO(kyle) This test is skipped because it causes a flake on ci.
+// Our test setup is unable to properly mock a multichain environment
+// The chain data of the chains in "network" is exactly the same.
+// This test will fail when `sources[1]` finishes before `sources[0]`, because
+// the `onConflictDoNothing` in `insertBlocks` causes the block with relavant data
+// not to be added to the store. This test should be un-skipped when 1) we can mock
+// multichain enviroments, and 2) when our sync-store is robust enough to handle
+// multiple blocks with the same hash and different chain IDs.
 test("getEvents() multichain", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
