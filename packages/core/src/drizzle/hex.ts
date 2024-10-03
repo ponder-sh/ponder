@@ -10,7 +10,6 @@ import {
   PgColumn,
   PgColumnBuilder,
 } from "drizzle-orm/pg-core";
-import { padHex } from "viem";
 
 export type PgHexBuilderInitial<TName extends string> = PgHexBuilder<{
   name: TName;
@@ -52,10 +51,8 @@ export class PgHex<
     return "text";
   }
 
-  override mapToDriverValue(value: `0x${string}`): `0x${string}` {
-    return padHex(value, {
-      size: Math.ceil((value.length - 2) / 2),
-      dir: "left",
-    }).toLowerCase() as `0x${string}`;
+  override mapToDriverValue(value: `0x${string}`) {
+    if (value.length % 2 === 0) return value.toLowerCase() as `0x${string}`;
+    return `0x0${value.slice(2)}`.toLowerCase() as `0x${string}`;
   }
 }
