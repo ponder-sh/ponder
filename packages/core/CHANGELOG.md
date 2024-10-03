@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.6
+
+### Patch Changes
+
+- [#1130](https://github.com/ponder-sh/ponder/pull/1130) [`a50db23dda44c32289c661d8799a37c5c6a88ec4`](https://github.com/ponder-sh/ponder/commit/a50db23dda44c32289c661d8799a37c5c6a88ec4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `0.6.0` that caused some apps to log progress greater than 100% and re-sync blocks unnecessarily.
+
 ## 0.6.5
 
 ### Patch Changes
