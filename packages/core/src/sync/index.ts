@@ -998,7 +998,10 @@ export async function* localHistoricalSyncGenerator({
   let fromBlock = hexToNumber(syncProgress.start.number);
 
   /**
-   * Handle a cache hit by fast forwarding and potentially exiting
+   * Handle a cache hit by fast forwarding and potentially exiting.
+   * A cache hit can either be: (listed by priority)
+   *   1) recovering progress from earlier invocations with different `finalized` blocks
+   *   2) recovering progress from the interval cache
    */
   if (
     syncProgress.current !== undefined &&
