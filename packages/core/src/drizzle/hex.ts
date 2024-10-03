@@ -10,14 +10,14 @@ import {
   PgColumn,
   PgColumnBuilder,
 } from "drizzle-orm/pg-core";
-import { bytesToHex, hexToBytes } from "viem";
+import { padHex } from "viem";
 
 export type PgHexBuilderInitial<TName extends string> = PgHexBuilder<{
   name: TName;
   dataType: "string";
   columnType: "PgHex";
   data: `0x${string}`;
-  driverParam: Buffer;
+  driverParam: string;
   enumValues: undefined;
   generated: undefined;
 }>;
@@ -49,14 +49,13 @@ export class PgHex<
   static readonly [entityKind]: string = "PgHex";
 
   getSQLType(): string {
-    return "bytea";
+    return "text";
   }
 
-  override mapFromDriverValue(value: Buffer) {
-    return bytesToHex(value);
-  }
-
-  override mapToDriverValue(value: `0x${string}`): Buffer {
-    return Buffer.from(hexToBytes(value));
+  override mapToDriverValue(value: `0x${string}`): `0x${string}` {
+    return padHex(value, {
+      size: Math.ceil((value.length - 2) / 2),
+      dir: "left",
+    }).toLowerCase() as `0x${string}`;
   }
 }
