@@ -8,11 +8,29 @@ import type {
 } from "drizzle-orm";
 
 export type Db<schema extends Schema> = {
+  /**
+   * Find a row
+   */
   find: Find;
+  /**
+   * Create new rows
+   */
   insert: Insert;
+  /**
+   * Update a row
+   */
   update: Update;
+  /**
+   * If row exists, update, else insert
+   */
   upsert: Upsert;
+  /**
+   * Delete a row
+   */
   delete: Delete;
+  /**
+   * Access the raw drizzle object
+   */
   raw: Drizzle<schema>;
 };
 
@@ -35,17 +53,11 @@ type Key<table extends Table> = {
   >;
 };
 
-/**
- * Find a row
- */
 export type Find = <table extends Table>(
   table: table,
   key: Key<Table>,
 ) => Promise<InferSelectModel<table> | undefined>;
 
-/**
- * Create new rows
- */
 export type Insert = <table extends Table>(
   table: table,
 ) => {
@@ -54,9 +66,6 @@ export type Insert = <table extends Table>(
   ) => Promise<void>;
 };
 
-/**
- * Update a row
- */
 export type Update = <table extends Table>(
   table: table,
   key: Key<Table>,
@@ -64,34 +73,32 @@ export type Update = <table extends Table>(
   set: (values: Partial<InferInsertModel<table>>) => Promise<void>;
 };
 
-/**
- * If row exists, update, else insert
- */
 export type Upsert = <table extends Table>(
   table: table,
   key: Key<Table>,
 ) => {
+  /** Insert a row */
   insert: (values: Omit<InferInsertModel<table>, InferPrimaryKey<table>>) => {
+    /** Update the existing row */
     update: (
       values:
         | Partial<InferInsertModel<table>>
         | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
     ) => Promise<void>;
   } & Promise<void>;
+  /** Update the existing row */
   update: (
     values:
       | Partial<InferInsertModel<table>>
       | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
   ) => {
+    /** Insert a row */
     insert: (
       values: Omit<InferInsertModel<table>, InferPrimaryKey<table>>,
     ) => Promise<void>;
   } & Promise<void>;
 };
 
-/**
- * Delete a row
- */
 export type Delete = <table extends Table>(
   table: table,
   key: Key<Table>,
