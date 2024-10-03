@@ -5,7 +5,7 @@ import path from "node:path";
 import { createTelemetry } from "@/common/telemetry.js";
 import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Common } from "./common.js";
 import { createLogger } from "./logger.js";
 
@@ -14,7 +14,10 @@ const fetchSpy = vi.fn();
 beforeEach(() => {
   fetchSpy.mockReset();
   vi.stubGlobal("fetch", fetchSpy);
-  return () => vi.unstubAllGlobals();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 beforeEach((context) => {
@@ -46,7 +49,8 @@ test("telemetry calls fetch with event body", async (context) => {
     properties: { duration_seconds: process.uptime() },
   });
 
-  await wait(0);
+  // Wait for the telemetry queue to process the event
+  await new Promise((resolve) => setTimeout(resolve, 100));
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -77,10 +81,11 @@ test("telemetry does not submit events if telemetry is disabled", async (context
     properties: { duration_seconds: process.uptime() },
   });
 
-  await wait(0);
+  // Wait for the telemetry queue to process the events (if any)
+  await new Promise((resolve) => setTimeout(resolve, 100));
   await telemetry.kill();
 
-  expect(fetchSpy).toHaveBeenCalledTimes(0);
+  expect(fetchSpy).not.toHaveBeenCalled();
 });
 
 test("telemetry throws if event is submitted after kill", async (context) => {
