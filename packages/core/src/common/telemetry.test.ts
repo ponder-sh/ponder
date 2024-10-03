@@ -49,7 +49,6 @@ test("telemetry calls fetch with event body", async (context) => {
   });
 
   await telemetry.flush();
-
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -81,7 +80,6 @@ test("telemetry does not submit events if telemetry is disabled", async (context
   });
 
   await telemetry.flush();
-
   await telemetry.kill();
 
   expect(fetchSpy).not.toHaveBeenCalled();
