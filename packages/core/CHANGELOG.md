@@ -1,5 +1,26 @@
 # @ponder/core
 
+## 0.6.6
+
+### Patch Changes
+
+- [#1130](https://github.com/ponder-sh/ponder/pull/1130) [`a50db23dda44c32289c661d8799a37c5c6a88ec4`](https://github.com/ponder-sh/ponder/commit/a50db23dda44c32289c661d8799a37c5c6a88ec4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `0.6.0` that caused some apps to log progress greater than 100% and re-sync blocks unnecessarily.
+
+## 0.6.5
+
+### Patch Changes
+
+- [#1126](https://github.com/ponder-sh/ponder/pull/1126) [`0a3adb000d60e091b24a6e8facce194c41712fc6`](https://github.com/ponder-sh/ponder/commit/0a3adb000d60e091b24a6e8facce194c41712fc6) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6 where extra transaction may be added to the database in the "realtime" sync when using factory contracts.
+
+  Any users that were affected by this bug and want to reduce the database size can do so with the query:
+
+  ```sql
+  DELETE FROM ponder_sync.transactions WHERE
+    hash NOT IN (SELECT "transactionHash" FROM ponder_sync.logs)
+    AND
+    hash NOT IN (SELECT "transactionHash" FROM ponder_sync."callTraces");
+  ```
+
 ## 0.6.4
 
 ### Patch Changes

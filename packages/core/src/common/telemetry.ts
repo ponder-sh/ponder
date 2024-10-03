@@ -67,7 +67,11 @@ export function createTelemetry({
   logger,
 }: { options: Options; logger: Logger }) {
   if (options.telemetryDisabled) {
-    return { record: (_event: TelemetryEvent) => {}, kill: async () => {} };
+    return {
+      record: (_event: TelemetryEvent) => {},
+      flush: async () => {},
+      kill: async () => {},
+    };
   }
 
   const conf = new Conf<DeviceConf>({
@@ -208,6 +212,11 @@ export function createTelemetry({
     });
   }, HEARTBEAT_INTERVAL_MS);
 
+  // Note that this method is only used for testing.
+  const flush = async () => {
+    await queue.onIdle();
+  };
+
   const kill = async () => {
     clearInterval(heartbeatInterval);
     isKilled = true;
@@ -217,7 +226,7 @@ export function createTelemetry({
     await Promise.race([queue.onIdle(), wait(1_000)]);
   };
 
-  return { record, kill };
+  return { record, flush, kill };
 }
 
 async function getPackageManager() {
