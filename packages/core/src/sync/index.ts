@@ -997,8 +997,15 @@ export async function* localHistoricalSyncGenerator({
   // Cursor to track progress.
   let fromBlock = hexToNumber(syncProgress.start.number);
 
-  // Handle a cache hit by fast forwarding and potentially exiting
-  if (syncProgress.current !== undefined) {
+  /**
+   * Handle a cache hit by fast forwarding and potentially exiting
+   */
+  if (
+    syncProgress.current !== undefined &&
+    (syncProgress.cached === undefined ||
+      hexToNumber(syncProgress.current.number) >
+        hexToNumber(syncProgress.cached.number))
+  ) {
     fromBlock = hexToNumber(syncProgress.current.number) + 1;
   } else if (syncProgress.cached !== undefined) {
     // `getEvents` can make progress without calling `sync`, so immediately "yield"
