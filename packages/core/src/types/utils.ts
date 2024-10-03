@@ -16,3 +16,5 @@ export type Prettify<T> = {
 export type NonNull<T> = {
   [P in keyof T]-?: NonNullable<T[P]>;
 };
+
+export type PonderTypeError<error extends string> = error;

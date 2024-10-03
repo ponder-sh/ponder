@@ -1,4 +1,4 @@
-import type { Drizzle, Schema } from "@/drizzle/index.js";
+import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
 import type {
   Column,
   GetColumnData,
@@ -6,6 +6,7 @@ import type {
   InferSelectModel,
   Table,
 } from "drizzle-orm";
+import type { PonderTypeError, Prettify } from "./utils.js";
 
 export type Db<schema extends Schema> = {
   /**
@@ -100,7 +101,7 @@ export type Db<schema extends Schema> = {
   /**
    * Access the raw drizzle object
    */
-  raw: Drizzle<schema>;
+  raw: Pick<Drizzle<schema>, "select">;
 };
 
 type InferPrimaryKey<
@@ -136,12 +137,16 @@ export type IsSerialPrimaryKey<
   : false;
 
 export type Find = <table extends Table>(
-  table: table,
+  table: table extends { [onchain]: true }
+    ? table
+    : PonderTypeError<`.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<Table>,
 ) => Promise<InferSelectModel<table> | undefined>;
 
 export type Insert = <table extends Table>(
-  table: table,
+  table: table extends { [onchain]: true }
+    ? table
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
 ) => {
   values: (
     values: InferInsertModel<table> | InferInsertModel<table>[],
@@ -149,7 +154,9 @@ export type Insert = <table extends Table>(
 };
 
 export type Update = <table extends Table>(
-  table: table,
+  table: table extends { [onchain]: true }
+    ? table
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<Table>,
 ) => {
   set: (
@@ -159,34 +166,34 @@ export type Update = <table extends Table>(
   ) => Promise<void>;
 };
 
-// TODO(kyle) omit primary key not working ??
-export type Upsert = <table extends Table>(
-  table: table,
+export type Upsert = <
+  table extends Table,
+  ///
+  insertModel = InferInsertModel<table>,
+  selectModel = InferSelectModel<table>,
+  insertValues = Prettify<Omit<insertModel, InferPrimaryKey<table>>>,
+  updateFn = (row: selectModel) => Partial<insertModel>,
+>(
+  table: table extends { [onchain]: true }
+    ? table
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<Table>,
 ) => {
   /** Insert a row */
-  insert: (values: Omit<InferInsertModel<table>, InferPrimaryKey<table>>) => {
+  insert: (values: insertValues) => {
     /** Update the existing row */
-    update: (
-      values:
-        | Partial<InferInsertModel<table>>
-        | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
-    ) => Promise<void>;
+    update: (values: Partial<insertModel> | updateFn) => Promise<void>;
   } & Promise<void>;
   /** Update the existing row */
-  update: (
-    values:
-      | Partial<InferInsertModel<table>>
-      | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
-  ) => {
+  update: (values: Partial<insertModel> | updateFn) => {
     /** Insert a row */
-    insert: (
-      values: Omit<InferInsertModel<table>, InferPrimaryKey<table>>,
-    ) => Promise<void>;
+    insert: (values: insertValues) => Promise<void>;
   } & Promise<void>;
 };
 
 export type Delete = <table extends Table>(
-  table: table,
+  table: table extends { [onchain]: true }
+    ? table
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<Table>,
 ) => Promise<void>;

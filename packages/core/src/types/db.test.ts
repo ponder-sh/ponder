@@ -1,4 +1,4 @@
-import { onchainTable } from "@/drizzle/db.js";
+import { offchainTable, onchainTable } from "@/drizzle/db.js";
 import { integer, primaryKey, serial, text } from "drizzle-orm/pg-core";
 import { test } from "vitest";
 import type {
@@ -10,6 +10,16 @@ import type {
   Update,
   Upsert,
 } from "./db.js";
+
+test("offchain table", () => {
+  const table = offchainTable("table", {
+    id: text("id").primaryKey(),
+    other: integer("other"),
+  });
+
+  const find: Find = () => {};
+  find(table, { id: "kevin" });
+});
 
 test("composite primary key", () => {
   const table = onchainTable(

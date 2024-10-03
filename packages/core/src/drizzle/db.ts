@@ -1,4 +1,12 @@
-import { type PgTableFn, pgSchema, pgTable } from "drizzle-orm/pg-core";
+import type { BuildColumns, BuildExtraConfigColumns } from "drizzle-orm";
+import {
+  type PgColumnBuilderBase,
+  type PgTable,
+  type PgTableExtraConfig,
+  type TableConfig,
+  pgSchema,
+  pgTable,
+} from "drizzle-orm/pg-core";
 import { numeric } from "drizzle-orm/pg-core";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain } from "./index.js";
@@ -83,7 +91,34 @@ export {
   exceptAll,
 } from "drizzle-orm/pg-core";
 
-export const onchainTable: PgTableFn = (name, columns, extraConfig) => {
+export type OnchainTable<T extends TableConfig> = PgTable<T> & {
+  [Key in keyof T["columns"]]: T["columns"][Key];
+} & { [onchain]: true };
+
+export type OffchainTable<T extends TableConfig> = PgTable<T> & {
+  [Key in keyof T["columns"]]: T["columns"][Key];
+};
+
+/**
+ * Create an onchain table
+ *
+ * @returns The offchain table.
+ */
+export const onchainTable = <
+  name extends string,
+  columns extends Record<string, PgColumnBuilderBase>,
+>(
+  name: name,
+  columns: columns,
+  extraConfig?: (
+    self: BuildExtraConfigColumns<name, columns, "pg">,
+  ) => PgTableExtraConfig,
+): OnchainTable<{
+  name: name;
+  schema: undefined;
+  columns: BuildColumns<name, columns, "pg">;
+  dialect: "pg";
+}> => {
   const table = pgTable(name, columns, extraConfig);
 
   /**
@@ -95,8 +130,29 @@ export const onchainTable: PgTableFn = (name, columns, extraConfig) => {
   // @ts-ignore
   table[onchain] = true;
 
+  // @ts-ignore
   return table;
 };
 
 export const offchainSchema = <T extends string>(name: T) => pgSchema(name);
-export const offchainTable: PgTableFn = pgTable;
+
+/**
+ * Create an offchain table
+ *
+ * @returns The offchain table.
+ */
+export const offchainTable = <
+  name extends string,
+  columns extends Record<string, PgColumnBuilderBase>,
+>(
+  name: name,
+  columns: columns,
+  extraConfig?: (
+    self: BuildExtraConfigColumns<name, columns, "pg">,
+  ) => PgTableExtraConfig,
+): OffchainTable<{
+  name: name;
+  schema: undefined;
+  columns: BuildColumns<name, columns, "pg">;
+  dialect: "pg";
+}> => pgTable(name, columns, extraConfig);
