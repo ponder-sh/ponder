@@ -3,7 +3,6 @@ import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createTelemetry } from "@/common/telemetry.js";
-import { wait } from "@/utils/wait.js";
 import { rimrafSync } from "rimraf";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Common } from "./common.js";
@@ -49,8 +48,8 @@ test("telemetry calls fetch with event body", async (context) => {
     properties: { duration_seconds: process.uptime() },
   });
 
-  // Wait for the telemetry queue to process the event
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await telemetry.flush();
+
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -81,8 +80,8 @@ test("telemetry does not submit events if telemetry is disabled", async (context
     properties: { duration_seconds: process.uptime() },
   });
 
-  // Wait for the telemetry queue to process the events (if any)
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await telemetry.flush();
+
   await telemetry.kill();
 
   expect(fetchSpy).not.toHaveBeenCalled();
@@ -101,7 +100,7 @@ test("telemetry throws if event is submitted after kill", async (context) => {
     });
   }
 
-  await wait(0);
+  await telemetry.flush();
   await telemetry.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
@@ -111,7 +110,35 @@ test("telemetry throws if event is submitted after kill", async (context) => {
     properties: { duration_seconds: process.uptime() },
   });
 
-  await wait(100);
+  await telemetry.flush();
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
+});
+
+test("kill resolves within 1 second even with slow events", async (context) => {
+  const telemetry = createTelemetry({
+    options: context.common.options,
+    logger: context.common.logger,
+  });
+
+  // Mock fetch to simulate a slow request
+  fetchSpy.mockImplementation(
+    () => new Promise((resolve) => setTimeout(resolve, 5000)),
+  );
+
+  // Record an event that will trigger the slow fetch
+  telemetry.record({
+    name: "lifecycle:heartbeat_send",
+    properties: { duration_seconds: process.uptime() },
+  });
+
+  const startTime = Date.now();
+  await telemetry.kill();
+  const endTime = Date.now();
+
+  const killDuration = endTime - startTime;
+  expect(killDuration).toBeLessThan(1100); // Allow a small buffer for execution time
+
+  // Ensure that fetch was called, but not completed
+  expect(fetchSpy).toHaveBeenCalledTimes(1);
 });
