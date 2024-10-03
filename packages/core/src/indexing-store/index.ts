@@ -37,10 +37,15 @@ export const createIndexingStore = ({
     update(table, key) {
       return {
         set: async (values: any) => {
-          await database.drizzle
-            .update(table)
-            .set(values)
-            .where(getKeyConditional(table, key));
+          if (typeof values === "function") {
+            const row = await indexingStore.find(table, key);
+            await indexingStore.update(table, key).set(values(row));
+          } else {
+            await database.drizzle
+              .update(table)
+              .set(values)
+              .where(getKeyConditional(table, key));
+          }
         },
       };
     },

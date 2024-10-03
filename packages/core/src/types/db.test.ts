@@ -1,7 +1,41 @@
 import { onchainTable } from "@/drizzle/db.js";
-import { integer, text } from "drizzle-orm/pg-core";
+import { integer, primaryKey, serial, text } from "drizzle-orm/pg-core";
 import { test } from "vitest";
-import type { Delete, Find, Insert, Update, Upsert } from "./db.js";
+import type {
+  Delete,
+  Find,
+  Insert,
+  IsSerialPrimaryKey,
+  Key,
+  Update,
+  Upsert,
+} from "./db.js";
+
+test("composite primary key", () => {
+  const table = onchainTable(
+    "table",
+    {
+      id: text("id").notNull(),
+      other: integer("other").notNull(),
+    },
+    (table) => ({
+      pk: primaryKey({ columns: [table.id, table.other] }),
+    }),
+  );
+
+  type t = Key<typeof table>;
+  //   ^?
+});
+
+test("serial primary key", () => {
+  const table = onchainTable("table", {
+    id: serial("id").primaryKey(),
+    other: integer("other"),
+  });
+
+  type t = IsSerialPrimaryKey<typeof table>;
+  //   ^?
+});
 
 test("find", () => {
   const table = onchainTable("table", {
@@ -11,7 +45,7 @@ test("find", () => {
 
   const find: Find = () => {};
   const t = find(table, { id: "kevin" });
-  //    ^?                ^?
+  //    ^?
 });
 
 test("insert", () => {
