@@ -227,8 +227,8 @@ export const buildEvents = ({
             return a.traceAddress < b.traceAddress ? -1 : 1;
           });
 
-          for (let j = 0; j < callTraces.length; j++) {
-            const callTrace = callTraces[j]!;
+          let eventIndex = 0n;
+          for (const callTrace of callTraces) {
             if (
               isCallTraceFilterMatched({ filter, block, callTrace }) &&
               (isAddressFactory(filter.toAddress)
@@ -238,7 +238,10 @@ export const buildEvents = ({
                   unfinalizedChildAddresses
                     .get(filter.toAddress)!
                     .has(callTrace.action.to)
-                : true)
+                : true) &&
+              filter.functionSelectors.includes(
+                callTrace.action.input.slice(0, 10) as `0x${string}`,
+              )
             ) {
               events.push({
                 chainId: filter.chainId,
@@ -249,7 +252,7 @@ export const buildEvents = ({
                   blockNumber: hexToBigInt(callTrace.blockNumber),
                   transactionIndex: BigInt(callTrace.transactionPosition),
                   eventType: EVENT_TYPES.callTraces,
-                  eventIndex: BigInt(j),
+                  eventIndex: eventIndex++,
                 }),
                 log: undefined,
                 trace: convertCallTrace(callTrace),
