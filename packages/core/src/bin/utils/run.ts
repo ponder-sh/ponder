@@ -109,7 +109,8 @@ export async function run({
 
           if (result.status === "error") onReloadableError(result.error);
 
-          // TODO(kyle) update _ponder_reorg__ table checkpoint
+          // overwrite the temporary "checkpoint" value in reorg tables
+          await database.complete({ checkpoint: event.checkpoint });
 
           await metadataStore.setStatus(status);
 
