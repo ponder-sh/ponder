@@ -169,7 +169,7 @@ test("getEvents() end block", async (context) => {
 // not to be added to the store. This test should be un-skipped when 1) we can mock
 // multichain enviroments, and 2) when our sync-store is robust enough to handle
 // multiple blocks with the same hash and different chain IDs.
-test("getEvents() multichain", async (context) => {
+test.skip("getEvents() multichain", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const { networks, sources } = getMultichainNetworksAndSources(context);
 
