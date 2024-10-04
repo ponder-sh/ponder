@@ -1,5 +1,46 @@
 # @ponder/core
 
+## 0.6.7
+
+### Patch Changes
+
+- [#1137](https://github.com/ponder-sh/ponder/pull/1137) [`1f9482c7e402305eb837006bb8c659d5b2c8c900`](https://github.com/ponder-sh/ponder/commit/1f9482c7e402305eb837006bb8c659d5b2c8c900) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused factory contracts with multiple addresses not to be cached.
+
+## 0.6.6
+
+### Patch Changes
+
+- [#1130](https://github.com/ponder-sh/ponder/pull/1130) [`a50db23dda44c32289c661d8799a37c5c6a88ec4`](https://github.com/ponder-sh/ponder/commit/a50db23dda44c32289c661d8799a37c5c6a88ec4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `0.6.0` that caused some apps to log progress greater than 100% and re-sync blocks unnecessarily.
+
+## 0.6.5
+
+### Patch Changes
+
+- [#1126](https://github.com/ponder-sh/ponder/pull/1126) [`0a3adb000d60e091b24a6e8facce194c41712fc6`](https://github.com/ponder-sh/ponder/commit/0a3adb000d60e091b24a6e8facce194c41712fc6) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6 where extra transaction may be added to the database in the "realtime" sync when using factory contracts.
+
+  Any users that were affected by this bug and want to reduce the database size can do so with the query:
+
+  ```sql
+  DELETE FROM ponder_sync.transactions WHERE
+    hash NOT IN (SELECT "transactionHash" FROM ponder_sync.logs)
+    AND
+    hash NOT IN (SELECT "transactionHash" FROM ponder_sync."callTraces");
+  ```
+
+## 0.6.4
+
+### Patch Changes
+
+- [#1124](https://github.com/ponder-sh/ponder/pull/1124) [`75dc61d2c3bbbdfc0dd00fa8713428de7d0518c1`](https://github.com/ponder-sh/ponder/commit/75dc61d2c3bbbdfc0dd00fa8713428de7d0518c1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing "getIntervals" to error on startup for some large, long-running apps.
+
+## 0.6.3
+
+### Patch Changes
+
+- [#1118](https://github.com/ponder-sh/ponder/pull/1118) [`91cc17009eb8446c949eb8e352492dd8dff23b78`](https://github.com/ponder-sh/ponder/commit/91cc17009eb8446c949eb8e352492dd8dff23b78) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `0.6.0` that caused a crash shortly after startup for some apps with a partial cache hit.
+
+- [#1121](https://github.com/ponder-sh/ponder/pull/1121) [`2612ba2284f928303ad96db0496a7f1853c52de5`](https://github.com/ponder-sh/ponder/commit/2612ba2284f928303ad96db0496a7f1853c52de5) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned vite version. Some newer versions were known to cause hot reloading bugs.
+
 ## 0.6.2
 
 ### Patch Changes

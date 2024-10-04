@@ -50,42 +50,47 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
     topic3: topic3_,
     includeTransactionReceipts,
   }: Omit<LogFilterFragment, "id" | "address"> & {
-    address: Address | LogFactory | null;
+    address: Address | null;
   }) => {
-    if (isAddressFactory(address_)) {
-      return `${chainId}_${address_.address}_${address_.eventSelector}_${address_.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-        includeTransactionReceipts
-      }`;
-    }
-
     return `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
       includeTransactionReceipts
     }`;
   };
 
-  for (const address_ of Array.isArray(address) ? address : [address ?? null]) {
-    for (const topic0_ of Array.isArray(topic0) ? topic0 : [topic0]) {
-      for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
-        for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
-          for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-            if (isAddressFactory(address_) && Array.isArray(address_.address)) {
-              for (const factoryAddress_ of address_.address) {
-                fragments.push({
-                  id: idCallback({
-                    chainId,
-                    address: address_,
-                    topic0: topic0_,
-                    topic1: topic1_,
-                    topic2: topic2_,
-                    topic3: topic3_,
-                    includeTransactionReceipts: includeTransactionReceipts
-                      ? 1
-                      : 0,
-                  }),
+  const factoryIdCallback = ({
+    chainId,
+    address: address_,
+    eventSelector: eventSelector_,
+    childAddressLocation: childAddressLocation_,
+    topic0: topic0_,
+    topic1: topic1_,
+    topic2: topic2_,
+    topic3: topic3_,
+    includeTransactionReceipts,
+  }: Omit<LogFilterFragment, "id" | "address"> & {
+    address: Address;
+    eventSelector: LogFactory["eventSelector"];
+    childAddressLocation: LogFactory["childAddressLocation"];
+  }) => {
+    return `${chainId}_${address_}_${eventSelector_}_${childAddressLocation_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+      includeTransactionReceipts
+    }`;
+  };
+
+  if (isAddressFactory(address)) {
+    for (const factoryAddress_ of Array.isArray(address.address)
+      ? address.address
+      : [address.address]) {
+      for (const topic0_ of Array.isArray(topic0) ? topic0 : [topic0]) {
+        for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
+          for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
+            for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
+              fragments.push({
+                id: factoryIdCallback({
                   chainId,
                   address: factoryAddress_,
-                  eventSelector: address_.eventSelector,
-                  childAddressLocation: address_.childAddressLocation,
+                  eventSelector: address.eventSelector,
+                  childAddressLocation: address.childAddressLocation,
                   topic0: topic0_,
                   topic1: topic1_,
                   topic2: topic2_,
@@ -93,9 +98,30 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
                   includeTransactionReceipts: includeTransactionReceipts
                     ? 1
                     : 0,
-                });
-              }
-            } else {
+                }),
+                chainId,
+                address: factoryAddress_,
+                eventSelector: address.eventSelector,
+                childAddressLocation: address.childAddressLocation,
+                topic0: topic0_,
+                topic1: topic1_,
+                topic2: topic2_,
+                topic3: topic3_,
+                includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+              });
+            }
+          }
+        }
+      }
+    }
+  } else {
+    for (const address_ of Array.isArray(address)
+      ? address
+      : [address ?? null]) {
+      for (const topic0_ of Array.isArray(topic0) ? topic0 : [topic0]) {
+        for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
+          for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
+            for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
               fragments.push({
                 id: idCallback({
                   chainId,
@@ -109,13 +135,7 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
                     : 0,
                 }),
                 chainId,
-                ...(isAddressFactory(address_)
-                  ? {
-                      address: address_.address as Address,
-                      eventSelector: address_.eventSelector,
-                      childAddressLocation: address_.childAddressLocation,
-                    }
-                  : { address: address_ }),
+                address: address_,
                 topic0: topic0_,
                 topic1: topic1_,
                 topic2: topic2_,
@@ -173,39 +193,53 @@ export const buildTraceFilterFragments = <factory extends Factory | undefined>({
     fromAddress,
     toAddress,
   }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    toAddress: Address | LogFactory | null;
+    toAddress: Address | null;
   }) => {
-    if (isAddressFactory(toAddress)) {
-      return `${chainId}_${toAddress.address}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${fromAddress}`;
-    }
-
     return `${chainId}_${fromAddress}_${toAddress}`;
   };
 
-  for (const _fromAddress of Array.isArray(fromAddress)
-    ? fromAddress
-    : [null]) {
-    for (const _toAddress of Array.isArray(toAddress)
-      ? toAddress
-      : [toAddress ?? null]) {
-      if (isAddressFactory(_toAddress) && Array.isArray(_toAddress.address)) {
-        for (const factoryAddress_ of _toAddress.address) {
-          fragments.push({
-            id: idCallback({
-              chainId,
-              fromAddress: _fromAddress,
-              toAddress: _toAddress,
-            }),
+  const factoryIdCallback = ({
+    chainId,
+    fromAddress,
+    address,
+    eventSelector,
+    childAddressLocation,
+  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
+    address: Address;
+    eventSelector: LogFactory["eventSelector"];
+    childAddressLocation: LogFactory["childAddressLocation"];
+  }) => {
+    return `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`;
+  };
+
+  if (isAddressFactory(toAddress)) {
+    for (const _fromAddress of Array.isArray(fromAddress)
+      ? fromAddress
+      : [null]) {
+      for (const _factoryAddress of Array.isArray(toAddress.address)
+        ? toAddress.address
+        : [toAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
             chainId,
-
-            address: factoryAddress_,
-            eventSelector: _toAddress.eventSelector,
-            childAddressLocation: _toAddress.childAddressLocation,
-
             fromAddress: _fromAddress,
-          });
-        }
-      } else {
+            address: _factoryAddress,
+            eventSelector: toAddress.eventSelector,
+            childAddressLocation: toAddress.childAddressLocation,
+          }),
+          chainId,
+          address: _factoryAddress,
+          eventSelector: toAddress.eventSelector,
+          childAddressLocation: toAddress.childAddressLocation,
+          fromAddress: _fromAddress,
+        });
+      }
+    }
+  } else {
+    for (const _fromAddress of Array.isArray(fromAddress)
+      ? fromAddress
+      : [null]) {
+      for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
         fragments.push({
           id: idCallback({
             chainId,
@@ -213,13 +247,7 @@ export const buildTraceFilterFragments = <factory extends Factory | undefined>({
             toAddress: _toAddress,
           }),
           chainId,
-          ...(isAddressFactory(_toAddress)
-            ? {
-                address: _toAddress.address as Address,
-                eventSelector: _toAddress.eventSelector,
-                childAddressLocation: _toAddress.childAddressLocation,
-              }
-            : { toAddress: _toAddress }),
+          toAddress: _toAddress,
           fromAddress: _fromAddress,
         });
       }

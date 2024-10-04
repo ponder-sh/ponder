@@ -197,4 +197,11 @@ test("buildLogFilterFragments builds id with multiple factories", () => {
   });
 
   expect(fragments).toHaveLength(2);
+
+  expect(fragments[0]!.id).toBe(
+    "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",
+  );
+  expect(fragments[1]!.id).toBe(
+    "1_0xb_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",
+  );
 });

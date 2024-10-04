@@ -1083,8 +1083,20 @@ export async function* localHistoricalSyncGenerator({
   // Cursor to track progress.
   let fromBlock = hexToNumber(syncProgress.start.number);
 
-  // Handle a cache hit by fast forwarding and potentially exiting
-  if (syncProgress.cached !== undefined) {
+  /**
+   * Handle a cache hit by fast forwarding and potentially exiting.
+   * A cache hit can either be: (listed by priority)
+   *   1) recovering progress from earlier invocations with different `finalized` blocks
+   *   2) recovering progress from the interval cache
+   */
+  if (
+    syncProgress.current !== undefined &&
+    (syncProgress.cached === undefined ||
+      hexToNumber(syncProgress.current.number) >
+        hexToNumber(syncProgress.cached.number))
+  ) {
+    fromBlock = hexToNumber(syncProgress.current.number) + 1;
+  } else if (syncProgress.cached !== undefined) {
     // `getEvents` can make progress without calling `sync`, so immediately "yield"
     yield;
 
@@ -1112,7 +1124,7 @@ export async function* localHistoricalSyncGenerator({
      * time spent syncing ≈ time before indexing function feedback.
      */
     const interval: Interval = [
-      fromBlock,
+      Math.min(fromBlock, hexToNumber(historicalLast.number)),
       Math.min(fromBlock + estimateRange, hexToNumber(historicalLast.number)),
     ];
 
