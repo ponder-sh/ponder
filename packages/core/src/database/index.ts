@@ -25,7 +25,7 @@ import {
   createSqliteDatabase,
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
-import { getTableColumns, is } from "drizzle-orm";
+import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { drizzle as createDrizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
@@ -730,6 +730,11 @@ export const createDatabase = async (args: {
                   await sql
                     .raw(generateTableSQL({ table, namespace }))
                     .execute(tx);
+
+                  args.common.logger.info({
+                    service: "database",
+                    msg: `Created table '${namespace}'.'${getTableName(table)}'`,
+                  });
                 }
               }
             };
@@ -1089,7 +1094,6 @@ export const createDatabase = async (args: {
             (column) => column.name,
           );
 
-          console.log({ columnNames });
           await sql
             .raw(`
 CREATE OR REPLACE FUNCTION ${tableName}_reorg_operation()
@@ -1114,7 +1118,7 @@ $$ LANGUAGE plpgsql
           await sql
             .raw(`
 CREATE TRIGGER "${tableName}_reorg"
-AFTER INSERT OR UPDATE OR DELETE ON "${tableName}"
+AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName}"
 FOR EACH ROW EXECUTE FUNCTION ${tableName}_reorg_operation();
   `)
             .execute(qb.internal);
