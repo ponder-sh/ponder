@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.7
+
+### Patch Changes
+
+- [#1137](https://github.com/ponder-sh/ponder/pull/1137) [`1f9482c7e402305eb837006bb8c659d5b2c8c900`](https://github.com/ponder-sh/ponder/commit/1f9482c7e402305eb837006bb8c659d5b2c8c900) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused factory contracts with multiple addresses not to be cached.
+
 ## 0.6.6
 
 ### Patch Changes
