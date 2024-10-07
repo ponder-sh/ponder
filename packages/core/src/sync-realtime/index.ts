@@ -188,8 +188,12 @@ export const createRealtimeSync = (
         if (
           isLogFilterMatched({ filter, block, log }) &&
           (isAddressFactory(filter.address)
-            ? finalizedChildAddresses.get(filter.address)!.has(log.address) ||
-              unfinalizedChildAddresses.get(filter.address)!.has(log.address)
+            ? finalizedChildAddresses
+                .get(filter.address)!
+                .has(log.address.toLowerCase() as Address) ||
+              unfinalizedChildAddresses
+                .get(filter.address)!
+                .has(log.address.toLowerCase() as Address)
             : true)
         ) {
           matchedFilters.add(filter);
@@ -210,10 +214,10 @@ export const createRealtimeSync = (
           (isAddressFactory(filter.toAddress)
             ? finalizedChildAddresses
                 .get(filter.toAddress)!
-                .has(callTrace.action.to) ||
+                .has(callTrace.action.to.toLowerCase() as Address) ||
               unfinalizedChildAddresses
                 .get(filter.toAddress)!
-                .has(callTrace.action.to)
+                .has(callTrace.action.to.toLowerCase() as Address)
             : true)
         ) {
           matchedFilters.add(filter);

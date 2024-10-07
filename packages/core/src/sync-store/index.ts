@@ -116,7 +116,7 @@ export type SyncStore = {
     chainId: number;
   }): Promise<string | null>;
   pruneRpcRequestResult(args: {
-    blocks: Pick<LightBlock, "hash" | "number">[];
+    blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
   pruneByChain(args: {

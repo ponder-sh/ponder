@@ -1009,26 +1009,45 @@ test("getEvents() pagination", async (context) => {
   await cleanup();
 });
 
-test.todo("pruneRpcRequestResults", async (context) => {
+test("pruneRpcRequestResult", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlocks({ blocks: [rpcData.block1.block], chainId: 1 });
-  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
-  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
-  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
+  await syncStore.insertRpcRequestResult({
+    request: "0x1",
+    blockNumber: 1n,
+    chainId: 1,
+    result: "0x1",
+  });
+  await syncStore.insertRpcRequestResult({
+    request: "0x2",
+    blockNumber: 2n,
+    chainId: 1,
+    result: "0x2",
+  });
+  await syncStore.insertRpcRequestResult({
+    request: "0x3",
+    blockNumber: 3n,
+    chainId: 1,
+    result: "0x3",
+  });
+  await syncStore.insertRpcRequestResult({
+    request: "0x4",
+    blockNumber: 4n,
+    chainId: 1,
+    result: "0x4",
+  });
 
-  await syncStore.pruneByBlock({
-    blocks: [rpcData.block3.block, rpcData.block4.block],
+  await syncStore.pruneRpcRequestResult({
+    blocks: [{ number: "0x2" }, { number: "0x4" }],
     chainId: 1,
   });
 
-  const blocks = await database.qb.sync
-    .selectFrom("blocks")
+  const requestResults = await database.qb.sync
+    .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
 
-  expect(blocks).toHaveLength(2);
+  expect(requestResults).toHaveLength(2);
 
   await cleanup();
 });
