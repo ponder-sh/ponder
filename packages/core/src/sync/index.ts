@@ -427,7 +427,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           getOmnichainCheckpoint("end")! < getOmnichainCheckpoint("finalized")!
             ? getOmnichainCheckpoint("end")!
             : getOmnichainCheckpoint("finalized")!;
-        const to = getOmnichainCheckpoint("current") ?? end;
+        const to =
+          getOmnichainCheckpoint("current") &&
+          getOmnichainCheckpoint("current")! < end
+            ? getOmnichainCheckpoint("current")!
+            : end;
 
         /*
          * Extract events with `syncStore.getEvents()`, paginating to
