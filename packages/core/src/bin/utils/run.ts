@@ -1,4 +1,5 @@
 import type { IndexingBuild } from "@/build/index.js";
+import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { createDatabase } from "@/database/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
@@ -63,7 +64,7 @@ export async function run({
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  // runCodegen({ common, graphqlSchema });
+  runCodegen({ common });
 
   // Note: can throw
   const sync = await createSync({
