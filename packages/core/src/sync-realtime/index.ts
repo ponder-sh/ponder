@@ -206,6 +206,20 @@ export const createRealtimeSync = (
       return isMatched;
     });
 
+    // Remove transactions and transaction receipts that may have been filtered out
+    const transactionHashes = new Set<Hash>();
+    for (const log of logs) {
+      transactionHashes.add(log.transactionHash);
+    }
+    for (const trace of callTraces) {
+      transactionHashes.add(trace.transactionHash);
+    }
+
+    transactions = transactions.filter((t) => transactionHashes.has(t.hash));
+    transactionReceipts = transactionReceipts.filter((t) =>
+      transactionHashes.has(t.transactionHash),
+    );
+
     // Record matched block filters
     for (const filter of blockFilters) {
       if (isBlockFilterMatched({ filter, block })) {
@@ -270,7 +284,7 @@ export const createRealtimeSync = (
         service: "realtime",
         msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
           args.network.name
-        }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${pendingFinalizedBlock.number}`,
+        }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${hexToNumber(pendingFinalizedBlock.number)}`,
       });
 
       localChain = localChain.filter(
