@@ -3,12 +3,7 @@ import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import {
-  type Drizzle,
-  type Schema,
-  createDrizzleDb,
-  onchain,
-} from "@/drizzle/index.js";
+import { type Drizzle, type Schema, onchain } from "@/drizzle/index.js";
 import { generateTableSQL, getPrimaryKeyColumns } from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
@@ -19,6 +14,7 @@ import { migrationProvider as sqliteMigrationProvider } from "@/sync-store/sqlit
 import {
   decodeCheckpoint,
   encodeCheckpoint,
+  maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
@@ -29,7 +25,8 @@ import {
   createSqliteDatabase,
 } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
-import { is } from "drizzle-orm";
+import { getTableColumns, getTableName, is } from "drizzle-orm";
+import { drizzle as createDrizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
   PgTable,
@@ -76,9 +73,11 @@ export type Database<
    * - Else, start
    */
   setup(args: { buildId: string }): Promise<{ checkpoint: string }>;
+  createTriggers(): Promise<void>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   // createIndexes(args: { schema: Schema }): Promise<void>;
+  complete(args: { checkpoint: string }): Promise<void>;
   kill(): Promise<void>;
 };
 
@@ -310,7 +309,7 @@ export const createDatabase = async (args: {
     }
   }
 
-  const drizzle = createDrizzleDb({ driver }, { schema: args.schema });
+  const drizzle = createDrizzle(driver.user as Pool, args.schema);
 
   if (fs.existsSync(args.common.options.migrationsDir)) {
     await migrate(drizzle, {
@@ -731,6 +730,11 @@ export const createDatabase = async (args: {
                   await sql
                     .raw(generateTableSQL({ table, namespace }))
                     .execute(tx);
+
+                  args.common.logger.info({
+                    service: "database",
+                    msg: `Created table '${namespace}'.'${getTableName(table)}'`,
+                  });
                 }
               }
             };
@@ -884,6 +888,20 @@ export const createDatabase = async (args: {
               //     });
               //   }
               // }
+
+              // Remove triggers
+
+              const tableNames = Object.values(args.schema)
+                .filter((table): table is PgTable => is(table, PgTable))
+                .map((table) => getTableConfig(table).name);
+
+              for (const tableName of tableNames) {
+                await sql
+                  .ref(
+                    `DROP TRIGGER IF EXISTS ${tableName}_reorg ON "${namespace}"."${tableName}"`,
+                  )
+                  .execute(tx);
+              }
 
               // Revert unfinalized data
 
@@ -1063,6 +1081,50 @@ export const createDatabase = async (args: {
     //     }),
     //   );
     // },
+    async createTriggers() {
+      await qb.internal.wrap({ method: "createTriggers" }, async () => {
+        const tableNames = Object.values(args.schema)
+          .filter((table): table is PgTable => is(table, PgTable))
+          .map((table) => getTableConfig(table).name);
+
+        for (const tableName of tableNames) {
+          const columns = getTableColumns(args.schema[tableName]! as PgTable);
+
+          const columnNames = Object.values(columns).map(
+            (column) => column.name,
+          );
+
+          await sql
+            .raw(`
+CREATE OR REPLACE FUNCTION ${tableName}_reorg_operation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO "_ponder_reorg__${tableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO "_ponder_reorg__${tableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
+  ELSIF TG_OP = 'DELETE' THEN
+    INSERT INTO "_ponder_reorg__${tableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');   
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql
+        `)
+            .execute(qb.internal);
+
+          await sql
+            .raw(`
+CREATE TRIGGER "${tableName}_reorg"
+AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName}"
+FOR EACH ROW EXECUTE FUNCTION ${tableName}_reorg_operation();
+  `)
+            .execute(qb.internal);
+        }
+      });
+    },
     async revert({ checkpoint }) {
       const tableNames = Object.values(args.schema)
         .filter((table): table is PgTable => is(table, PgTable))
@@ -1110,6 +1172,23 @@ export const createDatabase = async (args: {
         service: "database",
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
+    },
+    async complete({ checkpoint }) {
+      const tableNames = Object.values(args.schema)
+        .filter((table): table is PgTable => is(table, PgTable))
+        .map((table) => getTableConfig(table).name);
+
+      await Promise.all(
+        tableNames.map((tableName) =>
+          qb.internal.wrap({ method: "complete" }, async () => {
+            await qb.internal
+              .updateTable(`_ponder_reorg__${tableName}`)
+              .set({ checkpoint })
+              .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
+              .execute();
+          }),
+        ),
+      );
     },
     async kill() {
       clearInterval(heartbeatInterval);

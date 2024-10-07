@@ -2,13 +2,15 @@ import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import type { Database } from "@/database/index.js";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
+import type { Schema } from "@/drizzle/index.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import type { Sync } from "@/sync/index.js";
 import {
   type ContractSource,
   type Source,
   isAddressFactory,
 } from "@/sync/source.js";
+import type { Db } from "@/types/db.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -33,7 +35,7 @@ import { type ReadOnlyClient, buildCachedActions } from "./ponderActions.js";
 export type Context = {
   network: { chainId: number; name: string };
   client: ReadOnlyClient;
-  db: Drizzle<Schema>;
+  db: Db<Schema>;
   contracts: Record<
     string,
     {
@@ -174,7 +176,7 @@ export const create = ({
         network: { name: undefined!, chainId: undefined! },
         contracts: undefined!,
         client: undefined!,
-        db: database.drizzle,
+        db: createIndexingStore({ database }),
       },
     },
     networkByChainId,
@@ -412,7 +414,6 @@ const executeSetup = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.block;
 
     const endClock = startClock();
@@ -472,7 +473,6 @@ const executeLog = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
@@ -536,7 +536,6 @@ const executeBlock = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();
@@ -606,7 +605,6 @@ const executeCallTrace = async (
     currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.context.db.checkpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
 
     const endClock = startClock();

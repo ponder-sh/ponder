@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
+import type { Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type {
   Block,
@@ -16,6 +16,7 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import type { ApiRegistry } from "./api.js";
+import type { Db } from "./db.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -218,7 +219,7 @@ export namespace Virtual {
         | "ccipRead"
       >
     >;
-    db: Drizzle<schema>;
+    db: Db<schema>;
   };
 
   export type IndexingFunctionArgs<

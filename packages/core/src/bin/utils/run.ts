@@ -109,6 +109,9 @@ export async function run({
 
           if (result.status === "error") onReloadableError(result.error);
 
+          // overwrite the temporary "checkpoint" value in reorg tables
+          await database.complete({ checkpoint: event.checkpoint });
+
           await metadataStore.setStatus(status);
 
           break;
@@ -197,9 +200,8 @@ export async function run({
 
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
-    database.drizzle.mode = "realtime";
-
     // await database.createIndexes({ schema });
+    await database.createTriggers();
 
     sync.startRealtime();
 
