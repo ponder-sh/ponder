@@ -453,61 +453,65 @@ export const createRealtimeSync = (
       chainId: args.network.chainId,
     });
 
-    // Transaction Hash - ShouldRequestTransactionReceipt Map
+    /**
+     * key: matched transaction hashes
+     * value: `true` if the corresponding receipt should be fetched
+     */
     const transactionHashes = new Map<Hash, boolean>();
 
-    // Remove logs that don't match a filter
+    // Remove logs that don't match a filter, recording required transactions
     logs = logs.filter((log) => {
       let isLogMatched = false;
-      const isMatchedAndShouldRequestTransactionReceipt = logFilters.some(
-        (filter) => {
-          const isMatched = isLogFilterMatched({ filter, block, log });
-          isLogMatched ||= isMatched;
-          return isMatched && filter.includeTransactionReceipts;
-        },
-      );
-
-      if (isLogMatched) {
-        if (
-          !transactionHashes.has(log.transactionHash) ||
-          transactionHashes.get(log.transactionHash) === false
-        ) {
-          transactionHashes.set(
-            log.transactionHash,
-            isMatchedAndShouldRequestTransactionReceipt,
-          );
+      let shouldRequestTransactionReceipt = false;
+      for (const filter of logFilters) {
+        if (isLogFilterMatched({ filter, block, log })) {
+          isLogMatched = true;
+          if (filter.includeTransactionReceipts) {
+            shouldRequestTransactionReceipt = true;
+          }
         }
       }
-      return isLogMatched;
+
+      if (isLogMatched === false) return false;
+
+      if (
+        transactionHashes.has(log.transactionHash) === false ||
+        transactionHashes.get(log.transactionHash) === false
+      ) {
+        transactionHashes.set(
+          log.transactionHash,
+          shouldRequestTransactionReceipt,
+        );
+      }
+
+      return true;
     });
 
-    // Remove call traces that don't match a filter
+    // Remove call traces that don't match a filter, recording required transactions
     callTraces = callTraces.filter((callTrace) => {
-      let isCallMatched = false;
-      const isMatchedAndShouldRequestTransactionReceipt = callTraceFilters.some(
-        (filter) => {
-          const isMatched = isCallTraceFilterMatched({
-            filter,
-            block,
-            callTrace,
-          });
-          isCallMatched ||= isMatched;
-          return isMatched && filter.includeTransactionReceipts;
-        },
-      );
-
-      if (isCallMatched) {
-        if (
-          !transactionHashes.has(callTrace.transactionHash) ||
-          transactionHashes.get(callTrace.transactionHash) === false
-        ) {
-          transactionHashes.set(
-            callTrace.transactionHash,
-            isMatchedAndShouldRequestTransactionReceipt,
-          );
+      let isCallTraceMatched = false;
+      let shouldRequestTransactionReceipt = false;
+      for (const filter of callTraceFilters) {
+        if (isCallTraceFilterMatched({ filter, block, callTrace })) {
+          isCallTraceMatched = true;
+          if (filter.includeTransactionReceipts) {
+            shouldRequestTransactionReceipt = true;
+          }
         }
       }
-      return isCallMatched;
+
+      if (isCallTraceMatched === false) return false;
+
+      if (
+        transactionHashes.has(callTrace.transactionHash) === false ||
+        transactionHashes.get(callTrace.transactionHash) === false
+      ) {
+        transactionHashes.set(
+          callTrace.transactionHash,
+          shouldRequestTransactionReceipt,
+        );
+      }
+      return true;
     });
 
     ////////
