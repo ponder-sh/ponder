@@ -1,7 +1,6 @@
-import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
-import type { DatabaseConfig } from "@/config/database.js";
+import type { DatabaseConfig, PoolConfig } from "@/config/database.js";
 import type { Schema } from "@/schema/common.js";
 import {
   getEnums,
@@ -97,6 +96,7 @@ type PonderInternalSchema = {
 
 type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
   ? {
+      internal: PGlite;
       user: PGlite;
       readonly: PGlite;
       sync: PGlite;
@@ -141,31 +141,33 @@ export const createDatabase = (args: {
   ////////
 
   let dialect: Database["dialect"];
-  let driver: Database["driver"];
+  let driver!: Database["driver"];
   let qb: Database["qb"];
 
   if (args.databaseConfig.kind === "pglite") {
     dialect = "pglite";
     namespace = "public";
 
-    const userFile = path.join(args.databaseConfig.directory, "public.db");
-    const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
+    const poolConfig: PoolConfig = {
+      max: 20,
+    };
 
-    // driver = {
-    //   user: createSqliteDatabase(userFile),
-    //   readonly: createReadonlySqliteDatabase(userFile),
-    //   sync: createSqliteDatabase(syncFile),
-    // };
+    driver = {
+      internal: createPool(poolConfig),
+      user: createPool(poolConfig),
+      readonly: createReadonlyPool(poolConfig),
+      sync: createPool(poolConfig),
+    };
 
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: new PostgresDialect({ pool: driver.internal }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "internal",
+            args.common.metrics.ponder_pglite_query_total.inc({
+              pool: "internal",
             });
           }
         },
@@ -173,11 +175,11 @@ export const createDatabase = (args: {
       user: new HeadlessKysely({
         name: "user",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: new PostgresDialect({ pool: driver.user }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "user",
+            args.common.metrics.ponder_pglite_query_total.inc({
+              pool: "user",
             });
           }
         },
@@ -185,11 +187,11 @@ export const createDatabase = (args: {
       readonly: new HeadlessKysely({
         name: "readonly",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.readonly }),
+        dialect: new PostgresDialect({ pool: driver.readonly }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "readonly",
+            args.common.metrics.ponder_pglite_query_total.inc({
+              pool: "readonly",
             });
           }
         },
@@ -197,11 +199,11 @@ export const createDatabase = (args: {
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.sync }),
+        dialect: new PostgresDialect({ pool: driver.sync }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "sync",
+            args.common.metrics.ponder_pglite_query_total.inc({
+              pool: "sync",
             });
           }
         },
