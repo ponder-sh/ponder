@@ -1,5 +1,7 @@
-import type { BuildColumns, BuildExtraConfigColumns } from "drizzle-orm";
+import type { BuildColumns, ColumnBuilderBase } from "drizzle-orm";
 import {
+  type AnyPgColumn,
+  type ExtraConfigColumn,
   type PgColumnBuilderBase,
   type PgTable,
   type PgTableExtraConfig,
@@ -80,7 +82,6 @@ export {
   varchar,
   index,
   uniqueIndex,
-  primaryKey,
   alias,
   foreignKey,
   union,
@@ -91,12 +92,46 @@ export {
   exceptAll,
 } from "drizzle-orm/pg-core";
 
-export type OnchainTable<T extends TableConfig> = PgTable<T> & {
+import {
+  type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
+  primaryKey as drizzlePrimaryKey,
+} from "drizzle-orm/pg-core";
+
+export type PrimaryKeyBuilder<columnNames extends string = string> =
+  DrizzlePrimaryKeyBuilder & { columnNames: columnNames };
+
+export const primaryKey = <
+  tableName extends string,
+  column extends AnyPgColumn<{ tableName: tableName }> & { " name": string },
+  columns extends (AnyPgColumn<{ tableName: tableName }> & {
+    " name": string;
+  })[],
+>({
+  name,
+  columns,
+}: { name?: string; columns: [column, ...columns] }) =>
+  drizzlePrimaryKey({ name, columns }) as PrimaryKeyBuilder<
+    column[" name"] | columns[number][" name"]
+  >;
+
+export type OnchainTable<
+  T extends TableConfig & {
+    extra: PgTableExtraConfig | undefined;
+  } = TableConfig & { extra: PgTableExtraConfig | undefined },
+> = PgTable<T> & {
   [Key in keyof T["columns"]]: T["columns"][Key];
 } & { [onchain]: true };
 
 export type OffchainTable<T extends TableConfig> = PgTable<T> & {
   [Key in keyof T["columns"]]: T["columns"][Key];
+};
+
+type BuildExtraConfigColumns<
+  columns extends Record<string, ColumnBuilderBase>,
+> = {
+  [key in keyof columns]: ExtraConfigColumn & {
+    " name": columns[key]["_"]["name"];
+  };
 };
 
 /**
@@ -107,18 +142,19 @@ export type OffchainTable<T extends TableConfig> = PgTable<T> & {
 export const onchainTable = <
   name extends string,
   columns extends Record<string, PgColumnBuilderBase>,
+  extra extends PgTableExtraConfig | undefined = undefined,
 >(
   name: name,
   columns: columns,
-  extraConfig?: (
-    self: BuildExtraConfigColumns<name, columns, "pg">,
-  ) => PgTableExtraConfig,
+  extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
 ): OnchainTable<{
   name: name;
   schema: undefined;
   columns: BuildColumns<name, columns, "pg">;
+  extra: extra;
   dialect: "pg";
 }> => {
+  // @ts-ignore
   const table = pgTable(name, columns, extraConfig);
 
   /**
@@ -147,12 +183,11 @@ export const offchainTable = <
 >(
   name: name,
   columns: columns,
-  extraConfig?: (
-    self: BuildExtraConfigColumns<name, columns, "pg">,
-  ) => PgTableExtraConfig,
+  extraConfig?: (self: BuildExtraConfigColumns<columns>) => PgTableExtraConfig,
 ): OffchainTable<{
   name: name;
   schema: undefined;
   columns: BuildColumns<name, columns, "pg">;
   dialect: "pg";
+  // @ts-ignore
 }> => pgTable(name, columns, extraConfig);

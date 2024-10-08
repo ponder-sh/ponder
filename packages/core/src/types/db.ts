@@ -1,3 +1,4 @@
+import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/db.js";
 import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
 import type {
   Column,
@@ -6,6 +7,7 @@ import type {
   InferSelectModel,
   Table,
 } from "drizzle-orm";
+import type { PgTableExtraConfig, TableConfig } from "drizzle-orm/pg-core";
 import type { PonderTypeError, Prettify } from "./utils.js";
 
 export type Db<schema extends Schema> = {
@@ -118,15 +120,29 @@ type InferPrimaryKey<
 export type Key<
   table extends Table,
   ///
-  primaryKey extends keyof table["_"]["columns"] = InferPrimaryKey<table>,
-  hasPrimaryKey = [primaryKey] extends [never] ? false : true,
-> = hasPrimaryKey extends true
-  ? {
-      [columnName in primaryKey]: GetColumnData<
-        table["_"]["columns"][columnName]
-      >;
-    }
-  : Partial<InferInsertModel<table>>;
+  compositePrimaryKey extends // @ts-ignore
+  keyof table["_"]["columns"] = InferCompositePrimaryKey<table>,
+  primaryKey extends keyof table["_"]["columns"] = [
+    compositePrimaryKey,
+  ] extends [never]
+    ? InferPrimaryKey<table>
+    : compositePrimaryKey,
+> = {
+  [columnName in primaryKey]: GetColumnData<table["_"]["columns"][columnName]>;
+};
+
+export type InferCompositePrimaryKey<
+  table extends OnchainTable<
+    TableConfig & { extra: PgTableExtraConfig | undefined }
+  >,
+  ///
+  extra extends PgTableExtraConfig | undefined = table["_"]["config"]["extra"],
+  builders = extra[keyof extra],
+> = builders extends builders
+  ? builders extends PrimaryKeyBuilder
+    ? builders["columnNames"]
+    : never
+  : never;
 
 export type IsSerialPrimaryKey<
   table extends Table,
@@ -140,8 +156,8 @@ export type Find = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
-  key: Key<Table>,
-) => Promise<InferSelectModel<table> | undefined>;
+  key: Key<table>,
+) => Promise<InferSelectModel<table> | undefined> & { b?: Key<table> };
 
 export type Insert = <table extends Table>(
   table: table extends { [onchain]: true }
@@ -157,7 +173,7 @@ export type Update = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
-  key: Key<Table>,
+  key: Key<table>,
 ) => {
   set: (
     values:
@@ -177,7 +193,7 @@ export type Upsert = <
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
-  key: Key<Table>,
+  key: Key<table>,
 ) => {
   /** Insert a row */
   insert: (values: insertValues) => {
@@ -195,5 +211,5 @@ export type Delete = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
-  key: Key<Table>,
+  key: Key<table>,
 ) => Promise<void>;

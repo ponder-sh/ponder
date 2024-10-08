@@ -1,5 +1,12 @@
-import { offchainTable, onchainTable } from "@/drizzle/db.js";
-import { integer, primaryKey, serial, text } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  offchainTable,
+  onchainTable,
+  primaryKey,
+  serial,
+  text,
+} from "@/drizzle/db.js";
 import { test } from "vitest";
 import type {
   Delete,
@@ -27,6 +34,7 @@ test("composite primary key", () => {
     {
       id: text("id").notNull(),
       other: integer("other").notNull(),
+      otherOther: boolean("other_other"),
     },
     (table) => ({
       pk: primaryKey({ columns: [table.id, table.other] }),
