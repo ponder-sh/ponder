@@ -1,4 +1,7 @@
-import { InvalidStoreMethodError } from "@/common/errors.js";
+import {
+  InvalidStoreMethodError,
+  RecordNotFoundError,
+} from "@/common/errors.js";
 import type { Database } from "@/database/index.js";
 import { type Schema, onchain } from "@/drizzle/index.js";
 import type { Db } from "@/types/db.js";
@@ -69,6 +72,13 @@ export const createIndexingStore = ({
                   table as Table & { [onchain]: true },
                   key,
                 );
+
+                if (row === undefined) {
+                  throw new RecordNotFoundError(
+                    "No existing record was found with the specified ID",
+                  );
+                }
+
                 await indexingStore.update(table, key).set(values(row));
               } else {
                 await database.drizzle

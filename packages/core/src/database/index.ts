@@ -1087,6 +1087,9 @@ export const createDatabase = async (args: {
           .filter((table): table is PgTable => is(table, PgTable))
           .map((table) => getTableConfig(table).name);
 
+        // TODO: 1st was SQL names, 2nd was JS table names
+        // console.log(tableNames, Object.keys(args.schema));
+
         for (const tableName of tableNames) {
           const columns = getTableColumns(args.schema[tableName]! as PgTable);
 
