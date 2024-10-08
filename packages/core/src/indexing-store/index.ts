@@ -198,7 +198,7 @@ export const createIndexingStore = ({
             .where(getKeyConditional(table as Table, key));
         },
       ),
-    raw: database.drizzle,
+    sql: database.drizzle,
   } satisfies IndexingStore;
 
   // @ts-ignore

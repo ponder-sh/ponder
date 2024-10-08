@@ -101,7 +101,7 @@ export type Db<schema extends Schema> = {
   /**
    * Access the raw drizzle object
    */
-  raw: Pick<Drizzle<schema>, "select">;
+  sql: Pick<Drizzle<schema>, "select" | "query">;
 };
 
 type InferPrimaryKey<
