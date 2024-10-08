@@ -1072,9 +1072,10 @@ export const createSyncStore = ({
         sourceIndex: Number(row.event_filterIndex),
         checkpoint: row.event_checkpoint,
         block: {
-          baseFeePerGas: row.block_baseFeePerGas
-            ? parseBig(dialect, row.block_baseFeePerGas)
-            : null,
+          baseFeePerGas:
+            row.block_baseFeePerGas !== null
+              ? parseBig(dialect, row.block_baseFeePerGas)
+              : null,
           difficulty: parseBig(dialect, row.block_difficulty),
           extraData: row.block_extraData,
           gasLimit: parseBig(dialect, row.block_gasLimit),
@@ -1091,9 +1092,10 @@ export const createSyncStore = ({
           size: parseBig(dialect, row.block_size),
           stateRoot: row.block_stateRoot,
           timestamp: parseBig(dialect, row.block_timestamp),
-          totalDifficulty: row.block_totalDifficulty
-            ? parseBig(dialect, row.block_totalDifficulty)
-            : null,
+          totalDifficulty:
+            row.block_totalDifficulty !== null
+              ? parseBig(dialect, row.block_totalDifficulty)
+              : null,
           transactionsRoot: row.block_transactionsRoot,
         },
         log: hasLog
@@ -1129,7 +1131,7 @@ export const createSyncStore = ({
               to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
               transactionIndex: Number(row.tx_transactionIndex),
               value: parseBig(dialect, row.tx_value),
-              v: row.tx_v ? parseBig(dialect, row.tx_v) : null,
+              v: row.tx_v !== null ? parseBig(dialect, row.tx_v) : null,
               ...(row.tx_type === "0x0"
                 ? {
                     type: "legacy",
@@ -1153,12 +1155,14 @@ export const createSyncStore = ({
                     : row.tx_type === "0x7e"
                       ? {
                           type: "deposit",
-                          maxFeePerGas: row.tx_maxFeePerGas
-                            ? parseBig(dialect, row.tx_maxFeePerGas)
-                            : undefined,
-                          maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas
-                            ? parseBig(dialect, row.tx_maxPriorityFeePerGas)
-                            : undefined,
+                          maxFeePerGas:
+                            row.tx_maxFeePerGas !== null
+                              ? parseBig(dialect, row.tx_maxFeePerGas)
+                              : undefined,
+                          maxPriorityFeePerGas:
+                            row.tx_maxPriorityFeePerGas !== null
+                              ? parseBig(dialect, row.tx_maxPriorityFeePerGas)
+                              : undefined,
                         }
                       : {
                           type: row.tx_type,
