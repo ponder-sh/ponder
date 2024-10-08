@@ -427,20 +427,22 @@ export const createDatabase = async (args: {
    *       underlying tables, but only be 1 operation at most.
    */
   const revert = async ({
-    tableName,
+    sqlTableName,
+    jsTableName,
     checkpoint,
     tx,
   }: {
-    tableName: string;
+    sqlTableName: string;
+    jsTableName: string;
     checkpoint: string;
     tx: Transaction<PonderInternalSchema>;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
-      args.schema[tableName] as PgTable,
+      args.schema[jsTableName] as PgTable,
     );
 
     const rows = await tx
-      .deleteFrom(`_ponder_reorg__${tableName}`)
+      .deleteFrom(`_ponder_reorg__${sqlTableName}`)
       .returningAll()
       .where("checkpoint", ">", checkpoint)
       .execute();
@@ -504,8 +506,24 @@ export const createDatabase = async (args: {
 
     args.common.logger.info({
       service: "database",
-      msg: `Reverted ${rows.length} unfinalized operations from '${tableName}' table`,
+      msg: `Reverted ${rows.length} unfinalized operations from '${sqlTableName}' table`,
     });
+  };
+
+  const getJsTableNames = () => {
+    const tableNames = Object.entries(args.schema)
+      .filter(([, table]) => is(table, PgTable))
+      .map(([tableName]) => tableName);
+
+    return tableNames;
+  };
+
+  const getSQLTableNames = () => {
+    const tableNames = Object.values(args.schema)
+      .filter((table): table is PgTable => is(table, PgTable))
+      .map((table) => getTableConfig(table).name);
+
+    return tableNames;
   };
 
   return {
@@ -547,10 +565,6 @@ export const createDatabase = async (args: {
       });
     },
     async setup({ buildId }) {
-      const tableNames = Object.values(args.schema)
-        .filter((table): table is PgTable => is(table, PgTable))
-        .map((table) => getTableConfig(table).name);
-
       ////////
       // Migrate
       ////////
@@ -787,7 +801,7 @@ export const createDatabase = async (args: {
               heartbeat_at: Date.now(),
               build_id: buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: tableNames,
+              table_names: getSQLTableNames(),
             } satisfies PonderApp;
 
             /**
@@ -891,11 +905,10 @@ export const createDatabase = async (args: {
 
               // Remove triggers
 
-              const tableNames = Object.values(args.schema)
-                .filter((table): table is PgTable => is(table, PgTable))
-                .map((table) => getTableConfig(table).name);
+              const sqlTableNames = getSQLTableNames();
+              const jsTableNames = getJsTableNames();
 
-              for (const tableName of tableNames) {
+              for (const tableName of sqlTableNames) {
                 await sql
                   .ref(
                     `DROP TRIGGER IF EXISTS ${tableName}_reorg ON "${namespace}"."${tableName}"`,
@@ -913,9 +926,10 @@ export const createDatabase = async (args: {
                 msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
               });
 
-              for (const tableName of tableNames) {
+              for (let i = 0; i < sqlTableNames.length; i++) {
                 await revert({
-                  tableName,
+                  sqlTableName: sqlTableNames[i]!,
+                  jsTableName: jsTableNames[i]!,
                   checkpoint: previousApp.checkpoint,
                   tx,
                 });
@@ -1083,15 +1097,14 @@ export const createDatabase = async (args: {
     // },
     async createTriggers() {
       await qb.internal.wrap({ method: "createTriggers" }, async () => {
-        const tableNames = Object.values(args.schema)
-          .filter((table): table is PgTable => is(table, PgTable))
-          .map((table) => getTableConfig(table).name);
+        const sqlTableNames = getSQLTableNames();
+        const jsTableNames = getJsTableNames();
 
-        // TODO: 1st was SQL names, 2nd was JS table names
-        // console.log(tableNames, Object.keys(args.schema));
+        for (let i = 0; i < sqlTableNames.length; i++) {
+          const jsTableName = jsTableNames[i]!;
+          const sqlTableName = sqlTableNames[i]!;
 
-        for (const tableName of tableNames) {
-          const columns = getTableColumns(args.schema[tableName]! as PgTable);
+          const columns = getTableColumns(args.schema[jsTableName]! as PgTable);
 
           const columnNames = Object.values(columns).map(
             (column) => column.name,
@@ -1099,17 +1112,17 @@ export const createDatabase = async (args: {
 
           await sql
             .raw(`
-CREATE OR REPLACE FUNCTION ${tableName}_reorg_operation()
+CREATE OR REPLACE FUNCTION ${sqlTableName}_reorg_operation()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "_ponder_reorg__${tableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint) 
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "_ponder_reorg__${tableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint) 
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "_ponder_reorg__${tableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint) 
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');   
   END IF;
   RETURN NULL;
@@ -1120,24 +1133,29 @@ $$ LANGUAGE plpgsql
 
           await sql
             .raw(`
-CREATE TRIGGER "${tableName}_reorg"
-AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName}"
-FOR EACH ROW EXECUTE FUNCTION ${tableName}_reorg_operation();
+CREATE TRIGGER "${sqlTableName}_reorg"
+AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${sqlTableName}"
+FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
   `)
             .execute(qb.internal);
         }
       });
     },
     async revert({ checkpoint }) {
-      const tableNames = Object.values(args.schema)
-        .filter((table): table is PgTable => is(table, PgTable))
-        .map((table) => getTableConfig(table).name);
+      const sqlTableNames = getSQLTableNames();
+      const jsTableNames = getJsTableNames();
+
       await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
-          tableNames.map((tableName) =>
-            qb.internal
-              .transaction()
-              .execute((tx) => revert({ tableName, checkpoint, tx })),
+          sqlTableNames.map((sqlTableName, i) =>
+            qb.internal.transaction().execute((tx) =>
+              revert({
+                sqlTableName,
+                jsTableName: jsTableNames[i]!,
+                checkpoint,
+                tx,
+              }),
+            ),
           ),
         ),
       );
@@ -1155,9 +1173,7 @@ FOR EACH ROW EXECUTE FUNCTION ${tableName}_reorg_operation();
           })
           .execute();
 
-        const tableNames = Object.values(args.schema)
-          .filter((table): table is PgTable => is(table, PgTable))
-          .map((table) => getTableConfig(table).name);
+        const tableNames = getSQLTableNames();
 
         await Promise.all(
           tableNames.map((tableName) =>
@@ -1177,9 +1193,7 @@ FOR EACH ROW EXECUTE FUNCTION ${tableName}_reorg_operation();
       });
     },
     async complete({ checkpoint }) {
-      const tableNames = Object.values(args.schema)
-        .filter((table): table is PgTable => is(table, PgTable))
-        .map((table) => getTableConfig(table).name);
+      const tableNames = getSQLTableNames();
 
       await Promise.all(
         tableNames.map((tableName) =>
