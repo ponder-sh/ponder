@@ -1,50 +1,58 @@
-import { createSchema } from "@ponder/core";
+import {
+  boolean,
+  evmBigint,
+  evmHex,
+  index,
+  integer,
+  offchainSchema,
+  onchainTable,
+  primaryKey,
+  serial,
+} from "@ponder/core/db";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    balance: p.bigint(),
-    isOwner: p.boolean(),
+export const account = onchainTable("account", {
+  address: evmHex("address").primaryKey(),
+  balance: evmBigint("balance").notNull(),
+  isOwner: boolean("is_owner").notNull(),
+});
 
-    allowances: p.many("Allowance.ownerId"),
-    approvalOwnerEvents: p.many("ApprovalEvent.ownerId"),
-    approvalSpenderEvents: p.many("ApprovalEvent.spenderId"),
-    transferFromEvents: p.many("TransferEvent.fromId"),
-    transferToEvents: p.many("TransferEvent.toId"),
+export const allowance = onchainTable(
+  "allowance",
+  {
+    owner: evmHex("owner"),
+    spender: evmHex("spender"),
+    amount: evmBigint("amount").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.spender] }),
   }),
-  Allowance: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
+);
 
-    ownerId: p.hex().references("Account.id"),
-    spenderId: p.hex().references("Account.id"),
-
-    owner: p.one("ownerId"),
-    spender: p.one("spenderId"),
+export const transferEvent = onchainTable(
+  "transfer_event",
+  {
+    id: serial("id").primaryKey(),
+    amount: evmBigint("amount").$type<bigint>(),
+    timestamp: integer("timestamp"),
+    from: evmHex("from"),
+    to: evmHex("to"),
+  },
+  (table) => ({
+    fromIdx: index("from_index").on(table.from),
   }),
-  TransferEvent: p.createTable(
-    {
-      id: p.string(),
-      amount: p.bigint(),
-      timestamp: p.int(),
+);
 
-      fromId: p.hex().references("Account.id"),
-      toId: p.hex().references("Account.id"),
+export const approvalEvent = onchainTable("approval_event", {
+  id: serial("id").primaryKey(),
+  amount: evmBigint("amount"),
+  timestamp: integer("timestamp"),
+  owner: evmHex("from"),
+  spender: evmHex("to"),
+});
 
-      from: p.one("fromId"),
-      to: p.one("toId"),
-    },
-    { fromIdIndex: p.index("fromId") },
-  ),
-  ApprovalEvent: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    timestamp: p.int(),
+export const schema = offchainSchema("offchain");
 
-    ownerId: p.hex().references("Account.id"),
-    spenderId: p.hex().references("Account.id"),
-
-    owner: p.one("ownerId"),
-    spender: p.one("spenderId"),
-  }),
-}));
+export const metadata = schema.table("metadata", {
+  id: serial("id").primaryKey(),
+  account: evmHex("account").notNull(),
+});

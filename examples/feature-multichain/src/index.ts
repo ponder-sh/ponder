@@ -1,15 +1,9 @@
 import { ponder } from "@/generated";
+import { account } from "../ponder.schema";
 
 ponder.on("weth9:Deposit", async ({ event, context }) => {
-  const { Account } = context.db;
-
-  await Account.upsert({
-    id: event.args.dst,
-    create: {
-      balance: event.args.wad,
-    },
-    update: ({ current }) => ({
-      balance: current.balance + event.args.wad,
-    }),
-  });
+  await context.db
+    .upsert(account, { address: event.args.dst })
+    .insert({ balance: event.args.wad })
+    .update((row) => ({ balance: row.balance + event.args.wad }));
 });

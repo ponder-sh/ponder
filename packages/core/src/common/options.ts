@@ -14,6 +14,7 @@ export type Options = {
   generatedDir: string;
   ponderDir: string;
   logDir: string;
+  migrationsDir: string;
 
   port: number;
   hostname?: string;
@@ -86,6 +87,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     generatedDir: path.join(rootDir, "generated"),
     ponderDir: path.join(rootDir, ".ponder"),
     logDir: path.join(rootDir, ".ponder", "logs"),
+    migrationsDir: path.join(rootDir, "migrations"),
 
     port,
     hostname,

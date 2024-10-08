@@ -284,7 +284,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       if (requestCount[m.labels.network!] === undefined) {
         requestCount[m.labels.network!] = 0;
       }
-      requestCount[m.labels.network!] += m.value;
+      requestCount[m.labels.network!]! += m.value;
     }
   }
 

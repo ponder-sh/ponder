@@ -15,7 +15,7 @@ pg.Client.prototype.query = function query(
   ...args: [queryText: string, values: any[], callback: () => void]
 ) {
   try {
-    return originalClientQuery.apply(this, args);
+    return originalClientQuery.apply(this, args as any);
   } catch (error_) {
     const error = error_ as Error & { detail?: string; meta?: string[] };
     const [statement, parameters_] = args ?? ["empty", []];
