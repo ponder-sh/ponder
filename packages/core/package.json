@@ -42,7 +42,6 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "drizzle-orm": "^0.31.2",
     "hono": ">=4.5",
     "typescript": ">=5.0.4",
     "viem": ">=2"
@@ -67,6 +66,7 @@
     "dataloader": "^2.2.2",
     "detect-package-manager": "^3.0.2",
     "dotenv": "^16.3.1",
+    "drizzle-orm": "0.33.0",
     "glob": "^10.3.10",
     "graphql": "^16.8.1",
     "graphql-yoga": "^5.3.0",
