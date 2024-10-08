@@ -463,7 +463,7 @@ export const createRealtimeSync = (
         (filter) => {
           const isMatched = isLogFilterMatched({ filter, block, log });
           isLogMatched ||= isMatched;
-          isMatched && filter.includeTransactionReceipts;
+          return isMatched && filter.includeTransactionReceipts;
         },
       );
 
@@ -492,7 +492,7 @@ export const createRealtimeSync = (
             callTrace,
           });
           isCallMatched ||= isMatched;
-          isMatched && filter.includeTransactionReceipts;
+          return isMatched && filter.includeTransactionReceipts;
         },
       );
 
