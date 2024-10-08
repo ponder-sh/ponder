@@ -211,6 +211,10 @@ export async function run({
       decodeCheckpoint(end ?? start).blockTimestamp -
         decodeCheckpoint(start).blockTimestamp,
     );
+    common.metrics.ponder_indexing_total_seconds.set(
+      decodeCheckpoint(end ?? start).blockTimestamp -
+        decodeCheckpoint(start).blockTimestamp,
+    );
     common.metrics.ponder_indexing_completed_timestamp.set(
       decodeCheckpoint(end ?? start).blockTimestamp,
     );
