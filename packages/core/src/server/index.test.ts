@@ -38,6 +38,29 @@ test("port", async (context) => {
   await cleanup();
 });
 
+test("ipv4 and ipv6", async (context) => {
+  const { database, cleanup } = await setupDatabaseServices(context);
+
+  const server = await createServer({
+    common: context.common,
+    app: new Hono(),
+    routes: [],
+    schema: {},
+    database,
+  });
+
+  const ipv4Url = `http://localhost:${server.port}`;
+  const ipv4Response = await fetch(`${ipv4Url}/health`);
+  expect(ipv4Response.status).toBe(200);
+
+  const ipv6Url = `http://[::1]:${server.port}`;
+  const ipv6Response = await fetch(`${ipv6Url}/health`);
+  expect(ipv6Response.status).toBe(200);
+
+  await server.kill();
+  await cleanup();
+});
+
 test("not ready", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
