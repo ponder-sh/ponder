@@ -520,9 +520,9 @@ export const createRealtimeSync = (
         );
       }
 
-      callTraces = traces
-        .filter((trace) => trace.type === "call")
-        .filter((trace) => trace.result !== null) as SyncCallTrace[];
+      callTraces = traces.filter(
+        (trace) => trace.type === "call",
+      ) as SyncCallTrace[];
     }
 
     // Check that traces refer to the correct block

@@ -192,7 +192,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   >();
   const status: Status = {};
   let isKilled = false;
-  let unindexedEvents: RawEvent[] = [];
+  // Realtime events across all chains that can't be passed to the parent function
+  // because the overall checkpoint hasn't caught up to the events yet.
+  let pendingEvents: RawEvent[] = [];
 
   // Instantiate `localSyncData` and `status`
   await Promise.all(
@@ -612,7 +614,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         unfinalizedEventData.push(blockWithEventData);
 
-        unindexedEvents.push(
+        pendingEvents.push(
           ...buildEvents({
             sources: args.sources.filter(
               ({ filter }) => filter.chainId === network.chainId,
@@ -628,10 +630,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          const events: RawEvent[] = unindexedEvents.filter(
+          const events: RawEvent[] = pendingEvents.filter(
             ({ checkpoint }) => checkpoint <= to,
           );
-          unindexedEvents = unindexedEvents.filter(
+          pendingEvents = pendingEvents.filter(
             ({ checkpoint }) => checkpoint > to,
           );
 
@@ -795,7 +797,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           reorgedHashes.add(b.hash);
         }
 
-        unindexedEvents = unindexedEvents.filter(
+        pendingEvents = pendingEvents.filter(
           (e) => reorgedHashes.has(e.block.hash) === false,
         );
 

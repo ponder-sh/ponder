@@ -239,6 +239,7 @@ export const buildEvents = ({
                     .get(filter.toAddress)!
                     .has(callTrace.action.to)
                 : true) &&
+              callTrace.result !== null &&
               filter.functionSelectors.includes(
                 callTrace.action.input.slice(0, 10).toLowerCase() as Hex,
               )
