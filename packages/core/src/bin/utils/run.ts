@@ -102,13 +102,6 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "block": {
-          /**
-           * Note: `status` should be assigned before any other
-           * synchronous statements in order to prevent race conditions and
-           * ensure its correctness.
-           */
-          const status = sync.getStatus();
-
           const result = await handleEvents(
             decodeEvents(common, sources, event.events),
             event.checkpoint,
@@ -116,7 +109,7 @@ export async function run({
 
           if (result.status === "error") onReloadableError(result.error);
 
-          await metadataStore.setStatus(status);
+          await metadataStore.setStatus(event.status);
 
           break;
         }
