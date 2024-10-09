@@ -61,6 +61,7 @@ export type RealtimeEvent =
   | {
       type: "block";
       checkpoint: string;
+      status: Status;
       events: RawEvent[];
     }
   | {
@@ -638,6 +639,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             .onRealtimeEvent({
               type: "block",
               checkpoint: to,
+              status: JSON.parse(JSON.stringify(status)),
               events: events.sort((a, b) =>
                 a.checkpoint < b.checkpoint ? -1 : 1,
               ),
