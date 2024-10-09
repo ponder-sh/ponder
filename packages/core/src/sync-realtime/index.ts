@@ -499,8 +499,11 @@ export const createRealtimeSync = (
 
     // Validate that filtered logs/callTraces point to valid transaction in the block
     if (transactions.length !== requiredTransactions.size) {
+      const invalidTransactionHashes = [...requiredTransactions].filter(
+        (hash) => !transactions.some((t) => t.hash === hash),
+      );
       throw new Error(
-        `Received callTrace/log in the block referencing transaction that is not in current head block '${block.hash}'`,
+        `Received callTraces/logs with transaction hash(es): '${invalidTransactionHashes.join(", ")}' that is/are not in current head block '${block.hash}'`,
       );
     }
 
