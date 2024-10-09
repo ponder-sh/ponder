@@ -8,6 +8,307 @@ import Architecture from "../../public/architecture.svg";
 
 # Migration guide
 
+## 0.7.0
+
+This release introduces a new schema defintion and database API, and natively supports offchain data.
+
+### Drizzle schema definition
+
+1. Import `onchainTable` and database helper functions from `@ponder/core/db`
+2. Declare tables with `onchainTable`, 
+3. Export tables from `ponder.schema.ts`
+4. Specify primary key columns with `.primaryKey()`
+5. Specify not null columns with `.notNull()`
+```ts filename="ponder.schema.ts"
+import { onchainTable, text, integer } from "@ponder/core/db";
+
+export const author = onchainTable("author", {
+  name: text("name").primaryKey(),
+  age: integer("age").notNull(),
+});
+```
+6. `evmHex` and `evmBigint` are special columns exported from `@ponder/core/db`
+```ts filename="ponder.schema.ts"
+import { onchainTable, evmHex, evmBigint } from "@ponder/core/db";
+
+export const account = onchainTable("account", {
+  address: evmHex("address").primaryKey(),
+  balance: evmBigint("balance").notNull(),
+});
+```
+
+#### Example
+
+<div className="code-columns">
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+ 
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.hex(),
+    daiBalance: p.bigint(),
+    totalUsdValue: p.float(),
+    lastActiveAt: p.int(),
+    isAdmin: p.boolean(),
+    graffiti: p.string(),
+    extra: p.json(),
+  }),
+}));
+```
+
+```ts filename="ponder.schema.ts"
+import {
+  boolean,
+  evmBigint,
+  evmHex,
+  integer,
+  json,
+  onchainTable,
+  real,
+  string,
+} from "@ponder/core/db";
+
+export const account = onchainTable("account", {
+  address: evmHex("address"),
+  daiBalance: evmBigint("dai_balance"),
+  totalUsdValue: real("total_usd_value"),
+  lastActiveAt: integer("last_active_at"),
+  isAdmin: boolean("is_admin"),
+  graffiti: text("grafitti"),
+  extra: json("extra"),
+});
+```
+</div>
+
+### Updated database API
+
+In order to provide a unified developer experience, the database API (context.db) has been updated.
+
+1. Run `pnpm codegen` to update types
+2. Import tables from `ponder.schema.ts`
+```ts filename="src/index.ts"
+import { account } from "../ponder.schema";
+```
+3. Replace `.findUnique()` with `.find()`
+```diff filename="src/index.ts"
+- await context.db.Account.findUnique({ id: event.args.from });
++ await context.db.find(account, { address: event.args.from });
+```
+4. Replace `.create()` with `.insert()`
+```diff filename="src/index.ts"
+- await context.db.Account.create({ 
+-   id: event.args.from,
+-   data: { balance: 0n },
+- });
++ await context.db
++   .insert(account)
++   .values({ id: event.args.from, balance: 0n });
+```
+
+5. Replace `.createMany()` with `.insert()`
+```diff filename="src/index.ts"
+- await context.db.Account.createMany({ 
+-   data: [
+-     { id : event.args.from, balance: 0n},
+-     { id : event.args.to, balance: 0n},
+-   ],
+- });
++ await context.db
++   .insert(account)
++   .values([
++     { id : event.args.from, balance: 0n},
++     { id : event.args.to, balance: 0n},
++   ]);
+```
+
+6. Update `.update()`
+```diff filename="src/index.ts"
+- await context.db.Account.update({ 
+-   id: event.args.from,
+-   data: ({current})  => ({ balance: current.balance + 100n }),
+- });
++ await context.db
++   .update(account, { address: event.args.from })
++   .set((row) => ({ balance: row.balance + 100n }));
+```
+
+7. Update `.upsert()`
+```diff filename="src/index.ts"
+- await context.db.Account.upsert({ 
+-   id: event.args.from,
+-   create: { balance: 0n },
+-   update: ({current})  => ({ balance: current.balance + 100n }),
+- });
++ await context.db
++   .upsert(account, { address: event.args.from })
++   .insert({ balance: 0n })
++   .update((row) => ({ balance: row.balance + 100n }));
+```
+
+8. Update `.delete()`
+```diff filename="src/index.ts"
+- await context.db.Account.delete({ id: event.args.from });
++ await context.db.delete(account, { address: event.args.from });
+```
+
+9. Use low-level SQL client for advanced queries
+
+`context.db.sql` provides a drizzle interface which can be used to make arbitrary sql queries.
+```ts filename="src/index.ts"
+import { desc } from "@ponder/core/db";
+import { account } from "../ponder.schema";
+
+ponder.on("...", ({ event, context }) => {
+  const result = await context.db.sql
+    .select()
+    .from(account)
+    .orderBy(desc(account.balance))
+    .limit(1);
+});
+```
+
+#### Example
+
+<div className="code-columns">
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("ERC20:Transfer", async ({ event, context }) => {
+  const { Account, TransferEvent } = context.db;
+
+  await Account.upsert({
+    id: event.args.from,
+    create: {
+      balance: BigInt(0),
+      isOwner: false,
+    },
+    update: ({ current }) => ({
+      balance: current.balance - event.args.amount,
+    }),
+  });
+});
+```
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+import { account } from "../ponder.schema";
+
+ponder.on("ERC20:Transfer", async ({ event, context }) => {
+  await context.db
+    .upsert(account, { address: event.args.from })
+    .insert({ balance: 0n, isOwner: false })
+    .update((row) => ({
+      balance: row.balance - event.args.amount,
+    }));
+});
+```
+</div>
+
+### Offchain Tables
+- Offchain tables are different from onchain tables because they: 
+  - are not automatically created or dropped
+  - are not affected by reorgs
+
+- Offchain tables can be written in api function, but can't be written in indexing functions
+
+|                    | onchain tables | offchain tables |
+|--------------------|----------------|-----------------|
+| indexing functions |   read + write |            read |
+| api functions      |           read |    read + write |
+
+
+
+1. Define offchain tables with `offchainTable()` in `ponder.schema.ts`
+```ts filename="ponder.schema.ts"
+import { offchainTable, text, integer } from "@ponder/core/db";
+
+export const author = offchainTable("author", {
+  name: text("name").primaryKey(),
+  age: integer("age").notNull(),
+});
+```
+2. Use `offchainSchema()` to create offchain tables in a specific schema
+```ts filename="ponder.schema.ts"
+import { offchainSchema, serial, evmHex } from "@ponder/core/db";
+
+export const offchain = offchainSchema("offchain");
+
+export const metadata = offchain.table("metadata", {
+  id: serial("id").primaryKey(),
+  authors: 
+  account: evmHex("account").notNull(),
+});
+```
+3. Add `drizzle-kit` as a dependency
+4. Add migration generation script to `package.json`
+```json filename="package.json"
+{ 
+  "scripts": {
+    "generate": "drizzle-kit generate --dialect postgresql --schema ./ponder.schema.ts --out migrations"
+  }
+}
+```
+5. Run `pnpm generate` to generate migrations for offchain tables
+6. Run `pnpm dev` or `pnpm start` to automatically apply migrations
+
+#### Example
+
+<div className="code-columns">
+```ts filename="ponder.schema.ts"
+import {
+  boolean,
+  evmBigint,
+  evmHex,
+  offchainSchema,
+  onchainTable,
+  serial,
+} from "@ponder/core/db";
+
+export const account = onchainTable("account", {
+  address: evmHex("address").primaryKey(),
+  balance: evmBigint("balance").notNull(),
+  isOwner: boolean("is_owner").notNull(),
+});
+
+export const metadata = schema.table("metadata", {
+  id: serial("id").primaryKey(),
+  account: evmHex("account").notNull(),
+});
+```
+
+```ts filename="src/api/index.ts"
+import { ponder } from "@/generated";
+import { replaceBigInts } from "@ponder/core";
+import { desc, eq } from "@ponder/core/db";
+import { getAddress } from "viem";
+import { account, metadata } from "../../ponder.schema";
+
+ponder.get("/register/:address", async (c) => {
+  const account = c.req.param("address");
+  await c.db.insert(metadata).values({ account });
+  return c.text("Success", 200);
+});
+
+ponder.get("/user-balances", async (c) => {
+  const result = await c.db
+    .select({
+      address: account.address,
+      balance: account.balance,
+    })
+    .from(account)
+    .innerJoin(
+      metadata,
+      eq(account.address, metadata.account),
+    )
+    .orderBy(desc(account.balance))
+    .limit(10);
+
+  return c.json(replaceBigInts(result, (b) => formatEther(b)));
+});
+```
+
+</div>
+
 ## 0.6.0
 
 ### Updated `viem` to `>=2`
