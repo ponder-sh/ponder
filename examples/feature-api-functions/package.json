@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@ponder/core": "workspace:*",
-    "drizzle-kit": "0.22.8",
+    "drizzle-kit": "0.25.0",
     "hono": "^4.5.0",
     "viem": "^2.21.3"
   },

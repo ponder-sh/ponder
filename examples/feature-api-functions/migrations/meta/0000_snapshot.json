@@ -1,5 +1,5 @@
 {
-  "id": "a14201cb-be7c-4893-b690-69665c18479c",
+  "id": "6011cb22-cfd9-474d-a02b-ba6addfea155",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -16,7 +16,7 @@
         },
         "account": {
           "name": "account",
-          "type": "bytea",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         }
@@ -31,6 +31,7 @@
   "schemas": {
     "offchain": "offchain"
   },
+  "sequences": {},
   "_meta": {
     "columns": {},
     "schemas": {},
