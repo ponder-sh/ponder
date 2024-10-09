@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.9
+
+### Patch Changes
+
+- [#1149](https://github.com/ponder-sh/ponder/pull/1149) [`988289e97bb47e122d0dd177a890bbb6fbd719ea`](https://github.com/ponder-sh/ponder/commit/988289e97bb47e122d0dd177a890bbb6fbd719ea) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where the `/status` endpoint would temporarily return incorrect data during realtime.
+
 ## 0.6.8
 
 ### Patch Changes
