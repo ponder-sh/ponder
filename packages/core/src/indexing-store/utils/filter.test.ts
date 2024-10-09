@@ -32,7 +32,6 @@ test("buildWhereConditions handles equals shortcut", () => {
     eb: buildMockEb(),
     where: { id: "abc" },
     table: schema.Pet.table,
-    dialect: "sqlite",
   });
 
   expect(conditions).toEqual({
@@ -45,7 +44,6 @@ test("buildWhereConditions handles not", () => {
     eb: buildMockEb(),
     where: { id: { not: "abc" } },
     table: schema.Pet.table,
-    dialect: "sqlite",
   });
 
   expect(conditions).toEqual({
@@ -58,7 +56,6 @@ test("buildWhereConditions handles multiple conditions for one column", () => {
     eb: buildMockEb(),
     where: { id: { contains: "abc", notStartsWith: "z" } },
     table: schema.Pet.table,
-    dialect: "sqlite",
   });
 
   expect(conditions).toEqual({
@@ -69,42 +66,11 @@ test("buildWhereConditions handles multiple conditions for one column", () => {
   });
 });
 
-test("buildWhereConditions uses specified encoding", () => {
-  const conditionsSqlite = buildWhereConditions({
-    eb: buildMockEb(),
-    where: { bigAge: { lt: 10n } },
-    table: schema.Pet.table,
-    dialect: "sqlite",
-  });
-
-  expect(conditionsSqlite).toEqual({
-    and: [
-      [
-        "bigAge",
-        "<",
-        "0000000000000000000000000000000000000000000000000000000000000000000000000000010",
-      ],
-    ],
-  });
-
-  const conditionsPostgres = buildWhereConditions({
-    eb: buildMockEb(),
-    where: { bigAge: { lt: 10n } },
-    table: schema.Pet.table,
-    dialect: "postgres",
-  });
-
-  expect(conditionsPostgres).toEqual({
-    and: [["bigAge", "<", 10n]],
-  });
-});
-
 test("buildWhereConditions handles list filters with encoding", () => {
   const conditions = buildWhereConditions({
     eb: buildMockEb(),
     where: { bigAge: { in: [12n, 15n] } },
     table: schema.Pet.table,
-    dialect: "sqlite",
   });
 
   expect(conditions).toEqual({
@@ -126,7 +92,6 @@ test("buildWhereConditions filters on reference column", () => {
     eb: buildMockEb(),
     where: { personId: 5n },
     table: schema.Pet.table,
-    dialect: "postgres",
   });
 
   expect(conditions).toEqual({
@@ -139,7 +104,6 @@ test("buildWhereConditions handles list column 'has' and 'notHas' special case",
     eb: buildMockEb(),
     where: { names: { has: "Marty" } },
     table: schema.Pet.table,
-    dialect: "sqlite",
   });
 
   expect(conditions).toEqual({ and: [["names", "like", "%Marty%"]] });
@@ -153,7 +117,6 @@ test("buildWhereConditions handles or operator", () => {
       OR: [{ id: { contains: "abc" } }, { id: { notStartsWith: "z" } }],
     },
     table: schema.Pet.table,
-    dialect: "postgres",
   });
 
   expect(conditions).toEqual({
@@ -175,7 +138,6 @@ test("buildWhereConditions throws for unknown column", () => {
       eb: buildMockEb(),
       where: { someFakeColumn: { equals: false } },
       table: schema.Pet.table,
-      dialect: "sqlite",
     }),
   ).toThrow(
     "Invalid filter. Column does not exist. Got 'someFakeColumn', expected one of ['id', 'names', 'age', 'bigAge', 'kind', 'personId']",
@@ -188,7 +150,6 @@ test("buildWhereConditions throws for virtual column", () => {
       eb: buildMockEb(),
       where: { person: { equals: 5n } },
       table: schema.Pet.table,
-      dialect: "sqlite",
     }),
   ).toThrow("Invalid filter. Cannot filter on virtual column 'person'");
 });
@@ -200,7 +161,6 @@ test("buildWhereConditions throws for invalid filter condition", () => {
       // @ts-ignore
       where: { personId: { notACondition: 5n } },
       table: schema.Pet.table,
-      dialect: "sqlite",
     }),
   ).toThrow(
     "Invalid filter condition for column 'personId'. Got 'notACondition', expected one of ['equals', 'not', 'in', 'notIn', 'gt', 'lt', 'gte', 'lte']",

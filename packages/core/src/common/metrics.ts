@@ -61,8 +61,6 @@ export class MetricsService {
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
   ponder_postgres_query_total: prometheus.Counter<"pool"> = null!;
 
-  ponder_sqlite_query_total: prometheus.Counter<"database"> = null!;
-
   constructor() {
     this.registry = new prometheus.Registry();
 

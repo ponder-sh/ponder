@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
@@ -18,8 +17,8 @@ import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
-} from "@/sync-store/postgres/migrations.js";
-import { migrationProvider as sqliteMigrationProvider } from "@/sync-store/sqlite/migrations.js";
+} from "@/sync-store/migrations.js";
+import type { Status } from "@/sync/index.js";
 import type { UserTable } from "@/types/schema.js";
 import {
   decodeCheckpoint,
@@ -28,12 +27,8 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
-import {
-  type SqliteDatabase,
-  createReadonlySqliteDatabase,
-  createSqliteDatabase,
-} from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
+import type { PGlite } from "@electric-sql/pglite";
 import {
   Migrator,
   PostgresDialect,
@@ -41,13 +36,12 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
-import { SqliteDialect } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database<
-  dialect extends "sqlite" | "postgres" = "sqlite" | "postgres",
+  dialect extends "pglite" | "postgres" = "pglite" | "postgres",
 > = {
   dialect: dialect;
   namespace: string;
@@ -88,7 +82,7 @@ type PonderApp = {
 type PonderInternalSchema = {
   _ponder_meta: {
     key: "status" | "app";
-    value: string | null;
+    value: PonderApp | Status | null;
   };
 } & {
   [_: `_ponder_reorg__${string}`]: {
@@ -101,11 +95,11 @@ type PonderInternalSchema = {
   [tableName: string]: UserTable;
 };
 
-type Driver<dialect extends "sqlite" | "postgres"> = dialect extends "sqlite"
+type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
   ? {
-      user: SqliteDatabase;
-      readonly: SqliteDatabase;
-      sync: SqliteDatabase;
+      user: PGlite;
+      readonly: PGlite;
+      sync: PGlite;
     }
   : {
       internal: Pool;
@@ -124,15 +118,6 @@ type QueryBuilder = {
   /** Used to interact with the sync-store */
   sync: HeadlessKysely<PonderSyncSchema>;
 };
-
-const scalarToSqliteType = {
-  boolean: "integer",
-  int: "integer",
-  float: "real",
-  string: "text",
-  bigint: "varchar(79)",
-  hex: "blob",
-} as const;
 
 const scalarToPostgresType = {
   boolean: "integer",
@@ -159,18 +144,18 @@ export const createDatabase = (args: {
   let driver: Database["driver"];
   let qb: Database["qb"];
 
-  if (args.databaseConfig.kind === "sqlite") {
-    dialect = "sqlite";
+  if (args.databaseConfig.kind === "pglite") {
+    dialect = "pglite";
     namespace = "public";
 
     const userFile = path.join(args.databaseConfig.directory, "public.db");
     const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
 
-    driver = {
-      user: createSqliteDatabase(userFile),
-      readonly: createReadonlySqliteDatabase(userFile),
-      sync: createSqliteDatabase(syncFile),
-    };
+    // driver = {
+    //   user: createSqliteDatabase(userFile),
+    //   readonly: createReadonlySqliteDatabase(userFile),
+    //   sync: createSqliteDatabase(syncFile),
+    // };
 
     qb = {
       internal: new HeadlessKysely({
@@ -316,107 +301,80 @@ export const createDatabase = (args: {
   }
 
   // Register metrics
-  if (dialect === "sqlite") {
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_sqlite_query_total",
-    );
-    args.common.metrics.ponder_sqlite_query_total = new prometheus.Counter({
-      name: "ponder_sqlite_query_total",
-      help: "Number of queries submitted to the database",
-      labelNames: ["database"] as const,
-      registers: [args.common.metrics.registry],
-    });
-  } else {
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_postgres_query_total",
-    );
-    args.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
-      name: "ponder_postgres_query_total",
-      help: "Total number of queries submitted to the database",
-      labelNames: ["pool"] as const,
-      registers: [args.common.metrics.registry],
-    });
 
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_postgres_pool_connections",
-    );
-    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
-      {
-        name: "ponder_postgres_pool_connections",
-        help: "Number of connections in the pool",
-        labelNames: ["pool", "kind"] as const,
-        registers: [args.common.metrics.registry],
-        collect() {
-          this.set(
-            { pool: "internal", kind: "idle" },
-            // @ts-ignore
-            driver.internal.idleCount,
-          );
-          this.set(
-            { pool: "internal", kind: "total" },
-            // @ts-ignore
-            driver.internal.totalCount,
-          );
+  args.common.metrics.registry.removeSingleMetric(
+    "ponder_postgres_query_total",
+  );
+  args.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
+    name: "ponder_postgres_query_total",
+    help: "Total number of queries submitted to the database",
+    labelNames: ["pool"] as const,
+    registers: [args.common.metrics.registry],
+  });
 
-          this.set(
-            { pool: "sync", kind: "idle" },
-            (driver.sync as Pool).idleCount,
-          );
-          this.set(
-            { pool: "sync", kind: "total" },
-            (driver.sync as Pool).totalCount,
-          );
+  args.common.metrics.registry.removeSingleMetric(
+    "ponder_postgres_pool_connections",
+  );
+  args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
+    name: "ponder_postgres_pool_connections",
+    help: "Number of connections in the pool",
+    labelNames: ["pool", "kind"] as const,
+    registers: [args.common.metrics.registry],
+    collect() {
+      this.set(
+        { pool: "internal", kind: "idle" },
+        // @ts-ignore
+        driver.internal.idleCount,
+      );
+      this.set(
+        { pool: "internal", kind: "total" },
+        // @ts-ignore
+        driver.internal.totalCount,
+      );
 
-          this.set(
-            { pool: "user", kind: "idle" },
-            (driver.user as Pool).idleCount,
-          );
-          this.set(
-            { pool: "user", kind: "total" },
-            (driver.user as Pool).totalCount,
-          );
+      this.set({ pool: "sync", kind: "idle" }, (driver.sync as Pool).idleCount);
+      this.set(
+        { pool: "sync", kind: "total" },
+        (driver.sync as Pool).totalCount,
+      );
 
-          this.set(
-            { pool: "readonly", kind: "idle" },
-            (driver.readonly as Pool).idleCount,
-          );
-          this.set(
-            { pool: "readonly", kind: "total" },
-            (driver.readonly as Pool).totalCount,
-          );
-        },
-      },
-    );
+      this.set({ pool: "user", kind: "idle" }, (driver.user as Pool).idleCount);
+      this.set(
+        { pool: "user", kind: "total" },
+        (driver.user as Pool).totalCount,
+      );
 
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_postgres_query_queue_size",
-    );
-    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
-      {
-        name: "ponder_postgres_query_queue_size",
-        help: "Number of query requests waiting for an available connection",
-        labelNames: ["pool"] as const,
-        registers: [args.common.metrics.registry],
-        collect() {
-          // @ts-ignore
-          this.set({ pool: "internal" }, driver.internal.waitingCount);
-          this.set({ pool: "sync" }, (driver.sync as Pool).waitingCount);
-          this.set({ pool: "user" }, (driver.user as Pool).waitingCount);
-          this.set(
-            { pool: "readonly" },
-            (driver.readonly as Pool).waitingCount,
-          );
-        },
-      },
-    );
-  }
+      this.set(
+        { pool: "readonly", kind: "idle" },
+        (driver.readonly as Pool).idleCount,
+      );
+      this.set(
+        { pool: "readonly", kind: "total" },
+        (driver.readonly as Pool).totalCount,
+      );
+    },
+  });
+
+  args.common.metrics.registry.removeSingleMetric(
+    "ponder_postgres_query_queue_size",
+  );
+  args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
+    name: "ponder_postgres_query_queue_size",
+    help: "Number of query requests waiting for an available connection",
+    labelNames: ["pool"] as const,
+    registers: [args.common.metrics.registry],
+    collect() {
+      // @ts-ignore
+      this.set({ pool: "internal" }, driver.internal.waitingCount);
+      this.set({ pool: "sync" }, (driver.sync as Pool).waitingCount);
+      this.set({ pool: "user" }, (driver.user as Pool).waitingCount);
+      this.set({ pool: "readonly" }, (driver.readonly as Pool).waitingCount);
+    },
+  });
+
   ////////
   // Helpers
   ////////
-
-  const encodeApp = (app: PonderApp) => {
-    return dialect === "sqlite" ? JSON.stringify(app) : (app as any);
-  };
 
   const revert = async ({
     tableName,
@@ -496,20 +454,11 @@ export const createDatabase = (args: {
           });
         }
 
-        let migrator: Migrator;
-
-        if (dialect === "sqlite") {
-          migrator = new Migrator({
-            db: qb.sync as any,
-            provider: sqliteMigrationProvider,
-          });
-        } else {
-          migrator = new Migrator({
-            db: qb.sync as any,
-            provider: postgresMigrationProvider,
-            migrationTableSchema: "ponder_sync",
-          });
-        }
+        const migrator = new Migrator({
+          db: qb.sync as any,
+          provider: postgresMigrationProvider,
+          migrationTableSchema: "ponder_sync",
+        });
 
         const { error } = await migrator.migrateToLatest();
         if (error) throw error;
@@ -524,136 +473,57 @@ export const createDatabase = (args: {
 
       // v0.6 migration
 
-      if (args.databaseConfig.kind === "sqlite") {
-        const ponderFile = path.join(
-          args.databaseConfig.directory,
-          "ponder.db",
-        );
-        if (fs.existsSync(ponderFile)) {
-          const _driver = createSqliteDatabase(ponderFile);
-          const _orm = new HeadlessKysely<any>({
-            name: "user",
-            common: args.common,
-            dialect: new SqliteDialect({ database: _driver }),
-          });
-          await qb.internal.wrap({ method: "setup" }, async () => {
-            const namespaceCount = await _orm
-              .selectFrom("namespace_lock")
-              .select(sql`count(*)`.as("count"))
-              .executeTakeFirst();
+      const hasPonderSchema = await qb.internal
+        .selectFrom("information_schema.schemata")
+        .select("schema_name")
+        .where("schema_name", "=", "ponder")
+        .executeTakeFirst()
+        .then((schema) => schema?.schema_name === "ponder");
 
-            const tableNames = await _orm
-              .selectFrom("namespace_lock")
-              .select("schema")
-              .where("namespace", "=", namespace)
-              .executeTakeFirst()
-              .then((schema) =>
-                schema === undefined
-                  ? undefined
-                  : Object.keys(JSON.parse(schema.schema).tables),
-              );
-            if (tableNames) {
-              for (const tableName of tableNames) {
-                await qb.internal.schema
-                  .dropTable(tableName)
-                  .ifExists()
-                  .execute();
-              }
+      if (hasPonderSchema) {
+        await qb.internal.wrap({ method: "setup" }, async () => {
+          const namespaceCount = await qb.internal
+            .withSchema("ponder")
+            .selectFrom("namespace_lock")
+            .select(sql`count(*)`.as("count"))
+            .executeTakeFirst();
 
-              await _orm
-                .deleteFrom("namespace_lock")
-                .where("namespace", "=", namespace)
+          const tableNames = await qb.internal
+            .withSchema("ponder")
+            .selectFrom("namespace_lock")
+            .select("schema")
+            .where("namespace", "=", namespace)
+            .executeTakeFirst()
+            .then((schema: any | undefined) =>
+              schema === undefined
+                ? undefined
+                : Object.keys(schema.schema.tables),
+            );
+          if (tableNames) {
+            for (const tableName of tableNames) {
+              await qb.internal.schema
+                .dropTable(tableName)
+                .ifExists()
+                .cascade()
                 .execute();
-
-              await _orm.destroy();
-              _driver.close();
-
-              if (namespaceCount!.count === 1) {
-                fs.rmSync(
-                  // @ts-ignore
-                  path.join(args.databaseConfig.directory, "ponder.db"),
-                  {
-                    force: true,
-                  },
-                );
-                fs.rmSync(
-                  // @ts-ignore
-                  path.join(args.databaseConfig.directory, "ponder.db-shm"),
-                  {
-                    force: true,
-                  },
-                );
-                fs.rmSync(
-                  // @ts-ignore
-                  path.join(args.databaseConfig.directory, "ponder.db-wal"),
-                  {
-                    force: true,
-                  },
-                );
-                args.common.logger.debug({
-                  service: "database",
-                  msg: `Removed '.ponder/sqlite/ponder.db' file`,
-                });
-              }
             }
-          });
-        }
-      } else {
-        const hasPonderSchema = await qb.internal
-          .selectFrom("information_schema.schemata")
-          .select("schema_name")
-          .where("schema_name", "=", "ponder")
-          .executeTakeFirst()
-          .then((schema) => schema?.schema_name === "ponder");
 
-        if (hasPonderSchema) {
-          await qb.internal.wrap({ method: "setup" }, async () => {
-            const namespaceCount = await qb.internal
+            await qb.internal
               .withSchema("ponder")
-              .selectFrom("namespace_lock")
-              .select(sql`count(*)`.as("count"))
-              .executeTakeFirst();
-
-            const tableNames = await qb.internal
-              .withSchema("ponder")
-              .selectFrom("namespace_lock")
-              .select("schema")
+              .deleteFrom("namespace_lock")
               .where("namespace", "=", namespace)
-              .executeTakeFirst()
-              .then((schema: any | undefined) =>
-                schema === undefined
-                  ? undefined
-                  : Object.keys(schema.schema.tables),
-              );
-            if (tableNames) {
-              for (const tableName of tableNames) {
-                await qb.internal.schema
-                  .dropTable(tableName)
-                  .ifExists()
-                  .cascade()
-                  .execute();
-              }
+              .execute();
 
-              await qb.internal
-                .withSchema("ponder")
-                .deleteFrom("namespace_lock")
-                .where("namespace", "=", namespace)
-                .execute();
+            if (namespaceCount!.count === 1) {
+              await qb.internal.schema.dropSchema("ponder").cascade().execute();
 
-              if (namespaceCount!.count === 1) {
-                await qb.internal.schema
-                  .dropSchema("ponder")
-                  .cascade()
-                  .execute();
-
-                args.common.logger.debug({
-                  service: "database",
-                  msg: `Removed 'ponder' schema`,
-                });
-              }
+              args.common.logger.debug({
+                service: "database",
+                msg: `Removed 'ponder' schema`,
+              });
             }
-          });
-        }
+          }
+        });
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
@@ -738,9 +608,7 @@ export const createDatabase = (args: {
                         // Non-list base columns
                         builder = builder.addColumn(
                           columnName,
-                          (dialect === "sqlite"
-                            ? scalarToSqliteType
-                            : scalarToPostgresType)[column[" scalar"]],
+                          scalarToPostgresType[column[" scalar"]],
                           (col) => {
                             if (isOptionalColumn(column) === false)
                               col = col.notNull();
@@ -795,9 +663,7 @@ export const createDatabase = (args: {
                         // Non-list base columns
                         builder = builder.addColumn(
                           columnName,
-                          (dialect === "sqlite"
-                            ? scalarToSqliteType
-                            : scalarToPostgresType)[column[" scalar"]],
+                          scalarToPostgresType[column[" scalar"]],
                           (col) => {
                             if (columnName === "id") col = col.notNull();
                             return col;
@@ -807,10 +673,8 @@ export const createDatabase = (args: {
                     }
 
                     builder = builder
-                      .addColumn(
-                        "operation_id",
-                        dialect === "sqlite" ? "integer" : "serial",
-                        (col) => col.notNull().primaryKey(),
+                      .addColumn("operation_id", "serial", (col) =>
+                        col.notNull().primaryKey(),
                       )
                       .addColumn("checkpoint", "varchar(75)", (col) =>
                         col.notNull(),
@@ -831,12 +695,8 @@ export const createDatabase = (args: {
               .select("value")
               .executeTakeFirst();
 
-            const previousApp: PonderApp | undefined =
-              row === undefined
-                ? undefined
-                : dialect === "sqlite"
-                  ? JSON.parse(row.value!)
-                  : row.value;
+            const previousApp: PonderApp | null =
+              (row?.value as PonderApp) ?? null;
 
             const newApp = {
               is_locked: 1,
@@ -860,7 +720,7 @@ export const createDatabase = (args: {
                 .execute();
               await tx
                 .insertInto("_ponder_meta")
-                .values({ key: "app", value: encodeApp(newApp) })
+                .values({ key: "app", value: newApp })
                 .execute();
               args.common.logger.debug({
                 service: "database",
@@ -908,12 +768,12 @@ export const createDatabase = (args: {
               await tx
                 .updateTable("_ponder_meta")
                 .set({
-                  value: encodeApp({
+                  value: {
                     ...previousApp,
                     is_locked: 1,
                     is_dev: 0,
                     heartbeat_at: Date.now(),
-                  }),
+                  },
                 })
                 .where("key", "=", "app")
                 .execute();
@@ -978,7 +838,7 @@ export const createDatabase = (args: {
 
             await tx
               .updateTable("_ponder_meta")
-              .set({ value: encodeApp(newApp) })
+              .set({ value: newApp })
               .where("key", "=", "app")
               .execute();
 
@@ -1043,10 +903,7 @@ export const createDatabase = (args: {
             .updateTable("_ponder_meta")
             .where("key", "=", "app")
             .set({
-              value:
-                dialect === "sqlite"
-                  ? sql`json_set(value, '$.heartbeat_at', ${heartbeat})`
-                  : sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
+              value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
             })
             .execute();
 
@@ -1083,33 +940,21 @@ export const createDatabase = (args: {
                 const order = index[" order"];
                 const nulls = index[" nulls"];
 
-                if (dialect === "sqlite") {
-                  const columns = Array.isArray(indexColumn)
-                    ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-                    : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""}`;
+                const columns = Array.isArray(indexColumn)
+                  ? indexColumn.map((ic) => `"${ic}"`).join(", ")
+                  : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
+                      nulls === "first"
+                        ? "NULLS FIRST"
+                        : nulls === "last"
+                          ? "NULLS LAST"
+                          : ""
+                    }`;
 
-                  await qb.internal.executeQuery(
-                    sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
-                      tableName,
-                    )} (${sql.raw(columns)})`.compile(qb.internal),
-                  );
-                } else {
-                  const columns = Array.isArray(indexColumn)
-                    ? indexColumn.map((ic) => `"${ic}"`).join(", ")
-                    : `"${indexColumn}" ${order === "asc" ? "ASC" : order === "desc" ? "DESC" : ""} ${
-                        nulls === "first"
-                          ? "NULLS FIRST"
-                          : nulls === "last"
-                            ? "NULLS LAST"
-                            : ""
-                      }`;
-
-                  await qb.internal.executeQuery(
-                    sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
-                      `${namespace}.${tableName}`,
-                    )} (${sql.raw(columns)})`.compile(qb.internal),
-                  );
-                }
+                await qb.internal.executeQuery(
+                  sql`CREATE INDEX ${sql.ref(indexName)} ON ${sql.table(
+                    `${namespace}.${tableName}`,
+                  )} (${sql.raw(columns)})`.compile(qb.internal),
+                );
               });
 
               args.common.logger.info({
@@ -1142,10 +987,7 @@ export const createDatabase = (args: {
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
           .set({
-            value:
-              dialect === "sqlite"
-                ? sql`json_set(value, '$.checkpoint', ${checkpoint})`
-                : sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
+            value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
           })
           .execute();
 
@@ -1173,10 +1015,7 @@ export const createDatabase = (args: {
         .updateTable("_ponder_meta")
         .where("key", "=", "app")
         .set({
-          value:
-            dialect === "sqlite"
-              ? sql`json_set(value, '$.is_locked', 0)`
-              : sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
         })
         .execute();
 
@@ -1190,7 +1029,7 @@ export const createDatabase = (args: {
       await qb.readonly.destroy();
       await qb.sync.destroy();
 
-      if (dialect === "sqlite") {
+      if (dialect === "pglite") {
         // @ts-ignore
         driver.user.close();
         // @ts-ignore

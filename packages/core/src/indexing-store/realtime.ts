@@ -13,12 +13,10 @@ import { parseStoreError } from "./utils/errors.js";
 import { buildWhereConditions } from "./utils/filter.js";
 
 export const getRealtimeStore = ({
-  dialect,
   schema,
   db,
   common,
 }: {
-  dialect: "sqlite" | "postgres";
   schema: Schema;
   db: HeadlessKysely<any>;
   common: Common;
@@ -40,7 +38,6 @@ export const getRealtimeStore = ({
       const createRecord = encodeRecord({
         record: { id, ...data },
         table,
-        dialect,
         schema,
         skipValidation: false,
       });
@@ -64,7 +61,7 @@ export const getRealtimeStore = ({
           })
           .execute();
 
-        return decodeRecord({ record: record, table, dialect });
+        return decodeRecord({ record: record, table });
       });
     });
   },
@@ -90,7 +87,6 @@ export const getRealtimeStore = ({
             encodeRecord({
               record: d,
               table,
-              dialect,
               schema,
               skipValidation: false,
             }),
@@ -120,7 +116,7 @@ export const getRealtimeStore = ({
         }
       });
 
-      return records.map((record) => decodeRecord({ record, table, dialect }));
+      return records.map((record) => decodeRecord({ record, table }));
     });
   },
   update: ({
@@ -139,7 +135,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.update` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, dialect });
+      const encodedId = encodeValue({ value: id, column: table.id });
 
       const record = await db.transaction().execute(async (tx) => {
         const latestRecord = await tx
@@ -157,14 +153,12 @@ export const getRealtimeStore = ({
                 current: decodeRecord({
                   record: latestRecord,
                   table,
-                  dialect,
                 }),
               })
             : data;
         const updateRecord = encodeRecord({
           record: { id, ...updateObject },
           table,
-          dialect,
           schema,
           skipValidation: false,
         });
@@ -191,7 +185,7 @@ export const getRealtimeStore = ({
         return updateResult;
       });
 
-      const result = decodeRecord({ record: record, table, dialect });
+      const result = decodeRecord({ record: record, table });
 
       return result;
     });
@@ -227,7 +221,6 @@ export const getRealtimeStore = ({
                   eb,
                   where,
                   table,
-                  dialect,
                 }),
               )
               .orderBy("id", "asc")
@@ -244,7 +237,6 @@ export const getRealtimeStore = ({
                       current: decodeRecord({
                         record: latestRecord,
                         table,
-                        dialect,
                       }),
                     })
                   : data;
@@ -255,7 +247,7 @@ export const getRealtimeStore = ({
                 ...encodeRecord({
                   record: updateObject,
                   table,
-                  dialect,
+
                   schema,
                   skipValidation: false,
                 }),
@@ -283,9 +275,7 @@ export const getRealtimeStore = ({
                 .execute();
             }
 
-            return records.map((record) =>
-              decodeRecord({ record, table, dialect }),
-            );
+            return records.map((record) => decodeRecord({ record, table }));
           }),
       );
 
@@ -297,7 +287,6 @@ export const getRealtimeStore = ({
         cursor = encodeValue({
           value: _records[_records.length - 1]!.id,
           column: table.id,
-          dialect,
         });
       }
     }
@@ -322,11 +311,11 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.upsert` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, dialect });
+      const encodedId = encodeValue({ value: id, column: table.id });
       const createRecord = encodeRecord({
         record: { id, ...create },
         table,
-        dialect,
+
         schema,
         skipValidation: false,
       });
@@ -377,14 +366,13 @@ export const getRealtimeStore = ({
                 current: decodeRecord({
                   record: latestRecord,
                   table,
-                  dialect,
                 }),
               })
             : update;
         const updateRecord = encodeRecord({
           record: { id, ...updateObject },
           table,
-          dialect,
+
           schema,
           skipValidation: false,
         });
@@ -416,7 +404,7 @@ export const getRealtimeStore = ({
         return record;
       });
 
-      return decodeRecord({ record, table, dialect });
+      return decodeRecord({ record, table });
     });
   },
   delete: ({
@@ -431,7 +419,7 @@ export const getRealtimeStore = ({
     const table = (schema[tableName] as { table: Table }).table;
 
     return db.wrap({ method: `${tableName}.delete` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, dialect });
+      const encodedId = encodeValue({ value: id, column: table.id });
 
       const isDeleted = await db.transaction().execute(async (tx) => {
         const record = await tx

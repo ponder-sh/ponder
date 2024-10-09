@@ -59,4 +59,4 @@ export {
   min,
 } from "drizzle-orm";
 
-export { alias } from "@/drizzle/runtime.js";
+export { alias } from "drizzle-orm/pg-core";

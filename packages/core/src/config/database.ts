@@ -4,7 +4,7 @@ import type { PoolConfig as RawPoolConfig } from "pg";
 export type PoolConfig = Prettify<RawPoolConfig & { max: number }>;
 
 export type DatabaseConfig =
-  | { kind: "sqlite"; directory: string }
+  | { kind: "pglite"; directory: string }
   | {
       kind: "postgres";
       poolConfig: PoolConfig;
