@@ -16,7 +16,7 @@ export type Options = {
   logDir: string;
 
   port: number;
-  hostname?: string;
+  hostname: string;
 
   telemetryUrl: string;
   telemetryDisabled: boolean;
@@ -73,7 +73,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
         ? cliOptions.port
         : 42069;
 
-  const hostname = cliOptions.hostname;
+  const hostname = cliOptions.hostname ?? "::";
 
   return {
     command: cliOptions.command,

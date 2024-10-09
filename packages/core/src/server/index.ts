@@ -207,9 +207,6 @@ export async function createServer({
         fetch: hono.fetch,
         createServer: createServerWithNextAvailablePort,
         port,
-        // Note that common.options.hostname can be undefined if the user did not specify one.
-        // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
-        // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
         hostname: common.options.hostname,
       },
       () => {

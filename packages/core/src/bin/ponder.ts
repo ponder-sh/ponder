@@ -61,13 +61,12 @@ type GlobalOptions = {
 const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
-  // NOTE: Do not set a default for hostname. We currently rely on the Node.js
-  // default behavior when passing undefined to http.Server.listen(), which
-  // detects the available interfaces (IPv4 and/or IPv6) and uses them.
-  // Documentation: https://arc.net/l/quote/dnjmtumq
+  // NOTE: hono/node-server's default behavior is to listen only on IPv4.
+  // Reference: https://github.com/honojs/node-server/blob/main/src/server.ts#L24
   .option(
     "-H, --hostname <HOSTNAME>",
-    'Hostname for the web server (default: "0.0.0.0" or "::")',
+    'Hostname for the web server (default: "::")',
+    "::",
   )
   .showHelpAfterError()
   .action(async (_, command) => {
@@ -83,7 +82,8 @@ const startCommand = new Command("start")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
-    'Hostname for the web server (default: "0.0.0.0" or "::")',
+    'Hostname for the web server (default: "::")',
+    "::",
   )
   .showHelpAfterError()
   .action(async (_, command) => {
@@ -99,7 +99,8 @@ const serveCommand = new Command("serve")
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
-    'Hostname for the web server (default: "0.0.0.0" or "::")',
+    'Hostname for the web server (default: "::")',
+    "::",
   )
   .showHelpAfterError()
   .action(async (_, command) => {
