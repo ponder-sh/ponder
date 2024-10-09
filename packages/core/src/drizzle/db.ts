@@ -1,23 +1,49 @@
-import type { BuildColumns, ColumnBuilderBase } from "drizzle-orm";
+import { type BuildColumns, type ColumnBuilderBase, Table } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
   type ExtraConfigColumn,
+  type PgColumnBuilder,
   type PgColumnBuilderBase,
-  type PgTable,
+  type PgNumericBuilderInitial,
+  PgSchema,
+  PgTable,
   type PgTableExtraConfig,
+  type PgTableWithColumns,
   type TableConfig,
-  pgSchema,
-  pgTable,
+  primaryKey as drizzlePrimaryKey,
+  numeric,
 } from "drizzle-orm/pg-core";
-import { numeric } from "drizzle-orm/pg-core";
+import {
+  type PgColumnsBuilders as _PgColumnsBuilders,
+  getPgColumnBuilders,
+} from "drizzle-orm/pg-core/columns/all";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain } from "./index.js";
 
-export const evmHex = <name extends string>(
+type $Type<T extends ColumnBuilderBase, TType> = T & {
+  _: {
+    $type: TType;
+  };
+};
+
+// @ts-ignore
+export function evmHex(): PgHexBuilderInitial<"">;
+export function evmHex<name extends string>(
   columnName: name,
-): PgHexBuilderInitial<name> => new PgHexBuilder(columnName);
-export const evmBigint = <name extends string>(columnName: name) =>
-  numeric<name>(columnName, { precision: 78 }).$type<bigint>();
+): PgHexBuilderInitial<name>;
+export function evmHex(columnName?: string) {
+  return new PgHexBuilder(columnName ?? "");
+}
+
+// @ts-ignore
+export function evmBigint(): $Type<PgNumericBuilderInitial<"">, bigint>;
+export function evmBigint<name extends string>(
+  columnName: name,
+): $Type<PgNumericBuilderInitial<name>, bigint>;
+export function evmBigint(columnName?: string) {
+  return numeric(columnName ?? "", { precision: 78 });
+}
 
 export {
   sql,
@@ -92,11 +118,6 @@ export {
   exceptAll,
 } from "drizzle-orm/pg-core";
 
-import {
-  type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
-  primaryKey as drizzlePrimaryKey,
-} from "drizzle-orm/pg-core";
-
 export type PrimaryKeyBuilder<columnNames extends string = string> =
   DrizzlePrimaryKeyBuilder & { columnNames: columnNames };
 
@@ -130,9 +151,16 @@ type BuildExtraConfigColumns<
   columns extends Record<string, ColumnBuilderBase>,
 > = {
   [key in keyof columns]: ExtraConfigColumn & {
-    " name": columns[key]["_"]["name"];
+    " name": key;
   };
 };
+
+type PgColumnsBuilders = _PgColumnsBuilders & {
+  evmHex: typeof evmHex;
+  evmBigint: typeof evmBigint;
+};
+
+// TODO(kyle) add objects at runtime
 
 /**
  * Create an onchain table
@@ -145,7 +173,7 @@ export const onchainTable = <
   extra extends PgTableExtraConfig | undefined = undefined,
 >(
   name: name,
-  columns: columns,
+  columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
   extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
 ): OnchainTable<{
   name: name;
@@ -154,8 +182,7 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  // @ts-ignore
-  const table = pgTable(name, columns, extraConfig);
+  const table = pgTableWithSchema(name, columns, extraConfig as any, undefined);
 
   /**
    * This trick is used to make `table instanceof PgTable` evaluate to false.
@@ -170,7 +197,26 @@ export const onchainTable = <
   return table;
 };
 
-export const offchainSchema = <T extends string>(name: T) => pgSchema(name);
+export class OffchainSchema<schema extends string> extends PgSchema<schema> {
+  override table = <
+    name extends string,
+    columns extends Record<string, PgColumnBuilderBase>,
+  >(
+    name: name,
+    columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+    extraConfig?: (
+      self: BuildExtraConfigColumns<columns>,
+    ) => PgTableExtraConfig,
+  ): OffchainTable<{
+    name: name;
+    schema: schema;
+    columns: BuildColumns<name, columns, "pg">;
+    dialect: "pg";
+  }> => pgTableWithSchema(name, columns, extraConfig, this.schemaName);
+}
+
+export const offchainSchema = <T extends string>(name: T) =>
+  new OffchainSchema(name);
 
 /**
  * Create an offchain table
@@ -182,12 +228,86 @@ export const offchainTable = <
   columns extends Record<string, PgColumnBuilderBase>,
 >(
   name: name,
-  columns: columns,
+  columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
   extraConfig?: (self: BuildExtraConfigColumns<columns>) => PgTableExtraConfig,
 ): OffchainTable<{
   name: name;
   schema: undefined;
   columns: BuildColumns<name, columns, "pg">;
   dialect: "pg";
-  // @ts-ignore
-}> => pgTable(name, columns, extraConfig);
+}> => pgTableWithSchema(name, columns, extraConfig, undefined);
+
+const InlineForeignKeys = Symbol.for("drizzle:PgInlineForeignKeys");
+
+/** @see https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/pg-core/table.ts#L51 */
+function pgTableWithSchema<
+  name extends string,
+  schema extends string | undefined,
+  columns extends Record<string, PgColumnBuilderBase>,
+>(
+  name: name,
+  columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+  extraConfig:
+    | ((self: BuildExtraConfigColumns<columns>) => PgTableExtraConfig)
+    | undefined,
+  schema: schema,
+  baseName = name,
+): PgTableWithColumns<{
+  name: name;
+  schema: schema;
+  columns: BuildColumns<name, columns, "pg">;
+  dialect: "pg";
+}> {
+  const rawTable = new PgTable<{
+    name: name;
+    schema: schema;
+    columns: BuildColumns<name, columns, "pg">;
+    dialect: "pg";
+  }>(name, schema, baseName);
+
+  const parsedColumns: columns =
+    typeof columns === "function"
+      ? columns({ ...getPgColumnBuilders(), evmHex, evmBigint })
+      : columns;
+
+  const builtColumns = Object.fromEntries(
+    Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+      const colBuilder = colBuilderBase;
+      //@ts-ignore
+      colBuilder.setName(name);
+      //@ts-ignore
+      const column = colBuilder.build(rawTable);
+      // @ts-ignore
+      rawTable[InlineForeignKeys].push(
+        //@ts-ignore
+        ...colBuilder.buildForeignKeys(column, rawTable),
+      );
+      return [name, column];
+    }),
+  ) as unknown as BuildColumns<name, columns, "pg">;
+
+  const builtColumnsForExtraConfig = Object.fromEntries(
+    Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+      const colBuilder = colBuilderBase as PgColumnBuilder;
+      //@ts-ignore
+      colBuilder.setName(name);
+      //@ts-ignore
+      const column = colBuilder.buildExtraConfigColumn(rawTable);
+      return [name, column];
+    }),
+  ) as unknown as BuildExtraConfigColumns<columns>;
+
+  const table = Object.assign(rawTable, builtColumns);
+
+  //@ts-ignore
+  table[Table.Symbol.Columns] = builtColumns;
+  //@ts-ignore
+  table[Table.Symbol.ExtraConfigColumns] = builtColumnsForExtraConfig;
+
+  if (extraConfig) {
+    //@ts-ignore
+    table[PgTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
+  }
+
+  return table;
+}

@@ -157,7 +157,7 @@ export type Find = <table extends Table>(
     ? table
     : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
-) => Promise<InferSelectModel<table> | undefined> & { b?: Key<table> };
+) => Promise<InferSelectModel<table> | undefined>;
 
 export type Insert = <table extends Table>(
   table: table extends { [onchain]: true }

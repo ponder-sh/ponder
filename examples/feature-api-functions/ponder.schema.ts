@@ -1,28 +1,23 @@
 import {
-  boolean,
-  evmBigint,
-  evmHex,
   index,
-  integer,
   offchainSchema,
   onchainTable,
   primaryKey,
-  serial,
 } from "@ponder/core/db";
 
-export const account = onchainTable("account", {
-  address: evmHex("address").primaryKey(),
-  balance: evmBigint("balance").notNull(),
-  isOwner: boolean("is_owner").notNull(),
-});
+export const account = onchainTable("account", (t) => ({
+  address: t.evmHex().primaryKey(),
+  balance: t.evmBigint().notNull(),
+  isOwner: t.boolean().notNull(),
+}));
 
 export const allowance = onchainTable(
   "allowance",
-  {
-    owner: evmHex("owner"),
-    spender: evmHex("spender"),
-    amount: evmBigint("amount").notNull(),
-  },
+  (t) => ({
+    owner: t.evmHex(),
+    spender: t.evmHex(),
+    amount: t.evmBigint().notNull(),
+  }),
   (table) => ({
     pk: primaryKey({ columns: [table.owner, table.spender] }),
   }),
@@ -30,29 +25,29 @@ export const allowance = onchainTable(
 
 export const transferEvent = onchainTable(
   "transfer_event",
-  {
-    id: serial("id").primaryKey(),
-    amount: evmBigint("amount").$type<bigint>(),
-    timestamp: integer("timestamp"),
-    from: evmHex("from"),
-    to: evmHex("to"),
-  },
+  (t) => ({
+    id: t.serial().primaryKey(),
+    amount: t.evmBigint().notNull(),
+    timestamp: t.integer().notNull(),
+    from: t.evmHex().notNull(),
+    to: t.evmHex().notNull(),
+  }),
   (table) => ({
     fromIdx: index("from_index").on(table.from),
   }),
 );
 
-export const approvalEvent = onchainTable("approval_event", {
-  id: serial("id").primaryKey(),
-  amount: evmBigint("amount"),
-  timestamp: integer("timestamp"),
-  owner: evmHex("from"),
-  spender: evmHex("to"),
-});
+export const approvalEvent = onchainTable("approval_event", (t) => ({
+  id: t.serial().primaryKey(),
+  amount: t.evmBigint().notNull(),
+  timestamp: t.integer().notNull(),
+  owner: t.evmHex().notNull(),
+  spender: t.evmHex().notNull(),
+}));
 
 export const schema = offchainSchema("offchain");
 
-export const metadata = schema.table("metadata", {
-  id: serial("id").primaryKey(),
-  account: evmHex("account").notNull(),
-});
+export const metadata = schema.table("metadata", (t) => ({
+  id: t.serial().primaryKey(),
+  account: t.evmHex().notNull(),
+}));

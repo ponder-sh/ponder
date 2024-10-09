@@ -68,10 +68,8 @@ export const createIndexingStore = ({
             async () => {
               checkOnchainTable(table as Table, "update");
               if (typeof values === "function") {
-                const row = await indexingStore.find(
-                  table as Table & { [onchain]: true },
-                  key,
-                );
+                // @ts-ignore
+                const row = await indexingStore.find(table, key);
 
                 if (row === undefined) {
                   throw new RecordNotFoundError(
@@ -100,10 +98,8 @@ export const createIndexingStore = ({
                 { method: `${getTableConfig(table as PgTable).name}.upsert()` },
                 async () => {
                   checkOnchainTable(table as Table, "upsert");
-                  const row = await indexingStore.find(
-                    table as Table & { [onchain]: true },
-                    key,
-                  );
+                  // @ts-ignore
+                  const row = await indexingStore.find(table, key);
 
                   if (row === undefined) {
                     await indexingStore
@@ -125,10 +121,8 @@ export const createIndexingStore = ({
                 { method: `${getTableConfig(table as PgTable).name}.upsert()` },
                 async () => {
                   checkOnchainTable(table as Table, "upsert");
-                  const row = await indexingStore.find(
-                    table as Table & { [onchain]: true },
-                    key,
-                  );
+                  // @ts-ignore
+                  const row = await indexingStore.find(table, key);
                   if (row === undefined) {
                     await indexingStore
                       .insert(table)
@@ -145,10 +139,8 @@ export const createIndexingStore = ({
                 { method: `${getTableConfig(table as PgTable).name}.upsert()` },
                 async () => {
                   checkOnchainTable(table as Table, "upsert");
-                  const row = await indexingStore.find(
-                    table as Table & { [onchain]: true },
-                    key,
-                  );
+                  // @ts-ignore
+                  const row = await indexingStore.find(table, key);
 
                   if (row === undefined) {
                     await indexingStore
@@ -171,6 +163,7 @@ export const createIndexingStore = ({
                 async () => {
                   checkOnchainTable(table as Table, "upsert");
                   const row = await indexingStore.find(
+                    // @ts-ignore
                     table as Table & { [onchain]: true },
                     key,
                   );

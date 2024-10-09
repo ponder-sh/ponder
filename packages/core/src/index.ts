@@ -23,4 +23,6 @@ export type NetworkConfig = Prettify<Config["networks"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
+export { onchainTable, offchainTable } from "@/drizzle/db.js";
+
 // export { graphql } from "@/graphql/index.js";

@@ -1,6 +1,6 @@
-import { evmBigint, evmHex, onchainTable } from "@ponder/core/db";
+import { onchainTable } from "@ponder/core";
 
-export const account = onchainTable("account", {
-  address: evmHex("address").primaryKey(),
-  balance: evmBigint("balance").notNull(),
-});
+export const account = onchainTable("account", (t) => ({
+  address: t.evmHex().primaryKey(),
+  balance: t.evmBigint().notNull(),
+}));
