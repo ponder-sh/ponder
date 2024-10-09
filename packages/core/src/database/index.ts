@@ -1,6 +1,7 @@
+import * as path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
-import type { DatabaseConfig, PoolConfig } from "@/config/database.js";
+import type { DatabaseConfig } from "@/config/database.js";
 import type { Schema } from "@/schema/common.js";
 import {
   getEnums,
@@ -35,6 +36,7 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
+import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
@@ -97,8 +99,8 @@ type PonderInternalSchema = {
 type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
   ? {
       internal: PGlite;
-      user: PGlite;
       readonly: PGlite;
+      user: PGlite;
       sync: PGlite;
     }
   : {
@@ -128,11 +130,11 @@ const scalarToPostgresType = {
   hex: "bytea",
 } as const;
 
-export const createDatabase = (args: {
+export const createDatabase = async (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
 
@@ -148,25 +150,32 @@ export const createDatabase = (args: {
     dialect = "pglite";
     namespace = "public";
 
-    const poolConfig: PoolConfig = {
-      max: 20,
-    };
+    const userDir = path.join(args.databaseConfig.directory, "public");
+    const syncDir = path.join(args.databaseConfig.directory, "sync");
+
+    console.log("kysely create");
+    const { client: userClient, dialect: userDialect } =
+      await KyselyPGlite.create(userDir);
+    const { client: syncClient, dialect: syncDialect } =
+      await KyselyPGlite.create(syncDir);
+
+    console.log("after kysely create");
 
     driver = {
-      internal: createPool(poolConfig),
-      user: createPool(poolConfig),
-      readonly: createReadonlyPool(poolConfig),
-      sync: createPool(poolConfig),
+      internal: userClient,
+      readonly: userClient,
+      user: userClient,
+      sync: syncClient,
     };
 
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
-        dialect: new PostgresDialect({ pool: driver.internal }),
+        dialect: userDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_pglite_query_total.inc({
+            args.common.metrics.ponder_postgres_query_total.inc({
               pool: "internal",
             });
           }
@@ -175,10 +184,10 @@ export const createDatabase = (args: {
       user: new HeadlessKysely({
         name: "user",
         common: args.common,
-        dialect: new PostgresDialect({ pool: driver.user }),
+        dialect: userDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_pglite_query_total.inc({
+            args.common.metrics.ponder_postgres_query_total.inc({
               pool: "user",
             });
           }
@@ -187,10 +196,10 @@ export const createDatabase = (args: {
       readonly: new HeadlessKysely({
         name: "readonly",
         common: args.common,
-        dialect: new PostgresDialect({ pool: driver.readonly }),
+        dialect: userDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_pglite_query_total.inc({
+            args.common.metrics.ponder_postgres_query_total.inc({
               pool: "readonly",
             });
           }
@@ -199,10 +208,10 @@ export const createDatabase = (args: {
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
-        dialect: new PostgresDialect({ pool: driver.sync }),
+        dialect: syncDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_pglite_query_total.inc({
+            args.common.metrics.ponder_postgres_query_total.inc({
               pool: "sync",
             });
           }
@@ -448,13 +457,11 @@ export const createDatabase = (args: {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
-        if (dialect === "postgres") {
-          await moveLegacyTables({
-            common: args.common,
-            db: qb.internal,
-            newSchemaName: "ponder_sync",
-          });
-        }
+        await moveLegacyTables({
+          common: args.common,
+          db: qb.internal,
+          newSchemaName: "ponder_sync",
+        });
 
         const migrator = new Migrator({
           db: qb.sync as any,
@@ -462,7 +469,9 @@ export const createDatabase = (args: {
           migrationTableSchema: "ponder_sync",
         });
 
+        console.log("migrate to latest");
         const { error } = await migrator.migrateToLatest();
+        console.log(error);
         if (error) throw error;
       });
     },
@@ -529,12 +538,10 @@ export const createDatabase = (args: {
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        if (dialect === "postgres") {
-          await qb.internal.schema
-            .createSchema(namespace)
-            .ifNotExists()
-            .execute();
-        }
+        await qb.internal.schema
+          .createSchema(namespace)
+          .ifNotExists()
+          .execute();
 
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
@@ -712,7 +719,7 @@ export const createDatabase = (args: {
             /**
              * If schema is empty, start
              */
-            if (previousApp === undefined) {
+            if (!previousApp) {
               await tx
                 .insertInto("_ponder_meta")
                 .values({ key: "status", value: null })

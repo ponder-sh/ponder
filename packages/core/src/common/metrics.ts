@@ -57,10 +57,6 @@ export class MetricsService {
   ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
   ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
 
-  ponder_pglite_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
-  ponder_pglite_query_queue_size: prometheus.Gauge<"pool"> = null!;
-  ponder_pglite_query_total: prometheus.Counter<"pool"> = null!;
-
   ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
   ponder_postgres_query_total: prometheus.Counter<"pool"> = null!;
@@ -219,25 +215,6 @@ export class MetricsService {
       help: "Time RPC requests spend waiting in the request queue",
       labelNames: ["network", "method"] as const,
       buckets: databaseQueryDurationMs,
-      registers: [this.registry],
-    });
-
-    this.ponder_pglite_pool_connections = new prometheus.Gauge({
-      name: "ponder_pglite_pool_connections",
-      help: "Number of pglite database connections",
-      labelNames: ["pool", "kind"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_pglite_query_queue_size = new prometheus.Gauge({
-      name: "ponder_pglite_query_queue_size",
-      help: "Size of pglite queries",
-      labelNames: ["pool"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_pglite_query_total = new prometheus.Counter({
-      name: "ponder_pglite_query_total",
-      help: "Size of pglite query totals",
-      labelNames: ["pool"] as const,
       registers: [this.registry],
     });
 

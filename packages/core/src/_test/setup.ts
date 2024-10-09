@@ -105,7 +105,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
     const tempDir = path.join(os.tmpdir(), randomUUID());
     mkdirSync(tempDir, { recursive: true });
 
-    context.databaseConfig = { kind: "sqlite", directory: tempDir };
+    context.databaseConfig = { kind: "pglite", directory: tempDir };
 
     return () => {
       rimrafSync(tempDir);
@@ -135,33 +135,39 @@ export async function setupDatabaseServices(
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
-  const database = createDatabase({
+  console.log("create");
+  const database = await createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,
   });
+  console.log("db setup");
 
   await database.setup(config);
 
-  await database.migrateSync();
+  console.log("migrate sync");
+  await database.migrateSync().catch((err) => {
+    console.log(err);
+    throw err;
+  });
 
+  console.log("create sync store");
   const syncStore = createSyncStore({
     common: context.common,
-    dialect: database.dialect,
     db: database.qb.sync,
   });
 
+  console.log("create ro store");
   const readonlyStore = getReadonlyStore({
-    dialect: database.dialect,
     schema: config.schema,
     db: database.qb.user,
     common: context.common,
   });
 
+  console.log("create indexing store");
   const indexingStore =
     config.indexing === "historical"
       ? getHistoricalStore({
-          dialect: database.dialect,
           schema: config.schema,
           readonlyStore,
           db: database.qb.user,
@@ -171,7 +177,6 @@ export async function setupDatabaseServices(
       : {
           ...readonlyStore,
           ...getRealtimeStore({
-            dialect: database.dialect,
             schema: config.schema,
             db: database.qb.user,
             common: context.common,

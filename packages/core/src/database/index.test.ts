@@ -63,7 +63,7 @@ function createCheckpoint(index: number): Checkpoint {
 }
 
 test("setup succeeds with a fresh database", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -84,7 +84,7 @@ test("setup succeeds with a fresh database", async (context) => {
 });
 
 test("setup succeeds with a prior app in the same namespace", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -93,7 +93,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -120,7 +120,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
 });
 
 test("setup does not drop tables that are not managed by ponder", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -129,7 +129,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -165,7 +165,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
 });
 
 test("setup with the same build ID and namespace reverts to and returns the finality checkpoint", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -174,7 +174,6 @@ test("setup with the same build ID and namespace reverts to and returns the fina
   await database.setup({ buildId: "abc" });
 
   const realtimeIndexingStore = getRealtimeStore({
-    dialect: context.databaseConfig.kind,
     schema,
     db: database.qb.user,
     common: context.common,
@@ -220,7 +219,7 @@ test("setup with the same build ID and namespace reverts to and returns the fina
 
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -231,7 +230,6 @@ test("setup with the same build ID and namespace reverts to and returns the fina
   });
 
   const readonlyIndexingStore = getReadonlyStore({
-    dialect: context.databaseConfig.kind,
     schema,
     db: databaseTwo.qb.user,
     common: context.common,
@@ -253,7 +251,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -261,7 +259,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -278,17 +276,11 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
     .updateTable("_ponder_meta")
     .where("key", "=", "app")
     .set({
-      value:
-        database.dialect === "sqlite"
-          ? JSON.stringify({
-              ...JSON.parse(row!.value!),
-              is_locked: true,
-            })
-          : {
-              // @ts-ignore
-              ...row!.value!,
-              is_locked: true,
-            },
+      value: {
+        // @ts-ignore
+        ...row!.value!,
+        // is_locked: true,
+      },
     })
     .execute();
 
@@ -305,7 +297,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -313,7 +305,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
 
   await database.setup({ buildId: "abc" });
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -332,7 +324,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
 });
 
 test("setup throws if there is a table name collision", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -355,7 +347,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -377,24 +369,14 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     .executeTakeFirst();
 
   expect(
-    BigInt(
-      database.dialect === "sqlite"
-        ? JSON.parse(rowAfterHeartbeat!.value!).heartbeat_at
-        : // @ts-ignore
-          rowAfterHeartbeat!.value!.heartbeat_at,
-    ),
-  ).toBeGreaterThan(
-    database.dialect === "sqlite"
-      ? JSON.parse(row!.value!).heartbeat_at
-      : // @ts-ignore
-        row!.value!.heartbeat_at,
-  );
+    BigInt(rowAfterHeartbeat!.value!.heartbeat_at as number),
+  ).toBeGreaterThan(row!.value!.heartbeat_at as number);
 
   await database.kill();
 });
 
 test("finalize updates lock table", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -414,18 +396,13 @@ test("finalize updates lock table", async (context) => {
     .select("value")
     .executeTakeFirst();
 
-  expect(
-    database.dialect === "sqlite"
-      ? JSON.parse(row!.value!).checkpoint
-      : // @ts-ignore
-        row!.value!.checkpoint,
-  ).toStrictEqual(encodeCheckpoint(maxCheckpoint));
+  expect(row!.value!.checkpoint).toStrictEqual(encodeCheckpoint(maxCheckpoint));
 
   await database.kill();
 });
 
 test("finalize delete reorg table rows", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -434,7 +411,6 @@ test("finalize delete reorg table rows", async (context) => {
   await database.setup({ buildId: "abc" });
 
   const realtimeIndexingStore = getRealtimeStore({
-    dialect: context.databaseConfig.kind,
     schema,
     db: database.qb.user,
     common: context.common,
@@ -493,7 +469,7 @@ test("finalize delete reorg table rows", async (context) => {
 });
 
 test("kill releases the namespace lock", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -510,7 +486,7 @@ test("kill releases the namespace lock", async (context) => {
   await database.kill();
 
   // Only creating this database to use the `orm` object.
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -522,24 +498,14 @@ test("kill releases the namespace lock", async (context) => {
     .select("value")
     .executeTakeFirst();
 
-  expect(
-    database.dialect === "sqlite"
-      ? JSON.parse(row!.value!).is_locked
-      : // @ts-ignore
-        row!.value!.is_locked,
-  ).toBe(1);
-  expect(
-    database.dialect === "sqlite"
-      ? JSON.parse(rowAfterKill!.value!).is_locked
-      : // @ts-ignore
-        rowAfterKill!.value!.is_locked,
-  ).toBe(0);
+  expect(row!.value!.is_locked).toBe(1);
+  expect(rowAfterKill!.value!.is_locked).toBe(0);
 
   await databaseTwo.kill();
 });
 
 test("createIndexes adds a single column index", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -559,7 +525,7 @@ test("createIndexes adds a single column index", async (context) => {
 });
 
 test("createIndexes adds a multi column index", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -591,7 +557,7 @@ test("createIndexes with ordering", async (context) => {
     ),
   }));
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -611,7 +577,7 @@ test("createIndexes with ordering", async (context) => {
 });
 
 test("setup with the same build ID drops indexes", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -623,7 +589,7 @@ test("setup with the same build ID drops indexes", async (context) => {
 
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -633,9 +599,7 @@ test("setup with the same build ID drops indexes", async (context) => {
 
   const indexes = await getUserIndexNames(databaseTwo, "Person");
 
-  expect(indexes).toStrictEqual([
-    database.dialect === "sqlite" ? "sqlite_autoindex_Person_1" : "Person_pkey",
-  ]);
+  expect(indexes).toStrictEqual(["Person_pkey"]);
 
   await databaseTwo.kill();
 });
@@ -761,11 +725,7 @@ test("revert() updates versions with intermediate logs", async (context) => {
 
 async function getUserTableNames(database: Database) {
   const { rows } = await database.qb.internal.executeQuery<{ name: string }>(
-    database.dialect === "sqlite"
-      ? sql`SELECT name FROM sqlite_master WHERE type='table'`.compile(
-          database.qb.internal,
-        )
-      : sql`
+    sql`
     SELECT table_name as name
     FROM information_schema.tables
     WHERE table_schema = '${sql.raw(database.namespace)}'
@@ -780,11 +740,7 @@ async function getUserIndexNames(database: Database, tableName: string) {
     name: string;
     tbl_name: string;
   }>(
-    database.dialect === "sqlite"
-      ? sql`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='${sql.raw(tableName)}'`.compile(
-          database.qb.internal,
-        )
-      : sql`
+    sql`
     SELECT indexname as name
     FROM pg_indexes
     WHERE schemaname = '${sql.raw(database.namespace)}'
