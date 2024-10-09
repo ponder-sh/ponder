@@ -311,7 +311,7 @@ test("startRealtime()", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  await await sync.startRealtime();
+  await sync.startRealtime();
 
   const status = sync.getStatus();
 

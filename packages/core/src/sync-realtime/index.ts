@@ -406,13 +406,7 @@ export const createRealtimeSync = (
 
       if (parentBlock.hash === remoteBlock.parentHash) break;
 
-      if (unfinalizedBlocks.length > 0) {
-        remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
-          hash: remoteBlock.parentHash,
-        });
-        // Add tip to `reorgedBlocks`
-        reorgedBlocks.push(unfinalizedBlocks.pop()!);
-      } else {
+      if (unfinalizedBlocks.length === 0) {
         // No compatible block was found in the local chain, must be a deep reorg.
 
         const msg = `Encountered unrecoverable '${args.network.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
@@ -420,6 +414,12 @@ export const createRealtimeSync = (
         args.common.logger.warn({ service: "realtime", msg });
 
         throw new Error(msg);
+      } else {
+        remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
+          hash: remoteBlock.parentHash,
+        });
+        // Add tip to `reorgedBlocks`
+        reorgedBlocks.push(unfinalizedBlocks.pop()!);
       }
     }
 

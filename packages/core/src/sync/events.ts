@@ -240,7 +240,7 @@ export const buildEvents = ({
                     .has(callTrace.action.to)
                 : true) &&
               filter.functionSelectors.includes(
-                callTrace.action.input.slice(0, 10) as `0x${string}`,
+                callTrace.action.input.slice(0, 10).toLowerCase() as Hex,
               )
             ) {
               events.push({
@@ -353,7 +353,9 @@ export const decodeEvents = (
 
           case "callTrace": {
             try {
-              const selector = event.trace!.input.slice(0, 10) as Hex;
+              const selector = event
+                .trace!.input.slice(0, 10)
+                .toLowerCase() as Hex;
 
               if (source.abiFunctions.bySelector[selector] === undefined) {
                 throw new Error();

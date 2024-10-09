@@ -1280,7 +1280,7 @@ export const createSyncStore = ({
       return result?.result ?? null;
     }),
   pruneRpcRequestResult: async ({ blocks, chainId }) =>
-    db.wrap({ method: "pruneByBlock" }, async () => {
+    db.wrap({ method: "pruneRpcRequestResult" }, async () => {
       if (blocks.length === 0) return;
 
       const numbers = blocks.map(({ number }) =>

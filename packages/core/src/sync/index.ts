@@ -575,9 +575,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    *
    * Handle callback events across all `args.networks`, and raising these
    * events to `args.onRealtimeEvent` while maintaining checkpoint ordering.
-   *
-   * Note: "block" events are still being handled by writing and reading from
-   * the sync-store. This approach is not future proof and inefficient.
    */
   const onRealtimeSyncEvent = async ({
     network,
@@ -698,7 +695,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           });
         }
 
-        // Add finalized blocks, logs, transactions, receipts, and traces and intervals to the sync-store.
+        // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
         await Promise.all([
           args.syncStore.insertBlocks({
@@ -739,12 +736,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ),
             chainId: network.chainId,
           }),
-          ...args.sources
+        ]);
+
+        // Add corresponding intervals to the sync-store
+        // Note: this should happen after so the database doesn't become corrupted
+        await Promise.all(
+          args.sources
             .filter(({ filter }) => filter.chainId === network.chainId)
             .map(({ filter }) =>
               args.syncStore.insertInterval({ filter, interval }),
             ),
-        ]);
+        );
 
         /**
          * The realtime service can be killed if `endBlock` is
@@ -763,7 +765,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             service: "sync",
             msg: `Synced final end block for '${network.name}' (${hexToNumber(syncProgress.end!.number)}), killing realtime sync service`,
           });
-          // TODO(kyle) is this okay?
           realtimeSync.kill();
         }
         break;
