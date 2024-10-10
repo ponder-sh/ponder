@@ -226,7 +226,23 @@ export const createHistoricalSync = async (
       logs.map((log) => syncBlock(hexToBigInt(log.blockNumber))),
     );
 
-    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
+    // Validate that logs point to the valid transaction hash in the block
+    const transactionHashes = new Set(
+      logs.map((log, i) => {
+        const transactionHash = log.transactionHash;
+        const block = blocks[i]!;
+        const isValid = block.transactions.some(
+          (t) => t.hash === transactionHash,
+        );
+        if (!isValid) {
+          throw new Error(
+            `Received log with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
+          );
+        }
+        return transactionHash;
+      }),
+    );
+
     for (const hash of transactionHashes) {
       transactionsCache.add(hash);
     }
@@ -303,9 +319,28 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
+    const blocks = await Promise.all(
+      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
+    );
+
+    // Validate that traces point to the valid transaction hash in the block
+    const transactionHashes = callTraces.map((trace, i) => {
+      const transactionHash = trace.transactionHash;
+      const block = blocks[i]!;
+      const isValid = block.transactions.some(
+        (t) => t.hash === transactionHash,
+      );
+      if (!isValid) {
+        throw new Error(
+          `Received trace with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
+        );
+      }
+      return transactionHash;
+    });
+
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
-      dedupe(callTraces.map((t) => t.transactionHash)).map((hash) =>
+      dedupe(transactionHashes).map((hash) =>
         _eth_getTransactionReceipt(args.requestQueue, {
           hash,
         }),
@@ -324,10 +359,6 @@ export const createHistoricalSync = async (
     );
 
     if (isKilled) return;
-
-    const blocks = await Promise.all(
-      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
-    );
 
     for (const { transactionHash } of callTraces) {
       transactionsCache.add(transactionHash);

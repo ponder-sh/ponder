@@ -394,6 +394,7 @@ export const createRealtimeSync = (
         );
       }
 
+      // Check that logs refer to the correct block
       for (const log of logs) {
         if (log.blockHash !== block.hash) {
           throw new Error(
