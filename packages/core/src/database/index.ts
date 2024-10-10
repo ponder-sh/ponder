@@ -28,7 +28,7 @@ import {
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { wait } from "@/utils/wait.js";
-import type { PGlite } from "@electric-sql/pglite";
+import { PGlite } from "@electric-sql/pglite";
 import {
   Migrator,
   PostgresDialect,
@@ -97,8 +97,6 @@ type PonderInternalSchema = {
 };
 
 type PGliteDriver = {
-  internal: PGlite;
-  readonly: PGlite;
   user: PGlite;
   sync: PGlite;
 };
@@ -147,7 +145,7 @@ export const createDatabase = async (args: {
   ////////
 
   let dialect: Database["dialect"];
-  let driver!: Database["driver"];
+  let driver: Database["driver"];
   let qb: Database["qb"];
 
   if (args.databaseConfig.kind === "pglite") {
@@ -157,16 +155,17 @@ export const createDatabase = async (args: {
     const userDir = path.join(args.databaseConfig.directory, "public");
     const syncDir = path.join(args.databaseConfig.directory, "sync");
 
-    const { client: userClient, dialect: userDialect } =
-      await KyselyPGlite.create(userDir);
-    const { client: syncClient, dialect: syncDialect } =
-      await KyselyPGlite.create(syncDir);
+    const [userPglite, syncPglite] = await Promise.all([
+      PGlite.create({ dataDir: userDir }),
+      PGlite.create({ dataDir: syncDir }),
+    ]);
+
+    const userDialect = new KyselyPGlite(userPglite).dialect;
+    const syncDialect = new KyselyPGlite(syncPglite).dialect;
 
     driver = {
-      internal: userClient,
-      readonly: userClient,
-      user: userClient,
-      sync: syncClient,
+      user: userPglite,
+      sync: syncPglite,
     };
 
     qb = {
@@ -181,6 +180,7 @@ export const createDatabase = async (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       user: new HeadlessKysely({
         name: "user",
@@ -193,6 +193,7 @@ export const createDatabase = async (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       readonly: new HeadlessKysely({
         name: "readonly",
@@ -205,6 +206,7 @@ export const createDatabase = async (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
@@ -311,79 +313,49 @@ export const createDatabase = async (args: {
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
+
+    // Register pool metrics
+    const d = driver as PostgresDriver;
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_pool_connections",
+    );
+    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_pool_connections",
+        help: "Number of connections in the pool",
+        labelNames: ["pool", "kind"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
+          this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
+          this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+          this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+          this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
+          this.set({ pool: "user", kind: "total" }, d.user.totalCount);
+          this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
+          this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
+        },
+      },
+    );
+
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_queue_size",
+    );
+    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_query_queue_size",
+        help: "Number of query requests waiting for an available connection",
+        labelNames: ["pool"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal" }, d.internal.waitingCount);
+          this.set({ pool: "sync" }, d.sync.waitingCount);
+          this.set({ pool: "user" }, d.user.waitingCount);
+          this.set({ pool: "readonly" }, d.readonly.waitingCount);
+        },
+      },
+    );
   }
-
-  // Register metrics
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_query_total",
-  );
-  args.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
-    name: "ponder_postgres_query_total",
-    help: "Total number of queries submitted to the database",
-    labelNames: ["pool"] as const,
-    registers: [args.common.metrics.registry],
-  });
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_pool_connections",
-  );
-  args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
-    name: "ponder_postgres_pool_connections",
-    help: "Number of connections in the pool",
-    labelNames: ["pool", "kind"] as const,
-    registers: [args.common.metrics.registry],
-    collect() {
-      this.set(
-        { pool: "internal", kind: "idle" },
-        // @ts-ignore
-        driver.internal.idleCount,
-      );
-      this.set(
-        { pool: "internal", kind: "total" },
-        // @ts-ignore
-        driver.internal.totalCount,
-      );
-
-      this.set({ pool: "sync", kind: "idle" }, (driver.sync as Pool).idleCount);
-      this.set(
-        { pool: "sync", kind: "total" },
-        (driver.sync as Pool).totalCount,
-      );
-
-      this.set({ pool: "user", kind: "idle" }, (driver.user as Pool).idleCount);
-      this.set(
-        { pool: "user", kind: "total" },
-        (driver.user as Pool).totalCount,
-      );
-
-      this.set(
-        { pool: "readonly", kind: "idle" },
-        (driver.readonly as Pool).idleCount,
-      );
-      this.set(
-        { pool: "readonly", kind: "total" },
-        (driver.readonly as Pool).totalCount,
-      );
-    },
-  });
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_query_queue_size",
-  );
-  args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
-    name: "ponder_postgres_query_queue_size",
-    help: "Number of query requests waiting for an available connection",
-    labelNames: ["pool"] as const,
-    registers: [args.common.metrics.registry],
-    collect() {
-      // @ts-ignore
-      this.set({ pool: "internal" }, driver.internal.waitingCount);
-      this.set({ pool: "sync" }, (driver.sync as Pool).waitingCount);
-      this.set({ pool: "user" }, (driver.user as Pool).waitingCount);
-      this.set({ pool: "readonly" }, (driver.readonly as Pool).waitingCount);
-    },
-  });
 
   ////////
   // Helpers
