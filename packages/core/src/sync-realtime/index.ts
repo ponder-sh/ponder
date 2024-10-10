@@ -488,6 +488,15 @@ export const createRealtimeSync = (
           `Detected invalid '${args.network.name}' eth_getLogs response.`,
         );
       }
+
+      // Check that logs refer to the correct block
+      for (const log of logs) {
+        if (log.blockHash !== block.hash) {
+          throw new Error(
+            `Received log with block hash '${log.blockHash}' that does not match current head block '${block.hash}'`,
+          );
+        }
+      }
     }
 
     if (
@@ -600,6 +609,24 @@ export const createRealtimeSync = (
     const transactions = block.transactions.filter(({ hash }) =>
       requiredTransactions.has(hash),
     );
+
+    // Validate that filtered logs/callTraces point to valid transaction in the block
+    const blockTransactionsHashes = new Set(
+      block.transactions.map((t) => t.hash),
+    );
+
+    const invalidTransactionHashes: Hash[] = [];
+    for (const hash of requiredTransactions) {
+      if (blockTransactionsHashes.has(hash) === false) {
+        invalidTransactionHashes.push(hash);
+      }
+    }
+
+    if (invalidTransactionHashes.length > 0) {
+      throw new Error(
+        `Received callTraces/logs with transaction hash(es): '${invalidTransactionHashes.join(", ")}' that is/are not in current head block '${block.hash}'`,
+      );
+    }
 
     ////////
     // Transaction Receipts
