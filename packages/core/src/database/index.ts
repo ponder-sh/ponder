@@ -1,4 +1,4 @@
-import path from "node:path";
+import * as path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -36,6 +36,7 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
+import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
@@ -95,18 +96,23 @@ type PonderInternalSchema = {
   [tableName: string]: UserTable;
 };
 
+type PGliteDriver = {
+  internal: PGlite;
+  readonly: PGlite;
+  user: PGlite;
+  sync: PGlite;
+};
+
+type PostgresDriver = {
+  internal: Pool;
+  user: Pool;
+  readonly: Pool;
+  sync: Pool;
+};
+
 type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
-  ? {
-      user: PGlite;
-      readonly: PGlite;
-      sync: PGlite;
-    }
-  : {
-      internal: Pool;
-      user: Pool;
-      readonly: Pool;
-      sync: Pool;
-    };
+  ? PGliteDriver
+  : PostgresDriver;
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
@@ -128,11 +134,11 @@ const scalarToPostgresType = {
   hex: "bytea",
 } as const;
 
-export const createDatabase = (args: {
+export const createDatabase = async (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
 
@@ -141,31 +147,37 @@ export const createDatabase = (args: {
   ////////
 
   let dialect: Database["dialect"];
-  let driver: Database["driver"];
+  let driver!: Database["driver"];
   let qb: Database["qb"];
 
   if (args.databaseConfig.kind === "pglite") {
     dialect = "pglite";
     namespace = "public";
 
-    const userFile = path.join(args.databaseConfig.directory, "public.db");
-    const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
+    const userDir = path.join(args.databaseConfig.directory, "public");
+    const syncDir = path.join(args.databaseConfig.directory, "sync");
 
-    // driver = {
-    //   user: createSqliteDatabase(userFile),
-    //   readonly: createReadonlySqliteDatabase(userFile),
-    //   sync: createSqliteDatabase(syncFile),
-    // };
+    const { client: userClient, dialect: userDialect } =
+      await KyselyPGlite.create(userDir);
+    const { client: syncClient, dialect: syncDialect } =
+      await KyselyPGlite.create(syncDir);
+
+    driver = {
+      internal: userClient,
+      readonly: userClient,
+      user: userClient,
+      sync: syncClient,
+    };
 
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: userDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "internal",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "internal",
             });
           }
         },
@@ -173,11 +185,11 @@ export const createDatabase = (args: {
       user: new HeadlessKysely({
         name: "user",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: userDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "user",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "user",
             });
           }
         },
@@ -185,11 +197,11 @@ export const createDatabase = (args: {
       readonly: new HeadlessKysely({
         name: "readonly",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.readonly }),
+        dialect: userDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "readonly",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "readonly",
             });
           }
         },
@@ -197,14 +209,15 @@ export const createDatabase = (args: {
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.sync }),
+        dialect: syncDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "sync",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "sync",
             });
           }
         },
+        plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
   } else {
@@ -446,13 +459,11 @@ export const createDatabase = (args: {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
-        if (dialect === "postgres") {
-          await moveLegacyTables({
-            common: args.common,
-            db: qb.internal,
-            newSchemaName: "ponder_sync",
-          });
-        }
+        await moveLegacyTables({
+          common: args.common,
+          db: qb.internal,
+          newSchemaName: "ponder_sync",
+        });
 
         const migrator = new Migrator({
           db: qb.sync as any,
@@ -527,12 +538,10 @@ export const createDatabase = (args: {
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        if (dialect === "postgres") {
-          await qb.internal.schema
-            .createSchema(namespace)
-            .ifNotExists()
-            .execute();
-        }
+        await qb.internal.schema
+          .createSchema(namespace)
+          .ifNotExists()
+          .execute();
 
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
@@ -710,7 +719,7 @@ export const createDatabase = (args: {
             /**
              * If schema is empty, start
              */
-            if (previousApp === undefined) {
+            if (!previousApp) {
               await tx
                 .insertInto("_ponder_meta")
                 .values({ key: "status", value: null })
@@ -1030,21 +1039,15 @@ export const createDatabase = (args: {
       await qb.sync.destroy();
 
       if (dialect === "pglite") {
-        // @ts-ignore
-        driver.user.close();
-        // @ts-ignore
-        driver.readonly.close();
-        // @ts-ignore
-        driver.sync.close();
+        const d = driver as PGliteDriver;
+        await d.user.close();
+        await d.sync.close();
       } else {
-        // @ts-ignore
-        await driver.internal.end();
-        // @ts-ignore
-        await driver.user.end();
-        // @ts-ignore
-        await driver.readonly.end();
-        // @ts-ignore
-        await driver.sync.end();
+        const d = driver as PostgresDriver;
+        await d.internal.end();
+        await d.user.end();
+        await d.readonly.end();
+        await d.sync.end();
       }
 
       args.common.logger.debug({

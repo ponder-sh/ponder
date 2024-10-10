@@ -71,7 +71,7 @@ export function setupCommon(context: TestContext) {
  *
  * If `process.env.DATABASE_URL` is set, creates a new database and drops
  * it in the cleanup function. If it's not set, creates a temporary directory
- * for SQLite and removes it in the cleanup function.
+ * for PGlite and removes it in the cleanup function.
  *
  * ```ts
  * // Add this to any test suite that uses the database.
@@ -105,7 +105,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
     const tempDir = path.join(os.tmpdir(), randomUUID());
     mkdirSync(tempDir, { recursive: true });
 
-    context.databaseConfig = { kind: "sqlite", directory: tempDir };
+    context.databaseConfig = { kind: "pglite", directory: tempDir };
 
     return () => {
       rimrafSync(tempDir);
@@ -135,7 +135,7 @@ export async function setupDatabaseServices(
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,
@@ -143,16 +143,17 @@ export async function setupDatabaseServices(
 
   await database.setup(config);
 
-  await database.migrateSync();
+  await database.migrateSync().catch((err) => {
+    console.log(err);
+    throw err;
+  });
 
   const syncStore = createSyncStore({
     common: context.common,
-    dialect: database.dialect,
     db: database.qb.sync,
   });
 
   const readonlyStore = getReadonlyStore({
-    dialect: database.dialect,
     schema: config.schema,
     db: database.qb.user,
     common: context.common,
@@ -161,7 +162,6 @@ export async function setupDatabaseServices(
   const indexingStore =
     config.indexing === "historical"
       ? getHistoricalStore({
-          dialect: database.dialect,
           schema: config.schema,
           readonlyStore,
           db: database.qb.user,
@@ -171,7 +171,6 @@ export async function setupDatabaseServices(
       : {
           ...readonlyStore,
           ...getRealtimeStore({
-            dialect: database.dialect,
             schema: config.schema,
             db: database.qb.user,
             common: context.common,
