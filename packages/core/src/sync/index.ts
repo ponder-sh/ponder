@@ -14,7 +14,6 @@ import type { SyncStore } from "@/sync-store/index.js";
 import type { LightBlock, SyncBlock } from "@/types/sync.js";
 import {
   type Checkpoint,
-  checkpointMin,
   decodeCheckpoint,
   encodeCheckpoint,
   maxCheckpoint,
@@ -77,7 +76,7 @@ export type Status = {
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
   end: SyncBlock | LightBlock | undefined;
-  cached: SyncBlock | undefined;
+  cached: SyncBlock | LightBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
 };
@@ -107,7 +106,7 @@ export const blockToCheckpoint = (
  * Returns true if all filters have a defined end block and the current
  * sync progress has reached the final end block.
  */
-export const isSyncComplete = (syncProgress: SyncProgress) => {
+export const isSyncEnd = (syncProgress: SyncProgress) => {
   if (syncProgress.end === undefined || syncProgress.current === undefined) {
     return false;
   }
@@ -118,14 +117,38 @@ export const isSyncComplete = (syncProgress: SyncProgress) => {
   );
 };
 
+/** Returns true if sync progress has reached the finalized block. */
+export const isSyncFinalized = (syncProgress: SyncProgress) => {
+  if (syncProgress.current === undefined) {
+    return false;
+  }
+
+  return (
+    hexToNumber(syncProgress.current.number) >=
+    hexToNumber(syncProgress.finalized.number)
+  );
+};
+
 /** Returns the closest-to-tip block that is part of the historical sync. */
-export const getHistoricalLast = (syncProgress: SyncProgress) => {
+export const getHistoricalLast = (
+  syncProgress: Pick<SyncProgress, "finalized" | "end">,
+) => {
   return syncProgress.end === undefined
     ? syncProgress.finalized
     : hexToNumber(syncProgress.end.number) >
         hexToNumber(syncProgress.finalized.number)
       ? syncProgress.finalized
       : syncProgress.end;
+};
+
+/** Compute the minimum checkpoint, filtering out undefined */
+export const min = (...checkpoints: (string | undefined)[]) => {
+  return checkpoints.reduce((acc, cur) => {
+    if (cur === undefined) return acc;
+    if (acc === undefined) return cur;
+    if (acc < cur) return acc;
+    return cur;
+  })!;
 };
 
 /** Returns the checkpoint for a given block tag. */
@@ -142,7 +165,7 @@ export const getChainCheckpoint = ({
     return undefined;
   }
 
-  if (tag === "current" && isSyncComplete(syncProgress)) {
+  if (tag === "current" && isSyncEnd(syncProgress)) {
     return undefined;
   }
 
@@ -228,7 +251,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         sources,
         requestQueue,
         historicalSync,
-        syncProgress: { finalized },
+        syncProgress: { end, finalized },
       });
 
       // Update "ponder_sync_block" metric
@@ -304,11 +327,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return undefined;
     }
 
-    return encodeCheckpoint(
-      checkpointMin(
-        ...checkpoints.map((c) => (c ? decodeCheckpoint(c) : maxCheckpoint)),
-      ),
-    );
+    return min(...checkpoints);
   };
 
   const updateHistoricalStatus = ({
@@ -422,19 +441,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           continue;
         }
 
-        /**
-         * Calculate the mininum "current" checkpoint, falling back to `end` if
-         * all networks have completed.
-         *
-         * `end`: If every network has an `endBlock` and it's less than
-         * `finalized`, use that. Otherwise, use `finalized`
-         */
-        const end =
-          getOmnichainCheckpoint("end") !== undefined &&
-          getOmnichainCheckpoint("end")! < getOmnichainCheckpoint("finalized")!
-            ? getOmnichainCheckpoint("end")!
-            : getOmnichainCheckpoint("finalized")!;
-        const to = getOmnichainCheckpoint("current") ?? end;
+        // Calculate the mininum "current" checkpoint, limited by "finalized" and "end"
+        const to = min(
+          getOmnichainCheckpoint("end"),
+          getOmnichainCheckpoint("finalized"),
+          getOmnichainCheckpoint("current"),
+        );
 
         /*
          * Extract events with `syncStore.getEvents()`, paginating to
@@ -511,7 +523,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const allHistoricalSyncExhaustive = Array.from(
         localSyncContext.values(),
       ).every(({ syncProgress }) => {
-        if (isSyncComplete(syncProgress)) return true;
+        if (isSyncEnd(syncProgress)) return true;
 
         // Determine if `finalized` block is considered "stale"
         const staleSeconds = (Date.now() - latestFinalizedFetch) / 1_000;
@@ -703,7 +715,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
            * The realtime service can be killed if `endBlock` is
            * defined has become finalized.
            */
-          if (isSyncComplete(syncProgress)) {
+          if (isSyncEnd(syncProgress)) {
             args.common.metrics.ponder_sync_is_realtime.set(
               { network: network.name },
               0,
@@ -761,7 +773,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         };
         status[network.name]!.ready = true;
 
-        if (isSyncComplete(syncProgress)) {
+        if (isSyncEnd(syncProgress)) {
           args.common.metrics.ponder_sync_is_complete.set(
             { network: network.name },
             1,
@@ -871,8 +883,8 @@ export const getCachedBlock = ({
   sources: Source[];
   requestQueue: RequestQueue;
   historicalSync: HistoricalSync;
-  syncProgress: Pick<SyncProgress, "finalized">;
-}): Promise<SyncBlock> | undefined => {
+  syncProgress: Pick<SyncProgress, "end" | "finalized">;
+}): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
       filter.fromBlock,
@@ -907,8 +919,10 @@ export const getCachedBlock = ({
         block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
     )
   ) {
-    if (minCompletedBlock > hexToNumber(syncProgress.finalized.number)) {
-      return Promise.resolve(syncProgress.finalized as SyncBlock);
+    if (
+      minCompletedBlock > hexToNumber(getHistoricalLast(syncProgress).number)
+    ) {
+      return Promise.resolve(getHistoricalLast(syncProgress));
     }
 
     return _eth_getBlockByNumber(requestQueue, {
@@ -1113,11 +1127,7 @@ export async function* localHistoricalSyncGenerator({
 
     yield;
 
-    if (
-      isSyncComplete(syncProgress) ||
-      hexToNumber(syncProgress.finalized.number) ===
-        hexToNumber(syncProgress.current.number)
-    ) {
+    if (isSyncEnd(syncProgress) || isSyncFinalized(syncProgress)) {
       return;
     }
   }
