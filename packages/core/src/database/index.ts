@@ -4,7 +4,11 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import { type Drizzle, type Schema, onchain } from "@/drizzle/index.js";
-import { generateTableSQL, getPrimaryKeyColumns } from "@/drizzle/sql.js";
+import {
+  generateTableSQL,
+  getPrimaryKeyColumns,
+  getTableNames,
+} from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
@@ -30,7 +34,6 @@ import { drizzle as createDrizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
   PgTable,
-  getTableConfig,
   integer,
   pgTable,
   serial,
@@ -510,22 +513,6 @@ export const createDatabase = async (args: {
     });
   };
 
-  const getJsTableNames = () => {
-    const tableNames = Object.entries(args.schema)
-      .filter(([, table]) => is(table, PgTable))
-      .map(([tableName]) => tableName);
-
-    return tableNames;
-  };
-
-  const getSQLTableNames = () => {
-    const tableNames = Object.values(args.schema)
-      .filter((table): table is PgTable => is(table, PgTable))
-      .map((table) => getTableConfig(table).name);
-
-    return tableNames;
-  };
-
   return {
     dialect,
     namespace,
@@ -801,7 +788,7 @@ export const createDatabase = async (args: {
               heartbeat_at: Date.now(),
               build_id: buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: getSQLTableNames(),
+              table_names: getTableNames(args.schema).map(({ sql }) => sql),
             } satisfies PonderApp;
 
             /**
@@ -905,13 +892,10 @@ export const createDatabase = async (args: {
 
               // Remove triggers
 
-              const sqlTableNames = getSQLTableNames();
-              const jsTableNames = getJsTableNames();
-
-              for (const tableName of sqlTableNames) {
+              for (const { sql: sqlTableName } of getTableNames(args.schema)) {
                 await sql
-                  .ref(
-                    `DROP TRIGGER IF EXISTS ${tableName}_reorg ON "${namespace}"."${tableName}"`,
+                  .raw(
+                    `DROP TRIGGER IF EXISTS ${sqlTableName}_reorg ON "${namespace}"."${sqlTableName}"`,
                   )
                   .execute(tx);
               }
@@ -926,10 +910,10 @@ export const createDatabase = async (args: {
                 msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
               });
 
-              for (let i = 0; i < sqlTableNames.length; i++) {
+              for (const { sql, js } of getTableNames(args.schema)) {
                 await revert({
-                  sqlTableName: sqlTableNames[i]!,
-                  jsTableName: jsTableNames[i]!,
+                  sqlTableName: sql,
+                  jsTableName: js,
                   checkpoint: previousApp.checkpoint,
                   tx,
                 });
@@ -966,7 +950,11 @@ export const createDatabase = async (args: {
                 .ifExists()
                 .execute();
 
-              await tx.schema.dropTable(tableName).ifExists().execute();
+              await tx.schema
+                .dropTable(tableName)
+                .cascade()
+                .ifExists()
+                .execute();
 
               args.common.logger.debug({
                 service: "database",
@@ -1097,17 +1085,11 @@ export const createDatabase = async (args: {
     // },
     async createTriggers() {
       await qb.internal.wrap({ method: "createTriggers" }, async () => {
-        const sqlTableNames = getSQLTableNames();
-        const jsTableNames = getJsTableNames();
-
-        for (let i = 0; i < sqlTableNames.length; i++) {
-          const jsTableName = jsTableNames[i]!;
-          const sqlTableName = sqlTableNames[i]!;
-
-          const columns = getTableColumns(args.schema[jsTableName]! as PgTable);
+        for (const { sql: sqlTableName, js } of getTableNames(args.schema)) {
+          const columns = getTableColumns(args.schema[js]! as PgTable);
 
           const columnNames = Object.values(columns).map(
-            (column) => column.name,
+            (column) => `"${column.name}"`,
           );
 
           await sql
@@ -1116,19 +1098,19 @@ CREATE OR REPLACE FUNCTION ${sqlTableName}_reorg_operation()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint) 
+    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint) 
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');   
+    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
   END IF;
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql
-        `)
+`)
             .execute(qb.internal);
 
           await sql
@@ -1136,22 +1118,19 @@ $$ LANGUAGE plpgsql
 CREATE TRIGGER "${sqlTableName}_reorg"
 AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${sqlTableName}"
 FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
-  `)
+`)
             .execute(qb.internal);
         }
       });
     },
     async revert({ checkpoint }) {
-      const sqlTableNames = getSQLTableNames();
-      const jsTableNames = getJsTableNames();
-
       await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
-          sqlTableNames.map((sqlTableName, i) =>
+          getTableNames(args.schema).map(({ sql, js }) =>
             qb.internal.transaction().execute((tx) =>
               revert({
-                sqlTableName,
-                jsTableName: jsTableNames[i]!,
+                sqlTableName: sql,
+                jsTableName: js,
                 checkpoint,
                 tx,
               }),
@@ -1173,12 +1152,10 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
           })
           .execute();
 
-        const tableNames = getSQLTableNames();
-
         await Promise.all(
-          tableNames.map((tableName) =>
+          getTableNames(args.schema).map(({ sql }) =>
             qb.internal
-              .deleteFrom(`_ponder_reorg__${tableName}`)
+              .deleteFrom(`_ponder_reorg__${sql}`)
               .where("checkpoint", "<=", checkpoint)
               .execute(),
           ),
@@ -1193,13 +1170,11 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
       });
     },
     async complete({ checkpoint }) {
-      const tableNames = getSQLTableNames();
-
       await Promise.all(
-        tableNames.map((tableName) =>
+        getTableNames(args.schema).map(({ sql }) =>
           qb.internal.wrap({ method: "complete" }, async () => {
             await qb.internal
-              .updateTable(`_ponder_reorg__${tableName}`)
+              .updateTable(`_ponder_reorg__${sql}`)
               .set({ checkpoint })
               .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
               .execute();

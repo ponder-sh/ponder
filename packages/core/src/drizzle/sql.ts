@@ -1,8 +1,8 @@
-import { Table, is } from "drizzle-orm";
+import { Table, getTableName, is } from "drizzle-orm";
 import {
   PgColumn,
   PgEnumColumn,
-  type PgTable,
+  PgTable,
   type TableConfig,
   getTableConfig,
   integer,
@@ -10,6 +10,7 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { Schema } from "./index.js";
 
 export const pgNativeTypes = new Set([
   "uuid",
@@ -228,6 +229,17 @@ export const getPrimaryKeyColumns = (table: PgTable): string[] => {
   const pkColumn = tableConfig.columns.find((c) => c.primary)!;
 
   return [pkColumn.name];
+};
+
+export const getTableNames = (schema: Schema) => {
+  const tableNames = Object.entries(schema)
+    .filter(([, table]) => is(table, PgTable))
+    .map(([tableName, table]) => ({
+      sql: getTableName(table as PgTable),
+      js: tableName,
+    }));
+
+  return tableNames;
 };
 
 export const getReorgTable = (table: PgTable<TableConfig>) => {

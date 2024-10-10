@@ -138,6 +138,7 @@ export async function run({
     networks,
     sync,
     database,
+    schema,
   });
 
   await metadataStore.setStatus(sync.getStatus());

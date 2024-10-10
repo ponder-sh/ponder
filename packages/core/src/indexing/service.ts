@@ -84,6 +84,7 @@ export const create = ({
   networks,
   sync,
   database,
+  schema,
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
@@ -91,6 +92,7 @@ export const create = ({
   networks: Network[];
   sync: Sync;
   database: Database;
+  schema: Schema;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
     blockNumber: undefined!,
@@ -176,7 +178,7 @@ export const create = ({
         network: { name: undefined!, chainId: undefined! },
         contracts: undefined!,
         client: undefined!,
-        db: createIndexingStore({ database }),
+        db: createIndexingStore({ database, schema }),
       },
     },
     networkByChainId,
