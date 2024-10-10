@@ -25,7 +25,6 @@ import {
   _eth_getTransactionReceipt,
   _trace_filter,
 } from "@/utils/rpc.js";
-import { dedupe } from "@ponder/common";
 import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
@@ -226,15 +225,23 @@ export const createHistoricalSync = async (
       logs.map((log) => syncBlock(hexToBigInt(log.blockNumber))),
     );
 
-    // Validate that logs point to the valid transaction hash in the block
+    // Validate that logs point to the valid transaction hash in the block and collect them
     const transactionHashes = new Set(
       logs.map((log, i) => {
         const transactionHash = log.transactionHash;
         const block = blocks[i]!;
-        const isValid = block.transactions.some(
+
+        // Validate that fetched block and trace have the same blockHash
+        if (block.hash !== log.blockHash) {
+          throw new Error(
+            `Received log with block hash '${log.blockHash}' that does not match fetched block '${block.hash}'`,
+          );
+        }
+
+        const isTransactionValid = block.transactions.some(
           (t) => t.hash === transactionHash,
         );
-        if (!isValid) {
+        if (!isTransactionValid) {
           throw new Error(
             `Received log with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
           );
@@ -323,24 +330,35 @@ export const createHistoricalSync = async (
       callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
     );
 
-    // Validate that traces point to the valid transaction hash in the block
-    const transactionHashes = callTraces.map((trace, i) => {
-      const transactionHash = trace.transactionHash;
-      const block = blocks[i]!;
-      const isValid = block.transactions.some(
-        (t) => t.hash === transactionHash,
-      );
-      if (!isValid) {
-        throw new Error(
-          `Received trace with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
+    // Validate that traces point to the valid transaction hash in the block and collect them
+    const transactionHashes = new Set(
+      callTraces.map((trace, i) => {
+        const transactionHash = trace.transactionHash;
+        const block = blocks[i]!;
+
+        // Validate that fetched block and trace have the same blockHash
+        if (block.hash !== trace.blockHash) {
+          throw new Error(
+            `Received trace with block hash '${trace.blockHash}' that does not match fetched block '${block.hash}'`,
+          );
+        }
+
+        const isTransactionValid = block.transactions.some(
+          (t) => t.hash === transactionHash,
         );
-      }
-      return transactionHash;
-    });
+
+        if (!isTransactionValid) {
+          throw new Error(
+            `Received trace with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
+          );
+        }
+        return transactionHash;
+      }),
+    );
 
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
-      dedupe(transactionHashes).map((hash) =>
+      [...transactionHashes].map((hash) =>
         _eth_getTransactionReceipt(args.requestQueue, {
           hash,
         }),
