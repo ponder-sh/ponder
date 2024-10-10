@@ -216,10 +216,19 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
         onFatalError: args.onFatalError,
       });
+
+      const { start, end, finalized } = await syncDiagnostic({
+        common: args.common,
+        sources,
+        requestQueue,
+        network,
+      });
+
       const cached = await getCachedBlock({
         sources,
         requestQueue,
         historicalSync,
+        syncProgress: { finalized },
       });
 
       // Update "ponder_sync_block" metric
@@ -231,12 +240,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       }
 
       const syncProgress: SyncProgress = {
-        ...(await syncDiagnostic({
-          common: args.common,
-          sources,
-          requestQueue,
-          network,
-        })),
+        start,
+        end,
+        finalized,
         cached,
         current: cached,
       };
@@ -428,11 +434,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           getOmnichainCheckpoint("end")! < getOmnichainCheckpoint("finalized")!
             ? getOmnichainCheckpoint("end")!
             : getOmnichainCheckpoint("finalized")!;
-        const to =
-          getOmnichainCheckpoint("current") &&
-          getOmnichainCheckpoint("current")! < end
-            ? getOmnichainCheckpoint("current")!
-            : end;
+        const to = getOmnichainCheckpoint("current") ?? end;
 
         /*
          * Extract events with `syncStore.getEvents()`, paginating to
@@ -864,10 +866,12 @@ export const getCachedBlock = ({
   sources,
   requestQueue,
   historicalSync,
+  syncProgress,
 }: {
   sources: Source[];
   requestQueue: RequestQueue;
   historicalSync: HistoricalSync;
+  syncProgress: Pick<SyncProgress, "finalized">;
 }): Promise<SyncBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
@@ -903,6 +907,10 @@ export const getCachedBlock = ({
         block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
     )
   ) {
+    if (minCompletedBlock > hexToNumber(syncProgress.finalized.number)) {
+      return Promise.resolve(syncProgress.finalized as SyncBlock);
+    }
+
     return _eth_getBlockByNumber(requestQueue, {
       blockNumber: minCompletedBlock,
     });
