@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.10
+
+### Patch Changes
+
+- [#1115](https://github.com/ponder-sh/ponder/pull/1115) [`1a7d1f8eaeddcc65730fecc89dd55594aa0b6920`](https://github.com/ponder-sh/ponder/commit/1a7d1f8eaeddcc65730fecc89dd55594aa0b6920) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of realtime event processing.
+
 ## 0.6.9
 
 ### Patch Changes
