@@ -71,7 +71,7 @@ export function setupCommon(context: TestContext) {
  *
  * If `process.env.DATABASE_URL` is set, creates a new database and drops
  * it in the cleanup function. If it's not set, creates a temporary directory
- * for SQLite and removes it in the cleanup function.
+ * for PGlite and removes it in the cleanup function.
  *
  * ```ts
  * // Add this to any test suite that uses the database.
@@ -135,36 +135,30 @@ export async function setupDatabaseServices(
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
-  console.log("create");
   const database = await createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,
   });
-  console.log("db setup");
 
   await database.setup(config);
 
-  console.log("migrate sync");
   await database.migrateSync().catch((err) => {
     console.log(err);
     throw err;
   });
 
-  console.log("create sync store");
   const syncStore = createSyncStore({
     common: context.common,
     db: database.qb.sync,
   });
 
-  console.log("create ro store");
   const readonlyStore = getReadonlyStore({
     schema: config.schema,
     db: database.qb.user,
     common: context.common,
   });
 
-  console.log("create indexing store");
   const indexingStore =
     config.indexing === "historical"
       ? getHistoricalStore({

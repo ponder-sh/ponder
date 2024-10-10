@@ -96,19 +96,23 @@ type PonderInternalSchema = {
   [tableName: string]: UserTable;
 };
 
+type PGliteDriver = {
+  internal: PGlite;
+  readonly: PGlite;
+  user: PGlite;
+  sync: PGlite;
+};
+
+type PostgresDriver = {
+  internal: Pool;
+  user: Pool;
+  readonly: Pool;
+  sync: Pool;
+};
+
 type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
-  ? {
-      internal: PGlite;
-      readonly: PGlite;
-      user: PGlite;
-      sync: PGlite;
-    }
-  : {
-      internal: Pool;
-      user: Pool;
-      readonly: Pool;
-      sync: Pool;
-    };
+  ? PGliteDriver
+  : PostgresDriver;
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
@@ -153,13 +157,10 @@ export const createDatabase = async (args: {
     const userDir = path.join(args.databaseConfig.directory, "public");
     const syncDir = path.join(args.databaseConfig.directory, "sync");
 
-    console.log("kysely create");
     const { client: userClient, dialect: userDialect } =
       await KyselyPGlite.create(userDir);
     const { client: syncClient, dialect: syncDialect } =
       await KyselyPGlite.create(syncDir);
-
-    console.log("after kysely create");
 
     driver = {
       internal: userClient,
@@ -216,6 +217,7 @@ export const createDatabase = async (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
   } else {
@@ -469,9 +471,7 @@ export const createDatabase = async (args: {
           migrationTableSchema: "ponder_sync",
         });
 
-        console.log("migrate to latest");
         const { error } = await migrator.migrateToLatest();
-        console.log(error);
         if (error) throw error;
       });
     },
@@ -1039,21 +1039,15 @@ export const createDatabase = async (args: {
       await qb.sync.destroy();
 
       if (dialect === "pglite") {
-        // @ts-ignore
-        driver.user.close();
-        // @ts-ignore
-        driver.readonly.close();
-        // @ts-ignore
-        driver.sync.close();
+        const d = driver as PGliteDriver;
+        await d.user.close();
+        await d.sync.close();
       } else {
-        // @ts-ignore
-        await driver.internal.end();
-        // @ts-ignore
-        await driver.user.end();
-        // @ts-ignore
-        await driver.readonly.end();
-        // @ts-ignore
-        await driver.sync.end();
+        const d = driver as PostgresDriver;
+        await d.internal.end();
+        await d.user.end();
+        await d.readonly.end();
+        await d.sync.end();
       }
 
       args.common.logger.debug({

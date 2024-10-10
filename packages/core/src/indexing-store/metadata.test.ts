@@ -13,19 +13,15 @@ beforeEach(setupIsolatedDatabase);
 const schema = createSchema(() => ({}));
 
 test("getMetadata() empty", async (context) => {
-  console.log("setup");
   const { database, cleanup } = await setupDatabaseServices(context, {
     schema,
   });
-  console.log("get store");
   const metadataStore = getMetadataStore({ db: database.qb.user });
 
-  console.log("get status");
   const status = await metadataStore.getStatus();
 
   expect(status).toBe(null);
 
-  console.log("cleanup");
   await cleanup();
 });
 
