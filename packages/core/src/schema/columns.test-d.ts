@@ -8,12 +8,13 @@ test("base", () => {
   assertType<keyof typeof c>(
     {} as unknown as "optional" | "list" | "references",
   );
-  assertType<Omit<typeof c, "optional" | "list" | "references">>(
+  assertType<Omit<typeof c, "optional" | "list" | "references" | "default">>(
     {} as unknown as {
       " type": "scalar";
       " scalar": "string";
       " optional": false;
       " list": false;
+      " default": undefined;
     },
   );
 });
@@ -23,12 +24,13 @@ test("optional", () => {
   //    ^?
 
   assertType<keyof typeof c>({} as unknown as "list" | "references");
-  assertType<Omit<typeof c, "list" | "references">>(
+  assertType<Omit<typeof c, "list" | "references" | "default">>(
     {} as unknown as {
       " type": "scalar";
       " scalar": "string";
       " optional": true;
       " list": false;
+      " default": undefined;
     },
   );
 });
@@ -38,12 +40,13 @@ test("list", () => {
   //    ^?
 
   assertType<keyof typeof c>({} as unknown as "optional");
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "scalar";
       " scalar": "string";
       " optional": false;
       " list": true;
+      " default": undefined;
     },
   );
 });
@@ -58,6 +61,7 @@ test("optional + list", () => {
       " scalar": "string";
       " optional": true;
       " list": true;
+      " default": undefined;
     },
   );
 });
@@ -72,6 +76,7 @@ test("list + optional", () => {
       " scalar": "string";
       " optional": true;
       " list": true;
+      " default": undefined;
     },
   );
 });
@@ -81,12 +86,13 @@ test("references", () => {
   //    ^?
 
   assertType<keyof typeof c>({} as unknown as "optional");
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "reference";
       " scalar": "string";
       " optional": false;
       " reference": "OtherTable.id";
+      " default": undefined;
     },
   );
 });
@@ -95,12 +101,13 @@ test("references + optional", () => {
   const c = string().references("OtherTable.id").optional();
   //    ^?
 
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "reference";
       " scalar": "string";
       " optional": true;
       " reference": "OtherTable.id";
+      " default": undefined;
     },
   );
 });
@@ -115,6 +122,7 @@ test("optional + references", () => {
       " scalar": "string";
       " optional": true;
       " reference": "OtherTable.id";
+      " default": undefined;
     },
   );
 });
@@ -123,11 +131,12 @@ test("json", () => {
   const c = json();
   //    ^?
 
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "json";
       " json": unknown;
       " optional": false;
+      " default": undefined;
     },
   );
 });
@@ -136,11 +145,12 @@ test("json w/ type", () => {
   const c = json<{ a: number; b: string }>();
   //    ^?
 
-  assertType<Omit<typeof c, "optional">>(
+  assertType<Omit<typeof c, "optional" | "default">>(
     {} as unknown as {
       " type": "json";
       " json": { a: number; b: string };
       " optional": false;
+      " default": any;
     },
   );
 });
@@ -154,6 +164,7 @@ test("json optional", () => {
       " type": "json";
       " json": unknown;
       " optional": true;
+      " default": undefined;
     },
   );
 });
@@ -185,12 +196,13 @@ test("enum", () => {
   //    ^?
 
   assertType<keyof typeof e>({} as unknown as "optional" | "list");
-  assertType<Omit<typeof e, "optional" | "list">>(
+  assertType<Omit<typeof e, "optional" | "list" | "default">>(
     {} as unknown as {
       " type": "enum";
       " enum": "enum";
       " optional": false;
       " list": false;
+      " default": undefined;
     },
   );
 });
@@ -206,6 +218,7 @@ test("enum optional", () => {
       " enum": "enum";
       " optional": true;
       " list": false;
+      " default": undefined;
     },
   );
 });
@@ -221,6 +234,7 @@ test("enum optional + list", () => {
       " enum": "enum";
       " optional": true;
       " list": true;
+      " default": undefined;
     },
   );
 });
@@ -236,6 +250,7 @@ test("enum list + optional", () => {
       " enum": "enum";
       " optional": true;
       " list": true;
+      " default": undefined;
     },
   );
 });

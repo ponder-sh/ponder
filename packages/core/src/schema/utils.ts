@@ -1,6 +1,9 @@
+import { replaceBigInts } from "@ponder/utils";
+import type { ColumnDefinitionBuilder } from "kysely";
 import type {
   Column,
   Constraints,
+  DefaultColumn,
   Enum,
   EnumColumn,
   JSONColumn,
@@ -34,6 +37,27 @@ export const isEnumColumn = (column: Column): column is EnumColumn =>
 export const isOptionalColumn = (column: Column): boolean => {
   if (isManyColumn(column) || isOneColumn(column)) return false;
   return column[" optional"];
+};
+
+export const isDefaultColumn = (column: Column): boolean => {
+  return (column as any)[" default"] !== undefined;
+};
+
+export const isColumnHex = (column: Column): boolean =>
+  isScalarColumn(column) && column[" scalar"] === "hex";
+
+export const applyDefault = (
+  col: ColumnDefinitionBuilder,
+  column: DefaultColumn,
+) => {
+  if (isDefaultColumn(column)) {
+    if (isColumnHex(column)) {
+      col = col.defaultTo(`\\x${(column[" default"] as string).slice(2)}`);
+    } else {
+      col = col.defaultTo(column[" default"]);
+    }
+  }
+  return col;
 };
 
 export const isListColumn = (column: Column): boolean => {
@@ -92,4 +116,14 @@ export const getEnums = (schema: Schema): { [enumName: string]: Enum } => {
 
 export const extractReferenceTable = (ref: ReferenceColumn): string => {
   return ref[" reference"].split(".")[0]!;
+};
+
+export const encodeSchema = (schema: Schema) => {
+  return JSON.stringify(
+    {
+      tables: getTables(schema),
+      enums: getEnums(schema),
+    },
+    (_k, v) => replaceBigInts(v, (n) => `${n}`),
+  );
 };
