@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.6.9
+
+### Patch Changes
+
+- [#1149](https://github.com/ponder-sh/ponder/pull/1149) [`988289e97bb47e122d0dd177a890bbb6fbd719ea`](https://github.com/ponder-sh/ponder/commit/988289e97bb47e122d0dd177a890bbb6fbd719ea) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where the `/status` endpoint would temporarily return incorrect data during realtime.
+
+## 0.6.8
+
+### Patch Changes
+
+- [#1143](https://github.com/ponder-sh/ponder/pull/1143) [`9f86d5f56b17231bd412b2d231bf623b5948fbaa`](https://github.com/ponder-sh/ponder/commit/9f86d5f56b17231bd412b2d231bf623b5948fbaa) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Eliminated unnecessary `eth_getTransactionReceipt` requests in realtime when `includeTransactionReceipts` was set to `true`.
+
 ## 0.6.7
 
 ### Patch Changes

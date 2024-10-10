@@ -453,55 +453,61 @@ export const createRealtimeSync = (
       chainId: args.network.chainId,
     });
 
-    // Remove logs that don't match a filter
-    logs = logs.filter((log) =>
-      logFilters.some((filter) => isLogFilterMatched({ filter, block, log })),
-    );
+    const requiredTransactions = new Set<Hash>();
+    const requiredTransactionReceipts = new Set<Hash>();
 
-    // Remove call traces that don't match a filter
-    callTraces = callTraces.filter((callTrace) =>
-      callTraceFilters.some((filter) =>
-        isCallTraceFilterMatched({
-          filter,
-          block,
-          callTrace,
-        }),
-      ),
-    );
+    // Remove logs that don't match a filter, recording required transactions
+    logs = logs.filter((log) => {
+      let isLogMatched = false;
+
+      for (const filter of logFilters) {
+        if (isLogFilterMatched({ filter, block, log })) {
+          isLogMatched = true;
+          requiredTransactions.add(log.transactionHash);
+          if (filter.includeTransactionReceipts) {
+            requiredTransactionReceipts.add(log.transactionHash);
+          }
+        }
+      }
+
+      return isLogMatched;
+    });
+
+    // Remove call traces that don't match a filter, recording required transactions
+    callTraces = callTraces.filter((callTrace) => {
+      let isCallTraceMatched = false;
+      for (const filter of callTraceFilters) {
+        if (isCallTraceFilterMatched({ filter, block, callTrace })) {
+          isCallTraceMatched = true;
+          requiredTransactions.add(callTrace.transactionHash);
+          if (filter.includeTransactionReceipts) {
+            requiredTransactionReceipts.add(callTrace.transactionHash);
+          }
+        }
+      }
+
+      return isCallTraceMatched;
+    });
 
     ////////
     // Transactions
     ////////
 
-    const transactionHashes = new Set<Hash>();
-    for (const log of logs) {
-      transactionHashes.add(log.transactionHash);
-    }
-    for (const trace of callTraces) {
-      transactionHashes.add(trace.transactionHash);
-    }
-
-    const transactions = block.transactions.filter((t) =>
-      transactionHashes.has(t.hash),
+    const transactions = block.transactions.filter(({ hash }) =>
+      requiredTransactions.has(hash),
     );
 
     ////////
     // Transaction Receipts
     ////////
 
-    const shouldRequestTransactionReceipts =
-      args.sources.some(
-        (s) => s.type === "contract" && s.filter.includeTransactionReceipts,
-      ) || callTraces.length > 0;
-
-    let transactionReceipts: SyncTransactionReceipt[] = [];
-    if (shouldRequestTransactionReceipts) {
-      transactionReceipts = await Promise.all(
-        transactions.map(({ hash }) =>
+    const transactionReceipts = await Promise.all(
+      block.transactions
+        .filter(({ hash }) => requiredTransactionReceipts.has(hash))
+        .map(({ hash }) =>
           _eth_getTransactionReceipt(args.requestQueue, { hash }),
         ),
-      );
-    }
+    );
 
     // Filter out call traces from reverted transactions
 

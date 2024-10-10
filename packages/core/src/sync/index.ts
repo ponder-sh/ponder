@@ -55,6 +55,7 @@ export type RealtimeEvent =
   | {
       type: "block";
       checkpoint: string;
+      status: Status;
       events: RawEvent[];
     }
   | {
@@ -645,7 +646,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               updateRealtimeStatus({ checkpoint: cursor, network });
             }
             args
-              .onRealtimeEvent({ type: "block", checkpoint: to, events })
+              .onRealtimeEvent({
+                type: "block",
+                checkpoint: to,
+                status: JSON.parse(JSON.stringify(status)),
+                events,
+              })
               .then(() => {
                 if (events.length > 0 && isKilled === false) {
                   args.common.logger.info({
