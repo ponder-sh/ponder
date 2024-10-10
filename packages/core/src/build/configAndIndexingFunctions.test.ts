@@ -3,6 +3,7 @@ import type { Options } from "@/common/options.js";
 import type { CallTraceFilter, LogFactory, LogFilter } from "@/sync/source.js";
 import {
   http,
+  type Address,
   getEventSelector,
   getFunctionSelector,
   parseAbiItem,
@@ -399,8 +400,7 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
       a: {
         network: "mainnet",
         abi: [event0],
-        // @ts-expect-error
-        address: "",
+        address: "" as Address,
       },
     },
   }) as Config;
@@ -426,8 +426,8 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
       a: {
         network: "mainnet",
         abi: [event0],
-        // @ts-expect-error
-        address: "0b0000000000000000000000000000000000000001",
+
+        address: "0b0000000000000000000000000000000000000001" as Address,
       },
     },
   }) as Config;

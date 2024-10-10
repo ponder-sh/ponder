@@ -1,7 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import { syncBlockToLightBlock } from "@/sync/index.js";
+import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
   type CallTraceFilter,
@@ -9,6 +8,7 @@ import {
   type Filter,
   type LogFilter,
   type Source,
+  getChildAddress,
   isAddressFactory,
 } from "@/sync/source.js";
 import type {
@@ -40,9 +40,14 @@ import {
 } from "./filter.js";
 
 export type RealtimeSync = {
-  start(finalizedBlock: LightBlock): Promise<Queue<void, BlockWithEventData>>;
+  start(args: {
+    syncProgress: Pick<SyncProgress, "finalized">;
+    initialChildAddresses: Map<Factory, Set<Address>>;
+  }): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
-  localChain: LightBlock[];
+  unfinalizedBlocks: LightBlock[];
+  finalizedChildAddresses: Map<Factory, Set<Address>>;
+  unfinalizedChildAddresses: Map<Factory, Set<Address>>;
 };
 
 type CreateRealtimeSyncParameters = {
@@ -50,15 +55,15 @@ type CreateRealtimeSyncParameters = {
   network: Network;
   requestQueue: RequestQueue;
   sources: Source[];
-  syncStore: SyncStore;
-  onEvent: (event: RealtimeSyncEvent) => void;
+  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
 };
 
-type BlockWithEventData = {
+export type BlockWithEventData = {
   block: SyncBlock;
   filters: Set<Filter>;
   logs: SyncLog[];
+  factoryLogs: SyncLog[];
   callTraces: SyncCallTrace[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
@@ -91,13 +96,16 @@ export const createRealtimeSync = (
   ////////
   let isKilled = false;
   let finalizedBlock: LightBlock;
+  let finalizedChildAddresses: Map<Factory, Set<Address>>;
+  const unfinalizedChildAddresses = new Map<Factory, Set<Address>>();
+  const factoryLogsPerBlock = new Map<Hash, SyncLog[]>();
   /**
-   * Blocks and logs that have been ingested and are
+   * Blocks that have been ingested and are
    * waiting to be finalized. It is an invariant that
    * all blocks are linked to each other,
    * `parentHash` => `hash`.
    */
-  let localChain: LightBlock[] = [];
+  let unfinalizedBlocks: LightBlock[] = [];
   let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
@@ -127,6 +135,10 @@ export const createRealtimeSync = (
     }
   }
 
+  for (const factory of factories) {
+    unfinalizedChildAddresses.set(factory, new Set());
+  }
+
   /**
    * 1) Determine if a reorg occurred.
    * 2) Insert new event data into the store.
@@ -140,6 +152,7 @@ export const createRealtimeSync = (
   const handleBlock = async ({
     block,
     logs,
+    factoryLogs,
     callTraces,
     transactions,
     transactionReceipts,
@@ -149,15 +162,14 @@ export const createRealtimeSync = (
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
     });
 
-    // Get all addresses from `logs` that are from a factory
-    const childAddresses = new Set<Address>();
-    for (const filter of factories) {
-      if (logs.length > 0) {
-        const _childAddresses = await args.syncStore.filterChildAddresses({
-          filter,
-          addresses: logs.map(({ address }) => address),
-        });
-        for (const address of _childAddresses) childAddresses.add(address);
+    // Update `unfinalizedChildAddresses`
+    for (const log of factoryLogs) {
+      for (const filter of factories) {
+        if (isLogFactoryMatched({ filter, log })) {
+          unfinalizedChildAddresses
+            .get(filter)!
+            .add(getChildAddress({ log, factory: filter }));
+        }
       }
     }
 
@@ -176,7 +188,12 @@ export const createRealtimeSync = (
         if (
           isLogFilterMatched({ filter, block, log }) &&
           (isAddressFactory(filter.address)
-            ? childAddresses.has(log.address)
+            ? finalizedChildAddresses
+                .get(filter.address)!
+                .has(log.address.toLowerCase() as Address) ||
+              unfinalizedChildAddresses
+                .get(filter.address)!
+                .has(log.address.toLowerCase() as Address)
             : true)
         ) {
           matchedFilters.add(filter);
@@ -195,7 +212,12 @@ export const createRealtimeSync = (
         if (
           isCallTraceFilterMatched({ filter, block, callTrace }) &&
           (isAddressFactory(filter.toAddress)
-            ? childAddresses.has(callTrace.action.to)
+            ? finalizedChildAddresses
+                .get(filter.toAddress)!
+                .has(callTrace.action.to.toLowerCase() as Address) ||
+              unfinalizedChildAddresses
+                .get(filter.toAddress)!
+                .has(callTrace.action.to.toLowerCase() as Address)
             : true)
         ) {
           matchedFilters.add(filter);
@@ -254,12 +276,17 @@ export const createRealtimeSync = (
       });
     }
 
-    localChain.push(syncBlockToLightBlock(block));
+    unfinalizedBlocks.push(syncBlockToLightBlock(block));
 
-    args.onEvent({
+    // Make sure `transactions` can be garbage collected
+    // @ts-ignore
+    block.transactions = undefined;
+
+    await args.onEvent({
       type: "block",
       filters: matchedFilters,
       block,
+      factoryLogs,
       logs,
       callTraces,
       transactions,
@@ -274,7 +301,7 @@ export const createRealtimeSync = (
       hexToNumber(block.number) >=
       hexToNumber(finalizedBlock.number) + 2 * args.network.finalityBlockCount;
     if (blockMovesFinality) {
-      const pendingFinalizedBlock = localChain.find(
+      const pendingFinalizedBlock = unfinalizedBlocks.find(
         (lb) =>
           hexToNumber(lb.number) ===
           hexToNumber(block.number) - args.network.finalityBlockCount,
@@ -287,14 +314,59 @@ export const createRealtimeSync = (
         }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${hexToNumber(pendingFinalizedBlock.number)}`,
       });
 
-      localChain = localChain.filter(
+      const finalizedBlocks = unfinalizedBlocks.filter(
+        (lb) =>
+          hexToNumber(lb.number) <= hexToNumber(pendingFinalizedBlock.number),
+      );
+
+      unfinalizedBlocks = unfinalizedBlocks.filter(
         (lb) =>
           hexToNumber(lb.number) > hexToNumber(pendingFinalizedBlock.number),
       );
 
+      // add child address from newly finalized blocks to `finalizedChildAddresses`
+      for (const filter of factories) {
+        for (const { hash } of finalizedBlocks) {
+          const factoryLogs = factoryLogsPerBlock.get(hash);
+          if (factoryLogs !== undefined) {
+            for (const log of factoryLogs) {
+              if (isLogFactoryMatched({ filter, log })) {
+                finalizedChildAddresses
+                  .get(filter)!
+                  .add(getChildAddress({ log, factory: filter }));
+              }
+            }
+          }
+        }
+      }
+
+      // recompute `unfinalizedChildAddresses`
+      unfinalizedChildAddresses.clear();
+
+      for (const filter of factories) {
+        unfinalizedChildAddresses.set(filter, new Set());
+        for (const { hash } of unfinalizedBlocks) {
+          const factoryLogs = factoryLogsPerBlock.get(hash);
+          if (factoryLogs !== undefined) {
+            for (const log of factoryLogs) {
+              if (isLogFactoryMatched({ filter, log })) {
+                unfinalizedChildAddresses
+                  .get(filter)!
+                  .add(getChildAddress({ log, factory: filter }));
+              }
+            }
+          }
+        }
+      }
+
+      // delete finalized blocks from `factoryLogsPerBlock`
+      for (const { hash } of finalizedBlocks) {
+        factoryLogsPerBlock.delete(hash);
+      }
+
       finalizedBlock = pendingFinalizedBlock;
 
-      args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
+      await args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
     }
 
     args.common.logger.debug({
@@ -317,12 +389,12 @@ export const createRealtimeSync = (
     });
 
     // Record blocks that have been removed from the local chain.
-    const reorgedBlocks = localChain.filter(
+    const reorgedBlocks = unfinalizedBlocks.filter(
       (lb) => hexToNumber(lb.number) >= hexToNumber(block.number),
     );
 
     // Prune the local chain of blocks that have been reorged out
-    localChain = localChain.filter(
+    unfinalizedBlocks = unfinalizedBlocks.filter(
       (lb) => hexToNumber(lb.number) < hexToNumber(block.number),
     );
 
@@ -330,38 +402,61 @@ export const createRealtimeSync = (
     let remoteBlock = block;
 
     while (true) {
-      const parentBlock = getLatestLocalBlock();
+      const parentBlock = getLatestUnfinalizedBlock();
 
-      if (parentBlock.hash === remoteBlock.parentHash) {
-        args.onEvent({ type: "reorg", block: parentBlock, reorgedBlocks });
+      if (parentBlock.hash === remoteBlock.parentHash) break;
 
-        args.common.logger.warn({
-          service: "realtime",
-          msg: `Reconciled ${hexToNumber(block.number) - hexToNumber(parentBlock.number)}-block reorg on '${
-            args.network.name
-          }' with common ancestor block ${hexToNumber(parentBlock.number)}`,
-        });
+      if (unfinalizedBlocks.length === 0) {
+        // No compatible block was found in the local chain, must be a deep reorg.
 
-        return;
-      }
+        const msg = `Encountered unrecoverable '${args.network.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
 
-      if (localChain.length === 0) break;
-      else {
+        args.common.logger.warn({ service: "realtime", msg });
+
+        throw new Error(msg);
+      } else {
         remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
-        reorgedBlocks.push(localChain.pop()!);
+        reorgedBlocks.push(unfinalizedBlocks.pop()!);
       }
     }
 
-    // No compatible block was found in the local chain, must be a deep reorg.
+    const commonAncestor = getLatestUnfinalizedBlock();
 
-    const msg = `Encountered unrecoverable '${args.network.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
+    await args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
 
-    args.common.logger.warn({ service: "realtime", msg });
+    args.common.logger.warn({
+      service: "realtime",
+      msg: `Reconciled ${reorgedBlocks.length}-block reorg on '${
+        args.network.name
+      }' with common ancestor block ${hexToNumber(commonAncestor.number)}`,
+    });
 
-    throw new Error(msg);
+    // recompute `unfinalizedChildAddresses`
+    unfinalizedChildAddresses.clear();
+
+    for (const filter of factories) {
+      unfinalizedChildAddresses.set(filter, new Set());
+      for (const { hash } of unfinalizedBlocks) {
+        const factoryLogs = factoryLogsPerBlock.get(hash);
+        if (factoryLogs !== undefined) {
+          for (const log of factoryLogs) {
+            if (isLogFactoryMatched({ filter, log })) {
+              unfinalizedChildAddresses
+                .get(filter)!
+                .add(getChildAddress({ log, factory: filter }));
+            }
+          }
+        }
+      }
+    }
+
+    // delete reorged blocks from `factoryLogsPerBlock`
+    for (const { hash } of reorgedBlocks) {
+      factoryLogsPerBlock.delete(hash);
+    }
   };
 
   /**
@@ -443,14 +538,23 @@ export const createRealtimeSync = (
     // Get Matched
     ////////
 
-    // Insert `logs` that contain factory child addresses
-    const _logs = logs.filter((log) =>
-      factories.some((filter) => isLogFactoryMatched({ filter, log })),
-    );
-    await args.syncStore.insertLogs({
-      logs: _logs.map((log) => ({ log })),
-      shouldUpdateCheckpoint: false,
-      chainId: args.network.chainId,
+    // Record `logs` that contain factory child addresses
+    const factoryLogs = logs.filter((log) => {
+      let isMatched = false;
+
+      for (const filter of factories) {
+        if (isLogFactoryMatched({ filter, log })) {
+          if (factoryLogsPerBlock.has(block.hash) === false) {
+            factoryLogsPerBlock.set(block.hash, []);
+          }
+
+          factoryLogsPerBlock.get(block.hash)!.push(log);
+
+          isMatched = true;
+        }
+      }
+
+      return isMatched;
     });
 
     const requiredTransactions = new Set<Hash>();
@@ -525,21 +629,23 @@ export const createRealtimeSync = (
     return {
       block,
       logs,
+      factoryLogs,
       callTraces,
       transactions,
       transactionReceipts,
     };
   };
 
-  const getLatestLocalBlock = () => {
-    if (localChain.length === 0) {
+  const getLatestUnfinalizedBlock = () => {
+    if (unfinalizedBlocks.length === 0) {
       return finalizedBlock;
-    } else return localChain[localChain.length - 1]!;
+    } else return unfinalizedBlocks[unfinalizedBlocks.length - 1]!;
   };
 
   return {
-    start(_finalizedBlock) {
-      finalizedBlock = _finalizedBlock;
+    start(startArgs) {
+      finalizedBlock = startArgs.syncProgress.finalized;
+      finalizedChildAddresses = startArgs.initialChildAddresses;
       /**
        * The queue reacts to a new block. The four states are:
        * 1) Block is the same as the one just processed, no-op.
@@ -555,10 +661,10 @@ export const createRealtimeSync = (
         concurrency: 1,
         initialStart: true,
         worker: async ({ block, ...rest }) => {
-          const latestLocalBlock = getLatestLocalBlock();
+          const latestBlock = getLatestUnfinalizedBlock();
 
           // We already saw and handled this block. No-op.
-          if (latestLocalBlock.hash === block.hash) {
+          if (latestBlock.hash === block.hash) {
             args.common.logger.trace({
               service: "realtime",
               msg: `Skipped processing '${args.network.name}' block ${hexToNumber(block.number)}, already synced`,
@@ -570,9 +676,7 @@ export const createRealtimeSync = (
           try {
             // Quickly check for a reorg by comparing block numbers. If the block
             // number has not increased, a reorg must have occurred.
-            if (
-              hexToNumber(latestLocalBlock.number) >= hexToNumber(block.number)
-            ) {
+            if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
               await handleReorg(block);
 
               queue.clear();
@@ -581,15 +685,15 @@ export const createRealtimeSync = (
 
             // Blocks are missing. They should be fetched and enqueued.
             if (
-              hexToNumber(latestLocalBlock.number) + 1 <
+              hexToNumber(latestBlock.number) + 1 <
               hexToNumber(block.number)
             ) {
               // Retrieve missing blocks, but only fetch a certain amount.
               const missingBlockRange = range(
-                hexToNumber(latestLocalBlock.number) + 1,
+                hexToNumber(latestBlock.number) + 1,
                 Math.min(
                   hexToNumber(block.number),
-                  hexToNumber(latestLocalBlock.number) + MAX_QUEUED_BLOCKS,
+                  hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
                 ),
               );
               const pendingBlocks = await Promise.all(
@@ -604,9 +708,9 @@ export const createRealtimeSync = (
                 service: "realtime",
                 msg: `Fetched ${missingBlockRange.length} missing '${
                   args.network.name
-                }' blocks from ${hexToNumber(latestLocalBlock.number) + 1} to ${Math.min(
+                }' blocks from ${hexToNumber(latestBlock.number) + 1} to ${Math.min(
                   hexToNumber(block.number),
-                  hexToNumber(latestLocalBlock.number) + MAX_QUEUED_BLOCKS,
+                  hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
                 )}`,
               });
 
@@ -627,7 +731,7 @@ export const createRealtimeSync = (
             }
 
             // Check if a reorg occurred by validating the chain of block hashes.
-            if (block.parentHash !== latestLocalBlock.hash) {
+            if (block.parentHash !== latestBlock.hash) {
               await handleReorg(block);
               queue.clear();
               return;
@@ -688,10 +792,10 @@ export const createRealtimeSync = (
             blockTag: "latest",
           });
 
-          const latestLocalBlock = getLatestLocalBlock();
+          const latestBlock = getLatestUnfinalizedBlock();
 
           // We already saw and handled this block. No-op.
-          if (latestLocalBlock.hash === block.hash) {
+          if (latestBlock.hash === block.hash) {
             args.common.logger.trace({
               service: "realtime",
               msg: `Skipped processing '${args.network.name}' block ${hexToNumber(block.number)}, already synced`,
@@ -741,8 +845,14 @@ export const createRealtimeSync = (
       queue?.clear();
       await queue?.onIdle();
     },
-    get localChain() {
-      return localChain;
+    get unfinalizedBlocks() {
+      return unfinalizedBlocks;
+    },
+    get finalizedChildAddresses() {
+      return finalizedChildAddresses;
+    },
+    get unfinalizedChildAddresses() {
+      return unfinalizedChildAddresses;
     },
   };
 };
