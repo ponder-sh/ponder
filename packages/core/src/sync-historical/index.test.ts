@@ -61,6 +61,7 @@ test("createHistoricalSync()", async (context) => {
     sources: [context.sources[0]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   expect(historicalSync).toBeDefined();
@@ -77,6 +78,7 @@ test("sync() with log filter", async (context) => {
     sources: [context.sources[0]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 5]);
@@ -106,6 +108,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     sources: [context.sources[0]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 5]);
@@ -140,6 +143,7 @@ test("sync() with block filter", async (context) => {
     sources: [context.sources[4]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 5]);
@@ -170,6 +174,7 @@ test("sync() with log factory", async (context) => {
     sources: [context.sources[1]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 5]);
@@ -197,6 +202,7 @@ test("sync() with trace filter", async (context) => {
     sources: [context.sources[3]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 5]);
@@ -227,6 +233,7 @@ test("sync() with many filters", async (context) => {
     sources: context.sources,
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 5]);
@@ -252,6 +259,7 @@ test("sync() with cache hit", async (context) => {
     sources: [context.sources[0]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
   await historicalSync.sync([0, 5]);
 
@@ -265,6 +273,7 @@ test("sync() with cache hit", async (context) => {
     sources: [context.sources[0]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
   await historicalSync.sync([0, 5]);
 
@@ -289,6 +298,7 @@ test("syncBlock() with cache", async (context) => {
     ],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   const spy = vi.spyOn(context.requestQueues[0], "request");
@@ -320,6 +330,7 @@ test("syncAddress() handles many addresses", async (context) => {
     sources: [context.sources[1]],
     syncStore,
     requestQueue: await getRequestQueue(context.requestQueues[0]),
+    onFatalError: () => {},
   });
 
   await historicalSync.sync([0, 10 + 5 + 2]);
