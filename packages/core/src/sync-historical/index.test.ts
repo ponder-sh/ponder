@@ -25,9 +25,9 @@ const getRequestQueue = async (requestQueue: RequestQueue) => {
     request: (request: any) => {
       if (request.method === "trace_filter") {
         let traces = [
-          ...rpcData.block2.traces,
-          ...rpcData.block3.traces,
-          ...rpcData.block4.traces,
+          ...rpcData.block2.callTraces,
+          ...rpcData.block3.callTraces,
+          ...rpcData.block4.callTraces,
         ];
 
         if (request.params[0].fromBlock !== undefined) {

@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.6.11
+
+### Patch Changes
+
+- [#1155](https://github.com/ponder-sh/ponder/pull/1155) [`84889e6c00bae8f004a4e8665ec101a2a2f45e64`](https://github.com/ponder-sh/ponder/commit/84889e6c00bae8f004a4e8665ec101a2a2f45e64) Thanks [@sinasab](https://github.com/sinasab)! - Bumped `@hono/node-server` to fix a regression introduced in `0.5.0` that caused the HTTP server to not listen on IPv6 by default.
+
+## 0.6.10
+
+### Patch Changes
+
+- [#1115](https://github.com/ponder-sh/ponder/pull/1115) [`1a7d1f8eaeddcc65730fecc89dd55594aa0b6920`](https://github.com/ponder-sh/ponder/commit/1a7d1f8eaeddcc65730fecc89dd55594aa0b6920) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of realtime event processing.
+
 ## 0.6.9
 
 ### Patch Changes

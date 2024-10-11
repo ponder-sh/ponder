@@ -46,7 +46,7 @@ test("getIntervals() empty", async (context) => {
 
   expect(intervals).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() returns intervals", async (context) => {
@@ -64,7 +64,7 @@ test("getIntervals() returns intervals", async (context) => {
   expect(intervals).toHaveLength(1);
   expect(intervals[0]).toStrictEqual([0, 4]);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() merges intervals", async (context) => {
@@ -87,7 +87,7 @@ test("getIntervals() merges intervals", async (context) => {
   expect(intervals).toHaveLength(1);
   expect(intervals[0]).toStrictEqual([0, 8]);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() handles log filter logic", async (context) => {
@@ -114,7 +114,7 @@ test("getIntervals() handles log filter logic", async (context) => {
 
   expect(intervals).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() handles factory log filter logic", async (context) => {
@@ -147,7 +147,7 @@ test("getIntervals() handles factory log filter logic", async (context) => {
 
   expect(intervals).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() handles trace filter logic", async (context) => {
@@ -174,7 +174,7 @@ test("getIntervals() handles trace filter logic", async (context) => {
 
   expect(intervals).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() handles factory trace filter logic", async (context) => {
@@ -204,7 +204,7 @@ test("getIntervals() handles factory trace filter logic", async (context) => {
 
   expect(intervals).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() handles block filter logic", async (context) => {
@@ -232,7 +232,7 @@ test("getIntervals() handles block filter logic", async (context) => {
 
   expect(intervals).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getIntervals() handles size over max", async (context) => {
@@ -303,7 +303,7 @@ test("getChildAddresses()", async (context) => {
   expect(addresses).toHaveLength(1);
   expect(addresses[0]).toBe(context.factory.pair);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getChildAddresses() empty", async (context) => {
@@ -316,7 +316,7 @@ test("getChildAddresses() empty", async (context) => {
 
   expect(addresses).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("filterChildAddresses()", async (context) => {
@@ -340,7 +340,7 @@ test("filterChildAddresses()", async (context) => {
 
   expect(addresses.size).toBe(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertLogs()", async (context) => {
@@ -356,7 +356,7 @@ test("insertLogs()", async (context) => {
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertLogs() with duplicates", async (context) => {
@@ -377,7 +377,7 @@ test("insertLogs() with duplicates", async (context) => {
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertLogs() creates checkpoint", async (context) => {
@@ -402,7 +402,7 @@ test("insertLogs() creates checkpoint", async (context) => {
   expect(checkpoint.eventType).toBe(5);
   expect(checkpoint.eventIndex).toBe(0n);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertLogs() upserts checkpoint", async (context) => {
@@ -436,7 +436,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
   logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs[0]!.checkpoint).not.toBe(null);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertBlocks()", async (context) => {
@@ -451,7 +451,7 @@ test("insertBlocks()", async (context) => {
     .execute();
   expect(blocks).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertBlocks() with duplicates", async (context) => {
@@ -467,7 +467,7 @@ test("insertBlocks() with duplicates", async (context) => {
     .execute();
   expect(blocks).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertBlocks() creates checkpoint", async (context) => {
@@ -494,7 +494,7 @@ test("insertBlocks() creates checkpoint", async (context) => {
   expect(checkpoint.eventType).toBe(5);
   expect(checkpoint.eventIndex).toBe(0n);
 
-  cleanup();
+  await cleanup();
 });
 
 test("hasBlock()", async (context) => {
@@ -512,7 +512,7 @@ test("hasBlock()", async (context) => {
   });
   expect(block).toBe(false);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertTransactions()", async (context) => {
@@ -530,7 +530,7 @@ test("insertTransactions()", async (context) => {
     .execute();
   expect(transactions).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertTransactions() with duplicates", async (context) => {
@@ -552,7 +552,7 @@ test("insertTransactions() with duplicates", async (context) => {
     .execute();
   expect(transactions).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("hasTransaction()", async (context) => {
@@ -573,7 +573,7 @@ test("hasTransaction()", async (context) => {
   });
   expect(transaction).toBe(false);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertTransactionReceipts()", async (context) => {
@@ -591,7 +591,7 @@ test("insertTransactionReceipts()", async (context) => {
     .execute();
   expect(transactionReceipts).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertTransactionReceipts() with duplicates", async (context) => {
@@ -613,7 +613,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     .execute();
   expect(transactionReceipts).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("hasTransactionReceipt()", async (context) => {
@@ -634,7 +634,7 @@ test("hasTransactionReceipt()", async (context) => {
   });
   expect(transaction).toBe(false);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertCallTraces()", async (context) => {
@@ -643,7 +643,7 @@ test("insertCallTraces()", async (context) => {
 
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
     ],
     chainId: 1,
   });
@@ -654,7 +654,7 @@ test("insertCallTraces()", async (context) => {
     .execute();
   expect(traces).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertCallTraces() creates checkpoint", async (context) => {
@@ -663,7 +663,7 @@ test("insertCallTraces() creates checkpoint", async (context) => {
 
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
     ],
     chainId: 1,
   });
@@ -683,7 +683,7 @@ test("insertCallTraces() creates checkpoint", async (context) => {
   expect(checkpoint.eventType).toBe(7);
   expect(checkpoint.eventIndex).toBe(0n);
 
-  cleanup();
+  await cleanup();
 });
 
 test("insertCallTraces() with duplicates", async (context) => {
@@ -692,13 +692,13 @@ test("insertCallTraces() with duplicates", async (context) => {
 
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
     ],
     chainId: 1,
   });
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
     ],
     chainId: 1,
   });
@@ -709,7 +709,7 @@ test("insertCallTraces() with duplicates", async (context) => {
     .execute();
   expect(traces).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() returns events", async (context) => {
@@ -746,7 +746,7 @@ test("getEvents() returns events", async (context) => {
 
   expect(events).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() handles log filter logic", async (context) => {
@@ -787,7 +787,7 @@ test("getEvents() handles log filter logic", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() handles log factory", async (context) => {
@@ -819,7 +819,7 @@ test("getEvents() handles log factory", async (context) => {
 
   expect(events).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() handles multiple log factories", async (context) => {
@@ -862,7 +862,7 @@ test("getEvents() handles multiple log factories", async (context) => {
 
   expect(events).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() handles trace filter logic", async (context) => {
@@ -871,7 +871,7 @@ test("getEvents() handles trace filter logic", async (context) => {
 
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
     ],
     chainId: 1,
   });
@@ -894,7 +894,7 @@ test("getEvents() handles trace filter logic", async (context) => {
 
   expect(events).toHaveLength(1);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() handles block filter logic", async (context) => {
@@ -915,7 +915,7 @@ test("getEvents() handles block filter logic", async (context) => {
 
   expect(events).toHaveLength(2);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() handles block bounds", async (context) => {
@@ -963,7 +963,7 @@ test("getEvents() handles block bounds", async (context) => {
 
   expect(events).toHaveLength(0);
 
-  cleanup();
+  await cleanup();
 });
 
 test("getEvents() pagination", async (context) => {
@@ -1009,28 +1009,47 @@ test("getEvents() pagination", async (context) => {
   await cleanup();
 });
 
-test("pruneByBlock", async (context) => {
+test("pruneRpcRequestResult", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
-  const rpcData = await getRawRPCData();
 
-  await syncStore.insertBlocks({ blocks: [rpcData.block1.block], chainId: 1 });
-  await syncStore.insertBlocks({ blocks: [rpcData.block2.block], chainId: 1 });
-  await syncStore.insertBlocks({ blocks: [rpcData.block3.block], chainId: 1 });
-  await syncStore.insertBlocks({ blocks: [rpcData.block4.block], chainId: 1 });
+  await syncStore.insertRpcRequestResult({
+    request: "0x1",
+    blockNumber: 1n,
+    chainId: 1,
+    result: "0x1",
+  });
+  await syncStore.insertRpcRequestResult({
+    request: "0x2",
+    blockNumber: 2n,
+    chainId: 1,
+    result: "0x2",
+  });
+  await syncStore.insertRpcRequestResult({
+    request: "0x3",
+    blockNumber: 3n,
+    chainId: 1,
+    result: "0x3",
+  });
+  await syncStore.insertRpcRequestResult({
+    request: "0x4",
+    blockNumber: 4n,
+    chainId: 1,
+    result: "0x4",
+  });
 
-  await syncStore.pruneByBlock({
-    blocks: [rpcData.block3.block, rpcData.block4.block],
+  await syncStore.pruneRpcRequestResult({
+    blocks: [{ number: "0x2" }, { number: "0x4" }],
     chainId: 1,
   });
 
-  const blocks = await database.qb.sync
-    .selectFrom("blocks")
+  const requestResults = await database.qb.sync
+    .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
 
-  expect(blocks).toHaveLength(2);
+  expect(requestResults).toHaveLength(2);
 
-  cleanup();
+  await cleanup();
 });
 
 test("pruneByChain deletes filters", async (context) => {
@@ -1292,8 +1311,8 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   });
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block2.traces[0], block: rpcData.block2.block },
-      { callTrace: rpcData.block2.traces[1], block: rpcData.block2.block },
+      { callTrace: rpcData.block2.callTraces[0], block: rpcData.block2.block },
+      { callTrace: rpcData.block2.callTraces[1], block: rpcData.block2.block },
     ],
     chainId: 1,
   });
@@ -1314,7 +1333,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   });
   await syncStore.insertCallTraces({
     callTraces: [
-      { callTrace: rpcData.block3.traces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
     ],
     chainId: 1,
   });
