@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.12
+
+### Patch Changes
+
+- [#1152](https://github.com/ponder-sh/ponder/pull/1152) [`d436bdbeda7329658f127e01e0e2bfc9aeedff1a`](https://github.com/ponder-sh/ponder/commit/d436bdbeda7329658f127e01e0e2bfc9aeedff1a) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added validations for inconsistent RPC responses.
+
 ## 0.6.11
 
 ### Patch Changes
