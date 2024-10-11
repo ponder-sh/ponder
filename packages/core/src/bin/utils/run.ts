@@ -234,7 +234,7 @@ export async function run({
 
     indexingService.updateIndexingStore({ indexingStore, schema });
 
-    sync.startRealtime();
+    await sync.startRealtime();
 
     await metadataStore.setStatus(sync.getStatus());
 
