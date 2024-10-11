@@ -198,6 +198,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         syncStore: args.syncStore,
         requestQueue,
         network,
+        onFatalError: args.onFatalError,
       });
       const realtimeSync = createRealtimeSync({
         common: args.common,

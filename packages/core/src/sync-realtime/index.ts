@@ -390,7 +390,7 @@ export const createRealtimeSync = (
       // Protect against RPCs returning empty logs. Known to happen near chain tip.
       if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
         throw new Error(
-          `Detected invalid '${args.network.name}' eth_getLogs response.`,
+          "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
         );
       }
 
@@ -398,7 +398,7 @@ export const createRealtimeSync = (
       for (const log of logs) {
         if (log.blockHash !== block.hash) {
           throw new Error(
-            `Received log with block hash '${log.blockHash}' that does not match current head block '${block.hash}'`,
+            "Detected invalid eth_getLogs response. `log.blockHash` does not match requested block hash.",
           );
         }
       }
@@ -430,7 +430,7 @@ export const createRealtimeSync = (
       // Use the fact that any transaction produces a trace.
       if (block.transactions.length !== 0 && traces.length === 0) {
         throw new Error(
-          `Detected invalid '${args.network.name}' trace_block response.`,
+          "Detected invalid trace_block response. `block.transactions` is not empty but zero traces were returned.",
         );
       }
 
@@ -443,7 +443,7 @@ export const createRealtimeSync = (
     for (const trace of callTraces) {
       if (trace.blockHash !== block.hash) {
         throw new Error(
-          `Received call trace with block hash '${trace.blockHash}' that does not match current head block '${block.hash}'`,
+          "Detected invalid trace_block response. `trace.blockHash` does not match requested block hash.",
         );
       }
     }
@@ -510,18 +510,12 @@ export const createRealtimeSync = (
     const blockTransactionsHashes = new Set(
       block.transactions.map((t) => t.hash),
     );
-
-    const invalidTransactionHashes: Hash[] = [];
-    for (const hash of requiredTransactions) {
+    for (const hash of Array.from(requiredTransactions)) {
       if (blockTransactionsHashes.has(hash) === false) {
-        invalidTransactionHashes.push(hash);
+        throw new Error(
+          `Detected inconsistent RPC responses. Transaction with hash ${hash} is missing in \`block.transactions\`.`,
+        );
       }
-    }
-
-    if (invalidTransactionHashes.length > 0) {
-      throw new Error(
-        `Received callTraces/logs with transaction hash(es): '${invalidTransactionHashes.join(", ")}' that is/are not in current head block '${block.hash}'`,
-      );
     }
 
     ////////

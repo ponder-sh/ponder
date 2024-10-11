@@ -51,6 +51,7 @@ type CreateHistoricalSyncParameters = {
   syncStore: SyncStore;
   network: Network;
   requestQueue: RequestQueue;
+  onFatalError: (error: Error) => void;
 };
 
 export const createHistoricalSync = async (
@@ -225,31 +226,28 @@ export const createHistoricalSync = async (
       logs.map((log) => syncBlock(hexToBigInt(log.blockNumber))),
     );
 
-    // Validate that logs point to the valid transaction hash in the block and collect them
-    const transactionHashes = new Set(
-      logs.map((log, i) => {
-        const transactionHash = log.transactionHash;
-        const block = blocks[i]!;
+    // Validate that logs point to the valid transaction hash in the block
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i]!;
+      const block = blocks[i]!;
 
-        // Validate that fetched block and trace have the same blockHash
-        if (block.hash !== log.blockHash) {
-          throw new Error(
-            `Received log with block hash '${log.blockHash}' that does not match fetched block '${block.hash}'`,
-          );
-        }
-
-        const isTransactionValid = block.transactions.some(
-          (t) => t.hash === transactionHash,
+      if (block.hash !== log.blockHash) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Log with block hash ${log.blockHash} does not match block ${block.hash}.`,
         );
-        if (!isTransactionValid) {
-          throw new Error(
-            `Received log with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
-          );
-        }
-        return transactionHash;
-      }),
-    );
+      }
 
+      if (
+        block.transactions.find((t) => t.hash === log.transactionHash) ===
+        undefined
+      ) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Log with transaction hash ${log.transactionHash} not found in block ${block.hash}.`,
+        );
+      }
+    }
+
+    const transactionHashes = new Set(logs.map((l) => l.transactionHash));
     for (const hash of transactionHashes) {
       transactionsCache.add(hash);
     }
@@ -266,7 +264,7 @@ export const createHistoricalSync = async (
 
     if (filter.includeTransactionReceipts) {
       const transactionReceipts = await Promise.all(
-        [...transactionHashes].map((hash) =>
+        Array.from(transactionHashes).map((hash) =>
           _eth_getTransactionReceipt(args.requestQueue, { hash }),
         ),
       );
@@ -330,35 +328,32 @@ export const createHistoricalSync = async (
       callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
     );
 
-    // Validate that traces point to the valid transaction hash in the block and collect them
-    const transactionHashes = new Set(
-      callTraces.map((trace, i) => {
-        const transactionHash = trace.transactionHash;
-        const block = blocks[i]!;
+    const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
 
-        // Validate that fetched block and trace have the same blockHash
-        if (block.hash !== trace.blockHash) {
-          throw new Error(
-            `Received trace with block hash '${trace.blockHash}' that does not match fetched block '${block.hash}'`,
-          );
-        }
+    // Validate that traces point to the valid transaction hash in the block
+    for (let i = 0; i < callTraces.length; i++) {
+      const callTrace = callTraces[i]!;
+      const block = blocks[i]!;
 
-        const isTransactionValid = block.transactions.some(
-          (t) => t.hash === transactionHash,
+      if (block.hash !== callTrace.blockHash) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Call trace with block hash ${callTrace.blockHash} does not match block ${block.hash}.`,
         );
+      }
 
-        if (!isTransactionValid) {
-          throw new Error(
-            `Received trace with transaction hash: '${transactionHash}' that is not in the block '${block.hash}'`,
-          );
-        }
-        return transactionHash;
-      }),
-    );
+      if (
+        block.transactions.find((t) => t.hash === callTrace.transactionHash) ===
+        undefined
+      ) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Call trace with transaction hash ${callTrace.transactionHash} not found in block ${block.hash}.`,
+        );
+      }
+    }
 
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
-      [...transactionHashes].map((hash) =>
+      Array.from(transactionHashes).map((hash) =>
         _eth_getTransactionReceipt(args.requestQueue, {
           hash,
         }),
@@ -378,8 +373,10 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    for (const { transactionHash } of callTraces) {
-      transactionsCache.add(transactionHash);
+    for (const hash of transactionHashes) {
+      if (revertedTransactions.has(hash) === false) {
+        transactionsCache.add(hash);
+      }
     }
 
     if (isKilled) return;
@@ -502,35 +499,47 @@ export const createHistoricalSync = async (
           // Request last block of interval
           const blockPromise = syncBlock(BigInt(interval[1]));
 
-          // sync required intervals, account for chunk sizes
-          await Promise.all(
-            requiredIntervals.map(async (interval) => {
-              if (source.type === "contract") {
-                const filter = source.filter;
-                switch (filter.type) {
-                  case "log": {
-                    await syncLogFilter(filter, interval);
-                    break;
+          try {
+            // sync required intervals, account for chunk sizes
+            await Promise.all(
+              requiredIntervals.map(async (interval) => {
+                if (source.type === "contract") {
+                  const filter = source.filter;
+                  switch (filter.type) {
+                    case "log": {
+                      await syncLogFilter(filter, interval);
+                      break;
+                    }
+
+                    case "callTrace":
+                      await Promise.all(
+                        getChunks({ interval, maxChunkSize: 10 }).map(
+                          async (interval) => {
+                            await syncTraceFilter(filter, interval);
+                          },
+                        ),
+                      );
+                      break;
+
+                    default:
+                      never(filter);
                   }
-
-                  case "callTrace":
-                    await Promise.all(
-                      getChunks({ interval, maxChunkSize: 10 }).map(
-                        async (interval) => {
-                          await syncTraceFilter(filter, interval);
-                        },
-                      ),
-                    );
-                    break;
-
-                  default:
-                    never(filter);
+                } else {
+                  await syncBlockFilter(source.filter, interval);
                 }
-              } else {
-                await syncBlockFilter(source.filter, interval);
-              }
-            }),
-          );
+              }),
+            );
+          } catch (_error) {
+            const error = _error as Error;
+
+            args.common.logger.error({
+              service: "sync",
+              msg: `Fatal error: Unable to sync '${args.network.name}' from ${interval[0]} to ${interval[1]}.`,
+              error,
+            });
+
+            args.onFatalError(error);
+          }
 
           if (isKilled) return;
 
