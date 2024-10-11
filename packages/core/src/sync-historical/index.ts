@@ -539,6 +539,8 @@ export const createHistoricalSync = async (
             });
 
             args.onFatalError(error);
+
+            return;
           }
 
           if (isKilled) return;
