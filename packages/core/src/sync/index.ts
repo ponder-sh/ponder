@@ -265,7 +265,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         sources,
         requestQueue,
         historicalSync,
-        syncProgress: { end, finalized },
       });
 
       // Update "ponder_sync_block" metric
@@ -963,12 +962,10 @@ export const getCachedBlock = ({
   sources,
   requestQueue,
   historicalSync,
-  syncProgress,
 }: {
   sources: Source[];
   requestQueue: RequestQueue;
   historicalSync: HistoricalSync;
-  syncProgress: Pick<SyncProgress, "end" | "finalized">;
 }): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
@@ -1004,12 +1001,6 @@ export const getCachedBlock = ({
         block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
     )
   ) {
-    if (
-      minCompletedBlock > hexToNumber(getHistoricalLast(syncProgress).number)
-    ) {
-      return Promise.resolve(getHistoricalLast(syncProgress));
-    }
-
     return _eth_getBlockByNumber(requestQueue, {
       blockNumber: minCompletedBlock,
     });
