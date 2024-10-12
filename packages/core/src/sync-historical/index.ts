@@ -25,7 +25,6 @@ import {
   _eth_getTransactionReceipt,
   _trace_filter,
 } from "@/utils/rpc.js";
-import { dedupe } from "@ponder/common";
 import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
@@ -52,6 +51,7 @@ type CreateHistoricalSyncParameters = {
   syncStore: SyncStore;
   network: Network;
   requestQueue: RequestQueue;
+  onFatalError: (error: Error) => void;
 };
 
 export const createHistoricalSync = async (
@@ -226,6 +226,27 @@ export const createHistoricalSync = async (
       logs.map((log) => syncBlock(hexToBigInt(log.blockNumber))),
     );
 
+    // Validate that logs point to the valid transaction hash in the block
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i]!;
+      const block = blocks[i]!;
+
+      if (block.hash !== log.blockHash) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Log with block hash ${log.blockHash} does not match block ${block.hash}.`,
+        );
+      }
+
+      if (
+        block.transactions.find((t) => t.hash === log.transactionHash) ===
+        undefined
+      ) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Log with transaction hash ${log.transactionHash} not found in block ${block.hash}.`,
+        );
+      }
+    }
+
     const transactionHashes = new Set(logs.map((l) => l.transactionHash));
     for (const hash of transactionHashes) {
       transactionsCache.add(hash);
@@ -243,7 +264,7 @@ export const createHistoricalSync = async (
 
     if (filter.includeTransactionReceipts) {
       const transactionReceipts = await Promise.all(
-        [...transactionHashes].map((hash) =>
+        Array.from(transactionHashes).map((hash) =>
           _eth_getTransactionReceipt(args.requestQueue, { hash }),
         ),
       );
@@ -303,9 +324,36 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
+    const blocks = await Promise.all(
+      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
+    );
+
+    const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
+
+    // Validate that traces point to the valid transaction hash in the block
+    for (let i = 0; i < callTraces.length; i++) {
+      const callTrace = callTraces[i]!;
+      const block = blocks[i]!;
+
+      if (block.hash !== callTrace.blockHash) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Call trace with block hash ${callTrace.blockHash} does not match block ${block.hash}.`,
+        );
+      }
+
+      if (
+        block.transactions.find((t) => t.hash === callTrace.transactionHash) ===
+        undefined
+      ) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Call trace with transaction hash ${callTrace.transactionHash} not found in block ${block.hash}.`,
+        );
+      }
+    }
+
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
-      dedupe(callTraces.map((t) => t.transactionHash)).map((hash) =>
+      Array.from(transactionHashes).map((hash) =>
         _eth_getTransactionReceipt(args.requestQueue, {
           hash,
         }),
@@ -325,12 +373,10 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    const blocks = await Promise.all(
-      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
-    );
-
-    for (const { transactionHash } of callTraces) {
-      transactionsCache.add(transactionHash);
+    for (const hash of transactionHashes) {
+      if (revertedTransactions.has(hash) === false) {
+        transactionsCache.add(hash);
+      }
     }
 
     if (isKilled) return;
@@ -453,35 +499,49 @@ export const createHistoricalSync = async (
           // Request last block of interval
           const blockPromise = syncBlock(BigInt(interval[1]));
 
-          // sync required intervals, account for chunk sizes
-          await Promise.all(
-            requiredIntervals.map(async (interval) => {
-              if (source.type === "contract") {
-                const filter = source.filter;
-                switch (filter.type) {
-                  case "log": {
-                    await syncLogFilter(filter, interval);
-                    break;
+          try {
+            // sync required intervals, account for chunk sizes
+            await Promise.all(
+              requiredIntervals.map(async (interval) => {
+                if (source.type === "contract") {
+                  const filter = source.filter;
+                  switch (filter.type) {
+                    case "log": {
+                      await syncLogFilter(filter, interval);
+                      break;
+                    }
+
+                    case "callTrace":
+                      await Promise.all(
+                        getChunks({ interval, maxChunkSize: 10 }).map(
+                          async (interval) => {
+                            await syncTraceFilter(filter, interval);
+                          },
+                        ),
+                      );
+                      break;
+
+                    default:
+                      never(filter);
                   }
-
-                  case "callTrace":
-                    await Promise.all(
-                      getChunks({ interval, maxChunkSize: 10 }).map(
-                        async (interval) => {
-                          await syncTraceFilter(filter, interval);
-                        },
-                      ),
-                    );
-                    break;
-
-                  default:
-                    never(filter);
+                } else {
+                  await syncBlockFilter(source.filter, interval);
                 }
-              } else {
-                await syncBlockFilter(source.filter, interval);
-              }
-            }),
-          );
+              }),
+            );
+          } catch (_error) {
+            const error = _error as Error;
+
+            args.common.logger.error({
+              service: "sync",
+              msg: `Fatal error: Unable to sync '${args.network.name}' from ${interval[0]} to ${interval[1]}.`,
+              error,
+            });
+
+            args.onFatalError(error);
+
+            return;
+          }
 
           if (isKilled) return;
 
