@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.13
+
+### Patch Changes
+
+- [#1160](https://github.com/ponder-sh/ponder/pull/1160) [`c75f6587dc4cf9f5a35bd7a239f482f4ae2c6b7d`](https://github.com/ponder-sh/ponder/commit/c75f6587dc4cf9f5a35bd7a239f482f4ae2c6b7d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6 that caused events to be skipped near the end of the historical backfill. This bug did not affect the sync cache and does not require the app to be resynced.
+
 ## 0.6.12
 
 ### Patch Changes
