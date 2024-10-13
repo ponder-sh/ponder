@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.6.15
+
+### Patch Changes
+
+- [#1164](https://github.com/ponder-sh/ponder/pull/1164) [`087d393da96a5368b1c9594887b63485931518ec`](https://github.com/ponder-sh/ponder/commit/087d393da96a5368b1c9594887b63485931518ec) Thanks [@kyscott18](https://github.com/kyscott18)! - See https://github.com/ponder-sh/ponder/blob/main/packages/core/CHANGELOG.md#0614
+
+- [#1164](https://github.com/ponder-sh/ponder/pull/1164) [`087d393da96a5368b1c9594887b63485931518ec`](https://github.com/ponder-sh/ponder/commit/087d393da96a5368b1c9594887b63485931518ec) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6.0 where the `disableCache` option did not correctly ignore the cache in some cases.
+
 ## 0.6.14
 
 ### Patch Changes
