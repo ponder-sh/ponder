@@ -237,6 +237,19 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         network,
       });
 
+      // Invalidate sync cache for devnet sources
+      if (network.disableCache) {
+        args.common.logger.warn({
+          service: "sync",
+          msg: `Deleting cache records for '${network.name}' from block ${hexToNumber(start.number)}`,
+        });
+
+        await args.syncStore.pruneByChain({
+          fromBlock: hexToNumber(start.number),
+          chainId: network.chainId,
+        });
+      }
+
       const historicalSync = await createHistoricalSync({
         common: args.common,
         sources,
@@ -262,33 +275,18 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         onFatalError: args.onFatalError,
       });
 
-      let cached: SyncBlock | LightBlock | undefined;
+      const cached = await getCachedBlock({
+        sources,
+        requestQueue,
+        historicalSync,
+      });
 
-      // Invalidate sync cache for devnet sources
-      if (network.disableCache) {
-        args.common.logger.warn({
-          service: "sync",
-          msg: `Deleting cache records for '${network.name}' from block ${hexToNumber(start.number)}`,
-        });
-
-        await args.syncStore.pruneByChain({
-          fromBlock: hexToNumber(start.number),
-          chainId: network.chainId,
-        });
-      } else {
-        cached = await getCachedBlock({
-          sources,
-          requestQueue,
-          historicalSync,
-        });
-
-        // Update "ponder_sync_block" metric
-        if (cached !== undefined) {
-          args.common.metrics.ponder_sync_block.set(
-            { network: network.name },
-            hexToNumber(cached.number),
-          );
-        }
+      // Update "ponder_sync_block" metric
+      if (cached !== undefined) {
+        args.common.metrics.ponder_sync_block.set(
+          { network: network.name },
+          hexToNumber(cached.number),
+        );
       }
 
       const syncProgress: SyncProgress = {
