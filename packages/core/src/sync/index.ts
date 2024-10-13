@@ -230,6 +230,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         ({ filter }) => filter.chainId === network.chainId,
       );
 
+      const { start, end, finalized } = await syncDiagnostic({
+        common: args.common,
+        sources,
+        requestQueue,
+        network,
+      });
+
       const historicalSync = await createHistoricalSync({
         common: args.common,
         sources,
@@ -255,25 +262,33 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         onFatalError: args.onFatalError,
       });
 
-      const { start, end, finalized } = await syncDiagnostic({
-        common: args.common,
-        sources,
-        requestQueue,
-        network,
-      });
+      let cached: SyncBlock | LightBlock | undefined;
 
-      const cached = await getCachedBlock({
-        sources,
-        requestQueue,
-        historicalSync,
-      });
+      // Invalidate sync cache for devnet sources
+      if (network.disableCache) {
+        args.common.logger.warn({
+          service: "sync",
+          msg: `Deleting cache records for '${network.name}' from block ${hexToNumber(start.number)}`,
+        });
 
-      // Update "ponder_sync_block" metric
-      if (cached !== undefined) {
-        args.common.metrics.ponder_sync_block.set(
-          { network: network.name },
-          hexToNumber(cached.number),
-        );
+        await args.syncStore.pruneByChain({
+          fromBlock: hexToNumber(start.number),
+          chainId: network.chainId,
+        });
+      } else {
+        cached = await getCachedBlock({
+          sources,
+          requestQueue,
+          historicalSync,
+        });
+
+        // Update "ponder_sync_block" metric
+        if (cached !== undefined) {
+          args.common.metrics.ponder_sync_block.set(
+            { network: network.name },
+            hexToNumber(cached.number),
+          );
+        }
       }
 
       const syncProgress: SyncProgress = {
@@ -303,25 +318,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       status[network.name] = { block: null, ready: false };
     }),
   );
-
-  // Invalidate sync cache for devnet sources
-  for (const network of args.networks) {
-    if (network.disableCache) {
-      const startBlock = hexToNumber(
-        localSyncContext.get(network)!.syncProgress.start.number,
-      );
-
-      args.common.logger.warn({
-        service: "sync",
-        msg: `Deleting cache records for '${network.name}' from block ${startBlock}`,
-      });
-
-      await args.syncStore.pruneByChain({
-        fromBlock: startBlock,
-        chainId: network.chainId,
-      });
-    }
-  }
 
   /**
    * Returns the minimum checkpoint across all chains.
