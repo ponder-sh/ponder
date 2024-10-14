@@ -1,9 +1,8 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type { Database } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
+import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Sync } from "@/sync/index.js";
 import {
   type ContractSource,
@@ -51,6 +50,7 @@ export type Service = {
   // static
   common: Common;
   indexingFunctions: IndexingFunctions;
+  indexingStore: IndexingStore;
 
   // state
   isKilled: boolean;
@@ -83,16 +83,14 @@ export const create = ({
   sources,
   networks,
   sync,
-  database,
-  schema,
+  indexingStore,
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
   sources: Source[];
   networks: Network[];
   sync: Sync;
-  database: Database;
-  schema: Schema;
+  indexingStore: IndexingStore;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
     blockNumber: undefined!,
@@ -169,6 +167,7 @@ export const create = ({
   return {
     common,
     indexingFunctions,
+    indexingStore,
     isKilled: false,
     eventCount,
     startCheckpoint: decodeCheckpoint(sync.getStartCheckpoint()),
@@ -178,7 +177,14 @@ export const create = ({
         network: { name: undefined!, chainId: undefined! },
         contracts: undefined!,
         client: undefined!,
-        db: createIndexingStore({ database, schema }),
+        db: {
+          find: indexingStore.find,
+          insert: indexingStore.insert,
+          update: indexingStore.update,
+          upsert: indexingStore.upsert,
+          delete: indexingStore.delete,
+          sql: indexingStore.sql,
+        },
       },
     },
     networkByChainId,
@@ -322,6 +328,8 @@ export const processEvents = async (
       default:
         never(event);
     }
+
+    await indexingService.indexingStore.flush({ force: false });
 
     // periodically update metrics
     if (i % 93 === 0) {

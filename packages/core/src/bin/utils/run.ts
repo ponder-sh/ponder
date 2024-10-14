@@ -2,6 +2,7 @@ import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { createDatabase } from "@/database/index.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
@@ -111,7 +112,10 @@ export async function run({
           if (result.status === "error") onReloadableError(result.error);
 
           // overwrite the temporary "checkpoint" value in reorg tables
+          // TODO(kyle) should this be dependent on the block?
           await database.complete({ checkpoint: event.checkpoint });
+
+          await indexingStore.flush({ force: true });
 
           await metadataStore.setStatus(status);
 
@@ -131,14 +135,15 @@ export async function run({
     },
   });
 
+  const indexingStore = createIndexingStore({ common, database, schema });
+
   const indexingService = createIndexingService({
     indexingFunctions,
     common,
     sources,
     networks,
     sync,
-    database,
-    schema,
+    indexingStore,
   });
 
   await metadataStore.setStatus(sync.getStatus());

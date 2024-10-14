@@ -1,6 +1,9 @@
+import type { Common } from "@/common/common.js";
 import {
+  FlushError,
   InvalidStoreMethodError,
   RecordNotFoundError,
+  UniqueConstraintError,
 } from "@/common/errors.js";
 import type { Database } from "@/database/index.js";
 import { type Schema, onchain } from "@/drizzle/index.js";
@@ -14,10 +17,21 @@ import {
   eq,
   getTableColumns,
   getTableName,
+  sql,
 } from "drizzle-orm";
-import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import {
+  PgBigSerial53,
+  PgBigSerial64,
+  PgSerial,
+  PgSmallSerial,
+  type PgTable,
+  getTableConfig,
+} from "drizzle-orm/pg-core";
+import { createQueue } from "../../../common/src/queue.js";
 
-export type IndexingStore = Db<Schema> & { flush: () => Promise<void> };
+export type IndexingStore = Db<Schema> & {
+  flush: (args: { force: boolean }) => Promise<void>;
+};
 
 enum EntryType {
   INSERT = 0,
@@ -29,6 +43,7 @@ enum EntryType {
 type InsertEntry = {
   type: EntryType.INSERT;
   bytes: number;
+  operationIndex: number;
   row: { [key: string]: unknown };
 };
 
@@ -36,23 +51,27 @@ type InsertEntry = {
 type UpdateEntry = {
   type: EntryType.UPDATE;
   bytes: number;
+  operationIndex: number;
   row: { [key: string]: unknown };
 };
 
 /**
- * Cache entries that mirror the database. Can be `undefined`,
+ * Cache entries that mirror the database. Can be `null`,
  * meaning the entry doesn't exist.
  */
 export type FindEntry = {
   type: EntryType.FIND;
   bytes: number;
-  row: { [key: string]: unknown } | undefined;
+  operationIndex: number;
+  row: { [key: string]: unknown } | typeof empty;
 };
 
 // TODO(kyle) key interning
 type Key = string;
 type Entry = InsertEntry | UpdateEntry | FindEntry;
-type Cache = Map<string, Map<Key, Entry>>;
+type Cache = Map<Table, Map<Key, Entry>>;
+
+export const empty = null;
 
 const getKeyConditional = (table: Table, key: Object): SQL<unknown> => {
   // @ts-ignore
@@ -76,26 +95,63 @@ const checkOnchainTable = (
 };
 
 export const createIndexingStore = ({
+  common,
   database,
   schema,
-}: { database: Database; schema: Schema }): IndexingStore => {
-  // TODO(kyle) all operations applied in a queue
-  const wrap = database.qb.user.wrap;
+}: { common: Common; database: Database; schema: Schema }): IndexingStore => {
+  const queue = createQueue<unknown, () => Promise<unknown>>({
+    browser: false,
+    initialStart: true,
+    concurrency: 1,
+    worker: (fn) => {
+      return fn();
+    },
+  });
 
-  const primaryKeysCache: Map<string, string[]> = new Map();
+  const primaryKeysCache: Map<Table, string[]> = new Map();
+  const isSerialTableCache: Map<Table, boolean> = new Map();
   const cache: Cache = new Map();
 
-  for (const { js, sql } of getTableNames(schema)) {
-    primaryKeysCache.set(sql, getPrimaryKeyColumns(schema[js] as PgTable));
-    cache.set(sql, new Map());
+  const isSerialTable = (table: Table) => {
+    const primaryKeys = primaryKeysCache.get(table)!;
+
+    const maybeSerialColumn = getTableColumns(table)[primaryKeys[0]!]!;
+    if (
+      primaryKeys.length === 1 &&
+      (maybeSerialColumn instanceof PgSerial ||
+        maybeSerialColumn instanceof PgSmallSerial ||
+        maybeSerialColumn instanceof PgBigSerial53 ||
+        maybeSerialColumn instanceof PgBigSerial64)
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  for (const { js } of getTableNames(schema)) {
+    primaryKeysCache.set(
+      schema[js] as Table,
+      getPrimaryKeyColumns(schema[js] as PgTable),
+    );
+    isSerialTableCache.set(
+      schema[js] as Table,
+      isSerialTable(schema[js] as Table),
+    );
+    cache.set(schema[js] as Table, new Map());
   }
 
   const getCacheKey = (
     table: Table,
     row: { [key: string]: unknown },
   ): string => {
-    const primaryKeys = primaryKeysCache.get(getTableName(table))!;
+    const primaryKeys = primaryKeysCache.get(table)!;
     // TODO(kyle) is this resistant against different sql vs js names
+
+    if (isSerialTableCache.get(table)) {
+      return `_serial_${totalCacheOps}`;
+    }
+
     return (
       primaryKeys
         // @ts-ignore
@@ -104,25 +160,60 @@ export const createIndexingStore = ({
     );
   };
 
+  const hasCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
+    return cache.get(table)!.has(getCacheKey(table, row));
+  };
+
   const getCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
-    return cache.get(getTableName(table))!.get(getCacheKey(table, row));
+    return cache.get(table)!.get(getCacheKey(table, row));
   };
 
   const setCacheEntry = (
     table: Table,
-    row: { [key: string]: unknown },
-    entry: Entry,
+    userRow: { [key: string]: unknown },
+    entryType: Exclude<EntryType, { type: EntryType.FIND }>,
+    existingRow?: { [key: string]: unknown },
   ) => {
-    cache.get(getTableName(table))!.set(getCacheKey(table, row), entry);
+    let row = structuredClone(userRow);
+
+    if (existingRow) {
+      for (const [key, value] of Object.entries(row)) {
+        existingRow[key] = value;
+      }
+      existingRow = normalizeRow(table, existingRow);
+      const bytes = getBytes(existingRow);
+
+      cacheSize += 1;
+      cacheBytes += bytes;
+
+      cache.get(table)!.set(getCacheKey(table, existingRow), {
+        type: entryType,
+        row: existingRow,
+        operationIndex: totalCacheOps++,
+        bytes,
+      });
+    } else {
+      row = normalizeRow(table, row);
+      const bytes = getBytes(row);
+
+      cacheSize += 1;
+      cacheBytes += bytes;
+
+      cache.get(table)!.set(getCacheKey(table, row), {
+        type: entryType,
+        bytes,
+        operationIndex: totalCacheOps++,
+        row,
+      });
+    }
   };
 
   const deleteCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
-    return cache.get(getTableName(table))!.delete(getCacheKey(table, row));
+    return cache.get(table)!.delete(getCacheKey(table, row));
   };
 
   const normalizeRow = (table: Table, row: { [key: string]: unknown }) => {
     for (const [columnName, column] of Object.entries(getTableColumns(table))) {
-      // TODO(kyle) throw error if column missing
       row[columnName] = normalizeColumn(column, row[columnName]);
     }
 
@@ -134,112 +225,153 @@ export const createIndexingStore = ({
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   };
 
-  const getRowBytes = (
-    _table: Table,
-    row: { [key: string]: unknown } | undefined,
-  ) => {
-    if (row === undefined) return 32;
-    // TODO(kyle) memoize size
-    return 512;
-  };
+  const getBytes = (value: unknown) => {
+    // size of metadata
+    let size = 13;
 
-  const handleUserInput = (
-    table: Table,
-    userRow: { [key: string]: unknown },
-    existingRow?: { [key: string]: unknown },
-  ) => {
-    let row = structuredClone(userRow);
-
-    if (existingRow) {
-      for (const [key, value] of Object.entries(row)) {
-        existingRow[key] = value;
+    if (typeof value === "number") {
+      size += 8;
+    } else if (typeof value === "string") {
+      size += 2 * value.length;
+    } else if (typeof value === "boolean") {
+      size += 4;
+    } else if (typeof value === "bigint") {
+      size += 48;
+    } else if (value === null || value === undefined) {
+      size += 8;
+    } else if (Array.isArray(value)) {
+      for (const e of value) {
+        size += getBytes(e);
       }
-      existingRow = normalizeRow(table, existingRow);
-      const bytes = getRowBytes(table, existingRow);
-      return { bytes, row: existingRow };
+    } else {
+      for (const col of Object.values(value)) {
+        size += getBytes(col);
+      }
     }
 
-    row = normalizeRow(table, row);
-    const bytes = getRowBytes(table, row);
-    return { bytes, row };
+    return size;
   };
 
-  const isDatabaseEmpty = true;
+  const checkSerialTable = (
+    table: Table,
+    method: "find" | "insert" | "update" | "upsert" | "delete",
+  ) => {
+    if (method === "insert" || isSerialTableCache.get(table) === false) return;
 
-  // TODO(kyle) should find return null or undefined
+    throw new InvalidStoreMethodError(
+      `db.${method}(${getTableName(table)}) cannot be used on tables with serial primary keys`,
+    );
+  };
+
+  let isDatabaseEmpty = true;
+  /** Number of entries in cache. */
+  let cacheSize = 0;
+  /** Estimated number of bytes used by cache. */
+  let cacheBytes = 0;
+  /** LRU counter. */
+  let totalCacheOps = 0;
+
+  const maxBytes = common.options.indexingCacheMaxBytes;
+  common.logger.debug({
+    service: "indexing",
+    msg: `Using a ${Math.round(maxBytes / (1024 * 1024))} MB indexing cache`,
+  });
+
   const find = (table: Table, key: object) => {
     return database.drizzle
       .select()
       .from(table as PgTable)
       .where(getKeyConditional(table as PgTable, key))
-      .then((res) => (res.length === 0 ? undefined : res[0]));
+      .then((res) => (res.length === 0 ? null : res[0]!));
   };
 
   // @ts-ignore
   const indexingStore = {
     // @ts-ignore
     find: (table: Table, key) =>
-      // @ts-ignore
-      wrap({ method: `${getTableConfig(table).name}.find()` }, async () => {
-        checkOnchainTable(table as Table, "find");
+      queue.add(() =>
+        database.qb.user.wrap(
+          { method: `${getTableConfig(table).name}.find()` },
+          async () => {
+            checkOnchainTable(table as Table, "find");
+            checkSerialTable(table as Table, "find");
 
-        const entry = getCacheEntry(table, key);
+            const entry = getCacheEntry(table, key);
 
-        if (entry) {
-          // update lru ordering
-          deleteCacheEntry(table, key);
-          setCacheEntry(table, key, entry);
+            if (entry) {
+              // update lru ordering
+              getCacheEntry(table, key)!.operationIndex = totalCacheOps++;
 
-          return entry.row;
-        } else {
-          if (isDatabaseEmpty) return undefined;
+              return entry.row;
+            } else {
+              if (isDatabaseEmpty) return undefined;
 
-          const row = await find(table, key);
-          const size = getRowBytes(table, row);
+              const row = await find(table, key);
+              const bytes = getBytes(row);
 
-          setCacheEntry(table, key, {
-            type: EntryType.FIND,
-            row,
-            bytes: size,
-          });
+              cacheSize += 1;
+              cacheBytes += bytes;
 
-          return find(table, key);
-        }
-      }),
+              cache.get(table)!.set(getCacheKey(table, key), {
+                type: EntryType.FIND,
+                bytes,
+                operationIndex: totalCacheOps++,
+                row,
+              });
+
+              return find(table, key);
+            }
+          },
+        ),
+      ),
     // @ts-ignore
     insert(table: Table) {
       return {
         values: (values: any) =>
-          wrap(
-            { method: `${getTableConfig(table as PgTable).name}.insert()` },
-            async () => {
-              checkOnchainTable(table as Table, "insert");
-              if (Array.isArray(values)) {
-                for (const value of values) {
-                  const key = getCacheKey(table, value);
+          queue.add(() =>
+            database.qb.user.wrap(
+              { method: `${getTableConfig(table as PgTable).name}.insert()` },
+              async () => {
+                checkOnchainTable(table as Table, "insert");
+                checkSerialTable(table as Table, "insert");
 
-                  // TODO(kyle) check if present, error
+                if (Array.isArray(values)) {
+                  for (const value of values) {
+                    if (hasCacheEntry(table, value)) {
+                      throw new UniqueConstraintError(
+                        `Unique constraint failed for '${getTableName(table)}'.`,
+                      );
+                    } else if (isDatabaseEmpty === false) {
+                      const findResult = await find(table, value);
 
-                  setCacheEntry(table, value, {
-                    type: EntryType.INSERT,
-                    ...handleUserInput(table, value),
-                  });
+                      if (findResult) {
+                        throw new UniqueConstraintError(
+                          `Unique constraint failed for '${getTableName(table)}'.`,
+                        );
+                      }
+                    }
 
-                  // update cache metadata
+                    setCacheEntry(table, value, EntryType.INSERT);
+                  }
+                } else {
+                  if (hasCacheEntry(table, values)) {
+                    throw new UniqueConstraintError(
+                      `Unique constraint failed for '${getTableName(table)}'.`,
+                    );
+                  } else if (isDatabaseEmpty === false) {
+                    const findResult = await find(table, values);
+
+                    if (findResult) {
+                      throw new UniqueConstraintError(
+                        `Unique constraint failed for '${getTableName(table)}'.`,
+                      );
+                    }
+                  }
+
+                  setCacheEntry(table, values, EntryType.INSERT);
                 }
-              } else {
-                const key = getCacheKey(table, values);
-
-                // TODO(kyle) check if present, error
-
-                setCacheEntry(table, values, {
-                  type: EntryType.INSERT,
-                  ...handleUserInput(table, values),
-                });
-
-                // update cache metadata
-              }
-            },
+              },
+            ),
           ),
       };
     },
@@ -247,54 +379,59 @@ export const createIndexingStore = ({
     update(table: Table, key) {
       return {
         set: (values: any) =>
-          wrap(
-            { method: `${getTableConfig(table as PgTable).name}.update()` },
-            async () => {
-              checkOnchainTable(table as Table, "update");
+          queue.add(() =>
+            database.qb.user.wrap(
+              { method: `${getTableConfig(table as PgTable).name}.update()` },
+              async () => {
+                checkOnchainTable(table as Table, "update");
+                checkSerialTable(table as Table, "update");
 
-              const entry = getCacheEntry(table, key);
-              deleteCacheEntry(table, key);
+                const entry = getCacheEntry(table, key);
+                deleteCacheEntry(table, key);
 
-              let row: { [key: string]: unknown };
+                let row: { [key: string]: unknown };
 
-              if (entry?.row) {
-                row = entry.row;
-              } else {
-                if (isDatabaseEmpty) {
-                  throw new RecordNotFoundError(
-                    "No existing record was found with the specified ID",
-                  );
-                }
-
-                const findResult = await find(table, key);
-
-                if (findResult) {
-                  row = findResult;
+                if (entry?.row) {
+                  row = entry.row;
                 } else {
-                  throw new RecordNotFoundError(
-                    "No existing record was found with the specified ID",
+                  if (isDatabaseEmpty) {
+                    throw new RecordNotFoundError(
+                      `No existing record found in table '${getTableName(table)}'`,
+                    );
+                  }
+
+                  const findResult = await find(table, key);
+
+                  if (findResult) {
+                    row = findResult;
+                  } else {
+                    throw new RecordNotFoundError(
+                      `No existing record found in table '${getTableName(table)}'`,
+                    );
+                  }
+                }
+
+                if (typeof values === "function") {
+                  setCacheEntry(
+                    table,
+                    values(row),
+                    entry?.type === EntryType.INSERT
+                      ? EntryType.INSERT
+                      : EntryType.UPDATE,
+                    row,
+                  );
+                } else {
+                  setCacheEntry(
+                    table,
+                    values,
+                    entry?.type === EntryType.INSERT
+                      ? EntryType.INSERT
+                      : EntryType.UPDATE,
+                    row,
                   );
                 }
-              }
-
-              if (typeof values === "function") {
-                setCacheEntry(table, key, {
-                  type:
-                    entry?.type === EntryType.INSERT
-                      ? EntryType.INSERT
-                      : EntryType.UPDATE,
-                  ...handleUserInput(table, values(row), row),
-                });
-              } else {
-                setCacheEntry(table, key, {
-                  type:
-                    entry?.type === EntryType.INSERT
-                      ? EntryType.INSERT
-                      : EntryType.UPDATE,
-                  ...handleUserInput(table, values, row),
-                });
-              }
-            },
+              },
+            ),
           ),
       };
     },
@@ -304,74 +441,80 @@ export const createIndexingStore = ({
         insert(valuesI: any) {
           return {
             update: (valuesU: any) =>
-              wrap(
-                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
-                async () => {
-                  checkOnchainTable(table as Table, "upsert");
+              queue.add(() =>
+                database.qb.user.wrap(
+                  {
+                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                  },
+                  async () => {
+                    checkOnchainTable(table as Table, "upsert");
+                    checkSerialTable(table as Table, "upsert");
 
-                  const entry = getCacheEntry(table, key);
-                  deleteCacheEntry(table, key);
+                    const entry = getCacheEntry(table, key);
+                    deleteCacheEntry(table, key);
 
-                  let row: { [key: string]: unknown } | undefined;
+                    let row: { [key: string]: unknown } | typeof empty;
 
-                  if (entry?.row) {
-                    row = entry.row;
-                  } else {
-                    if (isDatabaseEmpty) row = undefined;
-                    else row = await find(table, key);
-                  }
-
-                  if (row === undefined) {
-                    setCacheEntry(table, key, {
-                      type: EntryType.INSERT,
-                      ...handleUserInput(table, valuesI, key),
-                    });
-                  } else {
-                    if (typeof valuesU === "function") {
-                      setCacheEntry(table, key, {
-                        type:
-                          entry?.type === EntryType.INSERT
-                            ? EntryType.INSERT
-                            : EntryType.UPDATE,
-                        ...handleUserInput(table, valuesU(row), row),
-                      });
+                    if (entry?.row) {
+                      row = entry.row;
                     } else {
-                      setCacheEntry(table, key, {
-                        type:
+                      if (isDatabaseEmpty) row = null;
+                      else row = await find(table, key);
+                    }
+
+                    if (row === null) {
+                      setCacheEntry(table, valuesI, EntryType.INSERT, key);
+                    } else {
+                      if (typeof valuesU === "function") {
+                        setCacheEntry(
+                          table,
+                          valuesU(row),
                           entry?.type === EntryType.INSERT
                             ? EntryType.INSERT
                             : EntryType.UPDATE,
-                        ...handleUserInput(table, valuesU, row),
-                      });
+                          row,
+                        );
+                      } else {
+                        setCacheEntry(
+                          table,
+                          valuesU,
+                          entry?.type === EntryType.INSERT
+                            ? EntryType.INSERT
+                            : EntryType.UPDATE,
+                          row,
+                        );
+                      }
                     }
-                  }
-                },
+                  },
+                ),
               ),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: () =>
-              wrap(
-                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
-                async () => {
-                  checkOnchainTable(table as Table, "upsert");
+              queue.add(() =>
+                database.qb.user.wrap(
+                  {
+                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                  },
+                  async () => {
+                    checkOnchainTable(table as Table, "upsert");
+                    checkSerialTable(table as Table, "upsert");
 
-                  const entry = getCacheEntry(table, key);
+                    const entry = getCacheEntry(table, key);
 
-                  let row: { [key: string]: unknown } | undefined;
+                    let row: { [key: string]: unknown } | null;
 
-                  if (entry?.row) {
-                    row = entry.row;
-                  } else {
-                    if (isDatabaseEmpty) row = undefined;
-                    else row = await find(table, key);
-                  }
+                    if (entry?.row) {
+                      row = entry.row;
+                    } else {
+                      if (isDatabaseEmpty) row = null;
+                      else row = await find(table, key);
+                    }
 
-                  if (row === undefined) {
-                    setCacheEntry(table, key, {
-                      type: EntryType.INSERT,
-                      ...handleUserInput(table, valuesI, key),
-                    });
-                  }
-                },
+                    if (row === null) {
+                      setCacheEntry(table, valuesI, EntryType.INSERT, key);
+                    }
+                  },
+                ),
               ),
           };
         },
@@ -381,43 +524,50 @@ export const createIndexingStore = ({
               indexingStore.upsert(table, key).insert(valuesI).update(valuesU),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: () =>
-              wrap(
-                { method: `${getTableConfig(table as PgTable).name}.upsert()` },
-                async () => {
-                  checkOnchainTable(table as Table, "upsert");
+              queue.add(() =>
+                database.qb.user.wrap(
+                  {
+                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                  },
+                  async () => {
+                    checkOnchainTable(table as Table, "upsert");
+                    checkSerialTable(table as Table, "upsert");
 
-                  const entry = getCacheEntry(table, key);
-                  deleteCacheEntry(table, key);
+                    const entry = getCacheEntry(table, key);
+                    deleteCacheEntry(table, key);
 
-                  let row: { [key: string]: unknown } | undefined;
+                    let row: { [key: string]: unknown } | null;
 
-                  if (entry?.row) {
-                    row = entry.row;
-                  } else {
-                    if (isDatabaseEmpty) row = undefined;
-                    else row = await find(table, key);
-                  }
-
-                  if (row) {
-                    if (typeof valuesU === "function") {
-                      setCacheEntry(table, key, {
-                        type:
-                          entry?.type === EntryType.INSERT
-                            ? EntryType.INSERT
-                            : EntryType.UPDATE,
-                        ...handleUserInput(table, valuesU(row), row),
-                      });
+                    if (entry?.row) {
+                      row = entry.row;
                     } else {
-                      setCacheEntry(table, key, {
-                        type:
+                      if (isDatabaseEmpty) row = null;
+                      else row = await find(table, key);
+                    }
+
+                    if (row) {
+                      if (typeof valuesU === "function") {
+                        setCacheEntry(
+                          table,
+                          valuesU(row),
                           entry?.type === EntryType.INSERT
                             ? EntryType.INSERT
                             : EntryType.UPDATE,
-                        ...handleUserInput(table, valuesU, row),
-                      });
+                          row,
+                        );
+                      } else {
+                        setCacheEntry(
+                          table,
+                          valuesU,
+                          entry?.type === EntryType.INSERT
+                            ? EntryType.INSERT
+                            : EntryType.UPDATE,
+                          row,
+                        );
+                      }
                     }
-                  }
-                },
+                  },
+                ),
               ),
           };
         },
@@ -425,40 +575,162 @@ export const createIndexingStore = ({
     },
     // @ts-ignore
     delete: (table: Table, key) =>
-      wrap(
-        { method: `${getTableConfig(table as PgTable).name}.delete()` },
-        async () => {
-          checkOnchainTable(table as Table, "upsert");
+      queue.add(() =>
+        database.qb.user.wrap(
+          { method: `${getTableConfig(table as PgTable).name}.delete()` },
+          async () => {
+            checkOnchainTable(table as Table, "upsert");
+            checkSerialTable(table as Table, "upsert");
 
-          const entry = getCacheEntry(table, key);
-          deleteCacheEntry(table, key);
+            const entry = getCacheEntry(table, key);
+            deleteCacheEntry(table, key);
 
-          if (entry?.row) {
-            if (entry.type === EntryType.INSERT) {
+            if (entry?.row) {
+              if (entry.type === EntryType.INSERT) {
+                return true;
+              }
+
+              await database.drizzle
+                .delete(table as Table)
+                .where(getKeyConditional(table as Table, key));
+
               return true;
+            } else {
+              if (isDatabaseEmpty) {
+                return false;
+              }
+
+              const deleteResult = await database.drizzle
+                .delete(table as Table)
+                .where(getKeyConditional(table as Table, key))
+                .returning();
+
+              return deleteResult.length > 0;
             }
-
-            await database.drizzle
-              .delete(table as Table)
-              .where(getKeyConditional(table as Table, key));
-
-            return true;
-          } else {
-            if (isDatabaseEmpty) {
-              return false;
-            }
-
-            const deleteResult = await database.drizzle
-              .delete(table as Table)
-              .where(getKeyConditional(table as Table, key))
-              .returning();
-
-            return deleteResult.length > 0;
-          }
-        },
+          },
+        ),
       ),
     sql: database.drizzle,
-    async flush() {},
+    async flush({ force }) {
+      if (force === false && cacheBytes < maxBytes) return;
+
+      queue.add(async () => {
+        for (const [table, tableCache] of cache) {
+          const entries = tableCache.values();
+
+          const batchSize = Math.round(
+            common.options.databaseMaxQueryParameters /
+              Object.keys(getTableColumns(table)).length,
+          );
+
+          const insertValues = Array.from(entries)
+            .filter((e) => e.type === EntryType.INSERT)
+            .map((e) => e.row);
+
+          const updateValues = Array.from(entries)
+            .filter((e) => e.type === EntryType.UPDATE)
+            .map((e) => e.row);
+
+          const promises: Promise<any>[] = [];
+
+          if (insertValues.length > 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
+            });
+
+            for (
+              let i = 0, len = insertValues.length;
+              i < len;
+              i += batchSize
+            ) {
+              promises.push(
+                database.qb.user.wrap(
+                  { method: `${getTableName(table)}.flush()` },
+                  async () =>
+                    await database.drizzle
+                      .insert(table)
+                      .values(insertValues.slice(i, i + batchSize))
+                      .catch((_error) => {
+                        const error = _error as Error;
+                        common.logger.error({
+                          service: "indexing",
+                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        });
+                        throw new FlushError(error.message);
+                      }),
+                ),
+              );
+            }
+          }
+
+          if (updateValues.length > 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Updating ${updateValues.length} cached '${getTableName(table)}' records in the database`,
+            });
+
+            const primaryKeys = primaryKeysCache.get(table)!;
+
+            const set: { [column: string]: SQL } = {};
+            for (const [columnName, column] of Object.entries(
+              getTableColumns(table),
+            )) {
+              set[columnName] = sql`excluded."${column.name}"`;
+            }
+
+            for (
+              let i = 0, len = updateValues.length;
+              i < len;
+              i += batchSize
+            ) {
+              promises.push(
+                database.qb.user.wrap(
+                  { method: `${getTableName(table)}.flush()` },
+                  async () =>
+                    await database.drizzle
+                      .insert(table)
+                      .values(updateValues.slice(i, i + batchSize))
+                      .onConflictDoUpdate({
+                        // @ts-ignore
+                        target: primaryKeys.map((pk) => table[pk]),
+                        set,
+                      })
+                      .catch((_error) => {
+                        const error = _error as Error;
+                        common.logger.error({
+                          service: "indexing",
+                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        });
+                        throw new FlushError(error.message);
+                      }),
+                ),
+              );
+            }
+          }
+
+          await Promise.all(promises);
+
+          const flushIndex =
+            totalCacheOps -
+            cacheSize * (1 - common.options.indexingCacheFlushRatio);
+
+          for (const tableCache of cache.values()) {
+            for (const [key, entry] of tableCache) {
+              entry.type = EntryType.FIND;
+
+              if (entry.operationIndex < flushIndex) {
+                tableCache.delete(key);
+                cacheBytes -= entry.bytes;
+                cacheSize -= 1;
+              }
+            }
+          }
+
+          isDatabaseEmpty = false;
+        }
+      });
+    },
   } satisfies IndexingStore;
 
   // @ts-ignore
