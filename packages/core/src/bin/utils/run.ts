@@ -186,6 +186,8 @@ export async function run({
         onReloadableError(result.error);
         return;
       }
+
+      // TODO(kyle) temporarily flush and update checkpoint
     }
 
     if (isKilled) return;
@@ -231,7 +233,6 @@ export async function run({
   return async () => {
     isKilled = true;
     indexingService.kill();
-    // await indexingStore.flush({ force: true, checkpoint:  });
     await sync.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();

@@ -12,6 +12,7 @@ import type { Db } from "@/types/db.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import {
   type Column,
+  type QueryWithTypings,
   type SQL,
   type Table,
   and,
@@ -28,6 +29,7 @@ import {
   type PgTable,
   getTableConfig,
 } from "drizzle-orm/pg-core";
+import { drizzle } from "drizzle-orm/pg-proxy";
 import { createQueue } from "../../../common/src/queue.js";
 
 export type IndexingStore = Db<Schema> & {
@@ -153,7 +155,6 @@ export const createIndexingStore = ({
     row: { [key: string]: unknown },
   ): string => {
     const primaryKeys = primaryKeysCache.get(table)!;
-    // TODO(kyle) is this resistant against different sql vs js names
 
     if (isSerialTableCache.get(table)) {
       return `_serial_${totalCacheOps}`;
@@ -632,7 +633,25 @@ export const createIndexingStore = ({
           },
         ),
       ),
-    sql: database.drizzle,
+    // @ts-ignore
+    sql: drizzle(
+      async (_sql, params, method, typings) => {
+        await indexingStore.flush({ force: true });
+
+        const query: QueryWithTypings = {
+          sql: _sql,
+          params,
+          typings,
+        };
+
+        const res = (await database.drizzle._.session
+          .prepareQuery(query, undefined, undefined, method === "all")
+          .execute()) as { rows: { [key: string]: unknown }[] };
+
+        return { rows: res.rows.map((row) => Object.values(row)) };
+      },
+      { schema },
+    ),
     async flush({ force, checkpoint }) {
       if (force === false && cacheBytes < maxBytes) return;
 
@@ -743,11 +762,13 @@ export const createIndexingStore = ({
           totalCacheOps -
           cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
+        const shouldDelete = cacheBytes > maxBytes;
+
         for (const tableCache of cache.values()) {
           for (const [key, entry] of tableCache) {
             entry.type = EntryType.FIND;
 
-            if (entry.operationIndex < flushIndex) {
+            if (shouldDelete && entry.operationIndex < flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
               cacheSize -= 1;
@@ -755,7 +776,9 @@ export const createIndexingStore = ({
           }
         }
 
-        isDatabaseEmpty = false;
+        if (shouldDelete) {
+          isDatabaseEmpty = false;
+        }
       });
     },
   } satisfies IndexingStore;
