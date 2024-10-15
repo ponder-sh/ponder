@@ -20,10 +20,8 @@ export function createUi({ common }: { common: Common }) {
     ui.app = await getAppProgress(common.metrics);
 
     if (common.options.hostname) ui.hostname = common.options.hostname;
-    const port = (await common.metrics.ponder_http_server_port.get()).values[0]!
-      .value;
-    // console.log("got port metric of ", port);
-    ui.port = port;
+    ui.port = (await common.metrics.ponder_http_server_port.get())
+      .values[0]!.value;
 
     render(ui);
   }, 100);
@@ -35,8 +33,6 @@ export function createUi({ common }: { common: Common }) {
   };
 
   return {
-    render,
-    unmount,
     kill,
   };
 }
