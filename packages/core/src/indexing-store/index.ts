@@ -636,8 +636,6 @@ export const createIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        // TODO(kyle) wrap and disable flush
-
         await database.createTriggers();
         await indexingStore.flush({ force: true });
         await database.removeTriggers();
@@ -648,10 +646,13 @@ export const createIndexingStore = ({
           typings,
         };
 
-        const res = (await database.drizzle._.session
-          .prepareQuery(query, undefined, undefined, method === "all")
-          .execute()) as { rows: { [key: string]: unknown }[] };
+        const res = await database.qb.user.wrap({ method: "sql" }, () =>
+          database.drizzle._.session
+            .prepareQuery(query, undefined, undefined, method === "all")
+            .execute(),
+        );
 
+        // @ts-ignore
         return { rows: res.rows.map((row) => Object.values(row)) };
       },
       { schema },
