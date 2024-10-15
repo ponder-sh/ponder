@@ -6,59 +6,37 @@ import {
 } from "@/common/metrics.js";
 import { buildUiState, setupInkApp } from "./app.js";
 
-export class UiService {
-  private common: Common;
+export function createUi({ common }: { common: Common }) {
+  const ui = buildUiState();
+  const { render, unmount } = setupInkApp(ui);
 
-  private ui = buildUiState();
-  private renderInterval?: NodeJS.Timeout;
-  private render?: () => void;
-  private unmount?: () => void;
-  private isKilled = false;
+  let isKilled = false;
 
-  constructor({ common }: { common: Common }) {
-    this.common = common;
+  const renderInterval = setInterval(async () => {
+    if (isKilled) return;
 
-    const { render, unmount } = setupInkApp(this.ui);
-    this.render = () => render(this.ui);
-    this.unmount = unmount;
-  }
+    ui.sync = await getSyncProgress(common.metrics);
+    ui.indexing = await getIndexingProgress(common.metrics);
+    ui.app = await getAppProgress(common.metrics);
 
-  reset() {
-    this.ui = buildUiState();
-    const metrics = this.common.metrics;
+    if (common.options.hostname) ui.hostname = common.options.hostname;
+    const port = (await common.metrics.ponder_http_server_port.get()).values[0]!
+      .value;
+    // console.log("got port metric of ", port);
+    ui.port = port;
 
-    this.renderInterval = setInterval(async () => {
-      // Sync
-      this.ui.sync = await getSyncProgress(metrics);
+    render(ui);
+  }, 100);
 
-      // Indexing
-      this.ui.indexing = await getIndexingProgress(metrics);
+  const kill = () => {
+    isKilled = true;
+    clearInterval(renderInterval);
+    unmount();
+  };
 
-      // App
-      this.ui.app = await getAppProgress(metrics);
-
-      // Server
-      const port = (await metrics.ponder_http_server_port.get()).values[0]!
-        .value;
-      this.ui.port = port;
-
-      if (this.common.options.hostname) {
-        this.ui.hostname = this.common.options.hostname;
-      }
-
-      if (this.isKilled) return;
-      this.render?.();
-    }, 100);
-  }
-
-  setReloadableError() {
-    this.ui.indexing.hasError = true;
-    this.render?.();
-  }
-
-  kill() {
-    this.isKilled = true;
-    clearInterval(this.renderInterval);
-    this.unmount?.();
-  }
+  return {
+    render,
+    unmount,
+    kill,
+  };
 }
