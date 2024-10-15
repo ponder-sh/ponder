@@ -101,12 +101,12 @@ export const createIndexingStore = ({
   common,
   database,
   schema,
-  checkpoint,
+  initialCheckpoint,
 }: {
   common: Common;
   database: Database;
   schema: Schema;
-  checkpoint: string;
+  initialCheckpoint: string;
 }): IndexingStore => {
   const queue = createQueue<unknown, () => Promise<unknown>>({
     browser: false,
@@ -272,7 +272,7 @@ export const createIndexingStore = ({
     );
   };
 
-  let isDatabaseEmpty = checkpoint === encodeCheckpoint(zeroCheckpoint);
+  let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
   /** Number of entries in cache. */
   let cacheSize = 0;
   /** Estimated number of bytes used by cache. */
@@ -636,7 +636,11 @@ export const createIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
+        // TODO(kyle) wrap and disable flush
+
+        await database.createTriggers();
         await indexingStore.flush({ force: true });
+        await database.removeTriggers();
 
         const query: QueryWithTypings = {
           sql: _sql,
@@ -755,6 +759,7 @@ export const createIndexingStore = ({
         // TODO(kyle) either set metadata checkpoint to zero, then update it
         // or run the flush in a transaction
         if (checkpoint) {
+          await database.complete({ checkpoint });
           await database.finalize({ checkpoint });
         }
 

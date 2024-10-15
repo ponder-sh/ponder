@@ -77,6 +77,7 @@ export type Database<
    */
   setup(args: { buildId: string }): Promise<{ checkpoint: string }>;
   createTriggers(): Promise<void>;
+  removeTriggers(): Promise<void>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   // createIndexes(args: { schema: Schema }): Promise<void>;
@@ -899,7 +900,7 @@ export const createDatabase = async (args: {
               for (const { sql: sqlTableName } of getTableNames(args.schema)) {
                 await sql
                   .raw(
-                    `DROP TRIGGER IF EXISTS ${sqlTableName}_reorg ON "${namespace}"."${sqlTableName}"`,
+                    `DROP TRIGGER IF EXISTS "${sqlTableName}_reorg" ON "${namespace}"."${sqlTableName}"`,
                   )
                   .execute(tx);
               }
@@ -1123,6 +1124,17 @@ CREATE TRIGGER "${sqlTableName}_reorg"
 AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${sqlTableName}"
 FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
 `)
+            .execute(qb.internal);
+        }
+      });
+    },
+    async removeTriggers() {
+      await qb.internal.wrap({ method: "removeTriggers" }, async () => {
+        for (const { sql: sqlTableName } of getTableNames(args.schema)) {
+          await sql
+            .raw(
+              `DROP TRIGGER IF EXISTS "${sqlTableName}_reorg" ON "${namespace}"."${sqlTableName}"`,
+            )
             .execute(qb.internal);
         }
       });

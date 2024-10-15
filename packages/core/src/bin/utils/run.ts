@@ -139,7 +139,7 @@ export async function run({
     common,
     database,
     schema,
-    checkpoint: initialCheckpoint,
+    initialCheckpoint,
   });
 
   const indexingService = createIndexingService({
