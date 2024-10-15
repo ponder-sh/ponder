@@ -123,7 +123,7 @@ const P = {
   many,
   enum: _enum,
   index,
-};
+} as P;
 
 type P = {
   /**

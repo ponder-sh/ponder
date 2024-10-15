@@ -5,6 +5,7 @@ import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Schema } from "@/schema/common.js";
 import {
+  applyDefault,
   getEnums,
   getTables,
   isEnumColumn,
@@ -698,6 +699,7 @@ export const createDatabase = (args: {
                           columnName,
                           "text",
                           (col) => {
+                            col = applyDefault(col, column);
                             if (isOptionalColumn(column) === false)
                               col = col.notNull();
                             if (isListColumn(column) === false) {
@@ -729,6 +731,7 @@ export const createDatabase = (args: {
                           columnName,
                           "jsonb",
                           (col) => {
+                            col = applyDefault(col, column);
                             if (isOptionalColumn(column) === false)
                               col = col.notNull();
                             return col;
@@ -742,6 +745,7 @@ export const createDatabase = (args: {
                             ? scalarToSqliteType
                             : scalarToPostgresType)[column[" scalar"]],
                           (col) => {
+                            col = applyDefault(col, column);
                             if (isOptionalColumn(column) === false)
                               col = col.notNull();
                             if (columnName === "id") col = col.primaryKey();

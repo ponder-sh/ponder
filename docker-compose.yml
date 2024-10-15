@@ -1,0 +1,29 @@
+services:
+  ponder-postgres:
+    container_name: ponder-postgres
+    image: postgres
+    shm_size: 8g
+    ports:
+      - 42070:5432
+    volumes:
+      - ./db:/data/postgres
+    networks:
+      - ponder
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -d postgres" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    environment:
+      - POSTGRES_DB=ponder
+      - POSTGRES_USER=ponder
+      - POSTGRES_PASSWORD=password
+
+networks:
+  ponder:
+    driver: bridge
+
+volumes:
+  ponder:
+    external: true
