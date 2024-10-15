@@ -834,8 +834,6 @@ export const createSyncStore = ({
           ksql`null`.as("callTraceId"),
         ])
         .where("chainId", "=", filter.chainId)
-        .where("checkpoint", ">", from)
-        .where("checkpoint", "<=", to)
         .$if(filter.topics !== undefined, (qb) => {
           for (const idx_ of [0, 1, 2, 3]) {
             const idx = idx_ as 0 | 1 | 2 | 3;
@@ -877,8 +875,6 @@ export const createSyncStore = ({
           "id as callTraceId",
         ])
         .where("chainId", "=", filter.chainId)
-        .where("checkpoint", ">", from)
-        .where("checkpoint", "<=", to)
         .where((eb) =>
           eb.or(
             filter.functionSelectors.map((fs) =>
@@ -911,8 +907,6 @@ export const createSyncStore = ({
           ksql`null`.as("callTraceId"),
         ])
         .where("chainId", "=", filter.chainId)
-        .where("checkpoint", ">", from)
-        .where("checkpoint", "<=", to)
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
           qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
         )
