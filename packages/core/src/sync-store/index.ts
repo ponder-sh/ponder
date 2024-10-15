@@ -856,6 +856,7 @@ export const createSyncStore = ({
           ksql`null`.as("logId"),
           "id as callTraceId",
         ])
+        .where("chainId", "=", filter.chainId)
         .where((eb) =>
           eb.or(
             filter.functionSelectors.map((fs) =>
