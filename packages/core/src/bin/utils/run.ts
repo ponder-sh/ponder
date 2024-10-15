@@ -135,7 +135,12 @@ export async function run({
     },
   });
 
-  const indexingStore = createIndexingStore({ common, database, schema });
+  const indexingStore = createIndexingStore({
+    common,
+    database,
+    schema,
+    checkpoint: initialCheckpoint,
+  });
 
   const indexingService = createIndexingService({
     indexingFunctions,
@@ -185,7 +190,10 @@ export async function run({
 
     if (isKilled) return;
 
-    // await historicalStore.flush({ isFullFlush: true });
+    await indexingStore.flush({
+      force: true,
+      checkpoint: sync.getFinalizedCheckpoint(),
+    });
 
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
@@ -204,8 +212,6 @@ export async function run({
       service: "indexing",
       msg: "Completed historical indexing",
     });
-
-    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     // await database.createIndexes({ schema });
     await database.createTriggers();

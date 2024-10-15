@@ -329,7 +329,10 @@ export const processEvents = async (
         never(event);
     }
 
-    await indexingService.indexingStore.flush({ force: false });
+    await indexingService.indexingStore.flush({
+      force: false,
+      checkpoint: event.checkpoint,
+    });
 
     // periodically update metrics
     if (i % 93 === 0) {

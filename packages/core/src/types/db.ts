@@ -180,7 +180,7 @@ export type Upsert = <
   ///
   insertModel = InferInsertModel<table>,
   selectModel = InferSelectModel<table>,
-  insertValues = Prettify<Omit<insertModel, InferPrimaryKey<table>>>,
+  insertValues = Prettify<Omit<insertModel, keyof Key<table>>>,
   updateFn = (row: selectModel) => Partial<insertModel>,
 >(
   table: table extends { [onchain]: true }

@@ -9,6 +9,7 @@ import type { Database } from "@/database/index.js";
 import { type Schema, onchain } from "@/drizzle/index.js";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/sql.js";
 import type { Db } from "@/types/db.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import {
   type Column,
   type SQL,
@@ -30,7 +31,7 @@ import {
 import { createQueue } from "../../../common/src/queue.js";
 
 export type IndexingStore = Db<Schema> & {
-  flush: (args: { force: boolean }) => Promise<void>;
+  flush: (args: { force: boolean; checkpoint?: string }) => Promise<void>;
 };
 
 enum EntryType {
@@ -98,7 +99,13 @@ export const createIndexingStore = ({
   common,
   database,
   schema,
-}: { common: Common; database: Database; schema: Schema }): IndexingStore => {
+  checkpoint,
+}: {
+  common: Common;
+  database: Database;
+  schema: Schema;
+  checkpoint: string;
+}): IndexingStore => {
   const queue = createQueue<unknown, () => Promise<unknown>>({
     browser: false,
     initialStart: true,
@@ -108,14 +115,14 @@ export const createIndexingStore = ({
     },
   });
 
-  const primaryKeysCache: Map<Table, string[]> = new Map();
+  const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
   const isSerialTableCache: Map<Table, boolean> = new Map();
   const cache: Cache = new Map();
 
   const isSerialTable = (table: Table) => {
     const primaryKeys = primaryKeysCache.get(table)!;
 
-    const maybeSerialColumn = getTableColumns(table)[primaryKeys[0]!]!;
+    const maybeSerialColumn = getTableColumns(table)[primaryKeys[0]!.js]!;
     if (
       primaryKeys.length === 1 &&
       (maybeSerialColumn instanceof PgSerial ||
@@ -155,13 +162,9 @@ export const createIndexingStore = ({
     return (
       primaryKeys
         // @ts-ignore
-        .map((pk) => normalizeColumn(table[pk], row[pk]))
+        .map((pk) => normalizeColumn(table[pk.js], row[pk.js]))
         .join("_")
     );
-  };
-
-  const hasCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
-    return cache.get(table)!.has(getCacheKey(table, row));
   };
 
   const getCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
@@ -209,6 +212,11 @@ export const createIndexingStore = ({
   };
 
   const deleteCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
+    const entry = getCacheEntry(table, row);
+    if (entry) {
+      cacheBytes -= entry!.bytes;
+      cacheSize -= 1;
+    }
     return cache.get(table)!.delete(getCacheKey(table, row));
   };
 
@@ -263,7 +271,7 @@ export const createIndexingStore = ({
     );
   };
 
-  let isDatabaseEmpty = true;
+  let isDatabaseEmpty = checkpoint === encodeCheckpoint(zeroCheckpoint);
   /** Number of entries in cache. */
   let cacheSize = 0;
   /** Estimated number of bytes used by cache. */
@@ -304,7 +312,7 @@ export const createIndexingStore = ({
 
               return entry.row;
             } else {
-              if (isDatabaseEmpty) return undefined;
+              if (isDatabaseEmpty) return null;
 
               const row = await find(table, key);
               const bytes = getBytes(row);
@@ -335,13 +343,21 @@ export const createIndexingStore = ({
                 checkOnchainTable(table as Table, "insert");
                 checkSerialTable(table as Table, "insert");
 
+                const isSerialTable = isSerialTableCache.get(table);
+
                 if (Array.isArray(values)) {
                   for (const value of values) {
-                    if (hasCacheEntry(table, value)) {
+                    if (
+                      isSerialTable === false &&
+                      getCacheEntry(table, value)?.row
+                    ) {
                       throw new UniqueConstraintError(
                         `Unique constraint failed for '${getTableName(table)}'.`,
                       );
-                    } else if (isDatabaseEmpty === false) {
+                    } else if (
+                      isSerialTable === false &&
+                      isDatabaseEmpty === false
+                    ) {
                       const findResult = await find(table, value);
 
                       if (findResult) {
@@ -354,11 +370,17 @@ export const createIndexingStore = ({
                     setCacheEntry(table, value, EntryType.INSERT);
                   }
                 } else {
-                  if (hasCacheEntry(table, values)) {
+                  if (
+                    isSerialTable === false &&
+                    getCacheEntry(table, values)?.row
+                  ) {
                     throw new UniqueConstraintError(
                       `Unique constraint failed for '${getTableName(table)}'.`,
                     );
-                  } else if (isDatabaseEmpty === false) {
+                  } else if (
+                    isSerialTable === false &&
+                    isDatabaseEmpty === false
+                  ) {
                     const findResult = await find(table, values);
 
                     if (findResult) {
@@ -489,8 +511,8 @@ export const createIndexingStore = ({
                 ),
               ),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: () =>
-              queue.add(() =>
+            then: async () =>
+              await queue.add(() =>
                 database.qb.user.wrap(
                   {
                     method: `${getTableConfig(table as PgTable).name}.upsert()`,
@@ -611,27 +633,27 @@ export const createIndexingStore = ({
         ),
       ),
     sql: database.drizzle,
-    async flush({ force }) {
+    async flush({ force, checkpoint }) {
       if (force === false && cacheBytes < maxBytes) return;
 
-      queue.add(async () => {
+      await queue.add(async () => {
+        const promises: Promise<any>[] = [];
+
         for (const [table, tableCache] of cache) {
-          const entries = tableCache.values();
+          const entries = Array.from(tableCache.values());
 
           const batchSize = Math.round(
             common.options.databaseMaxQueryParameters /
               Object.keys(getTableColumns(table)).length,
           );
 
-          const insertValues = Array.from(entries)
+          const insertValues = entries
             .filter((e) => e.type === EntryType.INSERT)
             .map((e) => e.row);
 
-          const updateValues = Array.from(entries)
+          const updateValues = entries
             .filter((e) => e.type === EntryType.UPDATE)
             .map((e) => e.row);
-
-          const promises: Promise<any>[] = [];
 
           if (insertValues.length > 0) {
             common.logger.debug({
@@ -676,7 +698,7 @@ export const createIndexingStore = ({
             for (const [columnName, column] of Object.entries(
               getTableColumns(table),
             )) {
-              set[columnName] = sql`excluded."${column.name}"`;
+              set[columnName] = sql.raw(`excluded."${column.name}"`);
             }
 
             for (
@@ -693,7 +715,7 @@ export const createIndexingStore = ({
                       .values(updateValues.slice(i, i + batchSize))
                       .onConflictDoUpdate({
                         // @ts-ignore
-                        target: primaryKeys.map((pk) => table[pk]),
+                        target: primaryKeys.map(({ js }) => table[js]),
                         set,
                       })
                       .catch((_error) => {
@@ -708,27 +730,32 @@ export const createIndexingStore = ({
               );
             }
           }
+        }
 
-          await Promise.all(promises);
+        await Promise.all(promises);
+        // TODO(kyle) either set metadata checkpoint to zero, then update it
+        // or run the flush in a transaction
+        if (checkpoint) {
+          await database.finalize({ checkpoint });
+        }
 
-          const flushIndex =
-            totalCacheOps -
-            cacheSize * (1 - common.options.indexingCacheFlushRatio);
+        const flushIndex =
+          totalCacheOps -
+          cacheSize * (1 - common.options.indexingCacheFlushRatio);
 
-          for (const tableCache of cache.values()) {
-            for (const [key, entry] of tableCache) {
-              entry.type = EntryType.FIND;
+        for (const tableCache of cache.values()) {
+          for (const [key, entry] of tableCache) {
+            entry.type = EntryType.FIND;
 
-              if (entry.operationIndex < flushIndex) {
-                tableCache.delete(key);
-                cacheBytes -= entry.bytes;
-                cacheSize -= 1;
-              }
+            if (entry.operationIndex < flushIndex) {
+              tableCache.delete(key);
+              cacheBytes -= entry.bytes;
+              cacheSize -= 1;
             }
           }
-
-          isDatabaseEmpty = false;
         }
+
+        isDatabaseEmpty = false;
       });
     },
   } satisfies IndexingStore;

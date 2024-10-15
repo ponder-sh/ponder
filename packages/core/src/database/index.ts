@@ -460,9 +460,9 @@ export const createDatabase = async (args: {
           // @ts-ignore
           .deleteFrom(tableName)
           .$call((qb) => {
-            for (const name of primaryKeyColumns) {
+            for (const { sql } of primaryKeyColumns) {
               // @ts-ignore
-              qb = qb.where(name, "=", log[name]);
+              qb = qb.where(name, "=", log[sql]);
             }
             return qb;
           })
@@ -481,9 +481,9 @@ export const createDatabase = async (args: {
           .updateTable(tableName)
           .set(log as any)
           .$call((qb) => {
-            for (const name of primaryKeyColumns) {
+            for (const { sql } of primaryKeyColumns) {
               // @ts-ignore
-              qb = qb.where(name, "=", log[name]);
+              qb = qb.where(name, "=", log[sql]);
             }
             return qb;
           })
@@ -502,7 +502,11 @@ export const createDatabase = async (args: {
           .insertInto(tableName)
           .values(log as any)
           // @ts-ignore
-          .onConflict((oc) => oc.columns(primaryKeyColumns).doNothing())
+          .onConflict((oc) =>
+            oc
+              .columns(primaryKeyColumns.map(({ sql }) => sql) as any)
+              .doNothing(),
+          )
           .execute();
       }
     }
@@ -836,6 +840,8 @@ export const createDatabase = async (args: {
             ) {
               return { status: "locked", expiry } as const;
             }
+
+            console.log({ previousApp });
 
             /**
              * If cache hit, start
