@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-filter getEvents union queries with checkpoint limits
+Improved performance of event extraction for some large apps with multiple filter types. 

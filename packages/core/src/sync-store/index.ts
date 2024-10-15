@@ -29,11 +29,7 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
-import {
-  EVENT_TYPES,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import {
   type Interval,
@@ -60,11 +56,6 @@ import {
   formatBig,
   parseBig,
 } from "./encoding.js";
-
-type CheckpointLimits = {
-  fromBlock: number;
-  toBlock: number;
-};
 
 export type SyncStore = {
   insertInterval(args: {
@@ -802,11 +793,6 @@ export const createSyncStore = ({
     });
   },
   getEvents: async ({ filters, from, to, limit }) => {
-    const checkpointLimits: CheckpointLimits = {
-      fromBlock: Number(decodeCheckpoint(from).blockNumber),
-      toBlock: Number(decodeCheckpoint(to).blockNumber),
-    };
-
     const addressSQL = (
       qb: SelectQueryBuilder<
         PonderSyncSchema,
@@ -835,7 +821,6 @@ export const createSyncStore = ({
       filter: LogFilter,
       db: Kysely<PonderSyncSchema>,
       index: number,
-      checkpointLimits: CheckpointLimits,
     ) =>
       db
         .selectFrom("logs")
@@ -849,6 +834,8 @@ export const createSyncStore = ({
           ksql`null`.as("callTraceId"),
         ])
         .where("chainId", "=", filter.chainId)
+        .where("checkpoint", ">", from)
+        .where("checkpoint", "<=", to)
         .$if(filter.topics !== undefined, (qb) => {
           for (const idx_ of [0, 1, 2, 3]) {
             const idx = idx_ as 0 | 1 | 2 | 3;
@@ -868,30 +855,15 @@ export const createSyncStore = ({
           return qb;
         })
         .$call((qb) => addressSQL(qb as any, filter.address, "address"))
-        .where(
-          "blockNumber",
-          ">=",
-          formatBig(
-            dialect,
-            Math.max(checkpointLimits.fromBlock, filter.fromBlock),
-          ),
-        )
-        .where(
-          "blockNumber",
-          "<=",
-          formatBig(
-            dialect,
-            filter.toBlock
-              ? Math.min(checkpointLimits.toBlock, filter.toBlock)
-              : checkpointLimits.toBlock,
-          ),
+        .where("blockNumber", ">=", formatBig(dialect, filter.fromBlock))
+        .$if(filter.toBlock !== undefined, (qb) =>
+          qb.where("blockNumber", "<=", formatBig(dialect, filter.toBlock!)),
         );
 
     const callTraceSQL = (
       filter: CallTraceFilter,
       db: Kysely<PonderSyncSchema>,
       index: number,
-      checkpointLimits: CheckpointLimits,
     ) =>
       db
         .selectFrom("callTraces")
@@ -904,6 +876,9 @@ export const createSyncStore = ({
           ksql`null`.as("logId"),
           "id as callTraceId",
         ])
+        .where("chainId", "=", filter.chainId)
+        .where("checkpoint", ">", from)
+        .where("checkpoint", "<=", to)
         .where((eb) =>
           eb.or(
             filter.functionSelectors.map((fs) =>
@@ -914,30 +889,15 @@ export const createSyncStore = ({
         .where(ksql`${ksql.ref("callTraces.error")} IS NULL`)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
-        .where(
-          "blockNumber",
-          ">=",
-          formatBig(
-            dialect,
-            Math.max(checkpointLimits.fromBlock, filter.fromBlock),
-          ),
-        )
-        .where(
-          "blockNumber",
-          "<=",
-          formatBig(
-            dialect,
-            filter.toBlock
-              ? Math.min(checkpointLimits.toBlock, filter.toBlock)
-              : checkpointLimits.toBlock,
-          ),
+        .where("blockNumber", ">=", formatBig(dialect, filter.fromBlock))
+        .$if(filter.toBlock !== undefined, (qb) =>
+          qb.where("blockNumber", "<=", formatBig(dialect, filter.toBlock!)),
         );
 
     const blockSQL = (
       filter: BlockFilter,
       db: Kysely<PonderSyncSchema>,
       index: number,
-      checkpointLimits: CheckpointLimits,
     ) =>
       db
         .selectFrom("blocks")
@@ -951,26 +911,14 @@ export const createSyncStore = ({
           ksql`null`.as("callTraceId"),
         ])
         .where("chainId", "=", filter.chainId)
+        .where("checkpoint", ">", from)
+        .where("checkpoint", "<=", to)
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
           qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
         )
-        .where(
-          "number",
-          ">=",
-          formatBig(
-            dialect,
-            Math.max(checkpointLimits.fromBlock, filter.fromBlock),
-          ),
-        )
-        .where(
-          "number",
-          "<=",
-          formatBig(
-            dialect,
-            filter.toBlock
-              ? Math.min(checkpointLimits.toBlock, filter.toBlock)
-              : checkpointLimits.toBlock,
-          ),
+        .where("number", ">=", formatBig(dialect, filter.fromBlock))
+        .$if(filter.toBlock !== undefined, (qb) =>
+          qb.where("number", "<=", formatBig(dialect, filter.toBlock!)),
         );
 
     const rows = await db.wrap(
@@ -1002,10 +950,10 @@ export const createSyncStore = ({
 
           const _query =
             filter.type === "log"
-              ? logSQL(filter, db, i, checkpointLimits)
+              ? logSQL(filter, db, i)
               : filter.type === "callTrace"
-                ? callTraceSQL(filter, db, i, checkpointLimits)
-                : blockSQL(filter, db, i, checkpointLimits);
+                ? callTraceSQL(filter, db, i)
+                : blockSQL(filter, db, i);
 
           // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);
