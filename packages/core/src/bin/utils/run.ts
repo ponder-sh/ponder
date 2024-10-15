@@ -231,6 +231,7 @@ export async function run({
   return async () => {
     isKilled = true;
     indexingService.kill();
+    // await indexingStore.flush({ force: true, checkpoint:  });
     await sync.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();

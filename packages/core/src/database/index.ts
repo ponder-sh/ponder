@@ -841,8 +841,6 @@ export const createDatabase = async (args: {
               return { status: "locked", expiry } as const;
             }
 
-            console.log({ previousApp });
-
             /**
              * If cache hit, start
              *
