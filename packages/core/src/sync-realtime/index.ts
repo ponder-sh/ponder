@@ -493,7 +493,7 @@ export const createRealtimeSync = (
       for (const log of logs) {
         if (log.blockHash !== block.hash) {
           throw new Error(
-            `Detected inconsistent eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
+            `Detected invalid eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match requested block hash ${block.hash}`,
           );
         }
       }
@@ -538,7 +538,7 @@ export const createRealtimeSync = (
     for (const trace of callTraces) {
       if (trace.blockHash !== block.hash) {
         throw new Error(
-          `Detected inconsistent trace_block response. 'trace.blockHash' ${trace.blockHash} does not match 'block.hash' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'trace.blockHash' ${trace.blockHash} does not match 'block.hash' ${block.hash}`,
         );
       }
     }

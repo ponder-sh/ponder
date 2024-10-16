@@ -233,7 +233,7 @@ export const createHistoricalSync = async (
 
       if (block.hash !== log.blockHash) {
         throw new Error(
-          `Detected inconsistent eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
         );
       }
 
@@ -242,7 +242,7 @@ export const createHistoricalSync = async (
         undefined
       ) {
         throw new Error(
-          `Detected inconsistent eth_getLogs response. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
         );
       }
     }
@@ -337,7 +337,7 @@ export const createHistoricalSync = async (
 
       if (block.hash !== callTrace.blockHash) {
         throw new Error(
-          `Detected inconsistent trace_filter response. 'trace.blockHash' ${callTrace.blockHash} does not match 'block.hash' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'trace.blockHash' ${callTrace.blockHash} does not match 'block.hash' ${block.hash}`,
         );
       }
 
@@ -346,7 +346,7 @@ export const createHistoricalSync = async (
         undefined
       ) {
         throw new Error(
-          `Detected inconsistent trace_filter response. 'trace.transactionHash' ${callTrace.transactionHash} not found in 'block.transactions' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'trace.transactionHash' ${callTrace.transactionHash} not found in 'block.transactions' ${block.hash}`,
         );
       }
     }
