@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.6.16
+
+### Patch Changes
+
+- [#1175](https://github.com/ponder-sh/ponder/pull/1175) [`a037110d558b4288feeff2a028305d7b5349d6df`](https://github.com/ponder-sh/ponder/commit/a037110d558b4288feeff2a028305d7b5349d6df) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved RPC validation error messages for matching `log.blockHash` and `trace.blockHash` with `block.hash`.
+
+- [#1169](https://github.com/ponder-sh/ponder/pull/1169) [`b5992bca84949f6ac41f3587468e0b9f51c47887`](https://github.com/ponder-sh/ponder/commit/b5992bca84949f6ac41f3587468e0b9f51c47887) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the terminal UI would display the HTTP port as `0` after a hot reload. Fixed a bug where API function build errors would not trigger the terminal UI error state.
+
 ## 0.6.15
 
 ### Patch Changes
