@@ -213,6 +213,7 @@ export async function buildConfigAndIndexingFunctions({
         pollingInterval: network.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         disableCache: network.disableCache ?? false,
+        disableValidation: network.disableValidation ?? false,
       } satisfies Network;
     }),
   );

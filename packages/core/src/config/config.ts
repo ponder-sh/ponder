@@ -59,6 +59,8 @@ export type NetworkConfig<network> = {
   maxRequestsPerSecond?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
+  /** Disable RPC request validation. Default: `false`. */
+  disableValidation?: boolean;
 };
 
 export type BlockFilterConfig = {

@@ -489,12 +489,14 @@ export const createRealtimeSync = (
         );
       }
 
-      // Check that logs refer to the correct block
-      for (const log of logs) {
-        if (log.blockHash !== block.hash) {
-          throw new Error(
-            "Detected invalid eth_getLogs response. `log.blockHash` does not match requested block hash.",
-          );
+      // Check that logs refer to the correct block (only if validation isn't disabled)
+      if (!args.network.disableValidation) {
+        for (const log of logs) {
+          if (log.blockHash !== block.hash) {
+            throw new Error(
+              "Detected invalid eth_getLogs response. `log.blockHash` does not match requested block hash.",
+            );
+          }
         }
       }
     }
@@ -534,12 +536,14 @@ export const createRealtimeSync = (
       ) as SyncCallTrace[];
     }
 
-    // Check that traces refer to the correct block
-    for (const trace of callTraces) {
-      if (trace.blockHash !== block.hash) {
-        throw new Error(
-          "Detected invalid trace_block response. `trace.blockHash` does not match requested block hash.",
-        );
+    // Check that traces refer to the correct block (if validation isn't disabled)
+    if (!args.network.disableValidation) {
+      for (const trace of callTraces) {
+        if (trace.blockHash !== block.hash) {
+          throw new Error(
+            "Detected invalid trace_block response. `trace.blockHash` does not match requested block hash.",
+          );
+        }
       }
     }
 

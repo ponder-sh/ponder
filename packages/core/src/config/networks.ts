@@ -10,6 +10,7 @@ export type Network = {
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
   disableCache: boolean;
+  disableValidation: boolean;
 };
 
 /**
