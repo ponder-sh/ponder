@@ -9,7 +9,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
-import { UiService } from "@/ui/service.js";
+import { createUi } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
@@ -55,7 +55,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const buildService = await createBuildService({ common });
 
-  const uiService = new UiService({ common });
+  const ui = createUi({ common });
 
   let indexingCleanupReloadable = () => Promise.resolve();
   let apiCleanupReloadable = () => Promise.resolve();
@@ -65,7 +65,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     await apiCleanupReloadable();
     await buildService.kill();
     await telemetry.kill();
-    uiService.kill();
+    ui.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
@@ -77,8 +77,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       await indexingCleanupReloadable();
 
       if (result.status === "success") {
-        uiService.reset();
-        metrics.resetMetrics();
+        metrics.resetIndexingMetrics();
 
         indexingCleanupReloadable = await run({
           common,
@@ -92,8 +91,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           },
         });
       } else {
-        // This handles build failures and indexing errors on hot reload.
-        uiService.setReloadableError();
+        // This handles indexing function build failures on hot reload.
+        metrics.ponder_indexing_has_error.set(1);
         indexingCleanupReloadable = () => Promise.resolve();
       }
     },
@@ -106,13 +105,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       await apiCleanupReloadable();
 
       if (result.status === "success") {
-        apiCleanupReloadable = await runServer({
-          common,
-          build: result.build,
-        });
+        metrics.resetApiMetrics();
+
+        apiCleanupReloadable = await runServer({ common, build: result.build });
       } else {
-        // This handles build failures on hot reload.
-        uiService.setReloadableError();
+        // This handles API function build failures on hot reload.
+        metrics.ponder_indexing_has_error.set(1);
         apiCleanupReloadable = () => Promise.resolve();
       }
     },

@@ -19,7 +19,7 @@ export type UiState = {
 
 export const buildUiState = (): UiState => {
   return {
-    port: 0,
+    port: 42069,
     hostname: "localhost",
     sync: [],
     indexing: {
@@ -44,133 +44,129 @@ export const buildUiState = (): UiState => {
 const App = (ui: UiState) => {
   const { sync, indexing, app, port, hostname } = ui;
 
-  if (indexing.hasError) {
-    return (
-      <Box flexDirection="column">
-        <Text> </Text>
-
-        <Text color="cyan">
-          Resolve the error and save your changes to reload the server.
-        </Text>
-      </Box>
-    );
-  }
-
   return (
     <Box flexDirection="column">
       <Text> </Text>
 
-      <Text bold={true}>Sync</Text>
-      <Text> </Text>
-      {sync.length === 0 ? (
-        <Text>Waiting to start...</Text>
-      ) : (
-        <Table
-          rows={sync}
-          columns={[
-            {
-              title: "Network",
-              key: "networkName",
-              align: "left",
-            },
-            {
-              title: "Status",
-              key: "status",
-              align: "left",
-              format: (_, row) =>
-                row.status === "historical"
-                  ? `${row.status} (${formatPercentage(row.progress)})`
-                  : row.status,
-            },
-            {
-              title: "Block",
-              key: "block",
-              align: "right",
-            },
-            {
-              title: "RPC (req/s)",
-              key: "rps",
-              align: "right",
-              format: (_, row) => row.rps.toFixed(1),
-            },
-          ]}
-        />
-      )}
-      <Text> </Text>
-
-      <Text bold={true}>Indexing</Text>
-      <Text> </Text>
-      {indexing.events.length === 0 ? (
-        <Text>Waiting to start...</Text>
-      ) : (
-        <Table
-          rows={indexing.events}
-          columns={[
-            { title: "Event", key: "eventName", align: "left" },
-            { title: "Count", key: "count", align: "right" },
-            {
-              title: "Duration (ms)",
-              key: "averageDuration",
-              align: "right",
-              format: (v) =>
-                v > 0 ? (v < 0.001 ? "<0.001" : v.toFixed(3)) : "-",
-            },
-          ]}
-        />
-      )}
-      <Text> </Text>
-
-      <Box flexDirection="row">
-        <Text bold={true}>Progress </Text>
-        {app.mode === undefined || app.progress === 0 ? null : (
-          <Text>
-            (
-            {app.mode === "historical" ? (
-              <Text color="yellowBright">historical</Text>
-            ) : app.mode === "realtime" ? (
-              <Text color="greenBright">live</Text>
-            ) : (
-              <Text color="greenBright">complete</Text>
-            )}
-            )
-          </Text>
-        )}
-      </Box>
-      <Text> </Text>
-      <Box flexDirection="row">
-        <ProgressBar current={app.progress} end={1} width={48} />
-        <Text>
-          {" "}
-          {formatPercentage(app.progress)}
-          {app.eta === undefined || app.eta === 0
-            ? null
-            : ` (${formatEta(app.eta)} eta)`}
+      {indexing.hasError ? (
+        <Text color="cyan">
+          Resolve the error and save your changes to reload the server.
         </Text>
-      </Box>
-      <Text> </Text>
+      ) : (
+        <>
+          <Text bold={true}>Sync</Text>
+          <Text> </Text>
+          {sync.length === 0 ? (
+            <Text>Waiting to start...</Text>
+          ) : (
+            <Table
+              rows={sync}
+              columns={[
+                {
+                  title: "Network",
+                  key: "networkName",
+                  align: "left",
+                },
+                {
+                  title: "Status",
+                  key: "status",
+                  align: "left",
+                  format: (_, row) =>
+                    row.status === "historical"
+                      ? `${row.status} (${formatPercentage(row.progress)})`
+                      : row.status,
+                },
+                {
+                  title: "Block",
+                  key: "block",
+                  align: "right",
+                },
+                {
+                  title: "RPC (req/s)",
+                  key: "rps",
+                  align: "right",
+                  format: (_, row) => row.rps.toFixed(1),
+                },
+              ]}
+            />
+          )}
+          <Text> </Text>
 
-      <Box flexDirection="column">
-        <Text bold>GraphQL </Text>
-        <Box flexDirection="row">
-          <Text>
-            Server live at http://{hostname}:{port}
-          </Text>
-        </Box>
-      </Box>
+          <Text bold={true}>Indexing</Text>
+          <Text> </Text>
+          {indexing.events.length === 0 ? (
+            <Text>Waiting to start...</Text>
+          ) : (
+            <Table
+              rows={indexing.events}
+              columns={[
+                { title: "Event", key: "eventName", align: "left" },
+                { title: "Count", key: "count", align: "right" },
+                {
+                  title: "Duration (ms)",
+                  key: "averageDuration",
+                  align: "right",
+                  format: (v) =>
+                    v > 0 ? (v < 0.001 ? "<0.001" : v.toFixed(3)) : "-",
+                },
+              ]}
+            />
+          )}
+          <Text> </Text>
+
+          <Box flexDirection="row">
+            <Text bold={true}>Progress </Text>
+            {app.mode === undefined || app.progress === 0 ? null : (
+              <Text>
+                (
+                {app.mode === "historical" ? (
+                  <Text color="yellowBright">historical</Text>
+                ) : app.mode === "realtime" ? (
+                  <Text color="greenBright">live</Text>
+                ) : (
+                  <Text color="greenBright">complete</Text>
+                )}
+                )
+              </Text>
+            )}
+          </Box>
+          <Text> </Text>
+          <Box flexDirection="row">
+            <ProgressBar current={app.progress} end={1} width={48} />
+            <Text>
+              {" "}
+              {formatPercentage(app.progress)}
+              {app.eta === undefined || app.eta === 0
+                ? null
+                : ` (${formatEta(app.eta)} eta)`}
+            </Text>
+          </Box>
+          <Text> </Text>
+
+          <Box flexDirection="column">
+            <Text bold>GraphQL </Text>
+            <Box flexDirection="row">
+              <Text>
+                Server live at http://{hostname}:{port}
+              </Text>
+            </Box>
+          </Box>
+        </>
+      )}
     </Box>
   );
 };
 
 export const setupInkApp = (ui: UiState) => {
-  const { rerender, unmount: inkUnmount, clear } = inkRender(<App {...ui} />);
+  const app = inkRender(<App {...ui} />);
 
-  const render = (ui: UiState) => {
-    rerender(<App {...ui} />);
+  return {
+    render: (newUi: UiState) => {
+      app.rerender(<App {...newUi} />);
+    },
+    unmount: () => {
+      app.clear();
+      app.unmount();
+    },
   };
-
-  const unmount = () => {
-    clear();
-    inkUnmount();
-  };
-  return { render, unmount };
 };

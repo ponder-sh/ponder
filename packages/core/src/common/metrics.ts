@@ -231,8 +231,44 @@ export class MetricsService {
     return await this.registry.metrics();
   }
 
-  resetMetrics() {
-    this.registry.resetMetrics();
+  resetIndexingMetrics() {
+    this.ponder_indexing_total_seconds.reset();
+    this.ponder_indexing_completed_seconds.reset();
+    this.ponder_indexing_completed_events.reset();
+    this.ponder_indexing_completed_timestamp.reset();
+    this.ponder_indexing_has_error.reset();
+    this.ponder_indexing_function_duration.reset();
+    this.ponder_indexing_abi_decoding_duration.reset();
+    this.ponder_sync_block.reset();
+    this.ponder_sync_is_realtime.reset();
+    this.ponder_sync_is_complete.reset();
+    this.ponder_historical_duration.reset();
+    this.ponder_historical_total_blocks.reset();
+    this.ponder_historical_cached_blocks.reset();
+    this.ponder_historical_completed_blocks.reset();
+    this.ponder_realtime_reorg_total.reset();
+    this.ponder_rpc_request_duration.reset();
+    this.ponder_rpc_request_lag.reset();
+
+    // Note: These are used by both indexing and API services.
+    this.ponder_database_method_duration.reset();
+    this.ponder_database_method_error_total.reset();
+    this.ponder_postgres_pool_connections?.reset();
+    this.ponder_postgres_query_queue_size?.reset();
+    this.ponder_postgres_query_total?.reset();
+    this.ponder_sqlite_query_total?.reset();
+  }
+
+  resetApiMetrics() {
+    this.ponder_http_server_port.reset();
+    this.ponder_http_server_active_requests.reset();
+    this.ponder_http_server_request_duration_ms.reset();
+    this.ponder_http_server_request_size_bytes.reset();
+    this.ponder_http_server_response_size_bytes.reset();
+
+    // TODO: Create a separate metric for API build errors,
+    // or stop using metrics for the TUI error message.
+    this.ponder_indexing_has_error.reset();
   }
 }
 
