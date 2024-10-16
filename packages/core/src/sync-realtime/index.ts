@@ -491,7 +491,7 @@ export const createRealtimeSync = (
 
       // Check that logs refer to the correct block
       for (const log of logs) {
-        if (log.blockHash !== block.hash) {
+        if (BigInt(log.blockHash) !== BigInt(block.hash)) {
           throw new Error(
             "Detected invalid eth_getLogs response. `log.blockHash` does not match requested block hash.",
           );
