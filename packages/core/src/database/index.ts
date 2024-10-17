@@ -911,7 +911,7 @@ export const createDatabase = async (args: {
               for (const tableName of sqlTableNames) {
                 await sql
                   .ref(
-                    `DROP TRIGGER IF EXISTS ${tableName}_reorg ON "${namespace}"."${tableName}"`,
+                    `DROP TRIGGER IF EXISTS "${tableName}_reorg" ON "${namespace}"."${tableName}"`,
                   )
                   .execute(tx);
               }
@@ -966,7 +966,11 @@ export const createDatabase = async (args: {
                 .ifExists()
                 .execute();
 
-              await tx.schema.dropTable(tableName).ifExists().execute();
+              await tx.schema
+                .dropTable(tableName)
+                .ifExists()
+                .cascade()
+                .execute();
 
               args.common.logger.debug({
                 service: "database",
@@ -1107,7 +1111,7 @@ export const createDatabase = async (args: {
           const columns = getTableColumns(args.schema[jsTableName]! as PgTable);
 
           const columnNames = Object.values(columns).map(
-            (column) => column.name,
+            (column) => `"${column.name}"`,
           );
 
           await sql
