@@ -197,6 +197,43 @@ export const onchainTable = <
   return table;
 };
 
+export class OnchainSchema<schema extends string> extends PgSchema<schema> {
+  override table = <
+    name extends string,
+    columns extends Record<string, PgColumnBuilderBase>,
+    extra extends PgTableExtraConfig | undefined = undefined,
+  >(
+    name: name,
+    columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+    extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
+  ): OnchainTable<{
+    name: name;
+    schema: schema;
+    columns: BuildColumns<name, columns, "pg">;
+    extra: extra;
+    dialect: "pg";
+  }> => {
+    const table = pgTableWithSchema(
+      name,
+      columns,
+      extraConfig as any,
+      this.schemaName,
+    );
+
+    /**
+     * This trick is used to make `table instanceof PgTable` evaluate to false.
+     * This is necessary to avoid generating migrations for onchain tables.
+     */
+    Object.setPrototypeOf(table, Object.prototype);
+
+    // @ts-ignore
+    table[onchain] = true;
+
+    // @ts-ignore
+    return table;
+  };
+}
+
 export class OffchainSchema<schema extends string> extends PgSchema<schema> {
   override table = <
     name extends string,
@@ -214,6 +251,9 @@ export class OffchainSchema<schema extends string> extends PgSchema<schema> {
     dialect: "pg";
   }> => pgTableWithSchema(name, columns, extraConfig, this.schemaName);
 }
+
+export const onchainSchema = <T extends string>(name: T) =>
+  new OnchainSchema(name);
 
 export const offchainSchema = <T extends string>(name: T) =>
   new OffchainSchema(name);
