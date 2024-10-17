@@ -34,6 +34,7 @@ import { createQueue } from "../../../common/src/queue.js";
 
 export type IndexingStore = Db<Schema> & {
   flush: (args: { force: boolean; checkpoint?: string }) => Promise<void>;
+  setPolicy: (policy: "historical" | "realtime") => void;
 };
 
 enum EntryType {
@@ -74,9 +75,11 @@ type Key = string;
 type Entry = InsertEntry | UpdateEntry | FindEntry;
 type Cache = Map<Table, Map<Key, Entry>>;
 
+/** Empty state for indexing store */
 export const empty = null;
 
-const getKeyConditional = (table: Table, key: Object): SQL<unknown> => {
+/** Returns an sql where condition for `table` with `key`. */
+const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
   // @ts-ignore
   return and(
     // @ts-ignore
@@ -84,6 +87,7 @@ const getKeyConditional = (table: Table, key: Object): SQL<unknown> => {
   );
 };
 
+/** Throw an error if `table` is not an `onchainTable`. */
 const checkOnchainTable = (
   table: Table,
   method: "find" | "insert" | "update" | "upsert" | "delete",
@@ -108,6 +112,7 @@ export const createIndexingStore = ({
   schema: Schema;
   initialCheckpoint: string;
 }): IndexingStore => {
+  // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
     browser: false,
     initialStart: true,
@@ -149,6 +154,10 @@ export const createIndexingStore = ({
     );
     cache.set(schema[js] as Table, new Map());
   }
+
+  ////////
+  // Helper functions
+  ////////
 
   const getCacheKey = (
     table: Table,
@@ -223,6 +232,7 @@ export const createIndexingStore = ({
 
   const normalizeRow = (table: Table, row: { [key: string]: unknown }) => {
     for (const [columnName, column] of Object.entries(getTableColumns(table))) {
+      //TODO(kyle) throw error for missing rows
       row[columnName] = normalizeColumn(column, row[columnName]);
     }
 
@@ -261,6 +271,7 @@ export const createIndexingStore = ({
     return size;
   };
 
+  /** Throw an error if `table` has a `serial` primary key and `method` is unsupported. */
   const checkSerialTable = (
     table: Table,
     method: "find" | "insert" | "update" | "upsert" | "delete",
@@ -273,6 +284,7 @@ export const createIndexingStore = ({
   };
 
   let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
+  let isHistoricalBackfill = true;
   /** Number of entries in cache. */
   let cacheSize = 0;
   /** Estimated number of bytes used by cache. */
@@ -290,7 +302,7 @@ export const createIndexingStore = ({
     return database.drizzle
       .select()
       .from(table as PgTable)
-      .where(getKeyConditional(table as PgTable, key))
+      .where(getWhereCondition(table as PgTable, key))
       .then((res) => (res.length === 0 ? null : res[0]!));
   };
 
@@ -615,7 +627,7 @@ export const createIndexingStore = ({
 
               await database.drizzle
                 .delete(table as Table)
-                .where(getKeyConditional(table as Table, key));
+                .where(getWhereCondition(table as Table, key));
 
               return true;
             } else {
@@ -625,7 +637,7 @@ export const createIndexingStore = ({
 
               const deleteResult = await database.drizzle
                 .delete(table as Table)
-                .where(getKeyConditional(table as Table, key))
+                .where(getWhereCondition(table as Table, key))
                 .returning();
 
               return deleteResult.length > 0;
@@ -636,15 +648,11 @@ export const createIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await database.createTriggers();
+        if (isHistoricalBackfill) await database.createTriggers();
         await indexingStore.flush({ force: true });
-        await database.removeTriggers();
+        if (isHistoricalBackfill) await database.removeTriggers();
 
-        const query: QueryWithTypings = {
-          sql: _sql,
-          params,
-          typings,
-        };
+        const query: QueryWithTypings = { sql: _sql, params, typings };
 
         const res = await database.qb.user.wrap({ method: "sql" }, () =>
           database.drizzle._.session
@@ -786,6 +794,9 @@ export const createIndexingStore = ({
           isDatabaseEmpty = false;
         }
       });
+    },
+    setPolicy(policy) {
+      isHistoricalBackfill = policy === "historical";
     },
   } satisfies IndexingStore;
 

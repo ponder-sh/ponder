@@ -196,6 +196,7 @@ export async function run({
       force: true,
       checkpoint: sync.getFinalizedCheckpoint(),
     });
+    indexingStore.setPolicy("realtime");
 
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
