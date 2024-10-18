@@ -19,13 +19,19 @@ import type { IndexingStore, ReadonlyStore } from "@/indexing-store/store.js";
 import type { Schema } from "@/schema/common.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
+import { createPglite } from "@/utils/pglite.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
 import type { Address } from "viem";
-import type { TestContext } from "vitest";
+import { type TestContext, afterAll } from "vitest";
 import { deploy, simulate } from "./simulate.js";
-import { getConfig, getNetworkAndSources, testClient } from "./utils.js";
+import {
+  getConfig,
+  getNetworkAndSources,
+  poolId,
+  testClient,
+} from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
@@ -66,50 +72,51 @@ export function setupCommon(context: TestContext) {
   };
 }
 
+const pgliteDataDirs = new Map<number, string>();
+afterAll(() => pgliteDataDirs.forEach((dataDir) => rimrafSync(dataDir)));
+
 /**
  * Sets up an isolated database on the test context.
  *
- * If `process.env.DATABASE_URL` is set, creates a new database and drops
- * it in the cleanup function. If it's not set, creates a temporary directory
- * for PGlite and removes it in the cleanup function.
- *
  * ```ts
  * // Add this to any test suite that uses the database.
- * beforeEach((context) => setupIsolatedDatabase(context))
+ * beforeEach(setupIsolatedDatabase)
  * ```
  */
 export async function setupIsolatedDatabase(context: TestContext) {
-  if (process.env.DATABASE_URL) {
-    const databaseName = `vitest_${process.env.VITEST_POOL_ID ?? 1}`;
-    const databaseUrl = new URL(process.env.DATABASE_URL);
-    databaseUrl.pathname = `/${databaseName}`;
+  const connectionString = process.env.DATABASE_URL;
+  if (connectionString !== undefined) {
+    const databaseName = `vitest_${poolId}`;
 
-    const poolConfig = { max: 30, connectionString: databaseUrl.toString() };
-
-    const client = new pg.Client({
-      connectionString: process.env.DATABASE_URL,
-    });
+    const client = new pg.Client({ connectionString });
     await client.connect();
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
-    context.databaseConfig = {
-      kind: "postgres",
-      poolConfig,
-      schema: "public",
-    };
+    const databaseUrl = new URL(connectionString);
+    databaseUrl.pathname = `/${databaseName}`;
+    const poolConfig = { max: 30, connectionString: databaseUrl.toString() };
 
-    return () => {};
+    context.databaseConfig = { kind: "postgres", poolConfig, schema: "public" };
   } else {
-    const tempDir = path.join(os.tmpdir(), randomUUID());
-    mkdirSync(tempDir, { recursive: true });
+    let dataDir = pgliteDataDirs.get(poolId);
+    if (dataDir === undefined) {
+      dataDir = path.join(os.tmpdir(), randomUUID());
+      mkdirSync(dataDir, { recursive: true });
+      pgliteDataDirs.set(poolId, dataDir);
+    }
 
-    context.databaseConfig = { kind: "pglite", directory: tempDir };
+    const databaseName = `vitest_${poolId}`;
 
-    return () => {
-      rimrafSync(tempDir);
-    };
+    const parent = createPglite({ dataDir });
+    await parent.exec(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    await parent.exec(`CREATE DATABASE "${databaseName}"`);
+    await parent.close();
+
+    const options = { dataDir, database: databaseName };
+
+    context.databaseConfig = { kind: "pglite", options };
   }
 }
 

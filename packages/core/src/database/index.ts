@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -27,8 +26,9 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
+import { createPglite } from "@/utils/pglite.js";
 import { wait } from "@/utils/wait.js";
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
 import {
   Migrator,
   PostgresDialect,
@@ -97,8 +97,7 @@ type PonderInternalSchema = {
 };
 
 type PGliteDriver = {
-  user: PGlite;
-  sync: PGlite;
+  instance: PGlite;
 };
 
 type PostgresDriver = {
@@ -132,47 +131,36 @@ const scalarToPostgresType = {
   hex: "bytea",
 } as const;
 
-export const createDatabase = async (args: {
+export const createDatabase = (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
-}): Promise<Database> => {
+}): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
 
   ////////
   // Create drivers and orms
   ////////
-
-  let dialect: Database["dialect"];
   let driver: Database["driver"];
   let qb: Database["qb"];
 
+  const dialect = args.databaseConfig.kind;
+
   if (args.databaseConfig.kind === "pglite") {
-    dialect = "pglite";
     namespace = "public";
 
-    const userDir = path.join(args.databaseConfig.directory, "public");
-    const syncDir = path.join(args.databaseConfig.directory, "sync");
+    const instance = createPglite(args.databaseConfig.options);
 
-    const [userPglite, syncPglite] = await Promise.all([
-      PGlite.create({ dataDir: userDir }),
-      PGlite.create({ dataDir: syncDir }),
-    ]);
+    const kyselyDialect = new KyselyPGlite(instance).dialect;
 
-    const userDialect = new KyselyPGlite(userPglite).dialect;
-    const syncDialect = new KyselyPGlite(syncPglite).dialect;
-
-    driver = {
-      user: userPglite,
-      sync: syncPglite,
-    };
+    driver = { instance };
 
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
-        dialect: userDialect,
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
             args.common.metrics.ponder_postgres_query_total.inc({
@@ -185,7 +173,7 @@ export const createDatabase = async (args: {
       user: new HeadlessKysely({
         name: "user",
         common: args.common,
-        dialect: userDialect,
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
             args.common.metrics.ponder_postgres_query_total.inc({
@@ -198,7 +186,7 @@ export const createDatabase = async (args: {
       readonly: new HeadlessKysely({
         name: "readonly",
         common: args.common,
-        dialect: userDialect,
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
             args.common.metrics.ponder_postgres_query_total.inc({
@@ -211,7 +199,7 @@ export const createDatabase = async (args: {
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
-        dialect: syncDialect,
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
             args.common.metrics.ponder_postgres_query_total.inc({
@@ -223,7 +211,6 @@ export const createDatabase = async (args: {
       }),
     };
   } else {
-    dialect = "postgres";
     namespace = args.databaseConfig.schema;
 
     const internalMax = 2;
@@ -1012,9 +999,10 @@ export const createDatabase = async (args: {
 
       if (dialect === "pglite") {
         const d = driver as PGliteDriver;
-        await d.user.close();
-        await d.sync.close();
-      } else {
+        await d.instance.close();
+      }
+
+      if (dialect === "postgres") {
         const d = driver as PostgresDriver;
         await d.internal.end();
         await d.user.end();

@@ -63,7 +63,7 @@ function createCheckpoint(index: number): Checkpoint {
 }
 
 test("setup succeeds with a fresh database", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -84,7 +84,7 @@ test("setup succeeds with a fresh database", async (context) => {
 });
 
 test("setup succeeds with a prior app in the same namespace", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -93,7 +93,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -120,7 +120,7 @@ test("setup succeeds with a prior app in the same namespace", async (context) =>
 });
 
 test("setup does not drop tables that are not managed by ponder", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -129,7 +129,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -165,7 +165,7 @@ test("setup does not drop tables that are not managed by ponder", async (context
 });
 
 test("setup with the same build ID and namespace reverts to and returns the finality checkpoint", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -219,7 +219,7 @@ test("setup with the same build ID and namespace reverts to and returns the fina
 
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -251,7 +251,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -259,7 +259,7 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -297,7 +297,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -305,7 +305,7 @@ test("setup throws if the namespace is still locked after waiting to expire", as
 
   await database.setup({ buildId: "abc" });
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -324,14 +324,14 @@ test("setup throws if the namespace is still locked after waiting to expire", as
 });
 
 test("setup throws if there is a table name collision", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
   });
 
   await database.qb.internal.executeQuery(
-    sql`CREATE TABLE "Pet" (id TEXT)`.compile(database.qb.internal),
+    sql`CREATE TABLE "public"."Pet" (id TEXT)`.compile(database.qb.internal),
   );
 
   expect(await getUserTableNames(database)).toStrictEqual(["Pet"]);
@@ -347,7 +347,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -376,7 +376,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 });
 
 test("finalize updates lock table", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -402,7 +402,7 @@ test("finalize updates lock table", async (context) => {
 });
 
 test("finalize delete reorg table rows", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -469,7 +469,7 @@ test("finalize delete reorg table rows", async (context) => {
 });
 
 test("kill releases the namespace lock", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -486,7 +486,7 @@ test("kill releases the namespace lock", async (context) => {
   await database.kill();
 
   // Only creating this database to use the `orm` object.
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: schemaTwo,
     databaseConfig: context.databaseConfig,
@@ -505,7 +505,7 @@ test("kill releases the namespace lock", async (context) => {
 });
 
 test("createIndexes adds a single column index", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -525,7 +525,7 @@ test("createIndexes adds a single column index", async (context) => {
 });
 
 test("createIndexes adds a multi column index", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -557,7 +557,7 @@ test("createIndexes with ordering", async (context) => {
     ),
   }));
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -577,7 +577,7 @@ test("createIndexes with ordering", async (context) => {
 });
 
 test("setup with the same build ID drops indexes", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -589,7 +589,7 @@ test("setup with the same build ID drops indexes", async (context) => {
 
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
@@ -607,10 +607,7 @@ test("setup with the same build ID drops indexes", async (context) => {
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, database, cleanup } = await setupDatabaseServices(
     context,
-    {
-      schema,
-      indexing: "realtime",
-    },
+    { schema, indexing: "realtime" },
   );
 
   await indexingStore.create({
@@ -686,10 +683,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 test("revert() updates versions with intermediate logs", async (context) => {
   const { indexingStore, database, cleanup } = await setupDatabaseServices(
     context,
-    {
-      schema,
-      indexing: "realtime",
-    },
+    { schema, indexing: "realtime" },
   );
 
   await indexingStore.create({
@@ -726,11 +720,11 @@ test("revert() updates versions with intermediate logs", async (context) => {
 async function getUserTableNames(database: Database) {
   const { rows } = await database.qb.internal.executeQuery<{ name: string }>(
     sql`
-    SELECT table_name as name
-    FROM information_schema.tables
-    WHERE table_schema = '${sql.raw(database.namespace)}'
-    AND table_type = 'BASE TABLE'
-  `.compile(database.qb.internal),
+      SELECT table_name as name
+      FROM information_schema.tables
+      WHERE table_schema = '${sql.raw(database.namespace)}'
+      AND table_type = 'BASE TABLE'
+    `.compile(database.qb.internal),
   );
   return rows.map(({ name }) => name);
 }
@@ -741,11 +735,11 @@ async function getUserIndexNames(database: Database, tableName: string) {
     tbl_name: string;
   }>(
     sql`
-    SELECT indexname as name
-    FROM pg_indexes
-    WHERE schemaname = '${sql.raw(database.namespace)}'
-    AND tablename = '${sql.raw(tableName)}'
-  `.compile(database.qb.internal),
+      SELECT indexname as name
+      FROM pg_indexes
+      WHERE schemaname = '${sql.raw(database.namespace)}'
+      AND tablename = '${sql.raw(tableName)}'
+    `.compile(database.qb.internal),
   );
   return rows.map((r) => r.name);
 }
