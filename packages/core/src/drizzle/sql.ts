@@ -86,26 +86,22 @@ const isPgNativeType = (it: string) => {
 
 export const generateTableSQL = ({
   table,
-  namespace,
-  namePrefix,
+  schema,
+  name,
   extraColumns,
 }: {
   table: PgTable;
-  namespace: string;
-  namePrefix?: string;
+  schema: string;
+  name: string;
   extraColumns?: PgColumn[];
 }) => {
   const config = getTableConfig(table);
-  const tableName = config.name;
   const columns = config.columns;
   const primaryKeys = config.primaryKeys;
 
   let statement = "";
-  const name = namespace
-    ? `"${namespace}"."${namePrefix ?? ""}${tableName}"`
-    : `"${namePrefix ?? ""}${tableName}"`;
 
-  statement += `CREATE TABLE IF NOT EXISTS ${name} (\n`;
+  statement += `CREATE TABLE IF NOT EXISTS ${schema ? `"${schema}"."${name}"` : `"${name}"`} (\n`;
   for (let i = 0; i < columns.length; i++) {
     const column = columns[i]!;
 
@@ -220,6 +216,32 @@ export const generateTableSQL = ({
   return statement;
 };
 
+export const rawToSqlTableName = (tableName: string, instanceId: string) =>
+  `${instanceId}__${tableName}`;
+
+export const rawToReorgTableName = (tableName: string, instanceId: string) =>
+  `${instanceId}_reorg__${tableName}`;
+
+export const getTableNames = (schema: Schema, instanceId: string) => {
+  const tableNames = Object.entries(schema)
+    .filter(([, table]) => is(table, PgTable))
+    .map(([js, table]) => {
+      const tableName = getTableName(table as PgTable);
+      const raw = tableName.slice(6);
+
+      return {
+        sql: tableName,
+        raw,
+        reorg: `${instanceId}_reorg__${raw}`,
+        trigger: `${instanceId}_reorg__${raw}`,
+        triggerFn: `operation_${instanceId}_reorg__${raw}()`,
+        js,
+      } as const;
+    });
+
+  return tableNames;
+};
+
 export const getPrimaryKeyColumns = (
   table: PgTable,
 ): { sql: string; js: string }[] => {
@@ -247,17 +269,6 @@ export const getPrimaryKeyColumns = (
   )!;
 
   return [{ sql: pkColumn.name, js: findJsName(pkColumn.name) }];
-};
-
-export const getTableNames = (schema: Schema) => {
-  const tableNames = Object.entries(schema)
-    .filter(([, table]) => is(table, PgTable))
-    .map(([tableName, table]) => ({
-      sql: getTableName(table as PgTable),
-      js: tableName,
-    }));
-
-  return tableNames;
 };
 
 export const getReorgTable = (table: PgTable<TableConfig>) => {

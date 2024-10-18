@@ -8,6 +8,8 @@ import {
   generateTableSQL,
   getPrimaryKeyColumns,
   getTableNames,
+  rawToReorgTableName,
+  rawToSqlTableName,
 } from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
@@ -33,6 +35,7 @@ import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { drizzle as createDrizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
+  PgSchema,
   PgTable,
   integer,
   pgTable,
@@ -75,7 +78,10 @@ export type Database<
    * - If table name collision, exit
    * - Else, start
    */
-  setup(args: { buildId: string }): Promise<{ checkpoint: string }>;
+  setup(): Promise<{
+    checkpoint: string;
+  }>;
+  createViews(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
   revert(args: { checkpoint: string }): Promise<void>;
@@ -89,6 +95,7 @@ type PonderApp = {
   is_locked: 0 | 1;
   is_dev: 0 | 1;
   heartbeat_at: number;
+  instance_id: string;
   build_id: string;
   checkpoint: string;
   table_names: string[];
@@ -96,11 +103,13 @@ type PonderApp = {
 
 type PonderInternalSchema = {
   _ponder_meta: {
-    key: "status" | "app";
+    key: `status_${string}` | `app_${string}`;
     value: string | null;
   };
 } & {
-  [_: `_ponder_reorg__${string}`]: {
+  [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
+} & {
+  [_: ReturnType<typeof getTableNames>[number]["reorg"]]: unknown & {
     operation_id: number;
     checkpoint: string;
     operation: 0 | 1 | 2;
@@ -135,6 +144,8 @@ export const createDatabase = async (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
+  instanceId: string;
+  buildId: string;
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
@@ -212,7 +223,16 @@ export const createDatabase = async (args: {
     };
   } else {
     dialect = "postgres";
-    namespace = args.databaseConfig.schema;
+
+    for (const maybeSchema of Object.values(args.schema)) {
+      if (is(maybeSchema, PgSchema)) {
+        namespace = maybeSchema.schemaName;
+      }
+    }
+
+    if (namespace! === undefined) {
+      namespace = "public";
+    }
 
     const internalMax = 2;
     const equalMax = Math.floor(
@@ -302,6 +322,8 @@ export const createDatabase = async (args: {
       }),
     };
   }
+
+  // TODO(kyle) validate all tables use `namespace`
 
   /**
    * Reset the prototype so `table instanceof PgTable` evaluates to true.
@@ -431,22 +453,21 @@ export const createDatabase = async (args: {
    *       underlying tables, but only be 1 operation at most.
    */
   const revert = async ({
-    sqlTableName,
-    jsTableName,
+    tableName,
     checkpoint,
     tx,
   }: {
-    sqlTableName: string;
-    jsTableName: string;
+    tableName: ReturnType<typeof getTableNames>[number];
     checkpoint: string;
     tx: Transaction<PonderInternalSchema>;
+    instanceId: string;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
-      args.schema[jsTableName] as PgTable,
+      args.schema[tableName.js] as PgTable,
     );
 
     const rows = await tx
-      .deleteFrom(`_ponder_reorg__${sqlTableName}`)
+      .deleteFrom(tableName.reorg)
       .returningAll()
       .where("checkpoint", ">", checkpoint)
       .execute();
@@ -514,7 +535,7 @@ export const createDatabase = async (args: {
 
     args.common.logger.info({
       service: "database",
-      msg: `Reverted ${rows.length} unfinalized operations from '${sqlTableName}' table`,
+      msg: `Reverted ${rows.length} unfinalized operations from '${tableName.raw}' table`,
     });
   };
 
@@ -556,12 +577,12 @@ export const createDatabase = async (args: {
         if (error) throw error;
       });
     },
-    async setup({ buildId }) {
+    async setup() {
       ////////
       // Migrate
       ////////
 
-      // v0.4 migration ???
+      // v0.4 migration
 
       // v0.6 migration
 
@@ -706,6 +727,8 @@ export const createDatabase = async (args: {
         }
       }
 
+      // v0.7 migration
+
       await qb.internal.wrap({ method: "setup" }, async () => {
         if (dialect === "postgres") {
           await qb.internal.schema
@@ -731,52 +754,61 @@ export const createDatabase = async (args: {
             ////////
 
             const createUserTables = async () => {
-              for (const table of Object.values(args.schema)) {
-                if (is(table, PgTable)) {
-                  await sql
-                    .raw(generateTableSQL({ table, namespace }))
-                    .execute(tx);
+              for (const tableName of getTableNames(
+                args.schema,
+                args.instanceId,
+              )) {
+                const table = args.schema[tableName.js] as PgTable;
 
-                  args.common.logger.info({
-                    service: "database",
-                    msg: `Created table '${namespace}'.'${getTableName(table)}'`,
-                  });
-                }
+                await sql
+                  .raw(
+                    generateTableSQL({
+                      table,
+                      schema: namespace,
+                      name: tableName.sql,
+                    }),
+                  )
+                  .execute(tx);
+
+                args.common.logger.info({
+                  service: "database",
+                  msg: `Created table '${namespace}'.'${getTableName(table)}'`,
+                });
               }
             };
 
             const createReorgTables = async () => {
-              for (const table of Object.values(args.schema)) {
-                if (is(table, PgTable)) {
-                  const extraColumns = Object.values(
-                    pgTable("", {
-                      operation_id: serial("operation_id")
-                        .notNull()
-                        .primaryKey(),
-                      operation: integer("operation").notNull(),
-                      checkpoint: varchar("checkpoint", {
-                        length: 75,
-                      }).notNull(),
-                    }),
-                  );
+              for (const tableName of getTableNames(
+                args.schema,
+                args.instanceId,
+              )) {
+                const table = args.schema[tableName.js] as PgTable;
+                const extraColumns = Object.values(
+                  pgTable("", {
+                    operation_id: serial("operation_id").notNull().primaryKey(),
+                    operation: integer("operation").notNull(),
+                    checkpoint: varchar("checkpoint", {
+                      length: 75,
+                    }).notNull(),
+                  }),
+                );
 
-                  await sql
-                    .raw(
-                      generateTableSQL({
-                        table,
-                        namespace,
-                        extraColumns,
-                        namePrefix: "_ponder_reorg__",
-                      }),
-                    )
-                    .execute(tx);
-                }
+                await sql
+                  .raw(
+                    generateTableSQL({
+                      table,
+                      schema: namespace,
+                      name: tableName.reorg,
+                      extraColumns,
+                    }),
+                  )
+                  .execute(tx);
               }
             };
 
             const row = await tx
               .selectFrom("_ponder_meta")
-              .where("key", "=", "app")
+              .where("key", "=", `app_${args.instanceId}`)
               .select("value")
               .executeTakeFirst();
 
@@ -791,9 +823,12 @@ export const createDatabase = async (args: {
               is_locked: 1,
               is_dev: args.common.options.command === "dev" ? 1 : 0,
               heartbeat_at: Date.now(),
-              build_id: buildId,
+              build_id: args.buildId,
+              instance_id: args.instanceId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: getTableNames(args.schema).map(({ sql }) => sql),
+              table_names: getTableNames(args.schema, args.instanceId).map(
+                ({ sql }) => sql,
+              ),
             } satisfies PonderApp;
 
             /**
@@ -802,14 +837,20 @@ export const createDatabase = async (args: {
             if (previousApp === undefined) {
               await tx
                 .insertInto("_ponder_meta")
-                .values({ key: "status", value: null })
+                .values({ key: `status_${args.instanceId}`, value: null })
                 .onConflict((oc) =>
-                  oc.column("key").doUpdateSet({ key: "status", value: null }),
+                  oc.column("key").doUpdateSet({
+                    key: `status_${args.instanceId}`,
+                    value: null,
+                  }),
                 )
                 .execute();
               await tx
                 .insertInto("_ponder_meta")
-                .values({ key: "app", value: encodeApp(newApp) })
+                .values({
+                  key: `app_${args.instanceId}`,
+                  value: encodeApp(newApp),
+                })
                 .execute();
               args.common.logger.debug({
                 service: "database",
@@ -851,7 +892,7 @@ export const createDatabase = async (args: {
              */
             if (
               args.common.options.command !== "dev" &&
-              previousApp.build_id === buildId &&
+              previousApp.build_id === args.buildId &&
               previousApp.checkpoint !== encodeCheckpoint(zeroCheckpoint)
             ) {
               await tx
@@ -864,12 +905,12 @@ export const createDatabase = async (args: {
                     heartbeat_at: Date.now(),
                   }),
                 })
-                .where("key", "=", "app")
+                .where("key", "=", `app_${args.instanceId}`)
                 .execute();
 
               args.common.logger.info({
                 service: "database",
-                msg: `Detected cache hit for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+                msg: `Detected cache hit for build '${args.buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
               });
               args.common.logger.debug({
                 service: "database",
@@ -897,10 +938,13 @@ export const createDatabase = async (args: {
 
               // Remove triggers
 
-              for (const { sql: sqlTableName } of getTableNames(args.schema)) {
+              for (const tableName of getTableNames(
+                args.schema,
+                args.instanceId,
+              )) {
                 await sql
                   .raw(
-                    `DROP TRIGGER IF EXISTS "${sqlTableName}_reorg" ON "${namespace}"."${sqlTableName}"`,
+                    `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
                   )
                   .execute(tx);
               }
@@ -915,12 +959,15 @@ export const createDatabase = async (args: {
                 msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
               });
 
-              for (const { sql, js } of getTableNames(args.schema)) {
+              for (const tableName of getTableNames(
+                args.schema,
+                args.instanceId,
+              )) {
                 await revert({
-                  sqlTableName: sql,
-                  jsTableName: js,
+                  tableName,
                   checkpoint: previousApp.checkpoint,
                   tx,
+                  instanceId: args.instanceId,
                 });
               }
 
@@ -939,7 +986,7 @@ export const createDatabase = async (args: {
             await tx
               .updateTable("_ponder_meta")
               .set({ value: encodeApp(newApp) })
-              .where("key", "=", "app")
+              .where("key", "=", `app_${args.instanceId}`)
               .execute();
 
             args.common.logger.debug({
@@ -951,12 +998,16 @@ export const createDatabase = async (args: {
 
             for (const tableName of previousApp.table_names) {
               await tx.schema
-                .dropTable(`_ponder_reorg__${tableName}`)
+                .dropTable(
+                  rawToReorgTableName(tableName, previousApp.instance_id),
+                )
                 .ifExists()
                 .execute();
 
               await tx.schema
-                .dropTable(tableName)
+                .dropTable(
+                  rawToSqlTableName(tableName, previousApp.instance_id),
+                )
                 .cascade()
                 .ifExists()
                 .execute();
@@ -1005,7 +1056,7 @@ export const createDatabase = async (args: {
 
           await qb.internal
             .updateTable("_ponder_meta")
-            .where("key", "=", "app")
+            .where("key", "=", `app_${args.instanceId}`)
             .set({
               value:
                 dialect === "sqlite"
@@ -1016,7 +1067,7 @@ export const createDatabase = async (args: {
 
           args.common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${buildId})`,
+            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${args.buildId})`,
           });
         } catch (err) {
           const error = err as Error;
@@ -1088,10 +1139,28 @@ export const createDatabase = async (args: {
     //     }),
     //   );
     // },
+    async createViews() {
+      await qb.internal.wrap({ method: "createViews" }, async () => {
+        for (const tableName of getTableNames(args.schema, args.instanceId)) {
+          await qb.internal.schema
+            .createView(tableName.raw)
+            .orReplace()
+            .as(qb.internal.selectFrom(tableName.sql))
+            .execute();
+
+          args.common.logger.info({
+            service: "database",
+            msg: `Created view '${namespace}'.'${tableName.raw}'`,
+          });
+        }
+      });
+    },
     async createTriggers() {
       await qb.internal.wrap({ method: "createTriggers" }, async () => {
-        for (const { sql: sqlTableName, js } of getTableNames(args.schema)) {
-          const columns = getTableColumns(args.schema[js]! as PgTable);
+        for (const tableName of getTableNames(args.schema, args.instanceId)) {
+          const columns = getTableColumns(
+            args.schema[tableName.js]! as PgTable,
+          );
 
           const columnNames = Object.values(columns).map(
             (column) => `"${column.name}"`,
@@ -1099,17 +1168,17 @@ export const createDatabase = async (args: {
 
           await sql
             .raw(`
-CREATE OR REPLACE FUNCTION ${sqlTableName}_reorg_operation()
+CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "_ponder_reorg__${sqlTableName}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
   END IF;
   RETURN NULL;
@@ -1120,20 +1189,20 @@ $$ LANGUAGE plpgsql
 
           await sql
             .raw(`
-CREATE TRIGGER "${sqlTableName}_reorg"
-AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${sqlTableName}"
-FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
-`)
+          CREATE TRIGGER "${tableName.trigger}"
+          AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName.sql}"
+          FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
+          `)
             .execute(qb.internal);
         }
       });
     },
     async removeTriggers() {
       await qb.internal.wrap({ method: "removeTriggers" }, async () => {
-        for (const { sql: sqlTableName } of getTableNames(args.schema)) {
+        for (const tableName of getTableNames(args.schema, args.instanceId)) {
           await sql
             .raw(
-              `DROP TRIGGER IF EXISTS "${sqlTableName}_reorg" ON "${namespace}"."${sqlTableName}"`,
+              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
         }
@@ -1142,13 +1211,13 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
     async revert({ checkpoint }) {
       await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
-          getTableNames(args.schema).map(({ sql, js }) =>
+          getTableNames(args.schema, args.instanceId).map((tableName) =>
             qb.internal.transaction().execute((tx) =>
               revert({
-                sqlTableName: sql,
-                jsTableName: js,
+                tableName,
                 checkpoint,
                 tx,
+                instanceId: args.instanceId,
               }),
             ),
           ),
@@ -1159,7 +1228,7 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
       await qb.internal.wrap({ method: "finalize" }, async () => {
         await qb.internal
           .updateTable("_ponder_meta")
-          .where("key", "=", "app")
+          .where("key", "=", `app_${args.instanceId}`)
           .set({
             value:
               dialect === "sqlite"
@@ -1169,9 +1238,9 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
           .execute();
 
         await Promise.all(
-          getTableNames(args.schema).map(({ sql }) =>
+          getTableNames(args.schema, args.instanceId).map((tableName) =>
             qb.internal
-              .deleteFrom(`_ponder_reorg__${sql}`)
+              .deleteFrom(tableName.reorg)
               .where("checkpoint", "<=", checkpoint)
               .execute(),
           ),
@@ -1187,10 +1256,10 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
     },
     async complete({ checkpoint }) {
       await Promise.all(
-        getTableNames(args.schema).map(({ sql }) =>
+        getTableNames(args.schema, args.instanceId).map((tableName) =>
           qb.internal.wrap({ method: "complete" }, async () => {
             await qb.internal
-              .updateTable(`_ponder_reorg__${sql}`)
+              .updateTable(tableName.reorg)
               .set({ checkpoint })
               .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
               .execute();
@@ -1203,7 +1272,7 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
 
       await qb.internal
         .updateTable("_ponder_meta")
-        .where("key", "=", "app")
+        .where("key", "=", `app_${args.instanceId}`)
         .set({
           value:
             dialect === "sqlite"

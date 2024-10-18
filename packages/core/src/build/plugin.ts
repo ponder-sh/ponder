@@ -1,6 +1,7 @@
 import type { Plugin } from "vite";
 
 const virtualModule = `import { Hono } from "hono";
+import crypto from "node:crypto";
 
 const ponderHono = {
   routes: [],
@@ -18,6 +19,8 @@ const ponderHono = {
   },
 };
 
+const instanceId = crypto.randomBytes(2).toString("hex")
+
 const ponder = {
   ...ponderHono,
   hono: new Hono(),
@@ -27,7 +30,7 @@ const ponder = {
   },
 };
 
-export { ponder };
+export { ponder, instanceId };
 `;
 
 export const vitePluginPonder = (): Plugin => {

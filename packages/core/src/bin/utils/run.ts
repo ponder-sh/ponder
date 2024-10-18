@@ -33,6 +33,7 @@ export async function run({
 }) {
   const {
     buildId,
+    instanceId,
     databaseConfig,
     networks,
     sources,
@@ -46,10 +47,10 @@ export async function run({
     common,
     schema,
     databaseConfig,
-  });
-  const { checkpoint: initialCheckpoint } = await database.setup({
     buildId,
+    instanceId,
   });
+  const { checkpoint: initialCheckpoint } = await database.setup();
 
   const syncStore = createSyncStore({
     common,
@@ -217,6 +218,7 @@ export async function run({
     });
 
     // await database.createIndexes({ schema });
+    await database.createViews();
     await database.createTriggers();
 
     sync.startRealtime();

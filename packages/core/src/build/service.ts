@@ -45,6 +45,7 @@ export type Service = {
 type BaseBuild = {
   // Build ID for caching
   buildId: string;
+  instanceId: string;
   // Config
   databaseConfig: DatabaseConfig;
   sources: Source[];
@@ -352,11 +353,15 @@ export const start = async (
        * propogated to the api build.
        */
 
+      const exports =
+        await buildService.viteNodeRunner.executeId("@/generated");
+
       const indexingBuildResult = await validateAndBuild(
         buildService,
         cachedConfigResult,
         cachedSchemaResult,
         cachedIndexingResult,
+        exports.instanceId,
       );
       if (indexingBuildResult.status === "error") {
         onIndexingBuild(indexingBuildResult);
@@ -394,6 +399,8 @@ export const start = async (
     buildService.viteDevServer.watcher.on("change", onFileChange);
   }
 
+  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+
   // Build and validate initial indexing and server build.
   // Note: the api build cannot be successful if the indexing
   // build fails
@@ -403,6 +410,7 @@ export const start = async (
     configResult,
     schemaResult,
     indexingResult,
+    exports.instanceId,
   );
 
   if (initialBuildResult.status === "error") {
@@ -602,6 +610,7 @@ const validateAndBuild = async (
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   },
+  instanceId: string,
 ): Promise<IndexingBuildResult> => {
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
@@ -641,6 +650,7 @@ const validateAndBuild = async (
     status: "success",
     build: {
       buildId,
+      instanceId,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,

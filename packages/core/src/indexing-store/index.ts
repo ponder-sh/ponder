@@ -143,16 +143,16 @@ export const createIndexingStore = ({
     return false;
   };
 
-  for (const { js } of getTableNames(schema)) {
+  for (const tableName of getTableNames(schema, "")) {
     primaryKeysCache.set(
-      schema[js] as Table,
-      getPrimaryKeyColumns(schema[js] as PgTable),
+      schema[tableName.js] as Table,
+      getPrimaryKeyColumns(schema[tableName.js] as PgTable),
     );
     isSerialTableCache.set(
-      schema[js] as Table,
-      isSerialTable(schema[js] as Table),
+      schema[tableName.js] as Table,
+      isSerialTable(schema[tableName.js] as Table),
     );
-    cache.set(schema[js] as Table, new Map());
+    cache.set(schema[tableName.js] as Table, new Map());
   }
 
   ////////

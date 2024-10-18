@@ -20,6 +20,12 @@ import {
 } from "drizzle-orm/pg-core/columns/all";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain } from "./index.js";
+import { rawToSqlTableName } from "./sql.js";
+
+const instanceId: string = await import("@/generated")
+  // @ts-ignore
+  .then((exports) => exports.instanceId)
+  .catch(() => undefined);
 
 type $Type<T extends ColumnBuilderBase, TType> = T & {
   _: {
@@ -213,18 +219,33 @@ export class OnchainSchema<schema extends string> extends PgSchema<schema> {
     extra: extra;
     dialect: "pg";
   }> => {
+    if (instanceId === undefined) {
+      const table = pgTableWithSchema(
+        name,
+        columns,
+        extraConfig as any,
+        this.schemaName,
+      );
+
+      /**
+       * This trick is used to make `table instanceof PgTable` evaluate to false.
+       * This is necessary to avoid generating migrations for onchain tables.
+       */
+      Object.setPrototypeOf(table, Object.prototype);
+
+      // @ts-ignore
+      table[onchain] = true;
+
+      // @ts-ignore
+      return table;
+    }
+
     const table = pgTableWithSchema(
-      name,
+      rawToSqlTableName(name, instanceId),
       columns,
       extraConfig as any,
       this.schemaName,
     );
-
-    /**
-     * This trick is used to make `table instanceof PgTable` evaluate to false.
-     * This is necessary to avoid generating migrations for onchain tables.
-     */
-    Object.setPrototypeOf(table, Object.prototype);
 
     // @ts-ignore
     table[onchain] = true;
