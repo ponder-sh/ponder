@@ -57,9 +57,9 @@ export class MetricsService {
   ponder_rpc_request_duration: prometheus.Histogram<"network" | "method">;
   ponder_rpc_request_lag: prometheus.Histogram<"network" | "method">;
 
-  ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
+  ponder_postgres_query_total: prometheus.Counter<"pool">;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
-  ponder_postgres_query_total: prometheus.Counter<"pool"> = null!;
+  ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -218,6 +218,25 @@ export class MetricsService {
       registers: [this.registry],
     });
 
+    this.ponder_postgres_query_total = new prometheus.Counter({
+      name: "ponder_postgres_query_total",
+      help: "Total number of queries submitted to the database",
+      labelNames: ["pool"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_postgres_pool_connections = new prometheus.Gauge({
+      name: "ponder_postgres_pool_connections",
+      help: "Number of postgres database connections",
+      labelNames: ["pool", "kind"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_postgres_query_queue_size = new prometheus.Gauge({
+      name: "ponder_postgres_query_queue_size",
+      help: "Size of postgres queries",
+      labelNames: ["pool"] as const,
+      registers: [this.registry],
+    });
+
     prometheus.collectDefaultMetrics({ register: this.registry });
   }
 
@@ -278,11 +297,12 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   const requestCount: { [network: string]: number } = {};
   const rpcRequestMetrics = await metrics.ponder_rpc_request_duration.get();
   for (const m of rpcRequestMetrics.values) {
+    const network = m.labels.network!;
     if (m.metricName === "ponder_rpc_request_duration_count") {
-      if (requestCount[m.labels.network!] === undefined) {
-        requestCount[m.labels.network!] = 0;
+      if (requestCount[network] === undefined) {
+        requestCount[network] = 0;
       }
-      requestCount[m.labels.network!] += m.value;
+      requestCount[network] += m.value;
     }
   }
 

@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -27,6 +26,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
+import { createPglite } from "@/utils/pglite.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import {
@@ -36,6 +36,7 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
+import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
@@ -95,18 +96,20 @@ type PonderInternalSchema = {
   [tableName: string]: UserTable;
 };
 
+type PGliteDriver = {
+  instance: PGlite;
+};
+
+type PostgresDriver = {
+  internal: Pool;
+  user: Pool;
+  readonly: Pool;
+  sync: Pool;
+};
+
 type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
-  ? {
-      user: PGlite;
-      readonly: PGlite;
-      sync: PGlite;
-    }
-  : {
-      internal: Pool;
-      user: Pool;
-      readonly: Pool;
-      sync: Pool;
-    };
+  ? PGliteDriver
+  : PostgresDriver;
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
@@ -139,76 +142,75 @@ export const createDatabase = (args: {
   ////////
   // Create drivers and orms
   ////////
-
-  let dialect: Database["dialect"];
   let driver: Database["driver"];
   let qb: Database["qb"];
 
+  const dialect = args.databaseConfig.kind;
+
   if (args.databaseConfig.kind === "pglite") {
-    dialect = "pglite";
     namespace = "public";
 
-    const userFile = path.join(args.databaseConfig.directory, "public.db");
-    const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
+    const instance = createPglite(args.databaseConfig.options);
 
-    // driver = {
-    //   user: createSqliteDatabase(userFile),
-    //   readonly: createReadonlySqliteDatabase(userFile),
-    //   sync: createSqliteDatabase(syncFile),
-    // };
+    const kyselyDialect = new KyselyPGlite(instance).dialect;
+
+    driver = { instance };
 
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "internal",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "internal",
             });
           }
         },
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       user: new HeadlessKysely({
         name: "user",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "user",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "user",
             });
           }
         },
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       readonly: new HeadlessKysely({
         name: "readonly",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.readonly }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "readonly",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "readonly",
             });
           }
         },
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.sync }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "sync",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "sync",
             });
           }
         },
+        plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
   } else {
-    dialect = "postgres";
     namespace = args.databaseConfig.schema;
 
     const internalMax = 2;
@@ -298,79 +300,49 @@ export const createDatabase = (args: {
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
+
+    // Register pool metrics
+    const d = driver as PostgresDriver;
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_pool_connections",
+    );
+    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_pool_connections",
+        help: "Number of connections in the pool",
+        labelNames: ["pool", "kind"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
+          this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
+          this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+          this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+          this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
+          this.set({ pool: "user", kind: "total" }, d.user.totalCount);
+          this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
+          this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
+        },
+      },
+    );
+
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_queue_size",
+    );
+    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_query_queue_size",
+        help: "Number of query requests waiting for an available connection",
+        labelNames: ["pool"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal" }, d.internal.waitingCount);
+          this.set({ pool: "sync" }, d.sync.waitingCount);
+          this.set({ pool: "user" }, d.user.waitingCount);
+          this.set({ pool: "readonly" }, d.readonly.waitingCount);
+        },
+      },
+    );
   }
-
-  // Register metrics
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_query_total",
-  );
-  args.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
-    name: "ponder_postgres_query_total",
-    help: "Total number of queries submitted to the database",
-    labelNames: ["pool"] as const,
-    registers: [args.common.metrics.registry],
-  });
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_pool_connections",
-  );
-  args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
-    name: "ponder_postgres_pool_connections",
-    help: "Number of connections in the pool",
-    labelNames: ["pool", "kind"] as const,
-    registers: [args.common.metrics.registry],
-    collect() {
-      this.set(
-        { pool: "internal", kind: "idle" },
-        // @ts-ignore
-        driver.internal.idleCount,
-      );
-      this.set(
-        { pool: "internal", kind: "total" },
-        // @ts-ignore
-        driver.internal.totalCount,
-      );
-
-      this.set({ pool: "sync", kind: "idle" }, (driver.sync as Pool).idleCount);
-      this.set(
-        { pool: "sync", kind: "total" },
-        (driver.sync as Pool).totalCount,
-      );
-
-      this.set({ pool: "user", kind: "idle" }, (driver.user as Pool).idleCount);
-      this.set(
-        { pool: "user", kind: "total" },
-        (driver.user as Pool).totalCount,
-      );
-
-      this.set(
-        { pool: "readonly", kind: "idle" },
-        (driver.readonly as Pool).idleCount,
-      );
-      this.set(
-        { pool: "readonly", kind: "total" },
-        (driver.readonly as Pool).totalCount,
-      );
-    },
-  });
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_query_queue_size",
-  );
-  args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
-    name: "ponder_postgres_query_queue_size",
-    help: "Number of query requests waiting for an available connection",
-    labelNames: ["pool"] as const,
-    registers: [args.common.metrics.registry],
-    collect() {
-      // @ts-ignore
-      this.set({ pool: "internal" }, driver.internal.waitingCount);
-      this.set({ pool: "sync" }, (driver.sync as Pool).waitingCount);
-      this.set({ pool: "user" }, (driver.user as Pool).waitingCount);
-      this.set({ pool: "readonly" }, (driver.readonly as Pool).waitingCount);
-    },
-  });
 
   ////////
   // Helpers
@@ -446,13 +418,11 @@ export const createDatabase = (args: {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
-        if (dialect === "postgres") {
-          await moveLegacyTables({
-            common: args.common,
-            db: qb.internal,
-            newSchemaName: "ponder_sync",
-          });
-        }
+        await moveLegacyTables({
+          common: args.common,
+          db: qb.internal,
+          newSchemaName: "ponder_sync",
+        });
 
         const migrator = new Migrator({
           db: qb.sync as any,
@@ -527,12 +497,10 @@ export const createDatabase = (args: {
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        if (dialect === "postgres") {
-          await qb.internal.schema
-            .createSchema(namespace)
-            .ifNotExists()
-            .execute();
-        }
+        await qb.internal.schema
+          .createSchema(namespace)
+          .ifNotExists()
+          .execute();
 
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
@@ -710,7 +678,7 @@ export const createDatabase = (args: {
             /**
              * If schema is empty, start
              */
-            if (previousApp === undefined) {
+            if (!previousApp) {
               await tx
                 .insertInto("_ponder_meta")
                 .values({ key: "status", value: null })
@@ -1030,21 +998,16 @@ export const createDatabase = (args: {
       await qb.sync.destroy();
 
       if (dialect === "pglite") {
-        // @ts-ignore
-        driver.user.close();
-        // @ts-ignore
-        driver.readonly.close();
-        // @ts-ignore
-        driver.sync.close();
-      } else {
-        // @ts-ignore
-        await driver.internal.end();
-        // @ts-ignore
-        await driver.user.end();
-        // @ts-ignore
-        await driver.readonly.end();
-        // @ts-ignore
-        await driver.sync.end();
+        const d = driver as PGliteDriver;
+        await d.instance.close();
+      }
+
+      if (dialect === "postgres") {
+        const d = driver as PostgresDriver;
+        await d.internal.end();
+        await d.user.end();
+        await d.readonly.end();
+        await d.sync.end();
       }
 
       args.common.logger.debug({
