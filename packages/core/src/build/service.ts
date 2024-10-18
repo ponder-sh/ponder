@@ -131,7 +131,7 @@ export const create = async ({
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common)],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).

@@ -712,7 +712,6 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_URL e
     poolConfig: {
       connectionString: "postgres://username@localhost:5432/database",
     },
-    schema: "public",
   });
 
   vi.unstubAllEnvs();
@@ -740,7 +739,6 @@ test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_PRIVA
     poolConfig: {
       connectionString: "postgres://username@localhost:5432/better_database",
     },
-    schema: "public",
   });
 
   vi.unstubAllEnvs();
@@ -792,6 +790,5 @@ test("buildConfigAndIndexingFunctions() database with postgres uses pool config"
       connectionString: "postgres://username@localhost:5432/database",
       max: 100,
     },
-    schema: "public",
   });
 });

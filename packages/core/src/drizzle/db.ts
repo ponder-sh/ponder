@@ -198,6 +198,7 @@ export const onchainTable = <
      * This trick is used to make `table instanceof PgTable` evaluate to false.
      * This is necessary to avoid generating migrations for onchain tables.
      */
+    // TODO(kyle) this is bad
     Object.setPrototypeOf(table, Object.prototype);
 
     // @ts-ignore
