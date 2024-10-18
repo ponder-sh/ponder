@@ -44,10 +44,13 @@ export async function buildConfigAndIndexingFunctions({
   // Determine PGlite directory, preferring config.database.directory if available
   const pgliteDir =
     config.database?.kind === "pglite" && config.database.directory
-      ? path.resolve(config.database.directory)
+      ? config.database.directory === "memory://"
+        ? "memory://"
+        : path.resolve(config.database.directory)
       : path.join(ponderDir, "pglite");
 
-  const pglitePrintPath = path.relative(rootDir, pgliteDir);
+  const pglitePrintPath =
+    pgliteDir === "memory://" ? "memory://" : path.relative(rootDir, pgliteDir);
 
   if (config.database?.kind) {
     if (config.database.kind === "postgres") {
