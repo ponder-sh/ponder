@@ -170,7 +170,6 @@ export default createConfig({
 | :------------------- | :----------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------- |
 | **kind**             |                            `"postgres"`                            |                                                                                                     |
 | **connectionString** |                       `string \| undefined`                        | **Default: `DATABASE_URL` env var**. Postgres database connection string. |
-| **schema**           |                       `string \| undefined`                        | **Default: `"public"`**. Postgres schema to use for indexed data.                                   |
 | **poolConfig**       | [`PoolConfig`](https://node-postgres.com/apis/pool) \| `undefined` | **Default: `{ max: 30 }`**. Pool configuration passed to `node-postgres`.                           |
 
 <details>
@@ -184,7 +183,6 @@ export default createConfig({
   database: {
     kind: "postgres",
     connectionString: "postgresql://user:password@localhost:5432/dbname",
-    schema: "ponder_dev",
     poolConfig: {
       max: 100,
     },

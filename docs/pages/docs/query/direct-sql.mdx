@@ -184,20 +184,20 @@ To create indexes on specific columns, use the `p.index()` function in `ponder.s
 
 ### Database schema
 
-By default, Ponder uses the **`public`** database schema for indexed data, one table for each table in `ponder.schema.ts`. To use a different schema, set the `schema` option in `ponder.config.ts`.
+Ponder uses the **public** database schema by default. To use a different schema, use the `onchainSchema` function `ponder.schema.ts`.
 
-```ts filename="ponder.config.ts" {6}
-import { createConfig } from "@ponder/core"
+```ts filename="ponder.schema.ts" {3}
+import { onchainSchema } from "@ponder/core/db"
 
-export default createConfig({
-  database: {
-    kind: "postgres",
-    schema: "dev", // Defaults to "public"
-  },
-});
+export const schema = onchainSchema("ponder");
+
+export const account = schema.table("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint().notNull(),
+}));
 ```
 
-Like with SQLite, Ponder also uses the `ponder_sync` Postgres database schemas for cached RPC data.
+Like with SQLite, Ponder also uses the `ponder_sync` Postgres database schema for cached RPC data.
 
 ### Connect using `psql`
 
@@ -208,22 +208,20 @@ To get oriented, connect to the database using `psql` ([installation guide](http
   <p />
 
   ```ts filename="ponder.schema.ts"
-  import { createSchema } from "@ponder/core";
+  import { onchainTable } from "@ponder/core/db";
 
-  export default createSchema((p) => ({
-    Account: p.createTable({
-      id: p.hex(),
-      balance: p.bigint(),
-      isOwner: p.boolean(),
-    }),
-    TransferEvent: p.createTable({
-      id: p.string(),
-      amount: p.bigint(),
-      timestamp: p.int(),
-      fromId: p.hex().references("Account.id"),
-      toId: p.hex().references("Account.id"),
-    }),
+  export const account = onchainTable("account", (p) => ({
+    address: p.evmHex().primaryKey(),
+    balance: p.evmBigint().notNull(),
   }));
+
+  export const transferEvent = onchainTable("transfer_event", (p) => ({
+    id: p.serial().primaryKey(),
+    from: p.evmHex().notNull(),
+    to: p.evmHex().notNull(),
+    amount: p.evmBigint().notNull(),
+    timestamp: p.integer().notNull(),
+  }))
   ```
 </details>
 
@@ -248,12 +246,14 @@ Use the `\dt` command to list all tables in the `public` schema.
 ```plaintext filename="psql (result)"
 username=# \dt
               List of relations
- Schema |     Name      | Type  |  Owner    
---------+---------------+-------+----------
- public | Account       | table | username
- public | TransferEvent | table | username
+ Schema | Name                | Type  | Owner    
+--------+---------------------+-------+----------
+ public | ****__account       | table | username
+ public | ****__transfer_event | table | username
 (4 rows)
 ```
+
+All user tables are prefixed by an unique, four character instance ID. [Read more](/docs/production/deploy#table-names-and-live-views)
 
 If you're using a schema other than `public`, you'll need to include a pattern:
 
@@ -261,49 +261,65 @@ If you're using a schema other than `public`, you'll need to include a pattern:
 \dt another_schema.*
 ```
 
-#### Select rows
+#### Display views
 
-Select a few `Account` rows.
+Use the `\dv` command to list all views in the `public` schema.
 
-```sql filename="psql"
-SELECT * FROM "Account" LIMIT 5;
+```bash filename="psql"
+\dv
 ```
 
 ```plaintext filename="psql (result)"
-username=# SELECT * FROM "Account" LIMIT 5;
-                     id                     |         balance         | isOwner 
---------------------------------------------+-------------------------+---------
- \xf73fe15cfb88ea3c7f301f16ade3c02564aca407 | 10000000000000000000000 |       0
- \xb0659bc97ed61b37d6b140f3e12a41d471781714 | 20000000000000000000000 |       0
- \x52932f5b2767d917c3134140168f2176c94e8b2c | 10000000000000000000000 |       0
- \xfb7ca75b3ce099120602b5ab7104cff030ee43f8 |                       0 |       0
- \x9ccc6c5a9d25429f55ad9af6363c1c4f16b179ad |  7000000000000000000000 |       0
-(5 rows)
+username=# \dv
+            List of relations
+ Schema | Name           | Type  | Owner    
+--------+----------------+-------+----------
+ public | account        | view | username
+ public | transfer_event | view | username
+(4 rows)
 ```
 
-Note that the `id` column uses the `p.hex(){:ts}` column type in `ponder.schema.ts`, which corresponds to the Postgres `BYTEA{:sql}` data type. See the [column types](#column-types-1) section for more details.
+#### Select rows
+
+Select a few `account` rows.
+
+```sql filename="psql"
+SELECT * FROM "account" LIMIT 5;
+```
+
+```plaintext filename="psql (result)"
+username=# SELECT * FROM "account" LIMIT 5;
+                  address                   |         balance         | 
+--------------------------------------------+-------------------------+
+ 0xf73fe15cfb88ea3c7f301f16ade3c02564aca407 | 10000000000000000000000 |
+ 0xb0659bc97ed61b37d6b140f3e12a41d471781714 | 20000000000000000000000 |
+ 0x52932f5b2767d917c3134140168f2176c94e8b2c | 10000000000000000000000 |
+ 0xfb7ca75b3ce099120602b5ab7104cff030ee43f8 |                       0 |
+ 0x9ccc6c5a9d25429f55ad9af6363c1c4f16b179ad |  7000000000000000000000 |
+(5 rows)
+```
 
 #### Aggregate data
 
 Find the total number of transfers sent to each account.
 
 ```sql filename="psql"
-SELECT "toId", COUNT(*) AS transfer_count
-  FROM "TransferEvent"
-  GROUP BY "toId"
+SELECT "to", COUNT(*) AS transfer_count
+  FROM "transfer_event"
+  GROUP BY "to"
   ORDER BY transfer_count DESC
   LIMIT 5;
 ```
 
 ```plaintext filename="psql (result)"
-username=# SELECT "toId", COUNT(*) AS transfer_count FROM "TransferEvent" GROUP BY "toId" ORDER BY transfer_count DESC LIMIT 5;
-                    toId                    | transfer_count 
+username=# SELECT "to", COUNT(*) AS transfer_count FROM "transfer_event" GROUP BY "to" ORDER BY transfer_count DESC LIMIT 5;
+                     to                     | transfer_count 
 --------------------------------------------+----------------
- \x5d752f322befb038991579972e912b02f61a3dda |           2342
- \x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
- \x9726041047644626468922598128349778349982 |            306
- \x27239549dd40e1d60f5b80b0c4196923745b1fd2 |            256
- \x450638daf0caedbdd9f8cb4a41fa1b24788b123e |            238
+ 0x5d752f322befb038991579972e912b02f61a3dda |           2342
+ 0x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
+ 0x9726041047644626468922598128349778349982 |            306
+ 0x27239549dd40e1d60f5b80b0c4196923745b1fd2 |            256
+ 0x450638daf0caedbdd9f8cb4a41fa1b24788b123e |            238
 (5 rows)
 ```
 
@@ -311,19 +327,7 @@ username=# SELECT "toId", COUNT(*) AS transfer_count FROM "TransferEvent" GROUP 
 
 ### Column types
 
-These are the [Postgres data types](https://www.postgresql.org/docs/current/datatype.html) used by each `ponder.schema.ts` column type.
-
 | Schema column type | Postgres column type          | Notes                                                     |
 | :----------------- | :---------------------------- | :-------------------------------------------------------- |
-| `p.string(){:ts}`  | `TEXT`                        |                                                           |
-| `p.hex(){:ts}`     | `BYTEA{:sql}`                 |                                                           |
-| `p.int(){:ts}`     | `INTEGER{:sql}`               |                                                           |
-| `p.bigint(){:ts}`  | `NUMERIC(78, 0){:sql}`        | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
-| `p.float(){:ts}`   | `FLOAT8{:sql}`/`DOUBLE{:sql}` |                                                           |
-| `p.boolean(){:ts}` | `INTEGER{:sql}`               | `0` is `false{:ts}`, `1` is `true{:ts}`                   |
-| `p.json(){:ts}`    | `JSONB{:sql}`                 |                                                           |
-
-
-### Indexes
-
-To create indexes on specific columns, use the `p.index()` function in `ponder.schema.ts` Do not manually construct database indexes. [Read more](/docs/schema#indexes).
+| `evmHex(){:ts}`    | `TEXT`                        | Values are lowercased and padded to be byte aligned       |
+| `evmBigint(){:ts}` | `NUMERIC(78, 0){:sql}`        | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
