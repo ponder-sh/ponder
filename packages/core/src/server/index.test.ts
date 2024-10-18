@@ -69,7 +69,6 @@ test("ready", async (context) => {
   });
 
   await getMetadataStore({
-    dialect: database.dialect,
     db: database.qb.user,
   }).setStatus({});
 

@@ -41,13 +41,16 @@ export async function buildConfigAndIndexingFunctions({
   // Build database.
   let databaseConfig: DatabaseConfig;
 
-  // Determine SQLite directory, preferring config.database.directory if available
-  const sqliteDir =
-    config.database?.kind === "sqlite" && config.database.directory
-      ? path.resolve(config.database.directory)
-      : path.join(ponderDir, "sqlite");
+  // Determine PGlite directory, preferring config.database.directory if available
+  const pgliteDir =
+    config.database?.kind === "pglite" && config.database.directory
+      ? config.database.directory === "memory://"
+        ? "memory://"
+        : path.resolve(config.database.directory)
+      : path.join(ponderDir, "pglite");
 
-  const sqlitePrintPath = path.relative(rootDir, sqliteDir);
+  const pglitePrintPath =
+    pgliteDir === "memory://" ? "memory://" : path.relative(rootDir, pgliteDir);
 
   if (config.database?.kind) {
     if (config.database.kind === "postgres") {
@@ -111,10 +114,10 @@ export async function buildConfigAndIndexingFunctions({
     } else {
       logs.push({
         level: "info",
-        msg: `Using SQLite database in '${sqlitePrintPath}' (from ponder.config.ts)`,
+        msg: `Using PGlite database in '${pglitePrintPath}' (from ponder.config.ts)`,
       });
 
-      databaseConfig = { kind: "sqlite", directory: sqliteDir };
+      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
     }
   } else {
     let connectionString: string | undefined = undefined;
@@ -164,18 +167,14 @@ export async function buildConfigAndIndexingFunctions({
         schema,
       };
     } else {
-      // Fall back to SQLite.
+      // Fall back to PGlite.
       logs.push({
         level: "info",
-        msg: `Using SQLite database at ${sqlitePrintPath} (default)`,
+        msg: `Using PGlite database at ${pglitePrintPath} (default)`,
       });
 
-      databaseConfig = { kind: "sqlite", directory: sqliteDir };
+      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
     }
-  }
-
-  if (databaseConfig.kind === "sqlite") {
-    throw new Error("Only postgres is supported for this experimental release");
   }
 
   const networks: Network[] = await Promise.all(

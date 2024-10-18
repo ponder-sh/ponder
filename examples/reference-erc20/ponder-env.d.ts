@@ -21,6 +21,7 @@ declare module "@/generated" {
     schema,
     name
   >;
+  export type ApiContext = Virtual.ApiContext<schema>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config, schema, name>;
 }

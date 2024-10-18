@@ -33,13 +33,6 @@ export async function createServer({
 }): Promise<Server> {
   // Create hono app
 
-  // const readonlyStore = getReadonlyStore({
-  //   dialect: database.dialect,
-  //   schema,
-  //   db: database.qb.readonly,
-  //   common,
-  // });
-
   const metadataStore = getMetadataStore({
     db: database.qb.readonly,
   });

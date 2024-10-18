@@ -53,7 +53,6 @@ export async function run({
   const syncStore = createSyncStore({
     common,
     db: database.qb.sync,
-    dialect: database.dialect,
   });
 
   const metadataStore = getMetadataStore({

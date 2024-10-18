@@ -11,42 +11,22 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
-const formatHex = (dialect: "sqlite" | "postgres", hex: Hex) =>
-  dialect === "sqlite" ? encodeAsText(hex) : hexToBigInt(hex);
-
-export const formatBig = (
-  dialect: "sqlite" | "postgres",
-  x: bigint | number,
-): string | bigint =>
-  dialect === "sqlite"
-    ? encodeAsText(x)
-    : typeof x === "number"
-      ? BigInt(x)
-      : x;
-
-export const parseBig = (
-  dialect: "sqlite" | "postgres",
-  big: string | bigint,
-): bigint =>
-  dialect === "sqlite" ? decodeToBigInt(big as string) : (big as bigint);
-
 type BlocksTable = {
   hash: Hash;
   chainId: number;
   checkpoint: string;
-  number: string | bigint;
-  timestamp: string | bigint;
-  baseFeePerGas: string | bigint | null;
-  difficulty: string | bigint;
+  number: bigint;
+  timestamp: bigint;
+  baseFeePerGas: bigint | null;
+  difficulty: bigint;
   extraData: Hex;
-  gasLimit: string | bigint;
-  gasUsed: string | bigint;
+  gasLimit: bigint;
+  gasUsed: bigint;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash | null;
@@ -54,20 +34,18 @@ type BlocksTable = {
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash | null;
-  size: string | bigint;
+  size: bigint;
   stateRoot: Hash;
-  totalDifficulty: string | bigint | null;
+  totalDifficulty: bigint | null;
   transactionsRoot: Hash;
 };
 
 export const encodeBlock = ({
   block,
   chainId,
-  dialect,
 }: {
   block: SyncBlock;
   chainId: number;
-  dialect: "sqlite" | "postgres";
 }): Insertable<BlocksTable> => {
   return {
     hash: block.hash,
@@ -81,14 +59,14 @@ export const encodeBlock = ({
       eventIndex: zeroCheckpoint.eventIndex,
     }),
     baseFeePerGas: block.baseFeePerGas
-      ? formatHex(dialect, block.baseFeePerGas)
+      ? hexToBigInt(block.baseFeePerGas)
       : null,
-    difficulty: formatHex(dialect, block.difficulty),
-    number: formatHex(dialect, block.number),
-    timestamp: formatHex(dialect, block.timestamp),
+    difficulty: hexToBigInt(block.difficulty),
+    number: hexToBigInt(block.number),
+    timestamp: hexToBigInt(block.timestamp),
     extraData: block.extraData,
-    gasLimit: formatHex(dialect, block.gasLimit),
-    gasUsed: formatHex(dialect, block.gasUsed),
+    gasLimit: hexToBigInt(block.gasLimit),
+    gasUsed: hexToBigInt(block.gasUsed),
     logsBloom: block.logsBloom!,
     miner: toLowerCase(block.miner),
     mixHash: block.mixHash ?? null,
@@ -96,10 +74,10 @@ export const encodeBlock = ({
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
     sha3Uncles: block.sha3Uncles ?? null,
-    size: formatHex(dialect, block.size),
+    size: hexToBigInt(block.size),
     stateRoot: block.stateRoot,
     totalDifficulty: block.totalDifficulty
-      ? formatHex(dialect, block.totalDifficulty)
+      ? hexToBigInt(block.totalDifficulty)
       : null,
     transactionsRoot: block.transactionsRoot,
   };
@@ -110,7 +88,7 @@ type LogsTable = {
   chainId: number;
   checkpoint: string | null;
   blockHash: Hash;
-  blockNumber: string | bigint;
+  blockNumber: bigint;
   logIndex: number;
   transactionHash: Hash;
   transactionIndex: number;
@@ -126,12 +104,10 @@ export const encodeLog = ({
   log,
   block,
   chainId,
-  dialect,
 }: {
   log: SyncLog;
   block?: SyncBlock;
   chainId: number;
-  dialect: "sqlite" | "postgres";
 }): Insertable<LogsTable> => {
   return {
     id: `${log.blockHash}-${log.logIndex}`,
@@ -148,7 +124,7 @@ export const encodeLog = ({
             eventIndex: hexToBigInt(log.logIndex),
           }),
     blockHash: log.blockHash,
-    blockNumber: formatHex(dialect, log.blockNumber),
+    blockNumber: hexToBigInt(log.blockNumber),
     logIndex: hexToNumber(log.logIndex),
     transactionHash: log.transactionHash,
     transactionIndex: hexToNumber(log.transactionIndex),
@@ -164,21 +140,21 @@ export const encodeLog = ({
 type TransactionsTable = {
   hash: Hash;
   blockHash: Hash;
-  blockNumber: string | bigint;
+  blockNumber: bigint;
   from: Address;
-  gas: string | bigint;
+  gas: bigint;
   input: Hex;
   nonce: number;
   r: Hex | null;
   s: Hex | null;
   to: Address | null;
   transactionIndex: number;
-  v: string | bigint | null;
-  value: string | bigint;
+  v: bigint | null;
+  value: bigint;
   type: Hex;
-  gasPrice: string | bigint | null;
-  maxFeePerGas: string | bigint | null;
-  maxPriorityFeePerGas: string | bigint | null;
+  gasPrice: bigint | null;
+  maxFeePerGas: bigint | null;
+  maxPriorityFeePerGas: bigint | null;
   accessList: string | null;
 
   chainId: number;
@@ -187,31 +163,27 @@ type TransactionsTable = {
 export const encodeTransaction = ({
   transaction,
   chainId,
-  dialect,
 }: {
   transaction: SyncTransaction;
   chainId: number;
-  dialect: "sqlite" | "postgres";
 }): Insertable<TransactionsTable> => {
   return {
     hash: transaction.hash,
     chainId,
     blockHash: transaction.blockHash,
-    blockNumber: formatHex(dialect, transaction.blockNumber),
+    blockNumber: hexToBigInt(transaction.blockNumber),
     accessList: transaction.accessList
       ? JSON.stringify(transaction.accessList)
       : undefined,
     from: toLowerCase(transaction.from),
-    gas: formatHex(dialect, transaction.gas),
-    gasPrice: transaction.gasPrice
-      ? formatHex(dialect, transaction.gasPrice)
-      : null,
+    gas: hexToBigInt(transaction.gas),
+    gasPrice: transaction.gasPrice ? hexToBigInt(transaction.gasPrice) : null,
     input: transaction.input,
     maxFeePerGas: transaction.maxFeePerGas
-      ? formatHex(dialect, transaction.maxFeePerGas)
+      ? hexToBigInt(transaction.maxFeePerGas)
       : null,
     maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
-      ? formatHex(dialect, transaction.maxPriorityFeePerGas)
+      ? hexToBigInt(transaction.maxPriorityFeePerGas)
       : null,
     nonce: hexToNumber(transaction.nonce),
     r: transaction.r ?? null,
@@ -219,8 +191,8 @@ export const encodeTransaction = ({
     to: transaction.to ? toLowerCase(transaction.to) : null,
     transactionIndex: hexToNumber(transaction.transactionIndex),
     type: transaction.type ?? "0x0",
-    value: formatHex(dialect, transaction.value),
-    v: transaction.v ? formatHex(dialect, transaction.v) : null,
+    value: hexToBigInt(transaction.value),
+    v: transaction.v ? hexToBigInt(transaction.v) : null,
   };
 };
 
@@ -228,12 +200,12 @@ type TransactionReceiptsTable = {
   transactionHash: Hash;
   chainId: number;
   blockHash: Hash;
-  blockNumber: string | bigint;
+  blockNumber: bigint;
   contractAddress: Address | null;
-  cumulativeGasUsed: string | bigint;
-  effectiveGasPrice: string | bigint;
+  cumulativeGasUsed: bigint;
+  effectiveGasPrice: bigint;
   from: Address;
-  gasUsed: string | bigint;
+  gasUsed: bigint;
   logs: string;
   logsBloom: Hex;
   status: Hex;
@@ -245,24 +217,22 @@ type TransactionReceiptsTable = {
 export const encodeTransactionReceipt = ({
   transactionReceipt,
   chainId,
-  dialect,
 }: {
   transactionReceipt: SyncTransactionReceipt;
   chainId: number;
-  dialect: "sqlite" | "postgres";
 }): Insertable<TransactionReceiptsTable> => {
   return {
     transactionHash: transactionReceipt.transactionHash,
     chainId,
     blockHash: transactionReceipt.blockHash,
-    blockNumber: formatHex(dialect, transactionReceipt.blockNumber),
+    blockNumber: hexToBigInt(transactionReceipt.blockNumber),
     contractAddress: transactionReceipt.contractAddress
       ? toLowerCase(transactionReceipt.contractAddress)
       : null,
-    cumulativeGasUsed: formatHex(dialect, transactionReceipt.cumulativeGasUsed),
-    effectiveGasPrice: formatHex(dialect, transactionReceipt.effectiveGasPrice),
+    cumulativeGasUsed: hexToBigInt(transactionReceipt.cumulativeGasUsed),
+    effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
     from: toLowerCase(transactionReceipt.from),
-    gasUsed: formatHex(dialect, transactionReceipt.gasUsed),
+    gasUsed: hexToBigInt(transactionReceipt.gasUsed),
     logs: JSON.stringify(transactionReceipt.logs),
     logsBloom: transactionReceipt.logsBloom,
     status: transactionReceipt.status,
@@ -278,14 +248,14 @@ type CallTracesTable = {
   checkpoint: string;
   callType: string;
   from: Address;
-  gas: string | bigint;
+  gas: bigint;
   input: Hex;
   to: Address;
-  value: string | bigint;
+  value: bigint;
   blockHash: Hex;
-  blockNumber: string | bigint;
+  blockNumber: bigint;
   error: string | null;
-  gasUsed: string | bigint | null;
+  gasUsed: bigint | null;
   output: Hex | null;
   subtraces: number;
   traceAddress: string;
@@ -297,25 +267,23 @@ type CallTracesTable = {
 export function encodeCallTrace({
   trace,
   chainId,
-  dialect,
 }: {
   trace: SyncCallTrace;
   chainId: number;
-  dialect: "sqlite" | "postgres";
 }): Insertable<Omit<CallTracesTable, "checkpoint">> {
   return {
     id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
     chainId,
     callType: trace.action.callType,
     from: toLowerCase(trace.action.from),
-    gas: formatHex(dialect, trace.action.gas),
+    gas: hexToBigInt(trace.action.gas),
     input: trace.action.input,
     to: toLowerCase(trace.action.to),
-    value: formatHex(dialect, trace.action.value),
+    value: hexToBigInt(trace.action.value),
     blockHash: trace.blockHash,
-    blockNumber: formatHex(dialect, trace.blockNumber),
+    blockNumber: hexToBigInt(trace.blockNumber),
     error: trace.error ?? null,
-    gasUsed: trace.result ? formatHex(dialect, trace.result.gasUsed) : null,
+    gasUsed: trace.result ? hexToBigInt(trace.result.gasUsed) : null,
     output: trace.result ? trace.result.output : null,
     subtraces: trace.subtraces,
     traceAddress: JSON.stringify(trace.traceAddress),
@@ -328,7 +296,7 @@ export function encodeCallTrace({
 type RpcRequestResultsTable = {
   request: string;
   chainId: number;
-  blockNumber: string | bigint;
+  blockNumber: bigint;
   result: string;
 };
 
@@ -346,8 +314,8 @@ type LogFiltersTable = {
 type LogFilterIntervalsTable = {
   id: Generated<number>;
   logFilterId: string;
-  startBlock: string | bigint;
-  endBlock: string | bigint;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 type FactoryLogFiltersTable = {
@@ -366,8 +334,8 @@ type FactoryLogFiltersTable = {
 type FactoryLogFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
-  startBlock: string | bigint;
-  endBlock: string | bigint;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 type TraceFiltersTable = {
@@ -380,8 +348,8 @@ type TraceFiltersTable = {
 type TraceFilterIntervalsTable = {
   id: Generated<number>;
   traceFilterId: string;
-  startBlock: string | bigint;
-  endBlock: string | bigint;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 type FactoryTraceFiltersTable = {
@@ -396,8 +364,8 @@ type FactoryTraceFiltersTable = {
 type FactoryTraceFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
-  startBlock: string | bigint;
-  endBlock: string | bigint;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 type BlockFiltersTable = {
@@ -410,8 +378,8 @@ type BlockFiltersTable = {
 type BlockFilterIntervalsTable = {
   id: Generated<number>;
   blockFilterId: string;
-  startBlock: string | bigint;
-  endBlock: string | bigint;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 export type PonderSyncSchema = {

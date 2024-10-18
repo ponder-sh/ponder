@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -9,8 +7,8 @@ import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
-} from "@/sync-store/postgres/migrations.js";
-import { migrationProvider as sqliteMigrationProvider } from "@/sync-store/sqlite/migrations.js";
+} from "@/sync-store/migrations.js";
+import type { Status } from "@/sync/index.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -19,15 +17,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
-import {
-  type SqliteDatabase,
-  createReadonlySqliteDatabase,
-  createSqliteDatabase,
-} from "@/utils/sqlite.js";
+import { createPglite } from "@/utils/pglite.js";
 import { wait } from "@/utils/wait.js";
+import type { PGlite } from "@electric-sql/pglite";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
-import { drizzle as createDrizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import {
   PgTable,
   getTableConfig,
@@ -36,20 +30,21 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import {
   Migrator,
   PostgresDialect,
-  SqliteDialect,
   type Transaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";
+import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database<
-  dialect extends "sqlite" | "postgres" = "sqlite" | "postgres",
+  dialect extends "pglite" | "postgres" = "pglite" | "postgres",
 > = {
   dialect: dialect;
   namespace: string;
@@ -93,7 +88,7 @@ type PonderApp = {
 type PonderInternalSchema = {
   _ponder_meta: {
     key: "status" | "app";
-    value: string | null;
+    value: PonderApp | Status | null;
   };
 } & {
   [_: `_ponder_reorg__${string}`]: {
@@ -103,18 +98,20 @@ type PonderInternalSchema = {
   };
 };
 
-type Driver<dialect extends "sqlite" | "postgres"> = dialect extends "sqlite"
-  ? {
-      user: SqliteDatabase;
-      readonly: SqliteDatabase;
-      sync: SqliteDatabase;
-    }
-  : {
-      internal: Pool;
-      user: Pool;
-      readonly: Pool;
-      sync: Pool;
-    };
+type PGliteDriver = {
+  instance: PGlite;
+};
+
+type PostgresDriver = {
+  internal: Pool;
+  user: Pool;
+  readonly: Pool;
+  sync: Pool;
+};
+
+type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
+  ? PGliteDriver
+  : PostgresDriver;
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
@@ -139,32 +136,29 @@ export const createDatabase = async (args: {
   // Create drivers and orms
   ////////
 
-  let dialect: Database["dialect"];
   let driver: Database["driver"];
   let qb: Database["qb"];
 
-  if (args.databaseConfig.kind === "sqlite") {
-    dialect = "sqlite";
+  const dialect = args.databaseConfig.kind;
+
+  if (args.databaseConfig.kind === "pglite") {
     namespace = "public";
 
-    const userFile = path.join(args.databaseConfig.directory, "public.db");
-    const syncFile = path.join(args.databaseConfig.directory, "ponder_sync.db");
-
     driver = {
-      user: createSqliteDatabase(userFile),
-      readonly: createReadonlySqliteDatabase(userFile),
-      sync: createSqliteDatabase(syncFile),
+      instance: createPglite(args.databaseConfig.options),
     };
+
+    const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
 
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "internal",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "internal",
             });
           }
         },
@@ -172,11 +166,11 @@ export const createDatabase = async (args: {
       user: new HeadlessKysely({
         name: "user",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.user }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "user",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "user",
             });
           }
         },
@@ -184,11 +178,11 @@ export const createDatabase = async (args: {
       readonly: new HeadlessKysely({
         name: "readonly",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.readonly }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "readonly",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "readonly",
             });
           }
         },
@@ -196,18 +190,18 @@ export const createDatabase = async (args: {
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
-        dialect: new SqliteDialect({ database: driver.sync }),
+        dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_sqlite_query_total.inc({
-              database: "sync",
+            args.common.metrics.ponder_postgres_query_total.inc({
+              pool: "sync",
             });
           }
         },
+        plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
   } else {
-    dialect = "postgres";
     namespace = args.databaseConfig.schema;
 
     const internalMax = 2;
@@ -309,116 +303,58 @@ export const createDatabase = async (args: {
     }
   }
 
-  const drizzle = createDrizzle(driver.user as Pool, args.schema);
+  const drizzle =
+    dialect === "pglite"
+      ? drizzlePglite((driver as PGliteDriver).instance, args.schema)
+      : drizzleNodePg((driver as PostgresDriver).user, args.schema);
 
-  if (fs.existsSync(args.common.options.migrationsDir)) {
-    await migrate(drizzle, {
-      migrationsFolder: args.common.options.migrationsDir,
-    });
-  }
+  // if (fs.existsSync(args.common.options.migrationsDir)) {
+  //   await migrate(drizzle, {
+  //     migrationsFolder: args.common.options.migrationsDir,
+  //   });
+  // }
 
   // Register metrics
-  if (dialect === "sqlite") {
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_sqlite_query_total",
-    );
-    args.common.metrics.ponder_sqlite_query_total = new prometheus.Counter({
-      name: "ponder_sqlite_query_total",
-      help: "Number of queries submitted to the database",
-      labelNames: ["database"] as const,
-      registers: [args.common.metrics.registry],
-    });
-  } else {
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_postgres_query_total",
-    );
-    args.common.metrics.ponder_postgres_query_total = new prometheus.Counter({
-      name: "ponder_postgres_query_total",
-      help: "Total number of queries submitted to the database",
-      labelNames: ["pool"] as const,
-      registers: [args.common.metrics.registry],
-    });
+  const d = driver as PostgresDriver;
+  args.common.metrics.registry.removeSingleMetric(
+    "ponder_postgres_pool_connections",
+  );
+  args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
+    name: "ponder_postgres_pool_connections",
+    help: "Number of connections in the pool",
+    labelNames: ["pool", "kind"] as const,
+    registers: [args.common.metrics.registry],
+    collect() {
+      this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
+      this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
+      this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+      this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+      this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
+      this.set({ pool: "user", kind: "total" }, d.user.totalCount);
+      this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
+      this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
+    },
+  });
 
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_postgres_pool_connections",
-    );
-    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
-      {
-        name: "ponder_postgres_pool_connections",
-        help: "Number of connections in the pool",
-        labelNames: ["pool", "kind"] as const,
-        registers: [args.common.metrics.registry],
-        collect() {
-          this.set(
-            { pool: "internal", kind: "idle" },
-            // @ts-ignore
-            driver.internal.idleCount,
-          );
-          this.set(
-            { pool: "internal", kind: "total" },
-            // @ts-ignore
-            driver.internal.totalCount,
-          );
+  args.common.metrics.registry.removeSingleMetric(
+    "ponder_postgres_query_queue_size",
+  );
+  args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
+    name: "ponder_postgres_query_queue_size",
+    help: "Number of query requests waiting for an available connection",
+    labelNames: ["pool"] as const,
+    registers: [args.common.metrics.registry],
+    collect() {
+      this.set({ pool: "internal" }, d.internal.waitingCount);
+      this.set({ pool: "sync" }, d.sync.waitingCount);
+      this.set({ pool: "user" }, d.user.waitingCount);
+      this.set({ pool: "readonly" }, d.readonly.waitingCount);
+    },
+  });
 
-          this.set(
-            { pool: "sync", kind: "idle" },
-            (driver.sync as Pool).idleCount,
-          );
-          this.set(
-            { pool: "sync", kind: "total" },
-            (driver.sync as Pool).totalCount,
-          );
-
-          this.set(
-            { pool: "user", kind: "idle" },
-            (driver.user as Pool).idleCount,
-          );
-          this.set(
-            { pool: "user", kind: "total" },
-            (driver.user as Pool).totalCount,
-          );
-
-          this.set(
-            { pool: "readonly", kind: "idle" },
-            (driver.readonly as Pool).idleCount,
-          );
-          this.set(
-            { pool: "readonly", kind: "total" },
-            (driver.readonly as Pool).totalCount,
-          );
-        },
-      },
-    );
-
-    args.common.metrics.registry.removeSingleMetric(
-      "ponder_postgres_query_queue_size",
-    );
-    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
-      {
-        name: "ponder_postgres_query_queue_size",
-        help: "Number of query requests waiting for an available connection",
-        labelNames: ["pool"] as const,
-        registers: [args.common.metrics.registry],
-        collect() {
-          // @ts-ignore
-          this.set({ pool: "internal" }, driver.internal.waitingCount);
-          this.set({ pool: "sync" }, (driver.sync as Pool).waitingCount);
-          this.set({ pool: "user" }, (driver.user as Pool).waitingCount);
-          this.set(
-            { pool: "readonly" },
-            (driver.readonly as Pool).waitingCount,
-          );
-        },
-      },
-    );
-  }
   ////////
   // Helpers
   ////////
-
-  const encodeApp = (app: PonderApp) => {
-    return dialect === "sqlite" ? JSON.stringify(app) : (app as any);
-  };
 
   /**
    * Undo operations in user tables by using the `_ponder_reorg` metadata.
@@ -536,29 +472,18 @@ export const createDatabase = async (args: {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
-        if (dialect === "postgres") {
-          await moveLegacyTables({
-            common: args.common,
-            // @ts-expect-error
-            db: qb.internal,
-            newSchemaName: "ponder_sync",
-          });
-        }
+        await moveLegacyTables({
+          common: args.common,
+          // @ts-expect-error
+          db: qb.internal,
+          newSchemaName: "ponder_sync",
+        });
 
-        let migrator: Migrator;
-
-        if (dialect === "sqlite") {
-          migrator = new Migrator({
-            db: qb.sync as any,
-            provider: sqliteMigrationProvider,
-          });
-        } else {
-          migrator = new Migrator({
-            db: qb.sync as any,
-            provider: postgresMigrationProvider,
-            migrationTableSchema: "ponder_sync",
-          });
-        }
+        const migrator = new Migrator({
+          db: qb.sync as any,
+          provider: postgresMigrationProvider,
+          migrationTableSchema: "ponder_sync",
+        });
 
         const { error } = await migrator.migrateToLatest();
         if (error) throw error;
@@ -573,145 +498,66 @@ export const createDatabase = async (args: {
 
       // v0.6 migration
 
-      if (args.databaseConfig.kind === "sqlite") {
-        const ponderFile = path.join(
-          args.databaseConfig.directory,
-          "ponder.db",
-        );
-        if (fs.existsSync(ponderFile)) {
-          const _driver = createSqliteDatabase(ponderFile);
-          const _orm = new HeadlessKysely<any>({
-            name: "user",
-            common: args.common,
-            dialect: new SqliteDialect({ database: _driver }),
-          });
-          await qb.internal.wrap({ method: "setup" }, async () => {
-            const namespaceCount = await _orm
-              .selectFrom("namespace_lock")
-              .select(sql`count(*)`.as("count"))
-              .executeTakeFirst();
+      const hasPonderSchema = await qb.internal
+        // @ts-ignore
+        .selectFrom("information_schema.schemata")
+        // @ts-ignore
+        .select("schema_name")
+        // @ts-ignore
+        .where("schema_name", "=", "ponder")
+        .executeTakeFirst()
+        .then((schema) => schema?.schema_name === "ponder");
 
-            const tableNames = await _orm
-              .selectFrom("namespace_lock")
-              .select("schema")
-              .where("namespace", "=", namespace)
-              .executeTakeFirst()
-              .then((schema) =>
-                schema === undefined
-                  ? undefined
-                  : Object.keys(JSON.parse(schema.schema).tables),
-              );
-            if (tableNames) {
-              for (const tableName of tableNames) {
-                await qb.internal.schema
-                  .dropTable(tableName)
-                  .ifExists()
-                  .execute();
-              }
+      if (hasPonderSchema) {
+        await qb.internal.wrap({ method: "setup" }, async () => {
+          const namespaceCount = await qb.internal
+            .withSchema("ponder")
+            // @ts-ignore
+            .selectFrom("namespace_lock")
+            .select(sql`count(*)`.as("count"))
+            .executeTakeFirst();
 
-              await _orm
-                .deleteFrom("namespace_lock")
-                .where("namespace", "=", namespace)
+          const tableNames = await qb.internal
+            .withSchema("ponder")
+            // @ts-ignore
+            .selectFrom("namespace_lock")
+            // @ts-ignore
+            .select("schema")
+            // @ts-ignore
+            .where("namespace", "=", namespace)
+            .executeTakeFirst()
+            .then((schema: any | undefined) =>
+              schema === undefined
+                ? undefined
+                : Object.keys(schema.schema.tables),
+            );
+          if (tableNames) {
+            for (const tableName of tableNames) {
+              await qb.internal.schema
+                .dropTable(tableName)
+                .ifExists()
+                .cascade()
                 .execute();
-
-              await _orm.destroy();
-              _driver.close();
-
-              if (namespaceCount!.count === 1) {
-                fs.rmSync(
-                  // @ts-ignore
-                  path.join(args.databaseConfig.directory, "ponder.db"),
-                  {
-                    force: true,
-                  },
-                );
-                fs.rmSync(
-                  // @ts-ignore
-                  path.join(args.databaseConfig.directory, "ponder.db-shm"),
-                  {
-                    force: true,
-                  },
-                );
-                fs.rmSync(
-                  // @ts-ignore
-                  path.join(args.databaseConfig.directory, "ponder.db-wal"),
-                  {
-                    force: true,
-                  },
-                );
-                args.common.logger.debug({
-                  service: "database",
-                  msg: `Removed '.ponder/sqlite/ponder.db' file`,
-                });
-              }
             }
-          });
-        }
-      } else {
-        const hasPonderSchema = await qb.internal
-          // @ts-ignore
-          .selectFrom("information_schema.schemata")
-          // @ts-ignore
-          .select("schema_name")
-          // @ts-ignore
-          .where("schema_name", "=", "ponder")
-          .executeTakeFirst()
-          .then((schema) => schema?.schema_name === "ponder");
 
-        if (hasPonderSchema) {
-          await qb.internal.wrap({ method: "setup" }, async () => {
-            const namespaceCount = await qb.internal
+            await qb.internal
               .withSchema("ponder")
               // @ts-ignore
-              .selectFrom("namespace_lock")
-              .select(sql`count(*)`.as("count"))
-              .executeTakeFirst();
-
-            const tableNames = await qb.internal
-              .withSchema("ponder")
-              // @ts-ignore
-              .selectFrom("namespace_lock")
-              // @ts-ignore
-              .select("schema")
+              .deleteFrom("namespace_lock")
               // @ts-ignore
               .where("namespace", "=", namespace)
-              .executeTakeFirst()
-              .then((schema: any | undefined) =>
-                schema === undefined
-                  ? undefined
-                  : Object.keys(schema.schema.tables),
-              );
-            if (tableNames) {
-              for (const tableName of tableNames) {
-                await qb.internal.schema
-                  .dropTable(tableName)
-                  .ifExists()
-                  .cascade()
-                  .execute();
-              }
+              .execute();
 
-              await qb.internal
-                .withSchema("ponder")
-                // @ts-ignore
-                .deleteFrom("namespace_lock")
-                // @ts-ignore
-                .where("namespace", "=", namespace)
-                .execute();
+            if (namespaceCount!.count === 1) {
+              await qb.internal.schema.dropSchema("ponder").cascade().execute();
 
-              if (namespaceCount!.count === 1) {
-                await qb.internal.schema
-                  .dropSchema("ponder")
-                  .cascade()
-                  .execute();
-
-                args.common.logger.debug({
-                  service: "database",
-                  msg: `Removed 'ponder' schema`,
-                });
-              }
+              args.common.logger.debug({
+                service: "database",
+                msg: `Removed 'ponder' schema`,
+              });
             }
-          });
-        }
+          }
+        });
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
@@ -788,12 +634,9 @@ export const createDatabase = async (args: {
               .select("value")
               .executeTakeFirst();
 
-            const previousApp: PonderApp | undefined =
-              row === undefined
-                ? undefined
-                : dialect === "sqlite"
-                  ? JSON.parse(row.value!)
-                  : row.value;
+            const previousApp = (row?.value ?? undefined) as
+              | PonderApp
+              | undefined;
 
             const newApp = {
               is_locked: 1,
@@ -817,7 +660,7 @@ export const createDatabase = async (args: {
                 .execute();
               await tx
                 .insertInto("_ponder_meta")
-                .values({ key: "app", value: encodeApp(newApp) })
+                .values({ key: "app", value: newApp })
                 .execute();
               args.common.logger.debug({
                 service: "database",
@@ -865,12 +708,12 @@ export const createDatabase = async (args: {
               await tx
                 .updateTable("_ponder_meta")
                 .set({
-                  value: encodeApp({
+                  value: {
                     ...previousApp,
                     is_locked: 1,
                     is_dev: 0,
                     heartbeat_at: Date.now(),
-                  }),
+                  },
                 })
                 .where("key", "=", "app")
                 .execute();
@@ -949,7 +792,7 @@ export const createDatabase = async (args: {
 
             await tx
               .updateTable("_ponder_meta")
-              .set({ value: encodeApp(newApp) })
+              .set({ value: newApp })
               .where("key", "=", "app")
               .execute();
 
@@ -1018,10 +861,7 @@ export const createDatabase = async (args: {
             .updateTable("_ponder_meta")
             .where("key", "=", "app")
             .set({
-              value:
-                dialect === "sqlite"
-                  ? sql`json_set(value, '$.heartbeat_at', ${heartbeat})`
-                  : sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
+              value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
             })
             .execute();
 
@@ -1170,10 +1010,7 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
           .set({
-            value:
-              dialect === "sqlite"
-                ? sql`json_set(value, '$.checkpoint', ${checkpoint})`
-                : sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
+            value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
           })
           .execute();
 
@@ -1218,10 +1055,7 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
         .updateTable("_ponder_meta")
         .where("key", "=", "app")
         .set({
-          value:
-            dialect === "sqlite"
-              ? sql`json_set(value, '$.is_locked', 0)`
-              : sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
         })
         .execute();
 
@@ -1235,22 +1069,17 @@ FOR EACH ROW EXECUTE FUNCTION ${sqlTableName}_reorg_operation();
       await qb.readonly.destroy();
       await qb.sync.destroy();
 
-      if (dialect === "sqlite") {
-        // @ts-ignore
-        driver.user.close();
-        // @ts-ignore
-        driver.readonly.close();
-        // @ts-ignore
-        driver.sync.close();
-      } else {
-        // @ts-ignore
-        await driver.internal.end();
-        // @ts-ignore
-        await driver.user.end();
-        // @ts-ignore
-        await driver.readonly.end();
-        // @ts-ignore
-        await driver.sync.end();
+      if (dialect === "pglite") {
+        const d = driver as PGliteDriver;
+        await d.instance.close();
+      }
+
+      if (dialect === "postgres") {
+        const d = driver as PostgresDriver;
+        await d.internal.end();
+        await d.user.end();
+        await d.readonly.end();
+        await d.sync.end();
       }
 
       args.common.logger.debug({
