@@ -216,10 +216,10 @@ export const generateTableSQL = ({
   return statement;
 };
 
-export const rawToSqlTableName = (tableName: string, instanceId: string) =>
+export const userToSqlTableName = (tableName: string, instanceId: string) =>
   `${instanceId}__${tableName}`;
 
-export const rawToReorgTableName = (tableName: string, instanceId: string) =>
+export const userToReorgTableName = (tableName: string, instanceId: string) =>
   `${instanceId}_reorg__${tableName}`;
 
 export const getTableNames = (schema: Schema, instanceId: string) => {
@@ -231,9 +231,9 @@ export const getTableNames = (schema: Schema, instanceId: string) => {
 
       return {
         user,
-        sql: tableName,
-        reorg: `${instanceId}_reorg__${user}`,
-        trigger: `${instanceId}_reorg__${user}`,
+        sql: userToSqlTableName(user, instanceId),
+        reorg: userToReorgTableName(user, instanceId),
+        trigger: userToReorgTableName(user, instanceId),
         triggerFn: `operation_${instanceId}_reorg__${user}()`,
         js,
       } as const;

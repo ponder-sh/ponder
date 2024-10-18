@@ -11,14 +11,14 @@ import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import { createSchema } from "@/index.js";
-import { getHistoricalStore } from "@/indexing-store/historical.js";
-import { getReadonlyStore } from "@/indexing-store/readonly.js";
-import { getRealtimeStore } from "@/indexing-store/realtime.js";
-import type { IndexingStore, ReadonlyStore } from "@/indexing-store/store.js";
-import type { Schema } from "@/schema/common.js";
+import type { Schema } from "@/drizzle/index.js";
+import {
+  type IndexingStore,
+  createIndexingStore,
+} from "@/indexing-store/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
@@ -97,7 +97,6 @@ export async function setupIsolatedDatabase(context: TestContext) {
     context.databaseConfig = {
       kind: "postgres",
       poolConfig,
-      schema: "public",
     };
 
     return () => {};
@@ -115,12 +114,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
 type DatabaseServiceSetup = {
   buildId: string;
+  instanceId: string;
   schema: Schema;
   indexing: "realtime" | "historical";
 };
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   buildId: "test",
-  schema: createSchema(() => ({})),
+  instanceId: "test",
+  schema: {},
   indexing: "historical",
 };
 
@@ -131,17 +132,18 @@ export async function setupDatabaseServices(
   database: Database;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
-  readonlyStore: ReadonlyStore;
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,
+    instanceId: config.instanceId,
+    buildId: config.buildId,
   });
 
-  await database.setup(config);
+  await database.setup();
 
   await database.migrateSync();
 
@@ -151,38 +153,17 @@ export async function setupDatabaseServices(
     db: database.qb.sync,
   });
 
-  const readonlyStore = getReadonlyStore({
-    dialect: database.dialect,
-    schema: config.schema,
-    db: database.qb.user,
+  const indexingStore = createIndexingStore({
     common: context.common,
+    database,
+    schema: config.schema,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
-
-  const indexingStore =
-    config.indexing === "historical"
-      ? getHistoricalStore({
-          dialect: database.dialect,
-          schema: config.schema,
-          readonlyStore,
-          db: database.qb.user,
-          common: context.common,
-          isCacheExhaustive: true,
-        })
-      : {
-          ...readonlyStore,
-          ...getRealtimeStore({
-            dialect: database.dialect,
-            schema: config.schema,
-            db: database.qb.user,
-            common: context.common,
-          }),
-        };
 
   const cleanup = () => database.kill();
 
   return {
     database,
-    readonlyStore,
     indexingStore,
     syncStore,
     cleanup,

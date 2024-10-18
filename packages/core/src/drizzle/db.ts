@@ -20,7 +20,7 @@ import {
 } from "drizzle-orm/pg-core/columns/all";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain } from "./index.js";
-import { rawToSqlTableName } from "./sql.js";
+import { userToSqlTableName } from "./sql.js";
 
 const instanceId: string = await import("@/generated")
   // @ts-ignore
@@ -208,7 +208,7 @@ export const onchainTable = <
   }
 
   const table = pgTableWithSchema(
-    rawToSqlTableName(name, instanceId),
+    userToSqlTableName(name, instanceId),
     columns,
     extraConfig as any,
     undefined,
@@ -259,7 +259,7 @@ export class OnchainSchema<schema extends string> extends PgSchema<schema> {
     }
 
     const table = pgTableWithSchema(
-      rawToSqlTableName(name, instanceId),
+      userToSqlTableName(name, instanceId),
       columns,
       extraConfig as any,
       this.schemaName,

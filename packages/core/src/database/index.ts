@@ -9,8 +9,8 @@ import {
   generateTableSQL,
   getPrimaryKeyColumns,
   getTableNames,
-  rawToReorgTableName,
-  rawToSqlTableName,
+  userToReorgTableName,
+  userToSqlTableName,
 } from "@/drizzle/sql.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
@@ -328,6 +328,7 @@ export const createDatabase = async (args: {
   }
 
   // TODO(kyle) validate all tables use `namespace`
+  // TODO(kyle) validate all tables have primary key
 
   const drizzle = createDrizzle(driver.user as Pool, args.schema);
 
@@ -572,6 +573,23 @@ export const createDatabase = async (args: {
       });
     },
     async setup() {
+      await qb.internal.wrap({ method: "setup" }, async () => {
+        if (dialect === "postgres") {
+          await qb.internal.schema
+            .createSchema(namespace)
+            .ifNotExists()
+            .execute();
+        }
+
+        // Create "_ponder_meta" table if it doesn't exist
+        await qb.internal.schema
+          .createTable("_ponder_meta")
+          .addColumn("key", "text", (col) => col.primaryKey())
+          .addColumn("value", "jsonb")
+          .ifNotExists()
+          .execute();
+      });
+
       ////////
       // Migrate
       ////////
@@ -757,12 +775,12 @@ export const createDatabase = async (args: {
             for (const tableName of previousApp.table_names) {
               await tx.schema
                 .alterTable(tableName)
-                .renameTo(rawToSqlTableName(tableName, instanceId))
+                .renameTo(userToSqlTableName(tableName, instanceId))
                 .execute();
 
               await tx.schema
                 .alterTable(`_ponder_reorg__${tableName}`)
-                .renameTo(rawToReorgTableName(tableName, instanceId))
+                .renameTo(userToReorgTableName(tableName, instanceId))
                 .execute();
             }
 
@@ -773,26 +791,14 @@ export const createDatabase = async (args: {
                 value: encodeApp({ ...previousApp, instance_id: instanceId }),
               })
               .execute();
+
+            args.common.logger.debug({
+              service: "database",
+              msg: "Migrated previous app to v0.7",
+            });
           }
         }),
       );
-
-      await qb.internal.wrap({ method: "setup" }, async () => {
-        if (dialect === "postgres") {
-          await qb.internal.schema
-            .createSchema(namespace)
-            .ifNotExists()
-            .execute();
-        }
-
-        // Create "_ponder_meta" table if it doesn't exist
-        await qb.internal.schema
-          .createTable("_ponder_meta")
-          .addColumn("key", "text", (col) => col.primaryKey())
-          .addColumn("value", "jsonb")
-          .ifNotExists()
-          .execute();
-      });
 
       const attempt = async ({ isFirstAttempt }: { isFirstAttempt: boolean }) =>
         qb.internal.wrap({ method: "setup" }, () =>
@@ -983,19 +989,19 @@ export const createDatabase = async (args: {
               for (const tableName of crashRecoveryApp.table_names) {
                 await tx.schema
                   .alterTable(
-                    rawToSqlTableName(tableName, crashRecoveryApp.instance_id),
+                    userToSqlTableName(tableName, crashRecoveryApp.instance_id),
                   )
-                  .renameTo(rawToSqlTableName(tableName, args.instanceId))
+                  .renameTo(userToSqlTableName(tableName, args.instanceId))
                   .execute();
 
                 await tx.schema
                   .alterTable(
-                    rawToReorgTableName(
+                    userToReorgTableName(
                       tableName,
                       crashRecoveryApp.instance_id,
                     ),
                   )
-                  .renameTo(rawToReorgTableName(tableName, args.instanceId))
+                  .renameTo(userToReorgTableName(tableName, args.instanceId))
                   .execute();
               }
 
@@ -1129,11 +1135,11 @@ export const createDatabase = async (args: {
           ...app.table_names.flatMap((table) => [
             // Drop table
             qb.internal.schema.dropTable(
-              rawToSqlTableName(table, app.instance_id),
+              userToSqlTableName(table, app.instance_id),
             ),
             // Drop reorg
             qb.internal.schema.dropTable(
-              rawToReorgTableName(table, app.instance_id),
+              userToReorgTableName(table, app.instance_id),
             ),
           ]),
           // Drop status
