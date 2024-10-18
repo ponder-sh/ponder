@@ -19,12 +19,16 @@ import {
   numeric as PgNumeric,
   text as PgText,
 } from "drizzle-orm/pg-core";
-import type { Pool } from "pg";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { PgHexBuilder } from "./hex.js";
 import { PgListBuilder } from "./list.js";
 
 export const createDrizzleDb = (database: Database) => {
-  const drizzle = drizzlePg(database.driver.readonly as Pool);
+  const drizzle =
+    "instance" in database.driver
+      ? drizzlePglite(database.driver.instance)
+      : drizzlePg(database.driver.readonly);
+
   return {
     // @ts-ignore
     select: (...args: any[]) => drizzle.select(...args),

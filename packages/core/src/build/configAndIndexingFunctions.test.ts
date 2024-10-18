@@ -403,10 +403,10 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
         address: "",
       },
     },
-  }) as Config;
+  });
 
   const result = await safeBuildConfigAndIndexingFunctions({
-    config,
+    config: config as unknown as Config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
@@ -430,10 +430,10 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
         address: "0b0000000000000000000000000000000000000001",
       },
     },
-  }) as Config;
+  });
 
   const result = await safeBuildConfigAndIndexingFunctions({
-    config,
+    config: config as unknown as Config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
     options,
   });
@@ -647,7 +647,9 @@ test("buildConfigAndIndexingFunctions() database uses pglite by default", async 
   });
   expect(databaseConfig).toMatchObject({
     kind: "pglite",
-    directory: expect.stringContaining(path.join(".ponder", "pglite")),
+    options: {
+      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+    },
   });
 
   process.env.DATABASE_URL = prev;
@@ -668,7 +670,9 @@ test("buildConfigAndIndexingFunctions() database respects custom pglite path", a
 
   expect(databaseConfig).toMatchObject({
     kind: "pglite",
-    directory: expect.stringContaining(path.join("custom-pglite", "directory")),
+    options: {
+      dataDir: expect.stringContaining(path.join("custom-pglite", "directory")),
+    },
   });
 });
 

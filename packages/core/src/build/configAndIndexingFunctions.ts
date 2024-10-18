@@ -114,7 +114,7 @@ export async function buildConfigAndIndexingFunctions({
         msg: `Using PGlite database in '${pglitePrintPath}' (from ponder.config.ts)`,
       });
 
-      databaseConfig = { kind: "pglite", directory: pgliteDir };
+      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
     }
   } else {
     let connectionString: string | undefined = undefined;
@@ -170,7 +170,7 @@ export async function buildConfigAndIndexingFunctions({
         msg: `Using PGlite database at ${pglitePrintPath} (default)`,
       });
 
-      databaseConfig = { kind: "pglite", directory: pgliteDir };
+      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
     }
   }
 

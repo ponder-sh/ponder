@@ -27,7 +27,7 @@ const setup = async () => {
   context = {} as TestContext;
 
   setupCommon(context);
-  const cleanupDatabase = await setupIsolatedDatabase(context);
+  await setupIsolatedDatabase(context);
   const { indexingStore: indexingStore_, cleanup: cleanupIndexingStore } =
     await setupDatabaseServices(context, {
       schema,
@@ -36,7 +36,6 @@ const setup = async () => {
   indexingStore = indexingStore_;
   cleanup = async () => {
     await cleanupIndexingStore();
-    await cleanupDatabase();
   };
 
   await indexingStore.createMany({
