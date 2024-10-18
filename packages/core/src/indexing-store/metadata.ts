@@ -8,15 +8,17 @@ export type MetadataStore = {
 
 export const getMetadataStore = ({
   db,
+  instanceId,
 }: {
   db: HeadlessKysely<any>;
+  instanceId: string;
 }): MetadataStore => ({
   getStatus: async () => {
     return db.wrap({ method: "_ponder_meta.getStatus()" }, async () => {
       const metadata = await db
         .selectFrom("_ponder_meta")
         .select("value")
-        .where("key", "=", "status")
+        .where("key", "=", `status_${instanceId}`)
         .executeTakeFirst();
 
       if (metadata!.value === null) return null;
@@ -29,7 +31,7 @@ export const getMetadataStore = ({
       await db
         .insertInto("_ponder_meta")
         .values({
-          key: "status",
+          key: `status_${instanceId}`,
           value: status,
         })
         .onConflict((oc) =>

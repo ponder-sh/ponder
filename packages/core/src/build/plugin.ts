@@ -19,7 +19,7 @@ const ponderHono = {
   },
 };
 
-const instanceId = crypto.randomBytes(2).toString("hex")
+const instanceId = crypto.randomBytes(2).toString("hex");
 
 const ponder = {
   ...ponderHono,

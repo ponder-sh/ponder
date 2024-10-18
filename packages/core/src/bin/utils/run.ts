@@ -60,6 +60,7 @@ export async function run({
 
   const metadataStore = getMetadataStore({
     db: database.qb.user,
+    instanceId,
   });
 
   // This can be a long-running operation, so it's best to do it after

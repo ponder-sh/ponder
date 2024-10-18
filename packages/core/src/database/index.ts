@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
@@ -528,7 +529,7 @@ export const createDatabase = async (args: {
 
     args.common.logger.info({
       service: "database",
-      msg: `Reverted ${rows.length} unfinalized operations from '${tableName.raw}' table`,
+      msg: `Reverted ${rows.length} unfinalized operations from '${tableName.user}' table`,
     });
   };
 
@@ -665,7 +666,7 @@ export const createDatabase = async (args: {
           .then((schema) => schema?.schema_name === "ponder");
 
         if (hasPonderSchema) {
-          await qb.internal.wrap({ method: "setup" }, async () => {
+          await qb.internal.wrap({ method: "migrate" }, async () => {
             const namespaceCount = await qb.internal
               .withSchema("ponder")
               // @ts-ignore
@@ -720,7 +721,61 @@ export const createDatabase = async (args: {
         }
       }
 
-      // TODO(kyle) v0.7 migration
+      // v0.7 migration
+
+      await qb.internal.wrap({ method: "migrate" }, () =>
+        qb.internal.transaction().execute(async (tx) => {
+          const previousApp: PonderApp | undefined = await tx
+            .selectFrom("_ponder_meta")
+            // @ts-ignore
+            .where("key", "=", "app")
+            .select("value")
+            .executeTakeFirst()
+            .then((row) =>
+              row === undefined
+                ? undefined
+                : dialect === "sqlite"
+                  ? JSON.parse(row.value as string)
+                  : (row.value as string),
+            );
+
+          if (previousApp) {
+            const instanceId = crypto.randomBytes(2).toString("hex");
+
+            await tx
+              .deleteFrom("_ponder_meta")
+              // @ts-ignore
+              .where("key", "=", "app")
+              .execute();
+
+            await tx
+              .deleteFrom("_ponder_meta")
+              // @ts-ignore
+              .where("key", "=", "status")
+              .execute();
+
+            for (const tableName of previousApp.table_names) {
+              await tx.schema
+                .alterTable(tableName)
+                .renameTo(rawToSqlTableName(tableName, instanceId))
+                .execute();
+
+              await tx.schema
+                .alterTable(`_ponder_reorg__${tableName}`)
+                .renameTo(rawToReorgTableName(tableName, instanceId))
+                .execute();
+            }
+
+            await tx
+              .insertInto("_ponder_meta")
+              .values({
+                key: `app_${instanceId}`,
+                value: encodeApp({ ...previousApp, instance_id: instanceId }),
+              })
+              .execute();
+          }
+        }),
+      );
 
       await qb.internal.wrap({ method: "setup" }, async () => {
         if (dialect === "postgres") {
@@ -824,7 +879,7 @@ export const createDatabase = async (args: {
               build_id: args.buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
               table_names: getTableNames(args.schema, args.instanceId).map(
-                (tableName) => tableName.raw,
+                (tableName) => tableName.user,
               ),
             } satisfies PonderApp;
 
@@ -1198,14 +1253,14 @@ export const createDatabase = async (args: {
       await qb.internal.wrap({ method: "createViews" }, async () => {
         for (const tableName of getTableNames(args.schema, args.instanceId)) {
           await qb.internal.schema
-            .createView(tableName.raw)
+            .createView(tableName.user)
             .orReplace()
             .as(qb.internal.selectFrom(tableName.sql))
             .execute();
 
           args.common.logger.info({
             service: "database",
-            msg: `Created view '${namespace}'.'${tableName.raw}'`,
+            msg: `Created view '${namespace}'.'${tableName.user}'`,
           });
         }
       });

@@ -166,8 +166,6 @@ type PgColumnsBuilders = _PgColumnsBuilders & {
   evmBigint: typeof evmBigint;
 };
 
-// TODO(kyle) add objects at runtime
-
 /**
  * Create an onchain table
  *
@@ -188,13 +186,33 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  const table = pgTableWithSchema(name, columns, extraConfig as any, undefined);
+  if (instanceId === undefined) {
+    const table = pgTableWithSchema(
+      name,
+      columns,
+      extraConfig as any,
+      undefined,
+    );
 
-  /**
-   * This trick is used to make `table instanceof PgTable` evaluate to false.
-   * This is necessary to avoid generating migrations for onchain tables.
-   */
-  Object.setPrototypeOf(table, Object.prototype);
+    /**
+     * This trick is used to make `table instanceof PgTable` evaluate to false.
+     * This is necessary to avoid generating migrations for onchain tables.
+     */
+    Object.setPrototypeOf(table, Object.prototype);
+
+    // @ts-ignore
+    table[onchain] = true;
+
+    // @ts-ignore
+    return table;
+  }
+
+  const table = pgTableWithSchema(
+    rawToSqlTableName(name, instanceId),
+    columns,
+    extraConfig as any,
+    undefined,
+  );
 
   // @ts-ignore
   table[onchain] = true;

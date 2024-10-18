@@ -227,14 +227,14 @@ export const getTableNames = (schema: Schema, instanceId: string) => {
     .filter(([, table]) => is(table, PgTable))
     .map(([js, table]) => {
       const tableName = getTableName(table as PgTable);
-      const raw = tableName.slice(6);
+      const user = tableName.slice(6);
 
       return {
+        user,
         sql: tableName,
-        raw,
-        reorg: `${instanceId}_reorg__${raw}`,
-        trigger: `${instanceId}_reorg__${raw}`,
-        triggerFn: `operation_${instanceId}_reorg__${raw}()`,
+        reorg: `${instanceId}_reorg__${user}`,
+        trigger: `${instanceId}_reorg__${user}`,
+        triggerFn: `operation_${instanceId}_reorg__${user}()`,
         js,
       } as const;
     });
