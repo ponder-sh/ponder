@@ -311,7 +311,7 @@ test("startRealtime()", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   const status = sync.getStatus();
 
@@ -346,7 +346,7 @@ test("onEvent() handles block", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   await promise.promise;
 
@@ -382,7 +382,7 @@ test("onEvent() handles finalize", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   await promise.promise;
 
@@ -421,7 +421,7 @@ test("onEvent() multichain end block", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   await promise.promise;
 
@@ -453,7 +453,7 @@ test("onEvent() multichain gets all events", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   await promise.promise;
 
@@ -487,7 +487,7 @@ test("onEvent() handles endBlock finalization", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   await promise.promise;
 
@@ -513,12 +513,14 @@ test("onEvent() handles errors", async (context) => {
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
+  await testClient.mine({ blocks: 4 });
+
   await drainAsyncGenerator(sync.getEvents());
 
   const spy = vi.spyOn(syncStore, "insertTransactions");
   spy.mockRejectedValue(new Error());
 
-  sync.startRealtime();
+  await sync.startRealtime();
 
   await promise.promise;
 

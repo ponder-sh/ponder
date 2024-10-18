@@ -1,4 +1,5 @@
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
+import type { SyncLog } from "@/types/sync.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
 
 export type Source = ContractSource | BlockSource;
@@ -76,4 +77,29 @@ export const isAddressFactory = (
   if (address === undefined || address === null || typeof address === "string")
     return false;
   return Array.isArray(address) ? isAddressFactory(address[0]) : true;
+};
+
+export const getChildAddress = ({
+  log,
+  factory,
+}: { log: SyncLog; factory: Factory }): Address => {
+  if (factory.childAddressLocation.startsWith("offset")) {
+    const childAddressOffset = Number(
+      factory.childAddressLocation.substring(6),
+    );
+    const start = 2 + 12 * 2 + childAddressOffset * 2;
+    const length = 20 * 2;
+
+    return `0x${log.data.substring(start, start + length)}`;
+  } else {
+    const start = 2 + 12 * 2;
+    const length = 20 * 2;
+    const topicIndex =
+      factory.childAddressLocation === "topic1"
+        ? 1
+        : factory.childAddressLocation === "topic2"
+          ? 2
+          : 3;
+    return `0x${log.topics[topicIndex]!.substring(start, start + length)}`;
+  }
 };

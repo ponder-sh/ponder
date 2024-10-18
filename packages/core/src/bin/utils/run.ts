@@ -95,13 +95,6 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "block": {
-          /**
-           * Note: `status` should be assigned before any other
-           * synchronous statements in order to prevent race conditions and
-           * ensure its correctness.
-           */
-          const status = sync.getStatus();
-
           const result = await handleEvents(
             decodeEvents(common, sources, event.events),
             event.checkpoint,
@@ -112,7 +105,7 @@ export async function run({
           // overwrite the temporary "checkpoint" value in reorg tables
           await database.complete({ checkpoint: event.checkpoint });
 
-          await metadataStore.setStatus(status);
+          await metadataStore.setStatus(event.status);
 
           break;
         }
@@ -188,6 +181,10 @@ export async function run({
       decodeCheckpoint(end ?? start).blockTimestamp -
         decodeCheckpoint(start).blockTimestamp,
     );
+    common.metrics.ponder_indexing_total_seconds.set(
+      decodeCheckpoint(end ?? start).blockTimestamp -
+        decodeCheckpoint(start).blockTimestamp,
+    );
     common.metrics.ponder_indexing_completed_timestamp.set(
       decodeCheckpoint(end ?? start).blockTimestamp,
     );
@@ -203,7 +200,7 @@ export async function run({
     // await database.createIndexes({ schema });
     await database.createTriggers();
 
-    sync.startRealtime();
+    await sync.startRealtime();
 
     await metadataStore.setStatus(sync.getStatus());
 

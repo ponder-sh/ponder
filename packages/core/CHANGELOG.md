@@ -1,5 +1,47 @@
 # @ponder/core
 
+## 0.6.15
+
+### Patch Changes
+
+- [#1164](https://github.com/ponder-sh/ponder/pull/1164) [`087d393da96a5368b1c9594887b63485931518ec`](https://github.com/ponder-sh/ponder/commit/087d393da96a5368b1c9594887b63485931518ec) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6.0 where the `disableCache` option did not correctly ignore the cache in some cases.
+
+## 0.6.13
+
+### Patch Changes
+
+- [#1160](https://github.com/ponder-sh/ponder/pull/1160) [`c75f6587dc4cf9f5a35bd7a239f482f4ae2c6b7d`](https://github.com/ponder-sh/ponder/commit/c75f6587dc4cf9f5a35bd7a239f482f4ae2c6b7d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6 that caused events to be skipped near the end of the historical backfill. This bug did not affect the sync cache and does not require the app to be resynced.
+
+## 0.6.12
+
+### Patch Changes
+
+- [#1152](https://github.com/ponder-sh/ponder/pull/1152) [`d436bdbeda7329658f127e01e0e2bfc9aeedff1a`](https://github.com/ponder-sh/ponder/commit/d436bdbeda7329658f127e01e0e2bfc9aeedff1a) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added validations for inconsistent RPC responses.
+
+## 0.6.11
+
+### Patch Changes
+
+- [#1155](https://github.com/ponder-sh/ponder/pull/1155) [`84889e6c00bae8f004a4e8665ec101a2a2f45e64`](https://github.com/ponder-sh/ponder/commit/84889e6c00bae8f004a4e8665ec101a2a2f45e64) Thanks [@sinasab](https://github.com/sinasab)! - Bumped `@hono/node-server` to fix a regression introduced in `0.5.0` that caused the HTTP server to not listen on IPv6 by default.
+
+## 0.6.10
+
+### Patch Changes
+
+- [#1115](https://github.com/ponder-sh/ponder/pull/1115) [`1a7d1f8eaeddcc65730fecc89dd55594aa0b6920`](https://github.com/ponder-sh/ponder/commit/1a7d1f8eaeddcc65730fecc89dd55594aa0b6920) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of realtime event processing.
+
+## 0.6.9
+
+### Patch Changes
+
+- [#1149](https://github.com/ponder-sh/ponder/pull/1149) [`988289e97bb47e122d0dd177a890bbb6fbd719ea`](https://github.com/ponder-sh/ponder/commit/988289e97bb47e122d0dd177a890bbb6fbd719ea) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where the `/status` endpoint would temporarily return incorrect data during realtime.
+
+## 0.6.8
+
+### Patch Changes
+
+- [#1143](https://github.com/ponder-sh/ponder/pull/1143) [`9f86d5f56b17231bd412b2d231bf623b5948fbaa`](https://github.com/ponder-sh/ponder/commit/9f86d5f56b17231bd412b2d231bf623b5948fbaa) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Eliminated unnecessary `eth_getTransactionReceipt` requests in realtime when `includeTransactionReceipts` was set to `true`.
+
 ## 0.6.7
 
 ### Patch Changes

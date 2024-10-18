@@ -16,7 +16,7 @@ export async function* mergeAsyncGenerators<T>(
     pwr.resolve();
   });
 
-  while (count > 0) {
+  while (count > 0 || results.length > 0) {
     if (results.length > 0) {
       yield results.shift()!;
     } else {

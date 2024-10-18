@@ -1,17 +1,34 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupAnvil, setupCommon } from "@/_test/setup.js";
-import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
+import {
+  setupAnvil,
+  setupCommon,
+  setupDatabaseServices,
+  setupIsolatedDatabase,
+} from "@/_test/setup.js";
+import {
+  getEventsBlock,
+  getEventsLog,
+  getEventsTrace,
+  getRawRPCData,
+} from "@/_test/utils.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { checksumAddress, parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   type BlockEvent,
   type CallTraceEvent,
   type LogEvent,
+  buildEvents,
   decodeEvents,
 } from "./events.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
+beforeEach(setupIsolatedDatabase);
 
 test("decodeEvents() log", async (context) => {
   const { common, sources } = context;
@@ -113,4 +130,140 @@ test("decodeEvents() trace error", async (context) => {
   const events = decodeEvents(common, sources, rawEvents) as [CallTraceEvent];
 
   expect(events).toHaveLength(0);
+});
+
+test("buildEvents() matches getEvents()", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const rpcData = await getRawRPCData();
+
+  await syncStore.insertBlocks({
+    blocks: [
+      rpcData.block1.block,
+      rpcData.block2.block,
+      rpcData.block3.block,
+      rpcData.block4.block,
+      rpcData.block5.block,
+    ],
+    chainId: 1,
+  });
+  await syncStore.insertLogs({
+    logs: [
+      { log: rpcData.block2.logs[0], block: rpcData.block2.block },
+      { log: rpcData.block2.logs[1], block: rpcData.block2.block },
+      { log: rpcData.block3.logs[0], block: rpcData.block3.block },
+      { log: rpcData.block4.logs[0], block: rpcData.block4.block },
+    ],
+    shouldUpdateCheckpoint: true,
+    chainId: 1,
+  });
+  await syncStore.insertTransactions({
+    transactions: [
+      ...rpcData.block2.transactions,
+      ...rpcData.block3.transactions,
+      ...rpcData.block4.transactions,
+    ],
+    chainId: 1,
+  });
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: [
+      ...rpcData.block2.transactionReceipts,
+      ...rpcData.block3.transactionReceipts,
+      ...rpcData.block4.transactionReceipts,
+    ],
+    chainId: 1,
+  });
+  await syncStore.insertCallTraces({
+    callTraces: [
+      { callTrace: rpcData.block2.callTraces[0], block: rpcData.block2.block },
+      { callTrace: rpcData.block2.callTraces[1], block: rpcData.block2.block },
+      { callTrace: rpcData.block3.callTraces[0], block: rpcData.block3.block },
+      { callTrace: rpcData.block4.callTraces[0], block: rpcData.block4.block },
+    ],
+    chainId: 1,
+  });
+
+  const { events: events1 } = await syncStore.getEvents({
+    filters: context.sources.map((s) => s.filter),
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  const events2 = [
+    ...buildEvents({
+      sources: context.sources,
+      blockWithEventData: {
+        ...rpcData.block1,
+        callTraces: [],
+      },
+      finalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+      unfinalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+    }),
+    ...buildEvents({
+      sources: context.sources,
+      blockWithEventData: {
+        ...rpcData.block2,
+      },
+      finalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+      unfinalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+    }),
+    ...buildEvents({
+      sources: context.sources,
+      blockWithEventData: {
+        ...rpcData.block3,
+      },
+      finalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+      unfinalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+    }),
+    ...buildEvents({
+      sources: context.sources,
+      blockWithEventData: {
+        ...rpcData.block4,
+      },
+      finalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+      unfinalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set([context.factory.pair])],
+        [context.sources[2].filter.toAddress, new Set([context.factory.pair])],
+      ]),
+    }),
+    ...buildEvents({
+      sources: context.sources,
+      blockWithEventData: {
+        ...rpcData.block5,
+      },
+      finalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set()],
+        [context.sources[2].filter.toAddress, new Set()],
+      ]),
+      unfinalizedChildAddresses: new Map([
+        [context.sources[1].filter.address, new Set([context.factory.pair])],
+        [context.sources[2].filter.toAddress, new Set([context.factory.pair])],
+      ]),
+    }),
+  ];
+
+  expect(events2).toStrictEqual(events1);
+
+  await cleanup();
 });

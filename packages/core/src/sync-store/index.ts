@@ -64,7 +64,7 @@ export type SyncStore = {
   }): Promise<Interval[]>;
   getChildAddresses(args: {
     filter: Factory;
-    limit: number;
+    limit?: number;
   }): Promise<Address[]>;
   filterChildAddresses(args: {
     filter: Factory;
@@ -112,8 +112,8 @@ export type SyncStore = {
     blockNumber: bigint;
     chainId: number;
   }): Promise<string | null>;
-  pruneByBlock(args: {
-    blocks: Pick<LightBlock, "hash" | "number">[];
+  pruneRpcRequestResult(args: {
+    blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
   pruneByChain(args: {
@@ -491,7 +491,7 @@ export const createSyncStore = ({
         .selectFrom("logs")
         .$call((qb) => logFactorySQL(qb, filter))
         .orderBy("id asc")
-        .limit(limit)
+        .$if(limit !== undefined, (qb) => qb.limit(limit!))
         .execute()
         .then((addresses) => addresses.map(({ childAddress }) => childAddress));
     }),
@@ -613,13 +613,7 @@ export const createSyncStore = ({
                 encodeTransaction({ transaction, chainId }),
               ),
           )
-          .onConflict((oc) =>
-            oc.column("hash").doUpdateSet((eb) => ({
-              blockHash: eb.ref("excluded.blockHash"),
-              blockNumber: eb.ref("excluded.blockNumber"),
-              transactionIndex: eb.ref("excluded.transactionIndex"),
-            })),
-          )
+          .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
       }
     });
@@ -661,19 +655,7 @@ export const createSyncStore = ({
                 }),
               ),
           )
-          .onConflict((oc) =>
-            oc.column("transactionHash").doUpdateSet((eb) => ({
-              blockHash: eb.ref("excluded.blockHash"),
-              blockNumber: eb.ref("excluded.blockNumber"),
-              contractAddress: eb.ref("excluded.contractAddress"),
-              cumulativeGasUsed: eb.ref("excluded.cumulativeGasUsed"),
-              effectiveGasPrice: eb.ref("excluded.effectiveGasPrice"),
-              gasUsed: eb.ref("excluded.gasUsed"),
-              logs: eb.ref("excluded.logs"),
-              logsBloom: eb.ref("excluded.logsBloom"),
-              transactionIndex: eb.ref("excluded.transactionIndex"),
-            })),
-          )
+          .onConflict((oc) => oc.column("transactionHash").doNothing())
           .execute();
       }
     });
@@ -845,6 +827,7 @@ export const createSyncStore = ({
           ksql`null`.as("logId"),
           "id as callTraceId",
         ])
+        .where("chainId", "=", filter.chainId)
         .where((eb) =>
           eb.or(
             filter.functionSelectors.map((fs) =>
@@ -1052,16 +1035,17 @@ export const createSyncStore = ({
       const hasLog = row.log_id !== null;
       const hasTransaction = row.tx_hash !== null;
       const hasCallTrace = row.callTrace_id !== null;
-      const hasTransactionReceipt = row.txr_blockHash !== null;
+      const hasTransactionReceipt =
+        (filter.type === "log" || filter.type === "callTrace") &&
+        filter.includeTransactionReceipts;
 
       return {
         chainId: filter.chainId,
-        sourceIndex: row.event_filterIndex,
+        sourceIndex: Number(row.event_filterIndex),
         checkpoint: row.event_checkpoint,
         block: {
-          baseFeePerGas: row.block_baseFeePerGas
-            ? row.block_baseFeePerGas
-            : null,
+          baseFeePerGas:
+            row.block_baseFeePerGas !== null ? row.block_baseFeePerGas : null,
           difficulty: row.block_difficulty,
           extraData: row.block_extraData,
           gasLimit: row.block_gasLimit,
@@ -1078,9 +1062,10 @@ export const createSyncStore = ({
           size: row.block_size,
           stateRoot: row.block_stateRoot,
           timestamp: row.block_timestamp,
-          totalDifficulty: row.block_totalDifficulty
-            ? row.block_totalDifficulty
-            : null,
+          totalDifficulty:
+            row.block_totalDifficulty !== null
+              ? row.block_totalDifficulty
+              : null,
           transactionsRoot: row.block_transactionsRoot,
         },
         log: hasLog
@@ -1116,7 +1101,7 @@ export const createSyncStore = ({
               to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
               transactionIndex: Number(row.tx_transactionIndex),
               value: row.tx_value,
-              v: row.tx_v ? row.tx_v : null,
+              v: row.tx_v !== null ? row.tx_v : null,
               ...(row.tx_type === "0x0"
                 ? {
                     type: "legacy",
@@ -1137,12 +1122,14 @@ export const createSyncStore = ({
                     : row.tx_type === "0x7e"
                       ? {
                           type: "deposit",
-                          maxFeePerGas: row.tx_maxFeePerGas
-                            ? row.tx_maxFeePerGas
-                            : undefined,
-                          maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas
-                            ? row.tx_maxPriorityFeePerGas
-                            : undefined,
+                          maxFeePerGas:
+                            row.tx_maxFeePerGas !== null
+                              ? row.tx_maxFeePerGas
+                              : undefined,
+                          maxPriorityFeePerGas:
+                            row.tx_maxPriorityFeePerGas !== null
+                              ? row.tx_maxPriorityFeePerGas
+                              : undefined,
                         }
                       : {
                           type: row.tx_type,
@@ -1180,6 +1167,7 @@ export const createSyncStore = ({
               from: checksumAddress(row.txr_from),
               gasUsed: row.txr_gasUsed,
               logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                id: `${log.blockHash}-${log.logIndex}`,
                 address: checksumAddress(log.address),
                 blockHash: log.blockHash,
                 blockNumber: hexToBigInt(log.blockNumber),
@@ -1258,19 +1246,12 @@ export const createSyncStore = ({
 
       return result?.result ?? null;
     }),
-  pruneByBlock: async ({ blocks, chainId }) =>
-    db.wrap({ method: "pruneByBlock" }, async () => {
+  pruneRpcRequestResult: async ({ blocks, chainId }) =>
+    db.wrap({ method: "pruneRpcRequestResult" }, async () => {
       if (blocks.length === 0) return;
 
-      const hashes = blocks.map(({ hash }) => hash);
       const numbers = blocks.map(({ number }) => hexToBigInt(number));
 
-      await db.deleteFrom("blocks").where("hash", "in", hashes).execute();
-      await db.deleteFrom("logs").where("blockHash", "in", hashes).execute();
-      await db
-        .deleteFrom("callTraces")
-        .where("blockHash", "in", hashes)
-        .execute();
       await db
         .deleteFrom("rpcRequestResults")
         .where("chainId", "=", chainId)
