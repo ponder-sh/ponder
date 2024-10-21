@@ -1,4 +1,4 @@
-import { type Column, type Table, getTableColumns } from "drizzle-orm";
+import type { Column, Table } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 import type { TableNamedRelations } from "./types.js";
 
@@ -19,7 +19,7 @@ export const remapToGraphQLCore = (
     const relations = relationMap?.[tableName];
     if (relations?.[key]) {
       return remapToGraphQLArrayOutput(
-        value,
+        value as Record<string, any>[],
         relations[key]!.targetTableName,
         relations[key]!.relation.referencedTable,
         relationMap,
@@ -147,36 +147,4 @@ export const remapFromGraphQLCore = (
       return value;
     }
   }
-};
-
-export const remapFromGraphQLSingleInput = (
-  queryInput: Record<string, any>,
-  table: Table,
-) => {
-  for (const [key, value] of Object.entries(queryInput)) {
-    if (value === undefined) {
-      delete queryInput[key];
-    } else {
-      const column = getTableColumns(table)[key];
-      if (!column) throw new GraphQLError(`Unknown column: ${key}`);
-
-      if (value === null && column.notNull) {
-        delete queryInput[key];
-        continue;
-      }
-
-      queryInput[key] = remapFromGraphQLCore(value, column, key);
-    }
-  }
-
-  return queryInput;
-};
-
-export const remapFromGraphQLArrayInput = (
-  queryInput: Record<string, any>[],
-  table: Table,
-) => {
-  for (const entry of queryInput) remapFromGraphQLSingleInput(entry, table);
-
-  return queryInput;
 };

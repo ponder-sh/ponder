@@ -5,13 +5,11 @@ import {
   createTableRelationsHelpers,
   is,
 } from "drizzle-orm";
-import { type PgColumn, type PgDatabase, PgTable } from "drizzle-orm/pg-core";
+import { type PgDatabase, PgTable } from "drizzle-orm/pg-core";
 import {
   GraphQLError,
   type GraphQLInputObjectType,
   GraphQLInt,
-  GraphQLList,
-  GraphQLNonNull,
   type GraphQLObjectType,
 } from "graphql";
 
@@ -21,17 +19,14 @@ import {
   extractOrderBy,
   extractRelationsParams,
   extractSelectedColumnsFromTree,
-  extractSelectedColumnsFromTreeSQLFormat,
   generateTableTypes,
 } from "./common.js";
 import {
-  remapFromGraphQLArrayInput,
-  remapFromGraphQLSingleInput,
   remapToGraphQLArrayOutput,
   remapToGraphQLSingleOutput,
 } from "./data-mappers.js";
 
-import type { RelationalQueryBuilder } from "drizzle-orm/mysql-core/query-builders/query";
+import type { RelationalQueryBuilder } from "drizzle-orm/pg-core/query-builders/query";
 import type {
   GraphQLFieldConfig,
   GraphQLFieldConfigArgumentMap,
@@ -41,7 +36,6 @@ import type { ResolveTree } from "graphql-parse-resolve-info";
 import { capitalize, uncapitalize } from "./case-ops.js";
 import type {
   CreatedResolver,
-  Filters,
   TableNamedRelations,
   TableSelectArgs,
 } from "./types.js";
@@ -56,7 +50,7 @@ const generateSelectArray = (
 ): CreatedResolver => {
   const queryName = `${uncapitalize(tableName)}`;
   const queryBase = db.query[tableName as keyof typeof db.query] as unknown as
-    | RelationalQueryBuilder<any, any, any>
+    | RelationalQueryBuilder<any, any>
     | undefined;
   if (!queryBase) {
     throw new Error(
@@ -84,7 +78,12 @@ const generateSelectArray = (
 
   return {
     name: queryName,
-    resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
+    resolver: async (
+      _source,
+      args: Partial<TableSelectArgs>,
+      _context,
+      info,
+    ) => {
       try {
         const { offset, limit, orderBy, where } = args;
 
@@ -137,7 +136,7 @@ const generateSelectSingle = (
 ): CreatedResolver => {
   const queryName = `${uncapitalize(tableName)}Single`;
   const queryBase = db.query[tableName as keyof typeof db.query] as unknown as
-    | RelationalQueryBuilder<any, any, any>
+    | RelationalQueryBuilder<any, any>
     | undefined;
   if (!queryBase) {
     throw new Error(
@@ -162,7 +161,12 @@ const generateSelectSingle = (
 
   return {
     name: queryName,
-    resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
+    resolver: async (
+      _source,
+      args: Partial<TableSelectArgs>,
+      _context,
+      info,
+    ) => {
       try {
         const { offset, orderBy, where } = args;
 
@@ -198,241 +202,6 @@ const generateSelectSingle = (
           table,
           relationMap,
         );
-      } catch (e) {
-        if (typeof e === "object" && typeof (<any>e).message === "string") {
-          throw new GraphQLError((<any>e).message);
-        }
-
-        throw e;
-      }
-    },
-    args: queryArgs,
-  };
-};
-
-const generateInsertArray = (
-  db: PgDatabase<any, any, any>,
-  tableName: string,
-  table: PgTable,
-  baseType: GraphQLInputObjectType,
-): CreatedResolver => {
-  const queryName = `insertInto${capitalize(tableName)}`;
-  const typeName = `${capitalize(tableName)}Item`;
-
-  const queryArgs: GraphQLFieldConfigArgumentMap = {
-    values: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(baseType))),
-    },
-  };
-
-  return {
-    name: queryName,
-    resolver: async (
-      source,
-      args: { values: Record<string, any>[] },
-      context,
-      info,
-    ) => {
-      try {
-        const input = remapFromGraphQLArrayInput(args.values, table);
-        if (!input.length) throw new GraphQLError("No values were provided!");
-
-        const parsedInfo = parseResolveInfo(info, {
-          deep: true,
-        }) as ResolveTree;
-
-        const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
-          parsedInfo.fieldsByTypeName[typeName]!,
-          table,
-        );
-
-        const result = await db
-          .insert(table)
-          .values(input)
-          .returning(columns)
-          .onConflictDoNothing();
-
-        return remapToGraphQLArrayOutput(result, tableName, table);
-      } catch (e) {
-        if (typeof e === "object" && typeof (<any>e).message === "string") {
-          throw new GraphQLError((<any>e).message);
-        }
-
-        throw e;
-      }
-    },
-    args: queryArgs,
-  };
-};
-
-const generateInsertSingle = (
-  db: PgDatabase<any, any, any>,
-  tableName: string,
-  table: PgTable,
-  baseType: GraphQLInputObjectType,
-): CreatedResolver => {
-  const queryName = `insertInto${capitalize(tableName)}Single`;
-  const typeName = `${capitalize(tableName)}Item`;
-
-  const queryArgs: GraphQLFieldConfigArgumentMap = {
-    values: {
-      type: new GraphQLNonNull(baseType),
-    },
-  };
-
-  return {
-    name: queryName,
-    resolver: async (
-      source,
-      args: { values: Record<string, any> },
-      context,
-      info,
-    ) => {
-      try {
-        const input = remapFromGraphQLSingleInput(args.values, table);
-
-        const parsedInfo = parseResolveInfo(info, {
-          deep: true,
-        }) as ResolveTree;
-
-        const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
-          parsedInfo.fieldsByTypeName[typeName]!,
-          table,
-        );
-
-        const result = await db
-          .insert(table)
-          .values(input)
-          .returning(columns)
-          .onConflictDoNothing();
-
-        if (!result[0]) return undefined;
-
-        return remapToGraphQLSingleOutput(result[0], tableName, table);
-      } catch (e) {
-        if (typeof e === "object" && typeof (<any>e).message === "string") {
-          throw new GraphQLError((<any>e).message);
-        }
-
-        throw e;
-      }
-    },
-    args: queryArgs,
-  };
-};
-
-const generateUpdate = (
-  db: PgDatabase<any, any, any>,
-  tableName: string,
-  table: PgTable,
-  setArgs: GraphQLInputObjectType,
-  filterArgs: GraphQLInputObjectType,
-): CreatedResolver => {
-  const queryName = `update${capitalize(tableName)}`;
-  const typeName = `${capitalize(tableName)}Item`;
-
-  const queryArgs = {
-    set: {
-      type: new GraphQLNonNull(setArgs),
-    },
-    where: {
-      type: filterArgs,
-    },
-  } as const satisfies GraphQLFieldConfigArgumentMap;
-
-  return {
-    name: queryName,
-    resolver: async (
-      source,
-      args: { where?: Filters<Table>; set: Record<string, any> },
-      context,
-      info,
-    ) => {
-      try {
-        const { where, set } = args;
-
-        const parsedInfo = parseResolveInfo(info, {
-          deep: true,
-        }) as ResolveTree;
-
-        const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
-          parsedInfo.fieldsByTypeName[typeName]!,
-          table,
-        );
-
-        const input = remapFromGraphQLSingleInput(set, table);
-        if (!Object.keys(input).length)
-          throw new GraphQLError("Unable to update with no values specified!");
-
-        let query = db.update(table).set(input);
-        if (where) {
-          const filters = extractFilters(table, tableName, where);
-          query = query.where(filters) as any;
-        }
-
-        query = query.returning(columns) as any;
-
-        const result = await query;
-
-        return remapToGraphQLArrayOutput(result, tableName, table);
-      } catch (e) {
-        if (typeof e === "object" && typeof (<any>e).message === "string") {
-          throw new GraphQLError((<any>e).message);
-        }
-
-        throw e;
-      }
-    },
-    args: queryArgs,
-  };
-};
-
-const generateDelete = (
-  db: PgDatabase<any, any, any>,
-  tableName: string,
-  table: PgTable,
-  filterArgs: GraphQLInputObjectType,
-): CreatedResolver => {
-  const queryName = `deleteFrom${capitalize(tableName)}`;
-  const typeName = `${capitalize(tableName)}Item`;
-
-  const queryArgs = {
-    where: {
-      type: filterArgs,
-    },
-  } as const satisfies GraphQLFieldConfigArgumentMap;
-
-  return {
-    name: queryName,
-    resolver: async (
-      source,
-      args: { where?: Filters<Table> },
-      context,
-      info,
-    ) => {
-      try {
-        const { where } = args;
-
-        const parsedInfo = parseResolveInfo(info, {
-          deep: true,
-        }) as ResolveTree;
-
-        const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
-          parsedInfo.fieldsByTypeName[typeName]!,
-          table,
-        );
-
-        let query = db.delete(table);
-        if (where) {
-          const filters = extractFilters(table, tableName, where);
-          query = query.where(filters) as any;
-        }
-
-        query = query.returning(columns) as any;
-
-        const result = await query;
-
-        return remapToGraphQLArrayOutput(result, tableName, table);
       } catch (e) {
         if (typeof e === "object" && typeof (<any>e).message === "string") {
           throw new GraphQLError((<any>e).message);
@@ -501,7 +270,6 @@ export const generateSchemaData = <
   );
 
   const queries: ThunkObjMap<GraphQLFieldConfig<any, any>> = {};
-  const mutations: ThunkObjMap<GraphQLFieldConfig<any, any>> = {};
   const gqlSchemaTypes = Object.fromEntries(
     Object.entries(tables).map(([tableName, table]) => [
       tableName,
@@ -544,31 +312,6 @@ export const generateSchemaData = <
       tableOrder,
       tableFilters,
     );
-    const insertArrGenerated = generateInsertArray(
-      db,
-      tableName,
-      schema[tableName] as PgTable,
-      insertInput,
-    );
-    const insertSingleGenerated = generateInsertSingle(
-      db,
-      tableName,
-      schema[tableName] as PgTable,
-      insertInput,
-    );
-    const updateGenerated = generateUpdate(
-      db,
-      tableName,
-      schema[tableName] as PgTable,
-      updateInput,
-      tableFilters,
-    );
-    const deleteGenerated = generateDelete(
-      db,
-      tableName,
-      schema[tableName] as PgTable,
-      tableFilters,
-    );
 
     queries[selectArrGenerated.name] = {
       type: selectArrOutput,
@@ -580,26 +323,7 @@ export const generateSchemaData = <
       args: selectSingleGenerated.args,
       resolve: selectSingleGenerated.resolver,
     };
-    mutations[insertArrGenerated.name] = {
-      type: arrTableItemOutput,
-      args: insertArrGenerated.args,
-      resolve: insertArrGenerated.resolver,
-    };
-    mutations[insertSingleGenerated.name] = {
-      type: singleTableItemOutput,
-      args: insertSingleGenerated.args,
-      resolve: insertSingleGenerated.resolver,
-    };
-    mutations[updateGenerated.name] = {
-      type: arrTableItemOutput,
-      args: updateGenerated.args,
-      resolve: updateGenerated.resolver,
-    };
-    mutations[deleteGenerated.name] = {
-      type: arrTableItemOutput,
-      args: deleteGenerated.args,
-      resolve: deleteGenerated.resolver,
-    };
+
     [insertInput, updateInput, tableFilters, tableOrder].forEach(
       (e) => (inputs[e.name] = e),
     );
@@ -607,5 +331,5 @@ export const generateSchemaData = <
     outputs[singleTableItemOutput.name] = singleTableItemOutput;
   }
 
-  return { queries, mutations, inputs, types: outputs } as any;
+  return { queries, inputs, types: outputs } as any;
 };

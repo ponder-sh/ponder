@@ -91,40 +91,6 @@ export const extractSelectedColumnsFromTree = (
   return Object.fromEntries(selectedColumns);
 };
 
-/**
- * Can't automatically determine column type on type level
- * Since drizzle table types extend eachother
- */
-export const extractSelectedColumnsFromTreeSQLFormat = <
-  TColType extends Column = Column,
->(
-  tree: Record<string, ResolveTree>,
-  table: Table,
-): Record<string, TColType> => {
-  const tableColumns = getTableColumns(table);
-
-  const treeEntries = Object.entries(tree);
-  const selectedColumns: SelectedSQLColumns = [];
-
-  for (const [fieldName, fieldData] of treeEntries) {
-    if (!tableColumns[fieldData.name]) continue;
-
-    selectedColumns.push([fieldData.name, tableColumns[fieldData.name]!]);
-  }
-
-  if (!selectedColumns.length) {
-    const columnKeys = Object.entries(tableColumns);
-    const columnName =
-      columnKeys.find((e) =>
-        rqbCrashTypes.find((haram) => e[1].columnType !== haram),
-      )?.[0] ?? columnKeys[0]![0];
-
-    selectedColumns.push([columnName, tableColumns[columnName]!]);
-  }
-
-  return Object.fromEntries(selectedColumns) as Record<string, TColType>;
-};
-
 export const innerOrder = new GraphQLInputObjectType({
   name: "InnerOrder" as const,
   fields: {
