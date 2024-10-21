@@ -649,21 +649,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ({ checkpoint }) => checkpoint > to,
           );
 
-          if (event.logs.length > events.length) {
-            console.log("BAD!", {
-              block: event.block.number,
-              events: events.length,
-              logs: event.logs.length,
-            });
-          }
-
-          if (pendingEvents.length > 0) {
-            console.log("BAD!", {
-              block: event.block.number,
-              to,
-            });
-          }
-
           args
             .onRealtimeEvent({
               type: "block",
@@ -848,8 +833,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     async startRealtime() {
       for (const network of args.networks) {
         const { syncProgress, realtimeSync } = localSyncContext.get(network)!;
-
-        console.log(syncProgress.finalized.number, syncProgress.finalized.hash);
 
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
