@@ -849,7 +849,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       for (const network of args.networks) {
         const { syncProgress, realtimeSync } = localSyncContext.get(network)!;
 
-        console.log(JSON.stringify(syncProgress, null, 2));
+        console.log(syncProgress.finalized.number, syncProgress.finalized.hash);
 
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
