@@ -100,6 +100,15 @@ export class InvalidStoreMethodError extends NonRetryableError {
   }
 }
 
+export class UndefinedTableError extends NonRetryableError {
+  override name = "UndefinedTableError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, CheckConstraintError.prototype);
+  }
+}
+
 export class BigIntSerializationError extends NonRetryableError {
   override name = "BigIntSerializationError";
 
