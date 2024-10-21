@@ -323,10 +323,14 @@ export const createDatabase = async (args: {
   // TODO(kyle) validate all tables use `namespace`
   // TODO(kyle) validate all tables have primary key
 
-  const drizzle =
-    dialect === "pglite"
-      ? drizzlePglite((driver as PGliteDriver).instance, args.schema)
-      : drizzleNodePg((driver as PostgresDriver).user, args.schema);
+  let drizzle: Drizzle<Schema>;
+  if (dialect === "pglite") {
+    const instance = (driver as PGliteDriver).instance;
+    drizzle = drizzlePglite(instance, { schema: args.schema });
+  } else {
+    const pool = (driver as PostgresDriver).user;
+    drizzle = drizzleNodePg(pool, { schema: args.schema });
+  }
 
   // if (fs.existsSync(args.common.options.migrationsDir)) {
   //   await migrate(drizzle, {
