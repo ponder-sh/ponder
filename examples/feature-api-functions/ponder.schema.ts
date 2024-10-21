@@ -1,9 +1,4 @@
-import {
-  index,
-  offchainSchema,
-  onchainTable,
-  primaryKey,
-} from "@ponder/core/db";
+import { index, onchainTable, primaryKey } from "@ponder/core/db";
 
 export const account = onchainTable("account", (t) => ({
   address: t.evmHex().primaryKey(),
@@ -43,11 +38,4 @@ export const approvalEvent = onchainTable("approval_event", (t) => ({
   timestamp: t.integer().notNull(),
   owner: t.evmHex().notNull(),
   spender: t.evmHex().notNull(),
-}));
-
-export const schema = offchainSchema("offchain");
-
-export const metadata = schema.table("metadata", (t) => ({
-  id: t.serial().primaryKey(),
-  account: t.evmHex().notNull(),
 }));
