@@ -1,5 +1,6 @@
 import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/db.js";
 import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
+import type { empty } from "@/indexing-store/index.js";
 import type {
   Column,
   GetColumnData,
@@ -144,20 +145,12 @@ export type InferCompositePrimaryKey<
     : never
   : never;
 
-export type IsSerialPrimaryKey<
-  table extends Table,
-  ///
-  primaryKey extends keyof table["_"]["columns"] = InferPrimaryKey<table>,
-> = table["_"]["columns"][primaryKey]["columnType"] extends "PgSerial"
-  ? true
-  : false;
-
 export type Find = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
-) => Promise<InferSelectModel<table> | undefined>;
+) => Promise<InferSelectModel<table> | typeof empty>;
 
 export type Insert = <table extends Table>(
   table: table extends { [onchain]: true }
@@ -187,7 +180,7 @@ export type Upsert = <
   ///
   insertModel = InferInsertModel<table>,
   selectModel = InferSelectModel<table>,
-  insertValues = Prettify<Omit<insertModel, InferPrimaryKey<table>>>,
+  insertValues = Prettify<Omit<insertModel, keyof Key<table>>>,
   updateFn = (row: selectModel) => Partial<insertModel>,
 >(
   table: table extends { [onchain]: true }
@@ -212,4 +205,4 @@ export type Delete = <table extends Table>(
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
-) => Promise<void>;
+) => Promise<boolean>;

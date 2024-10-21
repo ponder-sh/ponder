@@ -1,8 +1,8 @@
-import { Table, is } from "drizzle-orm";
+import { Table, getTableColumns, getTableName, is } from "drizzle-orm";
 import {
   PgColumn,
   PgEnumColumn,
-  type PgTable,
+  PgTable,
   type TableConfig,
   getTableConfig,
   integer,
@@ -10,6 +10,7 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { Schema } from "./index.js";
 
 export const pgNativeTypes = new Set([
   "uuid",
@@ -219,15 +220,44 @@ export const generateTableSQL = ({
   return statement;
 };
 
-export const getPrimaryKeyColumns = (table: PgTable): string[] => {
-  const tableConfig = getTableConfig(table);
-  if (tableConfig.primaryKeys.length > 0) {
-    return tableConfig.primaryKeys[0]!.columns.map((c) => c.name);
+export const getPrimaryKeyColumns = (
+  table: PgTable,
+): { sql: string; js: string }[] => {
+  const primaryKeys = getTableConfig(table).primaryKeys;
+
+  const findJsName = (sql: string): string => {
+    for (const [js, column] of Object.entries(getTableColumns(table))) {
+      if (column.name === sql) return js;
+    }
+
+    throw "unreachable";
+  };
+
+  if (primaryKeys.length > 0) {
+    return primaryKeys[0]!.columns
+      .map((c) => c.name)
+      .map((sql) => ({
+        sql,
+        js: findJsName(sql),
+      }));
   }
 
-  const pkColumn = tableConfig.columns.find((c) => c.primary)!;
+  const pkColumn = Object.values(getTableColumns(table)).find(
+    (c) => c.primary,
+  )!;
 
-  return [pkColumn.name];
+  return [{ sql: pkColumn.name, js: findJsName(pkColumn.name) }];
+};
+
+export const getTableNames = (schema: Schema) => {
+  const tableNames = Object.entries(schema)
+    .filter(([, table]) => is(table, PgTable))
+    .map(([tableName, table]) => ({
+      sql: getTableName(table as PgTable),
+      js: tableName,
+    }));
+
+  return tableNames;
 };
 
 export const getReorgTable = (table: PgTable<TableConfig>) => {

@@ -2,6 +2,7 @@ import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import { createDatabase } from "@/database/index.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
@@ -103,7 +104,10 @@ export async function run({
           if (result.status === "error") onReloadableError(result.error);
 
           // overwrite the temporary "checkpoint" value in reorg tables
+          // TODO(kyle) should this be dependent on the block?
           await database.complete({ checkpoint: event.checkpoint });
+
+          await indexingStore.flush({ force: true });
 
           await metadataStore.setStatus(event.status);
 
@@ -123,13 +127,20 @@ export async function run({
     },
   });
 
+  const indexingStore = createIndexingStore({
+    common,
+    database,
+    schema,
+    initialCheckpoint,
+  });
+
   const indexingService = createIndexingService({
     indexingFunctions,
     common,
     sources,
     networks,
     sync,
-    database,
+    indexingStore,
   });
 
   await metadataStore.setStatus(sync.getStatus());
@@ -167,11 +178,17 @@ export async function run({
         onReloadableError(result.error);
         return;
       }
+
+      // TODO(kyle) temporarily flush and update checkpoint
     }
 
     if (isKilled) return;
 
-    // await historicalStore.flush({ isFullFlush: true });
+    await indexingStore.flush({
+      force: true,
+      checkpoint: sync.getFinalizedCheckpoint(),
+    });
+    indexingStore.setPolicy("realtime");
 
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
@@ -194,8 +211,6 @@ export async function run({
       service: "indexing",
       msg: "Completed historical indexing",
     });
-
-    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     // await database.createIndexes({ schema });
     await database.createTriggers();
