@@ -29,6 +29,7 @@ export async function runServer({
     common,
     schema,
     database,
+    instanceId,
   });
 
   return async () => {

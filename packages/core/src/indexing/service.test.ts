@@ -7,7 +7,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
-import { createSchema } from "@/schema/schema.js";
+import { onchainTable } from "@/drizzle/db.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
@@ -26,16 +26,12 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-const schema = createSchema((p) => ({
-  TransferEvent: p.createTable({
-    id: p.string(),
-    timestamp: p.int(),
-  }),
-  Supply: p.createTable({
-    id: p.string(),
-    supply: p.bigint(),
-  }),
+const account = onchainTable("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint().notNull(),
 }));
+
+const schema = { account };
 
 test("createIndexing()", async (context) => {
   const { common, sources, networks } = context;
@@ -61,7 +57,6 @@ test("createIndexing()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   expect(indexingService).toBeDefined();
@@ -94,7 +89,6 @@ test("processSetupEvents() empty", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const result = await processSetupEvents(indexingService, {
@@ -135,7 +129,6 @@ test("processSetupEvents()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const result = await processSetupEvents(indexingService, {
@@ -209,7 +202,6 @@ test("processEvent() log events", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const rawEvents = await getEventsLog(sources);
@@ -297,7 +289,6 @@ test("processEvents() block events", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const rawEvents = await getEventsBlock(sources);
@@ -372,7 +363,6 @@ test("processEvents() call trace events", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const rawEvents = await getEventsTrace(sources);
@@ -454,7 +444,6 @@ test("processEvents killed", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
   kill(indexingService);
 
@@ -504,7 +493,6 @@ test("processEvents eventCount", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const rawEvents = await getEventsLog(sources);
@@ -554,7 +542,6 @@ test("executeSetup() context.client", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const getBalanceSpy = vi.spyOn(
@@ -612,7 +599,6 @@ test("executeSetup() context.db", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const createSpy = vi.spyOn(
@@ -671,7 +657,6 @@ test("executeSetup() metrics", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const result = await processSetupEvents(indexingService, {
@@ -714,7 +699,6 @@ test("executeSetup() error", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -766,7 +750,6 @@ test("processEvents() context.client", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const getBalanceSpy = vi.spyOn(
@@ -835,7 +818,6 @@ test("processEvents() context.db", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const createSpy = vi.spyOn(
@@ -895,7 +877,6 @@ test("processEvents() metrics", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const rawEvents = [
@@ -946,7 +927,6 @@ test("processEvents() error", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   indexingFunctions[
@@ -1009,7 +989,6 @@ test("execute() error after killed", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const rawEvents = await getEventsLog(sources);
@@ -1049,7 +1028,6 @@ test("ponderActions getBalance()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const balance = await indexingService.clientByChainId[1]!.getBalance({
@@ -1085,7 +1063,6 @@ test("ponderActions getCode()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const bytecode = await indexingService.clientByChainId[1]!.getCode({
@@ -1159,7 +1136,6 @@ test("ponderActions readContract()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const totalSupply = await indexingService.clientByChainId[1]!.readContract({
@@ -1197,7 +1173,6 @@ test("ponderActions readContract() blockNumber", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const totalSupply = await indexingService.clientByChainId[1]!.readContract({
@@ -1237,7 +1212,6 @@ test.skip("ponderActions multicall()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
   });
 
   const [totalSupply] = await indexingService.clientByChainId[1]!.multicall({
