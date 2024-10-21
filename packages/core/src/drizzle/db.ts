@@ -149,10 +149,6 @@ export type OnchainTable<
   [Key in keyof T["columns"]]: T["columns"][Key];
 } & { [onchain]: true };
 
-export type OffchainTable<T extends TableConfig> = PgTable<T> & {
-  [Key in keyof T["columns"]]: T["columns"][Key];
-};
-
 type BuildExtraConfigColumns<
   columns extends Record<string, ColumnBuilderBase>,
 > = {
@@ -169,7 +165,7 @@ type PgColumnsBuilders = _PgColumnsBuilders & {
 /**
  * Create an onchain table
  *
- * @returns The offchain table.
+ * @returns The onchain table.
  */
 export const onchainTable = <
   name extends string,
@@ -193,13 +189,6 @@ export const onchainTable = <
       extraConfig as any,
       undefined,
     );
-
-    /**
-     * This trick is used to make `table instanceof PgTable` evaluate to false.
-     * This is necessary to avoid generating migrations for onchain tables.
-     */
-    // TODO(kyle) this is bad
-    Object.setPrototypeOf(table, Object.prototype);
 
     // @ts-ignore
     table[onchain] = true;
@@ -246,12 +235,6 @@ export class OnchainSchema<schema extends string> extends PgSchema<schema> {
         this.schemaName,
       );
 
-      /**
-       * This trick is used to make `table instanceof PgTable` evaluate to false.
-       * This is necessary to avoid generating migrations for onchain tables.
-       */
-      Object.setPrototypeOf(table, Object.prototype);
-
       // @ts-ignore
       table[onchain] = true;
 
@@ -274,48 +257,8 @@ export class OnchainSchema<schema extends string> extends PgSchema<schema> {
   };
 }
 
-export class OffchainSchema<schema extends string> extends PgSchema<schema> {
-  override table = <
-    name extends string,
-    columns extends Record<string, PgColumnBuilderBase>,
-  >(
-    name: name,
-    columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
-    extraConfig?: (
-      self: BuildExtraConfigColumns<columns>,
-    ) => PgTableExtraConfig,
-  ): OffchainTable<{
-    name: name;
-    schema: schema;
-    columns: BuildColumns<name, columns, "pg">;
-    dialect: "pg";
-  }> => pgTableWithSchema(name, columns, extraConfig, this.schemaName);
-}
-
 export const onchainSchema = <T extends string>(name: T) =>
   new OnchainSchema(name);
-
-export const offchainSchema = <T extends string>(name: T) =>
-  new OffchainSchema(name);
-
-/**
- * Create an offchain table
- *
- * @returns The offchain table.
- */
-export const offchainTable = <
-  name extends string,
-  columns extends Record<string, PgColumnBuilderBase>,
->(
-  name: name,
-  columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
-  extraConfig?: (self: BuildExtraConfigColumns<columns>) => PgTableExtraConfig,
-): OffchainTable<{
-  name: name;
-  schema: undefined;
-  columns: BuildColumns<name, columns, "pg">;
-  dialect: "pg";
-}> => pgTableWithSchema(name, columns, extraConfig, undefined);
 
 const InlineForeignKeys = Symbol.for("drizzle:PgInlineForeignKeys");
 

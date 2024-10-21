@@ -1,16 +1,6 @@
-import { offchainTable, onchainTable, primaryKey } from "@/drizzle/db.js";
+import { onchainTable, primaryKey } from "@/drizzle/db.js";
 import { test } from "vitest";
 import type { Delete, Find, Insert, Key, Update, Upsert } from "./db.js";
-
-test("offchain table", () => {
-  const table = offchainTable("table", (t) => ({
-    id: t.text().primaryKey(),
-    other: t.integer(),
-  }));
-
-  const find: Find = () => {};
-  find(table, { id: "kevin" });
-});
 
 test("composite primary key", () => {
   const table = onchainTable(
