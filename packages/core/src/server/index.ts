@@ -24,17 +24,20 @@ export async function createServer({
   common,
   schema,
   database,
+  instanceId,
 }: {
   app: Hono;
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
   database: Database;
+  instanceId: string;
 }): Promise<Server> {
   // Create hono app
 
   const metadataStore = getMetadataStore({
     db: database.qb.readonly,
+    instanceId,
   });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {

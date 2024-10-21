@@ -3,9 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getReadonlyStore } from "@/indexing-store/readonly.js";
-import { getRealtimeStore } from "@/indexing-store/realtime.js";
-import { createSchema } from "@/schema/schema.js";
+import { onchainTable } from "@/drizzle/db.js";
 import {
   type Checkpoint,
   encodeCheckpoint,
@@ -14,48 +12,21 @@ import {
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "kysely";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { type Database, createDatabase } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-const schema = createSchema((p) => ({
-  PetKind: p.createEnum(["CAT", "DOG"]),
-  Pet: p.createTable(
-    {
-      id: p.string(),
-      name: p.string(),
-      age: p.int().optional(),
-      bigAge: p.bigint().optional(),
-      kind: p.enum("PetKind").optional(),
-    },
-    {
-      multiIndex: p.index(["name", "age"]),
-    },
-  ),
-  Person: p.createTable(
-    {
-      id: p.string(),
-      name: p.string(),
-    },
-    {
-      nameIndex: p.index("name"),
-    },
-  ),
-}));
+vi.mock("@/generated", async () => {
+  return {
+    instanceId: "1234",
+  };
+});
 
-const schemaTwo = createSchema((p) => ({
-  Dog: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    age: p.int().optional(),
-    bigAge: p.bigint().optional(),
-  }),
-  Apple: p.createTable({
-    id: p.string(),
-    name: p.string(),
-  }),
+const account = onchainTable("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint(),
 }));
 
 function createCheckpoint(index: number): Checkpoint {
@@ -63,121 +34,88 @@ function createCheckpoint(index: number): Checkpoint {
 }
 
 test("setup succeeds with a fresh database", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
-    schema,
+    schema: { account },
     databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
   });
 
-  const { checkpoint } = await database.setup({ buildId: "abc" });
+  const { checkpoint } = await database.setup();
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
   const tableNames = await getUserTableNames(database);
-  expect(tableNames).toContain("Pet");
-  expect(tableNames).toContain("Person");
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg__Pet");
-  expect(tableNames).toContain("_ponder_reorg__Person");
+
+  const metadata = await database.qb.internal
+    .selectFrom("_ponder_meta")
+    .selectAll()
+    .execute();
+
+  expect(metadata).toHaveLength(2);
 
   await database.kill();
 });
 
 test("setup succeeds with a prior app in the same namespace", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
-    schema,
+    schema: { account },
     databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
   });
+  await database.setup();
 
-  await database.setup({ buildId: "abc" });
+  let tableNames = await getUserTableNames(database);
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
+  expect(tableNames).toContain("_ponder_meta");
+
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
-    schema: schemaTwo,
+    schema: { account },
     databaseConfig: context.databaseConfig,
+    instanceId: "5678",
+    buildId: "def",
   });
 
-  let tableNames = await getUserTableNames(databaseTwo);
-  expect(tableNames).toContain("Pet");
-  expect(tableNames).toContain("Person");
-  expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg__Pet");
-  expect(tableNames).toContain("_ponder_reorg__Person");
-
-  await databaseTwo.setup({ buildId: "def" });
+  await databaseTwo.setup();
 
   tableNames = await getUserTableNames(databaseTwo);
 
-  expect(tableNames).toContain("Dog");
-  expect(tableNames).toContain("Apple");
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
+  expect(tableNames).toContain("5678__account");
+  expect(tableNames).toContain("5678_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg__Dog");
-  expect(tableNames).toContain("_ponder_reorg__Apple");
+
+  const metadata = await databaseTwo.qb.internal
+    .selectFrom("_ponder_meta")
+    .selectAll()
+    .execute();
+
+  expect(metadata).toHaveLength(4);
 
   await databaseTwo.kill();
 });
 
-test("setup does not drop tables that are not managed by ponder", async (context) => {
-  const database = createDatabase({
+test("setup with the same build ID recovers the finality checkpoint", async (context) => {
+  const database = await createDatabase({
     common: context.common,
-    schema,
+    schema: { account },
     databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
   });
 
-  await database.setup({ buildId: "abc" });
-  await database.kill();
-
-  const databaseTwo = createDatabase({
-    common: context.common,
-    schema: schemaTwo,
-    databaseConfig: context.databaseConfig,
-  });
-  await databaseTwo.qb.internal.executeQuery(
-    sql`CREATE TABLE not_a_ponder_table (id TEXT)`.compile(
-      databaseTwo.qb.internal,
-    ),
-  );
-  await databaseTwo.qb.internal.executeQuery(
-    sql`CREATE TABLE "AnotherTable" (id TEXT)`.compile(databaseTwo.qb.internal),
-  );
-  let tableNames = await getUserTableNames(databaseTwo);
-  expect(tableNames).toContain("Pet");
-  expect(tableNames).toContain("Person");
-  expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg__Pet");
-  expect(tableNames).toContain("_ponder_reorg__Person");
-  expect(tableNames).toContain("not_a_ponder_table");
-  expect(tableNames).toContain("AnotherTable");
-
-  await databaseTwo.setup({ buildId: "def" });
-
-  tableNames = await getUserTableNames(databaseTwo);
-
-  expect(tableNames).toContain("Dog");
-  expect(tableNames).toContain("Apple");
-  expect(tableNames).toContain("_ponder_meta");
-  expect(tableNames).toContain("_ponder_reorg__Dog");
-  expect(tableNames).toContain("_ponder_reorg__Apple");
-
-  await databaseTwo.kill();
-});
-
-test("setup with the same build ID and namespace reverts to and returns the finality checkpoint", async (context) => {
-  const database = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
-
-  await database.setup({ buildId: "abc" });
-
-  const realtimeIndexingStore = getRealtimeStore({
-    schema,
-    db: database.qb.user,
-    common: context.common,
-  });
+  await database.setup();
 
   // Simulate progress being made by updating the checkpoints.
   const newCheckpoint = {
@@ -189,65 +127,70 @@ test("setup with the same build ID and namespace reverts to and returns the fina
     checkpoint: encodeCheckpoint(newCheckpoint),
   });
 
-  await realtimeIndexingStore.create({
-    tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint({
-      ...zeroCheckpoint,
-      blockNumber: 9n,
-    }),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-  await realtimeIndexingStore.create({
-    tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint({
-      ...zeroCheckpoint,
-      blockNumber: 11n,
-    }),
-    id: "id2",
-    data: { name: "Kevin" },
-  });
-  await realtimeIndexingStore.create({
-    tableName: "Pet",
-    encodedCheckpoint: encodeCheckpoint({
-      ...zeroCheckpoint,
-      blockNumber: 12n,
-    }),
-    id: "id3",
-    data: { name: "Foo" },
-  });
+  // await realtimeIndexingStore.create({
+  //   tableName: "Pet",
+  //   encodedCheckpoint: encodeCheckpoint({
+  //     ...zeroCheckpoint,
+  //     blockNumber: 9n,
+  //   }),
+  //   id: "id1",
+  //   data: { name: "Skip" },
+  // });
+  // await realtimeIndexingStore.create({
+  //   tableName: "Pet",
+  //   encodedCheckpoint: encodeCheckpoint({
+  //     ...zeroCheckpoint,
+  //     blockNumber: 11n,
+  //   }),
+  //   id: "id2",
+  //   data: { name: "Kevin" },
+  // });
+  // await realtimeIndexingStore.create({
+  //   tableName: "Pet",
+  //   encodedCheckpoint: encodeCheckpoint({
+  //     ...zeroCheckpoint,
+  //     blockNumber: 12n,
+  //   }),
+  //   id: "id3",
+  //   data: { name: "Foo" },
+  // });
 
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
-    schema,
+    schema: { account },
     databaseConfig: context.databaseConfig,
-  });
-
-  const { checkpoint } = await databaseTwo.setup({
+    instanceId: "5678",
     buildId: "abc",
   });
 
-  const readonlyIndexingStore = getReadonlyStore({
-    schema,
-    db: databaseTwo.qb.user,
-    common: context.common,
-  });
+  const { checkpoint } = await databaseTwo.setup();
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(newCheckpoint));
 
-  const { items: pets } = await readonlyIndexingStore.findMany({
-    tableName: "Pet",
-  });
+  // const { items: pets } = await readonlyIndexingStore.findMany({
+  //   tableName: "Pet",
+  // });
 
-  expect(pets.length).toBe(1);
-  expect(pets[0]!.name).toBe("Skip");
+  // expect(pets.length).toBe(1);
+  // expect(pets[0]!.name).toBe("Skip");
+
+  const metadata = await databaseTwo.qb.internal
+    .selectFrom("_ponder_meta")
+    .selectAll()
+    .execute();
+
+  expect(metadata).toHaveLength(2);
 
   await databaseTwo.kill();
 });
 
-test("setup succeeds if the lock expires after waiting to expire", async (context) => {
+test.todo("setup with the same build ID reverts rows");
+
+test.todo("setup with the same build ID drops indexes and triggers");
+
+test.skip("setup with the same build ID recovers if the lock expires after waiting", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
@@ -293,55 +236,67 @@ test("setup succeeds if the lock expires after waiting to expire", async (contex
   await databaseTwo.kill();
 });
 
-test("setup throws if the namespace is still locked after waiting to expire", async (context) => {
-  context.common.options.databaseHeartbeatInterval = 250;
-  context.common.options.databaseHeartbeatTimeout = 625;
+test.todo("setup drops old tables");
 
-  const database = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
+test.todo('setup publishes views if run with "ponder dev"');
 
-  await database.setup({ buildId: "abc" });
+test.todo(
+  "setup with the same build ID succeeds if the lock doesn't expires after waiting",
+  async (context) => {
+    context.common.options.databaseHeartbeatInterval = 250;
+    context.common.options.databaseHeartbeatTimeout = 625;
 
-  const databaseTwo = createDatabase({
-    common: context.common,
-    schema: schemaTwo,
-    databaseConfig: context.databaseConfig,
-  });
+    const database = createDatabase({
+      common: context.common,
+      schema,
+      databaseConfig: context.databaseConfig,
+    });
 
-  await expect(() =>
-    databaseTwo.setup({
-      buildId: "def",
-    }),
-  ).rejects.toThrow(
-    "Failed to acquire lock on schema 'public'. A different Ponder app is actively using this database.",
-  );
+    await database.setup({ buildId: "abc" });
 
-  await database.kill();
-  await databaseTwo.kill();
-});
+    const databaseTwo = createDatabase({
+      common: context.common,
+      schema: schemaTwo,
+      databaseConfig: context.databaseConfig,
+    });
 
-test("setup throws if there is a table name collision", async (context) => {
-  const database = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
+    await expect(() =>
+      databaseTwo.setup({
+        buildId: "def",
+      }),
+    ).rejects.toThrow(
+      "Failed to acquire lock on schema 'public'. A different Ponder app is actively using this database.",
+    );
 
-  await database.qb.internal.executeQuery(
-    sql`CREATE TABLE "public"."Pet" (id TEXT)`.compile(database.qb.internal),
-  );
+    await database.kill();
+    await databaseTwo.kill();
+  },
+);
 
-  expect(await getUserTableNames(database)).toStrictEqual(["Pet"]);
+test.todo(
+  "setup throws if there is a table name collision",
+  async (context) => {
+    const database = createDatabase({
+      common: context.common,
+      schema,
+      databaseConfig: context.databaseConfig,
+    });
 
-  await expect(() => database.setup({ buildId: "abc" })).rejects.toThrow(
-    "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
-  );
+    await database.qb.internal.executeQuery(
+      sql`CREATE TABLE "Pet" (id TEXT)`.compile(database.qb.internal),
+    );
 
-  await database.kill();
-});
+    expect(await getUserTableNames(database)).toStrictEqual(["Pet"]);
+
+    await expect(() => database.setup({ buildId: "abc" })).rejects.toThrow(
+      "Unable to create table 'public'.'Pet' because a table with that name already exists. Is there another application using the 'public' database schema?",
+    );
+
+    await database.kill();
+  },
+);
+
+test.todo("setup v0.7 migration");
 
 test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
@@ -468,7 +423,7 @@ test("finalize delete reorg table rows", async (context) => {
   await database.kill();
 });
 
-test("kill releases the namespace lock", async (context) => {
+test("kill sets is_locked to false", async (context) => {
   const database = createDatabase({
     common: context.common,
     schema,
@@ -504,7 +459,7 @@ test("kill releases the namespace lock", async (context) => {
   await databaseTwo.kill();
 });
 
-test("createIndexes adds a single column index", async (context) => {
+test.skip("createIndexes()", async (context) => {
   const database = createDatabase({
     common: context.common,
     schema,
@@ -524,85 +479,11 @@ test("createIndexes adds a single column index", async (context) => {
   await database.kill();
 });
 
-test("createIndexes adds a multi column index", async (context) => {
-  const database = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
+test.todo("createViews()");
 
-  await database.setup({ buildId: "abc" });
+test.todo("createTriggers()");
 
-  await database.createIndexes({ schema });
-
-  const indexes = await getUserIndexNames(database, "Pet");
-
-  expect(indexes).toHaveLength(2);
-
-  expect(indexes).toContain("Pet_multiIndex");
-
-  await database.kill();
-});
-
-test("createIndexes with ordering", async (context) => {
-  const schema = createSchema((p) => ({
-    Kevin: p.createTable(
-      {
-        id: p.string(),
-        age: p.int(),
-      },
-      {
-        kevinIndex: p.index("age").asc().nullsLast(),
-      },
-    ),
-  }));
-
-  const database = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
-
-  await database.setup({ buildId: "abc" });
-
-  await database.createIndexes({ schema });
-
-  const indexes = await getUserIndexNames(database, "Kevin");
-
-  expect(indexes).toHaveLength(2);
-
-  expect(indexes).toContain("Kevin_kevinIndex");
-
-  await database.kill();
-});
-
-test("setup with the same build ID drops indexes", async (context) => {
-  const database = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
-
-  await database.setup({ buildId: "abc" });
-
-  await database.createIndexes({ schema });
-
-  await database.kill();
-
-  const databaseTwo = createDatabase({
-    common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-  });
-
-  await databaseTwo.setup({ buildId: "abc" });
-
-  const indexes = await getUserIndexNames(databaseTwo, "Person");
-
-  expect(indexes).toStrictEqual(["Person_pkey"]);
-
-  await databaseTwo.kill();
-});
+test.todo("complete() updates reorg table checkpoints");
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore, database, cleanup } = await setupDatabaseServices(

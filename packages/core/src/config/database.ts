@@ -6,4 +6,4 @@ export type PoolConfig = Prettify<RawPoolConfig & { max: number }>;
 
 export type DatabaseConfig =
   | { kind: "pglite"; options: PGliteOptions }
-  | { kind: "postgres"; poolConfig: PoolConfig; schema: string };
+  | { kind: "postgres"; poolConfig: PoolConfig };

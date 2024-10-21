@@ -33,6 +33,7 @@ export async function run({
 }) {
   const {
     buildId,
+    instanceId,
     databaseConfig,
     networks,
     sources,
@@ -46,10 +47,10 @@ export async function run({
     common,
     schema,
     databaseConfig,
-  });
-  const { checkpoint: initialCheckpoint } = await database.setup({
     buildId,
+    instanceId,
   });
+  const { checkpoint: initialCheckpoint } = await database.setup();
 
   const syncStore = createSyncStore({
     common,
@@ -58,6 +59,7 @@ export async function run({
 
   const metadataStore = getMetadataStore({
     db: database.qb.user,
+    instanceId,
   });
 
   // This can be a long-running operation, so it's best to do it after
@@ -213,6 +215,7 @@ export async function run({
     });
 
     // await database.createIndexes({ schema });
+    await database.createViews();
     await database.createTriggers();
 
     await sync.startRealtime();

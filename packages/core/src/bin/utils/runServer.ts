@@ -13,12 +13,14 @@ export async function runServer({
   common: Common;
   build: ApiBuild;
 }) {
-  const { databaseConfig, schema } = build;
+  const { databaseConfig, schema, buildId, instanceId } = build;
 
   const database = await createDatabase({
     common,
     schema,
     databaseConfig,
+    buildId,
+    instanceId,
   });
 
   const server = await createServer({

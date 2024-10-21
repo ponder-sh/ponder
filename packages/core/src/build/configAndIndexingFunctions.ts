@@ -77,30 +77,6 @@ export async function buildConfigAndIndexingFunctions({
         msg: `Using Postgres database '${getDatabaseName(connectionString)}' (${source})`,
       });
 
-      let schema: string | undefined = undefined;
-      if (config.database.schema) {
-        schema = config.database.schema;
-        source = "from ponder.config.ts";
-      } else if (process.env.RAILWAY_DEPLOYMENT_ID) {
-        if (process.env.RAILWAY_SERVICE_NAME === undefined) {
-          throw new Error(
-            "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
-          );
-        }
-        schema = `${process.env.RAILWAY_SERVICE_NAME}_${process.env.RAILWAY_DEPLOYMENT_ID.slice(
-          0,
-          8,
-        )}`;
-        source = "from RAILWAY_DEPLOYMENT_ID env var";
-      } else {
-        schema = "public";
-        source = "default";
-      }
-      logs.push({
-        level: "info",
-        msg: `Using '${schema}' database schema for indexed tables (${source})`,
-      });
-
       const poolConfig = {
         max: config.database.poolConfig?.max ?? 30,
         connectionString,
@@ -109,7 +85,6 @@ export async function buildConfigAndIndexingFunctions({
       databaseConfig = {
         kind: "postgres",
         poolConfig,
-        schema,
       };
     } else {
       logs.push({
@@ -137,34 +112,11 @@ export async function buildConfigAndIndexingFunctions({
         msg: `Using Postgres database ${getDatabaseName(connectionString)} (${source})`,
       });
 
-      let schema: string | undefined = undefined;
-      if (process.env.RAILWAY_DEPLOYMENT_ID !== undefined) {
-        schema = process.env.RAILWAY_DEPLOYMENT_ID;
-        if (process.env.RAILWAY_SERVICE_NAME === undefined) {
-          throw new Error(
-            "Invalid database configuration: RAILWAY_DEPLOYMENT_ID env var is defined, but RAILWAY_SERVICE_NAME env var is not.",
-          );
-        }
-        schema = `${process.env.RAILWAY_SERVICE_NAME}_${process.env.RAILWAY_DEPLOYMENT_ID.slice(
-          0,
-          8,
-        )}`;
-        source = "from RAILWAY_DEPLOYMENT_ID env var";
-      } else {
-        schema = "public";
-        source = "default";
-      }
-      logs.push({
-        level: "info",
-        msg: `Using '${schema}' database schema for indexed tables (${source})`,
-      });
-
       const poolConfig = { max: 30, connectionString };
 
       databaseConfig = {
         kind: "postgres",
         poolConfig,
-        schema,
       };
     } else {
       // Fall back to PGlite.

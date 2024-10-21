@@ -20,6 +20,12 @@ import {
 } from "drizzle-orm/pg-core/columns/all";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain } from "./index.js";
+import { userToSqlTableName } from "./sql.js";
+
+const instanceId: string = await import("@/generated")
+  // @ts-ignore
+  .then((exports) => exports.instanceId)
+  .catch(() => undefined);
 
 type $Type<T extends ColumnBuilderBase, TType> = T & {
   _: {
@@ -160,8 +166,6 @@ type PgColumnsBuilders = _PgColumnsBuilders & {
   evmBigint: typeof evmBigint;
 };
 
-// TODO(kyle) add objects at runtime
-
 /**
  * Create an onchain table
  *
@@ -182,13 +186,34 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  const table = pgTableWithSchema(name, columns, extraConfig as any, undefined);
+  if (instanceId === undefined) {
+    const table = pgTableWithSchema(
+      name,
+      columns,
+      extraConfig as any,
+      undefined,
+    );
 
-  /**
-   * This trick is used to make `table instanceof PgTable` evaluate to false.
-   * This is necessary to avoid generating migrations for onchain tables.
-   */
-  Object.setPrototypeOf(table, Object.prototype);
+    /**
+     * This trick is used to make `table instanceof PgTable` evaluate to false.
+     * This is necessary to avoid generating migrations for onchain tables.
+     */
+    // TODO(kyle) this is bad
+    Object.setPrototypeOf(table, Object.prototype);
+
+    // @ts-ignore
+    table[onchain] = true;
+
+    // @ts-ignore
+    return table;
+  }
+
+  const table = pgTableWithSchema(
+    userToSqlTableName(name, instanceId),
+    columns,
+    extraConfig as any,
+    undefined,
+  );
 
   // @ts-ignore
   table[onchain] = true;
@@ -196,6 +221,58 @@ export const onchainTable = <
   // @ts-ignore
   return table;
 };
+
+export class OnchainSchema<schema extends string> extends PgSchema<schema> {
+  override table = <
+    name extends string,
+    columns extends Record<string, PgColumnBuilderBase>,
+    extra extends PgTableExtraConfig | undefined = undefined,
+  >(
+    name: name,
+    columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+    extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
+  ): OnchainTable<{
+    name: name;
+    schema: schema;
+    columns: BuildColumns<name, columns, "pg">;
+    extra: extra;
+    dialect: "pg";
+  }> => {
+    if (instanceId === undefined) {
+      const table = pgTableWithSchema(
+        name,
+        columns,
+        extraConfig as any,
+        this.schemaName,
+      );
+
+      /**
+       * This trick is used to make `table instanceof PgTable` evaluate to false.
+       * This is necessary to avoid generating migrations for onchain tables.
+       */
+      Object.setPrototypeOf(table, Object.prototype);
+
+      // @ts-ignore
+      table[onchain] = true;
+
+      // @ts-ignore
+      return table;
+    }
+
+    const table = pgTableWithSchema(
+      userToSqlTableName(name, instanceId),
+      columns,
+      extraConfig as any,
+      this.schemaName,
+    );
+
+    // @ts-ignore
+    table[onchain] = true;
+
+    // @ts-ignore
+    return table;
+  };
+}
 
 export class OffchainSchema<schema extends string> extends PgSchema<schema> {
   override table = <
@@ -214,6 +291,9 @@ export class OffchainSchema<schema extends string> extends PgSchema<schema> {
     dialect: "pg";
   }> => pgTableWithSchema(name, columns, extraConfig, this.schemaName);
 }
+
+export const onchainSchema = <T extends string>(name: T) =>
+  new OnchainSchema(name);
 
 export const offchainSchema = <T extends string>(name: T) =>
   new OffchainSchema(name);

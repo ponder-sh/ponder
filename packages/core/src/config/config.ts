@@ -22,10 +22,6 @@ type DatabaseConfig =
       kind: "postgres";
       /** Postgres database connection string. Default: `DATABASE_PRIVATE_URL` > `DATABASE_URL` environment variable. */
       connectionString?: string;
-      /** Postgres schema to use for indexed data. Default: 'public', or `RAILWAY_SERVICE_NAME`-`RAILWAY_DEPLOYMENT_ID` environment variables if provided. */
-      schema?: string;
-      /** Postgres schema to use for views returning indexed data. Default: undefined, or `RAILWAY_SERVICE_NAME` environment variable if provided. */
-      publishSchema?: string;
       /** Postgres pool configuration passed to `node-postgres`. */
       poolConfig?: {
         /** Maximum number of clients in the pool. Default: `30`. */
