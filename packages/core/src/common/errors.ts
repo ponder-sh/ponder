@@ -96,7 +96,7 @@ export class InvalidStoreMethodError extends NonRetryableError {
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, CheckConstraintError.prototype);
+    Object.setPrototypeOf(this, InvalidStoreMethodError.prototype);
   }
 }
 
@@ -105,7 +105,7 @@ export class UndefinedTableError extends NonRetryableError {
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, CheckConstraintError.prototype);
+    Object.setPrototypeOf(this, UndefinedTableError.prototype);
   }
 }
 
