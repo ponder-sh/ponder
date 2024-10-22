@@ -8,7 +8,7 @@ import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
-import { type RealtimeEvent, createSync } from "@/sync/index.js";
+import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -98,18 +98,18 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "block": {
-          const result = await handleEvents(
-            decodeEvents(common, sources, event.events),
-            event.checkpoint,
-          );
+          // events must be run block-by-block, so that `database.complete` works as intended
+          for (const events of splitEvents(event.events)) {
+            const result = await handleEvents(
+              decodeEvents(common, sources, events),
+              event.checkpoint,
+            );
 
-          if (result.status === "error") onReloadableError(result.error);
+            if (result.status === "error") onReloadableError(result.error);
 
-          // overwrite the temporary "checkpoint" value in reorg tables
-          // TODO(kyle) should this be dependent on the block?
-          await database.complete({ checkpoint: event.checkpoint });
-
-          await indexingStore.flush({ force: true });
+            await indexingStore.flush({ force: true });
+            await database.complete({ checkpoint: event.checkpoint });
+          }
 
           await metadataStore.setStatus(event.status);
 
@@ -180,8 +180,6 @@ export async function run({
         onReloadableError(result.error);
         return;
       }
-
-      // TODO(kyle) temporarily flush and update checkpoint
     }
 
     if (isKilled) return;

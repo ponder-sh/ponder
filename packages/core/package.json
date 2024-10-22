@@ -20,19 +20,16 @@
     "ponder": "./dist/bin/ponder.js"
   },
   "module": "./dist/index.js",
-  "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     },
     "./db": {
       "types": "./dist/drizzle/db.d.ts",
-      "import": "./dist/drizzle/db.js",
-      "require": "./dist/drizzle/db.cjs"
+      "import": "./dist/drizzle/db.js"
     }
   },
   "scripts": {

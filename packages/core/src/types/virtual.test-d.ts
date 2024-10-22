@@ -1,7 +1,8 @@
 import { createConfig } from "@/config/config.js";
-import type { Drizzle } from "@/drizzle/index.js";
+import { onchainTable } from "@/drizzle/db.js";
 import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
+import type { Db } from "./db.js";
 import type {
   Block,
   CallTrace,
@@ -79,6 +80,13 @@ const config = createConfig({
     },
   },
 });
+
+const account = onchainTable("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint().notNull(),
+}));
+
+const schema = { account };
 
 test("FormatEventNames without filter", () => {
   type a = Virtual.FormatEventNames<
@@ -199,15 +207,19 @@ test("FormatEventName with blocks", () => {
 });
 
 test("Context db", () => {
-  type a = Virtual.Context<typeof config, "c1:Event0">["db"];
+  type a = Virtual.Context<typeof config, typeof schema, "c1:Event0">["db"];
   //   ^?
 
-  assertType<a>({} as any as Drizzle);
-  assertType<Drizzle>({} as any as a);
+  assertType<a>({} as any as Db<typeof schema>);
+  assertType<Db<typeof schema>>({} as any as a);
 });
 
 test("Context single network", () => {
-  type a = Virtual.Context<typeof config, "c1:Event0">["network"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c1:Event0"
+  >["network"];
   //   ^?
 
   type expectedNetwork = { name: "mainnet"; chainId: 1 };
@@ -217,7 +229,11 @@ test("Context single network", () => {
 });
 
 test("Context multi network", () => {
-  type a = Virtual.Context<typeof config, "c2:Event1()">["network"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["network"];
   //   ^?
 
   type expectedNetwork =
@@ -229,7 +245,7 @@ test("Context multi network", () => {
 });
 
 test("Context block network", () => {
-  type a = Virtual.Context<typeof config, "b1:block">["network"];
+  type a = Virtual.Context<typeof config, typeof schema, "b1:block">["network"];
   //   ^?
 
   type expectedNetwork = { name: "mainnet"; chainId: 1 };
@@ -239,7 +255,11 @@ test("Context block network", () => {
 });
 
 test("Context client", () => {
-  type a = Virtual.Context<typeof config, "c2:Event1()">["client"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["client"];
   //   ^?
 
   type expectedFunctions =
@@ -256,7 +276,11 @@ test("Context client", () => {
 });
 
 test("Context contracts", () => {
-  type a = Virtual.Context<typeof config, "c2:Event1()">["contracts"]["c2"];
+  type a = Virtual.Context<
+    typeof config,
+    typeof schema,
+    "c2:Event1()"
+  >["contracts"]["c2"];
   //   ^?
 
   type expectedAbi = [Event1, Event1Overloaded, Func1, Func1Overloaded];
@@ -281,6 +305,7 @@ test("Context network without event", () => {
   type a = Virtual.Context<
     // ^?
     typeof config,
+    typeof schema,
     Virtual.EventNames<typeof config>
   >["network"];
 
@@ -395,7 +420,7 @@ test("Event with block", () => {
 });
 
 test("Registry", () => {
-  const ponder = {} as any as Virtual.Registry<typeof config>;
+  const ponder = {} as any as Virtual.Registry<typeof config, typeof schema>;
 
   ponder.on("c1:Event0", async ({ event, context }) => {
     event.name;
