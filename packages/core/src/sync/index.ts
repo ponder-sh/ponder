@@ -941,7 +941,7 @@ export const syncDiagnostic = async ({
   );
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: network.chainId === 42161 ? 266305369 : finalizedBlockNumber,
+    blockNumber: finalizedBlockNumber,
   });
 
   return {
