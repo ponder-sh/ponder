@@ -346,11 +346,17 @@ export const decodeEvents = (
                 },
               });
             } catch (err) {
-              // TODO(kyle) Because we are strictly setting all `topics` now, this should be a bigger error.
-              common.logger.debug({
-                service: "app",
-                msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
-              });
+              if (source.filter.address === undefined) {
+                common.logger.debug({
+                  service: "app",
+                  msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                });
+              } else {
+                common.logger.warn({
+                  service: "app",
+                  msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                });
+              }
             }
             break;
           }
@@ -396,10 +402,17 @@ export const decodeEvents = (
                 },
               });
             } catch (err) {
-              common.logger.debug({
-                service: "app",
-                msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
-              });
+              if (source.filter.toAddress === undefined) {
+                common.logger.debug({
+                  service: "app",
+                  msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
+                });
+              } else {
+                common.logger.warn({
+                  service: "app",
+                  msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
+                });
+              }
             }
             break;
           }
