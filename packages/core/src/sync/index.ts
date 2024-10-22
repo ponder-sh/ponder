@@ -626,16 +626,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         unfinalizedEventData.push(blockWithEventData);
 
-        pendingEvents.push(
-          ...buildEvents({
-            sources: args.sources.filter(
-              ({ filter }) => filter.chainId === network.chainId,
-            ),
-            blockWithEventData,
-            finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
-            unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
-          }),
-        );
+        const events = buildEvents({
+          sources: args.sources,
+          chainId: network.chainId,
+          blockWithEventData,
+          finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
+          unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
+        });
+
+        pendingEvents.push(...events);
 
         if (to > from) {
           for (const network of args.networks) {
