@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.17
+
+### Patch Changes
+
+- [#1178](https://github.com/ponder-sh/ponder/pull/1178) [`b48cf539df9672b26f3af601e5bc7c599c600db9`](https://github.com/ponder-sh/ponder/commit/b48cf539df9672b26f3af601e5bc7c599c600db9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6.9 that caused new child contracts to be missed for factories with a list of addresses after the historical backfill was complete.
+
 ## 0.6.16
 
 ### Patch Changes
