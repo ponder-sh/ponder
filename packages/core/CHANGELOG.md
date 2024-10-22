@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.18
+
+### Patch Changes
+
+- [#1180](https://github.com/ponder-sh/ponder/pull/1180) [`87893bc915c4bc8be78ff9301e29baf56ac9edbf`](https://github.com/ponder-sh/ponder/commit/87893bc915c4bc8be78ff9301e29baf56ac9edbf) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that causes some events to be skipped in realtime for apps with multiple chains. This bug did not affect the sync cache and does not require the app to be resynced.
+
 ## 0.6.17
 
 ### Patch Changes
