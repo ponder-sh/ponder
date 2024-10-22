@@ -626,16 +626,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         unfinalizedEventData.push(blockWithEventData);
 
-        pendingEvents.push(
-          ...buildEvents({
-            sources: args.sources.filter(
-              ({ filter }) => filter.chainId === network.chainId,
-            ),
-            blockWithEventData,
-            finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
-            unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
-          }),
-        );
+        const events = buildEvents({
+          sources: args.sources,
+          chainId: network.chainId,
+          blockWithEventData,
+          finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
+          unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
+        });
+
+        pendingEvents.push(...events);
 
         if (to > from) {
           for (const network of args.networks) {
@@ -942,7 +941,7 @@ export const syncDiagnostic = async ({
   );
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: finalizedBlockNumber,
+    blockNumber: network.chainId === 42161 ? 266305369 : finalizedBlockNumber,
   });
 
   return {

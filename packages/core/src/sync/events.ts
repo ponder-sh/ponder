@@ -130,11 +130,13 @@ export const buildEvents = ({
   },
   finalizedChildAddresses,
   unfinalizedChildAddresses,
+  chainId,
 }: {
   sources: Source[];
   blockWithEventData: Omit<BlockWithEventData, "filters" | "factoryLogs">;
   finalizedChildAddresses: Map<Factory, Set<Address>>;
   unfinalizedChildAddresses: Map<Factory, Set<Address>>;
+  chainId: number;
 }) => {
   const events: RawEvent[] = [];
 
@@ -159,6 +161,7 @@ export const buildEvents = ({
 
   for (let i = 0; i < sources.length; i++) {
     const filter = sources[i]!.filter;
+    if (chainId !== filter.chainId) continue;
     switch (filter.type) {
       case "log": {
         for (const log of logs) {
