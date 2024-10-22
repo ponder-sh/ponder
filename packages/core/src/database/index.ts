@@ -921,6 +921,7 @@ export const createDatabase = async (args: {
 
       let result = await attempt({ isFirstAttempt: true });
       if (result.status === "locked") {
+        console.log("hi");
         const duration = result.expiry - Date.now();
         args.common.logger.warn({
           service: "database",

@@ -2,6 +2,7 @@ import type { Common } from "@/common/common.js";
 import {
   FlushError,
   InvalidStoreMethodError,
+  NotNullConstraintError,
   RecordNotFoundError,
   UniqueConstraintError,
 } from "@/common/errors.js";
@@ -193,7 +194,7 @@ export const createIndexingStore = ({
       for (const [key, value] of Object.entries(row)) {
         existingRow[key] = value;
       }
-      existingRow = normalizeRow(table, existingRow);
+      existingRow = normalizeRow(table, existingRow, entryType);
       const bytes = getBytes(existingRow);
 
       cacheSize += 1;
@@ -206,7 +207,7 @@ export const createIndexingStore = ({
         bytes,
       });
     } else {
-      row = normalizeRow(table, row);
+      row = normalizeRow(table, row, entryType);
       const bytes = getBytes(row);
 
       cacheSize += 1;
@@ -230,16 +231,57 @@ export const createIndexingStore = ({
     return cache.get(table)!.delete(getCacheKey(table, row));
   };
 
-  const normalizeRow = (table: Table, row: { [key: string]: unknown }) => {
+  /**
+   * Returns true if the column has a "default" value that is used when no value is passed.
+   * Handles `.default`, `.serial`, `.$defaultFn()`, `.$onUpdateFn()`.
+   */
+  const hasEmptyValue = (column: Column) => {
+    return column.hasDefault;
+  };
+
+  /**
+   * Returns the "default" value for `column`.
+   */
+  const getEmptyValue = (column: Column, type: EntryType) => {
+    if (type === EntryType.UPDATE && column.onUpdateFn) {
+      return column.onUpdateFn();
+    }
+    if (column.default) return column.default;
+    if (column.defaultFn) return column.defaultFn();
+    if (column.onUpdateFn) return column.onUpdateFn();
+
+    return undefined;
+  };
+
+  const normalizeRow = (
+    table: Table,
+    row: { [key: string]: unknown },
+    type: EntryType,
+  ) => {
     for (const [columnName, column] of Object.entries(getTableColumns(table))) {
-      //TODO(kyle) throw error for missing rows
-      row[columnName] = normalizeColumn(column, row[columnName]);
+      // not-null constraint
+      if (
+        type === EntryType.INSERT &&
+        (row[columnName] === undefined || row[columnName] === null) &&
+        column.notNull &&
+        hasEmptyValue(column) === false
+      ) {
+        throw new NotNullConstraintError(
+          `Column ${columnName} violates not-null constraint.`,
+        );
+      }
+
+      row[columnName] = normalizeColumn(column, row[columnName], type);
     }
 
     return row;
   };
 
-  const normalizeColumn = (column: Column, value: unknown) => {
+  const normalizeColumn = (column: Column, value: unknown, type: EntryType) => {
+    if (value === undefined) {
+      if (hasEmptyValue(column)) return getEmptyValue(column, type);
+      return null;
+    }
     if (column.mapToDriverValue === undefined) return value;
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   };
@@ -524,33 +566,45 @@ export const createIndexingStore = ({
                 ),
               ),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: async () =>
-              await queue.add(() =>
-                database.qb.user.wrap(
-                  {
-                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
-                  },
-                  async () => {
-                    checkOnchainTable(table as Table, "upsert");
-                    checkSerialTable(table as Table, "upsert");
+            then: <TResult1 = void, TResult2 = never>(
+              onFulfilled?:
+                | ((value: void) => TResult1 | PromiseLike<TResult1>)
+                | undefined
+                | null,
+              onRejected?:
+                | ((reason: any) => TResult2 | PromiseLike<TResult2>)
+                | undefined
+                | null,
+            ) =>
+              queue
+                .add(() =>
+                  database.qb.user.wrap(
+                    {
+                      method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                    },
+                    async () => {
+                      checkOnchainTable(table as Table, "upsert");
+                      checkSerialTable(table as Table, "upsert");
 
-                    const entry = getCacheEntry(table, key);
+                      const entry = getCacheEntry(table, key);
 
-                    let row: { [key: string]: unknown } | null;
+                      let row: { [key: string]: unknown } | null;
 
-                    if (entry?.row) {
-                      row = entry.row;
-                    } else {
-                      if (isDatabaseEmpty) row = null;
-                      else row = await find(table, key);
-                    }
+                      if (entry?.row) {
+                        row = entry.row;
+                      } else {
+                        if (isDatabaseEmpty) row = null;
+                        else row = await find(table, key);
+                      }
 
-                    if (row === null) {
-                      setCacheEntry(table, valuesI, EntryType.INSERT, key);
-                    }
-                  },
-                ),
-              ),
+                      if (row === null) {
+                        setCacheEntry(table, valuesI, EntryType.INSERT, key);
+                      }
+                    },
+                  ),
+                )
+                // @ts-ignore
+                .then(onFulfilled, onRejected),
           };
         },
         update(valuesU: any) {
@@ -558,52 +612,64 @@ export const createIndexingStore = ({
             insert: (valuesI: any) =>
               indexingStore.upsert(table, key).insert(valuesI).update(valuesU),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: () =>
-              queue.add(() =>
-                database.qb.user.wrap(
-                  {
-                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
-                  },
-                  async () => {
-                    checkOnchainTable(table as Table, "upsert");
-                    checkSerialTable(table as Table, "upsert");
+            then: <TResult1 = void, TResult2 = never>(
+              onFulfilled?:
+                | ((value: void) => TResult1 | PromiseLike<TResult1>)
+                | undefined
+                | null,
+              onRejected?:
+                | ((reason: any) => TResult2 | PromiseLike<TResult2>)
+                | undefined
+                | null,
+            ) =>
+              queue
+                .add(() =>
+                  database.qb.user.wrap(
+                    {
+                      method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                    },
+                    async () => {
+                      checkOnchainTable(table as Table, "upsert");
+                      checkSerialTable(table as Table, "upsert");
 
-                    const entry = getCacheEntry(table, key);
-                    deleteCacheEntry(table, key);
+                      const entry = getCacheEntry(table, key);
+                      deleteCacheEntry(table, key);
 
-                    let row: { [key: string]: unknown } | null;
+                      let row: { [key: string]: unknown } | null;
 
-                    if (entry?.row) {
-                      row = entry.row;
-                    } else {
-                      if (isDatabaseEmpty) row = null;
-                      else row = await find(table, key);
-                    }
-
-                    if (row) {
-                      if (typeof valuesU === "function") {
-                        setCacheEntry(
-                          table,
-                          valuesU(row),
-                          entry?.type === EntryType.INSERT
-                            ? EntryType.INSERT
-                            : EntryType.UPDATE,
-                          row,
-                        );
+                      if (entry?.row) {
+                        row = entry.row;
                       } else {
-                        setCacheEntry(
-                          table,
-                          valuesU,
-                          entry?.type === EntryType.INSERT
-                            ? EntryType.INSERT
-                            : EntryType.UPDATE,
-                          row,
-                        );
+                        if (isDatabaseEmpty) row = null;
+                        else row = await find(table, key);
                       }
-                    }
-                  },
-                ),
-              ),
+
+                      if (row) {
+                        if (typeof valuesU === "function") {
+                          setCacheEntry(
+                            table,
+                            valuesU(row),
+                            entry?.type === EntryType.INSERT
+                              ? EntryType.INSERT
+                              : EntryType.UPDATE,
+                            row,
+                          );
+                        } else {
+                          setCacheEntry(
+                            table,
+                            valuesU,
+                            entry?.type === EntryType.INSERT
+                              ? EntryType.INSERT
+                              : EntryType.UPDATE,
+                            row,
+                          );
+                        }
+                      }
+                    },
+                  ),
+                )
+                // @ts-ignore
+                .then(onFulfilled, onRejected),
           };
         },
       };
@@ -654,6 +720,7 @@ export const createIndexingStore = ({
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
+        // TODO(kyle) parse error
         const res = await database.qb.user.wrap({ method: "sql" }, () =>
           database.drizzle._.session
             .prepareQuery(query, undefined, undefined, method === "all")

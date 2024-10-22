@@ -145,9 +145,27 @@ export type InferCompositePrimaryKey<
     : never
   : never;
 
-export type Find = <table extends Table>(
+export type InferSerialPrimaryKey<
+  table extends Table,
+  ///
+  columns extends Record<string, Column> = table["_"]["columns"],
+  primaryKey extends keyof table["_"]["columns"] = InferPrimaryKey<
+    table,
+    columns
+  >,
+> = columns[primaryKey]["_"]["columnType"] extends `${string}Serial`
+  ? primaryKey
+  : never;
+
+export type Find = <
+  table extends Table,
+  ///
+  serialPrimaryKey extends string | never = InferSerialPrimaryKey<table>,
+>(
   table: table extends { [onchain]: true }
-    ? table
+    ? [serialPrimaryKey] extends [never]
+      ? table
+      : PonderTypeError<`db.find() cannot be used with tables with serial primary keys, and '${table["_"]["name"]}.${serialPrimaryKey}' is a serial column.`>
     : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => Promise<InferSelectModel<table> | typeof empty>;
@@ -162,29 +180,39 @@ export type Insert = <table extends Table>(
   ) => Promise<void>;
 };
 
-export type Update = <table extends Table>(
+export type Update = <
+  table extends Table,
+  ///
+  serialPrimaryKey extends string | never = InferSerialPrimaryKey<table>,
+  insertValues = Prettify<Omit<InferInsertModel<table>, keyof Key<table>>>,
+>(
   table: table extends { [onchain]: true }
-    ? table
+    ? [serialPrimaryKey] extends [never]
+      ? table
+      : PonderTypeError<`db.update() cannot be used with tables with serial primary keys, and '${table["_"]["name"]}.${serialPrimaryKey}' is a serial column.`>
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => {
   set: (
     values:
-      | Partial<InferInsertModel<table>>
-      | ((row: InferSelectModel<table>) => Partial<InferInsertModel<table>>),
+      | Partial<insertValues>
+      | ((row: InferSelectModel<table>) => Partial<insertValues>),
   ) => Promise<void>;
 };
 
 export type Upsert = <
   table extends Table,
   ///
+  serialPrimaryKey extends string | never = InferSerialPrimaryKey<table>,
   insertModel = InferInsertModel<table>,
   selectModel = InferSelectModel<table>,
   insertValues = Prettify<Omit<insertModel, keyof Key<table>>>,
   updateFn = (row: selectModel) => Partial<insertModel>,
 >(
   table: table extends { [onchain]: true }
-    ? table
+    ? [serialPrimaryKey] extends [never]
+      ? table
+      : PonderTypeError<`db.upsert() cannot be used with tables with serial primary keys, and '${table["_"]["name"]}.${serialPrimaryKey}' is a serial column.`>
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => {
@@ -200,9 +228,15 @@ export type Upsert = <
   } & Promise<void>;
 };
 
-export type Delete = <table extends Table>(
+export type Delete = <
+  table extends Table,
+  ///
+  serialPrimaryKey extends string | never = InferSerialPrimaryKey<table>,
+>(
   table: table extends { [onchain]: true }
-    ? table
+    ? [serialPrimaryKey] extends [never]
+      ? table
+      : PonderTypeError<`db.delete() cannot be used with tables with serial primary keys, and '${table["_"]["name"]}.${serialPrimaryKey}' is a serial column.`>
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => Promise<boolean>;
