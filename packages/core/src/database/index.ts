@@ -652,6 +652,8 @@ export const createDatabase = async (args: {
             // Create tables
             ////////
 
+            // TODO(kyle): Create user enums
+
             const createUserTables = async () => {
               for (const tableName of getTableNames(
                 args.schema,

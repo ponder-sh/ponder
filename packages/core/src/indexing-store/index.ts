@@ -246,6 +246,8 @@ export const createIndexingStore = ({
   };
 
   const normalizeColumn = (column: Column, value: unknown) => {
+    // TODO(kyle) hack to get unblocked
+    if (value === null) return null;
     if (column.mapToDriverValue === undefined) return value;
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   };

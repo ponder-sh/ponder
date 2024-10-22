@@ -128,7 +128,7 @@ type DatabaseServiceSetup = {
 };
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   buildId: "test",
-  instanceId: "test",
+  instanceId: "abcd",
   schema: {},
   indexing: "historical",
 };
