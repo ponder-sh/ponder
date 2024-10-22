@@ -21,7 +21,13 @@ export const isLogFactoryMatched = ({
   filter,
   log,
 }: { filter: LogFactory; log: SyncLog }): boolean => {
-  if (filter.address !== toLowerCase(log.address)) return false;
+  const addresses = Array.isArray(filter.address)
+    ? filter.address
+    : [filter.address];
+
+  if (addresses.every((address) => address !== toLowerCase(log.address))) {
+    return false;
+  }
   if (log.topics.length === 0) return false;
   if (filter.eventSelector !== toLowerCase(log.topics[0]!)) return false;
 

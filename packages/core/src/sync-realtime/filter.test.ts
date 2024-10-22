@@ -1,5 +1,6 @@
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { getRawRPCData } from "@/_test/utils.js";
+import type { Address } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   isBlockFilterMatched,
@@ -16,6 +17,15 @@ test("isLogFactoryMatched()", async (context) => {
 
   let isMatched = isLogFactoryMatched({
     filter: context.sources[1].filter.address,
+    log: rpcData.block3.logs[0],
+  });
+  expect(isMatched).toBe(true);
+
+  isMatched = isLogFactoryMatched({
+    filter: {
+      ...context.sources[1].filter.address,
+      address: [context.sources[1].filter.address.address as Address],
+    },
     log: rpcData.block3.logs[0],
   });
   expect(isMatched).toBe(true);
