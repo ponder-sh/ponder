@@ -8,6 +8,8 @@ import {
   type SQL,
   type TableRelationalConfig,
   and,
+  arrayContained,
+  arrayContains,
   asc,
   desc,
   eq,
@@ -19,11 +21,12 @@ import {
   lt,
   lte,
   ne,
+  not,
   notInArray,
   notLike,
   or,
 } from "drizzle-orm";
-import { PgInteger, PgSerial, type PgTable } from "drizzle-orm/pg-core";
+import { PgInteger, PgSerial } from "drizzle-orm/pg-core";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -46,7 +49,7 @@ import type { GetDataLoader } from "./middleware.js";
 
 export type Parent = Record<string, any>;
 export type Context = {
-  getDataloader: GetDataLoader;
+  getDataLoader: GetDataLoader;
   metadataStore: MetadataStore;
 };
 
@@ -167,7 +170,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
             );
             if (!referencedTable)
               throw new Error(
-                `Referenced table not found: ${relation.referencedTableName}`,
+                `Internal error: Referenced table "${relation.referencedTableName}" not found`,
               );
 
             const referencedEntityType = entityTypes[referencedTable.tsName];
@@ -181,22 +184,19 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
               referencedEntityFilterType === undefined
             )
               throw new Error(
-                `Referenced entity type not found: ${referencedTable.tsName}`,
+                `Internal error: Referenced entity type not found for table "${referencedTable.tsName}" `,
+              );
+
+            const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>)
+              .query[referencedTable.tsName];
+            if (!baseQuery)
+              throw new Error(
+                `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
               );
 
             if (is(relation, One)) {
               const fields = relation.config?.fields ?? [];
               const references = relation.config?.references ?? [];
-
-              const baseQuery = (
-                db as Drizzle<{
-                  [key: string]: OnchainTable;
-                }>
-              ).query[referencedTable.tsName];
-              if (!baseQuery)
-                throw new Error(
-                  `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
-                );
 
               fieldConfigMap[relationName] = {
                 // Note: This name is a bug in Drizzle.
@@ -224,15 +224,13 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
               };
             } else if (is(relation, Many)) {
               // Search the relations of the referenced table for the corresponding `one` relation.
-              // If "relationName" is not provided, use the first `one` relation found that has this
-              // table as its referenced table.
+              // If "relationName" is not provided, use the first `one` relation that references this table.
               const oneRelation = Object.values(referencedTable.relations).find(
                 (relation) =>
                   relation.relationName === relationName ||
                   (is(relation, One) &&
                     relation.referencedTableName === table.dbName),
               ) as One | undefined;
-
               if (!oneRelation)
                 throw new Error(
                   `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
@@ -240,16 +238,6 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
 
               const fields = oneRelation.config?.fields ?? [];
               const references = oneRelation.config?.references ?? [];
-
-              const baseQuery = (
-                db as Drizzle<{
-                  [key: string]: OnchainTable;
-                }>
-              ).query[referencedTable.tsName];
-              if (!baseQuery)
-                throw new Error(
-                  `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
-                );
 
               fieldConfigMap[relationName] = {
                 type: referencedEntityPageType,
@@ -271,20 +259,6 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                     orderDirection?: "asc" | "desc";
                   };
 
-                  let orderBy: SQL[] | undefined;
-                  if (args.orderBy !== undefined) {
-                    const orderByColumn = referencedTable.columns[args.orderBy];
-                    if (orderByColumn === undefined) {
-                      throw new Error(
-                        `Unknown column "${args.orderBy}" used in orderBy argument`,
-                      );
-                    }
-                    orderBy =
-                      (args.orderDirection ?? "asc") === "asc"
-                        ? [asc(orderByColumn)]
-                        : [desc(orderByColumn)];
-                  }
-
                   const argConditions = args.where
                     ? buildWhereConditions(args.where, referencedTable.columns)
                     : [];
@@ -303,6 +277,20 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                       : conditions.length === 1
                         ? conditions[0]
                         : and(...conditions);
+
+                  let orderBy: SQL[] | undefined;
+                  if (args.orderBy !== undefined) {
+                    const orderByColumn = referencedTable.columns[args.orderBy];
+                    if (orderByColumn === undefined) {
+                      throw new Error(
+                        `Unknown column "${args.orderBy}" used in orderBy argument`,
+                      );
+                    }
+                    orderBy =
+                      (args.orderDirection ?? "asc") === "asc"
+                        ? [asc(orderByColumn)]
+                        : [desc(orderByColumn)];
+                  }
 
                   const rows = await baseQuery.findMany({
                     where,
@@ -355,6 +343,14 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
       table.tsName.charAt(0).toLowerCase() + table.tsName.slice(1);
     const pluralFieldName = `${singularFieldName}s`;
 
+    const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>).query[
+      table.tsName
+    ];
+    if (!baseQuery)
+      throw new Error(
+        `Internal error: Table "${table.tsName}" not found in RQB`,
+      );
+
     queryFields[singularFieldName] = {
       type: entityType,
       args: {
@@ -364,16 +360,6 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
       resolve: async (_, args, context) => {
         const { id } = args as { id?: string };
         if (id === undefined) return null;
-
-        const baseQuery = (
-          db as Drizzle<{
-            [key: string]: OnchainTable;
-          }>
-        ).query[table.tsName];
-        if (!baseQuery)
-          throw new Error(
-            `Internal error: Table "${table.tsName}" not found in RQB`,
-          );
 
         const row = await baseQuery.findFirst();
 
@@ -398,40 +384,56 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
       },
-      resolve: async (_, args, context) => {
-        const { where, orderBy, orderDirection, before, limit, after } =
-          args as {
-            where?: { [key: string]: number | string };
-            after?: string;
-            before?: string;
-            limit?: number;
-            orderBy?: string;
-            orderDirection?: "asc" | "desc";
-          };
+      resolve: async (_, args_, context) => {
+        const args = args_ as {
+          where?: { [key: string]: number | string };
+          after?: string;
+          before?: string;
+          limit?: number;
+          orderBy?: string;
+          orderDirection?: "asc" | "desc";
+        };
 
-        const whereObject = where ? buildWhereObject(where) : {};
+        let orderBy: SQL[] | undefined;
+        if (args.orderBy !== undefined) {
+          const orderByColumn = table.columns[args.orderBy];
+          if (orderByColumn === undefined) {
+            throw new Error(
+              `Unknown column "${args.orderBy}" used in orderBy argument`,
+            );
+          }
+          orderBy =
+            (args.orderDirection ?? "asc") === "asc"
+              ? [asc(orderByColumn)]
+              : [desc(orderByColumn)];
+        }
 
-        const orderByObject = orderBy
-          ? { [orderBy]: orderDirection || "asc" }
-          : undefined;
+        const conditions = args.where
+          ? buildWhereConditions(args.where, table.columns)
+          : [];
 
-        const baseQuery = (
-          db as Drizzle<{
-            [key: string]: OnchainTable;
-          }>
-        ).query[table.tsName];
-        if (!baseQuery)
-          throw new Error(
-            `Internal error: Table "${table.tsName}" not found in RQB`,
-          );
+        const where =
+          conditions.length === 0
+            ? undefined
+            : conditions.length === 1
+              ? conditions[0]
+              : and(...conditions);
 
         const rows = await baseQuery.findMany({
-          // where: whereObject,
-          // orderBy: orderByObject,
-          limit,
-          // before,
-          // after,
+          where,
+          orderBy,
         });
+
+        // console.log(
+        //   baseQuery
+        //     .findMany({
+        //       where,
+        //       orderBy,
+        //     })
+        //     .toSQL().sql,
+        // );
+
+        // console.log(rows);
 
         return {
           items: rows,
@@ -494,167 +496,6 @@ const GraphQLMeta = new GraphQLObjectType({
   fields: { status: { type: GraphQLJSON } },
 });
 
-const filterOperators = {
-  universal: ["", "_not"],
-  singular: ["_in", "_not_in"],
-  plural: ["_has", "_not_has"],
-  numeric: ["_gt", "_lt", "_gte", "_lte"],
-  string: [
-    "_contains",
-    "_not_contains",
-    "_starts_with",
-    "_ends_with",
-    "_not_starts_with",
-    "_not_ends_with",
-  ],
-} as const;
-
-const graphqlFilterToStoreCondition = {
-  "": "equals",
-  not: "not",
-  in: "in",
-  not_in: "notIn",
-  has: "has",
-  not_has: "notHas",
-  gt: "gt",
-  lt: "lt",
-  gte: "gte",
-  lte: "lte",
-  contains: "contains",
-  not_contains: "notContains",
-  starts_with: "startsWith",
-  not_starts_with: "notStartsWith",
-  ends_with: "endsWith",
-  not_ends_with: "notEndsWith",
-} as const;
-
-export function buildWhereObject(where: Record<string, any>) {
-  const whereObject: Record<string, any> = {};
-
-  for (const [whereKey, rawValue] of Object.entries(where)) {
-    // Handle the `and` and `or` operators.
-    if (whereKey === "AND" || whereKey === "OR") {
-      if (!Array.isArray(rawValue)) {
-        throw new Error(
-          `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
-        );
-      }
-
-      whereObject[whereKey] = rawValue.map(buildWhereObject);
-      continue;
-    }
-
-    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
-    // This is a hack to handle the "" operator, which the regex above doesn't handle
-    const condition = (
-      condition_ === undefined ? "" : condition_
-    ) as keyof typeof graphqlFilterToStoreCondition;
-
-    const storeCondition = graphqlFilterToStoreCondition[condition];
-    if (!storeCondition) {
-      throw new Error(
-        `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
-      );
-    }
-
-    whereObject[fieldName!] ||= {};
-    whereObject[fieldName!][storeCondition] = rawValue;
-  }
-
-  return whereObject;
-}
-
-export function buildWhereConditions(
-  where: Record<string, any>,
-  columns: Record<string, Column>,
-): SQL[] {
-  const conditions: SQL[] = [];
-
-  for (const [whereKey, rawValue] of Object.entries(where)) {
-    // Handle the `AND` and `OR` operators
-    if (whereKey === "AND" || whereKey === "OR") {
-      if (!Array.isArray(rawValue)) {
-        throw new Error(
-          `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
-        );
-      }
-
-      const nestedConditions = rawValue.flatMap((subWhere) =>
-        buildWhereConditions(subWhere, columns),
-      );
-
-      if (nestedConditions.length > 0) {
-        const condition =
-          whereKey === "AND"
-            ? and(...nestedConditions)
-            : or(...nestedConditions);
-        conditions.push(condition!);
-      }
-      continue;
-    }
-
-    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
-    const condition = condition_ === undefined ? "" : condition_;
-
-    if (!fieldName || !(fieldName in columns)) {
-      throw new Error(`Invalid query: Unknown field ${fieldName}`);
-    }
-
-    const column = columns[fieldName]!;
-
-    switch (condition) {
-      case "":
-        conditions.push(eq(column, rawValue));
-        break;
-      case "not":
-        conditions.push(ne(column, rawValue));
-        break;
-      case "in":
-        conditions.push(inArray(column, rawValue));
-        break;
-      case "not_in":
-        conditions.push(notInArray(column, rawValue));
-        break;
-      case "gt":
-        conditions.push(gt(column, rawValue));
-        break;
-      case "lt":
-        conditions.push(lt(column, rawValue));
-        break;
-      case "gte":
-        conditions.push(gte(column, rawValue));
-        break;
-      case "lte":
-        conditions.push(lte(column, rawValue));
-        break;
-      case "contains":
-        conditions.push(like(column, `%${rawValue}%`));
-        break;
-      case "not_contains":
-        conditions.push(notLike(column, `%${rawValue}%`));
-        break;
-      case "starts_with":
-        conditions.push(like(column, `${rawValue}%`));
-        break;
-      case "ends_with":
-        conditions.push(like(column, `%${rawValue}`));
-        break;
-      case "not_starts_with":
-        conditions.push(notLike(column, `${rawValue}%`));
-        break;
-      case "not_ends_with":
-        conditions.push(notLike(column, `%${rawValue}`));
-        break;
-      default:
-        throw new Error(
-          `Invalid query: Unknown condition ${condition} for field ${fieldName}`,
-        );
-    }
-  }
-
-  return conditions;
-}
-
 const columnToGraphQLCore = (
   column: Column,
   enumTypes: Record<string, GraphQLEnumType>,
@@ -710,6 +551,138 @@ const innerType = (type: GraphQLOutputType): GraphQLScalarType => {
     return innerType(type.ofType);
   throw new Error(`Type ${type.toString()} is not implemented`);
 };
+
+const filterOperators = {
+  universal: ["", "_not"],
+  singular: ["_in", "_not_in"],
+  plural: ["_has", "_not_has"],
+  numeric: ["_gt", "_lt", "_gte", "_lte"],
+  string: [
+    "_contains",
+    "_not_contains",
+    "_starts_with",
+    "_ends_with",
+    "_not_starts_with",
+    "_not_ends_with",
+  ],
+} as const;
+
+export function buildWhereConditions(
+  where: Record<string, any>,
+  columns: Record<string, Column>,
+): (SQL | undefined)[] {
+  const conditions: (SQL | undefined)[] = [];
+
+  for (const [whereKey, rawValue] of Object.entries(where)) {
+    // Handle the `AND` and `OR` operators
+    if (whereKey === "AND" || whereKey === "OR") {
+      if (!Array.isArray(rawValue)) {
+        throw new Error(
+          `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
+        );
+      }
+
+      const nestedConditions = rawValue.flatMap((subWhere) =>
+        buildWhereConditions(subWhere, columns),
+      );
+
+      if (nestedConditions.length > 0) {
+        conditions.push(
+          whereKey === "AND"
+            ? and(...nestedConditions)
+            : or(...nestedConditions),
+        );
+      }
+      continue;
+    }
+
+    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
+    const condition = condition_ === undefined ? "" : condition_;
+
+    if (!fieldName || !(fieldName in columns)) {
+      throw new Error(`Invalid query: Unknown field ${fieldName}`);
+    }
+
+    const column = columns[fieldName]!;
+
+    switch (condition) {
+      case "":
+        if (column.columnType === "PgArray") {
+          conditions.push(
+            and(
+              arrayContains(column, rawValue),
+              arrayContained(column, rawValue),
+            ),
+          );
+        } else {
+          conditions.push(eq(column, rawValue));
+        }
+        break;
+      case "not":
+        if (column.columnType === "PgArray") {
+          conditions.push(
+            not(
+              and(
+                arrayContains(column, rawValue),
+                arrayContained(column, rawValue),
+              )!,
+            ),
+          );
+        } else {
+          conditions.push(ne(column, rawValue));
+        }
+        break;
+      case "in":
+        conditions.push(inArray(column, rawValue));
+        break;
+      case "not_in":
+        conditions.push(notInArray(column, rawValue));
+        break;
+      case "has":
+        conditions.push(arrayContains(column, [rawValue]));
+        break;
+      case "not_has":
+        conditions.push(not(arrayContains(column, [rawValue])));
+        break;
+      case "gt":
+        conditions.push(gt(column, rawValue));
+        break;
+      case "lt":
+        conditions.push(lt(column, rawValue));
+        break;
+      case "gte":
+        conditions.push(gte(column, rawValue));
+        break;
+      case "lte":
+        conditions.push(lte(column, rawValue));
+        break;
+      case "contains":
+        conditions.push(like(column, `%${rawValue}%`));
+        break;
+      case "not_contains":
+        conditions.push(notLike(column, `%${rawValue}%`));
+        break;
+      case "starts_with":
+        conditions.push(like(column, `${rawValue}%`));
+        break;
+      case "ends_with":
+        conditions.push(like(column, `%${rawValue}`));
+        break;
+      case "not_starts_with":
+        conditions.push(notLike(column, `${rawValue}%`));
+        break;
+      case "not_ends_with":
+        conditions.push(notLike(column, `%${rawValue}`));
+        break;
+      default:
+        throw new Error(
+          `Invalid query: Unknown condition ${condition} for field ${fieldName}`,
+        );
+    }
+  }
+
+  return conditions;
+}
 
 const encodeValue = (column: Column, value: unknown) => {
   // TODO(kyle) hack to get unblocked

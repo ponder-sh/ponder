@@ -51,6 +51,9 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     context,
     { schema },
   );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   indexingStore.insert(schema.table).values({
     id: "0",
@@ -86,7 +89,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-  const document = parse(`
+  const result = await query(`
     query {
       table(id: "0") {
         id
@@ -121,12 +124,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       }
     }
   `);
-
-  const result = await execute({
-    schema: graphqlSchema,
-    document,
-    contextValue: { db: database.drizzle },
-  });
 
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
@@ -181,6 +178,9 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
     context,
     { schema },
   );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   indexingStore.insert(schema.table).values({
     id: "0",
@@ -193,7 +193,7 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-  const document = parse(`
+  const result = await query(`
     query {
       table(id: "0") {
         id
@@ -204,12 +204,6 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
       }
     }
   `);
-
-  const result = await execute({
-    schema: graphqlSchema,
-    document,
-    contextValue: { db: database.drizzle },
-  });
 
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
@@ -238,6 +232,9 @@ test("json, json not null", async (context) => {
     context,
     { schema },
   );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   indexingStore.insert(schema.table).values({
     id: "0",
@@ -248,7 +245,7 @@ test("json, json not null", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-  const document = parse(`
+  const result = await query(`
     query {
       table(id: "0") {
         id
@@ -257,12 +254,6 @@ test("json, json not null", async (context) => {
       }
     }
   `);
-
-  const result = await execute({
-    schema: graphqlSchema,
-    document,
-    contextValue: { db: database.drizzle },
-  });
 
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
@@ -302,6 +293,9 @@ test("one", async (context) => {
     context,
     { schema },
   );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
   indexingStore.insert(schema.person).values({ id: "kyle", name: "jake" });
@@ -312,7 +306,7 @@ test("one", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-  const document = parse(`
+  const result = await query(`
     query {
       pet(id: "dog1") {
         owner {
@@ -325,15 +319,6 @@ test("one", async (context) => {
       }
     }
   `);
-
-  const result = await execute({
-    schema: graphqlSchema,
-    document,
-    contextValue: {
-      db: database.drizzle,
-      // getLoader: buildLoaderCache({ store: indexingStore }),
-    },
-  });
 
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
@@ -374,6 +359,9 @@ test("many", async (context) => {
     context,
     { schema },
   );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
   indexingStore.insert(schema.pet).values({ id: "dog1", ownerId: "jake" });
@@ -383,36 +371,29 @@ test("many", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-  const document = parse(`
+  const result = await query(`
     query {
       person(id: "jake") {
         pets {
+          items {
           id
+          }
         }
       }
     }
   `);
 
-  const result = await execute({
-    schema: graphqlSchema,
-    document,
-    contextValue: {
-      db: database.drizzle,
-      // getLoader: buildLoaderCache({ store: indexingStore }),
-    },
-  });
-
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
     person: {
-      pets: [{ id: "dog1" }, { id: "dog2" }],
+      pets: { items: [{ id: "dog1" }, { id: "dog2" }] },
     },
   });
 
   await cleanup();
 });
 
-test.only("many w/ filter", async (context) => {
+test("many with filter", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -434,6 +415,9 @@ test.only("many w/ filter", async (context) => {
     context,
     { schema },
   );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
   indexingStore
@@ -449,7 +433,7 @@ test.only("many w/ filter", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-  const document = parse(`
+  const result = await query(`
     query {
       person(id: "jake") {
         pets(where: { id: "dog2" }) {
@@ -460,15 +444,6 @@ test.only("many w/ filter", async (context) => {
       }
     }
   `);
-
-  const result = await execute({
-    schema: graphqlSchema,
-    document,
-    contextValue: {
-      db: database.drizzle,
-      // getLoader: buildLoaderCache({ store: indexingStore }),
-    },
-  });
 
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
@@ -482,1769 +457,419 @@ test.only("many w/ filter", async (context) => {
   await cleanup();
 });
 
-// test("bigint id", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: 0n,
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     table(id: "0") {
-//       id
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     table: {
-//       id: "0",
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("hex id", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.hex(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0x00",
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     table(id: "0x00") {
-//       id
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     table: {
-//       id: "0x00",
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { string: "0" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string in", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { string_in: ["0", "2"] }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string contains", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "string",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { string_contains: "tr" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "string",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string starts with", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "string",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { string_starts_with: "str" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "string",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string not ends with", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "string",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { string_not_ends_with: "str" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "string",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter int eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { int: 0 }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter int gt", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "0",
-//       int: 1,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { int_gt: 0 }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 1,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter int lte", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { int_lte: 0 }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter int in", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { int_in: [0, 2] }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter float eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { float: 0 }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter float gt", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 1,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { float_gt: 0 }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 1,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter float lte", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { float_lte: 0 }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter float in", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { float_in: [0, 2] }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter bigint eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { bigint: "0" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter bigint gt", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 1n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { bigint_gt: "0" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "1",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter bigint lte", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { bigint_lte: "0" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter bigint in", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { bigint_in: ["0", "2"] }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filer hex eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await create("0", indexingStore);
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { hex: "0x00" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x00",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter hex gt", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x1",
-//       bigint: 0n,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (where: { hex_gt: "0x00" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: "0",
-//           int: 0,
-//           float: 0,
-//           boolean: false,
-//           hex: "0x01",
-//           bigint: "0",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string list eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string().list(),
-//       int: p.int().list(),
-//       float: p.float().list(),
-//       boolean: p.boolean().list(),
-//       hex: p.hex().list(),
-//       bigint: p.bigint().list(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: ["0"],
-//       int: [0],
-//       float: [0],
-//       boolean: [false],
-//       hex: ["0x0"],
-//       bigint: [0n],
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables(where: { string: ["0"] }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: ["0"],
-//           int: [0],
-//           float: [0],
-//           boolean: [false],
-//           hex: ["0x0"],
-//           bigint: ["0"],
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter string list has", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string().list(),
-//       int: p.int().list(),
-//       float: p.float().list(),
-//       boolean: p.boolean().list(),
-//       hex: p.hex().list(),
-//       bigint: p.bigint().list(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       string: ["0"],
-//       int: [0],
-//       float: [0],
-//       boolean: [false],
-//       hex: ["0x0"],
-//       bigint: [0n],
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables(where: { string_has: "0" }) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           string: ["0"],
-//           int: [0],
-//           float: [0],
-//           boolean: [false],
-//           hex: ["0x0"],
-//           bigint: ["0"],
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter enum eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     enum: p.createEnum(["A", "B"]),
-//     table: p.createTable({
-//       id: p.string(),
-//       enum: p.enum("enum"),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       enum: "A",
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables(enum: "A") {
-//       items{
-//         id
-//         enum
-//       }
-//     }
-//   }
-// `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           enum: "A",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter enum in", async (context) => {
-//   const schema = createSchema((p) => ({
-//     enum: p.createEnum(["A", "B"]),
-//     table: p.createTable({
-//       id: p.string(),
-//       enum: p.enum("enum"),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       enum: "A",
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables(enum_in: ["A"]) {
-//       items{
-//         id
-//         enum
-//       }
-//     }
-//   }
-// `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//           enum: "A",
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter ref eq", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-
-//       ref: p.string().references("table.id"),
-//       one: p.one("ref"),
-
-//       refNull: p.string().references("table.id").optional(),
-//       oneNull: p.one("refNull"),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       ref: "0",
-//       refNull: null,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables(where: { ref: "0" }) {
-//       items {
-//         one {
-//           id
-//         }
-//         oneNull
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: {
-//       db: database.drizzle,
-//       getLoader: buildLoaderCache({ store: indexingStore }),
-//     },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           one: {
-//             id: "0",
-//           },
-//           oneNull: null,
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
-
-// test("filter ref in", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-
-//       ref: p.string().references("table.id"),
-//       one: p.one("ref"),
-
-//       refNull: p.string().references("table.id").optional(),
-//       oneNull: p.one("refNull"),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "0",
-//     data: {
-//       ref: "0",
-//       refNull: null,
-//     },
-//   });
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables(where: { ref_in: ["0", "2"] }) {
-//       items {
-//         one {
-//           id
-//         }
-
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: {
-//       db: database.drizzle,
-//       getLoader: buildLoaderCache({ store: indexingStore }),
-//     },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           one: {
-//             id: "0",
-//           },
-//         },
-//       ],
-//     },
-//   });
-
-//   await cleanup();
-// });
+test("filter universal", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.evmBigint().primaryKey(),
+  }));
+  const schema = { person };
+
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.person).values({ id: 1n });
+  indexingStore.insert(schema.person).values({ id: 2n });
+  indexingStore.insert(schema.person).values({ id: 3n });
+  await indexingStore.flush({ force: true });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  let result = await query(`
+    query {
+      persons(where: { id: "1" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({ persons: { items: [{ id: "1" }] } });
+
+  result = await query(`
+    query {
+      persons(where: { id_not: "1" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }, { id: "3" }] },
+  });
+
+  await cleanup();
+});
+
+test("filter singular", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.evmHex().primaryKey(),
+  }));
+  const schema = { person };
+
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.person).values({ id: "0x01" });
+  indexingStore.insert(schema.person).values({ id: "0x02" });
+  indexingStore.insert(schema.person).values({ id: "0x03" });
+  await indexingStore.flush({ force: true });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  let result = await query(`
+    query {
+      persons(where: { id_in: ["0x01", "0x02"] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "0x01" }, { id: "0x02" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { id_not_in: ["0x01", "0x02"] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "0x03" }] },
+  });
+
+  await cleanup();
+});
+
+test("filter plural", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    number: t.integer().array().notNull(),
+  }));
+  const schema = { person };
+
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.person).values({ id: "1", number: [1, 2, 3] });
+  indexingStore.insert(schema.person).values({ id: "2", number: [3, 4, 5] });
+  indexingStore.insert(schema.person).values({ id: "3", number: [5, 6, 7] });
+  await indexingStore.flush({ force: true });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  let result = await query(`
+    query {
+      persons(where: { number: [1, 2, 3] }) {
+        items {
+          id
+          number
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1", number: [1, 2, 3] }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { number_not: [5] }) {
+        items {
+          id
+          number
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: {
+      items: [
+        { id: "1", number: [1, 2, 3] },
+        { id: "2", number: [3, 4, 5] },
+        { id: "3", number: [5, 6, 7] },
+      ],
+    },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { number_has: 3 }) {
+        items {
+          id
+          number
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: {
+      items: [
+        { id: "1", number: [1, 2, 3] },
+        { id: "2", number: [3, 4, 5] },
+      ],
+    },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { number_not_has: 4 }) {
+        items {
+          id
+          number
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: {
+      items: [
+        { id: "1", number: [1, 2, 3] },
+        { id: "3", number: [5, 6, 7] },
+      ],
+    },
+  });
+
+  await cleanup();
+});
+
+test("filter numeric", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    number: t.integer(),
+    bigintNumber: t.bigint({ mode: "number" }),
+    bigintBigint: t.bigint({ mode: "bigint" }),
+    float: t.doublePrecision(),
+    evmBigint: t.evmBigint(),
+  }));
+  const schema = { person };
+
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.person).values({
+    id: "1",
+    number: 1,
+    bigintNumber: 1,
+    bigintBigint: 1n,
+    float: 1.5,
+    evmBigint: 1n,
+  });
+  indexingStore.insert(schema.person).values({
+    id: "2",
+    number: 2,
+    bigintNumber: 2,
+    bigintBigint: 2n,
+    float: 2.5,
+    evmBigint: 2n,
+  });
+  indexingStore.insert(schema.person).values({
+    id: "3",
+    number: 3,
+    bigintNumber: 3,
+    bigintBigint: 3n,
+    float: 3.5,
+    evmBigint: 3n,
+  });
+  await indexingStore.flush({ force: true });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  let result = await query(`
+    query {
+      persons(where: { number_gt: 1 }) {
+        items {
+          id
+          number
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }, { id: "3" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { bigintNumber_lte: 1 }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }] },
+  });
+
+  // NOTE: bigintBigint gets interpreted as a string, so the numeric filter
+  // operators are not available. Not sure how to proceed here.
+  // result = await query(`
+  //   query {
+  //     persons(where: { bigintBigint_lte: 1 }) {
+  //       items {
+  //         id
+  //       }
+  //     }
+  //   }
+  // `);
+
+  // expect(result.errors?.[0]?.message).toBeUndefined();
+  // expect(result.data).toMatchObject({
+  //   persons: { items: [{ id: "1" }, { id: "2" }] },
+  // });
+
+  result = await query(`
+    query {
+      persons(where: { float_lt: 3.5 }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }, { id: "2" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { evmBigint_gte: "2" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }, { id: "3" }] },
+  });
+
+  await cleanup();
+});
+
+test("filter string", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    text: t.text(),
+    hex: t.evmHex(),
+  }));
+  const schema = { person };
+
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore
+    .insert(schema.person)
+    .values({ id: "1", text: "one", hex: "0xabc" });
+  indexingStore
+    .insert(schema.person)
+    .values({ id: "2", text: "two", hex: "0xcde" });
+  indexingStore
+    .insert(schema.person)
+    .values({ id: "3", text: "three", hex: "0xef0" });
+  await indexingStore.flush({ force: true });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  let result = await query(`
+    query {
+      persons(where: { text_starts_with: "o" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({ persons: { items: [{ id: "1" }] } });
+
+  result = await query(`
+    query {
+      persons(where: { text_not_ends_with: "e" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { hex_contains: "c" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }, { id: "2" }] },
+  });
+
+  await cleanup();
+});
 
 // test("order int asc", async (context) => {
 //   const schema = createSchema((p) => ({
