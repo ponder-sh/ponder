@@ -11,7 +11,13 @@ import { onchainTable } from "@/drizzle/db.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
-import { type Address, checksumAddress, parseEther, toHex } from "viem";
+import {
+  type Address,
+  checksumAddress,
+  parseEther,
+  toHex,
+  zeroAddress,
+} from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { decodeEvents } from "../sync/events.js";
 import {
@@ -26,6 +32,12 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
+vi.mock("@/generated", async () => {
+  return {
+    instanceId: "1234",
+  };
+});
+
 const account = onchainTable("account", (p) => ({
   address: p.evmHex().primaryKey(),
   balance: p.evmBigint().notNull(),
@@ -35,10 +47,8 @@ const schema = { account };
 
 test("createIndexing()", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -57,6 +67,7 @@ test("createIndexing()", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   expect(indexingService).toBeDefined();
@@ -67,10 +78,8 @@ test("createIndexing()", async (context) => {
 
 test("processSetupEvents() empty", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -89,6 +98,7 @@ test("processSetupEvents() empty", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const result = await processSetupEvents(indexingService, {
@@ -103,10 +113,8 @@ test("processSetupEvents() empty", async (context) => {
 
 test("processSetupEvents()", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -129,6 +137,7 @@ test("processSetupEvents()", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const result = await processSetupEvents(indexingService, {
@@ -174,10 +183,8 @@ test("processSetupEvents()", async (context) => {
 
 test("processEvent() log events", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -202,6 +209,7 @@ test("processEvent() log events", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const rawEvents = await getEventsLog(sources);
@@ -263,10 +271,8 @@ test("processEvent() log events", async (context) => {
 
 test("processEvents() block events", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -289,6 +295,7 @@ test("processEvents() block events", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const rawEvents = await getEventsBlock(sources);
@@ -337,10 +344,8 @@ test("processEvents() block events", async (context) => {
 
 test("processEvents() call trace events", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -363,6 +368,7 @@ test("processEvents() call trace events", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const rawEvents = await getEventsTrace(sources);
@@ -416,10 +422,8 @@ test("processEvents() call trace events", async (context) => {
 
 test("processEvents killed", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -444,6 +448,7 @@ test("processEvents killed", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
   kill(indexingService);
 
@@ -465,10 +470,8 @@ test("processEvents killed", async (context) => {
 
 test("processEvents eventCount", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -493,6 +496,7 @@ test("processEvents eventCount", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const rawEvents = await getEventsLog(sources);
@@ -512,10 +516,8 @@ test("processEvents eventCount", async (context) => {
 
 test("executeSetup() context.client", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -542,6 +544,7 @@ test("executeSetup() context.client", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const getBalanceSpy = vi.spyOn(
@@ -566,10 +569,8 @@ test("executeSetup() context.client", async (context) => {
 
 test("executeSetup() context.db", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -583,12 +584,9 @@ test("executeSetup() context.db", async (context) => {
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
-      await context.db.Supply!.create({
-        id: "supply",
-        data: {
-          supply: 0n,
-        },
-      });
+      await context.db
+        .insert(account)
+        .values({ address: zeroAddress, balance: 10n });
     },
   };
 
@@ -599,12 +597,10 @@ test("executeSetup() context.db", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
-  const createSpy = vi.spyOn(
-    indexingService.currentEvent.context.db.Supply!,
-    "create",
-  );
+  const insertSpy = vi.spyOn(indexingService.currentEvent.context.db, "insert");
 
   const result = await processSetupEvents(indexingService, {
     sources,
@@ -613,19 +609,12 @@ test("executeSetup() context.db", async (context) => {
 
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(createSpy).toHaveBeenCalledOnce();
-  expect(createSpy).toHaveBeenCalledWith({
-    id: "supply",
-    data: { supply: 0n },
-  });
+  expect(insertSpy).toHaveBeenCalledOnce();
 
-  const supply = await indexingStore.findUnique({
-    tableName: "Supply",
-    id: "supply",
-  });
+  const supply = await indexingStore.find(account, { address: zeroAddress });
   expect(supply).toMatchObject({
-    id: "supply",
-    supply: 0n,
+    address: zeroAddress,
+    balance: 10n,
   });
 
   await cleanup();
@@ -633,10 +622,8 @@ test("executeSetup() context.db", async (context) => {
 
 test("executeSetup() metrics", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -657,6 +644,7 @@ test("executeSetup() metrics", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const result = await processSetupEvents(indexingService, {
@@ -673,10 +661,8 @@ test("executeSetup() metrics", async (context) => {
 
 test("executeSetup() error", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -699,6 +685,7 @@ test("executeSetup() error", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -716,10 +703,8 @@ test("executeSetup() error", async (context) => {
 
 test("processEvents() context.client", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -750,6 +735,7 @@ test("processEvents() context.client", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const getBalanceSpy = vi.spyOn(
@@ -778,10 +764,8 @@ test("processEvents() context.client", async (context) => {
 
 test("processEvents() context.db", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema, instanceId: "1234" });
 
   const sync = await createSync({
     common,
@@ -793,15 +777,12 @@ test("processEvents() context.db", async (context) => {
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
-  const dbCall = async ({
-    event,
-    context,
-  }: { event: any; context: Context }) => {
-    await context.db.TransferEvent!.create({
-      id: event.transaction?.hash ?? event.block.hash,
-      data: {
-        timestamp: Number(event.block.timestamp),
-      },
+  let i = 0;
+
+  const dbCall = async ({ context }: { event: any; context: Context }) => {
+    await context.db.insert(account).values({
+      address: `0x000000000000000000000000000000000000000${i++}`,
+      balance: 10n,
     });
   };
 
@@ -818,12 +799,10 @@ test("processEvents() context.db", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
-  const createSpy = vi.spyOn(
-    indexingService.currentEvent.context.db.TransferEvent!,
-    "create",
-  );
+  const insertSpy = vi.spyOn(indexingService.currentEvent.context.db, "insert");
 
   const rawEvents = [
     ...(await getEventsLog(sources)),
@@ -836,23 +815,19 @@ test("processEvents() context.db", async (context) => {
   });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(createSpy).toHaveBeenCalledTimes(5);
+  expect(insertSpy).toHaveBeenCalledTimes(5);
 
-  const transferEvents = await indexingStore.findMany({
-    tableName: "TransferEvent",
-  });
+  const transferEvents = await indexingStore.sql.select().from(account);
 
-  expect(transferEvents.items).toHaveLength(5);
+  expect(transferEvents).toHaveLength(5);
 
   await cleanup();
 });
 
 test("processEvents() metrics", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -877,6 +852,7 @@ test("processEvents() metrics", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const rawEvents = [
@@ -897,10 +873,8 @@ test("processEvents() metrics", async (context) => {
 
 test("processEvents() error", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -927,6 +901,7 @@ test("processEvents() error", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   indexingFunctions[
@@ -961,10 +936,8 @@ test("processEvents() error", async (context) => {
 
 test("execute() error after killed", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -989,6 +962,7 @@ test("execute() error after killed", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const rawEvents = await getEventsLog(sources);
@@ -1006,10 +980,8 @@ test("execute() error after killed", async (context) => {
 
 test("ponderActions getBalance()", async (context) => {
   const { common, sources, networks } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -1028,6 +1000,7 @@ test("ponderActions getBalance()", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const balance = await indexingService.clientByChainId[1]!.getBalance({
@@ -1041,10 +1014,8 @@ test("ponderActions getBalance()", async (context) => {
 
 test("ponderActions getCode()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -1063,6 +1034,7 @@ test("ponderActions getCode()", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const bytecode = await indexingService.clientByChainId[1]!.getCode({
@@ -1076,10 +1048,8 @@ test("ponderActions getCode()", async (context) => {
 
 test("ponderActions getStorageAt()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -1098,7 +1068,7 @@ test("ponderActions getStorageAt()", async (context) => {
     networks,
     sync,
     indexingStore,
-    schema,
+    database,
   });
 
   const storage = await indexingService.clientByChainId[1]!.getStorageAt({
@@ -1114,10 +1084,8 @@ test("ponderActions getStorageAt()", async (context) => {
 
 test("ponderActions readContract()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -1136,6 +1104,7 @@ test("ponderActions readContract()", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const totalSupply = await indexingService.clientByChainId[1]!.readContract({
@@ -1151,10 +1120,8 @@ test("ponderActions readContract()", async (context) => {
 
 test("ponderActions readContract() blockNumber", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -1173,6 +1140,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const totalSupply = await indexingService.clientByChainId[1]!.readContract({
@@ -1190,10 +1158,8 @@ test("ponderActions readContract() blockNumber", async (context) => {
 // Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
 test.skip("ponderActions multicall()", async (context) => {
   const { common, sources, networks, erc20 } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
+  const { syncStore, indexingStore, cleanup, database } =
+    await setupDatabaseServices(context, { schema });
 
   const sync = await createSync({
     common,
@@ -1212,6 +1178,7 @@ test.skip("ponderActions multicall()", async (context) => {
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   const [totalSupply] = await indexingService.clientByChainId[1]!.multicall({

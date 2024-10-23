@@ -98,7 +98,8 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "block": {
-          // events must be run block-by-block, so that `database.complete` works as intended
+          // Events must be run block-by-block, so that `database.complete` can accurately
+          // update the temporary value used in the trigger.
           for (const events of splitEvents(event.events)) {
             const result = await handleEvents(
               decodeEvents(common, sources, events),
@@ -143,6 +144,7 @@ export async function run({
     networks,
     sync,
     indexingStore,
+    database,
   });
 
   await metadataStore.setStatus(sync.getStatus());
@@ -184,10 +186,10 @@ export async function run({
 
     if (isKilled) return;
 
-    await indexingStore.flush({
-      force: true,
-      checkpoint: sync.getFinalizedCheckpoint(),
-    });
+    await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
+    await indexingStore.flush({ force: true });
+    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
+
     indexingStore.setPolicy("realtime");
 
     // Manually update metrics to fix a UI bug that occurs when the end

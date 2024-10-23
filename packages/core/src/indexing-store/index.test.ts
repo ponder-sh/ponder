@@ -372,8 +372,6 @@ test("flush", async (context) => {
     balance: 12n,
   });
 
-  // TODO(kyle) checkpoint
-
   await cleanup();
 });
 
@@ -417,7 +415,13 @@ test("sql", async (context) => {
     },
   ]);
 
-  // TODO(kyle) triggers
+  // triggers
+
+  const spy = vi.spyOn(database, "createTriggers");
+
+  await indexingStore.sql.select().from(schema.account);
+
+  expect(spy).toHaveBeenCalledOnce();
 
   await cleanup();
 });

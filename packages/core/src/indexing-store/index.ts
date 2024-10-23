@@ -34,7 +34,14 @@ import { drizzle } from "drizzle-orm/pg-proxy";
 import { createQueue } from "../../../common/src/queue.js";
 
 export type IndexingStore = Db<Schema> & {
-  flush: (args: { force: boolean; checkpoint?: string }) => Promise<void>;
+  /**
+   * Persist the cache to the database.
+   *
+   * @param force Overrides the memory checks and flushes the cache.
+   */
+  flush: (args: {
+    force: boolean;
+  }) => Promise<void>;
   setPolicy: (policy: "historical" | "realtime") => void;
 };
 
@@ -832,12 +839,6 @@ export const createIndexingStore = ({
         }
 
         await Promise.all(promises);
-        // TODO(kyle) either set metadata checkpoint to zero, then update it
-        // or run the flush in a transaction
-        // if (checkpoint) {
-        //   await database.complete({ checkpoint });
-        //   await database.finalize({ checkpoint });
-        // }
 
         const flushIndex =
           totalCacheOps -
