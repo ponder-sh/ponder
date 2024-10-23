@@ -3,8 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable, pgEnum, primaryKey, relations } from "@/drizzle/db.js";
-import type { IndexingStore } from "@/indexing-store/index.js";
+import { onchainTable, pgEnum, relations } from "@/drizzle/db.js";
 import { type GraphQLType, execute, parse, printSchema } from "graphql";
 import { beforeEach, expect, test } from "vitest";
 import { buildGraphQLSchema } from "./index.js";
@@ -871,542 +870,340 @@ test("filter string", async (context) => {
   await cleanup();
 });
 
-// test("order int asc", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
+test("order by", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    integer: t.integer(),
+    bigintBigint: t.bigint({ mode: "bigint" }),
+    float: t.doublePrecision(),
+    evmBigint: t.evmBigint(),
+    hex: t.evmHex(),
+  }));
+  const schema = { person };
 
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-//   await create("0", indexingStore);
+  indexingStore.insert(schema.person).values({
+    id: "1",
+    integer: 1,
+    bigintBigint: 1n,
+    float: 1.5,
+    evmBigint: 1n,
+    hex: "0xa",
+  });
+  indexingStore.insert(schema.person).values({
+    id: "2",
+    integer: 2,
+    bigintBigint: 2n,
+    float: 2.5,
+    evmBigint: 3n,
+    hex: "0xc",
+  });
+  indexingStore.insert(schema.person).values({
+    id: "3",
+    integer: 3,
+    bigintBigint: 3n,
+    float: 3.5,
+    evmBigint: 2n,
+    hex: "0xb",
+  });
+  await indexingStore.flush({ force: true });
 
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "1",
-//     data: {
-//       string: "0",
-//       int: 1_000,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "2",
-//     data: {
-//       string: "0",
-//       int: 5,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 0n,
-//     },
-//   });
+  let result = await query(`
+    query {
+      persons(orderBy: "integer", orderDirection: "desc") {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "3" }, { id: "2" }, { id: "1" }] },
+  });
 
-//   const document = parse(`
-//   query {
-//     tables(orderBy: "int", orderDirection: "asc") {
-//       items {
-//         id
-//       }
-//     }
-//   }
-//   `);
+  result = await query(`
+    query {
+      persons(orderBy: "bigintBigint", orderDirection: "desc") {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "3" }, { id: "2" }, { id: "1" }] },
+  });
 
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//         },
-//         {
-//           id: "2",
-//         },
-//         {
-//           id: "1",
-//         },
-//       ],
-//     },
-//   });
+  result = await query(`
+    query {
+      persons(orderBy: "float", orderDirection: "desc") {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-//   await cleanup();
-// });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "3" }, { id: "2" }, { id: "1" }] },
+  });
 
-// test("order bigint asc", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
+  result = await query(`
+    query {
+      persons(orderBy: "evmBigint", orderDirection: "desc") {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }, { id: "3" }, { id: "1" }] },
+  });
 
-//   await create("0", indexingStore);
+  result = await query(`
+    query {
+      persons(orderBy: "hex", orderDirection: "desc") {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "1",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 1_000n,
-//     },
-//   });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }, { id: "3" }, { id: "1" }] },
+  });
 
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "2",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 5n,
-//     },
-//   });
+  await cleanup();
+});
 
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
+test("limit", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const schema = { person };
 
-//   const document = parse(`
-//   query {
-//     tables(orderBy: "bigint", orderDirection: "asc") {
-//       items {
-//         id
-//       }
-//     }
-//   }
-//   `);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+  const contextValue = { db: database.drizzle };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
+  for (let i = 0; i < 100; i++) {
+    indexingStore.insert(schema.person).values({ id: String(i) });
+  }
+  await indexingStore.flush({ force: true });
 
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "0",
-//         },
-//         {
-//           id: "2",
-//         },
-//         {
-//           id: "1",
-//         },
-//       ],
-//     },
-//   });
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-//   await cleanup();
-// });
+  // Default limit of 50
+  let result = await query(`
+    query {
+      persons {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-// test("order bigint desc", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-ignore
+  expect(result.data.persons.items).toHaveLength(50);
 
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
+  // Custom limit (below max)
+  result = await query(`
+    query {
+      persons(limit: 75) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-ignore
+  expect(result.data.persons.items).toHaveLength(75);
 
-//   await create("0", indexingStore);
+  // Custom limit (above max)
+  result = await query(`
+    query {
+      persons(limit: 1005) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  // @ts-ignore
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid limit. Got 1005, expected <=1000.",
+  );
 
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "1",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 1_000n,
-//     },
-//   });
+  await cleanup();
+});
 
-//   await indexingStore.create({
-//     tableName: "table",
-//     encodedCheckpoint: encodeCheckpoint(zeroCheckpoint),
-//     id: "2",
-//     data: {
-//       string: "0",
-//       int: 0,
-//       float: 0,
-//       boolean: false,
-//       hex: "0x0",
-//       bigint: 5n,
-//     },
-//   });
+test.skip("filter type has correct suffixes and types", async (context) => {
+  // const s = createSchema((p) => ({
+  //   SimpleEnum: p.createEnum(["VALUE", "ANOTHER_VALUE"]),
+  //   Table: p.createTable({
+  //     id: p.string(),
+  //     int: p.int(),
+  //     float: p.float(),
+  //     bool: p.boolean(),
+  //     hex: p.hex(),
+  //     bigint: p.bigint(),
+  //     enum: p.enum("SimpleEnum"),
+  //     listString: p.string().list(),
+  //     listBigInt: p.bigint().list(),
+  //     listEnum: p.enum("SimpleEnum").list(),
+  //   }),
+  // }));
 
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
+  const simpleEnum = pgEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
 
-//   const document = parse(`
-//   query {
-//     tables(orderBy: "bigint", orderDirection: "desc") {
-//       items {
-//         id
-//       }
-//     }
-//   }
-//   `);
+  const table = onchainTable("table", (t) => ({
+    text: t.text().primaryKey(),
+    evmHex: t.evmHex(),
+    bool: t.boolean(),
+    int: t.integer(),
+    bigintNumber: t.bigint({ mode: "number" }),
+    bigintBigint: t.bigint({ mode: "bigint" }),
+    real: t.real(),
+    float: t.doublePrecision(),
+    evmBigint: t.evmBigint(),
+    enum: simpleEnum(),
+    evmBigintArray: t.evmBigint().array(),
+    enumArray: simpleEnum().array(),
+  }));
 
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
+  const schema = { simpleEnum, table };
 
-//   expect(result.data).toMatchObject({
-//     tables: {
-//       items: [
-//         {
-//           id: "1",
-//         },
-//         {
-//           id: "2",
-//         },
-//         {
-//           id: "0",
-//         },
-//       ],
-//     },
-//   });
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
 
-//   await cleanup();
-// });
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
-// test("limit default", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
+  const typeMap = graphqlSchema.getTypeMap();
+  const tableFilterType = typeMap.TableFilter!;
+  const fields = (tableFilterType.toConfig() as any).fields as Record<
+    string,
+    { name: string; type: GraphQLType }
+  >;
+  const fieldsPretty = Object.entries(fields).reduce<Record<string, any>>(
+    (acc, [key, value]) => {
+      acc[key] = value.type.toString();
+      return acc;
+    },
+    {},
+  );
 
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
+  expect(fieldsPretty).toMatchObject({
+    id: "String",
+    id_not: "String",
+    id_in: "[String]",
+    id_not_in: "[String]",
+    id_contains: "String",
+    id_not_contains: "String",
+    id_starts_with: "String",
+    id_ends_with: "String",
+    id_not_starts_with: "String",
+    id_not_ends_with: "String",
+    int: "Int",
+    int_not: "Int",
+    int_in: "[Int]",
+    int_not_in: "[Int]",
+    int_gt: "Int",
+    int_lt: "Int",
+    int_gte: "Int",
+    int_lte: "Int",
+    float: "Float",
+    float_not: "Float",
+    float_in: "[Float]",
+    float_not_in: "[Float]",
+    float_gt: "Float",
+    float_lt: "Float",
+    float_gte: "Float",
+    float_lte: "Float",
+    bool: "Boolean",
+    bool_not: "Boolean",
+    bool_in: "[Boolean]",
+    bool_not_in: "[Boolean]",
+    hex: "String",
+    hex_gt: "String",
+    hex_lt: "String",
+    hex_gte: "String",
+    hex_lte: "String",
+    hex_not: "String",
+    hex_in: "[String]",
+    hex_not_in: "[String]",
+    bigint: "BigInt",
+    bigint_not: "BigInt",
+    bigint_in: "[BigInt]",
+    bigint_not_in: "[BigInt]",
+    bigint_gt: "BigInt",
+    bigint_lt: "BigInt",
+    bigint_gte: "BigInt",
+    bigint_lte: "BigInt",
+    enum: "SimpleEnum",
+    enum_not: "SimpleEnum",
+    enum_in: "[SimpleEnum]",
+    enum_not_in: "[SimpleEnum]",
+    listString: "[String]",
+    listString_not: "[String]",
+    listString_has: "String",
+    listString_not_has: "String",
+    listBigInt: "[BigInt]",
+    listBigInt_not: "[BigInt]",
+    listBigInt_has: "BigInt",
+    listBigInt_not_has: "BigInt",
+    listEnum: "[SimpleEnum]",
+    listEnum_not: "[SimpleEnum]",
+    listEnum_has: "SimpleEnum",
+    listEnum_not_has: "SimpleEnum",
+    relatedTableStringId: "String",
+    relatedTableStringId_not: "String",
+    relatedTableStringId_in: "[String]",
+    relatedTableStringId_not_in: "[String]",
+    relatedTableStringId_contains: "String",
+    relatedTableStringId_not_contains: "String",
+    relatedTableStringId_starts_with: "String",
+    relatedTableStringId_ends_with: "String",
+    relatedTableStringId_not_starts_with: "String",
+    relatedTableStringId_not_ends_with: "String",
+    relatedTableBigIntId: "BigInt",
+    relatedTableBigIntId_not: "BigInt",
+    relatedTableBigIntId_in: "[BigInt]",
+    relatedTableBigIntId_not_in: "[BigInt]",
+    relatedTableBigIntId_gt: "BigInt",
+    relatedTableBigIntId_lt: "BigInt",
+    relatedTableBigIntId_gte: "BigInt",
+    relatedTableBigIntId_lte: "BigInt",
+  });
 
-//   for (let i = 0; i < 100; i++) {
-//     await create(String(i), indexingStore);
-//   }
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   // @ts-ignore
-//   expect(result.data.tables.items).toHaveLength(50);
-
-//   await cleanup();
-// });
-
-// test("limit", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   for (let i = 0; i < 100; i++) {
-//     await create(String(i), indexingStore);
-//   }
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (limit: 15) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   // @ts-ignore
-//   expect(result.data.tables.items).toHaveLength(15);
-
-//   await cleanup();
-// });
-
-// test("limit error", async (context) => {
-//   const schema = createSchema((p) => ({
-//     table: p.createTable({
-//       id: p.string(),
-//       string: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       boolean: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//     }),
-//   }));
-
-//   const { database, indexingStore, cleanup } = await setupDatabaseServices(
-//     context,
-//     { schema },
-//   );
-
-//   // for (let i = 0; i < 100; i++) {
-//   //   await create(String(i), indexingStore);
-//   // }
-
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
-//   const document = parse(`
-//   query {
-//     tables (limit: 1005) {
-//       items {
-//         id
-//         string
-//         int
-//         float
-//         boolean
-//         hex
-//         bigint
-//       }
-//     }
-//   }
-//   `);
-
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle },
-//   });
-
-//   // @ts-ignore
-//   expect(result.errors[0].message).toBe(
-//     "Invalid limit. Got 1005, expected <=1000.",
-//   );
-
-//   await cleanup();
-// });
-
-// test("filter type has correct suffixes and types", () => {
-//   const s = createSchema((p) => ({
-//     SimpleEnum: p.createEnum(["VALUE", "ANOTHER_VALUE"]),
-//     RelatedTableStringId: p.createTable({ id: p.string() }),
-//     RelatedTableBigIntId: p.createTable({ id: p.bigint() }),
-//     Table: p.createTable({
-//       id: p.string(),
-//       int: p.int(),
-//       float: p.float(),
-//       bool: p.boolean(),
-//       hex: p.hex(),
-//       bigint: p.bigint(),
-//       enum: p.enum("SimpleEnum"),
-//       listString: p.string().list(),
-//       listBigInt: p.bigint().list(),
-//       listEnum: p.enum("SimpleEnum").list(),
-//       relatedTableStringId: p.string().references("RelatedTableStringId.id"),
-//       relatedTableBigIntId: p.bigint().references("RelatedTableBigIntId.id"),
-//       relatedTableString: p.one("relatedTableStringId"),
-//     }),
-//   }));
-
-//   const serverSchema = buildGraphQLSchema(s);
-
-//   const typeMap = serverSchema.getTypeMap();
-
-//   const tableFilterType = typeMap.TableFilter!;
-//   const fields = (tableFilterType.toConfig() as any).fields as Record<
-//     string,
-//     { name: string; type: GraphQLType }
-//   >;
-
-//   const fieldsPretty = Object.entries(fields).reduce<Record<string, any>>(
-//     (acc, [key, value]) => {
-//       acc[key] = value.type.toString();
-//       return acc;
-//     },
-//     {},
-//   );
-
-//   expect(fieldsPretty).toMatchObject({
-//     id: "String",
-//     id_not: "String",
-//     id_in: "[String]",
-//     id_not_in: "[String]",
-//     id_contains: "String",
-//     id_not_contains: "String",
-//     id_starts_with: "String",
-//     id_ends_with: "String",
-//     id_not_starts_with: "String",
-//     id_not_ends_with: "String",
-//     int: "Int",
-//     int_not: "Int",
-//     int_in: "[Int]",
-//     int_not_in: "[Int]",
-//     int_gt: "Int",
-//     int_lt: "Int",
-//     int_gte: "Int",
-//     int_lte: "Int",
-//     float: "Float",
-//     float_not: "Float",
-//     float_in: "[Float]",
-//     float_not_in: "[Float]",
-//     float_gt: "Float",
-//     float_lt: "Float",
-//     float_gte: "Float",
-//     float_lte: "Float",
-//     bool: "Boolean",
-//     bool_not: "Boolean",
-//     bool_in: "[Boolean]",
-//     bool_not_in: "[Boolean]",
-//     hex: "String",
-//     hex_gt: "String",
-//     hex_lt: "String",
-//     hex_gte: "String",
-//     hex_lte: "String",
-//     hex_not: "String",
-//     hex_in: "[String]",
-//     hex_not_in: "[String]",
-//     bigint: "BigInt",
-//     bigint_not: "BigInt",
-//     bigint_in: "[BigInt]",
-//     bigint_not_in: "[BigInt]",
-//     bigint_gt: "BigInt",
-//     bigint_lt: "BigInt",
-//     bigint_gte: "BigInt",
-//     bigint_lte: "BigInt",
-//     enum: "SimpleEnum",
-//     enum_not: "SimpleEnum",
-//     enum_in: "[SimpleEnum]",
-//     enum_not_in: "[SimpleEnum]",
-//     listString: "[String]",
-//     listString_not: "[String]",
-//     listString_has: "String",
-//     listString_not_has: "String",
-//     listBigInt: "[BigInt]",
-//     listBigInt_not: "[BigInt]",
-//     listBigInt_has: "BigInt",
-//     listBigInt_not_has: "BigInt",
-//     listEnum: "[SimpleEnum]",
-//     listEnum_not: "[SimpleEnum]",
-//     listEnum_has: "SimpleEnum",
-//     listEnum_not_has: "SimpleEnum",
-//     relatedTableStringId: "String",
-//     relatedTableStringId_not: "String",
-//     relatedTableStringId_in: "[String]",
-//     relatedTableStringId_not_in: "[String]",
-//     relatedTableStringId_contains: "String",
-//     relatedTableStringId_not_contains: "String",
-//     relatedTableStringId_starts_with: "String",
-//     relatedTableStringId_ends_with: "String",
-//     relatedTableStringId_not_starts_with: "String",
-//     relatedTableStringId_not_ends_with: "String",
-//     relatedTableBigIntId: "BigInt",
-//     relatedTableBigIntId_not: "BigInt",
-//     relatedTableBigIntId_in: "[BigInt]",
-//     relatedTableBigIntId_not_in: "[BigInt]",
-//     relatedTableBigIntId_gt: "BigInt",
-//     relatedTableBigIntId_lt: "BigInt",
-//     relatedTableBigIntId_gte: "BigInt",
-//     relatedTableBigIntId_lte: "BigInt",
-//   });
-// });
+  await cleanup();
+});
 
 // test("metadata", async (context) => {
 //   const schema = createSchema(() => ({}));

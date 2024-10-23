@@ -48,8 +48,8 @@ import {
 import { GraphQLJSON } from "./json.js";
 import type { GetDataLoader } from "./middleware.js";
 
-export type Parent = Record<string, any>;
-export type Context = {
+type Parent = Record<string, any>;
+type Context = {
   getDataLoader: GetDataLoader;
   metadataStore: MetadataStore;
 };
@@ -62,6 +62,9 @@ type PluralArgs = {
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
+
+const DEFAULT_LIMIT = 50 as const;
+const MAX_LIMIT = 1000 as const;
 
 export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
   const tables = Object.values(db._.schema ?? {}) as TableRelationalConfig[];
@@ -363,20 +366,11 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         // TODO: Handle composite primary keys
         id: { type: new GraphQLNonNull(GraphQLString) },
       },
-      resolve: async (_, args, context) => {
+      resolve: async (_parent, args, context) => {
         const { id } = args as { id?: string };
         if (id === undefined) return null;
-
         const row = await baseQuery.findFirst();
-
-        if (row === undefined) return null;
-
-        // const encodedKey = encodeKey(table, row);
-        // console.log(encodedKey);
-        // const decodedKey = decodeKey(table, encodedKey);
-        // console.log(decodedKey);
-
-        return row;
+        return row ?? null;
       },
     };
 
@@ -390,8 +384,14 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
       },
-      resolve: async (_, args: PluralArgs, context) => {
+      resolve: async (_parent, args: PluralArgs, context) => {
         const limit = args.limit ?? DEFAULT_LIMIT;
+
+        if (limit > MAX_LIMIT) {
+          throw new Error(
+            `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
+          );
+        }
 
         const orderBySchema = buildOrderBySchema(table, args);
 
@@ -862,50 +862,10 @@ export function buildWhereConditions(
   return conditions;
 }
 
-const DEFAULT_LIMIT = 50 as const;
-
-// const encodeValue = (column: Column, value: unknown) => {
-//   // TODO(kyle) hack to get unblocked
-//   if (value === null) return null;
-//   if (column.mapToDriverValue === undefined) return value;
-//   return column.mapFromDriverValue(column.mapToDriverValue(value));
-// };
-
-// const decodeValue = (column: Column, value: unknown) => {
-//   if (column.mapFromDriverValue === undefined) return value;
-//   return column.mapToDriverValue(column.mapFromDriverValue(value));
-// };
-
-// const encodeKey = (
-//   table: TableRelationalConfig,
-//   row: { [key: string]: unknown },
-// ): string => {
-//   const pkObject = Object.fromEntries(
-//     table.primaryKey.map((column) => [
-//       column.name,
-//       encodeValue(column, row[column.name]),
-//     ]),
-//   );
-//   return JSON.stringify(pkObject);
-// };
-
-// const decodeKey = (
-//   table: TableRelationalConfig,
-//   key: string,
-// ): { [key: string]: unknown } => {
-//   const pkObject = JSON.parse(key);
-//   return Object.fromEntries(
-//     table.primaryKey.map((column) => [
-//       column.name,
-//       decodeValue(column, pkObject[column.name]),
-//     ]),
-//   );
-// };
-
-// If the user-provided order by does not include the ALL of the ID columns,
-// add any missing ID columns to the end of the order by clause (asc).
-// This ensures a consistent sort order to unblock cursor pagination.
 function buildOrderBySchema(table: TableRelationalConfig, args: PluralArgs) {
+  // If the user-provided order by does not include the ALL of the ID columns,
+  // add any missing ID columns to the end of the order by clause (asc).
+  // This ensures a consistent sort order to unblock cursor pagination.
   const userColumns: [string, "asc" | "desc"][] =
     args.orderBy !== undefined
       ? [[args.orderBy, args.orderDirection ?? "asc"]]
