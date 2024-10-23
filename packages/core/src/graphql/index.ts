@@ -28,6 +28,7 @@ import {
   or,
 } from "drizzle-orm";
 import { PgInteger, PgSerial } from "drizzle-orm/pg-core";
+import type { RelationalQueryBuilder } from "drizzle-orm/pg-core/query-builders/query";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -212,25 +213,21 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
               const references = relation.config?.references ?? [];
 
               fieldConfigMap[relationName] = {
-                // Note: This name is a bug in Drizzle.
+                // Note: This naming is backwards (Drizzle bug).
                 type: relation.isNullable
                   ? new GraphQLNonNull(referencedEntityType)
                   : referencedEntityType,
-                resolve: async (parent, _args, context) => {
-                  const conditions = [];
+                resolve: async (parent, _args, _context) => {
+                  const relationalConditions = [];
                   for (let i = 0; i < references.length; i++) {
                     const column = references[i]!;
                     const value = parent[fields[i]!.name];
-                    conditions.push(eq(column, value));
+                    relationalConditions.push(eq(column, value));
                   }
-                  const where =
-                    conditions.length === 0
-                      ? undefined
-                      : conditions.length === 1
-                        ? conditions[0]
-                        : and(...conditions);
 
-                  const row = await baseQuery.findFirst({ where });
+                  const row = await baseQuery.findFirst({
+                    where: and(...relationalConditions),
+                  });
 
                   return row;
                 },
@@ -262,59 +259,20 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                   after: { type: GraphQLString },
                   limit: { type: GraphQLInt },
                 },
-                resolve: async (parent, args: PluralArgs, context) => {
-                  const argConditions = buildWhereConditions(
-                    args.where,
-                    referencedTable.columns,
-                  );
-
-                  const relationConditions = [];
+                resolve: async (parent, args: PluralArgs, _context) => {
+                  const relationalConditions = [];
                   for (let i = 0; i < references.length; i++) {
                     const column = fields[i]!;
                     const value = parent[references[i]!.name];
-                    relationConditions.push(eq(column, value));
+                    relationalConditions.push(eq(column, value));
                   }
 
-                  // START CURSOR STUFF
-
-                  // END CURSOR STUFF
-
-                  const conditions = [...argConditions, ...relationConditions];
-                  const where =
-                    conditions.length === 0
-                      ? undefined
-                      : conditions.length === 1
-                        ? conditions[0]
-                        : and(...conditions);
-
-                  let orderBy: SQL[] | undefined;
-                  if (args.orderBy !== undefined) {
-                    const orderByColumn = referencedTable.columns[args.orderBy];
-                    if (orderByColumn === undefined) {
-                      throw new Error(
-                        `Unknown column "${args.orderBy}" used in orderBy argument`,
-                      );
-                    }
-                    orderBy =
-                      (args.orderDirection ?? "asc") === "asc"
-                        ? [asc(orderByColumn)]
-                        : [desc(orderByColumn)];
-                  }
-
-                  const rows = await baseQuery.findMany({
-                    where,
-                    orderBy,
-                  });
-
-                  return {
-                    items: rows,
-                    pageInfo: {
-                      hasNextPage: false,
-                      hasPreviousPage: false,
-                      startCursor: null,
-                      endCursor: null,
-                    },
-                  };
+                  return executePluralQuery(
+                    table,
+                    baseQuery,
+                    args,
+                    relationalConditions,
+                  );
                 },
               };
             } else {
@@ -366,7 +324,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         // TODO: Handle composite primary keys
         id: { type: new GraphQLNonNull(GraphQLString) },
       },
-      resolve: async (_parent, args, context) => {
+      resolve: async (_parent, args, _context) => {
         const { id } = args as { id?: string };
         if (id === undefined) return null;
         const row = await baseQuery.findFirst();
@@ -384,242 +342,8 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
       },
-      resolve: async (_parent, args: PluralArgs, context) => {
-        const limit = args.limit ?? DEFAULT_LIMIT;
-
-        if (limit > MAX_LIMIT) {
-          throw new Error(
-            `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
-          );
-        }
-
-        const orderBySchema = buildOrderBySchema(table, args);
-
-        const orderBy = orderBySchema.map(([columnName, direction]) => {
-          const column = table.columns[columnName];
-          if (column === undefined) {
-            throw new Error(
-              `Unknown column "${columnName}" used in orderBy argument`,
-            );
-          }
-          return direction === "asc" ? asc(column) : desc(column);
-        });
-        const orderByReversed = orderBySchema.map(([columnName, direction]) => {
-          const column = table.columns[columnName];
-          if (column === undefined) {
-            throw new Error(
-              `Unknown column "${columnName}" used in orderBy argument`,
-            );
-          }
-          return direction === "asc" ? desc(column) : asc(column);
-        });
-
-        // let orderBy: SQL[] | undefined;
-        // if (args.orderBy !== undefined) {
-        //   const orderByColumn = table.columns[args.orderBy];
-        //   if (orderByColumn === undefined) {
-        //     throw new Error(
-        //       `Unknown column "${args.orderBy}" used in orderBy argument`,
-        //     );
-        //   }
-        //   orderBy =
-        //     (args.orderDirection ?? "asc") === "asc"
-        //       ? [asc(orderByColumn)]
-        //       : [desc(orderByColumn)];
-        // }
-
-        const argConditions = buildWhereConditions(args.where, table.columns);
-
-        // START CURSOR STUFF
-
-        const after = args.after ?? null;
-        const before = args.before ?? null;
-
-        let startCursor = null;
-        let endCursor = null;
-        let hasPreviousPage = false;
-        let hasNextPage = false;
-
-        if (after !== null && before !== null) {
-          throw new Error("Cannot specify both before and after cursors.");
-        }
-
-        // Neither cursors are specified, apply the order conditions and execute.
-        if (after === null && before === null) {
-          const rows = await baseQuery.findMany({
-            where: and(...argConditions),
-            orderBy,
-            limit: limit + 1,
-          });
-
-          if (rows.length === limit + 1) {
-            rows.pop();
-            hasNextPage = true;
-          }
-
-          startCursor =
-            rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-          endCursor =
-            rows.length > 0
-              ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-              : null;
-
-          return {
-            items: rows,
-            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-          };
-        }
-
-        if (after !== null) {
-          // User specified an 'after' cursor.
-          const cursorObject = decodeCursor(after);
-          const cursorConditions = buildCursorConditions(
-            table,
-            orderBySchema,
-            "after",
-            cursorObject,
-          );
-
-          const rows = await baseQuery.findMany({
-            where: and(...argConditions, ...cursorConditions),
-            orderBy,
-            limit: limit + 2,
-          });
-
-          if (rows.length === 0) {
-            return {
-              items: rows,
-              pageInfo: {
-                hasNextPage,
-                hasPreviousPage,
-                startCursor,
-                endCursor,
-              },
-            };
-          }
-
-          // If the cursor of the first returned record equals the `after` cursor,
-          // `hasPreviousPage` is true. Remove that record.
-          if (encodeCursor(orderBySchema, rows[0]!) === after) {
-            rows.shift();
-            hasPreviousPage = true;
-          } else {
-            // Otherwise, remove the last record.
-            rows.pop();
-          }
-
-          // Now if the length of the records is still equal to limit + 1,
-          // there is a next page.
-          if (rows.length === limit + 1) {
-            rows.pop();
-            hasNextPage = true;
-          }
-
-          // Now calculate the cursors.
-          startCursor =
-            rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-          endCursor =
-            rows.length > 0
-              ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-              : null;
-
-          return {
-            items: rows,
-            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-          };
-        }
-
-        // User specified a 'before' cursor.
-        const cursorObject = decodeCursor(before!);
-        const cursorConditions = buildCursorConditions(
-          table,
-          orderBySchema,
-          "before",
-          cursorObject,
-        );
-
-        // Reverse the order by conditions to get the previous page,
-        // then reverse the results back to the original order.
-        const rows = await baseQuery
-          .findMany({
-            where: and(...argConditions, ...cursorConditions),
-            orderBy: orderByReversed,
-            limit: limit + 2,
-          })
-          .then((rows) => rows.reverse());
-
-        if (rows.length === 0) {
-          return {
-            items: rows,
-            pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-          };
-        }
-
-        // If the cursor of the last returned record equals the `before` cursor,
-        // `hasNextPage` is true. Remove that record.
-        if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
-          rows.pop();
-          hasNextPage = true;
-        } else {
-          // Otherwise, remove the first record.
-          rows.shift();
-        }
-
-        // Now if the length of the records is equal to limit + 1, we know
-        // there is a previous page.
-        if (rows.length === limit + 1) {
-          rows.shift();
-          hasPreviousPage = true;
-        }
-
-        // Now calculate the cursors.
-        startCursor =
-          rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-        endCursor =
-          rows.length > 0
-            ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-            : null;
-
-        return {
-          items: rows,
-          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-        };
-
-        // END CURSOR STUFF
-
-        // const conditions = [...argConditions];
-        // const where =
-        //   conditions.length === 0
-        //     ? undefined
-        //     : conditions.length === 1
-        //       ? conditions[0]
-        //       : and(...conditions);
-
-        // const rows = await baseQuery.findMany({
-        //   where,
-        //   orderBy,
-        // });
-
-        // // console.log(
-        // //   baseQuery
-        // //     .findMany({
-        // //       where,
-        // //       orderBy,
-        // //     })
-        // //     .toSQL().sql,
-        // // );
-
-        // // console.log(rows);
-
-        // return {
-        //   items: rows,
-        //   pageInfo: {
-        //     hasNextPage: false,
-        //     hasPreviousPage: false,
-        //     startCursor: null,
-        //     endCursor: null,
-        //   },
-        // };
+      resolve: async (_parent, args: PluralArgs, _context) => {
+        return executePluralQuery(table, baseQuery, args);
       },
     };
   }
@@ -743,7 +467,195 @@ const filterOperators = {
   ],
 } as const;
 
-export function buildWhereConditions(
+async function executePluralQuery(
+  table: TableRelationalConfig,
+  baseQuery: RelationalQueryBuilder<any, any>,
+  args: PluralArgs,
+  extraConditions: (SQL | undefined)[] = [],
+) {
+  const argConditions = buildWhereConditions(args.where, table.columns);
+
+  const limit = args.limit ?? DEFAULT_LIMIT;
+
+  if (limit > MAX_LIMIT) {
+    throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
+  }
+
+  const orderBySchema = buildOrderBySchema(table, args);
+
+  const orderBy = orderBySchema.map(([columnName, direction]) => {
+    const column = table.columns[columnName];
+    if (column === undefined) {
+      throw new Error(
+        `Unknown column "${columnName}" used in orderBy argument`,
+      );
+    }
+    return direction === "asc" ? asc(column) : desc(column);
+  });
+  const orderByReversed = orderBySchema.map(([columnName, direction]) => {
+    const column = table.columns[columnName];
+    if (column === undefined) {
+      throw new Error(
+        `Unknown column "${columnName}" used in orderBy argument`,
+      );
+    }
+    return direction === "asc" ? desc(column) : asc(column);
+  });
+
+  const after = args.after ?? null;
+  const before = args.before ?? null;
+
+  let startCursor = null;
+  let endCursor = null;
+  let hasPreviousPage = false;
+  let hasNextPage = false;
+
+  if (after !== null && before !== null) {
+    throw new Error("Cannot specify both before and after cursors.");
+  }
+
+  // Neither cursors are specified, apply the order conditions and execute.
+  if (after === null && before === null) {
+    const rows = await baseQuery.findMany({
+      where: and(...argConditions, ...extraConditions),
+      orderBy,
+      limit: limit + 1,
+    });
+
+    if (rows.length === limit + 1) {
+      rows.pop();
+      hasNextPage = true;
+    }
+
+    startCursor =
+      rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
+    endCursor =
+      rows.length > 0
+        ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
+        : null;
+
+    return {
+      items: rows,
+      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+    };
+  }
+
+  if (after !== null) {
+    // User specified an 'after' cursor.
+    const cursorObject = decodeCursor(after);
+    const cursorConditions = buildCursorConditions(
+      table,
+      orderBySchema,
+      "after",
+      cursorObject,
+    );
+
+    const rows = await baseQuery.findMany({
+      where: and(...argConditions, ...cursorConditions, ...extraConditions),
+      orderBy,
+      limit: limit + 2,
+    });
+
+    if (rows.length === 0) {
+      return {
+        items: rows,
+        pageInfo: {
+          hasNextPage,
+          hasPreviousPage,
+          startCursor,
+          endCursor,
+        },
+      };
+    }
+
+    // If the cursor of the first returned record equals the `after` cursor,
+    // `hasPreviousPage` is true. Remove that record.
+    if (encodeCursor(orderBySchema, rows[0]!) === after) {
+      rows.shift();
+      hasPreviousPage = true;
+    } else {
+      // Otherwise, remove the last record.
+      rows.pop();
+    }
+
+    // Now if the length of the records is still equal to limit + 1,
+    // there is a next page.
+    if (rows.length === limit + 1) {
+      rows.pop();
+      hasNextPage = true;
+    }
+
+    // Now calculate the cursors.
+    startCursor =
+      rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
+    endCursor =
+      rows.length > 0
+        ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
+        : null;
+
+    return {
+      items: rows,
+      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+    };
+  }
+
+  // User specified a 'before' cursor.
+  const cursorObject = decodeCursor(before!);
+  const cursorConditions = buildCursorConditions(
+    table,
+    orderBySchema,
+    "before",
+    cursorObject,
+  );
+
+  // Reverse the order by conditions to get the previous page,
+  // then reverse the results back to the original order.
+  const rows = await baseQuery
+    .findMany({
+      where: and(...argConditions, ...cursorConditions, ...extraConditions),
+      orderBy: orderByReversed,
+      limit: limit + 2,
+    })
+    .then((rows) => rows.reverse());
+
+  if (rows.length === 0) {
+    return {
+      items: rows,
+      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+    };
+  }
+
+  // If the cursor of the last returned record equals the `before` cursor,
+  // `hasNextPage` is true. Remove that record.
+  if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
+    rows.pop();
+    hasNextPage = true;
+  } else {
+    // Otherwise, remove the first record.
+    rows.shift();
+  }
+
+  // Now if the length of the records is equal to limit + 1, we know
+  // there is a previous page.
+  if (rows.length === limit + 1) {
+    rows.shift();
+    hasPreviousPage = true;
+  }
+
+  // Now calculate the cursors.
+  startCursor = rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
+  endCursor =
+    rows.length > 0
+      ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
+      : null;
+
+  return {
+    items: rows,
+    pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+  };
+}
+
+function buildWhereConditions(
   where: Record<string, any> | undefined,
   columns: Record<string, Column>,
 ): (SQL | undefined)[] {
