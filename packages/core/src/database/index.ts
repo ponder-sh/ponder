@@ -90,7 +90,7 @@ export type Database<
   kill(): Promise<void>;
 };
 
-type PonderApp = {
+export type PonderApp = {
   is_locked: 0 | 1;
   is_dev: 0 | 1;
   heartbeat_at: number;
@@ -323,16 +323,13 @@ export const createDatabase = async (args: {
   // TODO(kyle) validate all tables use `namespace`
   // TODO(kyle) validate all tables have primary key
 
+  // TODO(kyle) remove sql function to find primary keys
   const drizzle =
     dialect === "pglite"
-      ? drizzlePglite((driver as PGliteDriver).instance, args.schema)
-      : drizzleNodePg((driver as PostgresDriver).user, args.schema);
-
-  // if (fs.existsSync(args.common.options.migrationsDir)) {
-  //   await migrate(drizzle, {
-  //     migrationsFolder: args.common.options.migrationsDir,
-  //   });
-  // }
+      ? drizzlePglite((driver as PGliteDriver).instance, {
+          schema: args.schema,
+        })
+      : drizzleNodePg((driver as PostgresDriver).user, { schema: args.schema });
 
   // Register metrics
   const d = driver as PostgresDriver;
@@ -410,11 +407,11 @@ export const createDatabase = async (args: {
         // Create
         await tx
           // @ts-ignore
-          .deleteFrom(tableName)
+          .deleteFrom(tableName.sql)
           .$call((qb) => {
             for (const { sql } of primaryKeyColumns) {
               // @ts-ignore
-              qb = qb.where(name, "=", log[sql]);
+              qb = qb.where(sql, "=", log[sql]);
             }
             return qb;
           })
@@ -430,12 +427,12 @@ export const createDatabase = async (args: {
         log.operation = undefined;
         await tx
           // @ts-ignore
-          .updateTable(tableName)
+          .updateTable(tableName.sql)
           .set(log as any)
           .$call((qb) => {
             for (const { sql } of primaryKeyColumns) {
               // @ts-ignore
-              qb = qb.where(name, "=", log[sql]);
+              qb = qb.where(sql, "=", log[sql]);
             }
             return qb;
           })
@@ -451,7 +448,7 @@ export const createDatabase = async (args: {
         log.operation = undefined;
         await tx
           // @ts-ignore
-          .insertInto(tableName)
+          .insertInto(tableName.sql)
           .values(log as any)
           // @ts-ignore
           .onConflict((oc) =>
@@ -856,6 +853,7 @@ export const createDatabase = async (args: {
               const { blockTimestamp, chainId, blockNumber } = decodeCheckpoint(
                 crashRecoveryApp.checkpoint,
               );
+
               args.common.logger.info({
                 service: "database",
                 msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
@@ -957,32 +955,26 @@ export const createDatabase = async (args: {
                 Date.now(),
         )
         .sort((a, b) => (a.heartbeat_at > b.heartbeat_at ? -1 : 1))
-        .slice(3);
+        .slice(2);
 
-      await Promise.all(
-        removedApps.flatMap(async (app) => [
-          ...app.table_names.flatMap((table) => [
-            // Drop table
-            qb.internal.schema.dropTable(
-              userToSqlTableName(table, app.instance_id),
-            ),
-            // Drop reorg
-            qb.internal.schema.dropTable(
-              userToReorgTableName(table, app.instance_id),
-            ),
-          ]),
-          // Drop status
-          qb.internal
-            .deleteFrom("_ponder_meta")
-            .where("key", "=", `status_${app.instance_id}`)
-            .execute(),
-          // Drop app
-          qb.internal
-            .deleteFrom("_ponder_meta")
-            .where("key", "=", `app_${app.instance_id}`)
-            .execute(),
-        ]),
-      );
+      for (const app of removedApps) {
+        for (const table of app.table_names) {
+          await qb.internal.schema
+            .dropTable(userToSqlTableName(table, app.instance_id))
+            .execute();
+          await qb.internal.schema
+            .dropTable(userToReorgTableName(table, app.instance_id))
+            .execute();
+        }
+        await qb.internal
+          .deleteFrom("_ponder_meta")
+          .where("key", "=", `status_${app.instance_id}`)
+          .execute();
+        await qb.internal
+          .deleteFrom("_ponder_meta")
+          .where("key", "=", `app_${app.instance_id}`)
+          .execute();
+      }
 
       if (removedApps.length > 0) {
         args.common.logger.debug({
@@ -1216,11 +1208,6 @@ $$ LANGUAGE plpgsql
           value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
         })
         .execute();
-
-      args.common.logger.debug({
-        service: "database",
-        msg: `Released lock on schema '${namespace}'`,
-      });
 
       await qb.internal.destroy();
       await qb.user.destroy();

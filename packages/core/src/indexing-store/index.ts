@@ -732,7 +732,7 @@ export const createIndexingStore = ({
       },
       { schema },
     ),
-    async flush({ force, checkpoint }) {
+    async flush({ force }) {
       if (force === false && cacheBytes < maxBytes) return;
 
       await queue.add(async () => {
@@ -834,10 +834,10 @@ export const createIndexingStore = ({
         await Promise.all(promises);
         // TODO(kyle) either set metadata checkpoint to zero, then update it
         // or run the flush in a transaction
-        if (checkpoint) {
-          await database.complete({ checkpoint });
-          await database.finalize({ checkpoint });
-        }
+        // if (checkpoint) {
+        //   await database.complete({ checkpoint });
+        //   await database.finalize({ checkpoint });
+        // }
 
         const flushIndex =
           totalCacheOps -

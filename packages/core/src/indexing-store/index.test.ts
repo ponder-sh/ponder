@@ -372,6 +372,8 @@ test("flush", async (context) => {
     balance: 12n,
   });
 
+  // TODO(kyle) checkpoint
+
   await cleanup();
 });
 
