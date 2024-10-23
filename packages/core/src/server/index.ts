@@ -88,6 +88,7 @@ export async function createServer({
 
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
+    c.set("common", common);
     c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
     c.set("schema", schema);
