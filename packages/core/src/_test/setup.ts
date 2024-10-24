@@ -16,6 +16,10 @@ import {
   type IndexingStore,
   createIndexingStore,
 } from "@/indexing-store/index.js";
+import {
+  type MetadataStore,
+  getMetadataStore,
+} from "@/indexing-store/metadata.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -128,7 +132,7 @@ type DatabaseServiceSetup = {
 };
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   buildId: "test",
-  instanceId: "test",
+  instanceId: "abcd",
   schema: {},
   indexing: "historical",
 };
@@ -140,6 +144,7 @@ export async function setupDatabaseServices(
   database: Database;
   syncStore: SyncStore;
   indexingStore: IndexingStore;
+  metadataStore: MetadataStore;
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
@@ -170,12 +175,18 @@ export async function setupDatabaseServices(
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
+  const metadataStore = getMetadataStore({
+    db: database.qb.readonly,
+    instanceId: config.instanceId,
+  });
+
   const cleanup = () => database.kill();
 
   return {
     database,
     indexingStore,
     syncStore,
+    metadataStore,
     cleanup,
   };
 }

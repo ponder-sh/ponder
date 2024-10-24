@@ -22,10 +22,13 @@ import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain } from "./index.js";
 import { userToSqlTableName } from "./sql.js";
 
-const instanceId: string = await import("@/generated")
-  // @ts-ignore
-  .then((exports) => exports.instanceId)
-  .catch(() => undefined);
+// const instanceId: string = await import("@/generated")
+//   // @ts-ignore
+//   .then((exports) => exports.instanceId)
+//   .catch(() => undefined);
+
+// TODO(kyle) hack to get unblocked
+const instanceId = "abcd";
 
 type $Type<T extends ColumnBuilderBase, TType> = T & {
   _: {

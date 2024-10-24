@@ -3,6 +3,7 @@ import {
   FlushError,
   InvalidStoreMethodError,
   RecordNotFoundError,
+  UndefinedTableError,
   UniqueConstraintError,
 } from "@/common/errors.js";
 import type { Database } from "@/database/index.js";
@@ -92,6 +93,11 @@ const checkOnchainTable = (
   table: Table,
   method: "find" | "insert" | "update" | "upsert" | "delete",
 ) => {
+  if (table === undefined)
+    throw new UndefinedTableError(
+      `Table object passed to db.${method}() is undefined`,
+    );
+
   if (onchain in table) return;
 
   throw new InvalidStoreMethodError(
@@ -240,6 +246,8 @@ export const createIndexingStore = ({
   };
 
   const normalizeColumn = (column: Column, value: unknown) => {
+    // TODO(kyle) hack to get unblocked
+    if (value === null) return null;
     if (column.mapToDriverValue === undefined) return value;
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   };
@@ -283,6 +291,14 @@ export const createIndexingStore = ({
     );
   };
 
+  const safeGetTableName = (table: Table) => {
+    try {
+      return getTableConfig(table)?.name ?? "unknown";
+    } catch {
+      return "unknown";
+    }
+  };
+
   let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
   let isHistoricalBackfill = true;
   /** Number of entries in cache. */
@@ -312,7 +328,7 @@ export const createIndexingStore = ({
     find: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${getTableConfig(table).name}.find()` },
+          { method: `${safeGetTableName(table)}.find()` },
           async () => {
             checkOnchainTable(table as Table, "find");
             checkSerialTable(table as Table, "find");
@@ -351,7 +367,7 @@ export const createIndexingStore = ({
         values: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              { method: `${getTableConfig(table as PgTable).name}.insert()` },
+              { method: `${safeGetTableName(table)}.insert()` },
               async () => {
                 checkOnchainTable(table as Table, "insert");
                 checkSerialTable(table as Table, "insert");
@@ -416,7 +432,7 @@ export const createIndexingStore = ({
         set: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              { method: `${getTableConfig(table as PgTable).name}.update()` },
+              { method: `${safeGetTableName(table)}.update()` },
               async () => {
                 checkOnchainTable(table as Table, "update");
                 checkSerialTable(table as Table, "update");
@@ -479,7 +495,7 @@ export const createIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                    method: `${safeGetTableName(table)}.upsert()`,
                   },
                   async () => {
                     checkOnchainTable(table as Table, "upsert");
@@ -528,7 +544,7 @@ export const createIndexingStore = ({
               await queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                    method: `${safeGetTableName(table)}.upsert()`,
                   },
                   async () => {
                     checkOnchainTable(table as Table, "upsert");
@@ -562,7 +578,7 @@ export const createIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                    method: `${safeGetTableName(table)}.upsert()`,
                   },
                   async () => {
                     checkOnchainTable(table as Table, "upsert");
@@ -612,7 +628,7 @@ export const createIndexingStore = ({
     delete: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${getTableConfig(table as PgTable).name}.delete()` },
+          { method: `${safeGetTableName(table)}.delete()` },
           async () => {
             checkOnchainTable(table as Table, "upsert");
             checkSerialTable(table as Table, "upsert");
