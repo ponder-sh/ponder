@@ -1,16 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { OnchainTable } from "@/drizzle/db.js";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
-import DataLoader from "dataloader";
 import { printSchema } from "graphql";
 import { type YogaServerInstance, createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { buildGraphQLSchema } from "./index.js";
+import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 // import { buildLoaderCache } from "./buildLoaderCache.js";
 
 /**
@@ -95,50 +92,6 @@ export const graphql = (
     // @ts-expect-error
     response.statusText = "OK";
 
-    console.log(JSON.stringify(response, null, 2));
-
     return response;
   });
 };
-
-function buildDataLoaderCache({ drizzle }: { drizzle: Drizzle<Schema> }) {
-  const dataLoaderMap = new Map<
-    OnchainTable,
-    DataLoader<string | number | bigint, any> | undefined
-  >();
-
-  return ({ table }: { table: OnchainTable }) => {
-    let dataLoader = dataLoaderMap.get(table);
-    if (dataLoader === undefined) {
-      dataLoader = new DataLoader(
-        async (ids) => {
-          drizzle;
-          // const baseQuery = (
-          //   drizzle as Drizzle<{ [key: string]: OnchainTable }>
-          // ).query[tsName];
-          // if (baseQuery === undefined)
-          //   throw new Error(
-          //     `Internal error: Unknown table "${tsName}" in data loader cache`,
-          //   );
-          // const rows = await baseQuery.findMany({
-          //   where: (table, { inArray }) => inArray(ids, "id"),
-          //   limit: ids.length,
-          // });
-          // // const rows = await store.findMany({
-          // //   tableName,
-          // //   where: { id: { in: ids } },
-          // //   limit: ids.length,
-          // // });
-          // return ids.map((id) => rows.items.find((row) => row.id === id));
-          return ids;
-        },
-        { maxBatchSize: 1_000 },
-      );
-      dataLoaderMap.set(table, dataLoader);
-    }
-
-    return dataLoader;
-  };
-}
-
-export type GetDataLoader = ReturnType<typeof buildDataLoaderCache>;

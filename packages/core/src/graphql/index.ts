@@ -2,6 +2,7 @@ import type { OnchainTable } from "@/drizzle/db.js";
 import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
+import DataLoader from "dataloader";
 import {
   type Column,
   Many,
@@ -48,11 +49,10 @@ import {
   GraphQLString,
 } from "graphql";
 import { GraphQLJSON } from "./json.js";
-import type { GetDataLoader } from "./middleware.js";
 
 type Parent = Record<string, any>;
 type Context = {
-  getDataLoader: GetDataLoader;
+  getDataLoader: ReturnType<typeof buildDataLoaderCache>;
   metadataStore: MetadataStore;
 };
 
@@ -218,19 +218,20 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                 type: relation.isNullable
                   ? new GraphQLNonNull(referencedEntityType)
                   : referencedEntityType,
-                resolve: async (parent, _args, _context) => {
-                  const relationalConditions = [];
+                resolve: async (parent, _args, context) => {
+                  const loader = context.getDataLoader({
+                    table: referencedTable,
+                  });
+
+                  const rowFragment: Record<string, unknown> = {};
                   for (let i = 0; i < references.length; i++) {
                     const column = references[i]!;
                     const value = parent[fields[i]!.name];
-                    relationalConditions.push(eq(column, value));
+                    rowFragment[column.name] = value;
                   }
+                  const encodedId = encodeRowFragment(rowFragment);
 
-                  const row = await baseQuery.findFirst({
-                    where: and(...relationalConditions),
-                  });
-
-                  return row ?? null;
+                  return await loader.load(encodedId);
                 },
               };
             } else if (is(relation, Many)) {
@@ -810,11 +811,19 @@ function encodeCursor(
   const cursorObject = Object.fromEntries(
     orderBySchema.map(([columnName, _]) => [columnName, row[columnName]]),
   );
-  return Buffer.from(serialize(cursorObject)).toString("base64");
+  return encodeRowFragment(cursorObject);
+}
+function decodeCursor(cursor: string): { [k: string]: unknown } {
+  return decodeRowFragment(cursor);
 }
 
-function decodeCursor(cursor: string): { [k: string]: unknown } {
-  return deserialize(Buffer.from(cursor, "base64").toString());
+function encodeRowFragment(rowFragment: { [k: string]: unknown }): string {
+  return Buffer.from(serialize(rowFragment)).toString("base64");
+}
+function decodeRowFragment(encodedRowFragment: string): {
+  [k: string]: unknown;
+} {
+  return deserialize(Buffer.from(encodedRowFragment, "base64").toString());
 }
 
 function buildCursorCondition(
@@ -861,4 +870,55 @@ function buildCursorCondition(
   };
 
   return buildCondition(0);
+}
+
+export function buildDataLoaderCache({
+  drizzle,
+}: { drizzle: Drizzle<Schema> }) {
+  const dataLoaderMap = new Map<
+    TableRelationalConfig,
+    DataLoader<string, any> | undefined
+  >();
+  return ({ table }: { table: TableRelationalConfig }) => {
+    const baseQuery = (drizzle as Drizzle<{ [key: string]: OnchainTable }>)
+      .query[table.tsName];
+    if (baseQuery === undefined)
+      throw new Error(
+        `Internal error: Unknown table "${table.tsName}" in data loader cache`,
+      );
+
+    let dataLoader = dataLoaderMap.get(table);
+    if (dataLoader === undefined) {
+      dataLoader = new DataLoader(
+        async (encodedIds) => {
+          const decodedRowFragments = encodedIds.map(decodeRowFragment);
+
+          const idConditions = decodedRowFragments.map((decodedRowFragment) =>
+            and(
+              ...Object.entries(decodedRowFragment).map(([col, val]) =>
+                eq(table.columns[col]!, val),
+              ),
+            ),
+          );
+
+          const rows = await baseQuery.findMany({
+            where: or(...idConditions),
+            limit: encodedIds.length,
+          });
+
+          return decodedRowFragments.map((decodedRowFragment) => {
+            return rows.find((row) =>
+              Object.entries(decodedRowFragment).every(
+                ([col, val]) => row[col] === val,
+              ),
+            );
+          });
+        },
+        { maxBatchSize: 1_000 },
+      );
+      dataLoaderMap.set(table, dataLoader);
+    }
+
+    return dataLoader;
+  };
 }

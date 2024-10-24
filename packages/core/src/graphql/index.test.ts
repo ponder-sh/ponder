@@ -6,8 +6,8 @@ import {
 import { onchainTable, pgEnum, relations } from "@/drizzle/db.js";
 import { primaryKey } from "drizzle-orm/pg-core";
 import { type GraphQLType, execute, parse } from "graphql";
-import { beforeEach, expect, test } from "vitest";
-import { buildGraphQLSchema } from "./index.js";
+import { beforeEach, expect, test, vi } from "vitest";
+import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -19,6 +19,12 @@ test("metadata", async (context) => {
     context,
     { schema },
   );
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
   await metadataStore.setStatus({
     mainnet: {
@@ -29,11 +35,6 @@ test("metadata", async (context) => {
       },
     },
   });
-
-  const graphqlSchema = buildGraphQLSchema(database.drizzle);
-  const contextValue = { db: database.drizzle, metadataStore };
-  const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   const result = await query(`
     query {
@@ -96,11 +97,10 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     })),
   };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -223,11 +223,10 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
   }));
   const schema = { testEnum, table };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -277,11 +276,10 @@ test("json, json not null", async (context) => {
     })),
   };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -335,11 +333,10 @@ test("singular", async (context) => {
   );
   const schema = { transferEvents, allowances };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -413,7 +410,7 @@ test("singular", async (context) => {
   await cleanup();
 });
 
-test("singular one", async (context) => {
+test("singular with one relation", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -435,11 +432,10 @@ test("singular one", async (context) => {
 
   const schema = { person, pet, petRelations };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -482,7 +478,7 @@ test("singular one", async (context) => {
   await cleanup();
 });
 
-test("singular many", async (context) => {
+test("singular with many relation", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -503,11 +499,10 @@ test("singular many", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -526,7 +521,7 @@ test("singular many", async (context) => {
       person(id: "jake") {
         pets {
           items {
-          id
+            id
           }
         }
       }
@@ -543,7 +538,7 @@ test("singular many", async (context) => {
   await cleanup();
 });
 
-test("singular many with additional filter", async (context) => {
+test("singular with many relation using filter", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -561,11 +556,10 @@ test("singular many with additional filter", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -599,6 +593,79 @@ test("singular many with additional filter", async (context) => {
       },
     },
   });
+
+  await cleanup();
+});
+
+test("plural with one relation uses dataloader", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const personRelations = relations(person, ({ many }) => ({
+    pets: many(pet),
+  }));
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.text(),
+  }));
+
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, { fields: [pet.ownerId], references: [person.id] }),
+  }));
+
+  const schema = { person, personRelations, pet, petRelations };
+
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
+  indexingStore.insert(schema.pet).values([
+    { id: "dog1", ownerId: "jake" },
+    { id: "dog2", ownerId: "jake" },
+    { id: "dog3", ownerId: "kyle" },
+  ]);
+  await indexingStore.flush({ force: true });
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  // @ts-expect-error
+  const personFindManySpy = vi.spyOn(database.drizzle.query.person, "findMany");
+  // @ts-expect-error
+  const petFindManySpy = vi.spyOn(database.drizzle.query.pet, "findMany");
+
+  const result = await query(`
+    query {
+      pets {
+        items {
+          id
+          owner {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    pets: {
+      items: [
+        { id: "dog1", owner: { id: "jake" } },
+        { id: "dog2", owner: { id: "jake" } },
+        { id: "dog3", owner: null },
+      ],
+    },
+  });
+
+  expect(personFindManySpy).toHaveBeenCalledTimes(1);
+  expect(petFindManySpy).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });
@@ -733,11 +800,10 @@ test("filter universal", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -785,11 +851,10 @@ test("filter singular", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -840,11 +905,10 @@ test("filter plural", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -951,11 +1015,10 @@ test("filter numeric", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1078,11 +1141,10 @@ test("filter string", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1150,11 +1212,10 @@ test("filter and/or", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1203,11 +1264,10 @@ test("order by", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1325,11 +1385,10 @@ test("limit", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1394,11 +1453,10 @@ test("cursor pagination ascending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1539,11 +1597,10 @@ test("cursor pagination descending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1673,11 +1730,10 @@ test("cursor pagination start and end cursors", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1741,11 +1797,10 @@ test("cursor pagination has previous page", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1829,11 +1884,10 @@ test("cursor pagination composite primary key", async (context) => {
 
   const schema = { allowance };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-  const contextValue = { db: database.drizzle };
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
