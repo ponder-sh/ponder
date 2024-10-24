@@ -50,8 +50,7 @@ export const graphql = (
     }
 
     if (yoga === undefined) {
-      // const readonlyStore = c.get("readonlyStore");
-      // const metadataStore = c.get("metadataStore");
+      const metadataStore = c.get("metadataStore");
       const common = c.get("common");
       const drizzle = c.get("db");
 
@@ -65,11 +64,16 @@ export const graphql = (
         "utf-8",
       );
 
+      common.logger.debug({
+        service: "codegen",
+        msg: "Wrote new file at generated/schema.graphql",
+      });
+
       yoga = createYoga({
         schema: graphqlSchema,
         context: () => {
           const getDataLoader = buildDataLoaderCache({ drizzle });
-          return { getDataLoader };
+          return { metadataStore, getDataLoader };
         },
         graphqlEndpoint: c.req.path,
         maskedErrors: process.env.NODE_ENV === "production",
@@ -108,6 +112,7 @@ function buildDataLoaderCache({ drizzle }: { drizzle: Drizzle<Schema> }) {
     if (dataLoader === undefined) {
       dataLoader = new DataLoader(
         async (ids) => {
+          drizzle;
           // const baseQuery = (
           //   drizzle as Drizzle<{ [key: string]: OnchainTable }>
           // ).query[tsName];
