@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import {
+  BigIntSerializationError,
   CheckConstraintError,
   FlushError,
   InvalidStoreMethodError,
@@ -299,7 +300,19 @@ export const createIndexingStore = ({
       return null;
     }
     if (column.mapToDriverValue === undefined) return value;
-    return column.mapFromDriverValue(column.mapToDriverValue(value));
+    try {
+      return column.mapFromDriverValue(column.mapToDriverValue(value));
+    } catch (e) {
+      if (
+        (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
+      ) {
+        const error = new BigIntSerializationError((e as Error).message);
+        error.meta.push(
+          "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+        );
+        throw error;
+      }
+    }
   };
 
   const getBytes = (value: unknown) => {
@@ -766,7 +779,6 @@ export const createIndexingStore = ({
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
-        // TODO(kyle) parse error
         const res = await database.qb.user
           .wrap({ method: "sql" }, () =>
             database.drizzle._.session
@@ -785,6 +797,15 @@ export const createIndexingStore = ({
                   error?.message.includes("violates check constraint")
                 ) {
                   error = new CheckConstraintError(error.message);
+                } else if (
+                  error?.message?.includes(
+                    "Do not know how to serialize a BigInt",
+                  )
+                ) {
+                  error = new BigIntSerializationError(error.message);
+                  error.meta.push(
+                    "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+                  );
                 }
 
                 throw error;

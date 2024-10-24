@@ -4,6 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import {
+  BigIntSerializationError,
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/common/errors.js";
@@ -776,6 +777,38 @@ test("enum", async (context) => {
   });
 
   // TODO(kyle) error
+
+  await cleanup();
+});
+
+test("json bigint", async (context) => {
+  const { database, cleanup } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.evmHex().primaryKey(),
+      metadata: p.json().$type<{ balance: bigint }>(),
+    })),
+  };
+
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    database,
+    schema,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  const error = await indexingStore
+    .insert(schema.account)
+    .values({
+      address: zeroAddress,
+      metadata: {
+        balance: 10n,
+      },
+    })
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(BigIntSerializationError);
 
   await cleanup();
 });
