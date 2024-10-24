@@ -8,7 +8,6 @@ import { printSchema } from "graphql";
 import { type YogaServerInstance, createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
-// import { buildLoaderCache } from "./buildLoaderCache.js";
 
 /**
  * Middleware for GraphQL with an interactive web view.
