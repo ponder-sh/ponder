@@ -1,10 +1,12 @@
 import type { Common } from "@/common/common.js";
 import {
+  CheckConstraintError,
   FlushError,
   InvalidStoreMethodError,
   NotNullConstraintError,
   RecordNotFoundError,
   UniqueConstraintError,
+  getBaseError,
 } from "@/common/errors.js";
 import type { Database } from "@/database/index.js";
 import {
@@ -759,22 +761,44 @@ export const createIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         if (isHistoricalBackfill) await database.createTriggers();
-        await indexingStore.flush({ force: true });
+        await indexingStore.flush();
         if (isHistoricalBackfill) await database.removeTriggers();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         // TODO(kyle) parse error
-        const res = await database.qb.user.wrap({ method: "sql" }, () =>
-          database.drizzle._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
-            .execute(),
-        );
+        const res = await database.qb.user
+          .wrap({ method: "sql" }, () =>
+            database.drizzle._.session
+              .prepareQuery(query, undefined, undefined, method === "all")
+              .execute()
+              .catch((e) => {
+                let error = getBaseError(e);
+
+                if (error?.message?.includes("violates not-null constraint")) {
+                  error = new NotNullConstraintError(error.message);
+                } else if (
+                  error?.message?.includes("violates unique constraint")
+                ) {
+                  error = new UniqueConstraintError(error.message);
+                } else if (
+                  error?.message.includes("violates check constraint")
+                ) {
+                  error = new CheckConstraintError(error.message);
+                }
+
+                throw error;
+              }),
+          )
+          .catch((error) => {
+            Error.captureStackTrace(error);
+            throw error;
+          });
 
         // @ts-ignore
         return { rows: res.rows.map((row) => Object.values(row)) };
       },
-      { schema },
+      { schema, casing: "snake_case" },
     ),
     async flush() {
       await queue.add(async () => {

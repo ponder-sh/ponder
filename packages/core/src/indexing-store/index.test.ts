@@ -3,6 +3,10 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import {
+  NotNullConstraintError,
+  UniqueConstraintError,
+} from "@/common/errors.js";
 import { onchainTable } from "@/drizzle/drizzle.js";
 import { eq } from "@/drizzle/drizzle.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -16,7 +20,7 @@ beforeEach(setupIsolatedDatabase);
 
 vi.mock("@/generated", async () => {
   return {
-    instanceId: "test",
+    instanceId: "1234",
   };
 });
 
@@ -385,6 +389,7 @@ test("sql", async (context) => {
 
   const { database, cleanup } = await setupDatabaseServices(context, {
     schema,
+    instanceId: "1234",
   });
 
   const indexingStore = createIndexingStore({
@@ -422,6 +427,33 @@ test("sql", async (context) => {
   await indexingStore.sql.select().from(schema.account);
 
   expect(spy).toHaveBeenCalledOnce();
+
+  // non-null constraint
+
+  // @ts-ignore
+  let error = await indexingStore.sql
+    .insert(schema.account)
+    .values({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: undefined,
+    })
+    .catch((error) => error);
+
+  expect(error).instanceOf(NotNullConstraintError);
+
+  // TODO(kyle) check constraint
+
+  // unique constraint
+
+  error = await indexingStore.sql
+    .insert(schema.account)
+    .values({
+      address: zeroAddress,
+      balance: 10n,
+    })
+    .catch((error) => error);
+
+  expect(error).instanceOf(UniqueConstraintError);
 
   await cleanup();
 });
