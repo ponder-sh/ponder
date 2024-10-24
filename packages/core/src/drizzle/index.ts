@@ -1,6 +1,6 @@
-import { type Table, getTableColumns, getTableName, is } from "drizzle-orm";
+import { getTableColumns, getTableName, is } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { type PgColumn, PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { getColumnCasing } from "./kit/index.js";
 
@@ -45,21 +45,20 @@ export const getPrimaryKeyColumns = (
 ): { sql: string; js: string }[] => {
   const primaryKeys = getTableConfig(table).primaryKeys;
 
-  const findJsName = (sql: string): string => {
+  const findJsName = (column: PgColumn): string => {
+    const name = column.name;
     for (const [js, column] of Object.entries(getTableColumns(table))) {
-      if (column.name === sql) return js;
+      if (column.name === name) return js;
     }
 
     throw "unreachable";
   };
 
   if (primaryKeys.length > 0) {
-    return primaryKeys[0]!.columns
-      .map((c) => c.name)
-      .map((sql) => ({
-        sql,
-        js: findJsName(sql),
-      }));
+    return primaryKeys[0]!.columns.map((column) => ({
+      sql: getColumnCasing(column, "snake_case"),
+      js: findJsName(column),
+    }));
   }
 
   const pkColumn = Object.values(getTableColumns(table)).find(
@@ -69,11 +68,7 @@ export const getPrimaryKeyColumns = (
   return [
     {
       sql: getColumnCasing(pkColumn, "snake_case"),
-      js: findJsName(pkColumn.name),
+      js: findJsName(pkColumn),
     },
   ];
-};
-
-export const createReorgTable = (table: Table) => {
-  getTableConfig(table).primaryKeys = [];
 };
