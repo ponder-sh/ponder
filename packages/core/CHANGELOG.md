@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.19
+
+### Patch Changes
+
+- [#1185](https://github.com/ponder-sh/ponder/pull/1185) [`c1c3c166300a93c3f2970eed94a82241ddeb31e4`](https://github.com/ponder-sh/ponder/commit/c1c3c166300a93c3f2970eed94a82241ddeb31e4) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of `updateMany()`.
+
 ## 0.6.18
 
 ### Patch Changes
