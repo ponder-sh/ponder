@@ -606,11 +606,11 @@ export const getHistoricalStore = ({
             { method: `${tableName}.updateMany` },
             async () => {
               const latestRecords: DatabaseRecord[] = await query
-                .limit(common.options.databaseMaxRowLimit)
+                .limit(100_000)
                 .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
                 .execute();
 
-              const records: DatabaseRecord[] = [];
+              const records: UserRecord[] = [];
 
               for (const latestRecord of latestRecords) {
                 const current = decodeRecord({
@@ -619,33 +619,35 @@ export const getHistoricalStore = ({
                   dialect,
                 });
                 const updateObject = data({ current });
-                // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
-                const updateRecord = {
-                  id: latestRecord.id,
-                  ...encodeRecord({
-                    record: updateObject,
-                    table,
-                    schema,
-                    dialect,
-                    skipValidation: false,
-                  }),
+
+                for (const [key, value] of Object.entries(
+                  structuredClone(updateObject),
+                )) {
+                  current[key] = value;
+                }
+
+                normalizeRecord(current, tableName);
+
+                validateRecord({
+                  record: current,
+                  table: tables[tableName]!.table,
+                  schema,
+                });
+
+                const bytes = getBytesSize(current);
+
+                // At this point, the cache is empty, so add the entry
+                storeCache[tableName]![getCacheKey(current.id, tableName)] = {
+                  type: "update",
+                  opIndex: totalCacheOps++,
+                  bytes,
+                  record: current,
                 };
 
-                const record = await db
-                  .updateTable(tableName)
-                  .set(updateRecord)
-                  .where("id", "=", latestRecord.id)
-                  .returningAll()
-                  .executeTakeFirstOrThrow()
-                  .catch((err) => {
-                    throw parseStoreError(err, updateObject);
-                  });
-                records.push(record);
+                records.push(current);
               }
 
-              return records.map((record) =>
-                decodeRecord({ record, table, dialect }),
-              );
+              return records;
             },
           );
 
