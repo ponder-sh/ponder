@@ -1,5 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { index, onchainTable } from "@/drizzle/drizzle.js";
+import { index, onchainTable, pgEnum, primaryKey } from "@/drizzle/drizzle.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import {
   encodeCheckpoint,
@@ -59,7 +59,47 @@ test("setup() succeeds with a fresh database", async (context) => {
   await database.kill();
 });
 
-test.todo("setup() create tables");
+test("setup() create tables", async (context) => {
+  const mood = pgEnum("mood", ["sad", "happy"]);
+
+  const kyle = onchainTable("kyle", (p) => ({
+    age: p.integer().primaryKey(),
+    mood: mood().notNull(),
+  }));
+
+  const user = onchainTable(
+    "table",
+    (p) => ({
+      name: p.text(),
+      age: p.integer(),
+      address: p.evmHex(),
+    }),
+    (table) => ({
+      primaryKeys: primaryKey({ columns: [table.name, table.address] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    schema: { account, kyle, mood, user },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+  });
+
+  await database.setup();
+
+  const tableNames = await getUserTableNames(database);
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
+  expect(tableNames).toContain("1234__kyle");
+  expect(tableNames).toContain("1234_reorg__kyle");
+  expect(tableNames).toContain("1234__kyle");
+  expect(tableNames).toContain("1234_reorg__kyle");
+  expect(tableNames).toContain("_ponder_meta");
+
+  await database.kill();
+});
 
 test("setup() succeeds with a prior app in the same namespace", async (context) => {
   const database = await createDatabase({
@@ -358,7 +398,67 @@ test.todo(
   },
 );
 
-test.todo("setup v0.7 migration");
+test("setup v0.7 migration", async (context) => {
+  const database = await createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+  });
+
+  await database.qb.internal.schema
+    .createTable("account")
+    .addColumn("id", "integer", (col) => col.primaryKey())
+    .execute();
+
+  await database.qb.internal.schema
+    .createTable("_ponder_reorg__account")
+    .addColumn("id", "integer", (col) => col.primaryKey())
+    .execute();
+
+  await database.qb.internal.schema
+    .createTable("_ponder_meta")
+    .addColumn("key", "text", (col) => col.primaryKey())
+    .addColumn("value", "jsonb")
+    .execute();
+
+  await database.qb.internal
+    .insertInto("_ponder_meta")
+    .values({
+      // @ts-ignore
+      key: "app",
+      value: {
+        is_locked: 0,
+        is_dev: 0,
+        heartbeat_at: 0,
+        build_id: "build",
+        checkpoint: encodeCheckpoint(zeroCheckpoint),
+        table_names: ["account"],
+      },
+    })
+    .execute();
+
+  const { checkpoint } = await database.setup();
+
+  expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
+
+  const tableNames = await getUserTableNames(database);
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
+  expect(tableNames).not.toContain("account");
+  expect(tableNames).not.toContain("_ponder_reorg__account");
+  expect(tableNames).toContain("_ponder_meta");
+
+  const metadata = await database.qb.internal
+    .selectFrom("_ponder_meta")
+    .selectAll()
+    .execute();
+
+  expect(metadata).toHaveLength(3);
+
+  await database.kill();
+});
 
 test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;

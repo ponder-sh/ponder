@@ -24,6 +24,16 @@ test("getPrimaryKeyColumns() sql", () => {
 });
 
 test("getPrimaryKeyColumns() snake case", () => {
+  const table = onchainTable("table", (p) => ({
+    chainId: p.integer().primaryKey(),
+  }));
+
+  const primaryKeys = getPrimaryKeyColumns(table);
+
+  expect(primaryKeys).toStrictEqual([{ js: "chainId", sql: "chain_id" }]);
+});
+
+test("getPrimaryKeyColumns() composite", () => {
   const table = onchainTable(
     "table",
     (p) => ({
@@ -43,5 +53,3 @@ test("getPrimaryKeyColumns() snake case", () => {
     { js: "address", sql: "address" },
   ]);
 });
-
-test("getPrimaryKeyColumns() composite");
