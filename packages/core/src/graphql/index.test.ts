@@ -5,70 +5,61 @@ import {
 } from "@/_test/setup.js";
 import { onchainTable, pgEnum, relations } from "@/drizzle/db.js";
 import { primaryKey } from "drizzle-orm/pg-core";
-import { type GraphQLType, execute, parse, printSchema } from "graphql";
+import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test } from "vitest";
 import { buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-// test("metadata", async (context) => {
-//   const schema = createSchema(() => ({}));
+test("metadata", async (context) => {
+  const schema = {};
 
-//   const { indexingStore, cleanup, database } = await setupDatabaseServices(
-//     context,
-//     {
-//       schema,
-//     },
-//   );
+  const { database, metadataStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
-//   const metadataStore = getMetadataStore({
-//     dialect: database.dialect,
-//     db: database.qb.user,
-//   });
+  await metadataStore.setStatus({
+    mainnet: {
+      ready: true,
+      block: {
+        number: 10,
+        timestamp: 20,
+      },
+    },
+  });
 
-//   await metadataStore.setStatus({
-//     mainnet: {
-//       ready: true,
-//       block: {
-//         number: 10,
-//         timestamp: 20,
-//       },
-//     },
-//   });
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+  const contextValue = { db: database.drizzle, metadataStore };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-//   const graphqlSchema = buildGraphQLSchema(database.drizzle);
+  const result = await query(`
+    query {
+      _meta {
+        status
+      }
+    }
+  `);
 
-//   const document = parse(`
-//   query {
-//     _meta {
-//       status
-//     }
-//   }
-//   `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    _meta: {
+      status: {
+        mainnet: {
+          ready: true,
+          block: {
+            number: 10,
+            timestamp: 20,
+          },
+        },
+      },
+    },
+  });
 
-//   const result = await execute({
-//     schema: graphqlSchema,
-//     document,
-//     contextValue: { db: database.drizzle, metadataStore },
-//   });
-
-//   expect(result.data).toMatchObject({
-//     _meta: {
-//       status: {
-//         mainnet: {
-//           ready: true,
-//           block: {
-//             number: 10,
-//             timestamp: 20,
-//           },
-//         },
-//       },
-//     },
-//   });
-
-//   await cleanup();
-// });
+  await cleanup();
+});
 
 test("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
   const schema = {
