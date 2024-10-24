@@ -494,7 +494,7 @@ export const createDatabase = async (args: {
     },
     async setup() {
       await qb.internal.wrap({ method: "setup" }, async () => {
-        for (const statement of statements.schema) {
+        for (const statement of statements.schema.sql) {
           await sql.raw(statement).execute(qb.internal);
         }
 
@@ -676,10 +676,10 @@ export const createDatabase = async (args: {
                 })
                 .execute();
 
-              for (const statement of statements.enums) {
+              for (const statement of statements.enums.sql) {
                 await sql.raw(statement).execute(tx);
               }
-              for (const statement of statements.tables) {
+              for (const statement of statements.tables.sql) {
                 await sql.raw(statement).execute(tx);
               }
               args.common.logger.info({
@@ -854,10 +854,10 @@ export const createDatabase = async (args: {
               })
               .execute();
 
-            for (const statement of statements.enums) {
+            for (const statement of statements.enums.sql) {
               await sql.raw(statement).execute(tx);
             }
-            for (const statement of statements.tables) {
+            for (const statement of statements.tables.sql) {
               await sql.raw(statement).execute(tx);
             }
             args.common.logger.info({
@@ -973,7 +973,7 @@ export const createDatabase = async (args: {
       return { checkpoint: result.checkpoint };
     },
     async createIndexes() {
-      for (const statement of statements.indexes) {
+      for (const statement of statements.indexes.sql) {
         await sql.raw(statement).execute(qb.internal);
       }
     },

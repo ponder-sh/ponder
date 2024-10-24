@@ -18,7 +18,11 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
-import type { Schema } from "../index.js";
+import {
+  type Schema,
+  sqlToUserTableName,
+  userToSqlTableName,
+} from "../index.js";
 
 type Dialect = "postgresql";
 type CasingType = "snake_case" | "camelCase";
@@ -67,16 +71,28 @@ export const getSql = (schema: Schema, instanceId: string) => {
       })
       .filter((it) => it !== "");
 
+  const combinedTables = jsonCreateTables.flatMap((statement) => [
+    {
+      ...statement,
+      tableName: userToSqlTableName(
+        sqlToUserTableName(statement.tableName),
+        instanceId,
+      ),
+    },
+    createReorgTableStatement(statement, instanceId),
+  ]);
+
   return {
-    schema: fromJson(jsonCreateSchemas),
-    tables: fromJson(
-      jsonCreateTables.flatMap((statement) => [
-        statement,
-        createReorgTableStatement(statement, instanceId),
-      ]),
-    ),
-    enums: fromJson(jsonCreateEnums),
-    indexes: fromJson(jsonCreateIndexesForCreatedTables),
+    schema: { sql: fromJson(jsonCreateSchemas), json: jsonCreateSchemas },
+    tables: {
+      sql: fromJson(combinedTables),
+      json: combinedTables,
+    },
+    enums: { sql: fromJson(jsonCreateEnums), json: jsonCreateEnums },
+    indexes: {
+      sql: fromJson(jsonCreateIndexesForCreatedTables),
+      json: jsonCreateIndexesForCreatedTables,
+    },
   };
 };
 

@@ -4,8 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
-import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
-import { createSchema } from "@/schema/schema.js";
+import { onchainTable } from "@/drizzle/drizzle.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -14,18 +13,12 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-const schema = createSchema((p) => ({
-  TransferEvent: p.createTable({
-    id: p.string(),
-    timestamp: p.int(),
-  }),
-  Supply: p.createTable({
-    id: p.string(),
-    supply: p.bigint(),
-  }),
+const account = onchainTable("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint().notNull(),
 }));
 
-const graphqlSchema = buildGraphQLSchema(schema);
+// const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() setup", async (context) => {
   const indexingFunctions = {
@@ -34,8 +27,8 @@ test("run() setup", async (context) => {
 
   const build: IndexingBuild = {
     buildId: "buildId",
-    schema,
-    graphqlSchema,
+    instanceId: "1234",
+    schema: { account },
     databaseConfig: context.databaseConfig,
     networks: context.networks,
     sources: context.sources,
@@ -62,8 +55,8 @@ test("run() setup error", async (context) => {
 
   const build: IndexingBuild = {
     buildId: "buildId",
-    schema,
-    graphqlSchema,
+    instanceId: "1234",
+    schema: { account },
     databaseConfig: context.databaseConfig,
     networks: context.networks,
     sources: context.sources,

@@ -1,5 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { onchainTable } from "@/drizzle/drizzle.js";
+import { index, onchainTable } from "@/drizzle/drizzle.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import {
   encodeCheckpoint,
@@ -496,7 +496,34 @@ test("kill()", async (context) => {
   await database.kill();
 });
 
-test.todo("createIndexes()");
+test("createIndexes()", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      address: p.evmHex().primaryKey(),
+      balance: p.evmBigint(),
+    }),
+    (table) => ({
+      balanceIdx: index("balance_index").on(table.balance),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+  });
+
+  await database.setup();
+  await database.createIndexes();
+
+  const indexNames = await getUserIndexNames(database, "1234__account");
+  expect(indexNames).toContain("balance_index");
+
+  await database.kill();
+});
 
 test("createViews()", async (context) => {
   const database = await createDatabase({

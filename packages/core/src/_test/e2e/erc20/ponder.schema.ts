@@ -1,8 +1,6 @@
-import { createSchema } from "../../../schema/schema.js";
+import { onchainTable } from "../../../drizzle/drizzle.js";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    balance: p.bigint(),
-  }),
+export const account = onchainTable("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint().notNull(),
 }));
