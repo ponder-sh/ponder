@@ -12,13 +12,7 @@ import {
   isReferenceColumn,
   isScalarColumn,
 } from "@/schema/utils.js";
-import type {
-  DatabaseRecord,
-  DatabaseValue,
-  UserId,
-  UserRecord,
-  UserValue,
-} from "@/types/schema.js";
+import type { UserId, UserRecord, UserValue } from "@/types/schema.js";
 import { createQueue } from "@ponder/common";
 import { sql } from "kysely";
 import { type Hex, padHex } from "viem";
