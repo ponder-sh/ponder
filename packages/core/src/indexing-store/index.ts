@@ -7,8 +7,12 @@ import {
   UniqueConstraintError,
 } from "@/common/errors.js";
 import type { Database } from "@/database/index.js";
-import { type Schema, onchain } from "@/drizzle/index.js";
-import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/sql.js";
+import {
+  type Schema,
+  getPrimaryKeyColumns,
+  getTableNames,
+  onchain,
+} from "@/drizzle/index.js";
 import type { Db } from "@/types/db.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import {
@@ -19,7 +23,6 @@ import {
   and,
   eq,
   getTableColumns,
-  getTableName,
   sql,
 } from "drizzle-orm";
 import {
@@ -36,12 +39,9 @@ import { createQueue } from "../../../common/src/queue.js";
 export type IndexingStore = Db<Schema> & {
   /**
    * Persist the cache to the database.
-   *
-   * @param force Overrides the memory checks and flushes the cache.
    */
-  flush: (args: {
-    force: boolean;
-  }) => Promise<void>;
+  flush: () => Promise<void>;
+  isCacheFull: () => boolean;
   setPolicy: (policy: "historical" | "realtime") => void;
 };
 
@@ -130,6 +130,7 @@ export const createIndexingStore = ({
     },
   });
 
+  const tableNameCache: Map<Table, string> = new Map();
   const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
   const isSerialTableCache: Map<Table, boolean> = new Map();
   const cache: Cache = new Map();
@@ -161,6 +162,7 @@ export const createIndexingStore = ({
       isSerialTable(schema[tableName.js] as Table),
     );
     cache.set(schema[tableName.js] as Table, new Map());
+    tableNameCache.set(schema[tableName.js] as Table, tableName.user);
   }
 
   ////////
@@ -328,7 +330,7 @@ export const createIndexingStore = ({
     if (method === "insert" || isSerialTableCache.get(table) === false) return;
 
     throw new InvalidStoreMethodError(
-      `db.${method}(${getTableName(table)}) cannot be used on tables with serial primary keys`,
+      `db.${method}(${tableNameCache.get(table)}) cannot be used on tables with serial primary keys`,
     );
   };
 
@@ -400,7 +402,9 @@ export const createIndexingStore = ({
         values: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              { method: `${getTableConfig(table as PgTable).name}.insert()` },
+              {
+                method: `${tableNameCache.get(table)}.insert()`,
+              },
               async () => {
                 checkOnchainTable(table as Table, "insert");
                 checkSerialTable(table as Table, "insert");
@@ -414,7 +418,7 @@ export const createIndexingStore = ({
                       getCacheEntry(table, value)?.row
                     ) {
                       throw new UniqueConstraintError(
-                        `Unique constraint failed for '${getTableName(table)}'.`,
+                        `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                       );
                     } else if (
                       isSerialTable === false &&
@@ -424,7 +428,7 @@ export const createIndexingStore = ({
 
                       if (findResult) {
                         throw new UniqueConstraintError(
-                          `Unique constraint failed for '${getTableName(table)}'.`,
+                          `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                         );
                       }
                     }
@@ -437,7 +441,7 @@ export const createIndexingStore = ({
                     getCacheEntry(table, values)?.row
                   ) {
                     throw new UniqueConstraintError(
-                      `Unique constraint failed for '${getTableName(table)}'.`,
+                      `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                     );
                   } else if (
                     isSerialTable === false &&
@@ -447,7 +451,7 @@ export const createIndexingStore = ({
 
                     if (findResult) {
                       throw new UniqueConstraintError(
-                        `Unique constraint failed for '${getTableName(table)}'.`,
+                        `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                       );
                     }
                   }
@@ -465,7 +469,9 @@ export const createIndexingStore = ({
         set: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              { method: `${getTableConfig(table as PgTable).name}.update()` },
+              {
+                method: `${tableNameCache.get(table)}.update()`,
+              },
               async () => {
                 checkOnchainTable(table as Table, "update");
                 checkSerialTable(table as Table, "update");
@@ -480,7 +486,7 @@ export const createIndexingStore = ({
                 } else {
                   if (isDatabaseEmpty) {
                     throw new RecordNotFoundError(
-                      `No existing record found in table '${getTableName(table)}'`,
+                      `No existing record found in table '${tableNameCache.get(table)}'`,
                     );
                   }
 
@@ -490,7 +496,7 @@ export const createIndexingStore = ({
                     row = findResult;
                   } else {
                     throw new RecordNotFoundError(
-                      `No existing record found in table '${getTableName(table)}'`,
+                      `No existing record found in table '${tableNameCache.get(table)}'`,
                     );
                   }
                 }
@@ -528,7 +534,7 @@ export const createIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                    method: `${tableNameCache.get(table)}.upsert()`,
                   },
                   async () => {
                     checkOnchainTable(table as Table, "upsert");
@@ -587,7 +593,7 @@ export const createIndexingStore = ({
                 .add(() =>
                   database.qb.user.wrap(
                     {
-                      method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                      method: `${tableNameCache.get(table)}.upsert()`,
                     },
                     async () => {
                       checkOnchainTable(table as Table, "upsert");
@@ -633,7 +639,7 @@ export const createIndexingStore = ({
                 .add(() =>
                   database.qb.user.wrap(
                     {
-                      method: `${getTableConfig(table as PgTable).name}.upsert()`,
+                      method: `${tableNameCache.get(table)}.upsert()`,
                     },
                     async () => {
                       checkOnchainTable(table as Table, "upsert");
@@ -685,7 +691,9 @@ export const createIndexingStore = ({
     delete: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${getTableConfig(table as PgTable).name}.delete()` },
+          {
+            method: `${tableNameCache.get(table)}.delete()`,
+          },
           async () => {
             checkOnchainTable(table as Table, "upsert");
             checkSerialTable(table as Table, "upsert");
@@ -739,9 +747,7 @@ export const createIndexingStore = ({
       },
       { schema },
     ),
-    async flush({ force }) {
-      if (force === false && cacheBytes < maxBytes) return;
-
+    async flush() {
       await queue.add(async () => {
         const promises: Promise<any>[] = [];
 
@@ -764,7 +770,7 @@ export const createIndexingStore = ({
           if (insertValues.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
+              msg: `Inserting ${insertValues.length} cached '${tableNameCache.get(table)}' rows into the database`,
             });
 
             for (
@@ -774,7 +780,9 @@ export const createIndexingStore = ({
             ) {
               promises.push(
                 database.qb.user.wrap(
-                  { method: `${getTableName(table)}.flush()` },
+                  {
+                    method: `${tableNameCache.get(table)}.flush()`,
+                  },
                   async () =>
                     await database.drizzle
                       .insert(table)
@@ -795,7 +803,7 @@ export const createIndexingStore = ({
           if (updateValues.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Updating ${updateValues.length} cached '${getTableName(table)}' records in the database`,
+              msg: `Updating ${updateValues.length} cached '${tableNameCache.get(table)}' records in the database`,
             });
 
             const primaryKeys = primaryKeysCache.get(table)!;
@@ -814,7 +822,9 @@ export const createIndexingStore = ({
             ) {
               promises.push(
                 database.qb.user.wrap(
-                  { method: `${getTableName(table)}.flush()` },
+                  {
+                    method: `${tableNameCache.get(table)}.flush()`,
+                  },
                   async () =>
                     await database.drizzle
                       .insert(table)
@@ -862,6 +872,9 @@ export const createIndexingStore = ({
           isDatabaseEmpty = false;
         }
       });
+    },
+    isCacheFull() {
+      return cacheBytes > maxBytes;
     },
     setPolicy(policy) {
       isHistoricalBackfill = policy === "historical";

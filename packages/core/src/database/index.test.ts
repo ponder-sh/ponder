@@ -1,5 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { onchainTable } from "@/drizzle/db.js";
+import { onchainTable } from "@/drizzle/drizzle.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import {
   encodeCheckpoint,
@@ -176,7 +176,7 @@ test("setup() with the same build ID reverts rows", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(9),
   });
@@ -185,7 +185,7 @@ test("setup() with the same build ID reverts rows", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(11),
   });
@@ -421,7 +421,7 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(9),
   });
@@ -434,7 +434,7 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(11),
   });
@@ -539,7 +539,7 @@ test("createTriggers()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
 
   const rows = await database.qb.user
     .selectFrom("1234_reorg__account")
@@ -582,7 +582,7 @@ test("complete()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(10),
   });
@@ -631,7 +631,7 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(9),
   });
@@ -644,7 +644,7 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(11),
   });

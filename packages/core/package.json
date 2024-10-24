@@ -28,8 +28,8 @@
       "import": "./dist/index.js"
     },
     "./db": {
-      "types": "./dist/drizzle/db.d.ts",
-      "import": "./dist/drizzle/db.js"
+      "types": "./dist/drizzle/drizzle.d.ts",
+      "import": "./dist/drizzle/drizzle.js"
     }
   },
   "scripts": {

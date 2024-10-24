@@ -1,4 +1,4 @@
-import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/db.js";
+import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/drizzle.js";
 import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
 import type { empty } from "@/indexing-store/index.js";
 import type {

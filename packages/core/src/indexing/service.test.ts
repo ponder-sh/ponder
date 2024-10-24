@@ -7,7 +7,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
-import { onchainTable } from "@/drizzle/db.js";
+import { onchainTable } from "@/drizzle/drizzle.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";

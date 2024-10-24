@@ -21,8 +21,7 @@ import {
   type PgEvmBigintBuilderInitial,
 } from "./bigint.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
-import { onchain } from "./index.js";
-import { userToSqlTableName } from "./sql.js";
+import { onchain, userToSqlTableName } from "./index.js";
 
 const instanceId: string = await import("@/generated")
   // @ts-ignore

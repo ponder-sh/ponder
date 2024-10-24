@@ -3,8 +3,8 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable } from "@/drizzle/db.js";
-import { eq } from "@/drizzle/db.js";
+import { onchainTable } from "@/drizzle/drizzle.js";
+import { eq } from "@/drizzle/drizzle.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { pgEnum, pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
@@ -344,7 +344,7 @@ test("flush", async (context) => {
     balance: 10n,
   });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
 
   let result = await indexingStore.find(schema.account, {
     address: zeroAddress,
@@ -361,7 +361,7 @@ test("flush", async (context) => {
     balance: 12n,
   });
 
-  await indexingStore.flush({ force: true });
+  await indexingStore.flush();
 
   result = await indexingStore.find(schema.account, {
     address: zeroAddress,

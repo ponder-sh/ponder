@@ -108,7 +108,7 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await indexingStore.flush({ force: true });
+            await indexingStore.flush();
             await database.complete({ checkpoint: event.checkpoint });
           }
 
@@ -187,7 +187,7 @@ export async function run({
     if (isKilled) return;
 
     await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
-    await indexingStore.flush({ force: true });
+    await indexingStore.flush();
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     indexingStore.setPolicy("realtime");
@@ -214,7 +214,7 @@ export async function run({
       msg: "Completed historical indexing",
     });
 
-    // await database.createIndexes({ schema });
+    await database.createIndexes();
     await database.createViews();
     await database.createTriggers();
 

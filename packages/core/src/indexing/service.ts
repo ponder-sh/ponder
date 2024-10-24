@@ -334,11 +334,13 @@ export const processEvents = async (
         never(event);
     }
 
-    await indexingService.database.finalize({
-      checkpoint: encodeCheckpoint(zeroCheckpoint),
-    });
-    await indexingService.indexingStore.flush({ force: false });
-    await indexingService.database.finalize({ checkpoint: event.checkpoint });
+    if (indexingService.indexingStore.isCacheFull()) {
+      await indexingService.database.finalize({
+        checkpoint: encodeCheckpoint(zeroCheckpoint),
+      });
+      await indexingService.indexingStore.flush();
+      await indexingService.database.finalize({ checkpoint: event.checkpoint });
+    }
 
     // periodically update metrics
     if (i % 93 === 0) {
