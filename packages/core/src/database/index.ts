@@ -916,9 +916,13 @@ export const createDatabase = async (args: {
         for (const table of app.table_names) {
           await qb.internal.schema
             .dropTable(userToSqlTableName(table, app.instance_id))
+            .cascade()
+            .ifExists()
             .execute();
           await qb.internal.schema
             .dropTable(userToReorgTableName(table, app.instance_id))
+            .cascade()
+            .ifExists()
             .execute();
         }
         await qb.internal

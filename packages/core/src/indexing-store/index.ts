@@ -16,6 +16,7 @@ import {
   getTableNames,
   onchain,
 } from "@/drizzle/index.js";
+import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Db } from "@/types/db.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -294,7 +295,12 @@ export const createIndexingStore = ({
     return row;
   };
 
-  const normalizeColumn = (column: Column, value: unknown, type: EntryType) => {
+  const normalizeColumn = (
+    column: Column,
+    value: unknown,
+    type: EntryType,
+    // @ts-ignore
+  ): unknown => {
     if (value === undefined) {
       if (hasEmptyValue(column)) return getEmptyValue(column, type);
       return null;
@@ -886,7 +892,9 @@ export const createIndexingStore = ({
             for (const [columnName, column] of Object.entries(
               getTableColumns(table),
             )) {
-              set[columnName] = sql.raw(`excluded."${column.name}"`);
+              set[columnName] = sql.raw(
+                `excluded."${getColumnCasing(column, "snake_case")}"`,
+              );
             }
 
             for (
