@@ -37,6 +37,7 @@ import {
   GraphQLFloat,
   type GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
+  type GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -229,7 +230,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                     where: and(...relationalConditions),
                   });
 
-                  return row;
+                  return row ?? null;
                 },
               };
             } else if (is(relation, Many)) {
@@ -320,14 +321,26 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
 
     queryFields[singularFieldName] = {
       type: entityType,
-      args: {
-        // TODO: Handle composite primary keys
-        id: { type: new GraphQLNonNull(GraphQLString) },
-      },
+      // Find the primary key columns and GraphQL core types and include them
+      // as arguments to the singular query type.
+      args: Object.fromEntries(
+        table.primaryKey.map((column) => [
+          column.name,
+          {
+            type: new GraphQLNonNull(
+              columnToGraphQLCore(column, enumTypes) as GraphQLInputType,
+            ),
+          },
+        ]),
+      ),
       resolve: async (_parent, args, _context) => {
-        const { id } = args as { id?: string };
-        if (id === undefined) return null;
-        const row = await baseQuery.findFirst();
+        // The `args` object here should be a valid `where` argument that
+        // uses the `eq` shorthand for each primary key column.
+        const whereConditions = buildWhereConditions(args, table.columns);
+
+        const row = await baseQuery.findFirst({
+          where: and(...whereConditions),
+        });
         return row ?? null;
       },
     };
@@ -473,16 +486,12 @@ async function executePluralQuery(
   args: PluralArgs,
   extraConditions: (SQL | undefined)[] = [],
 ) {
-  const argConditions = buildWhereConditions(args.where, table.columns);
-
   const limit = args.limit ?? DEFAULT_LIMIT;
-
   if (limit > MAX_LIMIT) {
     throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
   }
 
   const orderBySchema = buildOrderBySchema(table, args);
-
   const orderBy = orderBySchema.map(([columnName, direction]) => {
     const column = table.columns[columnName];
     if (column === undefined) {
@@ -502,6 +511,8 @@ async function executePluralQuery(
     return direction === "asc" ? desc(column) : asc(column);
   });
 
+  const whereConditions = buildWhereConditions(args.where, table.columns);
+
   const after = args.after ?? null;
   const before = args.before ?? null;
 
@@ -517,7 +528,7 @@ async function executePluralQuery(
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
     const rows = await baseQuery.findMany({
-      where: and(...argConditions, ...extraConditions),
+      where: and(...whereConditions, ...extraConditions),
       orderBy,
       limit: limit + 1,
     });
@@ -543,7 +554,7 @@ async function executePluralQuery(
   if (after !== null) {
     // User specified an 'after' cursor.
     const cursorObject = decodeCursor(after);
-    const cursorConditions = buildCursorConditions(
+    const cursorCondition = buildCursorCondition(
       table,
       orderBySchema,
       "after",
@@ -551,7 +562,7 @@ async function executePluralQuery(
     );
 
     const rows = await baseQuery.findMany({
-      where: and(...argConditions, ...cursorConditions, ...extraConditions),
+      where: and(...whereConditions, cursorCondition, ...extraConditions),
       orderBy,
       limit: limit + 2,
     });
@@ -601,7 +612,7 @@ async function executePluralQuery(
 
   // User specified a 'before' cursor.
   const cursorObject = decodeCursor(before!);
-  const cursorConditions = buildCursorConditions(
+  const cursorCondition = buildCursorCondition(
     table,
     orderBySchema,
     "before",
@@ -612,7 +623,7 @@ async function executePluralQuery(
   // then reverse the results back to the original order.
   const rows = await baseQuery
     .findMany({
-      where: and(...argConditions, ...cursorConditions, ...extraConditions),
+      where: and(...whereConditions, cursorCondition, ...extraConditions),
       orderBy: orderByReversed,
       limit: limit + 2,
     })
@@ -778,11 +789,13 @@ function buildOrderBySchema(table: TableRelationalConfig, args: PluralArgs) {
   // If the user-provided order by does not include the ALL of the ID columns,
   // add any missing ID columns to the end of the order by clause (asc).
   // This ensures a consistent sort order to unblock cursor pagination.
+  const userDirection = args.orderDirection ?? "asc";
   const userColumns: [string, "asc" | "desc"][] =
-    args.orderBy !== undefined
-      ? [[args.orderBy, args.orderDirection ?? "asc"]]
-      : [];
-  const pkColumns = table.primaryKey.map((column) => [column.name, "asc"]);
+    args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
+  const pkColumns = table.primaryKey.map((column) => [
+    column.name,
+    userDirection,
+  ]);
   const missingPkColumns = pkColumns.filter(
     (pkColumn) =>
       !userColumns.some((userColumn) => userColumn[0] === pkColumn[0]),
@@ -804,23 +817,18 @@ function decodeCursor(cursor: string): { [k: string]: unknown } {
   return deserialize(Buffer.from(cursor, "base64").toString());
 }
 
-function buildCursorConditions(
+function buildCursorCondition(
   table: TableRelationalConfig,
   orderBySchema: [string, "asc" | "desc"][],
   direction: "after" | "before",
   cursorObject: { [k: string]: unknown },
-): (SQL | undefined)[] {
-  const conditions: (SQL | undefined)[] = [];
-
-  for (let i = 0; i < orderBySchema.length; i++) {
-    const [columnName, orderDirection] = orderBySchema[i]!;
-
+): SQL | undefined {
+  const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
     const column = table.columns[columnName];
-    if (column === undefined) {
+    if (column === undefined)
       throw new Error(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
-    }
 
     const value = cursorObject[columnName];
 
@@ -834,25 +842,23 @@ function buildCursorConditions(
         orderDirection === "asc" ? [lt, lte] : [gt, gte];
     }
 
-    if (i === 0) {
-      conditions.push(comparatorOrEquals(column, value));
-    } else {
-      const previousConditions = orderBySchema
-        .slice(0, i)
-        .map(([prevColumnName, _]) => {
-          const prevColumn = table.columns[prevColumnName]!;
-          const prevValue = cursorObject[prevColumnName];
-          return eq(prevColumn, prevValue);
-        });
+    return { column, value, comparator, comparatorOrEquals };
+  });
 
-      conditions.push(
-        or(
-          and(...previousConditions, comparator(column, value)),
-          and(...previousConditions, comparatorOrEquals(column, value)),
-        ),
-      );
+  const buildCondition = (index: number): SQL | undefined => {
+    if (index === cursorColumns.length - 1) {
+      const { column, value, comparatorOrEquals } = cursorColumns[index]!;
+      return comparatorOrEquals(column, value);
     }
-  }
 
-  return conditions;
+    const currentColumn = cursorColumns[index]!;
+    const nextCondition = buildCondition(index + 1);
+
+    return or(
+      currentColumn.comparator(currentColumn.column, currentColumn.value),
+      and(eq(currentColumn.column, currentColumn.value), nextCondition),
+    );
+  };
+
+  return buildCondition(0);
 }
