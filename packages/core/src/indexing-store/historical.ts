@@ -592,77 +592,45 @@ export const getHistoricalStore = ({
       const table = (schema[tableName] as { table: Table }).table;
 
       if (typeof data === "function") {
-        const query = db
+        const dbRecords = await db
           .selectFrom(tableName)
           .selectAll()
           .where((eb) => buildWhereConditions({ eb, where, table, dialect }))
-          .orderBy("id", "asc");
+          .orderBy("id", "asc")
+          .execute();
 
-        const records: UserRecord[] = [];
-        let cursor: DatabaseValue = null;
+        const records = dbRecords.map((record) => {
+          const current = decodeRecord({
+            record,
+            table,
+            dialect,
+          });
+          const update = data({ current });
 
-        while (true) {
-          const _records = await db.wrap(
-            { method: `${tableName}.updateMany` },
-            async () => {
-              const latestRecords: DatabaseRecord[] = await query
-                .limit(100_000)
-                .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
-                .execute();
-
-              const records: UserRecord[] = [];
-
-              for (const latestRecord of latestRecords) {
-                const current = decodeRecord({
-                  record: latestRecord,
-                  table,
-                  dialect,
-                });
-                const updateObject = data({ current });
-
-                for (const [key, value] of Object.entries(
-                  structuredClone(updateObject),
-                )) {
-                  current[key] = value;
-                }
-
-                normalizeRecord(current, tableName);
-
-                validateRecord({
-                  record: current,
-                  table: tables[tableName]!.table,
-                  schema,
-                });
-
-                const bytes = getBytesSize(current);
-
-                // At this point, the cache is empty, so add the entry
-                storeCache[tableName]![getCacheKey(current.id, tableName)] = {
-                  type: "update",
-                  opIndex: totalCacheOps++,
-                  bytes,
-                  record: current,
-                };
-
-                records.push(current);
-              }
-
-              return records;
-            },
-          );
-
-          records.push(..._records);
-
-          if (_records.length === 0) {
-            break;
-          } else {
-            cursor = encodeValue({
-              value: _records[_records.length - 1]!.id,
-              column: table.id,
-              dialect,
-            });
+          for (const [key, value] of Object.entries(structuredClone(update))) {
+            current[key] = value;
           }
-        }
+
+          normalizeRecord(current, tableName);
+
+          validateRecord({
+            record: current,
+            table: tables[tableName]!.table,
+            schema,
+          });
+
+          const bytes = getBytesSize(current);
+
+          // At this point, the cache is empty, so add the entry
+          storeCache[tableName]![getCacheKey(current.id, tableName)] = {
+            type: "update",
+            opIndex: totalCacheOps++,
+            bytes,
+            record: current,
+          };
+
+          return current;
+        });
 
         return records;
       } else {
