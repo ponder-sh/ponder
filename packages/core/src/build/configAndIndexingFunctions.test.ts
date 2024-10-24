@@ -692,7 +692,9 @@ test("buildConfigAndIndexingFunctions() database uses pglite if specified even i
   });
   expect(databaseConfig).toMatchObject({
     kind: "pglite",
-    directory: expect.stringContaining(path.join(".ponder", "pglite")),
+    options: {
+      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+    },
   });
 
   vi.unstubAllEnvs();

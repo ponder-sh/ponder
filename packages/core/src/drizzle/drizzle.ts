@@ -5,33 +5,28 @@ import {
   type ExtraConfigColumn,
   type PgColumnBuilder,
   type PgColumnBuilderBase,
-  type PgNumericBuilderInitial,
   PgSchema,
   PgTable,
   type PgTableExtraConfig,
   type PgTableWithColumns,
   type TableConfig,
   primaryKey as drizzlePrimaryKey,
-  numeric,
 } from "drizzle-orm/pg-core";
 import {
   type PgColumnsBuilders as _PgColumnsBuilders,
   getPgColumnBuilders,
 } from "drizzle-orm/pg-core/columns/all";
+import {
+  PgEvmBigintBuilder,
+  type PgEvmBigintBuilderInitial,
+} from "./bigint.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
-import { onchain } from "./index.js";
-import { userToSqlTableName } from "./sql.js";
+import { onchain, userToSqlTableName } from "./index.js";
 
 const instanceId: string = await import("@/generated")
   // @ts-ignore
   .then((exports) => exports.instanceId)
   .catch(() => undefined);
-
-type $Type<T extends ColumnBuilderBase, TType> = T & {
-  _: {
-    $type: TType;
-  };
-};
 
 // @ts-ignore
 export function evmHex(): PgHexBuilderInitial<"">;
@@ -43,12 +38,12 @@ export function evmHex(columnName?: string) {
 }
 
 // @ts-ignore
-export function evmBigint(): $Type<PgNumericBuilderInitial<"">, bigint>;
+export function evmBigint(): PgEvmBigintBuilderInitial<"">;
 export function evmBigint<name extends string>(
   columnName: name,
-): $Type<PgNumericBuilderInitial<name>, bigint>;
+): PgEvmBigintBuilderInitial<name>;
 export function evmBigint(columnName?: string) {
-  return numeric(columnName ?? "", { precision: 78 });
+  return new PgEvmBigintBuilder(columnName ?? "");
 }
 
 export {
