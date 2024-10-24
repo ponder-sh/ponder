@@ -15,6 +15,7 @@ import {
 } from "@/drizzle/index.js";
 import type { Db } from "@/types/db.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { prettyPrint } from "@/utils/print.js";
 import {
   type Column,
   type QueryWithTypings,
@@ -275,9 +276,13 @@ export const createIndexingStore = ({
         column.notNull &&
         hasEmptyValue(column) === false
       ) {
-        throw new NotNullConstraintError(
-          `Column ${columnName} violates not-null constraint.`,
+        const error = new NotNullConstraintError(
+          `Column '${tableNameCache.get(table)}.${columnName}' violates not-null constraint.`,
         );
+        error.meta.push(
+          `db.${type === EntryType.INSERT ? "insert" : "update"} arguments:\n${prettyPrint(row)}`,
+        );
+        throw error;
       }
 
       row[columnName] = normalizeColumn(column, row[columnName], type);
@@ -417,9 +422,13 @@ export const createIndexingStore = ({
                       isSerialTable === false &&
                       getCacheEntry(table, value)?.row
                     ) {
-                      throw new UniqueConstraintError(
+                      const error = new UniqueConstraintError(
                         `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                       );
+                      error.meta.push(
+                        `db.insert arguments:\n${prettyPrint(value)}`,
+                      );
+                      throw error;
                     } else if (
                       isSerialTable === false &&
                       isDatabaseEmpty === false
@@ -427,9 +436,13 @@ export const createIndexingStore = ({
                       const findResult = await find(table, value);
 
                       if (findResult) {
-                        throw new UniqueConstraintError(
+                        const error = new UniqueConstraintError(
                           `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                         );
+                        error.meta.push(
+                          `db.insert arguments:\n${prettyPrint(value)}`,
+                        );
+                        throw error;
                       }
                     }
 
@@ -440,9 +453,13 @@ export const createIndexingStore = ({
                     isSerialTable === false &&
                     getCacheEntry(table, values)?.row
                   ) {
-                    throw new UniqueConstraintError(
+                    const error = new UniqueConstraintError(
                       `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                     );
+                    error.meta.push(
+                      `db.insert arguments:\n${prettyPrint(values)}`,
+                    );
+                    throw error;
                   } else if (
                     isSerialTable === false &&
                     isDatabaseEmpty === false
@@ -450,9 +467,13 @@ export const createIndexingStore = ({
                     const findResult = await find(table, values);
 
                     if (findResult) {
-                      throw new UniqueConstraintError(
+                      const error = new UniqueConstraintError(
                         `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                       );
+                      error.meta.push(
+                        `db.insert arguments:\n${prettyPrint(values)}`,
+                      );
+                      throw error;
                     }
                   }
 
@@ -485,9 +506,13 @@ export const createIndexingStore = ({
                   row = entry.row;
                 } else {
                   if (isDatabaseEmpty) {
-                    throw new RecordNotFoundError(
+                    const error = new RecordNotFoundError(
                       `No existing record found in table '${tableNameCache.get(table)}'`,
                     );
+                    error.meta.push(
+                      `db.update arguments:\n${prettyPrint(values)}`,
+                    );
+                    throw error;
                   }
 
                   const findResult = await find(table, key);
@@ -495,9 +520,13 @@ export const createIndexingStore = ({
                   if (findResult) {
                     row = findResult;
                   } else {
-                    throw new RecordNotFoundError(
+                    const error = new RecordNotFoundError(
                       `No existing record found in table '${tableNameCache.get(table)}'`,
                     );
+                    error.meta.push(
+                      `db.update arguments:\n${prettyPrint(values)}`,
+                    );
+                    throw error;
                   }
                 }
 

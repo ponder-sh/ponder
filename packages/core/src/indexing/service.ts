@@ -516,7 +516,9 @@ const executeLog = async (
     addStackTrace(error, common.options);
 
     error.meta = Array.isArray(error.meta) ? error.meta : [];
-    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
+    if (error.meta.length === 0) {
+      error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
+    }
 
     common.logger.error({
       service: "indexing",
