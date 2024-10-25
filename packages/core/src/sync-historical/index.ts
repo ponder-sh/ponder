@@ -467,6 +467,8 @@ export const createHistoricalSync = async (
   return {
     intervalsCache,
     async sync(_interval) {
+      const syncedIntervals: { filter: Filter; interval: Interval }[] = [];
+
       await Promise.all(
         args.sources.map(async (source) => {
           // Compute the required interval to sync, accounting for cached
@@ -547,11 +549,7 @@ export const createHistoricalSync = async (
 
           await blockPromise;
 
-          // Mark `interval` for `filter` as completed in the sync-store
-          await args.syncStore.insertInterval({
-            filter: source.filter,
-            interval,
-          });
+          syncedIntervals.push({ filter: source.filter, interval });
         }),
       );
 
@@ -566,6 +564,18 @@ export const createHistoricalSync = async (
           chainId: args.network.chainId,
         }),
       ]);
+
+      // Add corresponding intervals to the sync-store
+      // Note: this should happen after so the database doesn't become corrupted
+      await Promise.all(
+        syncedIntervals.map(({ filter, interval }) =>
+          args.syncStore.insertInterval({
+            filter,
+            interval,
+          }),
+        ),
+      );
+
       blockCache.clear();
       transactionsCache.clear();
 
