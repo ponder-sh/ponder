@@ -162,6 +162,7 @@ export const encodeLog = ({
 };
 
 type TransactionsTable = {
+  checkpoint: string | null;
   hash: Hash;
   blockHash: Hash;
   blockNumber: string | bigint;
@@ -186,14 +187,27 @@ type TransactionsTable = {
 
 export const encodeTransaction = ({
   transaction,
+  block,
   chainId,
   dialect,
 }: {
   transaction: SyncTransaction;
   chainId: number;
+  block?: SyncBlock;
   dialect: "sqlite" | "postgres";
 }): Insertable<TransactionsTable> => {
   return {
+    checkpoint:
+      block === undefined
+        ? null
+        : encodeCheckpoint({
+            blockTimestamp: hexToNumber(block.timestamp),
+            chainId: BigInt(chainId),
+            blockNumber: hexToBigInt(transaction.blockNumber),
+            transactionIndex: hexToBigInt(transaction.transactionIndex),
+            eventType: EVENT_TYPES.transactions,
+            eventIndex: hexToBigInt(transaction.transactionIndex),
+          }),
     hash: transaction.hash,
     chainId,
     blockHash: transaction.blockHash,
@@ -400,6 +414,74 @@ type FactoryTraceFilterIntervalsTable = {
   endBlock: string | bigint;
 };
 
+type TransferFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  toAddress: Address | null;
+  includeTransactionReceipts: 0 | 1;
+};
+
+type TransferIntervalsTable = {
+  id: Generated<number>;
+  transferFilterId: string;
+  startBlock: string | bigint;
+  endBlock: string | bigint;
+};
+
+type FactoryTransferFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  fromEventSelector: Hex | null;
+  fromChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+  toAddress: Address | null;
+  toEventSelector: Hex | null;
+  toChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+  includeTransactionReceipts: 0 | 1;
+};
+
+type FactoryTransferIntervalsTable = {
+  id: Generated<number>;
+  factoryId: string;
+  startBlock: string | bigint;
+  endBlock: string | bigint;
+};
+
+type TransactionFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  toAddress: Address | null;
+  includeTransactionReceipts: 0 | 1;
+};
+
+type TransactionIntervalsTable = {
+  id: Generated<number>;
+  transactionFilterId: string;
+  startBlock: string | bigint;
+  endBlock: string | bigint;
+};
+
+type FactoryTransactionFiltersTable = {
+  id: string;
+  chainId: number;
+  fromAddress: Address | null;
+  fromEventSelector: Hex | null;
+  fromChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+  toAddress: Address | null;
+  toEventSelector: Hex | null;
+  toChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+  includeTransactionReceipts: 0 | 1;
+};
+
+type FactoryTransactionIntervalsTable = {
+  id: Generated<number>;
+  factoryId: string;
+  startBlock: string | bigint;
+  endBlock: string | bigint;
+};
+
 type BlockFiltersTable = {
   id: string;
   chainId: number;
@@ -431,6 +513,14 @@ export type PonderSyncSchema = {
   traceFilterIntervals: TraceFilterIntervalsTable;
   factoryTraceFilters: FactoryTraceFiltersTable;
   factoryTraceFilterIntervals: FactoryTraceFilterIntervalsTable;
+  transferFilters: TransferFiltersTable;
+  transferFilterIntervals: TransferIntervalsTable;
+  factoryTransferFilters: FactoryTransferFiltersTable;
+  factoryTransferFilterIntervals: FactoryTransferIntervalsTable;
+  transactionFilters: TransactionFiltersTable;
+  transactionFilterIntervals: TransactionIntervalsTable;
+  factoryTransactionFilters: FactoryTransactionFiltersTable;
+  factoryTransactionFilterIntervals: FactoryTransactionIntervalsTable;
   blockFilters: BlockFiltersTable;
   blockFilterIntervals: BlockFilterIntervalsTable;
 };

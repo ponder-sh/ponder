@@ -6,6 +6,8 @@ import {
   type Factory,
   type LogFactory,
   type LogFilter,
+  type TransactionFilter,
+  type TransferFilter,
   isAddressFactory,
 } from "./source.js";
 
@@ -22,6 +24,24 @@ export type TraceFilterFragment<
 > = factory extends Factory
   ? PonderSyncSchema["factoryTraceFilters"]
   : PonderSyncSchema["traceFilters"];
+
+export type TransferFilterFragment<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = fromFactory extends Factory
+  ? PonderSyncSchema["factoryTransferFilters"]
+  : toFactory extends Factory
+    ? PonderSyncSchema["factoryTransferFilters"]
+    : PonderSyncSchema["transferFilters"];
+
+export type TransactionFilterFragment<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = fromFactory extends Factory
+  ? PonderSyncSchema["factoryTransactionFilters"]
+  : toFactory extends Factory
+    ? PonderSyncSchema["factoryTransactionFilters"]
+    : PonderSyncSchema["transactionFilters"];
 
 /**
  * Generates log filter fragments from a log filter.
@@ -255,4 +275,310 @@ export const buildTraceFilterFragments = <factory extends Factory | undefined>({
   }
 
   return fragments as TraceFilterFragment<factory>[];
+};
+
+export const buildTransferFilterFragments = <
+  fromFactory extends Factory | undefined,
+  toFactory extends Factory | undefined,
+>({
+  chainId,
+  fromAddress,
+  toAddress,
+  includeTransactionReceipts,
+}: Omit<TransferFilter<fromFactory, toFactory>, "fromBlock" | "toBlock"> & {
+  chainId: number;
+}): TransferFilterFragment<fromFactory, toFactory>[] => {
+  const fragments: TransferFilterFragment[] = [];
+
+  const idCallback = ({
+    chainId,
+    fromAddress,
+    toAddress,
+    includeTransactionReceipts,
+  }: Omit<TransferFilterFragment, "id">) => {
+    return `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`;
+  };
+
+  const factoryIdCallback = ({
+    chainId,
+    fromAddress,
+    toAddress,
+    fromEventSelector,
+    toEventSelector,
+    fromChildAddressLocation,
+    toChildAddressLocation,
+    includeTransactionReceipts,
+  }: Omit<TransferFilterFragment, "id"> & {
+    fromEventSelector: LogFactory["eventSelector"] | null;
+    toEventSelector: LogFactory["eventSelector"] | null;
+    fromChildAddressLocation: LogFactory["childAddressLocation"] | null;
+    toChildAddressLocation: LogFactory["childAddressLocation"] | null;
+  }) => {
+    return `${chainId}_${fromAddress}_${fromEventSelector}_${fromChildAddressLocation}_${toAddress}_${toEventSelector}_${toChildAddressLocation}_${includeTransactionReceipts}`;
+  };
+
+  if (isAddressFactory(toAddress) && isAddressFactory(fromAddress)) {
+    for (const _fromFactoryAddress of Array.isArray(fromAddress.address)
+      ? fromAddress.address
+      : [fromAddress.address]) {
+      for (const _toFactoryAddress of Array.isArray(toAddress.address)
+        ? toAddress.address
+        : [toAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
+            chainId,
+            fromAddress: _fromFactoryAddress,
+            toAddress: _toFactoryAddress,
+            fromEventSelector: fromAddress.eventSelector,
+            toEventSelector: toAddress.eventSelector,
+            fromChildAddressLocation: fromAddress.childAddressLocation,
+            toChildAddressLocation: toAddress.childAddressLocation,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          fromAddress: _fromFactoryAddress,
+          toAddress: _toFactoryAddress,
+          fromEventSelector: fromAddress.eventSelector,
+          toEventSelector: toAddress.eventSelector,
+          fromChildAddressLocation: fromAddress.childAddressLocation,
+          toChildAddressLocation: toAddress.childAddressLocation,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  } else if (isAddressFactory(toAddress)) {
+    for (const _fromAddress of Array.isArray(fromAddress)
+      ? fromAddress
+      : [fromAddress ?? null]) {
+      for (const _factoryAddress of Array.isArray(toAddress.address)
+        ? toAddress.address
+        : [toAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
+            chainId,
+            fromAddress: _fromAddress,
+            toAddress: _factoryAddress,
+            fromEventSelector: null,
+            toEventSelector: toAddress.eventSelector,
+            fromChildAddressLocation: null,
+            toChildAddressLocation: toAddress.childAddressLocation,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          fromAddress: _fromAddress,
+          toAddress: _factoryAddress,
+          fromEventSelector: null,
+          toEventSelector: toAddress.eventSelector,
+          fromChildAddressLocation: null,
+          toChildAddressLocation: toAddress.childAddressLocation,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  } else if (isAddressFactory(fromAddress)) {
+    for (const _toAddress of Array.isArray(toAddress)
+      ? toAddress
+      : [toAddress ?? null]) {
+      for (const _factoryAddress of Array.isArray(fromAddress.address)
+        ? fromAddress.address
+        : [fromAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
+            chainId,
+            fromAddress: _factoryAddress,
+            toAddress: _toAddress,
+            fromEventSelector: fromAddress.eventSelector,
+            toEventSelector: null,
+            fromChildAddressLocation: fromAddress.childAddressLocation,
+            toChildAddressLocation: null,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          fromAddress: _factoryAddress,
+          toAddress: _toAddress,
+          fromEventSelector: fromAddress.eventSelector,
+          toEventSelector: null,
+          fromChildAddressLocation: fromAddress.childAddressLocation,
+          toChildAddressLocation: null,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  } else {
+    for (const _fromAddress of Array.isArray(fromAddress)
+      ? fromAddress
+      : [fromAddress ?? null]) {
+      for (const _toAddress of Array.isArray(toAddress)
+        ? toAddress
+        : [toAddress ?? null]) {
+        fragments.push({
+          id: idCallback({
+            chainId,
+            fromAddress: _fromAddress,
+            toAddress: _toAddress,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          toAddress: _toAddress,
+          fromAddress: _fromAddress,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  }
+
+  return fragments as TransferFilterFragment<fromFactory, toFactory>[];
+};
+
+export const buildTransactionFilterFragments = <
+  fromFactory extends Factory | undefined,
+  toFactory extends Factory | undefined,
+>({
+  chainId,
+  fromAddress,
+  toAddress,
+  includeTransactionReceipts,
+}: Omit<TransactionFilter<fromFactory, toFactory>, "fromBlock" | "toBlock"> & {
+  chainId: number;
+}): TransactionFilterFragment<fromFactory, toFactory>[] => {
+  const fragments: TransactionFilterFragment[] = [];
+
+  const idCallback = ({
+    chainId,
+    fromAddress,
+    toAddress,
+    includeTransactionReceipts,
+  }: Omit<TransactionFilterFragment, "id">) => {
+    return `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`;
+  };
+
+  const factoryIdCallback = ({
+    chainId,
+    fromAddress,
+    toAddress,
+    fromEventSelector,
+    toEventSelector,
+    fromChildAddressLocation,
+    toChildAddressLocation,
+    includeTransactionReceipts,
+  }: Omit<TransactionFilterFragment, "id"> & {
+    fromEventSelector: LogFactory["eventSelector"] | null;
+    toEventSelector: LogFactory["eventSelector"] | null;
+    fromChildAddressLocation: LogFactory["childAddressLocation"] | null;
+    toChildAddressLocation: LogFactory["childAddressLocation"] | null;
+  }) => {
+    return `${chainId}_${fromAddress}_${fromEventSelector}_${fromChildAddressLocation}_${toAddress}_${toEventSelector}_${toChildAddressLocation}_${includeTransactionReceipts}`;
+  };
+
+  if (isAddressFactory(toAddress) && isAddressFactory(fromAddress)) {
+    for (const _fromFactoryAddress of Array.isArray(fromAddress.address)
+      ? fromAddress.address
+      : [fromAddress.address]) {
+      for (const _toFactoryAddress of Array.isArray(toAddress.address)
+        ? toAddress.address
+        : [toAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
+            chainId,
+            fromAddress: _fromFactoryAddress,
+            toAddress: _toFactoryAddress,
+            fromEventSelector: fromAddress.eventSelector,
+            toEventSelector: toAddress.eventSelector,
+            fromChildAddressLocation: fromAddress.childAddressLocation,
+            toChildAddressLocation: toAddress.childAddressLocation,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          fromAddress: _fromFactoryAddress,
+          toAddress: _toFactoryAddress,
+          fromEventSelector: fromAddress.eventSelector,
+          toEventSelector: toAddress.eventSelector,
+          fromChildAddressLocation: fromAddress.childAddressLocation,
+          toChildAddressLocation: toAddress.childAddressLocation,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  } else if (isAddressFactory(toAddress)) {
+    for (const _fromAddress of Array.isArray(fromAddress)
+      ? fromAddress
+      : [fromAddress ?? null]) {
+      for (const _factoryAddress of Array.isArray(toAddress.address)
+        ? toAddress.address
+        : [toAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
+            chainId,
+            fromAddress: _fromAddress,
+            toAddress: _factoryAddress,
+            fromEventSelector: null,
+            toEventSelector: toAddress.eventSelector,
+            fromChildAddressLocation: null,
+            toChildAddressLocation: toAddress.childAddressLocation,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          fromAddress: _fromAddress,
+          toAddress: _factoryAddress,
+          fromEventSelector: null,
+          toEventSelector: toAddress.eventSelector,
+          fromChildAddressLocation: null,
+          toChildAddressLocation: toAddress.childAddressLocation,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  } else if (isAddressFactory(fromAddress)) {
+    for (const _toAddress of Array.isArray(toAddress)
+      ? toAddress
+      : [toAddress ?? null]) {
+      for (const _factoryAddress of Array.isArray(fromAddress.address)
+        ? fromAddress.address
+        : [fromAddress.address]) {
+        fragments.push({
+          id: factoryIdCallback({
+            chainId,
+            fromAddress: _factoryAddress,
+            toAddress: _toAddress,
+            fromEventSelector: fromAddress.eventSelector,
+            toEventSelector: null,
+            fromChildAddressLocation: fromAddress.childAddressLocation,
+            toChildAddressLocation: null,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          fromAddress: _factoryAddress,
+          toAddress: _toAddress,
+          fromEventSelector: fromAddress.eventSelector,
+          toEventSelector: null,
+          fromChildAddressLocation: fromAddress.childAddressLocation,
+          toChildAddressLocation: null,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  } else {
+    for (const _fromAddress of Array.isArray(fromAddress)
+      ? fromAddress
+      : [fromAddress ?? null]) {
+      for (const _toAddress of Array.isArray(toAddress)
+        ? toAddress
+        : [toAddress ?? null]) {
+        fragments.push({
+          id: idCallback({
+            chainId,
+            fromAddress: _fromAddress,
+            toAddress: _toAddress,
+            includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+          }),
+          chainId,
+          toAddress: _toAddress,
+          fromAddress: _fromAddress,
+          includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
+        });
+      }
+    }
+  }
+
+  return fragments as TransactionFilterFragment<fromFactory, toFactory>[];
 };

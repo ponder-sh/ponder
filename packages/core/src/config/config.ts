@@ -1,3 +1,4 @@
+import type { TransactionFilter, TransferFilter } from "@/sync/source.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
@@ -148,6 +149,33 @@ type GetNetwork<
           };
     };
 
+type GetAccountNetwork<
+  networks,
+  account,
+  abi extends Abi,
+  ///
+  allNetworkNames extends string = [keyof networks] extends [never]
+    ? string
+    : keyof networks & string,
+> = {
+  /**
+   * Network that this contract is deployed to. Must match a network name in `networks`.
+   * Any filter information overrides the values in the higher level "accounts" property.
+   * Factories cannot override an address and vice versa.
+   */
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: Prettify<
+          GetEventFilter<abi, NonStrictPick<account, "filter">> &
+            GetTransactionConfig &
+            GetTransferConfig &
+            TransactionReceiptConfig &
+            BlockConfig
+        >;
+      };
+};
+
 type ContractConfig<networks, contract, abi extends Abi> = Prettify<
   AbiConfig<abi> &
     GetNetwork<networks, NonStrictPick<contract, "network">, abi> &
@@ -155,6 +183,24 @@ type ContractConfig<networks, contract, abi extends Abi> = Prettify<
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     TransactionReceiptConfig &
     FunctionCallConfig &
+    BlockConfig
+>;
+
+type GetTransactionConfig = {
+  transaction?: TransactionFilter | readonly TransactionFilter[];
+};
+
+type GetTransferConfig = {
+  transfer?: TransferFilter | readonly TransferFilter[];
+};
+
+type AccountConfig<networks, account, abi extends Abi> = Prettify<
+  AbiConfig<abi> &
+    GetAccountNetwork<networks, NonStrictPick<account, "network">, abi> &
+    GetEventFilter<abi, NonStrictPick<account, "filter">> &
+    GetTransactionConfig &
+    GetTransferConfig &
+    TransactionReceiptConfig &
     BlockConfig
 >;
 
@@ -166,11 +212,26 @@ type GetContract<networks = unknown, contract = unknown> = contract extends {
   : // 2. Contract has an invalid abi
     ContractConfig<networks, contract, Abi>;
 
+type GetAccount<networks = unknown, account = unknown> = account extends {
+  abi: infer abi extends Abi;
+}
+  ? // 1. Contract has a valid abi
+    AccountConfig<networks, account, abi>
+  : // 2. Contract has an invalid abi
+    AccountConfig<networks, account, Abi>;
+
 type ContractsConfig<networks, contracts> = {} extends contracts
   ? // contracts empty, return empty
     {}
   : {
       [name in keyof contracts]: GetContract<networks, contracts[name]>;
+    };
+
+type AccountsConfig<networks, accounts> = {} extends accounts
+  ? // accounts empty, return empty
+    {}
+  : {
+      [name in keyof accounts]: GetAccount<networks, accounts[name]>;
     };
 
 type NetworksConfig<networks> = {} extends networks
@@ -192,27 +253,33 @@ export const createConfig = <
   const networks,
   const contracts = {},
   const blocks = {},
+  const accounts = {},
 >(config: {
   // TODO: add jsdoc to these properties.
   networks: NetworksConfig<Narrow<networks>>;
-  contracts?: ContractsConfig<networks, Narrow<contracts>>;
+  contracts: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
   blocks?: BlockFiltersConfig<networks, blocks>;
-}): CreateConfigReturnType<networks, contracts, blocks> =>
-  config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
+  accounts: AccountsConfig<networks, Narrow<accounts>>;
+}): CreateConfigReturnType<networks, contracts, accounts, blocks> =>
+  config as Prettify<
+    CreateConfigReturnType<networks, contracts, accounts, blocks>
+  >;
 
 export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
+  accounts: { [accountName: string]: GetAccount };
   database?: DatabaseConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
   };
 };
 
-export type CreateConfigReturnType<networks, contracts, blocks> = {
+export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
   networks: networks;
   contracts: contracts;
+  accounts: accounts;
   database?: DatabaseConfig;
   blocks: blocks;
 };

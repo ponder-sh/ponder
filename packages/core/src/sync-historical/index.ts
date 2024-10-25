@@ -8,10 +8,17 @@ import {
   type Filter,
   type LogFactory,
   type LogFilter,
+  type TransactionFilter,
+  type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncCallTrace,
+  SyncLog,
+  SyncTransaction,
+} from "@/types/sync.js";
 import {
   type Interval,
   getChunks,
@@ -291,6 +298,277 @@ export const createHistoricalSync = async (
     await Promise.all(requiredBlocks.map((b) => syncBlock(BigInt(b))));
   };
 
+  const syncTransactionFilter = async (
+    filter: TransactionFilter,
+    interval: Interval,
+  ) => {
+    let toAddress: Address[] | undefined;
+    if (isAddressFactory(filter.toAddress)) {
+      const childAddresses = await syncAddress(filter.toAddress, interval);
+      if (
+        childAddresses.length < args.common.options.factoryAddressCountThreshold
+      ) {
+        toAddress = childAddresses;
+      } else {
+        toAddress = undefined;
+      }
+    } else {
+      if (filter.toAddress === undefined) {
+        toAddress = undefined;
+      } else {
+        toAddress = Array.isArray(filter.toAddress)
+          ? filter.toAddress
+          : [filter.toAddress];
+      }
+    }
+
+    if (isKilled) return;
+
+    let fromAddress: Address[] | undefined;
+    if (isAddressFactory(filter.fromAddress)) {
+      const childAddresses = await syncAddress(filter.fromAddress, interval);
+      if (
+        childAddresses.length < args.common.options.factoryAddressCountThreshold
+      ) {
+        fromAddress = childAddresses;
+      } else {
+        fromAddress = undefined;
+      }
+    } else {
+      if (filter.fromAddress === undefined) {
+        fromAddress = undefined;
+      } else {
+        fromAddress = Array.isArray(filter.fromAddress)
+          ? filter.fromAddress
+          : [filter.fromAddress];
+      }
+    }
+
+    if (isKilled) return;
+
+    // Generate the range of block numbers
+    const blockNumbers: number[] = Array.from(
+      { length: interval[1] - interval[0] + 1 },
+      (_, i) => interval[0] + i,
+    );
+    const blocks = await Promise.all(
+      blockNumbers.map((blockNumber) => syncBlock(BigInt(blockNumber))),
+    );
+
+    let transactions: SyncTransaction[] = [];
+    for (const block of blocks) {
+      for (const transaction of block.transactions) {
+        transactions.push(transaction);
+      }
+    }
+
+    transactions = transactions.filter((t) =>
+      fromAddress !== undefined
+        ? toAddress !== undefined
+          ? fromAddress.includes(t.from.toLowerCase() as Address) &&
+            t.to !== null &&
+            toAddress.includes(t.to.toLowerCase() as Address)
+          : fromAddress.includes(t.from.toLowerCase() as Address)
+        : toAddress !== undefined
+          ? t.to !== null && toAddress.includes(t.to.toLowerCase() as Address)
+          : true,
+    );
+
+    const transactionHashes = new Set(transactions.map((t) => t.hash));
+
+    // Request transactionReceipts to check for reverted transactions.
+    const transactionReceipts = await Promise.all(
+      Array.from(transactionHashes).map((hash) =>
+        _eth_getTransactionReceipt(args.requestQueue, {
+          hash,
+        }),
+      ),
+    );
+
+    const revertedTransactions = new Set<Hash>();
+    for (const receipt of transactionReceipts) {
+      if (receipt.status === "0x0") {
+        revertedTransactions.add(receipt.transactionHash);
+      }
+    }
+
+    transactions = transactions.filter(
+      (t) => revertedTransactions.has(t.hash) === false,
+    );
+
+    if (isKilled) return;
+
+    for (const hash of transactionHashes) {
+      if (revertedTransactions.has(hash) === false) {
+        transactionsCache.add(hash);
+      }
+    }
+
+    if (isKilled) return;
+
+    await args.syncStore.insertTransactions({
+      transactions: transactions.map((transaction) => ({
+        transaction,
+        block: blocks.find((block) => {
+          block.hash === transaction.blockHash;
+        })!,
+      })),
+      chainId: args.network.chainId,
+    });
+
+    if (isKilled) return;
+
+    if (filter.includeTransactionReceipts) {
+      await args.syncStore.insertTransactionReceipts({
+        transactionReceipts,
+        chainId: args.network.chainId,
+      });
+    }
+  };
+
+  const syncTransferFilter = async (
+    filter: TransferFilter,
+    interval: Interval,
+  ) => {
+    let toAddress: Address[] | undefined;
+    if (isAddressFactory(filter.toAddress)) {
+      const childAddresses = await syncAddress(filter.toAddress, interval);
+      if (
+        childAddresses.length < args.common.options.factoryAddressCountThreshold
+      ) {
+        toAddress = childAddresses;
+      } else {
+        toAddress = undefined;
+      }
+    } else {
+      if (filter.toAddress === undefined) {
+        toAddress = undefined;
+      } else {
+        toAddress = Array.isArray(filter.toAddress)
+          ? filter.toAddress
+          : [filter.toAddress];
+      }
+    }
+
+    if (isKilled) return;
+
+    let fromAddress: Address[] | undefined;
+    if (isAddressFactory(filter.fromAddress)) {
+      const childAddresses = await syncAddress(filter.fromAddress, interval);
+      if (
+        childAddresses.length < args.common.options.factoryAddressCountThreshold
+      ) {
+        fromAddress = childAddresses;
+      } else {
+        fromAddress = undefined;
+      }
+    } else {
+      if (filter.fromAddress === undefined) {
+        fromAddress = undefined;
+      } else {
+        fromAddress = Array.isArray(filter.fromAddress)
+          ? filter.fromAddress
+          : [filter.fromAddress];
+      }
+    }
+
+    if (isKilled) return;
+
+    let transferCallTraces = await _trace_filter(args.requestQueue, {
+      fromAddress,
+      toAddress,
+      fromBlock: interval[0],
+      toBlock: interval[1],
+    }).then(
+      (traces) =>
+        traces
+          .flat()
+          .filter(
+            (t) => t.type === "call" && t.action.input === "0x",
+          ) as SyncCallTrace[],
+    );
+
+    if (isKilled) return;
+
+    const blocks = await Promise.all(
+      transferCallTraces.map((trace) =>
+        syncBlock(hexToBigInt(trace.blockNumber)),
+      ),
+    );
+
+    const transactionHashes = new Set(
+      transferCallTraces.map((t) => t.transactionHash),
+    );
+
+    // Validate that traces point to the valid transaction hash in the block
+    for (let i = 0; i < transferCallTraces.length; i++) {
+      const callTrace = transferCallTraces[i]!;
+      const block = blocks[i]!;
+
+      if (block.hash !== callTrace.blockHash) {
+        throw new Error(
+          `Detected inconsistent RPC responses. 'trace.blockHash' ${callTrace.blockHash} does not match 'block.hash' ${block.hash}`,
+        );
+      }
+
+      if (
+        block.transactions.find((t) => t.hash === callTrace.transactionHash) ===
+        undefined
+      ) {
+        throw new Error(
+          `Detected inconsistent RPC responses. 'trace.transactionHash' ${callTrace.transactionHash} not found in 'block.transactions' ${block.hash}`,
+        );
+      }
+    }
+
+    // Request transactionReceipts to check for reverted transactions.
+    const transactionReceipts = await Promise.all(
+      Array.from(transactionHashes).map((hash) =>
+        _eth_getTransactionReceipt(args.requestQueue, {
+          hash,
+        }),
+      ),
+    );
+
+    const revertedTransactions = new Set<Hash>();
+    for (const receipt of transactionReceipts) {
+      if (receipt.status === "0x0") {
+        revertedTransactions.add(receipt.transactionHash);
+      }
+    }
+
+    transferCallTraces = transferCallTraces.filter(
+      (trace) => revertedTransactions.has(trace.transactionHash) === false,
+    );
+
+    if (isKilled) return;
+
+    for (const hash of transactionHashes) {
+      if (revertedTransactions.has(hash) === false) {
+        transactionsCache.add(hash);
+      }
+    }
+
+    if (isKilled) return;
+
+    await args.syncStore.insertCallTraces({
+      callTraces: transferCallTraces.map((callTrace, i) => ({
+        callTrace,
+        block: blocks[i]!,
+      })),
+      chainId: args.network.chainId,
+    });
+
+    if (isKilled) return;
+
+    if (filter.includeTransactionReceipts) {
+      await args.syncStore.insertTransactionReceipts({
+        transactionReceipts,
+        chainId: args.network.chainId,
+      });
+    }
+  };
+
   const syncTraceFilter = async (
     filter: CallTraceFilter,
     interval: Interval,
@@ -524,6 +802,38 @@ export const createHistoricalSync = async (
                     default:
                       never(filter);
                   }
+                } else if (source.type === "account") {
+                  const filter = source.filter;
+                  switch (filter.type) {
+                    case "log": {
+                      await syncLogFilter(filter, interval);
+                      break;
+                    }
+
+                    case "transfer": {
+                      await Promise.all(
+                        getChunks({ interval, maxChunkSize: 10 }).map(
+                          async (interval) => {
+                            await syncTransferFilter(filter, interval);
+                          },
+                        ),
+                      );
+                      break;
+                    }
+
+                    case "transaction":
+                      await Promise.all(
+                        getChunks({ interval, maxChunkSize: 10 }).map(
+                          async (interval) => {
+                            await syncTransactionFilter(filter, interval);
+                          },
+                        ),
+                      );
+                      break;
+
+                    default:
+                      never(filter);
+                  }
                 } else {
                   await syncBlockFilter(source.filter, interval);
                 }
@@ -560,9 +870,14 @@ export const createHistoricalSync = async (
       await Promise.all([
         args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
         args.syncStore.insertTransactions({
-          transactions: blocks.flatMap(({ transactions }) =>
-            transactions.filter(({ hash }) => transactionsCache.has(hash)),
-          ),
+          transactions: blocks
+            .flatMap(({ transactions }) =>
+              transactions.filter(({ hash }) => transactionsCache.has(hash)),
+            )
+            .map((t) => ({
+              transaction: t,
+              block: blocks.find((b) => b.hash === t.blockHash)!,
+            })),
           chainId: args.network.chainId,
         }),
       ]);

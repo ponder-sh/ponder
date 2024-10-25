@@ -10,7 +10,11 @@ import {
   isRpcUrlPublic,
 } from "@/config/networks.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
-import type { BlockSource, ContractSource } from "@/sync/source.js";
+import type {
+  AccountSource,
+  BlockSource,
+  ContractSource,
+} from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
@@ -224,7 +228,9 @@ export async function buildConfigAndIndexingFunctions({
   for (const { name: eventName, fn } of rawIndexingFunctions) {
     const eventNameComponents = eventName.includes(".")
       ? eventName.split(".")
-      : eventName.split(":");
+      : eventName.includes(":")
+        ? eventName.split(":")
+        : eventName.split("/");
     const [sourceName, sourceEventName] = eventNameComponents;
     if (eventNameComponents.length !== 2 || !sourceName || !sourceEventName) {
       throw new Error(
@@ -242,12 +248,17 @@ export async function buildConfigAndIndexingFunctions({
     const matchedSourceName = Object.keys({
       ...(config.contracts ?? {}),
       ...(config.blocks ?? {}),
+      ...(config.accounts ?? {}),
     }).find((_sourceName) => _sourceName === sourceName);
 
     if (!matchedSourceName) {
       // Multi-network has N sources, but the hint here should not have duplicates.
       const uniqueSourceNames = dedupe(
-        Object.keys({ ...(config.contracts ?? {}), ...(config.blocks ?? {}) }),
+        Object.keys({
+          ...(config.contracts ?? {}),
+          ...(config.blocks ?? {}),
+          ...(config.accounts ?? {}),
+        }),
       );
       throw new Error(
         `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueSourceNames
@@ -649,6 +660,364 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunctions;
     });
 
+  const accountSources: AccountSource[] = Object.entries(config.accounts ?? {})
+    // First, apply any network-specific overrides and flatten the result.
+    .flatMap(([accountName, account]) => {
+      if (account.network === null || account.network === undefined) {
+        throw new Error(
+          `Validation failed: Network for account '${accountName}' is null or undefined. Expected one of [${networks
+            .map((n) => `'${n.name}'`)
+            .join(", ")}].`,
+        );
+      }
+
+      const startBlockMaybeNan = account.startBlock ?? 0;
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? 0
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = account.endBlock;
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+
+      if (endBlock !== undefined && endBlock < startBlock) {
+        throw new Error(
+          `Validation failed: Start block for account '${accountName}' is after end block (${startBlock} > ${endBlock}).`,
+        );
+      }
+
+      // Single network case.
+      if (typeof account.network === "string") {
+        return {
+          id: `log_${accountName}_${account.network}`,
+          name: accountName,
+          abi: account.abi,
+          networkName: account.network,
+
+          filter: account.filter,
+          transaction: account.transaction,
+          transfer: account.transfer,
+
+          includeTransactionReceipts:
+            account.includeTransactionReceipts ?? false,
+
+          startBlock,
+          endBlock,
+        };
+      }
+
+      type DefinedNetworkOverride = NonNullable<
+        Exclude<Config["accounts"][string]["network"], string>[string]
+      >;
+
+      // Multiple networks case.
+      return Object.entries(account.network)
+        .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
+        .map(([networkName, overrides]) => {
+          const startBlockMaybeNan =
+            overrides.startBlock ?? account.startBlock ?? 0;
+          const startBlock = Number.isNaN(startBlockMaybeNan)
+            ? 0
+            : startBlockMaybeNan;
+          const endBlockMaybeNan = overrides.endBlock ?? account.endBlock;
+          const endBlock = Number.isNaN(endBlockMaybeNan)
+            ? undefined
+            : endBlockMaybeNan;
+
+          if (endBlock !== undefined && endBlock < startBlock) {
+            throw new Error(
+              `Validation failed: Start block for contract '${accountName}' is after end block (${startBlock} > ${endBlock}).`,
+            );
+          }
+
+          return {
+            name: accountName,
+            abi: account.abi,
+            networkName,
+
+            filter: overrides.filter ?? account.filter,
+            transaction: overrides.transaction ?? account.transaction,
+            transfer: overrides.transfer ?? account.transfer,
+
+            includeTransactionReceipts:
+              overrides.includeTransactionReceipts ??
+              account.includeTransactionReceipts ??
+              false,
+
+            startBlock,
+            endBlock,
+          };
+        });
+    })
+    // Second, build and validate the factory or log source.
+    .flatMap((rawAccount): AccountSource[] => {
+      const network = networks.find((n) => n.name === rawAccount.networkName);
+      if (!network) {
+        throw new Error(
+          `Validation failed: Invalid network for contract '${
+            rawAccount.name
+          }'. Got '${rawAccount.networkName}', expected one of [${networks
+            .map((n) => `'${n.name}'`)
+            .join(", ")}].`,
+        );
+      }
+
+      // Validate chainId values given for transaction filters
+      if (rawAccount.transaction !== undefined) {
+        const transactions = Array.isArray(rawAccount.transaction)
+          ? rawAccount.transaction
+          : [rawAccount.transaction];
+        transactions.forEach((t) => {
+          const network = networks.find((n) => n.chainId === t.chainId);
+          if (!network) {
+            throw new Error(
+              `Validation failed: Invalid chainId for account '${
+                rawAccount.name
+              }'. Got '${t.chainId}', expected one of [${networks
+                .map((n) => `'${n.chainId}'`)
+                .join(", ")}].`,
+            );
+          }
+        });
+      }
+
+      // Validate chainId values given for transfer filters
+      if (rawAccount.transfer !== undefined) {
+        const transfers = Array.isArray(rawAccount.transfer)
+          ? rawAccount.transfer
+          : [rawAccount.transfer];
+        transfers.forEach((t) => {
+          const network = networks.find((n) => n.chainId === t.chainId);
+          if (!network) {
+            throw new Error(
+              `Validation failed: Invalid chainId for account '${
+                rawAccount.name
+              }'. Got '${t.chainId}', expected one of [${networks
+                .map((n) => `'${n.chainId}'`)
+                .join(", ")}].`,
+            );
+          }
+        });
+      }
+
+      // Get indexing function that were registered for this contract
+      const registeredLogEvents: string[] = [];
+      let registeredTransferEvents = false;
+      let registeredTransactionEvents = false;
+      for (const eventName of Object.keys(indexingFunctions)) {
+        // log event
+        if (eventName.includes(":")) {
+          const [logAccountName, logEventName] = eventName.split(":") as [
+            string,
+            string,
+          ];
+          if (logAccountName === rawAccount.name && logEventName !== "setup") {
+            registeredLogEvents.push(logEventName);
+          }
+        }
+
+        // transfer event
+        if (eventName.includes("/Transfer")) {
+          const [transferAccountName, transferEventName] = eventName.split(
+            "/",
+          ) as [string, string];
+          if (
+            transferAccountName === rawAccount.name &&
+            transferEventName === "Transfer"
+          ) {
+            if (registeredTransferEvents) {
+              throw new Error(
+                `Validation failed: Transfer event for account '${transferAccountName}' appears in more than 1 indexing functions.`,
+              );
+            }
+            registeredTransferEvents = true;
+          }
+        }
+
+        // transaction event
+        if (eventName.includes("/Transaction")) {
+          const [transactionAccountName, transactionEventName] =
+            eventName.split("/") as [string, string];
+          if (
+            transactionAccountName === rawAccount.name &&
+            transactionEventName === "Transaction"
+          ) {
+            if (registeredTransactionEvents) {
+              throw new Error(
+                `Validation failed: Transfer event for account '${transactionAccountName}' appears in more than 1 indexing functions.`,
+              );
+            }
+            registeredTransactionEvents = true;
+          }
+        }
+      }
+
+      // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
+      const abiEvents = buildAbiEvents({ abi: rawAccount.abi });
+
+      const registeredEventSelectors: Hex[] = [];
+      // Validate that the registered log events exist in the abi
+      for (const logEvent of registeredLogEvents) {
+        const abiEvent = abiEvents.bySafeName[logEvent];
+        if (abiEvent === undefined) {
+          throw new Error(
+            `Validation failed: Event name for event '${logEvent}' not found in the account ABI. Got '${logEvent}', expected one of [${Object.keys(
+              abiEvents.bySafeName,
+            )
+              .map((eventName) => `'${eventName}'`)
+              .join(", ")}].`,
+          );
+        }
+
+        registeredEventSelectors.push(abiEvent.selector);
+      }
+
+      let topics: LogTopic[] = [registeredEventSelectors];
+
+      if (rawAccount.filter !== undefined) {
+        if (
+          Array.isArray(rawAccount.filter.event) &&
+          rawAccount.filter.args !== undefined
+        ) {
+          throw new Error(
+            `Validation failed: Event filter for account '${rawAccount.name}' cannot contain indexed argument values if multiple events are provided.`,
+          );
+        }
+
+        const filterSafeEventNames = Array.isArray(rawAccount.filter.event)
+          ? rawAccount.filter.event
+          : [rawAccount.filter.event];
+
+        for (const filterSafeEventName of filterSafeEventNames) {
+          const abiEvent = abiEvents.bySafeName[filterSafeEventName];
+          if (!abiEvent) {
+            throw new Error(
+              `Validation failed: Invalid filter for account '${
+                rawAccount.name
+              }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
+                abiEvents.bySafeName,
+              )
+                .map((n) => `'${n}'`)
+                .join(", ")}].`,
+            );
+          }
+        }
+
+        // TODO: Explicit validation of indexed argument value format (array or object).
+        // The first element of the array return from `buildTopics` being defined
+        // is an invariant of the current filter design.
+        // Note: This can throw.
+        const [topic0FromFilter, ...topicsFromFilter] = buildTopics(
+          rawAccount.abi,
+          rawAccount.filter,
+        ) as [Exclude<LogTopic, null>, ...LogTopic[]];
+
+        const filteredEventSelectors = Array.isArray(topic0FromFilter)
+          ? topic0FromFilter
+          : [topic0FromFilter];
+
+        // Validate that the topic0 value defined by the `eventFilter` is a superset of the
+        // registered indexing functions. Simply put, confirm that no indexing function is
+        // defined for a log event that is excluded by the filter.
+        for (const registeredEventSelector of registeredEventSelectors) {
+          if (!filteredEventSelectors.includes(registeredEventSelector)) {
+            const logEventName =
+              abiEvents.bySelector[registeredEventSelector]!.safeName;
+
+            throw new Error(
+              `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the account '${
+                rawAccount.name
+              }'. Got '${logEventName}', expected one of [${filteredEventSelectors
+                .map((s) => abiEvents.bySelector[s]!.safeName)
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
+          }
+        }
+
+        topics = [registeredEventSelectors, ...topicsFromFilter];
+      }
+
+      const accountMetadata = {
+        type: "account",
+        abi: rawAccount.abi,
+        abiEvents,
+        name: rawAccount.name,
+        networkName: rawAccount.networkName,
+      } as const;
+
+      const logSource = {
+        ...accountMetadata,
+        filter: {
+          type: "log",
+          chainId: network.chainId,
+          address: undefined,
+          topics,
+          includeTransactionReceipts: rawAccount.includeTransactionReceipts,
+          fromBlock: rawAccount.startBlock,
+          toBlock: rawAccount.endBlock,
+        },
+      } satisfies AccountSource;
+
+      let transactionSources: AccountSource[] = [];
+      // Remove transaction sources with no transaction indexing function
+      if (
+        registeredTransactionEvents === true &&
+        rawAccount.transaction !== undefined
+      ) {
+        const transactions = Array.isArray(rawAccount.transaction)
+          ? rawAccount.transaction
+          : [rawAccount.transaction];
+        transactionSources = transactions.map((transaction) => {
+          const transactionSource = {
+            ...accountMetadata,
+            filter: {
+              ...transaction,
+            },
+          } satisfies AccountSource;
+          return transactionSource;
+        });
+      }
+
+      let transferSources: AccountSource[] = [];
+      // Remove transfer sources with no transfer indexing function
+      if (
+        registeredTransferEvents === true &&
+        rawAccount.transfer !== undefined
+      ) {
+        const transfers = Array.isArray(rawAccount.transfer)
+          ? rawAccount.transfer
+          : [rawAccount.transfer];
+        transferSources = transfers.map((transfer) => {
+          const transactionSource = {
+            ...accountMetadata,
+            filter: {
+              ...transfer,
+            },
+          } satisfies AccountSource;
+          return transactionSource;
+        });
+      }
+
+      return [logSource, ...transferSources, ...transactionSources];
+    })
+    // Remove sources with no registered indexing functions
+    .filter((source) => {
+      const hasRegisteredIndexingFunctions =
+        source.filter.type === "log"
+          ? source.filter.topics[0]?.length !== 0
+          : true;
+      if (!hasRegisteredIndexingFunctions) {
+        logs.push({
+          level: "debug",
+          msg: `No indexing functions were registered for '${
+            source.name
+          }' ${source.filter.type}`,
+        });
+      }
+      return hasRegisteredIndexingFunctions;
+    });
+
   const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
     .flatMap(([sourceName, blockSourceConfig]) => {
       const startBlockMaybeNan = blockSourceConfig.startBlock ?? 0;
@@ -774,7 +1143,7 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunction;
     });
 
-  const sources = [...contractSources, ...blockSources];
+  const sources = [...contractSources, ...blockSources, ...accountSources];
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {

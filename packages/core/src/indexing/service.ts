@@ -28,6 +28,8 @@ import type {
   Event,
   LogEvent,
   SetupEvent,
+  TransactionEvent,
+  TransferEvent,
 } from "../sync/events.js";
 import { addStackTrace } from "./addStackTrace.js";
 import {
@@ -332,6 +334,48 @@ export const processEvents = async (
         });
 
         const result = await executeCallTrace(indexingService, { event });
+        if (result.status !== "success") {
+          return result;
+        }
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+        });
+
+        break;
+      }
+
+      case "transfer": {
+        indexingService.eventCount[event.name]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+        });
+
+        const result = await executeTransfer(indexingService, { event });
+        if (result.status !== "success") {
+          return result;
+        }
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+        });
+
+        break;
+      }
+
+      case "transaction": {
+        indexingService.eventCount[event.name]++;
+
+        indexingService.common.logger.trace({
+          service: "indexing",
+          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+        });
+
+        const result = await executeTransaction(indexingService, { event });
         if (result.status !== "success") {
           return result;
         }
@@ -659,6 +703,144 @@ const executeCallTrace = async (
 
     error.meta = Array.isArray(error.meta) ? error.meta : [];
     error.meta.push(`Call trace arguments:\n${prettyPrint(event.event.args)}`);
+
+    common.logger.error({
+      service: "indexing",
+      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      error,
+    });
+
+    common.metrics.ponder_indexing_has_error.set(1);
+
+    return { status: "error", error: error };
+  }
+
+  return { status: "success" };
+};
+
+const executeTransfer = async (
+  indexingService: Service,
+  { event }: { event: TransferEvent },
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
+  const {
+    common,
+    indexingFunctions,
+    currentEvent,
+    networkByChainId,
+    contractsByChainId,
+    clientByChainId,
+  } = indexingService;
+  const indexingFunction = indexingFunctions[event.name];
+  const metricLabel = { event: event.name };
+
+  try {
+    // set currentEvent
+    currentEvent.context.network.chainId = event.chainId;
+    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.client = clientByChainId[event.chainId]!;
+    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
+    currentEvent.contextState.encodedCheckpoint = event.checkpoint;
+    currentEvent.contextState.blockNumber = event.event.block.number;
+
+    const endClock = startClock();
+
+    await indexingFunction!({
+      event: event.event,
+      context: currentEvent.context,
+    });
+
+    common.metrics.ponder_indexing_function_duration.observe(
+      metricLabel,
+      endClock(),
+    );
+  } catch (_error) {
+    if (indexingService.isKilled) return { status: "killed" };
+    const error = _error as Error & { meta?: string[] };
+
+    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+
+    addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(
+      `Transfer:\n${prettyPrint({
+        transactionHash: event.event.transaction.hash,
+        from: event.event.trace.from,
+        to: event.event.trace.to,
+      })}`,
+    );
+
+    common.logger.error({
+      service: "indexing",
+      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      error,
+    });
+
+    common.metrics.ponder_indexing_has_error.set(1);
+
+    return { status: "error", error: error };
+  }
+
+  return { status: "success" };
+};
+
+const executeTransaction = async (
+  indexingService: Service,
+  { event }: { event: TransactionEvent },
+): Promise<
+  | { status: "error"; error: Error }
+  | { status: "success" }
+  | { status: "killed" }
+> => {
+  const {
+    common,
+    indexingFunctions,
+    currentEvent,
+    networkByChainId,
+    contractsByChainId,
+    clientByChainId,
+  } = indexingService;
+  const indexingFunction = indexingFunctions[event.name];
+  const metricLabel = { event: event.name };
+
+  try {
+    // set currentEvent
+    currentEvent.context.network.chainId = event.chainId;
+    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.client = clientByChainId[event.chainId]!;
+    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
+    currentEvent.contextState.encodedCheckpoint = event.checkpoint;
+    currentEvent.contextState.blockNumber = event.event.block.number;
+
+    const endClock = startClock();
+
+    await indexingFunction!({
+      event: event.event,
+      context: currentEvent.context,
+    });
+
+    common.metrics.ponder_indexing_function_duration.observe(
+      metricLabel,
+      endClock(),
+    );
+  } catch (_error) {
+    if (indexingService.isKilled) return { status: "killed" };
+    const error = _error as Error & { meta?: string[] };
+
+    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+
+    addStackTrace(error, common.options);
+
+    error.meta = Array.isArray(error.meta) ? error.meta : [];
+    error.meta.push(
+      `Transaction:\n${prettyPrint({
+        transactionHash: event.event.transaction.hash,
+      })}`,
+    );
 
     common.logger.error({
       service: "indexing",

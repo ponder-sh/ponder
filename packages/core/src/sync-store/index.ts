@@ -6,9 +6,13 @@ import {
   type BlockFilterFragment,
   type LogFilterFragment,
   type TraceFilterFragment,
+  type TransactionFilterFragment,
+  type TransferFilterFragment,
   buildBlockFilterFragment,
   buildLogFilterFragments,
   buildTraceFilterFragments,
+  buildTransactionFilterFragments,
+  buildTransferFilterFragments,
 } from "@/sync/fragments.js";
 import {
   type BlockFilter,
@@ -17,6 +21,8 @@ import {
   type Filter,
   type LogFactory,
   type LogFilter,
+  type TransactionFilter,
+  type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
 import type { CallTrace, Log, TransactionReceipt } from "@/types/eth.js";
@@ -82,7 +88,7 @@ export type SyncStore = {
   /** Return true if the block receipt is present in the database. */
   hasBlock(args: { hash: Hash }): Promise<boolean>;
   insertTransactions(args: {
-    transactions: SyncTransaction[];
+    transactions: { transaction: SyncTransaction; block?: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
@@ -240,6 +246,62 @@ export const createSyncStore = ({
           break;
         }
 
+        case "transfer": {
+          for (const fragment of buildTransferFilterFragments(filter)) {
+            if (
+              isAddressFactory(filter.fromAddress) ||
+              isAddressFactory(filter.toAddress)
+            ) {
+              await db
+                .insertInto("factoryTransferFilterIntervals")
+                .values({
+                  factoryId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
+            } else {
+              await db
+                .insertInto("transferFilterIntervals")
+                .values({
+                  transferFilterId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
+            }
+          }
+          break;
+        }
+
+        case "transaction": {
+          for (const fragment of buildTransactionFilterFragments(filter)) {
+            if (
+              isAddressFactory(filter.fromAddress) ||
+              isAddressFactory(filter.toAddress)
+            ) {
+              await db
+                .insertInto("factoryTransactionFilterIntervals")
+                .values({
+                  factoryId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
+            } else {
+              await db
+                .insertInto("transactionFilterIntervals")
+                .values({
+                  transactionFilterId: fragment.id,
+                  startBlock,
+                  endBlock,
+                })
+                .execute();
+            }
+          }
+          break;
+        }
+
         default:
           never(filter);
       }
@@ -286,16 +348,24 @@ export const createSyncStore = ({
       let fragments:
         | LogFilterFragment[]
         | TraceFilterFragment[]
+        | TransferFilterFragment[]
+        | TransactionFilterFragment[]
         | BlockFilterFragment[];
       let table:
         | "logFilter"
         | "factoryLogFilter"
         | "traceFilter"
         | "factoryTraceFilter"
+        | "transferFilter"
+        | "factoryTransferFilter"
+        | "transactionFilter"
+        | "factoryTransactionFilter"
         | "blockFilter";
       let idCol:
         | "logFilterId"
         | "traceFilterId"
+        | "transferFilterId"
+        | "transactionFilterId"
         | "blockFilterId"
         | "factoryId";
       let fragmentSelect: (
@@ -397,6 +467,240 @@ export const createSyncStore = ({
                       eb("toAddress", "is", null),
                       eb("toAddress", "=", fragment.toAddress),
                     ]),
+                  );
+            }
+          }
+          break;
+
+        case "transfer":
+          {
+            if (
+              isAddressFactory(filter.toAddress) &&
+              isAddressFactory(filter.fromAddress)
+            ) {
+              fragments = buildTransferFilterFragments(filter);
+              table = "factoryTransferFilter";
+              idCol = "factoryId";
+              fragmentSelect = (
+                fragment: TransferFilterFragment<Factory, Factory>,
+                qb,
+              ) =>
+                qb
+                  .where("fromAddress", "=", fragment.fromAddress)
+                  .where("toAddress", "=", fragment.toAddress)
+                  .where("fromEventSelector", "=", fragment.fromEventSelector)
+                  .where("toEventSelector", "=", fragment.toEventSelector)
+                  .where(
+                    "fromChildAddressLocation",
+                    "=",
+                    fragment.fromChildAddressLocation,
+                  )
+                  .where(
+                    "toChildAddressLocation",
+                    "=",
+                    fragment.toChildAddressLocation,
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            } else if (isAddressFactory(filter.toAddress)) {
+              fragments = buildTransferFilterFragments(filter);
+              table = "factoryTransferFilter";
+              idCol = "factoryId";
+              fragmentSelect = (
+                fragment: TransferFilterFragment<undefined, Factory>,
+                qb,
+              ) =>
+                qb
+                  .where((eb) =>
+                    eb.or([
+                      eb("fromAddress", "is", null),
+                      eb("fromAddress", "=", fragment.fromAddress),
+                    ]),
+                  )
+                  .where("toAddress", "=", fragment.toAddress)
+                  .where("toEventSelector", "=", fragment.toEventSelector)
+                  .where(
+                    "toChildAddressLocation",
+                    "=",
+                    fragment.toChildAddressLocation,
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            } else if (isAddressFactory(filter.fromAddress)) {
+              fragments = buildTransferFilterFragments(filter);
+              table = "factoryTransferFilter";
+              idCol = "factoryId";
+              fragmentSelect = (
+                fragment: TransferFilterFragment<Factory, undefined>,
+                qb,
+              ) =>
+                qb
+                  .where((eb) =>
+                    eb.or([
+                      eb("toAddress", "is", null),
+                      eb("toAddress", "=", fragment.toAddress),
+                    ]),
+                  )
+                  .where("fromAddress", "=", fragment.fromAddress)
+                  .where("fromEventSelector", "=", fragment.fromEventSelector)
+                  .where(
+                    "fromChildAddressLocation",
+                    "=",
+                    fragment.fromChildAddressLocation,
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            } else {
+              fragments = buildTransferFilterFragments(filter);
+              table = "transferFilter";
+              idCol = "transferFilterId";
+              fragmentSelect = (
+                fragment: TransferFilterFragment<undefined, undefined>,
+                qb,
+              ) =>
+                qb
+                  .where((eb) =>
+                    eb.or([
+                      eb("fromAddress", "is", null),
+                      eb("fromAddress", "=", fragment.fromAddress),
+                    ]),
+                  )
+                  .where((eb) =>
+                    eb.or([
+                      eb("toAddress", "is", null),
+                      eb("toAddress", "=", fragment.toAddress),
+                    ]),
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            }
+          }
+          break;
+
+        case "transaction":
+          {
+            if (
+              isAddressFactory(filter.toAddress) &&
+              isAddressFactory(filter.fromAddress)
+            ) {
+              fragments = buildTransactionFilterFragments(filter);
+              table = "factoryTransactionFilter";
+              idCol = "factoryId";
+              fragmentSelect = (
+                fragment: TransactionFilterFragment<Factory, Factory>,
+                qb,
+              ) =>
+                qb
+                  .where("fromAddress", "=", fragment.fromAddress)
+                  .where("toAddress", "=", fragment.toAddress)
+                  .where("fromEventSelector", "=", fragment.fromEventSelector)
+                  .where("toEventSelector", "=", fragment.toEventSelector)
+                  .where(
+                    "fromChildAddressLocation",
+                    "=",
+                    fragment.fromChildAddressLocation,
+                  )
+                  .where(
+                    "toChildAddressLocation",
+                    "=",
+                    fragment.toChildAddressLocation,
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            } else if (isAddressFactory(filter.toAddress)) {
+              fragments = buildTransactionFilterFragments(filter);
+              table = "factoryTransactionFilter";
+              idCol = "factoryId";
+              fragmentSelect = (
+                fragment: TransactionFilterFragment<undefined, Factory>,
+                qb,
+              ) =>
+                qb
+                  .where((eb) =>
+                    eb.or([
+                      eb("fromAddress", "is", null),
+                      eb("fromAddress", "=", fragment.fromAddress),
+                    ]),
+                  )
+                  .where("toAddress", "=", fragment.toAddress)
+                  .where("toEventSelector", "=", fragment.toEventSelector)
+                  .where(
+                    "toChildAddressLocation",
+                    "=",
+                    fragment.toChildAddressLocation,
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            } else if (isAddressFactory(filter.fromAddress)) {
+              fragments = buildTransactionFilterFragments(filter);
+              table = "factoryTransactionFilter";
+              idCol = "factoryId";
+              fragmentSelect = (
+                fragment: TransactionFilterFragment<Factory, undefined>,
+                qb,
+              ) =>
+                qb
+                  .where((eb) =>
+                    eb.or([
+                      eb("toAddress", "is", null),
+                      eb("toAddress", "=", fragment.toAddress),
+                    ]),
+                  )
+                  .where("fromAddress", "=", fragment.fromAddress)
+                  .where("fromEventSelector", "=", fragment.fromEventSelector)
+                  .where(
+                    "fromChildAddressLocation",
+                    "=",
+                    fragment.fromChildAddressLocation,
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
+                  );
+            } else {
+              fragments = buildTransactionFilterFragments(filter);
+              table = "transactionFilter";
+              idCol = "transactionFilterId";
+              fragmentSelect = (
+                fragment: TransactionFilterFragment<undefined, undefined>,
+                qb,
+              ) =>
+                qb
+                  .where((eb) =>
+                    eb.or([
+                      eb("fromAddress", "is", null),
+                      eb("fromAddress", "=", fragment.fromAddress),
+                    ]),
+                  )
+                  .where((eb) =>
+                    eb.or([
+                      eb("toAddress", "is", null),
+                      eb("toAddress", "=", fragment.toAddress),
+                    ]),
+                  )
+                  .where(
+                    "includeTransactionReceipts",
+                    ">=",
+                    fragment.includeTransactionReceipts,
                   );
             }
           }
@@ -621,7 +925,8 @@ export const createSyncStore = ({
         common.options.databaseMaxQueryParameters /
           Object.keys(
             encodeTransaction({
-              transaction: transactions[0]!,
+              transaction: transactions[0]!.transaction,
+              block: transactions[0]!.block,
               chainId,
               dialect,
             }),
@@ -632,11 +937,14 @@ export const createSyncStore = ({
         await db
           .insertInto("transactions")
           .values(
-            transactions
-              .slice(i, i + batchSize)
-              .map((transaction) =>
-                encodeTransaction({ transaction, chainId, dialect }),
-              ),
+            transactions.slice(i, i + batchSize).map((transaction) =>
+              encodeTransaction({
+                transaction: transaction.transaction,
+                block: transaction.block,
+                chainId,
+                dialect,
+              }),
+            ),
           )
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
@@ -866,6 +1174,56 @@ export const createSyncStore = ({
         )
         .where(ksql`${ksql.ref("callTraces.error")} IS NULL`)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
+        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
+        .where("blockNumber", ">=", formatBig(dialect, filter.fromBlock))
+        .$if(filter.toBlock !== undefined, (qb) =>
+          qb.where("blockNumber", "<=", formatBig(dialect, filter.toBlock!)),
+        );
+
+    const transferSQL = (
+      filter: TransferFilter,
+      db: Kysely<PonderSyncSchema>,
+      index: number,
+    ) =>
+      db
+        .selectFrom("callTraces")
+        .select([
+          ksql.raw(`'${index}'`).as("filterIndex"),
+          "checkpoint",
+          "chainId",
+          "blockHash",
+          "transactionHash",
+          ksql`null`.as("logId"),
+          "id as callTraceId",
+        ])
+        .where("chainId", "=", filter.chainId)
+        .where("input", "=", "0x")
+        .where(ksql`${ksql.ref("callTraces.error")} IS NULL`)
+        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
+        .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
+        .where("blockNumber", ">=", formatBig(dialect, filter.fromBlock))
+        .$if(filter.toBlock !== undefined, (qb) =>
+          qb.where("blockNumber", "<=", formatBig(dialect, filter.toBlock!)),
+        );
+
+    const transactionSQL = (
+      filter: TransactionFilter,
+      db: Kysely<PonderSyncSchema>,
+      index: number,
+    ) =>
+      db
+        .selectFrom("transactions")
+        .select([
+          ksql.raw(`'${index}'`).as("filterIndex"),
+          "checkpoint",
+          "chainId",
+          "blockHash",
+          "hash as transactionHash",
+          ksql`null`.as("logId"),
+          ksql`null`.as("callTraceId"),
+        ])
+        .where("chainId", "=", filter.chainId)
+        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
         .where("blockNumber", ">=", formatBig(dialect, filter.fromBlock))
         .$if(filter.toBlock !== undefined, (qb) =>
@@ -929,7 +1287,11 @@ export const createSyncStore = ({
               ? logSQL(filter, db, i)
               : filter.type === "callTrace"
                 ? callTraceSQL(filter, db, i)
-                : blockSQL(filter, db, i);
+                : filter.type === "transfer"
+                  ? transferSQL(filter, db, i)
+                  : filter.type === "transaction"
+                    ? transactionSQL(filter, db, i)
+                    : blockSQL(filter, db, i);
 
           // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);

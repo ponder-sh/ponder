@@ -736,7 +736,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
           args.syncStore.insertTransactions({
             transactions: finalizedEventData.flatMap(
-              ({ transactions }) => transactions,
+              ({ transactions, block }) =>
+                transactions.map((transaction) => ({ transaction, block })),
             ),
             chainId: network.chainId,
           }),
@@ -854,16 +855,36 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           const initialChildAddresses = new Map<Factory, Set<Address>>();
 
           for (const { filter } of args.sources) {
-            if (
-              filter.chainId === network.chainId &&
-              "address" in filter &&
-              isAddressFactory(filter.address)
-            ) {
-              const addresses = await args.syncStore.getChildAddresses({
-                filter: filter.address,
-              });
+            if (filter.chainId === network.chainId) {
+              if ("address" in filter && isAddressFactory(filter.address)) {
+                const addresses = await args.syncStore.getChildAddresses({
+                  filter: filter.address,
+                });
 
-              initialChildAddresses.set(filter.address, new Set(addresses));
+                initialChildAddresses.set(filter.address, new Set(addresses));
+              }
+
+              if (
+                "fromAddress" in filter &&
+                isAddressFactory(filter.fromAddress)
+              ) {
+                const addresses = await args.syncStore.getChildAddresses({
+                  filter: filter.fromAddress,
+                });
+
+                initialChildAddresses.set(
+                  filter.fromAddress,
+                  new Set(addresses),
+                );
+              }
+
+              if ("toAddress" in filter && isAddressFactory(filter.toAddress)) {
+                const addresses = await args.syncStore.getChildAddresses({
+                  filter: filter.toAddress,
+                });
+
+                initialChildAddresses.set(filter.toAddress, new Set(addresses));
+              }
             }
           }
 

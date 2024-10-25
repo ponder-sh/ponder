@@ -2,16 +2,36 @@ import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type { SyncLog } from "@/types/sync.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
 
-export type Source = ContractSource | BlockSource;
+export type Source = ContractSource | BlockSource | AccountSource;
 export type ContractSource<
   filter extends "log" | "trace" = "log" | "trace",
   factory extends Factory | undefined = Factory | undefined,
 > = {
   filter: filter extends "log" ? LogFilter<factory> : CallTraceFilter<factory>;
 } & ContractMetadata;
+export type AccountSource<
+  filter extends "log" | "transaction" | "transfer" =
+    | "log"
+    | "transaction"
+    | "transfer",
+  factory extends Factory | undefined = Factory | undefined,
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
+  filter: filter extends "log"
+    ? LogFilter<factory>
+    : filter extends "transaction"
+      ? TransactionFilter<fromFactory, toFactory>
+      : TransferFilter<fromFactory, toFactory>;
+} & AccountMetadata;
 export type BlockSource = { filter: BlockFilter } & BlockMetadata;
 
-export type Filter = LogFilter | BlockFilter | CallTraceFilter;
+export type Filter =
+  | LogFilter
+  | BlockFilter
+  | CallTraceFilter
+  | TransactionFilter
+  | TransferFilter;
 export type Factory = LogFactory;
 
 export type ContractMetadata = {
@@ -19,6 +39,13 @@ export type ContractMetadata = {
   abi: Abi;
   abiEvents: AbiEvents;
   abiFunctions: AbiFunctions;
+  name: string;
+  networkName: string;
+};
+export type AccountMetadata = {
+  type: "account";
+  abi: Abi;
+  abiEvents: AbiEvents;
   name: string;
   networkName: string;
 };
@@ -60,6 +87,40 @@ export type CallTraceFilter<
   includeTransactionReceipts: boolean;
   fromBlock: number;
   toBlock: number | undefined;
+};
+
+export type TransferFilter<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
+  type: "transfer";
+  chainId: number;
+  fromAddress: fromFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
+  toAddress: toFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
+  fromBlock: number;
+  toBlock: number | undefined;
+  includeTransactionReceipts: boolean;
+};
+
+export type TransactionFilter<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
+  type: "transaction";
+  chainId: number;
+  fromAddress: fromFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
+  toAddress: toFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
+  fromBlock: number;
+  toBlock: number | undefined;
+  includeTransactionReceipts: boolean;
 };
 
 export type LogFactory = {
