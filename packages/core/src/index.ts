@@ -25,4 +25,4 @@ export type DatabaseConfig = Prettify<Config["database"]>;
 
 export { onchainTable, onchainSchema } from "@/drizzle/drizzle.js";
 
-// export { graphql } from "@/graphql/index.js";
+export { graphql } from "@/graphql/middleware.js";

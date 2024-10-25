@@ -6,6 +6,7 @@ import {
   InvalidStoreMethodError,
   NotNullConstraintError,
   RecordNotFoundError,
+  UndefinedTableError,
   UniqueConstraintError,
   getBaseError,
 } from "@/common/errors.js";
@@ -105,6 +106,11 @@ const checkOnchainTable = (
   table: Table,
   method: "find" | "insert" | "update" | "upsert" | "delete",
 ) => {
+  if (table === undefined)
+    throw new UndefinedTableError(
+      `Table object passed to db.${method}() is undefined`,
+    );
+
   if (onchain in table) return;
 
   throw new InvalidStoreMethodError(
@@ -389,7 +395,7 @@ export const createIndexingStore = ({
     find: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${getTableConfig(table).name}.find()` },
+          { method: `${tableNameCache.get(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table as Table, "find");
             checkSerialTable(table as Table, "find");
@@ -428,9 +434,7 @@ export const createIndexingStore = ({
         values: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              {
-                method: `${tableNameCache.get(table)}.insert()`,
-              },
+              { method: `${tableNameCache.get(table) ?? "unknown"}.insert()` },
               async () => {
                 checkOnchainTable(table as Table, "insert");
                 checkSerialTable(table as Table, "insert");
@@ -511,9 +515,7 @@ export const createIndexingStore = ({
         set: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              {
-                method: `${tableNameCache.get(table)}.update()`,
-              },
+              { method: `${tableNameCache.get(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table as Table, "update");
                 checkSerialTable(table as Table, "update");
@@ -584,7 +586,7 @@ export const createIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${tableNameCache.get(table)}.upsert()`,
+                    method: `${tableNameCache.get(table) ?? "unknown"}.upsert()`,
                   },
                   async () => {
                     checkOnchainTable(table as Table, "upsert");
@@ -643,7 +645,7 @@ export const createIndexingStore = ({
                 .add(() =>
                   database.qb.user.wrap(
                     {
-                      method: `${tableNameCache.get(table)}.upsert()`,
+                      method: `${tableNameCache.get(table) ?? "unknown"}.upsert()`,
                     },
                     async () => {
                       checkOnchainTable(table as Table, "upsert");
@@ -689,7 +691,7 @@ export const createIndexingStore = ({
                 .add(() =>
                   database.qb.user.wrap(
                     {
-                      method: `${tableNameCache.get(table)}.upsert()`,
+                      method: `${tableNameCache.get(table) ?? "unknown"}.upsert()`,
                     },
                     async () => {
                       checkOnchainTable(table as Table, "upsert");
@@ -741,9 +743,7 @@ export const createIndexingStore = ({
     delete: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          {
-            method: `${tableNameCache.get(table)}.delete()`,
-          },
+          { method: `${tableNameCache.get(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table as Table, "upsert");
             checkSerialTable(table as Table, "upsert");
