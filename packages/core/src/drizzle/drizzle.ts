@@ -23,6 +23,7 @@ import {
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { onchain, userToSqlTableName } from "./index.js";
 
+// @ts-ignore
 const instanceId: string = await import("@/generated")
   // @ts-ignore
   .then((exports) => exports.instanceId)
