@@ -54,7 +54,7 @@ test("setup() succeeds with a fresh database", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(3);
 
   await database.kill();
 });
@@ -141,7 +141,7 @@ test("setup() succeeds with a prior app in the same namespace", async (context) 
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(4);
+  expect(metadata).toHaveLength(5);
 
   await databaseTwo.kill();
 });
@@ -180,7 +180,7 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(3);
 
   const tableNames = await getUserTableNames(databaseTwo);
   expect(tableNames).toContain("5678__account");
@@ -260,7 +260,7 @@ test("setup() with the same build ID reverts rows", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(3);
 
   await databaseTwo.kill();
 });
@@ -374,7 +374,7 @@ test('setup() with "ponder dev" publishes views', async (context) => {
 });
 
 test.todo(
-  "setup throws if there is a table name collision",
+  "setup() throws if there is a table name collision",
   async (context) => {
     const database = await createDatabase({
       common: context.common,
@@ -398,7 +398,7 @@ test.todo(
   },
 );
 
-test("setup v0.7 migration", async (context) => {
+test("setup() v0.7 migration", async (context) => {
   const database = await createDatabase({
     common: context.common,
     schema: { account },
@@ -455,7 +455,7 @@ test("setup v0.7 migration", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(3);
+  expect(metadata).toHaveLength(4);
 
   await database.kill();
 });
@@ -489,7 +489,9 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     .executeTakeFirst();
 
   expect(
+    // @ts-ignore
     BigInt(rowAfterHeartbeat!.value!.heartbeat_at as number),
+    // @ts-ignore
   ).toBeGreaterThan(row!.value!.heartbeat_at as number);
 
   await database.kill();
@@ -560,6 +562,7 @@ test("finalize()", async (context) => {
     .select("value")
     .executeTakeFirst();
 
+  // @ts-ignore
   expect(metadata?.value?.checkpoint).toBe(createCheckpoint(10));
 
   await database.kill();
@@ -625,7 +628,7 @@ test("createIndexes()", async (context) => {
   await database.kill();
 });
 
-test("createViews()", async (context) => {
+test("createLiveViews()", async (context) => {
   const database = await createDatabase({
     common: context.common,
     schema: { account },
@@ -635,10 +638,18 @@ test("createViews()", async (context) => {
   });
 
   await database.setup();
-  await database.createViews();
+  await database.createLiveViews();
 
   const viewNames = await getUserViewNames(database);
   expect(viewNames).toContain("account");
+
+  const metadata = await database.qb.internal
+    .selectFrom("_ponder_meta")
+    .select("value")
+    .where("key", "=", "live")
+    .executeTakeFirst();
+
+  expect(metadata!.value).toStrictEqual({ instance_id: "1234" });
 
   await database.kill();
 });

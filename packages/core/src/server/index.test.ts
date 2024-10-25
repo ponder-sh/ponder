@@ -106,6 +106,7 @@ test("ready", async (context) => {
 
   await getMetadataStore({
     db: database.qb.user,
+    instanceId: "1234",
   }).setStatus({});
 
   const response = await server.hono.request("/ready");

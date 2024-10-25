@@ -74,12 +74,12 @@ export type Database<
   setup(): Promise<{
     checkpoint: string;
   }>;
-  createViews(): Promise<void>;
+  createLiveViews(): Promise<void>;
+  createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
-  createIndexes(): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
   kill(): Promise<void>;
 };
@@ -95,10 +95,21 @@ export type PonderApp = {
 };
 
 type PonderInternalSchema = {
-  _ponder_meta: {
-    key: `status_${string}` | `app_${string}`;
-    value: PonderApp | Status | null;
-  };
+  _ponder_meta:
+    | {
+        key: `app_${string}`;
+        value: PonderApp;
+      }
+    | {
+        key: `status_${string}`;
+        value: Status | null;
+      }
+    | {
+        key: `live`;
+        value: {
+          instance_id: string;
+        };
+      };
 } & {
   [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
 } & {
@@ -317,7 +328,6 @@ export const createDatabase = async (args: {
 
   // TODO(kyle) validate all tables use `namespace`
   // TODO(kyle) validate all tables have primary key
-  // TODO(kyle) remove sql function to find primary keys
 
   const drizzle =
     dialect === "pglite"
@@ -623,6 +633,14 @@ export const createDatabase = async (args: {
               .values({
                 key: `app_${instanceId}`,
                 value: { ...previousApp, instance_id: instanceId },
+              })
+              .execute();
+
+            await tx
+              .insertInto("_ponder_meta")
+              .values({
+                key: "live",
+                value: { instance_id: instanceId },
               })
               .execute();
 
@@ -942,8 +960,8 @@ export const createDatabase = async (args: {
         });
       }
 
-      if (args.common.options.command === "dev") {
-        await this.createViews();
+      if (apps.length === 1 || args.common.options.command === "dev") {
+        await this.createLiveViews();
       }
 
       heartbeatInterval = setInterval(async () => {
@@ -981,8 +999,24 @@ export const createDatabase = async (args: {
         await sql.raw(statement).execute(qb.internal);
       }
     },
-    async createViews() {
-      await qb.internal.wrap({ method: "createViews" }, async () => {
+    async createLiveViews() {
+      await qb.internal.wrap({ method: "createLiveViews" }, async () => {
+        await qb.internal
+          .insertInto("_ponder_meta")
+          .values({
+            key: "live",
+            value: { instance_id: args.instanceId },
+          })
+          .onConflict((oc) =>
+            oc
+              .column("key")
+              // @ts-ignore
+              .doUpdateSet({ value: { instance_id: args.instanceId } }),
+          )
+          .execute();
+
+        // TODO(kyle) drop old views ??
+
         for (const tableName of getTableNames(args.schema, args.instanceId)) {
           await qb.internal.schema
             .createView(tableName.user)

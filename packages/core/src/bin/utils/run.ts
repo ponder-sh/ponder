@@ -215,7 +215,7 @@ export async function run({
     });
 
     await database.createIndexes();
-    await database.createViews();
+    await database.createLiveViews();
     await database.createTriggers();
 
     await sync.startRealtime();
