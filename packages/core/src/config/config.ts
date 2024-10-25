@@ -257,10 +257,10 @@ export const createConfig = <
 >(config: {
   // TODO: add jsdoc to these properties.
   networks: NetworksConfig<Narrow<networks>>;
-  contracts: ContractsConfig<networks, Narrow<contracts>>;
+  contracts?: ContractsConfig<networks, Narrow<contracts>>;
   database?: DatabaseConfig;
   blocks?: BlockFiltersConfig<networks, blocks>;
-  accounts: AccountsConfig<networks, Narrow<accounts>>;
+  accounts?: AccountsConfig<networks, Narrow<accounts>>;
 }): CreateConfigReturnType<networks, contracts, accounts, blocks> =>
   config as Prettify<
     CreateConfigReturnType<networks, contracts, accounts, blocks>
