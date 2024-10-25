@@ -1,4 +1,4 @@
-import type { OnchainTable } from "@/drizzle/db.js";
+import type { OnchainTable } from "@/drizzle/drizzle.js";
 import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
