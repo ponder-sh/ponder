@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.20
+
+### Patch Changes
+
+- [#1187](https://github.com/ponder-sh/ponder/pull/1187) [`02917d17e89edf002b1bcd3d8fac45ca00a6077f`](https://github.com/ponder-sh/ponder/commit/02917d17e89edf002b1bcd3d8fac45ca00a6077f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug leading to `event.transaction` to be undefined. If your app was affected by this bug it is recommended to drop the "ponder_sync" database schema and resync.
+
 ## 0.6.19
 
 ### Patch Changes
