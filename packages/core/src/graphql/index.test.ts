@@ -223,13 +223,13 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
 });
 
 test.skip("enum, enum not null, enum array, enum array not null", async (context) => {
-  const testEnum = pgEnum("test_enum", ["A", "B"]);
-  const table = onchainTable("test_table", (t) => ({
-    id: t.text(),
+  const testEnum = pgEnum("enum", ["A", "B"]);
+  const table = onchainTable("table", (t) => ({
+    id: t.text().primaryKey(),
     enum: testEnum("enum"),
-    enumNotNull: testEnum("enumOptional").notNull(),
+    enumNotNull: testEnum("enumNotNull").notNull(),
     enumArray: testEnum("enumArray").array(),
-    enumArrayNotNull: testEnum("enumOptionalArray").array().notNull(),
+    enumArrayNotNull: testEnum("enumArrayNotNull").array().notNull(),
   }));
   const schema = { testEnum, table };
 
@@ -267,7 +267,7 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
   expect(result.data).toMatchObject({
     table: {
       id: "0",
-      enum: "A",
+      enum: null,
       enumNotNull: "A",
       enumArray: [null],
       enumArrayNotNull: ["A"],
@@ -279,7 +279,7 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
 
 test("json, json not null", async (context) => {
   const schema = {
-    table: onchainTable("test_table", (t) => ({
+    table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
       json: t.json(),
       jsonNotNull: t.json().notNull(),

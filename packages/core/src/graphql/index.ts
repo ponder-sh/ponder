@@ -418,6 +418,10 @@ const columnToGraphQLCore = (
     return GraphQLBigInt;
   }
 
+  if (column.columnType === "PgEnumColumn") {
+    return enumTypes[column.name]!;
+  }
+
   switch (column.dataType) {
     case "boolean":
       return GraphQLBoolean;
@@ -426,9 +430,6 @@ const columnToGraphQLCore = (
     case "date":
       return GraphQLString;
     case "string":
-      // TODO: Handle enums
-      // if (column.enumValues?.length) return enumTypes[column.name]!;
-
       return GraphQLString;
     case "bigint":
       return GraphQLString;
