@@ -1,5 +1,12 @@
 # @ponder/core
 
+## 0.6.22
+
+### Patch Changes
+
+- Updated dependencies [[`0cbdf01f85f4180a62d0de671c7adc299b704104`](https://github.com/ponder-sh/ponder/commit/0cbdf01f85f4180a62d0de671c7adc299b704104)]:
+  - @ponder/utils@0.2.2
+
 ## 0.6.21
 
 ### Patch Changes

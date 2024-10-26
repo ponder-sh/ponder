@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.2
+
+### Patch Changes
+
+- [#1193](https://github.com/ponder-sh/ponder/pull/1193) [`0cbdf01f85f4180a62d0de671c7adc299b704104`](https://github.com/ponder-sh/ponder/commit/0cbdf01f85f4180a62d0de671c7adc299b704104) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retry range support for hyperliquid.
+
 ## 0.2.1
 
 ### Patch Changes
