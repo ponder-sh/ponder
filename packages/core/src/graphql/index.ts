@@ -414,7 +414,7 @@ const columnToGraphQLCore = (
   column: Column,
   enumTypes: Record<string, GraphQLEnumType>,
 ): GraphQLOutputType => {
-  if (column.columnType === "PgNumeric" && (column as any).precision === 78) {
+  if (column.columnType === "PgEvmBigint") {
     return GraphQLBigInt;
   }
 

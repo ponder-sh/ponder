@@ -3,14 +3,24 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable, pgEnum, relations } from "@/drizzle/drizzle.js";
-import { primaryKey } from "drizzle-orm/pg-core";
+import {
+  onchainTable,
+  pgEnum,
+  primaryKey,
+  relations,
+} from "@/drizzle/drizzle.js";
 import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+
+vi.mock("@/generated", async () => {
+  return {
+    instanceId: "1234",
+  };
+});
 
 test("metadata", async (context) => {
   const schema = {};
@@ -64,7 +74,7 @@ test("metadata", async (context) => {
 
 test("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
   const schema = {
-    table: onchainTable("test_table", (t) => ({
+    table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
 
       string: t.text(),
