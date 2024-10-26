@@ -2,6 +2,7 @@ import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
+import { graphql } from "@/graphql/middleware.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import {
   getLiveMetadataStore,
@@ -132,26 +133,26 @@ export async function createServer({
     })
     .use(contextMiddleware);
 
-  // if (userRoutes.length === 0 && userApp.routes.length === 0) {
-  //   // apply graphql middleware if no custom api exists
-  //   hono.use("/graphql", graphql());
-  //   hono.use("/", graphql());
-  // } else {
-  // apply user routes to hono instance, registering a custom error handler
-  applyHonoRoutes(hono, userRoutes, { db: database.drizzle }).onError(
-    (error, c) => onError(error, c, common),
-  );
+  if (userRoutes.length === 0 && userApp.routes.length === 0) {
+    // apply graphql middleware if no custom api exists
+    hono.use("/graphql", graphql());
+    hono.use("/", graphql());
+  } else {
+    // apply user routes to hono instance, registering a custom error handler
+    applyHonoRoutes(hono, userRoutes, { db: database.drizzle }).onError(
+      (error, c) => onError(error, c, common),
+    );
 
-  common.logger.debug({
-    service: "server",
-    msg: `Detected a custom server with routes: [${userRoutes
-      .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
-      .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
-      .join(", ")}]`,
-  });
+    common.logger.debug({
+      service: "server",
+      msg: `Detected a custom server with routes: [${userRoutes
+        .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
+        .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
+        .join(", ")}]`,
+    });
 
-  hono.route("/", userApp);
-  // }
+    hono.route("/", userApp);
+  }
 
   // Create nodejs server
 

@@ -6,11 +6,17 @@ import {
 import { onchainTable } from "@/drizzle/drizzle.js";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+
+vi.mock("@/generated", async () => {
+  return {
+    instanceId: "1234",
+  };
+});
 
 test("middleware serves request", async (context) => {
   const schema = {

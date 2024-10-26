@@ -21,7 +21,7 @@ ponder.on(
       }));
 
     await context.db
-      .upsert(schema.account, { address: event.args.from })
+      .upsert(schema.account, { address: event.args.to })
       .insert({
         balance: event.args.amount,
       })
