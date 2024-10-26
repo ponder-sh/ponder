@@ -1,5 +1,50 @@
 # @ponder/core
 
+## 0.6.22
+
+### Patch Changes
+
+- Updated dependencies [[`0cbdf01f85f4180a62d0de671c7adc299b704104`](https://github.com/ponder-sh/ponder/commit/0cbdf01f85f4180a62d0de671c7adc299b704104)]:
+  - @ponder/utils@0.2.2
+
+## 0.6.21
+
+### Patch Changes
+
+- [#1191](https://github.com/ponder-sh/ponder/pull/1191) [`3ac88a6b4c172212f8713babd82b3f51d2e9f11f`](https://github.com/ponder-sh/ponder/commit/3ac88a6b4c172212f8713babd82b3f51d2e9f11f) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error handling for failing `readContract` requests.
+
+## 0.6.20
+
+### Patch Changes
+
+- [#1187](https://github.com/ponder-sh/ponder/pull/1187) [`02917d17e89edf002b1bcd3d8fac45ca00a6077f`](https://github.com/ponder-sh/ponder/commit/02917d17e89edf002b1bcd3d8fac45ca00a6077f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug leading to `event.transaction` to be undefined. If your app was affected by this bug it is recommended to drop the "ponder_sync" database schema and resync.
+
+## 0.6.19
+
+### Patch Changes
+
+- [#1185](https://github.com/ponder-sh/ponder/pull/1185) [`c1c3c166300a93c3f2970eed94a82241ddeb31e4`](https://github.com/ponder-sh/ponder/commit/c1c3c166300a93c3f2970eed94a82241ddeb31e4) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of `updateMany()`.
+
+## 0.6.18
+
+### Patch Changes
+
+- [#1180](https://github.com/ponder-sh/ponder/pull/1180) [`87893bc915c4bc8be78ff9301e29baf56ac9edbf`](https://github.com/ponder-sh/ponder/commit/87893bc915c4bc8be78ff9301e29baf56ac9edbf) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that causes some events to be skipped in realtime for apps with multiple chains. This bug did not affect the sync cache and does not require the app to be resynced.
+
+## 0.6.17
+
+### Patch Changes
+
+- [#1178](https://github.com/ponder-sh/ponder/pull/1178) [`b48cf539df9672b26f3af601e5bc7c599c600db9`](https://github.com/ponder-sh/ponder/commit/b48cf539df9672b26f3af601e5bc7c599c600db9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.6.9 that caused new child contracts to be missed for factories with a list of addresses after the historical backfill was complete.
+
+## 0.6.16
+
+### Patch Changes
+
+- [#1175](https://github.com/ponder-sh/ponder/pull/1175) [`a037110d558b4288feeff2a028305d7b5349d6df`](https://github.com/ponder-sh/ponder/commit/a037110d558b4288feeff2a028305d7b5349d6df) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved RPC validation error messages for matching `log.blockHash` and `trace.blockHash` with `block.hash`.
+
+- [#1169](https://github.com/ponder-sh/ponder/pull/1169) [`b5992bca84949f6ac41f3587468e0b9f51c47887`](https://github.com/ponder-sh/ponder/commit/b5992bca84949f6ac41f3587468e0b9f51c47887) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the terminal UI would display the HTTP port as `0` after a hot reload. Fixed a bug where API function build errors would not trigger the terminal UI error state.
+
 ## 0.6.15
 
 ### Patch Changes

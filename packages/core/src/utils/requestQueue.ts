@@ -76,7 +76,7 @@ export const createRequestQueue = ({
           if (getLogsErrorResponse.shouldRetry === true) throw error;
         }
 
-        if (shouldRetry(request.method, error) === false) {
+        if (shouldRetry(error) === false) {
           common.logger.warn({
             service: "sync",
             msg: `Failed '${request.method}' RPC request`,
@@ -143,14 +143,10 @@ export const createRequestQueue = ({
 /**
  * @link https://github.com/wevm/viem/blob/main/src/utils/buildRequest.ts#L192
  */
-function shouldRetry(method: string, error: Error) {
+function shouldRetry(error: Error) {
   if ("code" in error && typeof error.code === "number") {
     if (error.code === -1) return true; // Unknown error
-    if (
-      (method === "trace_filter" || method === "eth_getLogs") &&
-      error.code === InvalidInputRpcError.code
-    )
-      return true;
+    if (error.code === InvalidInputRpcError.code) return true;
     if (error.code === LimitExceededRpcError.code) return true;
     if (error.code === InternalRpcError.code) return true;
     return false;

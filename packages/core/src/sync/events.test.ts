@@ -192,6 +192,7 @@ test("buildEvents() matches getEvents()", async (context) => {
   const events2 = [
     ...buildEvents({
       sources: context.sources,
+      chainId: 1,
       blockWithEventData: {
         ...rpcData.block1,
         callTraces: [],
@@ -207,6 +208,7 @@ test("buildEvents() matches getEvents()", async (context) => {
     }),
     ...buildEvents({
       sources: context.sources,
+      chainId: 1,
       blockWithEventData: {
         ...rpcData.block2,
       },
@@ -221,6 +223,7 @@ test("buildEvents() matches getEvents()", async (context) => {
     }),
     ...buildEvents({
       sources: context.sources,
+      chainId: 1,
       blockWithEventData: {
         ...rpcData.block3,
       },
@@ -235,6 +238,7 @@ test("buildEvents() matches getEvents()", async (context) => {
     }),
     ...buildEvents({
       sources: context.sources,
+      chainId: 1,
       blockWithEventData: {
         ...rpcData.block4,
       },
@@ -249,6 +253,7 @@ test("buildEvents() matches getEvents()", async (context) => {
     }),
     ...buildEvents({
       sources: context.sources,
+      chainId: 1,
       blockWithEventData: {
         ...rpcData.block5,
       },

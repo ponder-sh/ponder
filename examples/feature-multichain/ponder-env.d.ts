@@ -7,7 +7,7 @@ declare module "@/generated" {
   import type { Virtual } from "@ponder/core";
 
   type config = typeof import("./ponder.config.ts").default;
-  type schema = typeof import("./ponder.schema.ts").default;
+  type schema = typeof import("./ponder.schema.ts");
 
   export const ponder: Virtual.Registry<config, schema>;
 
@@ -21,8 +21,7 @@ declare module "@/generated" {
     schema,
     name
   >;
-  export type ApiContext = Virtual.Drizzle<schema>;
+  export type ApiContext = Virtual.ApiContext<schema>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config, schema, name>;
-  export type Schema = Virtual.Schema<schema>;
 }
