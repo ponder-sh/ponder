@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.21
+
+### Patch Changes
+
+- [#1191](https://github.com/ponder-sh/ponder/pull/1191) [`3ac88a6b4c172212f8713babd82b3f51d2e9f11f`](https://github.com/ponder-sh/ponder/commit/3ac88a6b4c172212f8713babd82b3f51d2e9f11f) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error handling for failing `readContract` requests.
+
 ## 0.6.20
 
 ### Patch Changes
