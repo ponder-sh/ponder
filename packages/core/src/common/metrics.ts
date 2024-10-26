@@ -273,7 +273,6 @@ export class MetricsService {
     this.ponder_postgres_pool_connections?.reset();
     this.ponder_postgres_query_queue_size?.reset();
     this.ponder_postgres_query_total?.reset();
-    this.ponder_sqlite_query_total?.reset();
   }
 
   resetApiMetrics() {
