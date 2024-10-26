@@ -1,6 +1,7 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import type { Database } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Sync } from "@/sync/index.js";
@@ -51,6 +52,7 @@ export type Service = {
   common: Common;
   indexingFunctions: IndexingFunctions;
   indexingStore: IndexingStore;
+  database: Database;
 
   // state
   isKilled: boolean;
@@ -84,6 +86,7 @@ export const create = ({
   networks,
   sync,
   indexingStore,
+  database,
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
@@ -91,6 +94,7 @@ export const create = ({
   networks: Network[];
   sync: Sync;
   indexingStore: IndexingStore;
+  database: Database;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
     blockNumber: undefined!,
@@ -168,6 +172,7 @@ export const create = ({
     common,
     indexingFunctions,
     indexingStore,
+    database,
     isKilled: false,
     eventCount,
     startCheckpoint: decodeCheckpoint(sync.getStartCheckpoint()),
@@ -329,10 +334,13 @@ export const processEvents = async (
         never(event);
     }
 
-    await indexingService.indexingStore.flush({
-      force: false,
-      checkpoint: event.checkpoint,
-    });
+    if (indexingService.indexingStore.isCacheFull()) {
+      await indexingService.database.finalize({
+        checkpoint: encodeCheckpoint(zeroCheckpoint),
+      });
+      await indexingService.indexingStore.flush();
+      await indexingService.database.finalize({ checkpoint: event.checkpoint });
+    }
 
     // periodically update metrics
     if (i % 93 === 0) {
@@ -508,7 +516,9 @@ const executeLog = async (
     addStackTrace(error, common.options);
 
     error.meta = Array.isArray(error.meta) ? error.meta : [];
-    error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
+    if (error.meta.length === 0) {
+      error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
+    }
 
     common.logger.error({
       service: "indexing",

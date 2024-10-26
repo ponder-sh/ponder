@@ -1,4 +1,4 @@
-import type { OnchainTable } from "@/drizzle/db.js";
+import type { OnchainTable } from "@/drizzle/drizzle.js";
 import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
@@ -414,8 +414,12 @@ const columnToGraphQLCore = (
   column: Column,
   enumTypes: Record<string, GraphQLEnumType>,
 ): GraphQLOutputType => {
-  if (column.columnType === "PgNumeric" && (column as any).precision === 78) {
+  if (column.columnType === "PgEvmBigint") {
     return GraphQLBigInt;
+  }
+
+  if (column.columnType === "PgEnumColumn") {
+    return enumTypes[column.name]!;
   }
 
   switch (column.dataType) {
@@ -426,9 +430,6 @@ const columnToGraphQLCore = (
     case "date":
       return GraphQLString;
     case "string":
-      // TODO: Handle enums
-      // if (column.enumValues?.length) return enumTypes[column.name]!;
-
       return GraphQLString;
     case "bigint":
       return GraphQLString;

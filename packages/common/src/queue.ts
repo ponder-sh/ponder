@@ -180,7 +180,10 @@ export const createQueue = <returnType, taskType = void>({
 
       next();
 
-      return promise;
+      return promise.catch((error) => {
+        Error.captureStackTrace(error);
+        throw error;
+      });
     },
     clear: () => {
       queue = new Array<InnerQueue<returnType, taskType>[number]>();

@@ -1,10 +1,8 @@
-import { createSchema } from "../../../schema/schema.js";
+import { onchainTable } from "../../../drizzle/drizzle.js";
 
-export default createSchema((p) => ({
-  SwapEvent: p.createTable({
-    id: p.string(),
-    pair: p.hex(),
-    from: p.hex(),
-    to: p.hex(),
-  }),
+export const swapEvent = onchainTable("swap_event", (p) => ({
+  id: p.serial().primaryKey(),
+  pair: p.evmHex().notNull(),
+  from: p.evmHex().notNull(),
+  to: p.evmHex().notNull(),
 }));
