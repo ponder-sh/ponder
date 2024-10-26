@@ -357,6 +357,25 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // hyperliquid
+  match = sError.match(/query exceeds max block range ([\d,.]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,
