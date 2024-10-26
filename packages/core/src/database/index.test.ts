@@ -654,6 +654,52 @@ test("createLiveViews()", async (context) => {
   await database.kill();
 });
 
+test("createLiveViews() drops old views", async (context) => {
+  const database = await createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+  });
+
+  await database.setup();
+  await database.createLiveViews();
+  await database.kill();
+
+  const databaseTwo = await createDatabase({
+    common: context.common,
+    schema: {
+      transfer: onchainTable("transfer", (p) => ({
+        id: p.serial().primaryKey(),
+        from: p.evmHex().notNull(),
+        to: p.evmHex().notNull(),
+        amount: p.evmHex().notNull(),
+      })),
+    },
+    databaseConfig: context.databaseConfig,
+    instanceId: "5678",
+    buildId: "def",
+  });
+
+  await databaseTwo.setup();
+  await databaseTwo.createLiveViews();
+
+  const viewNames = await getUserViewNames(databaseTwo);
+  expect(viewNames).toHaveLength(1);
+  expect(viewNames).toContain("transfer");
+
+  const metadata = await databaseTwo.qb.internal
+    .selectFrom("_ponder_meta")
+    .select("value")
+    .where("key", "=", "live")
+    .executeTakeFirst();
+
+  expect(metadata!.value).toStrictEqual({ instance_id: "5678" });
+
+  await databaseTwo.kill();
+});
+
 test("createTriggers()", async (context) => {
   const database = await createDatabase({
     common: context.common,

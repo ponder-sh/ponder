@@ -1001,6 +1001,32 @@ export const createDatabase = async (args: {
     },
     async createLiveViews() {
       await qb.internal.wrap({ method: "createLiveViews" }, async () => {
+        // drop old views
+
+        const previousLiveInstanceId: string | undefined = await qb.internal
+          .selectFrom("_ponder_meta")
+          .select("value")
+          .where("key", "=", "live")
+          .executeTakeFirst()
+          .then((row) => (row?.value?.instance_id as string) ?? undefined);
+
+        if (previousLiveInstanceId) {
+          const previousTableNames = await qb.internal
+            .selectFrom("_ponder_meta")
+            .select("value")
+            .where("key", "=", `app_${previousLiveInstanceId}`)
+            .executeTakeFirst()
+            .then((row) => (row ? (row.value as PonderApp).table_names : []));
+
+          await Promise.all(
+            previousTableNames.map((name) =>
+              qb.internal.schema.dropView(name).ifExists().execute(),
+            ),
+          );
+        }
+
+        // update live app
+
         await qb.internal
           .insertInto("_ponder_meta")
           .values({
@@ -1015,7 +1041,7 @@ export const createDatabase = async (args: {
           )
           .execute();
 
-        // TODO(kyle) drop old views ??
+        // create new views
 
         for (const tableName of getTableNames(args.schema, args.instanceId)) {
           await qb.internal.schema
