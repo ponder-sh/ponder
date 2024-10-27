@@ -1,8 +1,7 @@
-import type { TransactionFilter, TransferFilter } from "@/sync/source.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
-import type { GetAddress } from "./address.js";
+import type { GetAccountAddress, GetAddress } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 import type { NonStrictPick } from "./utilityTypes.js";
 
@@ -168,8 +167,8 @@ type GetAccountNetwork<
     | {
         [name in allNetworkNames]?: Prettify<
           GetEventFilter<abi, NonStrictPick<account, "filter">> &
-            GetTransactionConfig &
-            GetTransferConfig &
+            GetTransactionFilter<account> &
+            GetTransferFilter<account> &
             TransactionReceiptConfig &
             BlockConfig
         >;
@@ -186,20 +185,44 @@ type ContractConfig<networks, contract, abi extends Abi> = Prettify<
     BlockConfig
 >;
 
-type GetTransactionConfig = {
-  transaction?: TransactionFilter | readonly TransactionFilter[];
+export type GetTransferFilter<account> = {
+  transfer?:
+    | ({
+        chainId: number;
+        fromBlock: number;
+        toBlock: number | undefined;
+        includeTransactionReceipts: boolean;
+      } & GetAccountAddress<NonStrictPick<account, "transfer">>)
+    | ({
+        chainId: number;
+        fromBlock: number;
+        toBlock: number | undefined;
+        includeTransactionReceipts: boolean;
+      } & GetAccountAddress<NonStrictPick<account, "transfer">>)[];
 };
 
-type GetTransferConfig = {
-  transfer?: TransferFilter | readonly TransferFilter[];
+export type GetTransactionFilter<account> = {
+  transaction?:
+    | ({
+        chainId: number;
+        fromBlock: number;
+        toBlock: number | undefined;
+        includeTransactionReceipts: boolean;
+      } & GetAccountAddress<NonStrictPick<account, "transaction">>)
+    | ({
+        chainId: number;
+        fromBlock: number;
+        toBlock: number | undefined;
+        includeTransactionReceipts: boolean;
+      } & GetAccountAddress<NonStrictPick<account, "transaction">>)[];
 };
 
 type AccountConfig<networks, account, abi extends Abi> = Prettify<
   AbiConfig<abi> &
     GetAccountNetwork<networks, NonStrictPick<account, "network">, abi> &
     GetEventFilter<abi, NonStrictPick<account, "filter">> &
-    GetTransactionConfig &
-    GetTransferConfig &
+    GetTransactionFilter<account> &
+    GetTransferFilter<account> &
     TransactionReceiptConfig &
     BlockConfig
 >;

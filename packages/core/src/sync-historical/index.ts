@@ -365,12 +365,12 @@ export const createHistoricalSync = async (
     transactions = transactions.filter((t) =>
       fromAddress !== undefined
         ? toAddress !== undefined
-          ? fromAddress.includes(t.from.toLowerCase() as Address) &&
+          ? fromAddress.includes(t.from) &&
             t.to !== null &&
-            toAddress.includes(t.to.toLowerCase() as Address)
-          : fromAddress.includes(t.from.toLowerCase() as Address)
+            toAddress.includes(t.to)
+          : fromAddress.includes(t.from)
         : toAddress !== undefined
-          ? t.to !== null && toAddress.includes(t.to.toLowerCase() as Address)
+          ? t.to !== null && toAddress.includes(t.to)
           : true,
     );
 
@@ -409,9 +409,7 @@ export const createHistoricalSync = async (
     await args.syncStore.insertTransactions({
       transactions: transactions.map((transaction) => ({
         transaction,
-        block: blocks.find((block) => {
-          block.hash === transaction.blockHash;
-        })!,
+        block: blocks.find((block) => block.hash === transaction.blockHash)!,
       })),
       chainId: args.network.chainId,
     });

@@ -45,9 +45,10 @@ export namespace Virtual {
     safeFunctionNames = SafeFunctionNames<contract["abi"]>,
   > = string extends safeFunctionNames ? never : safeFunctionNames;
 
-  /** "{ContractName}:{EventName}" | "{ContractName}.{FunctionName}()" | "{SourceName}:block" . */
+  /** "{ContractName}:{EventName}" | "{ContractName}.{FunctionName}()" | "{SourceName}:block" | "{SourceName}/Transfer" | "{SourceName}/Transaction". */
   export type FormatEventNames<
     contracts extends Config["contracts"],
+    accounts extends Config["accounts"],
     blocks extends Config["blocks"],
   > =
     | {
@@ -56,6 +57,11 @@ export namespace Virtual {
     | {
         [name in keyof blocks]: `${name & string}:block`;
       }[keyof blocks]
+    | {
+        [name in keyof accounts]:
+          | `${name & string}/Transfer`
+          | `${name & string}/Transaction`;
+      }[keyof accounts]
     | {
         [name in keyof contracts]: true extends ExtractOverridenProperty<
           contracts[name],
@@ -98,6 +104,7 @@ export namespace Virtual {
 
   export type EventNames<config extends Config> = FormatEventNames<
     config["contracts"],
+    config["accounts"],
     config["blocks"]
   >;
 
@@ -105,53 +112,73 @@ export namespace Virtual {
     config extends Config,
     name extends EventNames<config>,
     ///
-    contractName extends ExtractSourceName<name> = ExtractSourceName<name>,
+    sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = name extends `${string}:block`
     ? { block: Prettify<Block> }
-    : name extends `${string}.${string}`
+    : name extends `${string}/Transfer`
       ? Prettify<
           {
-            args: FormatFunctionArgs<
-              config["contracts"][contractName]["abi"],
-              eventName
-            >;
-            result: FormatFunctionResult<
-              config["contracts"][contractName]["abi"],
-              eventName
-            >;
             trace: Prettify<CallTrace>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
-          } & FormatTransactionReceipts<config["contracts"][contractName]>
+          } & FormatTransactionReceipts<config["accounts"][sourceName]>
         >
-      : eventName extends Setup
-        ? never
-        : Prettify<
+      : name extends `${string}/Transaction`
+        ? Prettify<
             {
-              name: eventName;
-              args: FormatEventArgs<
-                config["contracts"][contractName]["abi"],
-                eventName
-              >;
-              log: Prettify<Log>;
               block: Prettify<Block>;
               transaction: Prettify<Transaction>;
-            } & FormatTransactionReceipts<config["contracts"][contractName]>
-          >;
+            } & FormatTransactionReceipts<config["accounts"][sourceName]>
+          >
+        : name extends `${string}.${string}`
+          ? Prettify<
+              {
+                args: FormatFunctionArgs<
+                  config["contracts"][sourceName]["abi"],
+                  eventName
+                >;
+                result: FormatFunctionResult<
+                  config["contracts"][sourceName]["abi"],
+                  eventName
+                >;
+                trace: Prettify<CallTrace>;
+                block: Prettify<Block>;
+                transaction: Prettify<Transaction>;
+              } & FormatTransactionReceipts<config["contracts"][sourceName]>
+            >
+          : eventName extends Setup
+            ? never
+            : Prettify<
+                {
+                  name: eventName;
+                  args: FormatEventArgs<
+                    config["contracts"][sourceName]["abi"],
+                    eventName
+                  >;
+                  log: Prettify<Log>;
+                  block: Prettify<Block>;
+                  transaction: Prettify<Transaction>;
+                } & FormatTransactionReceipts<config["contracts"][sourceName]>
+              >;
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],
     "abi" | "network" | "filter" | "factory"
   >;
 
+  type ContextAccountProperty = Exclude<
+    keyof Config["accounts"][string],
+    "abi" | "network" | "filter" | "transaction" | "transfer"
+  >;
+
   type ExtractOverridenProperty<
-    contract extends Config["contracts"][string],
-    property extends ContextContractProperty,
+    source extends Config["contracts"][string] | Config["accounts"][string],
+    property extends ContextContractProperty | ContextAccountProperty,
     ///
-    base = Extract<contract, { [p in property]: unknown }>[property],
+    base = Extract<source, { [p in property]: unknown }>[property],
     override = Extract<
-      contract["network"][keyof contract["network"]],
+      source["network"][keyof source["network"]],
       { [p in property]: unknown }
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
@@ -167,6 +194,9 @@ export namespace Virtual {
           | (unknown extends config["contracts"][sourceName]["network"]
               ? never
               : config["contracts"][sourceName]["network"])
+          | (unknown extends config["accounts"][sourceName]["network"]
+              ? never
+              : config["accounts"][sourceName]["network"])
           | (unknown extends config["blocks"][sourceName]["network"]
               ? never
               : config["blocks"][sourceName]["network"])
@@ -185,6 +215,19 @@ export namespace Virtual {
         >;
         endBlock: ExtractOverridenProperty<
           config["contracts"][_contractName],
+          "endBlock"
+        >;
+      };
+    };
+    accounts: {
+      [_accountName in keyof config["accounts"]]: {
+        abi: config["contracts"][_accountName]["abi"];
+        startBlock: ExtractOverridenProperty<
+          config["accounts"][_accountName],
+          "startBlock"
+        >;
+        endBlock: ExtractOverridenProperty<
+          config["accounts"][_accountName],
           "endBlock"
         >;
       };

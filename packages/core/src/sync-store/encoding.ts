@@ -193,21 +193,18 @@ export const encodeTransaction = ({
 }: {
   transaction: SyncTransaction;
   chainId: number;
-  block?: SyncBlock;
+  block: SyncBlock;
   dialect: "sqlite" | "postgres";
 }): Insertable<TransactionsTable> => {
   return {
-    checkpoint:
-      block === undefined
-        ? null
-        : encodeCheckpoint({
-            blockTimestamp: hexToNumber(block.timestamp),
-            chainId: BigInt(chainId),
-            blockNumber: hexToBigInt(transaction.blockNumber),
-            transactionIndex: hexToBigInt(transaction.transactionIndex),
-            eventType: EVENT_TYPES.transactions,
-            eventIndex: hexToBigInt(transaction.transactionIndex),
-          }),
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(transaction.blockNumber),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.transactions,
+      eventIndex: hexToBigInt(transaction.transactionIndex),
+    }),
     hash: transaction.hash,
     chainId,
     blockHash: transaction.blockHash,

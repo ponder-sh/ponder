@@ -973,10 +973,263 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_10_25_0_native_transfers": {
+    async up(db: Kysely<any>) {
+      // TODO(kyle) drop foreign key constraint on "blockFilterIntervals.blockFilterId".
+
+      await db.schema
+        .createTable("transferFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("fromAddress", "varchar(42)")
+        .addColumn("toAddress", "varchar(42)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("transferFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("transferFilterId", "text", (col) => col.notNull())
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("transferFilterIntervalsTransferFilterId")
+        .on("transferFilterIntervals")
+        .column("transferFilterId")
+        .execute();
+
+      await db.schema
+        .createTable("factoryTransferFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${fromEventSelector}_${fromChildAddressLocation}_${toAddress}_${toEventSelector}_${toChildAddressLocation}_${includeTransactionReceipts}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("fromAddress", "varchar(42)")
+        .addColumn("fromEventSelector", "varchar(66)")
+        .addColumn("fromChildAddressLocation", "text") // `topic${number}` or `offset${number}`
+        .addColumn("toAddress", "varchar(42)")
+        .addColumn("toEventSelector", "varchar(66)")
+        .addColumn("toChildAddressLocation", "text") // `topic${number}` or `offset${number}`
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("factoryTransferFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text")
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryTransferFilterIntervalsFactoryId")
+        .on("factoryTransferFilterIntervals")
+        .column("factoryId")
+        .execute();
+    },
+  },
+  "2024_10_25_1_transaction_filters": {
+    async up(db: Kysely<any>) {
+      if ((await hasTransactionCheckpointCol(db)) === false) {
+        await db.schema
+          .alterTable("transactions")
+          .addColumn("checkpoint", "varchar(75)")
+          .execute();
+
+        await db.executeQuery(
+          sql`
+            CREATE TEMPORARY TABLE tcp_vals AS
+            SELECT 
+              transactions.hash,
+              transactions.blockHash as blockHash
+              FROM transactions
+          `.compile(db),
+        );
+
+        await db.schema
+          .alterTable("tcp_vals")
+          .addColumn("timestamp", "varchar(79)")
+          .execute();
+
+        await db.schema
+          .alterTable("tcp_vals")
+          .addColumn("checkpoint", "varchar(75)")
+          .execute();
+
+        await db.executeQuery(
+          sql`
+            UPDATE tcp_vals
+            SET timestamp=blocks.timestamp
+            FROM blocks
+            WHERE tcp_vals.blockHash = blocks.hash
+          `.compile(db),
+        );
+
+        await db.executeQuery(
+          sql`
+            UPDATE tcp_vals
+            SET checkpoint=substr(tcp_vals.timestamp, -10, 10) ||
+                substr('0000000000000000' || transactions.chainId, -16, 16) ||
+                substr(transactions.blockNumber, -16, 16) ||
+                substr(transactions.transactionIndex, -16, 16) ||
+                '7' ||
+                substr(transactions.transactionIndex, -16, 16)
+            FROM transactions
+            WHERE tcp_vals.hash = transactions.hash
+          `.compile(db),
+        );
+
+        await db.executeQuery(
+          sql`
+            UPDATE transactions 
+            SET checkpoint=tcp_vals.checkpoint
+            FROM tcp_vals
+            WHERE transactions.hash = tcp_vals.hash
+          `.compile(db),
+        );
+
+        await db.schema
+          .alterTable("transactions")
+          .renameTo("transactions_temp")
+          .execute();
+
+        await db.schema
+          .createTable("transactions")
+          .addColumn("accessList", "text")
+          .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+          .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+          .addColumn("chainId", "integer", (col) => col.notNull())
+          .addColumn("from", "varchar(42)", (col) => col.notNull())
+          .addColumn("gas", "varchar(79)", (col) => col.notNull())
+          .addColumn("gasPrice", "varchar(79)")
+          .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+          .addColumn("input", "text", (col) => col.notNull())
+          .addColumn("maxFeePerGas", "varchar(79)")
+          .addColumn("maxPriorityFeePerGas", "varchar(79)")
+          .addColumn("nonce", "integer", (col) => col.notNull())
+          .addColumn("r", "varchar(66)")
+          .addColumn("s", "varchar(66)")
+          .addColumn("to", "varchar(42)")
+          .addColumn("transactionIndex", "integer", (col) => col.notNull())
+          .addColumn("type", "text", (col) => col.notNull())
+          .addColumn("value", "varchar(79)", (col) => col.notNull())
+          .addColumn("v", "varchar(79)")
+          .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+          .execute();
+
+        await db.executeQuery(
+          sql`INSERT INTO "transactions" SELECT * FROM "transactions_temp"`.compile(
+            db,
+          ),
+        );
+
+        await db.schema.dropTable("transactions_temp").execute();
+      }
+
+      await db.schema
+        .createTable("transactionFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${toAddress}_${includeTransactionReceipts}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("fromAddress", "varchar(42)")
+        .addColumn("toAddress", "varchar(42)")
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("transactionFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("transactionFilterId", "text", (col) => col.notNull())
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("transactionFilterIntervalsTransactionFilterId")
+        .on("transactionFilterIntervals")
+        .column("transactionFilterId")
+        .execute();
+
+      // The transactions.blockNumber index supports getEvents and deleteRealtimeData
+      await db.schema
+        .createIndex("transactionsBlockNumberIndex")
+        .on("transactions")
+        .column("blockNumber")
+        .execute();
+
+      // The transactions.blockHash index supports getEvents
+      await db.schema
+        .createIndex("transactionsBlockHashIndex")
+        .on("transactions")
+        .column("blockHash")
+        .execute();
+
+      // The transactions.checkpoint index supports getEvents
+      await db.schema
+        .createIndex("transactionsCheckpointIndex")
+        .on("transactions")
+        .column("checkpoint")
+        .execute();
+
+      // The transactions.chainId index supports getEvents
+      await db.schema
+        .createIndex("transactionsChainIdIndex")
+        .on("transactions")
+        .column("chainId")
+        .execute();
+
+      // The transactions.from index supports getEvents
+      await db.schema
+        .createIndex("transactionsFromIndex")
+        .on("transactions")
+        .column("from")
+        .execute();
+
+      // The callTraces.to index supports getEvents
+      await db.schema
+        .createIndex("transactionsToIndex")
+        .on("transactions")
+        .column("to")
+        .execute();
+
+      await db.schema
+        .createTable("factoryTransactionFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${fromAddress}_${fromEventSelector}_${fromChildAddressLocation}_${toAddress}_${toEventSelector}_${toChildAddressLocation}_${includeTransactionReceipts}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("fromAddress", "varchar(42)")
+        .addColumn("fromEventSelector", "varchar(66)")
+        .addColumn("fromChildAddressLocation", "text") // `topic${number}` or `offset${number}`
+        .addColumn("toAddress", "varchar(42)")
+        .addColumn("toEventSelector", "varchar(66)")
+        .addColumn("toChildAddressLocation", "text") // `topic${number}` or `offset${number}`
+        .addColumn("includeTransactionReceipts", "integer", (col) =>
+          col.notNull(),
+        )
+        .execute();
+      await db.schema
+        .createTable("factoryTransactionFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text")
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryTransactionFilterIntervalsFactoryId")
+        .on("factoryTransactionFilterIntervals")
+        .column("factoryId")
+        .execute();
+    },
+  },
 };
 
 async function hasCheckpointCol(db: Kysely<any>) {
   const res = await db.executeQuery(sql`PRAGMA table_info("logs")`.compile(db));
+  return res.rows.some((x: any) => x.name === "checkpoint");
+}
+
+async function hasTransactionCheckpointCol(db: Kysely<any>) {
+  const res = await db.executeQuery(
+    sql`PRAGMA table_info("transactions")`.compile(db),
+  );
   return res.rows.some((x: any) => x.name === "checkpoint");
 }
 

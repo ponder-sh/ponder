@@ -4,17 +4,26 @@ import { getBytesConsumedByParam } from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
 import { type Address, getEventSelector } from "viem";
 
-export function buildLogFactory({
-  address: _address,
-  event,
-  parameter,
-  chainId,
-}: {
-  address: Address | readonly Address[];
-  event: AbiEvent;
-  parameter: string;
-  chainId: number;
-}): LogFactory {
+export function buildLogFactory(
+  chainId: number,
+  factory:
+    | {
+        address: Address | readonly Address[];
+        event: AbiEvent;
+        parameter: string;
+      }
+    | Address
+    | Address[]
+    | undefined,
+): LogFactory | Address | Address[] | undefined {
+  if (Array.isArray(factory)) {
+    return factory.map(toLowerCase);
+  } else if (typeof factory === "string" || factory === undefined) {
+    return factory;
+  }
+
+  const { address: _address, event, parameter } = factory;
+
   const address = Array.isArray(_address)
     ? _address.map(toLowerCase)
     : toLowerCase(_address);

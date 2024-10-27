@@ -88,7 +88,7 @@ export type SyncStore = {
   /** Return true if the block receipt is present in the database. */
   hasBlock(args: { hash: Hash }): Promise<boolean>;
   insertTransactions(args: {
-    transactions: { transaction: SyncTransaction; block?: SyncBlock }[];
+    transactions: { transaction: SyncTransaction; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
@@ -1086,7 +1086,7 @@ export const createSyncStore = ({
     const addressSQL = (
       qb: SelectQueryBuilder<
         PonderSyncSchema,
-        "logs" | "blocks" | "callTraces",
+        "logs" | "blocks" | "callTraces" | "transactions",
         {}
       >,
       address: LogFilter["address"],
@@ -1224,7 +1224,7 @@ export const createSyncStore = ({
         ])
         .where("chainId", "=", filter.chainId)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
+        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .where("blockNumber", ">=", formatBig(dialect, filter.fromBlock))
         .$if(filter.toBlock !== undefined, (qb) =>
           qb.where("blockNumber", "<=", formatBig(dialect, filter.toBlock!)),
@@ -1266,7 +1266,7 @@ export const createSyncStore = ({
         let query:
           | SelectQueryBuilder<
               PonderSyncSchema,
-              "logs" | "callTraces" | "blocks",
+              "logs" | "callTraces" | "blocks" | "transactions",
               {
                 filterIndex: number;
                 checkpoint: string;
@@ -1297,6 +1297,17 @@ export const createSyncStore = ({
           query = query === undefined ? _query : query.unionAll(_query);
         }
 
+        const fake_rows = await db
+          .with("event", () => query!)
+          .selectFrom("event")
+          .select(["event.transactionHash"])
+          .limit(limit)
+          .execute();
+
+        console.log(
+          `fake_rows ${fake_rows.map((f) => `${f.transactionHash}`).join(", ")}`,
+        );
+
         return await db
           .with("event", () => query!)
           .selectFrom("event")
@@ -1304,7 +1315,7 @@ export const createSyncStore = ({
             "event.filterIndex as event_filterIndex",
             "event.checkpoint as event_checkpoint",
           ])
-          .innerJoin("blocks", "blocks.hash", "event.blockHash")
+          .leftJoin("blocks", "blocks.hash", "event.blockHash")
           .select([
             "blocks.baseFeePerGas as block_baseFeePerGas",
             "blocks.difficulty as block_difficulty",
@@ -1413,6 +1424,23 @@ export const createSyncStore = ({
           .limit(limit)
           .execute();
       },
+    );
+
+    const tx_rows = await db
+      .selectFrom("transactions")
+      .select([
+        "transactions.hash",
+        "transactions.blockHash",
+        "transactions.from",
+      ])
+      .execute();
+    const block_rows = await db
+      .selectFrom("blocks")
+      .select(["blocks.hash"])
+      .execute();
+
+    console.log(
+      `tx_rows ${tx_rows.map((t) => `${t.hash}-${t.blockHash}-${t.from}`).join(", ")}, block_rows ${block_rows.map((t) => t.hash).join(", ")}, from ${from}`,
     );
 
     const events = rows.map((_row) => {

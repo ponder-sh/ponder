@@ -10,10 +10,12 @@ import {
   isRpcUrlPublic,
 } from "@/config/networks.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
-import type {
-  AccountSource,
-  BlockSource,
-  ContractSource,
+import {
+  type AccountSource,
+  type BlockSource,
+  type ContractSource,
+  type LogFactory,
+  isAddressFactory,
 } from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -234,7 +236,7 @@ export async function buildConfigAndIndexingFunctions({
     const [sourceName, sourceEventName] = eventNameComponents;
     if (eventNameComponents.length !== 2 || !sourceName || !sourceEventName) {
       throw new Error(
-        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{eventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{eventName}' or '{sourceName}/{eventName}'.`,
       );
     }
 
@@ -541,10 +543,10 @@ export async function buildConfigAndIndexingFunctions({
 
       if (resolvedFactory) {
         // Note that this can throw.
-        const logFactory = buildLogFactory({
-          chainId: network.chainId,
-          ...resolvedFactory,
-        });
+        const logFactory = buildLogFactory(
+          network.chainId,
+          resolvedFactory,
+        ) as LogFactory;
 
         const logSource = {
           ...contractMetadata,
@@ -968,15 +970,20 @@ export async function buildConfigAndIndexingFunctions({
         const transactions = Array.isArray(rawAccount.transaction)
           ? rawAccount.transaction
           : [rawAccount.transaction];
-        transactionSources = transactions.map((transaction) => {
-          const transactionSource = {
-            ...accountMetadata,
-            filter: {
-              ...transaction,
-            },
-          } satisfies AccountSource;
-          return transactionSource;
-        });
+        transactionSources = transactions.map(
+          ({ fromAddress, toAddress, ...t }) => {
+            const transactionSource = {
+              ...accountMetadata,
+              filter: {
+                type: "transaction",
+                fromAddress: buildLogFactory(t.chainId, fromAddress),
+                toAddress: buildLogFactory(t.chainId, toAddress),
+                ...t,
+              },
+            } satisfies AccountSource;
+            return transactionSource;
+          },
+        );
       }
 
       let transferSources: AccountSource[] = [];
@@ -988,18 +995,97 @@ export async function buildConfigAndIndexingFunctions({
         const transfers = Array.isArray(rawAccount.transfer)
           ? rawAccount.transfer
           : [rawAccount.transfer];
-        transferSources = transfers.map((transfer) => {
+        transferSources = transfers.map(({ fromAddress, toAddress, ...t }) => {
           const transactionSource = {
             ...accountMetadata,
             filter: {
-              ...transfer,
+              type: "transfer",
+              fromAddress: buildLogFactory(t.chainId, fromAddress),
+              toAddress: buildLogFactory(t.chainId, toAddress),
+              ...t,
             },
           } satisfies AccountSource;
           return transactionSource;
         });
       }
-
       return [logSource, ...transferSources, ...transactionSources];
+    })
+    .map((source) => {
+      // Convert all addresses in sources to lowercase
+      switch (source.filter.type) {
+        case "log": {
+          const { filter, ...s } = source;
+          const { address, ...f } = filter;
+          return {
+            filter: {
+              address: Array.isArray(address)
+                ? address.map(toLowerCase)
+                : isAddressFactory(address)
+                  ? {
+                      type: address.type,
+                      address: Array.isArray(address.address)
+                        ? address.address.map(toLowerCase)
+                        : (toLowerCase(address.address) as Hex),
+                      chainId: address.chainId,
+                      childAddressLocation: address.childAddressLocation,
+                      eventSelector: address.eventSelector,
+                    }
+                  : Array.isArray(address)
+                    ? address.map((a) => toLowerCase(a) as Hex)
+                    : address !== undefined
+                      ? toLowerCase(address)
+                      : undefined,
+              ...f,
+            },
+            ...s,
+          } satisfies AccountSource;
+        }
+
+        default: {
+          const { filter, ...s } = source;
+          const { fromAddress, toAddress, ...f } = filter;
+          return {
+            filter: {
+              fromAddress: Array.isArray(fromAddress)
+                ? fromAddress.map(toLowerCase)
+                : isAddressFactory(fromAddress)
+                  ? {
+                      type: fromAddress.type,
+                      address: Array.isArray(fromAddress.address)
+                        ? fromAddress.address.map(toLowerCase)
+                        : (fromAddress.address.toLowerCase() as Hex),
+                      chainId: fromAddress.chainId,
+                      childAddressLocation: fromAddress.childAddressLocation,
+                      eventSelector: fromAddress.eventSelector,
+                    }
+                  : Array.isArray(fromAddress)
+                    ? fromAddress.map((a) => toLowerCase(a) as Hex)
+                    : fromAddress !== undefined
+                      ? toLowerCase(fromAddress)
+                      : undefined,
+              toAddress: Array.isArray(toAddress)
+                ? toAddress.map(toLowerCase)
+                : isAddressFactory(toAddress)
+                  ? {
+                      type: toAddress.type,
+                      address: Array.isArray(toAddress.address)
+                        ? toAddress.address.map(toLowerCase)
+                        : (toLowerCase(toAddress.address) as Hex),
+                      chainId: toAddress.chainId,
+                      childAddressLocation: toAddress.childAddressLocation,
+                      eventSelector: toAddress.eventSelector,
+                    }
+                  : Array.isArray(toAddress)
+                    ? toAddress.map((a) => toLowerCase(a) as Hex)
+                    : toAddress !== undefined
+                      ? toLowerCase(toAddress)
+                      : undefined,
+              ...f,
+            },
+            ...s,
+          } satisfies AccountSource;
+        }
+      }
     })
     // Remove sources with no registered indexing functions
     .filter((source) => {
