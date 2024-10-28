@@ -1,8 +1,59 @@
-import { getTableColumns, getTableName, is } from "drizzle-orm";
+import {
+  type BuildColumns,
+  type ColumnBuilderBase,
+  Table,
+  getTableColumns,
+  getTableName,
+  is,
+} from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { type PgColumn, PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import {
+  type AnyPgColumn,
+  type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
+  type ExtraConfigColumn,
+  type PgColumn,
+  type PgColumnBuilder,
+  type PgColumnBuilderBase,
+  PgSchema,
+  PgTable,
+  type PgTableExtraConfig,
+  type PgTableWithColumns,
+  type TableConfig,
+  primaryKey as drizzlePrimaryKey,
+  getTableConfig,
+} from "drizzle-orm/pg-core";
+import {
+  type PgColumnsBuilders as _PgColumnsBuilders,
+  getPgColumnBuilders,
+} from "drizzle-orm/pg-core/columns/all";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
+import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
+import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { getColumnCasing } from "./kit/index.js";
+
+// @ts-ignore
+const instanceId: string = await import("@/generated")
+  // @ts-ignore
+  .then((exports) => exports.instanceId)
+  .catch(() => undefined);
+
+// @ts-ignore
+export function hex(): PgHexBuilderInitial<"">;
+export function hex<name extends string>(
+  columnName: name,
+): PgHexBuilderInitial<name>;
+export function hex(columnName?: string) {
+  return new PgHexBuilder(columnName ?? "");
+}
+
+// @ts-ignore
+export function bigint(): PgBigintBuilderInitial<"">;
+export function bigint<name extends string>(
+  columnName: name,
+): PgBigintBuilderInitial<name>;
+export function bigint(columnName?: string) {
+  return new PgBigintBuilder(columnName ?? "");
+}
 
 export const onchain = Symbol.for("ponder:onchain");
 
@@ -72,3 +123,217 @@ export const getPrimaryKeyColumns = (
     },
   ];
 };
+
+export type PrimaryKeyBuilder<columnNames extends string = string> =
+  DrizzlePrimaryKeyBuilder & { columnNames: columnNames };
+
+export const primaryKey = <
+  tableName extends string,
+  column extends AnyPgColumn<{ tableName: tableName }> & { " name": string },
+  columns extends (AnyPgColumn<{ tableName: tableName }> & {
+    " name": string;
+  })[],
+>({
+  name,
+  columns,
+}: { name?: string; columns: [column, ...columns] }) =>
+  drizzlePrimaryKey({ name, columns }) as PrimaryKeyBuilder<
+    column[" name"] | columns[number][" name"]
+  >;
+
+export type OnchainTable<
+  T extends TableConfig & {
+    extra: PgTableExtraConfig | undefined;
+  } = TableConfig & { extra: PgTableExtraConfig | undefined },
+> = PgTable<T> & {
+  [Key in keyof T["columns"]]: T["columns"][Key];
+} & { [onchain]: true };
+
+type BuildExtraConfigColumns<
+  columns extends Record<string, ColumnBuilderBase>,
+> = {
+  [key in keyof columns]: ExtraConfigColumn & {
+    " name": key;
+  };
+};
+
+type PgColumnsBuilders = Omit<_PgColumnsBuilders, "bigint"> & {
+  int8: _PgColumnsBuilders["bigint"];
+  hex: typeof hex;
+  bigint: typeof bigint;
+};
+
+/**
+ * Create an onchain table
+ *
+ * @returns The onchain table.
+ */
+export const onchainTable = <
+  name extends string,
+  columns extends Record<string, PgColumnBuilderBase>,
+  extra extends PgTableExtraConfig | undefined = undefined,
+>(
+  name: name,
+  columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+  extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
+): OnchainTable<{
+  name: name;
+  schema: undefined;
+  columns: BuildColumns<name, columns, "pg">;
+  extra: extra;
+  dialect: "pg";
+}> => {
+  if (instanceId === undefined) {
+    const table = pgTableWithSchema(
+      name,
+      columns,
+      extraConfig as any,
+      undefined,
+    );
+
+    // @ts-ignore
+    table[onchain] = true;
+
+    // @ts-ignore
+    return table;
+  }
+
+  const table = pgTableWithSchema(
+    userToSqlTableName(name, instanceId),
+    columns,
+    extraConfig as any,
+    undefined,
+  );
+
+  // @ts-ignore
+  table[onchain] = true;
+
+  // @ts-ignore
+  return table;
+};
+
+export class OnchainSchema<schema extends string> extends PgSchema<schema> {
+  override table = <
+    name extends string,
+    columns extends Record<string, PgColumnBuilderBase>,
+    extra extends PgTableExtraConfig | undefined = undefined,
+  >(
+    name: name,
+    columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+    extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
+  ): OnchainTable<{
+    name: name;
+    schema: schema;
+    columns: BuildColumns<name, columns, "pg">;
+    extra: extra;
+    dialect: "pg";
+  }> => {
+    if (instanceId === undefined) {
+      const table = pgTableWithSchema(
+        name,
+        columns,
+        extraConfig as any,
+        this.schemaName,
+      );
+
+      // @ts-ignore
+      table[onchain] = true;
+
+      // @ts-ignore
+      return table;
+    }
+
+    const table = pgTableWithSchema(
+      userToSqlTableName(name, instanceId),
+      columns,
+      extraConfig as any,
+      this.schemaName,
+    );
+
+    // @ts-ignore
+    table[onchain] = true;
+
+    // @ts-ignore
+    return table;
+  };
+}
+
+export const onchainSchema = <T extends string>(name: T) =>
+  new OnchainSchema(name);
+
+const InlineForeignKeys = Symbol.for("drizzle:PgInlineForeignKeys");
+
+/** @see https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/pg-core/table.ts#L51 */
+function pgTableWithSchema<
+  name extends string,
+  schema extends string | undefined,
+  columns extends Record<string, PgColumnBuilderBase>,
+>(
+  name: name,
+  columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
+  extraConfig:
+    | ((self: BuildExtraConfigColumns<columns>) => PgTableExtraConfig)
+    | undefined,
+  schema: schema,
+  baseName = name,
+): PgTableWithColumns<{
+  name: name;
+  schema: schema;
+  columns: BuildColumns<name, columns, "pg">;
+  dialect: "pg";
+}> {
+  const rawTable = new PgTable<{
+    name: name;
+    schema: schema;
+    columns: BuildColumns<name, columns, "pg">;
+    dialect: "pg";
+  }>(name, schema, baseName);
+
+  const { bigint: int8, ...restColumns } = getPgColumnBuilders();
+
+  const parsedColumns: columns =
+    typeof columns === "function"
+      ? columns({ ...restColumns, int8, hex, bigint })
+      : columns;
+
+  const builtColumns = Object.fromEntries(
+    Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+      const colBuilder = colBuilderBase;
+      //@ts-ignore
+      colBuilder.setName(name);
+      //@ts-ignore
+      const column = colBuilder.build(rawTable);
+      // @ts-ignore
+      rawTable[InlineForeignKeys].push(
+        //@ts-ignore
+        ...colBuilder.buildForeignKeys(column, rawTable),
+      );
+      return [name, column];
+    }),
+  ) as unknown as BuildColumns<name, columns, "pg">;
+
+  const builtColumnsForExtraConfig = Object.fromEntries(
+    Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+      const colBuilder = colBuilderBase as PgColumnBuilder;
+      //@ts-ignore
+      colBuilder.setName(name);
+      //@ts-ignore
+      const column = colBuilder.buildExtraConfigColumn(rawTable);
+      return [name, column];
+    }),
+  ) as unknown as BuildExtraConfigColumns<columns>;
+
+  const table = Object.assign(rawTable, builtColumns);
+
+  //@ts-ignore
+  table[Table.Symbol.Columns] = builtColumns;
+  //@ts-ignore
+  table[Table.Symbol.ExtraConfigColumns] = builtColumnsForExtraConfig;
+
+  if (extraConfig) {
+    //@ts-ignore
+    table[PgTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
+  }
+
+  return table;
+}

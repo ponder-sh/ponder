@@ -7,7 +7,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getEventsBlock, getEventsLog, getEventsTrace } from "@/_test/utils.js";
-import { onchainTable } from "@/drizzle/drizzle.js";
+import { onchainTable } from "@/drizzle/index.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
@@ -39,8 +39,8 @@ vi.mock("@/generated", async () => {
 });
 
 const account = onchainTable("account", (p) => ({
-  address: p.evmHex().primaryKey(),
-  balance: p.evmBigint().notNull(),
+  address: p.hex().primaryKey(),
+  balance: p.bigint().notNull(),
 }));
 
 const schema = { account };

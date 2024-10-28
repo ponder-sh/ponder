@@ -1,8 +1,8 @@
-import { onchainTable } from "../../../drizzle/drizzle.js";
+import { onchainTable } from "../../../drizzle/index.js";
 
 export const swapEvent = onchainTable("swap_event", (p) => ({
   id: p.serial().primaryKey(),
-  pair: p.evmHex().notNull(),
-  from: p.evmHex().notNull(),
-  to: p.evmHex().notNull(),
+  pair: p.hex().notNull(),
+  from: p.hex().notNull(),
+  to: p.hex().notNull(),
 }));

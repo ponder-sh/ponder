@@ -1,17 +1,17 @@
-import { index, onchainTable, primaryKey } from "@ponder/core/db";
+import { index, onchainTable, primaryKey } from "@ponder/core";
 
 export const account = onchainTable("account", (t) => ({
-  address: t.evmHex().primaryKey(),
-  balance: t.evmBigint().notNull(),
+  address: t.hex().primaryKey(),
+  balance: t.bigint().notNull(),
   isOwner: t.boolean().notNull(),
 }));
 
 export const allowance = onchainTable(
   "allowance",
   (t) => ({
-    owner: t.evmHex(),
-    spender: t.evmHex(),
-    amount: t.evmBigint().notNull(),
+    owner: t.hex(),
+    spender: t.hex(),
+    amount: t.bigint().notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.owner, table.spender] }),
@@ -22,10 +22,10 @@ export const transferEvent = onchainTable(
   "transfer_event",
   (t) => ({
     id: t.serial().primaryKey(),
-    amount: t.evmBigint().notNull(),
+    amount: t.bigint().notNull(),
     timestamp: t.integer().notNull(),
-    from: t.evmHex().notNull(),
-    to: t.evmHex().notNull(),
+    from: t.hex().notNull(),
+    to: t.hex().notNull(),
   }),
   (table) => ({
     fromIdx: index("from_index").on(table.from),
@@ -34,8 +34,8 @@ export const transferEvent = onchainTable(
 
 export const approvalEvent = onchainTable("approval_event", (t) => ({
   id: t.serial().primaryKey(),
-  amount: t.evmBigint().notNull(),
+  amount: t.bigint().notNull(),
   timestamp: t.integer().notNull(),
-  owner: t.evmHex().notNull(),
-  spender: t.evmHex().notNull(),
+  owner: t.hex().notNull(),
+  spender: t.hex().notNull(),
 }));

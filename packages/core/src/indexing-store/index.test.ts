@@ -8,9 +8,9 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/common/errors.js";
-import { onchainTable } from "@/drizzle/drizzle.js";
-import { eq } from "@/drizzle/drizzle.js";
+import { onchainTable } from "@/drizzle/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { eq } from "drizzle-orm";
 import { pgEnum, pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -30,8 +30,8 @@ test("find", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -70,8 +70,8 @@ test("insert", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -127,8 +127,8 @@ test("update", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -183,8 +183,8 @@ test("upsert", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -282,8 +282,8 @@ test("delete", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -326,8 +326,8 @@ test("delete", async (context) => {
 test("flush", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -383,8 +383,8 @@ test("flush", async (context) => {
 test("sql", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -493,8 +493,8 @@ test("missing rows", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -524,7 +524,7 @@ test("serial", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       id: p.serial().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -558,8 +558,8 @@ test("notNull", async (context) => {
 
   let schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint(),
     })),
   };
 
@@ -585,8 +585,8 @@ test("notNull", async (context) => {
   schema = {
     // @ts-ignore
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().notNull(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
     })),
   };
 
@@ -619,8 +619,8 @@ test("default", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().default(10n),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().default(10n),
     })),
   };
 
@@ -647,8 +647,8 @@ test("$default", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint().$default(() => 10n),
+      address: p.hex().primaryKey(),
+      balance: p.bigint().$default(() => 10n),
     })),
   };
 
@@ -675,9 +675,9 @@ test("$onUpdateFn", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
+      address: p.hex().primaryKey(),
       balance: p
-        .evmBigint()
+        .bigint()
         .notNull()
         .$onUpdateFn(() => 10n),
     })),
@@ -712,8 +712,8 @@ test("array", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
-      balances: p.evmBigint().array().notNull(),
+      address: p.hex().primaryKey(),
+      balances: p.bigint().array().notNull(),
     })),
   };
 
@@ -750,7 +750,7 @@ test("enum", async (context) => {
   const schema = {
     moodEnum,
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
+      address: p.hex().primaryKey(),
       mood: moodEnum(),
     })),
   };
@@ -786,7 +786,7 @@ test("json bigint", async (context) => {
 
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.evmHex().primaryKey(),
+      address: p.hex().primaryKey(),
       metadata: p.json().$type<{ balance: bigint }>(),
     })),
   };

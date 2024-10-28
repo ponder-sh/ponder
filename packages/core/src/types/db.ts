@@ -1,4 +1,4 @@
-import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/drizzle.js";
+import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/index.js";
 import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
 import type { empty } from "@/indexing-store/index.js";
 import type {
@@ -104,7 +104,7 @@ export type Db<schema extends Schema> = {
   /**
    * Access the raw drizzle object
    */
-  sql: Drizzle<schema>;
+  sql: Prettify<Omit<Drizzle<schema>, "refreshMaterializedView" | "_">>;
 };
 
 type InferPrimaryKey<

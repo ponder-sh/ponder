@@ -11,18 +11,17 @@ import {
   PgColumnBuilder,
 } from "drizzle-orm/pg-core";
 
-export type PgEvmBigintBuilderInitial<TName extends string> =
-  PgEvmBigintBuilder<{
-    name: TName;
-    dataType: "bigint";
-    columnType: "PgEvmBigint";
-    data: bigint;
-    driverParam: string;
-    enumValues: undefined;
-    generated: undefined;
-  }>;
+export type PgBigintBuilderInitial<TName extends string> = PgBigintBuilder<{
+  name: TName;
+  dataType: "bigint";
+  columnType: "PgEvmBigint";
+  data: bigint;
+  driverParam: string;
+  enumValues: undefined;
+  generated: undefined;
+}>;
 
-export class PgEvmBigintBuilder<
+export class PgBigintBuilder<
   T extends ColumnBuilderBaseConfig<"bigint", "PgEvmBigint">,
 > extends PgColumnBuilder<T> {
   static readonly [entityKind]: string = "PgEvmBigintBuilder";
@@ -35,15 +34,15 @@ export class PgEvmBigintBuilder<
   // @ts-ignore
   override build<TTableName extends string>(
     table: AnyPgTable<{ name: TTableName }>,
-  ): PgEvmBigint<MakeColumnConfig<T, TTableName>> {
-    return new PgEvmBigint<MakeColumnConfig<T, TTableName>>(
+  ): PgBigint<MakeColumnConfig<T, TTableName>> {
+    return new PgBigint<MakeColumnConfig<T, TTableName>>(
       table,
       this.config as ColumnBuilderRuntimeConfig<any, any>,
     );
   }
 }
 
-export class PgEvmBigint<
+export class PgBigint<
   T extends ColumnBaseConfig<"bigint", "PgEvmBigint">,
 > extends PgColumn<T> {
   static readonly [entityKind]: string = "PgEvmBigint";

@@ -3,12 +3,9 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import {
-  onchainTable,
-  pgEnum,
-  primaryKey,
-  relations,
-} from "@/drizzle/drizzle.js";
+import { onchainTable, primaryKey } from "@/drizzle/index.js";
+import { relations } from "drizzle-orm";
+import { pgEnum } from "drizzle-orm/pg-core";
 import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
@@ -81,29 +78,29 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       int: t.integer(),
       float: t.doublePrecision(),
       boolean: t.boolean(),
-      hex: t.evmHex(),
-      bigint: t.evmBigint(),
+      hex: t.hex(),
+      bigint: t.bigint(),
 
       stringNotNull: t.text().notNull(),
       intNotNull: t.integer().notNull(),
       floatNotNull: t.doublePrecision().notNull(),
       booleanNotNull: t.boolean().notNull(),
-      hexNotNull: t.evmHex().notNull(),
-      bigintNotNull: t.evmBigint().notNull(),
+      hexNotNull: t.hex().notNull(),
+      bigintNotNull: t.bigint().notNull(),
 
       stringArray: t.text().array(),
       intArray: t.integer().array(),
       floatArray: t.doublePrecision().array(),
       booleanArray: t.boolean().array(),
-      hexArray: t.evmHex().array(),
-      bigintArray: t.evmBigint().array(),
+      hexArray: t.hex().array(),
+      bigintArray: t.bigint().array(),
 
       stringArrayNotNull: t.text().array().notNull(),
       intArrayNotNull: t.integer().array().notNull(),
       floatArrayNotNull: t.doublePrecision().array().notNull(),
       booleanArrayNotNull: t.boolean().array().notNull(),
-      hexArrayNotNull: t.evmHex().array().notNull(),
-      bigintArrayNotNull: t.evmBigint().array().notNull(),
+      hexArrayNotNull: t.hex().array().notNull(),
+      bigintArrayNotNull: t.bigint().array().notNull(),
     })),
   };
 
@@ -327,7 +324,7 @@ test("json, json not null", async (context) => {
 test("singular", async (context) => {
   const transferEvents = onchainTable("transfer_events", (t) => ({
     id: t.text().primaryKey(),
-    amount: t.evmBigint().notNull(),
+    amount: t.bigint().notNull(),
   }));
 
   const allowances = onchainTable(
@@ -335,7 +332,7 @@ test("singular", async (context) => {
     (t) => ({
       owner: t.text().notNull(),
       spender: t.text().notNull(),
-      amount: t.evmBigint().notNull(),
+      amount: t.bigint().notNull(),
     }),
     (table) => ({
       pk: primaryKey({ columns: [table.owner, table.spender] }),
@@ -684,16 +681,16 @@ test.skip("filter input type", async (context) => {
   const simpleEnum = pgEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
     text: t.text().primaryKey(),
-    evmHex: t.evmHex(),
+    hex: t.hex(),
     bool: t.boolean(),
     int: t.integer(),
-    bigintNumber: t.bigint({ mode: "number" }),
-    bigintBigint: t.bigint({ mode: "bigint" }),
+    bigintNumber: t.int8({ mode: "number" }),
+    bigintBigint: t.int8({ mode: "bigint" }),
     real: t.real(),
     float: t.doublePrecision(),
-    evmBigint: t.evmBigint(),
+    bigint: t.bigint(),
     enum: simpleEnum(),
-    evmBigintArray: t.evmBigint().array(),
+    bigintArray: t.bigint().array(),
     enumArray: simpleEnum().array(),
   }));
   const schema = { simpleEnum, table };
@@ -806,7 +803,7 @@ test.skip("filter input type", async (context) => {
 
 test("filter universal", async (context) => {
   const person = onchainTable("person", (t) => ({
-    id: t.evmBigint().primaryKey(),
+    id: t.bigint().primaryKey(),
   }));
   const schema = { person };
 
@@ -857,7 +854,7 @@ test("filter universal", async (context) => {
 
 test("filter singular", async (context) => {
   const person = onchainTable("person", (t) => ({
-    id: t.evmHex().primaryKey(),
+    id: t.hex().primaryKey(),
   }));
   const schema = { person };
 
@@ -1018,10 +1015,10 @@ test("filter numeric", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     number: t.integer(),
-    bigintNumber: t.bigint({ mode: "number" }),
-    bigintBigint: t.bigint({ mode: "bigint" }),
+    bigintNumber: t.int8({ mode: "number" }),
+    bigintBigint: t.int8({ mode: "bigint" }),
     float: t.doublePrecision(),
-    evmBigint: t.evmBigint(),
+    bigint: t.bigint(),
   }));
   const schema = { person };
 
@@ -1039,7 +1036,7 @@ test("filter numeric", async (context) => {
       bigintNumber: 1,
       bigintBigint: 1n,
       float: 1.5,
-      evmBigint: 1n,
+      bigint: 1n,
     },
     {
       id: "2",
@@ -1047,7 +1044,7 @@ test("filter numeric", async (context) => {
       bigintNumber: 2,
       bigintBigint: 2n,
       float: 2.5,
-      evmBigint: 2n,
+      bigint: 2n,
     },
     {
       id: "3",
@@ -1055,7 +1052,7 @@ test("filter numeric", async (context) => {
       bigintNumber: 3,
       bigintBigint: 3n,
       float: 3.5,
-      evmBigint: 3n,
+      bigint: 3n,
     },
   ]);
   await indexingStore.flush();
@@ -1127,7 +1124,7 @@ test("filter numeric", async (context) => {
 
   result = await query(`
     query {
-      persons(where: { evmBigint_gte: "2" }) {
+      persons(where: { bigint_gte: "2" }) {
         items {
           id
         }
@@ -1147,7 +1144,7 @@ test("filter string", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     text: t.text(),
-    hex: t.evmHex(),
+    hex: t.hex(),
   }));
   const schema = { person };
 
@@ -1217,7 +1214,7 @@ test("filter and/or", async (context) => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
-    bigAge: t.evmBigint(),
+    bigAge: t.bigint(),
     age: t.integer(),
   }));
   const schema = { pet };
@@ -1267,10 +1264,10 @@ test("order by", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     integer: t.integer(),
-    bigintBigint: t.bigint({ mode: "bigint" }),
+    bigintBigint: t.int8({ mode: "bigint" }),
     float: t.doublePrecision(),
-    evmBigint: t.evmBigint(),
-    hex: t.evmHex(),
+    bigint: t.bigint(),
+    hex: t.hex(),
   }));
   const schema = { person };
 
@@ -1287,7 +1284,7 @@ test("order by", async (context) => {
       integer: 1,
       bigintBigint: 1n,
       float: 1.5,
-      evmBigint: 1n,
+      bigint: 1n,
       hex: "0xa",
     },
     {
@@ -1295,7 +1292,7 @@ test("order by", async (context) => {
       integer: 2,
       bigintBigint: 2n,
       float: 2.5,
-      evmBigint: 3n,
+      bigint: 3n,
       hex: "0xc",
     },
     {
@@ -1303,7 +1300,7 @@ test("order by", async (context) => {
       integer: 3,
       bigintBigint: 3n,
       float: 3.5,
-      evmBigint: 2n,
+      bigint: 2n,
       hex: "0xb",
     },
   ]);
@@ -1358,7 +1355,7 @@ test("order by", async (context) => {
 
   result = await query(`
     query {
-      persons(orderBy: "evmBigint", orderDirection: "desc") {
+      persons(orderBy: "bigint", orderDirection: "desc") {
         items {
           id
         }
@@ -1602,7 +1599,7 @@ test("cursor pagination descending", async (context) => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
-    bigAge: t.evmBigint(),
+    bigAge: t.bigint(),
     age: t.integer(),
   }));
   const schema = { pet };
@@ -1735,7 +1732,7 @@ test("cursor pagination start and end cursors", async (context) => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
-    bigAge: t.evmBigint(),
+    bigAge: t.bigint(),
     age: t.integer(),
   }));
   const schema = { pet };
@@ -1802,7 +1799,7 @@ test("cursor pagination has previous page", async (context) => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
-    bigAge: t.evmBigint(),
+    bigAge: t.bigint(),
     age: t.integer(),
   }));
   const schema = { pet };
@@ -1885,7 +1882,7 @@ test("cursor pagination composite primary key", async (context) => {
     (t) => ({
       owner: t.text().notNull(),
       spender: t.text().notNull(),
-      amount: t.evmBigint().notNull(),
+      amount: t.bigint().notNull(),
     }),
     (table) => ({
       pk: primaryKey({ columns: [table.owner, table.spender] }),

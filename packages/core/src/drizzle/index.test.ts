@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
-import { onchainTable, primaryKey } from "./drizzle.js";
+import { onchainTable, primaryKey } from "./index.js";
 import { getPrimaryKeyColumns } from "./index.js";
 
 test("getPrimaryKeyColumns()", () => {
   const table = onchainTable("table", (p) => ({
-    account: p.evmHex().primaryKey(),
-    balance: p.evmBigint().notNull(),
+    account: p.hex().primaryKey(),
+    balance: p.bigint().notNull(),
   }));
 
   const primaryKeys = getPrimaryKeyColumns(table);
@@ -39,7 +39,7 @@ test("getPrimaryKeyColumns() composite", () => {
     (p) => ({
       name: p.text(),
       age: p.integer(),
-      address: p.evmHex(),
+      address: p.hex(),
     }),
     (table) => ({
       primaryKeys: primaryKey({ columns: [table.name, table.address] }),

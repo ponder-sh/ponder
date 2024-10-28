@@ -4,7 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
-import { onchainTable } from "@/drizzle/drizzle.js";
+import { onchainTable } from "@/drizzle/index.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -14,8 +14,8 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 const account = onchainTable("account", (p) => ({
-  address: p.evmHex().primaryKey(),
-  balance: p.evmBigint().notNull(),
+  address: p.hex().primaryKey(),
+  balance: p.bigint().notNull(),
 }));
 
 // const graphqlSchema = buildGraphQLSchema(schema);

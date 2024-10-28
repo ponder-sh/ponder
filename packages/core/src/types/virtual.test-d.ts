@@ -1,5 +1,5 @@
 import { createConfig } from "@/config/config.js";
-import { onchainTable } from "@/drizzle/drizzle.js";
+import { onchainTable } from "@/drizzle/index.js";
 import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import type { Db } from "./db.js";
@@ -82,8 +82,8 @@ const config = createConfig({
 });
 
 const account = onchainTable("account", (p) => ({
-  address: p.evmHex().primaryKey(),
-  balance: p.evmBigint().notNull(),
+  address: p.hex().primaryKey(),
+  balance: p.bigint().notNull(),
 }));
 
 const schema = { account };

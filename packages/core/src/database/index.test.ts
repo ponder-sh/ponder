@@ -1,5 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { index, onchainTable, pgEnum, primaryKey } from "@/drizzle/drizzle.js";
+import { onchainTable, primaryKey } from "@/drizzle/index.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import {
   encodeCheckpoint,
@@ -8,6 +8,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "drizzle-orm";
+import { index, pgEnum } from "drizzle-orm/pg-core";
 import { sql as ksql } from "kysely";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -23,8 +24,8 @@ vi.mock("@/generated", async () => {
 });
 
 const account = onchainTable("account", (p) => ({
-  address: p.evmHex().primaryKey(),
-  balance: p.evmBigint(),
+  address: p.hex().primaryKey(),
+  balance: p.bigint(),
 }));
 
 function createCheckpoint(index: number): string {
@@ -72,7 +73,7 @@ test("setup() create tables", async (context) => {
     (p) => ({
       name: p.text(),
       age: p.integer(),
-      address: p.evmHex(),
+      address: p.hex(),
     }),
     (table) => ({
       primaryKeys: primaryKey({ columns: [table.name, table.address] }),
@@ -603,8 +604,8 @@ test("createIndexes()", async (context) => {
   const account = onchainTable(
     "account",
     (p) => ({
-      address: p.evmHex().primaryKey(),
-      balance: p.evmBigint(),
+      address: p.hex().primaryKey(),
+      balance: p.bigint(),
     }),
     (table) => ({
       balanceIdx: index("balance_index").on(table.balance),
@@ -672,9 +673,9 @@ test("createLiveViews() drops old views", async (context) => {
     schema: {
       transfer: onchainTable("transfer", (p) => ({
         id: p.serial().primaryKey(),
-        from: p.evmHex().notNull(),
-        to: p.evmHex().notNull(),
-        amount: p.evmHex().notNull(),
+        from: p.hex().notNull(),
+        to: p.hex().notNull(),
+        amount: p.hex().notNull(),
       })),
     },
     databaseConfig: context.databaseConfig,

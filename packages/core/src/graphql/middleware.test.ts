@@ -3,7 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable } from "@/drizzle/drizzle.js";
+import { onchainTable } from "@/drizzle/index.js";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -26,8 +26,8 @@ test("middleware serves request", async (context) => {
       int: t.integer(),
       float: t.doublePrecision(),
       boolean: t.boolean(),
-      hex: t.evmHex(),
-      bigint: t.evmBigint(),
+      hex: t.hex(),
+      bigint: t.bigint(),
     })),
   };
 
@@ -103,8 +103,8 @@ test("middleware throws error when extra filter is applied", async (context) => 
       int: t.integer(),
       float: t.doublePrecision(),
       boolean: t.boolean(),
-      hex: t.evmHex(),
-      bigint: t.evmBigint(),
+      hex: t.hex(),
+      bigint: t.bigint(),
     })),
   };
 
