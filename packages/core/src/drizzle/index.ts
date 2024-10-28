@@ -158,14 +158,53 @@ type BuildExtraConfigColumns<
 };
 
 type PgColumnsBuilders = Omit<_PgColumnsBuilders, "bigint"> & {
+  /**
+   * Create an 8 byte number column.
+   */
   int8: _PgColumnsBuilders["bigint"];
+  /**
+   * Create a column for hex strings.
+   *
+   * - Docs: ...
+   *
+   * @example
+   * import { hex, onchainTable } from "@ponder/core";
+   *
+   * export const account = onchainTable("account", (p) => ({
+   *   address: p.hex(),
+   * }));
+   */
   hex: typeof hex;
+  /**
+   * Create a column for hex strings
+   *
+   * - Docs: ...
+   *
+   * @example
+   * import { hex, onchainTable } from "@ponder/core";
+   *
+   * export const account = onchainTable("account", (p) => ({
+   *   balance: p.bigint(),
+   * }));
+   */
   bigint: typeof bigint;
 };
-
 /**
- * Create an onchain table
+ * Create an onchain table.
  *
+ * - Docs: ...
+ *
+ * @example
+ * import { onchainTable } from "@ponder/core";
+ *
+ * export const account = onchainTable("account", (p) => ({
+ *   address: p.hex().primaryKey(),
+ *   balance: p.bigint().notNull(),
+ * }));
+ *
+ * @param name - The table name in the database.
+ * @param columns - The table columns.
+ * @param extra - Config such as indexes or composite primary keys.
  * @returns The onchain table.
  */
 export const onchainTable = <
@@ -258,6 +297,24 @@ export class OnchainSchema<schema extends string> extends PgSchema<schema> {
   };
 }
 
+/**
+ * Define the database schema for onchain tables.
+ *
+ * - Docs: ...
+ *
+ * @example
+ * import { onchainSchema } from "@ponder/core";
+ *
+ * export const schema = onchainSchema("ponder");
+ *
+ * export const account = schema.table("account", (p) => ({
+ *   address: p.hex().primaryKey(),
+ *   balance: p.bigint().notNull(),
+ * }));
+ *
+ * @param name - The schema for onchain tables.
+ * @returns The onchain schema.
+ */
 export const onchainSchema = <T extends string>(name: T) =>
   new OnchainSchema(name);
 
