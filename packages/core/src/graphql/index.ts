@@ -27,7 +27,12 @@ import {
   notLike,
   or,
 } from "drizzle-orm";
-import { PgInteger, PgSerial } from "drizzle-orm/pg-core";
+import {
+  type PgEnum,
+  PgInteger,
+  PgSerial,
+  isPgEnum,
+} from "drizzle-orm/pg-core";
 import type { RelationalQueryBuilder } from "drizzle-orm/pg-core/query-builders/query";
 import {
   GraphQLBoolean,
@@ -70,19 +75,20 @@ const MAX_LIMIT = 1000 as const;
 export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
   const tables = Object.values(db._.schema ?? {}) as TableRelationalConfig[];
 
+  const enums = Object.entries(db._.fullSchema ?? {}).filter(
+    (el): el is [string, PgEnum<[string, ...string[]]>] => isPgEnum(el[1]),
+  );
   const enumTypes: Record<string, GraphQLEnumType> = {};
-  for (const table of tables) {
-    for (const column of Object.values(table.columns)) {
-      if (column.enumValues !== undefined) {
-        enumTypes[column.name] = new GraphQLEnumType({
-          name: column.name,
-          values: column.enumValues.reduce(
-            (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-            {},
-          ),
-        });
-      }
-    }
+  for (const [enumTsName, enumObject] of enums) {
+    // Note that this is keyed by enumName (the SQL name) because that's what is
+    // available on the PgEnumColumn type. See `columnToGraphQLCore` for context.
+    enumTypes[enumObject.enumName] = new GraphQLEnumType({
+      name: enumTsName,
+      values: enumObject.enumValues.reduce(
+        (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+        {},
+      ),
+    });
   }
 
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
@@ -117,10 +123,11 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           // JSON => no filters.
           // Boolean => universal and singular only.
           // All other scalar => universal, singular, numeric OR string depending on type
-          if (type instanceof GraphQLScalarType) {
+          if (
+            type instanceof GraphQLScalarType ||
+            type instanceof GraphQLEnumType
+          ) {
             if (type.name === "JSON") continue;
-
-            // TODO(kevin): Handle enums
 
             filterOperators.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
@@ -418,7 +425,22 @@ const columnToGraphQLCore = (
   }
 
   if (column.columnType === "PgEnumColumn") {
-    return enumTypes[column.name]!;
+    const enumObject = (column as any)?.enum as
+      | PgEnum<[string, ...string[]]>
+      | undefined;
+    if (enumObject === undefined) {
+      throw new Error(
+        `Internal error: Expected enum column "${column.name}" to have an "enum" property`,
+      );
+    }
+    const enumType = enumTypes[enumObject.enumName];
+    if (enumType === undefined) {
+      throw new Error(
+        `Internal error: Expected to find a GraphQL enum named "${enumObject.enumName}"`,
+      );
+    }
+
+    return enumType;
   }
 
   switch (column.dataType) {
@@ -459,8 +481,11 @@ const columnToGraphQLCore = (
   }
 };
 
-const innerType = (type: GraphQLOutputType): GraphQLScalarType => {
-  if (type instanceof GraphQLScalarType) return type;
+const innerType = (
+  type: GraphQLOutputType,
+): GraphQLScalarType | GraphQLEnumType => {
+  if (type instanceof GraphQLScalarType || type instanceof GraphQLEnumType)
+    return type;
   if (type instanceof GraphQLList || type instanceof GraphQLNonNull)
     return innerType(type.ofType);
   throw new Error(`Type ${type.toString()} is not implemented`);
