@@ -12,12 +12,6 @@ import { graphql } from "./middleware.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-vi.mock("@/generated", async () => {
-  return {
-    instanceId: "1234",
-  };
-});
-
 test("middleware serves request", async (context) => {
   const schema = {
     table: onchainTable("table", (t) => ({
