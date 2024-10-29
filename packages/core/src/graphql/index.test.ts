@@ -97,18 +97,12 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     })),
   };
 
-  console.log("about to setup database services");
-
   const { database, indexingStore, metadataStore, cleanup } =
     await setupDatabaseServices(context, { schema });
-
-  console.log("about to build data loader");
   const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
   const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
-
-  console.log("about to flush");
 
   indexingStore.insert(schema.table).values({
     id: "0",
@@ -141,8 +135,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     bigintArrayNotNull: [0n],
   });
   await indexingStore.flush();
-
-  console.log("flushed");
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -220,7 +212,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
   await cleanup();
 });
 
-test.skip("enum, enum not null, enum array, enum array not null", async (context) => {
+test("enum, enum not null, enum array, enum array not null", async (context) => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable("table", (t) => ({
     id: t.text().primaryKey(),
@@ -267,7 +259,7 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
       id: "0",
       enum: null,
       enumNotNull: "A",
-      enumArray: [null],
+      enumArray: null,
       enumArrayNotNull: ["A"],
     },
   });
@@ -426,7 +418,7 @@ test("singular with one relation", async (context) => {
 
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
-    ownerId: t.text(),
+    ownerId: t.text("ownooor_id"),
     ownerIdNotNull: t.text().notNull(),
   }));
 
@@ -678,20 +670,23 @@ test("plural with one relation uses dataloader", async (context) => {
   await cleanup();
 });
 
-test.skip("filter input type", async (context) => {
+test("filter input type", async (context) => {
   const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
     text: t.text().primaryKey(),
     hex: t.hex(),
     bool: t.boolean(),
+
     int: t.integer(),
-    bigintNumber: t.int8({ mode: "number" }),
-    bigintBigint: t.int8({ mode: "bigint" }),
+    int8Number: t.int8({ mode: "number" }),
+    int8Bigint: t.int8({ mode: "bigint" }),
     real: t.real(),
-    float: t.doublePrecision(),
+    doublePrecision: t.doublePrecision(),
+
     bigint: t.bigint(),
-    enum: simpleEnum(),
     bigintArray: t.bigint().array(),
+
+    enum: simpleEnum(),
     enumArray: simpleEnum().array(),
   }));
   const schema = { simpleEnum, table };
@@ -701,9 +696,8 @@ test.skip("filter input type", async (context) => {
   });
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
-
   const typeMap = graphqlSchema.getTypeMap();
-  const tableFilterType = typeMap.TableFilter!;
+  const tableFilterType = typeMap.tableFilter!;
   const fields = (tableFilterType.toConfig() as any).fields as Record<
     string,
     { name: string; type: GraphQLType }
@@ -717,16 +711,36 @@ test.skip("filter input type", async (context) => {
   );
 
   expect(fieldsPretty).toMatchObject({
-    id: "String",
-    id_not: "String",
-    id_in: "[String]",
-    id_not_in: "[String]",
-    id_contains: "String",
-    id_not_contains: "String",
-    id_starts_with: "String",
-    id_ends_with: "String",
-    id_not_starts_with: "String",
-    id_not_ends_with: "String",
+    AND: "[tableFilter]",
+    OR: "[tableFilter]",
+
+    text: "String",
+    text_not: "String",
+    text_in: "[String]",
+    text_not_in: "[String]",
+    text_contains: "String",
+    text_not_contains: "String",
+    text_starts_with: "String",
+    text_ends_with: "String",
+    text_not_starts_with: "String",
+    text_not_ends_with: "String",
+
+    hex: "String",
+    hex_not: "String",
+    hex_in: "[String]",
+    hex_not_in: "[String]",
+    hex_contains: "String",
+    hex_not_contains: "String",
+    hex_starts_with: "String",
+    hex_ends_with: "String",
+    hex_not_starts_with: "String",
+    hex_not_ends_with: "String",
+
+    bool: "Boolean",
+    bool_not: "Boolean",
+    bool_in: "[Boolean]",
+    bool_not_in: "[Boolean]",
+
     int: "Int",
     int_not: "Int",
     int_in: "[Int]",
@@ -735,26 +749,47 @@ test.skip("filter input type", async (context) => {
     int_lt: "Int",
     int_gte: "Int",
     int_lte: "Int",
-    float: "Float",
-    float_not: "Float",
-    float_in: "[Float]",
-    float_not_in: "[Float]",
-    float_gt: "Float",
-    float_lt: "Float",
-    float_gte: "Float",
-    float_lte: "Float",
-    bool: "Boolean",
-    bool_not: "Boolean",
-    bool_in: "[Boolean]",
-    bool_not_in: "[Boolean]",
-    hex: "String",
-    hex_gt: "String",
-    hex_lt: "String",
-    hex_gte: "String",
-    hex_lte: "String",
-    hex_not: "String",
-    hex_in: "[String]",
-    hex_not_in: "[String]",
+
+    // NOTE: Not ideal that int8 number uses GraphQLFloat.
+    int8Number: "Float",
+    int8Number_not: "Float",
+    int8Number_in: "[Float]",
+    int8Number_not_in: "[Float]",
+    int8Number_gt: "Float",
+    int8Number_lt: "Float",
+    int8Number_gte: "Float",
+    int8Number_lte: "Float",
+
+    // NOTE: Not ideal that int8 bigint uses GraphQLString.
+    int8Bigint: "String",
+    int8Bigint_not: "String",
+    int8Bigint_in: "[String]",
+    int8Bigint_not_in: "[String]",
+    int8Bigint_contains: "String",
+    int8Bigint_not_contains: "String",
+    int8Bigint_starts_with: "String",
+    int8Bigint_ends_with: "String",
+    int8Bigint_not_starts_with: "String",
+    int8Bigint_not_ends_with: "String",
+
+    real: "Float",
+    real_not: "Float",
+    real_in: "[Float]",
+    real_not_in: "[Float]",
+    real_gt: "Float",
+    real_lt: "Float",
+    real_gte: "Float",
+    real_lte: "Float",
+
+    doublePrecision: "Float",
+    doublePrecision_not: "Float",
+    doublePrecision_in: "[Float]",
+    doublePrecision_not_in: "[Float]",
+    doublePrecision_gt: "Float",
+    doublePrecision_lt: "Float",
+    doublePrecision_gte: "Float",
+    doublePrecision_lte: "Float",
+
     bigint: "BigInt",
     bigint_not: "BigInt",
     bigint_in: "[BigInt]",
@@ -763,40 +798,20 @@ test.skip("filter input type", async (context) => {
     bigint_lt: "BigInt",
     bigint_gte: "BigInt",
     bigint_lte: "BigInt",
-    enum: "SimpleEnum",
-    enum_not: "SimpleEnum",
-    enum_in: "[SimpleEnum]",
-    enum_not_in: "[SimpleEnum]",
-    listString: "[String]",
-    listString_not: "[String]",
-    listString_has: "String",
-    listString_not_has: "String",
-    listBigInt: "[BigInt]",
-    listBigInt_not: "[BigInt]",
-    listBigInt_has: "BigInt",
-    listBigInt_not_has: "BigInt",
-    listEnum: "[SimpleEnum]",
-    listEnum_not: "[SimpleEnum]",
-    listEnum_has: "SimpleEnum",
-    listEnum_not_has: "SimpleEnum",
-    relatedTableStringId: "String",
-    relatedTableStringId_not: "String",
-    relatedTableStringId_in: "[String]",
-    relatedTableStringId_not_in: "[String]",
-    relatedTableStringId_contains: "String",
-    relatedTableStringId_not_contains: "String",
-    relatedTableStringId_starts_with: "String",
-    relatedTableStringId_ends_with: "String",
-    relatedTableStringId_not_starts_with: "String",
-    relatedTableStringId_not_ends_with: "String",
-    relatedTableBigIntId: "BigInt",
-    relatedTableBigIntId_not: "BigInt",
-    relatedTableBigIntId_in: "[BigInt]",
-    relatedTableBigIntId_not_in: "[BigInt]",
-    relatedTableBigIntId_gt: "BigInt",
-    relatedTableBigIntId_lt: "BigInt",
-    relatedTableBigIntId_gte: "BigInt",
-    relatedTableBigIntId_lte: "BigInt",
+
+    bigintArray: "[BigInt]",
+    bigintArray_not: "[BigInt]",
+    bigintArray_has: "BigInt",
+    bigintArray_not_has: "BigInt",
+
+    enum: "simpleEnum",
+    enum_not: "simpleEnum",
+    enum_in: "[simpleEnum]",
+    enum_not_in: "[simpleEnum]",
+    enumArray: "[simpleEnum]",
+    enumArray_not: "[simpleEnum]",
+    enumArray_has: "simpleEnum",
+    enumArray_not_has: "simpleEnum",
   });
 
   await cleanup();
@@ -1882,7 +1897,7 @@ test("cursor pagination composite primary key", async (context) => {
     "allowance",
     (t) => ({
       owner: t.text().notNull(),
-      spender: t.text().notNull(),
+      spender: t.text("speeeeender").notNull(),
       amount: t.bigint().notNull(),
     }),
     (table) => ({
@@ -2018,6 +2033,53 @@ test("cursor pagination composite primary key", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+    },
+  });
+
+  await cleanup();
+});
+
+test("column casing", async (context) => {
+  const schema = {
+    table: onchainTable("table", (t) => ({
+      id: t.text().primaryKey(),
+      userName: t.text("user_name"),
+      camelCase: t.text(),
+    })),
+  };
+
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.table).values({
+    id: "0",
+    userName: "0",
+    camelCase: "0",
+  });
+  await indexingStore.flush();
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  const result = await query(`
+    query {
+      table(id: "0") {
+        id
+        userName
+        camelCase
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    table: {
+      id: "0",
+      userName: "0",
+      camelCase: "0",
     },
   });
 

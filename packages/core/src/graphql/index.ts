@@ -14,6 +14,7 @@ import {
   asc,
   desc,
   eq,
+  getTableColumns,
   gt,
   gte,
   inArray,
@@ -27,7 +28,12 @@ import {
   notLike,
   or,
 } from "drizzle-orm";
-import { PgInteger, PgSerial } from "drizzle-orm/pg-core";
+import {
+  type PgEnum,
+  PgInteger,
+  PgSerial,
+  isPgEnum,
+} from "drizzle-orm/pg-core";
 import type { RelationalQueryBuilder } from "drizzle-orm/pg-core/query-builders/query";
 import {
   GraphQLBoolean,
@@ -70,19 +76,20 @@ const MAX_LIMIT = 1000 as const;
 export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
   const tables = Object.values(db._.schema ?? {}) as TableRelationalConfig[];
 
+  const enums = Object.entries(db._.fullSchema ?? {}).filter(
+    (el): el is [string, PgEnum<[string, ...string[]]>] => isPgEnum(el[1]),
+  );
   const enumTypes: Record<string, GraphQLEnumType> = {};
-  for (const table of tables) {
-    for (const column of Object.values(table.columns)) {
-      if (column.enumValues !== undefined) {
-        enumTypes[column.name] = new GraphQLEnumType({
-          name: column.name,
-          values: column.enumValues.reduce(
-            (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-            {},
-          ),
-        });
-      }
-    }
+  for (const [enumTsName, enumObject] of enums) {
+    // Note that this is keyed by enumName (the SQL name) because that's what is
+    // available on the PgEnumColumn type. See `columnToGraphQLCore` for context.
+    enumTypes[enumObject.enumName] = new GraphQLEnumType({
+      name: enumTsName,
+      values: enumObject.enumValues.reduce(
+        (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+        {},
+      ),
+    });
   }
 
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
@@ -117,10 +124,11 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           // JSON => no filters.
           // Boolean => universal and singular only.
           // All other scalar => universal, singular, numeric OR string depending on type
-          if (type instanceof GraphQLScalarType) {
+          if (
+            type instanceof GraphQLScalarType ||
+            type instanceof GraphQLEnumType
+          ) {
             if (type.name === "JSON") continue;
-
-            // TODO(kevin): Handle enums
 
             filterOperators.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
@@ -169,9 +177,9 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
 
         for (const table of tables) {
           // Scalar fields
-          for (const column of Object.values(table.columns)) {
+          for (const [columnName, column] of Object.entries(table.columns)) {
             const type = columnToGraphQLCore(column, enumTypes);
-            fieldConfigMap[column.name] = {
+            fieldConfigMap[columnName] = {
               type: column.notNull ? new GraphQLNonNull(type) : type,
             };
           }
@@ -212,6 +220,12 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
               const fields = relation.config?.fields ?? [];
               const references = relation.config?.references ?? [];
 
+              if (fields.length !== references.length) {
+                throw new Error(
+                  "Internal error: Fields and references arrays must be the same length",
+                );
+              }
+
               fieldConfigMap[relationName] = {
                 // Note: This naming is backwards (Drizzle bug).
                 type: relation.isNullable
@@ -224,9 +238,15 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
 
                   const rowFragment: Record<string, unknown> = {};
                   for (let i = 0; i < references.length; i++) {
-                    const column = references[i]!;
-                    const value = parent[fields[i]!.name];
-                    rowFragment[column.name] = value;
+                    const referenceColumn = references[i]!;
+                    const fieldColumn = fields[i]!;
+
+                    const fieldColumnTsName = getColumnTsName(fieldColumn);
+                    const referenceColumnTsName =
+                      getColumnTsName(referenceColumn);
+
+                    rowFragment[referenceColumnTsName] =
+                      parent[fieldColumnTsName];
                   }
                   const encodedId = encodeRowFragment(rowFragment);
 
@@ -325,7 +345,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
       // as arguments to the singular query type.
       args: Object.fromEntries(
         table.primaryKey.map((column) => [
-          column.name,
+          getColumnTsName(column),
           {
             type: new GraphQLNonNull(
               columnToGraphQLCore(column, enumTypes) as GraphQLInputType,
@@ -418,7 +438,22 @@ const columnToGraphQLCore = (
   }
 
   if (column.columnType === "PgEnumColumn") {
-    return enumTypes[column.name]!;
+    const enumObject = (column as any)?.enum as
+      | PgEnum<[string, ...string[]]>
+      | undefined;
+    if (enumObject === undefined) {
+      throw new Error(
+        `Internal error: Expected enum column "${getColumnTsName(column)}" to have an "enum" property`,
+      );
+    }
+    const enumType = enumTypes[enumObject.enumName];
+    if (enumType === undefined) {
+      throw new Error(
+        `Internal error: Expected to find a GraphQL enum named "${enumObject.enumName}"`,
+      );
+    }
+
+    return enumType;
   }
 
   switch (column.dataType) {
@@ -459,8 +494,11 @@ const columnToGraphQLCore = (
   }
 };
 
-const innerType = (type: GraphQLOutputType): GraphQLScalarType => {
-  if (type instanceof GraphQLScalarType) return type;
+const innerType = (
+  type: GraphQLOutputType,
+): GraphQLScalarType | GraphQLEnumType => {
+  if (type instanceof GraphQLScalarType || type instanceof GraphQLEnumType)
+    return type;
   if (type instanceof GraphQLList || type instanceof GraphQLNonNull)
     return innerType(type.ofType);
   throw new Error(`Type ${type.toString()} is not implemented`);
@@ -794,7 +832,7 @@ function buildOrderBySchema(table: TableRelationalConfig, args: PluralArgs) {
   const userColumns: [string, "asc" | "desc"][] =
     args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
   const pkColumns = table.primaryKey.map((column) => [
-    column.name,
+    getColumnTsName(column),
     userDirection,
   ]);
   const missingPkColumns = pkColumns.filter(
@@ -921,4 +959,11 @@ export function buildDataLoaderCache({
 
     return dataLoader;
   };
+}
+
+function getColumnTsName(column: Column) {
+  const tableColumns = getTableColumns(column.table);
+  return Object.entries(tableColumns).find(
+    ([_, c]) => c.name === column.name,
+  )![0];
 }
