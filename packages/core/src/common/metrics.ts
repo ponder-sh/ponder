@@ -224,18 +224,6 @@ export class MetricsService {
       labelNames: ["pool"] as const,
       registers: [this.registry],
     });
-    this.ponder_postgres_pool_connections = new prometheus.Gauge({
-      name: "ponder_postgres_pool_connections",
-      help: "Number of postgres database connections",
-      labelNames: ["pool", "kind"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_postgres_query_queue_size = new prometheus.Gauge({
-      name: "ponder_postgres_query_queue_size",
-      help: "Size of postgres queries",
-      labelNames: ["pool"] as const,
-      registers: [this.registry],
-    });
 
     prometheus.collectDefaultMetrics({ register: this.registry });
   }

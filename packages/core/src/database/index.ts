@@ -324,6 +324,48 @@ export const createDatabase = async (args: {
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
     };
+
+    // Register Postgres-only metrics
+    const d = driver as PostgresDriver;
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_pool_connections",
+    );
+    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_pool_connections",
+        help: "Number of connections in the pool",
+        labelNames: ["pool", "kind"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
+          this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
+          this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+          this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+          this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
+          this.set({ pool: "user", kind: "total" }, d.user.totalCount);
+          this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
+          this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
+        },
+      },
+    );
+
+    args.common.metrics.registry.removeSingleMetric(
+      "ponder_postgres_query_queue_size",
+    );
+    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
+      {
+        name: "ponder_postgres_query_queue_size",
+        help: "Number of queries waiting for an available connection",
+        labelNames: ["pool"] as const,
+        registers: [args.common.metrics.registry],
+        collect() {
+          this.set({ pool: "internal" }, d.internal.waitingCount);
+          this.set({ pool: "sync" }, d.sync.waitingCount);
+          this.set({ pool: "user" }, d.user.waitingCount);
+          this.set({ pool: "readonly" }, d.readonly.waitingCount);
+        },
+      },
+    );
   }
 
   // TODO(kyle) validate all tables use `namespace`
@@ -339,44 +381,6 @@ export const createDatabase = async (args: {
           casing: "snake_case",
           schema: args.schema,
         });
-
-  // Register metrics
-  const d = driver as PostgresDriver;
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_pool_connections",
-  );
-  args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
-    name: "ponder_postgres_pool_connections",
-    help: "Number of connections in the pool",
-    labelNames: ["pool", "kind"] as const,
-    registers: [args.common.metrics.registry],
-    collect() {
-      this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
-      this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
-      this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
-      this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
-      this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
-      this.set({ pool: "user", kind: "total" }, d.user.totalCount);
-      this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
-      this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
-    },
-  });
-
-  args.common.metrics.registry.removeSingleMetric(
-    "ponder_postgres_query_queue_size",
-  );
-  args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
-    name: "ponder_postgres_query_queue_size",
-    help: "Number of query requests waiting for an available connection",
-    labelNames: ["pool"] as const,
-    registers: [args.common.metrics.registry],
-    collect() {
-      this.set({ pool: "internal" }, d.internal.waitingCount);
-      this.set({ pool: "sync" }, d.sync.waitingCount);
-      this.set({ pool: "user" }, d.user.waitingCount);
-      this.set({ pool: "readonly" }, d.readonly.waitingCount);
-    },
-  });
 
   ////////
   // Helpers
