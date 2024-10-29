@@ -418,7 +418,7 @@ test("singular with one relation", async (context) => {
 
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
-    ownerId: t.text(),
+    ownerId: t.text("ownooor_id"),
     ownerIdNotNull: t.text().notNull(),
   }));
 
@@ -1897,7 +1897,7 @@ test("cursor pagination composite primary key", async (context) => {
     "allowance",
     (t) => ({
       owner: t.text().notNull(),
-      spender: t.text().notNull(),
+      spender: t.text("speeeeender").notNull(),
       amount: t.bigint().notNull(),
     }),
     (table) => ({
@@ -2033,6 +2033,53 @@ test("cursor pagination composite primary key", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+    },
+  });
+
+  await cleanup();
+});
+
+test("column casing", async (context) => {
+  const schema = {
+    table: onchainTable("table", (t) => ({
+      id: t.text().primaryKey(),
+      userName: t.text("user_name"),
+      camelCase: t.text(),
+    })),
+  };
+
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
+  const contextValue = { metadataStore, getDataLoader };
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  indexingStore.insert(schema.table).values({
+    id: "0",
+    userName: "0",
+    camelCase: "0",
+  });
+  await indexingStore.flush();
+
+  const graphqlSchema = buildGraphQLSchema(database.drizzle);
+
+  const result = await query(`
+    query {
+      table(id: "0") {
+        id
+        userName
+        camelCase
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    table: {
+      id: "0",
+      userName: "0",
+      camelCase: "0",
     },
   });
 
