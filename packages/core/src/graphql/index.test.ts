@@ -3,9 +3,8 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable, primaryKey } from "@/drizzle/index.js";
+import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
 import { relations } from "drizzle-orm";
-import { pgEnum } from "drizzle-orm/pg-core";
 import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
@@ -63,7 +62,7 @@ test("metadata", async (context) => {
   await cleanup();
 });
 
-test.only("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
+test("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -222,7 +221,7 @@ test.only("scalar, scalar not null, scalar array, scalar array not null", async 
 });
 
 test.skip("enum, enum not null, enum array, enum array not null", async (context) => {
-  const testEnum = pgEnum("enum", ["A", "B"]);
+  const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable("table", (t) => ({
     id: t.text().primaryKey(),
     enum: testEnum("enum"),
@@ -680,7 +679,7 @@ test("plural with one relation uses dataloader", async (context) => {
 });
 
 test.skip("filter input type", async (context) => {
-  const simpleEnum = pgEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
+  const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
     text: t.text().primaryKey(),
     hex: t.hex(),
