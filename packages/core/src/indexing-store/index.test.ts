@@ -19,12 +19,6 @@ import { createIndexingStore } from "./index.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-vi.mock("@/generated", async () => {
-  return {
-    instanceId: "1234",
-  };
-});
-
 test("find", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 

@@ -32,12 +32,6 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-vi.mock("@/generated", async () => {
-  return {
-    instanceId: "1234",
-  };
-});
-
 const account = onchainTable("account", (p) => ({
   address: p.hex().primaryKey(),
   balance: p.bigint().notNull(),
