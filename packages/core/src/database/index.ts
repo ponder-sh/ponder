@@ -1047,7 +1047,7 @@ export const createDatabase = async (args: {
           await qb.internal.schema
             .createView(tableName.user)
             .orReplace()
-            .as(qb.internal.selectFrom(tableName.sql))
+            .as(qb.internal.selectFrom(tableName.sql).selectAll())
             .execute();
 
           args.common.logger.info({

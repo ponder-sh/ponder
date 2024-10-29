@@ -1,12 +1,14 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  LiquidationEvent: p.createTable({
-    id: p.string(),
-    liquidator: p.hex(),
-  }),
-  OwnershipTransferredEvent: p.createTable({
-    id: p.string(),
-    newOwner: p.hex(),
-  }),
+export const liquidationEvent = onchainTable("liquidation_event", (p) => ({
+  id: p.serial().primaryKey(),
+  liquidator: p.hex().notNull(),
 }));
+
+export const ownershipTransferEvent = onchainTable(
+  "ownership_transfer_event",
+  (p) => ({
+    id: p.serial().primaryKey(),
+    newOwner: p.hex().notNull(),
+  }),
+);

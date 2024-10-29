@@ -175,9 +175,9 @@ export type Insert = <table extends Table>(
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
 ) => {
-  values: (
-    values: InferInsertModel<table> | InferInsertModel<table>[],
-  ) => Promise<void>;
+  values: <values extends InferInsertModel<table> | InferInsertModel<table>[]>(
+    values: values,
+  ) => Promise<values>;
 };
 
 export type Update = <
@@ -197,7 +197,7 @@ export type Update = <
     values:
       | Partial<insertValues>
       | ((row: InferSelectModel<table>) => Partial<insertValues>),
-  ) => Promise<void>;
+  ) => Promise<InferSelectModel<table>>;
 };
 
 export type Upsert = <
@@ -219,13 +219,15 @@ export type Upsert = <
   /** Insert a row */
   insert: (values: insertValues) => {
     /** Update the existing row */
-    update: (values: Partial<insertModel> | updateFn) => Promise<void>;
-  } & Promise<void>;
+    update: (
+      values: Partial<insertModel> | updateFn,
+    ) => Promise<InferSelectModel<table>>;
+  } & Promise<InferSelectModel<table> | null>;
   /** Update the existing row */
   update: (values: Partial<insertModel> | updateFn) => {
     /** Insert a row */
-    insert: (values: insertValues) => Promise<void>;
-  } & Promise<void>;
+    insert: (values: insertValues) => Promise<InferSelectModel<table>>;
+  } & Promise<InferSelectModel<table> | null>;
 };
 
 export type Delete = <

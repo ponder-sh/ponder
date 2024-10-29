@@ -26,6 +26,7 @@ export type DatabaseConfig = Prettify<Config["database"]>;
 export {
   onchainTable,
   onchainSchema,
+  onchainEnum,
   primaryKey,
   hex,
   bigint,
@@ -75,7 +76,6 @@ export {
   cidr,
   date,
   doublePrecision,
-  pgEnum,
   inet,
   integer,
   interval,

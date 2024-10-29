@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
+import * as schema from "../ponder.schema";
 
 ponder.on("UniswapV3Pool:Flash", async ({ event, context }) => {
-  const { TokenBorrowed, TokenPaid } = context.db;
   const poolAddress = event.log.address;
 
   const [token0, token1] = await Promise.all([
@@ -19,41 +19,28 @@ ponder.on("UniswapV3Pool:Flash", async ({ event, context }) => {
     }),
   ]);
 
-  await TokenBorrowed.upsert({
-    id: token0,
-    create: {
+  await context.db
+    .upsert(schema.tokenBorrowed, { address: token0 })
+    .insert({
       amount: event.args.amount0,
-    },
-    update: ({ current }) => ({
-      amount: current.amount + event.args.amount0,
-    }),
-  });
-  await TokenBorrowed.upsert({
-    id: token1,
-    create: {
+    })
+    .update((row) => ({ amount: row.amount + event.args.amount0 }));
+  await context.db
+    .upsert(schema.tokenBorrowed, { address: token1 })
+    .insert({
       amount: event.args.amount1,
-    },
-    update: ({ current }) => ({
-      amount: current.amount + event.args.amount1,
-    }),
-  });
-
-  await TokenPaid.upsert({
-    id: token0,
-    create: {
+    })
+    .update((row) => ({ amount: row.amount + event.args.amount1 }));
+  await context.db
+    .upsert(schema.tokenPaid, { address: token0 })
+    .insert({
       amount: event.args.paid0,
-    },
-    update: ({ current }) => ({
-      amount: current.amount + event.args.paid0,
-    }),
-  });
-  await TokenPaid.upsert({
-    id: token1,
-    create: {
+    })
+    .update((row) => ({ amount: row.amount + event.args.amount0 }));
+  await context.db
+    .upsert(schema.tokenPaid, { address: token1 })
+    .insert({
       amount: event.args.paid1,
-    },
-    update: ({ current }) => ({
-      amount: current.amount + event.args.paid1,
-    }),
-  });
+    })
+    .update((row) => ({ amount: row.amount + event.args.amount1 }));
 });

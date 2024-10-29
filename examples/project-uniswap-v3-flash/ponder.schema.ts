@@ -1,12 +1,11 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  TokenPaid: p.createTable({
-    id: p.hex(),
-    amount: p.bigint(),
-  }),
-  TokenBorrowed: p.createTable({
-    id: p.hex(),
-    amount: p.bigint(),
-  }),
+export const tokenPaid = onchainTable("token_paid", (p) => ({
+  address: p.hex().primaryKey(),
+  amount: p.bigint().notNull(),
+}));
+
+export const tokenBorrowed = onchainTable("token_borrowed", (p) => ({
+  address: p.hex().primaryKey(),
+  amount: p.bigint().notNull(),
 }));
