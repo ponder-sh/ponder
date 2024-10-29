@@ -13,12 +13,6 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-vi.mock("@/generated", async () => {
-  return {
-    instanceId: "1234",
-  };
-});
-
 test("metadata", async (context) => {
   const schema = {};
 
@@ -69,7 +63,7 @@ test("metadata", async (context) => {
   await cleanup();
 });
 
-test("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
+test.only("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -104,12 +98,18 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     })),
   };
 
+  console.log("about to setup database services");
+
   const { database, indexingStore, metadataStore, cleanup } =
     await setupDatabaseServices(context, { schema });
+
+  console.log("about to build data loader");
   const getDataLoader = buildDataLoaderCache({ drizzle: database.drizzle });
   const contextValue = { metadataStore, getDataLoader };
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  console.log("about to flush");
 
   indexingStore.insert(schema.table).values({
     id: "0",
@@ -142,6 +142,8 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     bigintArrayNotNull: [0n],
   });
   await indexingStore.flush();
+
+  console.log("flushed");
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
