@@ -1,5 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { onchainTable, primaryKey } from "@/drizzle/index.js";
+import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import {
   encodeCheckpoint,
@@ -8,10 +8,10 @@ import {
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "drizzle-orm";
-import { index, pgEnum } from "drizzle-orm/pg-core";
+import { index } from "drizzle-orm/pg-core";
 import { sql as ksql } from "kysely";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { type Database, type PonderApp, createDatabase } from "./index.js";
 
 beforeEach(setupCommon);
@@ -55,7 +55,7 @@ test("setup() succeeds with a fresh database", async (context) => {
 });
 
 test("setup() create tables", async (context) => {
-  const mood = pgEnum("mood", ["sad", "happy"]);
+  const mood = onchainEnum("mood", ["sad", "happy"]);
 
   const kyle = onchainTable("kyle", (p) => ({
     age: p.integer().primaryKey(),

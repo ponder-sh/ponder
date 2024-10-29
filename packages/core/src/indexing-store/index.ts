@@ -207,7 +207,7 @@ export const createIndexingStore = ({
     userRow: { [key: string]: unknown },
     entryType: Exclude<EntryType, { type: EntryType.FIND }>,
     existingRow?: { [key: string]: unknown },
-  ) => {
+  ): { [key: string]: unknown } => {
     let row = structuredClone(userRow);
 
     if (existingRow) {
@@ -226,6 +226,8 @@ export const createIndexingStore = ({
         operationIndex: totalCacheOps++,
         bytes,
       });
+
+      return structuredClone(existingRow);
     } else {
       row = normalizeRow(table, row, entryType);
       const bytes = getBytes(row);
@@ -239,6 +241,8 @@ export const createIndexingStore = ({
         operationIndex: totalCacheOps++,
         row,
       });
+
+      return structuredClone(row);
     }
   };
 
@@ -442,6 +446,7 @@ export const createIndexingStore = ({
                 const isSerialTable = isSerialTableCache.get(table);
 
                 if (Array.isArray(values)) {
+                  const rows = [];
                   for (const value of values) {
                     if (
                       isSerialTable === false &&
@@ -471,8 +476,9 @@ export const createIndexingStore = ({
                       }
                     }
 
-                    setCacheEntry(table, value, EntryType.INSERT);
+                    rows.push(setCacheEntry(table, value, EntryType.INSERT));
                   }
+                  return rows;
                 } else {
                   if (
                     isSerialTable === false &&
@@ -502,7 +508,7 @@ export const createIndexingStore = ({
                     }
                   }
 
-                  setCacheEntry(table, values, EntryType.INSERT);
+                  return setCacheEntry(table, values, EntryType.INSERT);
                 }
               },
             ),
@@ -554,7 +560,7 @@ export const createIndexingStore = ({
                 }
 
                 if (typeof values === "function") {
-                  setCacheEntry(
+                  return setCacheEntry(
                     table,
                     values(row),
                     entry?.type === EntryType.INSERT
@@ -563,7 +569,7 @@ export const createIndexingStore = ({
                     row,
                   );
                 } else {
-                  setCacheEntry(
+                  return setCacheEntry(
                     table,
                     values,
                     entry?.type === EntryType.INSERT
@@ -605,10 +611,15 @@ export const createIndexingStore = ({
                     }
 
                     if (row === null) {
-                      setCacheEntry(table, valuesI, EntryType.INSERT, key);
+                      return setCacheEntry(
+                        table,
+                        valuesI,
+                        EntryType.INSERT,
+                        key,
+                      );
                     } else {
                       if (typeof valuesU === "function") {
-                        setCacheEntry(
+                        return setCacheEntry(
                           table,
                           valuesU(row),
                           entry?.type === EntryType.INSERT
@@ -617,7 +628,7 @@ export const createIndexingStore = ({
                           row,
                         );
                       } else {
-                        setCacheEntry(
+                        return setCacheEntry(
                           table,
                           valuesU,
                           entry?.type === EntryType.INSERT
@@ -663,8 +674,15 @@ export const createIndexingStore = ({
                       }
 
                       if (row === null) {
-                        setCacheEntry(table, valuesI, EntryType.INSERT, key);
+                        return setCacheEntry(
+                          table,
+                          valuesI,
+                          EntryType.INSERT,
+                          key,
+                        );
                       }
+
+                      return null;
                     },
                   ),
                 )
@@ -711,7 +729,7 @@ export const createIndexingStore = ({
 
                       if (row) {
                         if (typeof valuesU === "function") {
-                          setCacheEntry(
+                          return setCacheEntry(
                             table,
                             valuesU(row),
                             entry?.type === EntryType.INSERT
@@ -720,7 +738,7 @@ export const createIndexingStore = ({
                             row,
                           );
                         } else {
-                          setCacheEntry(
+                          return setCacheEntry(
                             table,
                             valuesU,
                             entry?.type === EntryType.INSERT
@@ -730,6 +748,7 @@ export const createIndexingStore = ({
                           );
                         }
                       }
+                      return null;
                     },
                   ),
                 )

@@ -1,10 +1,9 @@
 import { ponder } from "@/generated";
-import { replaceBigInts } from "@ponder/core";
-import { count, desc, eq, or } from "@ponder/core/db";
+import { count, desc, eq, graphql, or, replaceBigInts } from "@ponder/core";
 import { formatEther, getAddress } from "viem";
 import { account, transferEvent } from "../../ponder.schema";
 
-// ponder.use("/graphql", graphql());
+ponder.use("/graphql", graphql());
 
 ponder.get("/count", async (c) => {
   const result = await c.db.select({ count: count() }).from(transferEvent);

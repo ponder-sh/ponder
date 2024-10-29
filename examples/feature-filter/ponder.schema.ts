@@ -1,9 +1,7 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  SwapEvent: p.createTable({
-    id: p.string(),
-    recipient: p.hex(),
-    payer: p.hex(),
-  }),
+export const swapEvent = onchainTable("swapEvent", (p) => ({
+  id: p.serial().primaryKey(),
+  recipient: p.hex().notNull(),
+  payer: p.hex().notNull(),
 }));

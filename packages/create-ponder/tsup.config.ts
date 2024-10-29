@@ -27,6 +27,7 @@ export default defineConfig({
         "!**/with-nextjs/**",
         "!**/with-foundry/**",
         "!**/with-trpc/**",
+        "!**/with-client/**",
         "!**/node_modules/**",
         "!**/generated/**",
         "!**/.ponder/**",

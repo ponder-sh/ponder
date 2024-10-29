@@ -2,6 +2,7 @@ import {
   type BuildColumns,
   type ColumnBuilderBase,
   Table,
+  type Writable,
   getTableColumns,
   getTableName,
   is,
@@ -14,6 +15,8 @@ import {
   type PgColumn,
   type PgColumnBuilder,
   type PgColumnBuilderBase,
+  PgEnumColumnBuilder,
+  type PgEnumColumnBuilderInitial,
   PgSchema,
   PgTable,
   type PgTableExtraConfig,
@@ -251,7 +254,7 @@ export const onchainTable = <
   return table;
 };
 
-export class OnchainSchema<schema extends string> extends PgSchema<schema> {
+class OnchainSchema<schema extends string> extends PgSchema<schema> {
   override table = <
     name extends string,
     columns extends Record<string, PgColumnBuilderBase>,
@@ -317,6 +320,51 @@ export class OnchainSchema<schema extends string> extends PgSchema<schema> {
  */
 export const onchainSchema = <T extends string>(name: T) =>
   new OnchainSchema(name);
+
+const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
+
+export interface OnchainEnum<TValues extends [string, ...string[]]> {
+  (): PgEnumColumnBuilderInitial<"", TValues>;
+  <TName extends string>(
+    name: TName,
+  ): PgEnumColumnBuilderInitial<TName, TValues>;
+  <TName extends string>(
+    name?: TName,
+  ): PgEnumColumnBuilderInitial<TName, TValues>;
+
+  readonly enumName: string;
+  readonly enumValues: TValues;
+  readonly schema: string | undefined;
+  /** @internal */
+  [isPgEnumSym]: true;
+}
+
+export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
+  enumName: string,
+  values: T | Writable<T>,
+): OnchainEnum<Writable<T>> & { [onchain]: true } => {
+  if (instanceId === undefined) {
+    const e = pgEnumWithSchema(enumName, values, undefined);
+
+    // @ts-ignore
+    e[onchain] = true;
+
+    // @ts-ignore
+    return e;
+  }
+
+  const e = pgEnumWithSchema(
+    userToSqlTableName(enumName, instanceId),
+    values,
+    undefined,
+  );
+
+  // @ts-ignore
+  e[onchain] = true;
+
+  // @ts-ignore
+  return e;
+};
 
 const InlineForeignKeys = Symbol.for("drizzle:PgInlineForeignKeys");
 
@@ -393,4 +441,25 @@ function pgTableWithSchema<
   }
 
   return table;
+}
+
+function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
+  enumName: string,
+  values: T | Writable<T>,
+  schema?: string,
+): OnchainEnum<Writable<T>> {
+  const enumInstance: OnchainEnum<Writable<T>> = Object.assign(
+    <TName extends string>(
+      name?: TName,
+    ): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
+      new PgEnumColumnBuilder(name ?? ("" as TName), enumInstance),
+    {
+      enumName,
+      enumValues: values,
+      schema,
+      [isPgEnumSym]: true,
+    } as const,
+  );
+
+  return enumInstance;
 }

@@ -6,7 +6,7 @@ import {
 import { onchainTable } from "@/drizzle/index.js";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);

@@ -8,10 +8,10 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/common/errors.js";
-import { onchainTable } from "@/drizzle/index.js";
+import { onchainEnum, onchainTable } from "@/drizzle/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
-import { pgEnum, pgTable } from "drizzle-orm/pg-core";
+import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createIndexingStore } from "./index.js";
@@ -740,7 +740,7 @@ test("array", async (context) => {
 test("enum", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
-  const moodEnum = pgEnum("mood", ["sad", "ok", "happy"]);
+  const moodEnum = onchainEnum("mood", ["sad", "ok", "happy"]);
   const schema = {
     moodEnum,
     account: onchainTable("account", (p) => ({

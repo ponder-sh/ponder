@@ -1,0 +1,29 @@
+{
+  "private": true,
+  "name": "ponder-examples-with-trpc-ponder",
+  "type": "module",
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "codegen": "ponder codegen",
+    "lint": "eslint .",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@hono/trpc-server": "^0.3.2",
+    "@ponder/core": "workspace:*",
+    "@trpc/server": "^10.45.2",
+    "hono": "^4.5.0",
+    "viem": "^2.21.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^8.54.0",
+    "eslint-config-ponder": "workspace:*",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.14"
+  }
+}

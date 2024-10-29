@@ -1,29 +1,25 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable, primaryKey } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    tokens: p.many("TokenBalance.ownerId"),
+export const account = onchainTable("account", (p) => ({
+  address: p.hex().primaryKey(),
+}));
 
-    transferFromEvents: p.many("TransferEvent.fromId"),
-    transferToEvents: p.many("TransferEvent.toId"),
+export const tokenBalance = onchainTable(
+  "token_balance",
+  (p) => ({
+    tokenId: p.bigint().notNull(),
+    owner: p.hex().notNull(),
+    balance: p.bigint().notNull(),
   }),
-  TokenBalance: p.createTable({
-    id: p.string(),
-    tokenId: p.bigint(),
-    balance: p.bigint(),
-
-    ownerId: p.hex().references("Account.id"),
-    owner: p.one("ownerId"),
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.tokenId] }),
   }),
-  TransferEvent: p.createTable({
-    id: p.string(),
-    timestamp: p.int(),
-    fromId: p.hex().references("Account.id"),
-    toId: p.hex().references("Account.id"),
-    tokenId: p.bigint(),
+);
 
-    from: p.one("fromId"),
-    to: p.one("toId"),
-  }),
+export const transferEvent = onchainTable("transfer_event", (p) => ({
+  id: p.serial().primaryKey(),
+  timestamp: p.integer().notNull(),
+  from: p.hex().notNull(),
+  to: p.hex().notNull(),
+  token: p.bigint().notNull(),
 }));
