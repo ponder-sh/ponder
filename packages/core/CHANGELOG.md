@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.23
+
+### Patch Changes
+
+- [#1199](https://github.com/ponder-sh/ponder/pull/1199) [`a21a309d477c0e5ac1d80f462aab699a41fc9423`](https://github.com/ponder-sh/ponder/commit/a21a309d477c0e5ac1d80f462aab699a41fc9423) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the build could fail with the opaque error `TypeError: Cannot set property message of ... which has only a getter`.
+
 ## 0.6.22
 
 ### Patch Changes
