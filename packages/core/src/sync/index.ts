@@ -1184,18 +1184,16 @@ export async function* localHistoricalSyncGenerator({
       );
 
       // Use the duration and interval of the last call to `sync` to update estimate
-      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-      estimateRange = Math.min(
-        Math.max(
-          25,
-          Math.round(
-            (common.options.syncTargetDuration * (interval[1] - interval[0])) /
-              duration,
-          ),
-        ),
-        estimateRange * 2,
-        100_000,
-      );
+      estimateRange = estimate({
+        from: interval[0],
+        to: interval[1],
+        target: common.options.syncTargetDuration,
+        result: duration,
+        min: 25,
+        max: 100_000,
+        prev: estimateRange,
+        maxIncrease: 2,
+      });
     }
 
     yield;
