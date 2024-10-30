@@ -67,7 +67,7 @@ type CallConfig = {
   /** When set to true, this will only trace the primary (top-level) call and not any sub-calls. */
   onlyTopCall?: boolean;
   /** When set to true, this will include the logs emitted by the call. */
-  withLogs?: boolean;
+  withLog?: boolean;
 };
 
 export type DebugRpcSchema = [
