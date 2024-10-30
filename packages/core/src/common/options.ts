@@ -35,6 +35,7 @@ export type Options = {
   indexingCacheMaxBytes: number;
   indexingCacheFlushRatio: number;
 
+  syncTargetDuration: number;
   syncStoreMaxIntervals: number;
   syncEventsQuerySize: number;
   syncHandoffStaleSeconds: number;
@@ -116,6 +117,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
       1_024,
     indexingCacheFlushRatio: 0.35,
 
+    syncTargetDuration: cliOptions.command === "dev" ? 1_000 : 5_000,
     syncStoreMaxIntervals: 5_000,
     syncEventsQuerySize: 10_000,
     syncHandoffStaleSeconds: 300,

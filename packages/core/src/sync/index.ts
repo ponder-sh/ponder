@@ -1188,7 +1188,10 @@ export async function* localHistoricalSyncGenerator({
       estimateRange = Math.min(
         Math.max(
           25,
-          Math.round((1_000 * (interval[1] - interval[0])) / duration),
+          Math.round(
+            (common.options.syncTargetDuration * (interval[1] - interval[0])) /
+              duration,
+          ),
         ),
         estimateRange * 2,
         100_000,
