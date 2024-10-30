@@ -248,114 +248,87 @@ console.log(bob.dogs);
 
 To define a many-to-many relationship, create a "join table" that relates the two tables you want to connect using two one-to-many relationships.
 
-To create a relationship, insert a row into the join table.
+{/* prettier-ignore */}
+```ts filename="ponder.schema.ts" {7-9,16-18,30-33}
+import { onchainTable, relations } from "@ponder/core";
 
-```ts filename="ponder.schema.ts" {7,11,15,16}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Person: p.createTable({
-    id: p.string(),
-    age: p.int(),
-    personDogs: p.many("PersonDog.personId"),
-  }),
-  Dog: p.createTable({
-    id: p.string(),
-    personDogs: p.many("PersonDog.dogId"),
-  }),
-  PersonDog: p.createTable({
-    id: p.string(),
-    personId: p.string().references("Person.id"),
-    dogId: p.string().references("Dog.id"),
-    person: p.one("personId"),
-    dog: p.one("dogId"),
-  }),
+export const users = onchainTable("users", (t) => ({
+  id: t.text().primaryKey(),
 }));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  userTeams: many(userTeams),
+}));
+
+export const teams = onchainTable("teams", (t) => ({
+  id: t.text().primaryKey(),
+  mascot: t.text().notNull(),
+}));
+
+export const teamsRelations = relations(teams, ({ many }) => ({
+  userTeams: many(userTeams),
+}));
+
+export const userTeams = onchainTable(
+  "user_teams",
+  (t) => ({
+    userId: t.text().notNull(),
+    teamId: t.text().notNull(),
+  }),
+  // A composite primary key is often a good choice for a join table.
+  (table) => ({ pk: primaryKey({ columns: [table.userId, table.teamId] }) })
+);
+
+export const userTeamsRelations = relations(userTeams, ({ one }) => ({
+  user: one(users, { fields: [userTeams.userId], references: [users.id] }),
+  team: one(teams, { fields: [userTeams.teamId], references: [teams.id] }),
+}));
+```
+
+Now, any row inserted into the `userTeams` table will create a relationship between the `user` and `team` records. You can query for the relationship by nesting the `with` option in the Query API.
+
+{/* prettier-ignore */}
+```ts filename="src/index.ts" {19,23-33}
+import { users, teams, userTeams } from "../ponder.schema";
+
+await db.insert(users).values([
+  { id: "ron" }, { id: "harry" }, { id: "hermione" }
+]);
+await db.insert(teams).values([
+  { id: "muggle", mascot: "dudley" },
+  { id: "wizard", mascot: "hagrid" },
+]);
+await db.insert(userTeams).values([
+  { userId: "ron", teamId: "wizard" },
+  { userId: "harry", teamId: "wizard" },
+  { userId: "hermione", teamId: "muggle" },
+  { userId: "hermione", teamId: "wizard" },
+]);
+
+const hermione = await db.sql.query.users.findFirst({
+  where: eq(users.id, "hermione"),
+  with: { userTeams: { with: { team: true } } },
+});
+
+console.log(hermione.userTeams);
+//          ^? {
+//            id: string;
+//            userTeams: {
+//              userId: string;
+//              teamId: string;
+//              team: {
+//                id: string;
+//                mascot: string
+//              }
+//            }[]
+//          }
 ```
 
 ### Relationships in GraphQL
 
-#### One-to-one in GraphQL
+Every relationship you define in `ponder.schema.ts` will automatically become available in the GraphQL API, with `one` relations creating singular fields and `many` relations creating plural/connection fields.
 
-Now, you can query for information about the owner of a dog using the GraphQL API.
-
-<div className="code-columns">
-
-{/* prettier-ignore */}
-```graphql filename="Query" {4-6}
-query {
-  dog(id: "Chip") {
-    id
-    owner {
-      age
-    }
-  }
-}
-```
-
-{/* prettier-ignore */}
-```json filename="Result" {4-6}
-{
-  "dog": {
-    "id": "Chip",
-    "owner": {
-      "age": 22,
-    },
-  },
-}
-```
-
-</div>
-
-Then, you can write GraphQL queries for one-to-many data on either side of the relationship. In this example, you could query for all of a person's dogs, or all of a dog's people.
-
-<div className="code-columns">
-
-{/* prettier-ignore */}
-```graphql filename="Query" {4-8}
-query {
-  person(id: "Max") {
-    id
-    personDogs {
-      dog {
-        id
-      }
-    }
-  }
-  dog(id: "Chip") {
-    id
-    personDogs {
-      person {
-        id
-      }
-    }
-  }
-}
-```
-
-{/* prettier-ignore */}
-```json filename="Result" {4-8}
-{
-  "person": {
-    "id": "Max",
-    "personDogs": [
-      { "dog": { "id": "Chip" } },
-      { "dog": { "id": "Spike" } },
-      { "dog": { "id": "Lettuce" } },
-    ],
-  },
-  "dog": {
-    "id": "Chip",
-    "personDogs": [
-      { "person": { "id": "Max" } },
-    ],
-  },
-}
-```
-
-</div>
-
-#### One-to-many in GraphQL
+The [one-to-many example](#one-to-many) above corresponds to the following GraphQL query and result.
 
 <div className="code-columns">
 
@@ -382,32 +355,6 @@ query {
     ]
   }
 }
-```
-
-</div>
-
-As a reminder, you cannot directly get or set the `dogs` field on a `Person` record. Columns defined using `p.one(){:ts}` and `p.many(){:ts}` don't exist in the database. They are only present when querying data from the GraphQL API.
-
-<div className="code-columns">
-
-```ts filename="src/index.ts"
-const { Person } = context.db;
-
-await Person.create({
-  id: "Bob",
-  // Error, can't set a virtual column.
-  data: { dogs: ["Chip", "Bob"] },
-});
-```
-
-```ts filename="src/index.ts"
-const { Person } = context.db;
-
-const bob = await Person.get("Bob");
-// `dogs` field is NOT present.
-// {
-//   id: "Bob"
-// }
 ```
 
 </div>
