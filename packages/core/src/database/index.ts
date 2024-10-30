@@ -512,6 +512,11 @@ export const createDatabase = async (args: {
           await sql.raw(statement).execute(qb.internal);
         }
 
+        await qb.internal.schema
+          .createSchema(namespace)
+          .ifNotExists()
+          .execute();
+
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
           .createTable("_ponder_meta")
@@ -637,14 +642,6 @@ export const createDatabase = async (args: {
               .values({
                 key: `app_${instanceId}`,
                 value: { ...previousApp, instance_id: instanceId },
-              })
-              .execute();
-
-            await tx
-              .insertInto("_ponder_meta")
-              .values({
-                key: "live",
-                value: { instance_id: instanceId },
               })
               .execute();
 

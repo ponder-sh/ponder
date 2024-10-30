@@ -450,7 +450,7 @@ test("setup() v0.7 migration", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(4);
+  expect(metadata).toHaveLength(3);
 
   await database.kill();
 });
