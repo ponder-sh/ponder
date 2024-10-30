@@ -12,7 +12,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { Generated, Insertable } from "kysely";
+import type { ColumnType, Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
@@ -20,13 +20,13 @@ type BlocksTable = {
   hash: Hash;
   chainId: number;
   checkpoint: string;
-  number: bigint;
-  timestamp: bigint;
-  baseFeePerGas: bigint | null;
-  difficulty: bigint;
+  number: ColumnType<string, string | bigint, string | bigint>;
+  timestamp: ColumnType<string, string | bigint, string | bigint>;
+  baseFeePerGas: ColumnType<string, string | bigint, string | bigint> | null;
+  difficulty: ColumnType<string, string | bigint, string | bigint>;
   extraData: Hex;
-  gasLimit: bigint;
-  gasUsed: bigint;
+  gasLimit: ColumnType<string, string | bigint, string | bigint>;
+  gasUsed: ColumnType<string, string | bigint, string | bigint>;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash | null;
@@ -34,9 +34,9 @@ type BlocksTable = {
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash | null;
-  size: bigint;
+  size: ColumnType<string, string | bigint, string | bigint>;
   stateRoot: Hash;
-  totalDifficulty: bigint | null;
+  totalDifficulty: ColumnType<string, string | bigint, string | bigint> | null;
   transactionsRoot: Hash;
 };
 
@@ -88,7 +88,7 @@ type LogsTable = {
   chainId: number;
   checkpoint: string | null;
   blockHash: Hash;
-  blockNumber: bigint;
+  blockNumber: ColumnType<string, string | bigint, string | bigint>;
   logIndex: number;
   transactionHash: Hash;
   transactionIndex: number;
@@ -140,21 +140,25 @@ export const encodeLog = ({
 type TransactionsTable = {
   hash: Hash;
   blockHash: Hash;
-  blockNumber: bigint;
+  blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
-  gas: bigint;
+  gas: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
   nonce: number;
   r: Hex | null;
   s: Hex | null;
   to: Address | null;
   transactionIndex: number;
-  v: bigint | null;
-  value: bigint;
+  v: ColumnType<string, string | bigint, string | bigint> | null;
+  value: ColumnType<string, string | bigint, string | bigint>;
   type: Hex;
-  gasPrice: bigint | null;
-  maxFeePerGas: bigint | null;
-  maxPriorityFeePerGas: bigint | null;
+  gasPrice: ColumnType<string, string | bigint, string | bigint> | null;
+  maxFeePerGas: ColumnType<string, string | bigint, string | bigint> | null;
+  maxPriorityFeePerGas: ColumnType<
+    string,
+    string | bigint,
+    string | bigint
+  > | null;
   accessList: string | null;
 
   chainId: number;
@@ -200,12 +204,12 @@ type TransactionReceiptsTable = {
   transactionHash: Hash;
   chainId: number;
   blockHash: Hash;
-  blockNumber: bigint;
+  blockNumber: ColumnType<string, string | bigint, string | bigint>;
   contractAddress: Address | null;
-  cumulativeGasUsed: bigint;
-  effectiveGasPrice: bigint;
+  cumulativeGasUsed: ColumnType<string, string | bigint, string | bigint>;
+  effectiveGasPrice: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
-  gasUsed: bigint;
+  gasUsed: ColumnType<string, string | bigint, string | bigint>;
   logs: string;
   logsBloom: Hex;
   status: Hex;
@@ -248,14 +252,14 @@ type CallTracesTable = {
   checkpoint: string;
   callType: string;
   from: Address;
-  gas: bigint;
+  gas: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
   to: Address;
-  value: bigint;
+  value: ColumnType<string, string | bigint, string | bigint>;
   blockHash: Hex;
-  blockNumber: bigint;
+  blockNumber: ColumnType<string, string | bigint, string | bigint>;
   error: string | null;
-  gasUsed: bigint | null;
+  gasUsed: ColumnType<string, string | bigint, string | bigint> | null;
   output: Hex | null;
   subtraces: number;
   traceAddress: string;
@@ -296,7 +300,7 @@ export function encodeCallTrace({
 type RpcRequestResultsTable = {
   request: string;
   chainId: number;
-  blockNumber: bigint;
+  blockNumber: ColumnType<string, string | bigint, string | bigint>;
   result: string;
 };
 
@@ -314,8 +318,8 @@ type LogFiltersTable = {
 type LogFilterIntervalsTable = {
   id: Generated<number>;
   logFilterId: string;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: ColumnType<string, string | bigint, string | bigint>;
+  endBlock: ColumnType<string, string | bigint, string | bigint>;
 };
 
 type FactoryLogFiltersTable = {
@@ -334,8 +338,8 @@ type FactoryLogFiltersTable = {
 type FactoryLogFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: ColumnType<string, string | bigint, string | bigint>;
+  endBlock: ColumnType<string, string | bigint, string | bigint>;
 };
 
 type TraceFiltersTable = {
@@ -348,8 +352,8 @@ type TraceFiltersTable = {
 type TraceFilterIntervalsTable = {
   id: Generated<number>;
   traceFilterId: string;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: ColumnType<string, string | bigint, string | bigint>;
+  endBlock: ColumnType<string, string | bigint, string | bigint>;
 };
 
 type FactoryTraceFiltersTable = {
@@ -364,8 +368,8 @@ type FactoryTraceFiltersTable = {
 type FactoryTraceFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: ColumnType<string, string | bigint, string | bigint>;
+  endBlock: ColumnType<string, string | bigint, string | bigint>;
 };
 
 type BlockFiltersTable = {
@@ -378,8 +382,8 @@ type BlockFiltersTable = {
 type BlockFilterIntervalsTable = {
   id: Generated<number>;
   blockFilterId: string;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: ColumnType<string, string | bigint, string | bigint>;
+  endBlock: ColumnType<string, string | bigint, string | bigint>;
 };
 
 export type PonderSyncSchema = {

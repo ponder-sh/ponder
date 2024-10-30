@@ -728,7 +728,7 @@ test("createTriggers()", async (context) => {
   expect(rows).toStrictEqual([
     {
       address: zeroAddress,
-      balance: 10n,
+      balance: "10",
       operation: 0,
       operation_id: 1,
       checkpoint: encodeCheckpoint(maxCheckpoint),
@@ -774,7 +774,7 @@ test("complete()", async (context) => {
   expect(rows).toStrictEqual([
     {
       address: zeroAddress,
-      balance: 10n,
+      balance: "10",
       operation: 0,
       operation_id: 1,
       checkpoint: createCheckpoint(10),
@@ -838,7 +838,7 @@ test("revert()", async (context) => {
     .execute();
 
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
+  expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: "10" });
 
   await database.kill();
 });

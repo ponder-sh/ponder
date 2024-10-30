@@ -52,7 +52,6 @@ export class PgBigint<
   }
 
   override mapFromDriverValue(value: string): bigint {
-    if (typeof value === "string") return BigInt(value);
-    return value;
+    return BigInt(value);
   }
 }
