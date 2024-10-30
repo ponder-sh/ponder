@@ -304,86 +304,12 @@ type RpcRequestResultsTable = {
   result: string;
 };
 
-type LogFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex | null;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
-
-type LogFilterIntervalsTable = {
+type IntervalTable = {
   id: Generated<number>;
-  logFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type FactoryLogFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex;
-  eventSelector: Hex;
-  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
-
-type FactoryLogFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type TraceFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  toAddress: Address | null;
-};
-
-type TraceFilterIntervalsTable = {
-  id: Generated<number>;
-  traceFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type FactoryTraceFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex;
-  eventSelector: Hex;
-  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
-  fromAddress: Address | null;
-};
-
-type FactoryTraceFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type BlockFiltersTable = {
-  id: string;
-  chainId: number;
-  interval: number;
-  offset: number;
-};
-
-type BlockFilterIntervalsTable = {
-  id: Generated<number>;
-  blockFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
+  fragment_id: string;
+  chain_id: number;
+  start_block: ColumnType<string, string | bigint, string | bigint>;
+  end_block: ColumnType<string, string | bigint, string | bigint>;
 };
 
 export type PonderSyncSchema = {
@@ -395,14 +321,5 @@ export type PonderSyncSchema = {
 
   rpcRequestResults: RpcRequestResultsTable;
 
-  logFilters: LogFiltersTable;
-  logFilterIntervals: LogFilterIntervalsTable;
-  factoryLogFilters: FactoryLogFiltersTable;
-  factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
-  traceFilters: TraceFiltersTable;
-  traceFilterIntervals: TraceFilterIntervalsTable;
-  factoryTraceFilters: FactoryTraceFiltersTable;
-  factoryTraceFilterIntervals: FactoryTraceFilterIntervalsTable;
-  blockFilters: BlockFiltersTable;
-  blockFilterIntervals: BlockFilterIntervalsTable;
+  interval: IntervalTable;
 };

@@ -840,6 +840,57 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_09_09_0_adjacent_interval": {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("logFilters").ifExists().cascade().execute();
+      await db.schema
+        .dropTable("logFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .dropTable("factoryLogFilters")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .dropTable("factoryLogFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema.dropTable("traceFilters").ifExists().cascade().execute();
+      await db.schema
+        .dropTable("traceFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .dropTable("factoryTraceFilters")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .dropTable("factoryTraceFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema.dropTable("blockFilters").ifExists().cascade().execute();
+      await db.schema
+        .dropTable("blockFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+
+      await db.schema
+        .createTable("interval")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("fragment_id", "text", (col) => col.notNull())
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("start_block", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("end_block", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

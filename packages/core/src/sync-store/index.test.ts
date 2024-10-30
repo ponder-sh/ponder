@@ -1107,29 +1107,11 @@ test("pruneByChain deletes filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 0 });
 
-  const logFilterIntervals = await database.qb.sync
-    .selectFrom("logFilterIntervals")
+  const interval = await database.qb.sync
+    .selectFrom("interval")
     .selectAll()
     .execute();
-  expect(logFilterIntervals).toHaveLength(1);
-
-  const factoryLogFilterIntervals = await database.qb.sync
-    .selectFrom("factoryLogFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(factoryLogFilterIntervals).toHaveLength(1);
-
-  const traceFilterIntervals = await database.qb.sync
-    .selectFrom("traceFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(traceFilterIntervals).toHaveLength(1);
-
-  const factoryTraceFilterIntervals = await database.qb.sync
-    .selectFrom("factoryTraceFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(factoryTraceFilterIntervals).toHaveLength(1);
+  expect(interval).toHaveLength(4);
 
   await cleanup();
 });
@@ -1189,37 +1171,22 @@ test("pruneByChain updates filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const logFilterIntervals = await database.qb.sync
-    .selectFrom("logFilterIntervals")
+  const intervals = await database.qb.sync
+    .selectFrom("interval")
     .selectAll()
-    .orderBy("endBlock", "asc")
+    .orderBy("end_block", "asc")
     .execute();
-  expect(logFilterIntervals).toHaveLength(2);
-  expect(Number(logFilterIntervals[0]!.endBlock)).toBe(1);
 
-  const factoryLogFilterIntervals = await database.qb.sync
-    .selectFrom("factoryLogFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(factoryLogFilterIntervals).toHaveLength(2);
-  expect(Number(factoryLogFilterIntervals[0]!.endBlock)).toBe(1);
+  expect(intervals).toHaveLength(8);
 
-  const traceFilterIntervals = await database.qb.sync
-    .selectFrom("traceFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(traceFilterIntervals).toHaveLength(2);
-  expect(Number(traceFilterIntervals[0]!.endBlock)).toBe(1);
-
-  const factoryTraceFilterIntervals = await database.qb.sync
-    .selectFrom("factoryTraceFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(factoryTraceFilterIntervals).toHaveLength(2);
-  expect(Number(factoryTraceFilterIntervals[0]!.endBlock)).toBe(1);
+  expect(Number(intervals[0]!.end_block)).toBe(1);
+  expect(Number(intervals[1]!.end_block)).toBe(1);
+  expect(Number(intervals[2]!.end_block)).toBe(1);
+  expect(Number(intervals[3]!.end_block)).toBe(1);
+  expect(Number(intervals[4]!.end_block)).toBe(4);
+  expect(Number(intervals[5]!.end_block)).toBe(4);
+  expect(Number(intervals[6]!.end_block)).toBe(4);
+  expect(Number(intervals[7]!.end_block)).toBe(4);
 
   await cleanup();
 });
@@ -1246,11 +1213,11 @@ test("pruneByChain deletes block filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const blockFilterIntervals = await database.qb.sync
-    .selectFrom("blockFilterIntervals")
+  const intervals = await database.qb.sync
+    .selectFrom("interval")
     .selectAll()
     .execute();
-  expect(blockFilterIntervals).toHaveLength(1);
+  expect(intervals).toHaveLength(1);
 
   await cleanup();
 });
@@ -1277,13 +1244,13 @@ test("pruneByChain updates block filters", async (context) => {
 
   await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
 
-  const blockFilterIntervals = await database.qb.sync
-    .selectFrom("blockFilterIntervals")
+  const intervals = await database.qb.sync
+    .selectFrom("interval")
     .selectAll()
-    .orderBy("endBlock", "asc")
+    .orderBy("end_block", "asc")
     .execute();
-  expect(blockFilterIntervals).toHaveLength(2);
-  expect(Number(blockFilterIntervals[0]!.endBlock)).toBe(1);
+  expect(intervals).toHaveLength(2);
+  expect(Number(intervals[0]!.end_block)).toBe(1);
 
   await cleanup();
 });

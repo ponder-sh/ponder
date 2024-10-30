@@ -88,7 +88,7 @@ test("sync() with log filter", async (context) => {
   expect(logs).toHaveLength(2);
 
   const intervals = await database.qb.sync
-    .selectFrom("logFilterIntervals")
+    .selectFrom("interval")
     .selectAll()
     .execute();
 
@@ -125,7 +125,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
   expect(transactionReceipts).toHaveLength(2);
 
   const intervals = await database.qb.sync
-    .selectFrom("logFilterIntervals")
+    .selectFrom("interval")
     .selectAll()
     .execute();
 
@@ -156,7 +156,7 @@ test("sync() with block filter", async (context) => {
   expect(blocks).toHaveLength(3);
 
   const intervals = await database.qb.sync
-    .selectFrom("blockFilterIntervals")
+    .selectFrom("interval")
     .selectAll()
     .execute();
 
@@ -184,7 +184,7 @@ test("sync() with log factory", async (context) => {
   expect(logs).toHaveLength(2);
 
   const intervals = await database.qb.sync
-    .selectFrom("factoryLogFilterIntervals")
+    .selectFrom("interval")
     .selectAll()
     .execute();
 
@@ -215,7 +215,7 @@ test("sync() with trace filter", async (context) => {
   expect(callTraces).toHaveLength(4);
 
   const intervals = await database.qb.sync
-    .selectFrom("traceFilterIntervals")
+    .selectFrom("interval")
     .selectAll()
     .execute();
 

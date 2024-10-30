@@ -1,114 +1,99 @@
-import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import type { Address, Hex } from "viem";
 import {
   type BlockFilter,
   type CallTraceFilter,
-  type Factory,
-  type LogFactory,
+  type Filter,
   type LogFilter,
   isAddressFactory,
 } from "./source.js";
 
-export type LogFilterFragment<
-  factory extends Factory | undefined = Factory | undefined,
-> = factory extends Factory
-  ? PonderSyncSchema["factoryLogFilters"]
-  : PonderSyncSchema["logFilters"];
+export const getFragmentIds = (
+  filter: Omit<Filter, "startBlock" | "endBlock">,
+): FragmentReturnType => {
+  if (filter.type === "log") {
+    return getLogFilterFragmentIds(filter as LogFilter);
+  }
 
-export type BlockFilterFragment = PonderSyncSchema["blockFilters"];
+  if (filter.type === "callTrace") {
+    return getTraceFilterFragmentIds(filter as CallTraceFilter);
+  }
 
-export type TraceFilterFragment<
-  factory extends Factory | undefined = Factory | undefined,
-> = factory extends Factory
-  ? PonderSyncSchema["factoryTraceFilters"]
-  : PonderSyncSchema["traceFilters"];
+  return getBlockFilterFragmentId(filter as BlockFilter);
+};
+
+type FragmentReturnType = {
+  id: string;
+  adjacent: string[];
+}[];
 
 /**
- * Generates log filter fragments from a log filter.
+ * Generates log filter fragment IDs from a log filter.
  *
  * @param logFilter Log filter to be decomposed into fragments.
- * @returns A list of log filter fragments.
+ * @returns A list of log filter fragment IDs.
  */
-export const buildLogFilterFragments = <factory extends Factory | undefined>({
+export const getLogFilterFragmentIds = ({
   chainId,
   address,
   topics,
   includeTransactionReceipts,
-}: Omit<
-  LogFilter<factory>,
-  "fromBlock" | "toBlock"
->): LogFilterFragment<factory>[] => {
-  const fragments: LogFilterFragment[] = [];
+}: Omit<LogFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
+  const fragments: FragmentReturnType = [];
   const { topic0, topic1, topic2, topic3 } = parseTopics(topics);
 
-  const idCallback = ({
-    chainId,
-    address: address_,
-    topic0: topic0_,
-    topic1: topic1_,
-    topic2: topic2_,
-    topic3: topic3_,
-    includeTransactionReceipts,
-  }: Omit<LogFilterFragment, "id" | "address"> & {
-    address: Address | null;
-  }) => {
-    return `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-      includeTransactionReceipts
-    }`;
-  };
-
-  const factoryIdCallback = ({
-    chainId,
-    address: address_,
-    eventSelector: eventSelector_,
-    childAddressLocation: childAddressLocation_,
-    topic0: topic0_,
-    topic1: topic1_,
-    topic2: topic2_,
-    topic3: topic3_,
-    includeTransactionReceipts,
-  }: Omit<LogFilterFragment, "id" | "address"> & {
-    address: Address;
-    eventSelector: LogFactory["eventSelector"];
-    childAddressLocation: LogFactory["childAddressLocation"];
-  }) => {
-    return `${chainId}_${address_}_${eventSelector_}_${childAddressLocation_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-      includeTransactionReceipts
-    }`;
-  };
-
   if (isAddressFactory(address)) {
-    for (const factoryAddress_ of Array.isArray(address.address)
+    for (const address_ of Array.isArray(address.address)
       ? address.address
       : [address.address]) {
       for (const topic0_ of Array.isArray(topic0) ? topic0 : [topic0]) {
         for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
           for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
             for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              fragments.push({
-                id: factoryIdCallback({
-                  chainId,
-                  address: factoryAddress_,
-                  eventSelector: address.eventSelector,
-                  childAddressLocation: address.childAddressLocation,
-                  topic0: topic0_,
-                  topic1: topic1_,
-                  topic2: topic2_,
-                  topic3: topic3_,
-                  includeTransactionReceipts: includeTransactionReceipts
-                    ? 1
-                    : 0,
-                }),
-                chainId,
-                address: factoryAddress_,
-                eventSelector: address.eventSelector,
-                childAddressLocation: address.childAddressLocation,
-                topic0: topic0_,
-                topic1: topic1_,
-                topic2: topic2_,
-                topic3: topic3_,
-                includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
-              });
+              const id = `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+                includeTransactionReceipts ? 1 : 0
+              }`;
+
+              const adjacent = [id];
+
+              if (topic0_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${null}_${topic1_}_${topic2_}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic1_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${null}_${topic2_}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic2_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${null}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic3_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${null}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (includeTransactionReceipts === false) {
+                adjacent.push(
+                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${1}`,
+                );
+              }
+
+              fragments.push({ id, adjacent });
             }
           }
         }
@@ -122,26 +107,59 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
         for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
           for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
             for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              fragments.push({
-                id: idCallback({
-                  chainId,
-                  address: address_,
-                  topic0: topic0_,
-                  topic1: topic1_,
-                  topic2: topic2_,
-                  topic3: topic3_,
-                  includeTransactionReceipts: includeTransactionReceipts
-                    ? 1
-                    : 0,
-                }),
-                chainId,
-                address: address_,
-                topic0: topic0_,
-                topic1: topic1_,
-                topic2: topic2_,
-                topic3: topic3_,
-                includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
-              });
+              const id = `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+                includeTransactionReceipts ? 1 : 0
+              }`;
+
+              const adjacent = [id];
+
+              if (address_ !== null) {
+                adjacent.push(
+                  `${chainId}_${null}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic0_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${null}_${topic1_}_${topic2_}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic1_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${topic0_}_${null}_${topic2_}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic2_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${topic0_}_${topic1_}_${null}_${topic3_}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (topic3_ !== null) {
+                adjacent.push(
+                  `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${null}_${
+                    includeTransactionReceipts ? 1 : 0
+                  }`,
+                );
+              }
+
+              if (includeTransactionReceipts === false) {
+                adjacent.push(
+                  `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${1}`,
+                );
+              }
+
+              fragments.push({ id, adjacent });
             }
           }
         }
@@ -149,7 +167,7 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
     }
   }
 
-  return fragments as LogFilterFragment<factory>[];
+  return fragments;
 };
 
 function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
@@ -166,93 +184,71 @@ function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
   };
 }
 
-export const buildBlockFilterFragment = ({
+export const getBlockFilterFragmentId = ({
   chainId,
   interval,
   offset,
-}: Omit<BlockFilter, "fromBlock" | "toBlock">): BlockFilterFragment => {
-  return {
-    id: `${chainId}_${interval}_${offset}`,
-    chainId,
-    interval,
-    offset,
-  };
+}: Omit<BlockFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
+  return [
+    {
+      id: `${chainId}_${interval}_${offset}`,
+      adjacent: [`${chainId}_${interval}_${offset}`],
+    },
+  ];
 };
 
-export const buildTraceFilterFragments = <factory extends Factory | undefined>({
+export const getTraceFilterFragmentIds = ({
   chainId,
   fromAddress,
   toAddress,
-}: Omit<CallTraceFilter<factory>, "fromBlock" | "toBlock"> & {
+}: Omit<CallTraceFilter, "fromBlock" | "toBlock"> & {
   chainId: number;
-}): TraceFilterFragment<factory>[] => {
-  const fragments: TraceFilterFragment[] = [];
-
-  const idCallback = ({
-    chainId,
-    fromAddress,
-    toAddress,
-  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    toAddress: Address | null;
-  }) => {
-    return `${chainId}_${fromAddress}_${toAddress}`;
-  };
-
-  const factoryIdCallback = ({
-    chainId,
-    fromAddress,
-    address,
-    eventSelector,
-    childAddressLocation,
-  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    address: Address;
-    eventSelector: LogFactory["eventSelector"];
-    childAddressLocation: LogFactory["childAddressLocation"];
-  }) => {
-    return `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`;
-  };
+}): FragmentReturnType => {
+  const fragments: FragmentReturnType = [];
 
   if (isAddressFactory(toAddress)) {
-    for (const _fromAddress of Array.isArray(fromAddress)
-      ? fromAddress
-      : [null]) {
-      for (const _factoryAddress of Array.isArray(toAddress.address)
+    for (const _fromAddress of fromAddress === undefined
+      ? [null]
+      : fromAddress) {
+      for (const _toAddress of Array.isArray(toAddress.address)
         ? toAddress.address
         : [toAddress.address]) {
-        fragments.push({
-          id: factoryIdCallback({
-            chainId,
-            fromAddress: _fromAddress,
-            address: _factoryAddress,
-            eventSelector: toAddress.eventSelector,
-            childAddressLocation: toAddress.childAddressLocation,
-          }),
-          chainId,
-          address: _factoryAddress,
-          eventSelector: toAddress.eventSelector,
-          childAddressLocation: toAddress.childAddressLocation,
-          fromAddress: _fromAddress,
-        });
+        const id = `${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${_fromAddress}`;
+
+        const adjacent = [id];
+
+        if (_fromAddress !== null) {
+          adjacent.push(
+            `${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${null}`,
+          );
+        }
+
+        fragments.push({ id, adjacent });
       }
     }
   } else {
-    for (const _fromAddress of Array.isArray(fromAddress)
-      ? fromAddress
-      : [null]) {
-      for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
-        fragments.push({
-          id: idCallback({
-            chainId,
-            fromAddress: _fromAddress,
-            toAddress: _toAddress,
-          }),
-          chainId,
-          toAddress: _toAddress,
-          fromAddress: _fromAddress,
-        });
+    for (const _fromAddress of fromAddress === undefined
+      ? [null]
+      : fromAddress) {
+      for (const _toAddress of toAddress === undefined
+        ? [null]
+        : (toAddress as Address[])) {
+        const id = `${chainId}_${_fromAddress}_${_toAddress}`;
+
+        const adjacent = [id];
+
+        if (_toAddress !== null) {
+          adjacent.push(`${chainId}_${null}_${_fromAddress}`);
+        }
+
+        if (_fromAddress !== null) {
+          adjacent.push(`${chainId}_${_toAddress}_${null}`);
+        }
+
+        fragments.push({ id, adjacent });
       }
     }
   }
 
-  return fragments as TraceFilterFragment<factory>[];
+  return fragments;
 };
