@@ -36,7 +36,12 @@ import {
   intervalUnion,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
+import {
+  type Insertable,
+  type Kysely,
+  type SelectQueryBuilder,
+  sql as ksql,
+} from "kysely";
 import {
   type Address,
   type Hash,
@@ -690,7 +695,7 @@ export const createSyncStore = ({
         );
       }
 
-      const values: PonderSyncSchema["callTraces"][] = [];
+      const values: Insertable<PonderSyncSchema["callTraces"]>[] = [];
 
       await db.transaction().execute(async (tx) => {
         for (const transactionHash of Object.keys(traceByTransactionHash)) {
@@ -806,9 +811,9 @@ export const createSyncStore = ({
           return qb;
         })
         .$call((qb) => addressSQL(qb as any, filter.address, "address"))
-        .where("blockNumber", ">=", BigInt(filter.fromBlock))
+        .where("blockNumber", ">=", filter.fromBlock.toString())
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", BigInt(filter.toBlock!)),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const callTraceSQL = (
@@ -838,9 +843,9 @@ export const createSyncStore = ({
         .where(ksql`${ksql.ref("callTraces.error")} IS NULL`)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb, filter.toAddress, "to"))
-        .where("blockNumber", ">=", BigInt(filter.fromBlock))
+        .where("blockNumber", ">=", filter.fromBlock.toString())
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", BigInt(filter.toBlock!)),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const blockSQL = (
@@ -863,9 +868,9 @@ export const createSyncStore = ({
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
           qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
         )
-        .where("number", ">=", BigInt(filter.fromBlock))
+        .where("number", ">=", filter.fromBlock.toString())
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", BigInt(filter.toBlock!)),
+          qb.where("number", "<=", filter.toBlock!.toString()),
         );
 
     const rows = await db.wrap(
@@ -1045,26 +1050,28 @@ export const createSyncStore = ({
         checkpoint: row.event_checkpoint,
         block: {
           baseFeePerGas:
-            row.block_baseFeePerGas !== null ? row.block_baseFeePerGas : null,
-          difficulty: row.block_difficulty,
+            row.block_baseFeePerGas !== null
+              ? BigInt(row.block_baseFeePerGas)
+              : null,
+          difficulty: BigInt(row.block_difficulty),
           extraData: row.block_extraData,
-          gasLimit: row.block_gasLimit,
-          gasUsed: row.block_gasUsed,
+          gasLimit: BigInt(row.block_gasLimit),
+          gasUsed: BigInt(row.block_gasUsed),
           hash: row.block_hash,
           logsBloom: row.block_logsBloom,
           miner: checksumAddress(row.block_miner),
           mixHash: row.block_mixHash,
           nonce: row.block_nonce,
-          number: row.block_number,
+          number: BigInt(row.block_number),
           parentHash: row.block_parentHash,
           receiptsRoot: row.block_receiptsRoot,
           sha3Uncles: row.block_sha3Uncles,
-          size: row.block_size,
+          size: BigInt(row.block_size),
           stateRoot: row.block_stateRoot,
-          timestamp: row.block_timestamp,
+          timestamp: BigInt(row.block_timestamp),
           totalDifficulty:
             row.block_totalDifficulty !== null
-              ? row.block_totalDifficulty
+              ? BigInt(row.block_totalDifficulty)
               : null,
           transactionsRoot: row.block_transactionsRoot,
         },
@@ -1072,7 +1079,7 @@ export const createSyncStore = ({
           ? {
               address: checksumAddress(row.log_address!),
               blockHash: row.log_blockHash,
-              blockNumber: row.log_blockNumber,
+              blockNumber: BigInt(row.log_blockNumber),
               data: row.log_data,
               id: row.log_id as Log["id"],
               logIndex: Number(row.log_logIndex),
@@ -1090,9 +1097,9 @@ export const createSyncStore = ({
         transaction: hasTransaction
           ? {
               blockHash: row.tx_blockHash,
-              blockNumber: row.tx_blockNumber,
+              blockNumber: BigInt(row.tx_blockNumber),
               from: checksumAddress(row.tx_from),
-              gas: row.tx_gas,
+              gas: BigInt(row.tx_gas),
               hash: row.tx_hash,
               input: row.tx_input,
               nonce: Number(row.tx_nonce),
@@ -1100,35 +1107,37 @@ export const createSyncStore = ({
               s: row.tx_s,
               to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
               transactionIndex: Number(row.tx_transactionIndex),
-              value: row.tx_value,
-              v: row.tx_v !== null ? row.tx_v : null,
+              value: BigInt(row.tx_value),
+              v: row.tx_v !== null ? BigInt(row.tx_v) : null,
               ...(row.tx_type === "0x0"
                 ? {
                     type: "legacy",
-                    gasPrice: row.tx_gasPrice,
+                    gasPrice: BigInt(row.tx_gasPrice),
                   }
                 : row.tx_type === "0x1"
                   ? {
                       type: "eip2930",
-                      gasPrice: row.tx_gasPrice,
+                      gasPrice: BigInt(row.tx_gasPrice),
                       accessList: JSON.parse(row.tx_accessList),
                     }
                   : row.tx_type === "0x2"
                     ? {
                         type: "eip1559",
-                        maxFeePerGas: row.tx_maxFeePerGas,
-                        maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                        maxFeePerGas: BigInt(row.tx_maxFeePerGas),
+                        maxPriorityFeePerGas: BigInt(
+                          row.tx_maxPriorityFeePerGas,
+                        ),
                       }
                     : row.tx_type === "0x7e"
                       ? {
                           type: "deposit",
                           maxFeePerGas:
                             row.tx_maxFeePerGas !== null
-                              ? row.tx_maxFeePerGas
+                              ? BigInt(row.tx_maxFeePerGas)
                               : undefined,
                           maxPriorityFeePerGas:
                             row.tx_maxPriorityFeePerGas !== null
-                              ? row.tx_maxPriorityFeePerGas
+                              ? BigInt(row.tx_maxPriorityFeePerGas)
                               : undefined,
                         }
                       : {
@@ -1141,15 +1150,15 @@ export const createSyncStore = ({
               id: row.callTrace_id,
               from: checksumAddress(row.callTrace_from),
               to: checksumAddress(row.callTrace_to),
-              gas: row.callTrace_gas,
-              value: row.callTrace_value,
+              gas: BigInt(row.callTrace_gas),
+              value: BigInt(row.callTrace_value),
               input: row.callTrace_input,
               output: row.callTrace_output,
-              gasUsed: row.callTrace_gasUsed,
+              gasUsed: BigInt(row.callTrace_gasUsed),
               subtraces: row.callTrace_subtraces,
               traceAddress: JSON.parse(row.callTrace_traceAddress),
               blockHash: row.callTrace_blockHash,
-              blockNumber: row.callTrace_blockNumber,
+              blockNumber: BigInt(row.callTrace_blockNumber),
               transactionHash: row.callTrace_transactionHash,
               transactionIndex: row.callTrace_transactionPosition,
               callType: row.callTrace_callType as CallTrace["callType"],
@@ -1158,14 +1167,14 @@ export const createSyncStore = ({
         transactionReceipt: hasTransactionReceipt
           ? {
               blockHash: row.txr_blockHash,
-              blockNumber: row.txr_blockNumber,
+              blockNumber: BigInt(row.txr_blockNumber),
               contractAddress: row.txr_contractAddress
                 ? checksumAddress(row.txr_contractAddress)
                 : null,
-              cumulativeGasUsed: row.txr_cumulativeGasUsed,
-              effectiveGasPrice: row.txr_effectiveGasPrice,
+              cumulativeGasUsed: BigInt(row.txr_cumulativeGasUsed),
+              effectiveGasPrice: BigInt(row.txr_effectiveGasPrice),
               from: checksumAddress(row.txr_from),
-              gasUsed: row.txr_gasUsed,
+              gasUsed: BigInt(row.txr_gasUsed),
               logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
                 id: `${log.blockHash}-${log.logIndex}`,
                 address: checksumAddress(log.address),
@@ -1241,7 +1250,7 @@ export const createSyncStore = ({
         .select("result")
         .where("request", "=", request)
         .where("chainId", "=", chainId)
-        .where("blockNumber", "=", blockNumber)
+        .where("blockNumber", "=", blockNumber.toString())
         .executeTakeFirst();
 
       return result?.result ?? null;
@@ -1250,7 +1259,9 @@ export const createSyncStore = ({
     db.wrap({ method: "pruneRpcRequestResult" }, async () => {
       if (blocks.length === 0) return;
 
-      const numbers = blocks.map(({ number }) => hexToBigInt(number));
+      const numbers = blocks.map(({ number }) =>
+        hexToBigInt(number).toString(),
+      );
 
       await db
         .deleteFrom("rpcRequestResults")
@@ -1268,7 +1279,7 @@ export const createSyncStore = ({
               .innerJoin("logFilters", "logFilterId", "logFilters.id")
               .select("logFilterId")
               .where("chainId", "=", chainId)
-              .where("startBlock", ">=", BigInt(fromBlock)),
+              .where("startBlock", ">=", fromBlock.toString()),
           )
           .deleteFrom("logFilterIntervals")
           .where(
@@ -1285,12 +1296,12 @@ export const createSyncStore = ({
               .innerJoin("logFilters", "logFilterId", "logFilters.id")
               .select("logFilterId")
               .where("chainId", "=", chainId)
-              .where("startBlock", "<", BigInt(fromBlock))
-              .where("endBlock", ">", BigInt(fromBlock)),
+              .where("startBlock", "<", fromBlock.toString())
+              .where("endBlock", ">", fromBlock.toString()),
           )
           .updateTable("logFilterIntervals")
           .set({
-            endBlock: BigInt(fromBlock),
+            endBlock: fromBlock.toString(),
           })
           .where(
             "logFilterId",
@@ -1311,7 +1322,7 @@ export const createSyncStore = ({
 
               .select("factoryId")
               .where("chainId", "=", chainId)
-              .where("startBlock", ">=", BigInt(fromBlock)),
+              .where("startBlock", ">=", fromBlock.toString()),
           )
           .deleteFrom("factoryLogFilterIntervals")
           .where(
@@ -1333,8 +1344,8 @@ export const createSyncStore = ({
 
               .select("factoryId")
               .where("chainId", "=", chainId)
-              .where("startBlock", "<", BigInt(fromBlock))
-              .where("endBlock", ">", BigInt(fromBlock)),
+              .where("startBlock", "<", fromBlock.toString())
+              .where("endBlock", ">", fromBlock.toString()),
           )
           .updateTable("factoryLogFilterIntervals")
           .set({
@@ -1354,7 +1365,7 @@ export const createSyncStore = ({
               .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
               .select("traceFilterId")
               .where("chainId", "=", chainId)
-              .where("startBlock", ">=", BigInt(fromBlock)),
+              .where("startBlock", ">=", fromBlock.toString()),
           )
           .deleteFrom("traceFilterIntervals")
           .where(
@@ -1371,8 +1382,8 @@ export const createSyncStore = ({
               .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
               .select("traceFilterId")
               .where("chainId", "=", chainId)
-              .where("startBlock", "<", BigInt(fromBlock))
-              .where("endBlock", ">", BigInt(fromBlock)),
+              .where("startBlock", "<", fromBlock.toString())
+              .where("endBlock", ">", fromBlock.toString()),
           )
           .updateTable("traceFilterIntervals")
           .set({
@@ -1396,7 +1407,7 @@ export const createSyncStore = ({
               )
               .select("factoryId")
               .where("chainId", "=", chainId)
-              .where("startBlock", ">=", BigInt(fromBlock)),
+              .where("startBlock", ">=", fromBlock.toString()),
           )
           .deleteFrom("factoryTraceFilterIntervals")
           .where(
@@ -1418,8 +1429,8 @@ export const createSyncStore = ({
 
               .select("factoryId")
               .where("chainId", "=", chainId)
-              .where("startBlock", "<", BigInt(fromBlock))
-              .where("endBlock", ">", BigInt(fromBlock)),
+              .where("startBlock", "<", fromBlock.toString())
+              .where("endBlock", ">", fromBlock.toString()),
           )
           .updateTable("factoryTraceFilterIntervals")
           .set({
@@ -1439,7 +1450,7 @@ export const createSyncStore = ({
               .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
               .select("blockFilterId")
               .where("chainId", "=", chainId)
-              .where("startBlock", ">=", BigInt(fromBlock)),
+              .where("startBlock", ">=", fromBlock.toString()),
           )
           .deleteFrom("blockFilterIntervals")
           .where(
@@ -1456,8 +1467,8 @@ export const createSyncStore = ({
               .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
               .select("blockFilterId")
               .where("chainId", "=", chainId)
-              .where("startBlock", "<", BigInt(fromBlock))
-              .where("endBlock", ">", BigInt(fromBlock)),
+              .where("startBlock", "<", fromBlock.toString())
+              .where("endBlock", ">", fromBlock.toString()),
           )
           .updateTable("blockFilterIntervals")
           .set({
@@ -1473,32 +1484,32 @@ export const createSyncStore = ({
         await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", BigInt(fromBlock))
+          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("blocks")
           .where("chainId", "=", chainId)
-          .where("number", ">=", BigInt(fromBlock))
+          .where("number", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("rpcRequestResults")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", BigInt(fromBlock))
+          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("callTraces")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", BigInt(fromBlock))
+          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("transactions")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", BigInt(fromBlock))
+          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("transactionReceipts")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", BigInt(fromBlock))
+          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
       }),
     ),
