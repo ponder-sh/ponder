@@ -9,10 +9,6 @@ import { Callout } from "nextra/components";
 
 Ponder's schema definition API is built on [Drizzle](https://orm.drizzle.team/), a modern TypeScript ORM.
 
-{/* If you're familiar with Drizzle, the `ponder.schema.ts` file works just like a Drizzle schema file. */}
-
-## Tables
-
 To create a table, use the `onchainTable` function exported by `@ponder/core` and include column definitions.
 
 ```ts filename="ponder.schema.ts" {1,3}
@@ -29,38 +25,29 @@ export const pets = onchainTable("pets", (t) => ({
   tables that are not exported.
 </Callout>
 
-### Table name
-
-### Primary key
-
-### Indexes
-
 ## Columns
 
-### Standard column types
+### Column types
 
-The schema definition API supports **all PostgreSQL data types**.
+The schema definition API supports **all PostgreSQL data types**. Here's a quick reference for the most commonly used data types. For a complete list, see the [Drizzle documentation](https://orm.drizzle.team/docs/column-types/pg).
 
-Here's a quick reference for the most commonly used data types. For a complete list, see the [Drizzle documentation](https://orm.drizzle.team/docs/column-types/pg).
+| name             | description                        | TypeScript type          | SQL data type     |
+| :--------------- | :--------------------------------- | :----------------------- | :---------------- |
+| `text{:ts}`      | UTF‐8 character sequence           | `string`                 | `TEXT{:sql}`      |
+| `int{:ts}`       | Signed 4‐byte integer              | `number`                 | `INTEGER{:sql}`   |
+| `real{:ts}`      | Signed 8-byte floating‐point value | `number`                 | `REAL{:sql}`      |
+| `boolean{:ts}`   | `true` or `false`                  | `boolean`                | `BOOLEAN{:sql}`   |
+| `timestamp{:ts}` | Date and time value (no time zone) | `Date`                   | `TIMESTAMP{:sql}` |
+| `json{:ts}`      | JSON object                        | `any` or [custom](#json) | `JSON{:sql}`      |
 
-| name           | description                        | TypeScript type          | SQL data type   |
-| :------------- | :--------------------------------- | :----------------------- | :-------------- |
-| `text{:ts}`    | UTF‐8 character sequence           | `string`                 | `TEXT{:sql}`    |
-| `int{:ts}`     | Signed 4‐byte integer              | `number`                 | `INTEGER{:sql}` |
-| `real{:ts}`    | Signed 8-byte floating‐point value | `number`                 | `REAL{:sql}`    |
-| `boolean{:ts}` | `true` or `false`                  | `boolean`                | `BOOLEAN{:sql}` |
-| `json{:ts}`    | JSON object                        | `any` or [custom](#json) | `JSON{:sql}`    |
-
-### EVM column types
-
-Ponder also includes a few extra column types to handle common EVM indexing scenarios.
+Ponder also includes a few extra column types built specifically for EVM indexing.
 
 | name          | description                                  | TypeScript type | SQL data type         |
 | :------------ | :------------------------------------------- | :-------------- | :-------------------- |
 | `bigint{:ts}` | Large integer (holds `uint256` and `int256`) | `bigint`        | `NUMERIC(78,0){:sql}` |
 | `hex{:ts}`    | UTF‐8 character sequence with `0x` prefix    | `0x${string}`   | `TEXT{:sql}`          |
 
-#### `bigint`
+<h4 className="text-lg font-semibold mt-10">`bigint`</h4>
 
 The `bigint` column type can hold any EVM `uint256` or `int256` value.
 
@@ -75,17 +62,14 @@ export const accounts = onchainTable("accounts", (t) => ({
 
 <Callout type="info">
   Ponder's `bigint` type takes precedence over the Drizzle
-  [`bigint`](https://orm.drizzle.team/docs/column-types/pg#bigint) type.
-  Drizzle's `bigint` is an 8-byte integer, which is not large enough to hold EVM
-  `uint256` or `int256` values. If you want to use an 8-byte integer, you can
-  still use the `int8` alias.
+  [`bigint`](https://orm.drizzle.team/docs/column-types/pg#bigint) type, which
+  is an 8-byte integer (too small for EVM `uint256` or `int256` values). To
+  create an 8-byte integer column, use the `int8` alias.
 </Callout>
 
-#### `hex`
+<h4 className="text-lg font-semibold mt-10">`hex`</h4>
 
 The `hex` column type is useful for EVM `address`, `bytes`, or any other hex-encoded value.
-
-((something about being byte aligned))
 
 ```ts filename="ponder.schema.ts" {4}
 import { onchainTable } from "@ponder/core";
@@ -101,7 +85,7 @@ export const accounts = onchainTable("accounts", (t) => ({
 To define an enum, use the `onchainEnum` function exported by `@ponder/core`. Then, use the value returned by `onchainEnum` as a column type. Under the hood, `onchainEnum` uses a PostgreSQL [enumerated type](https://www.postgresql.org/docs/current/datatype-enum.html).
 
 ```ts filename="ponder.schema.ts" {3,7}
-import { onchainEnum } from "@ponder/core";
+import { onchainEnum, onchainTable } from "@ponder/core";
 
 export const color = onchainEnum("color", ["ORANGE", "BLACK"]);
 
@@ -111,33 +95,54 @@ export const cats = onchainTable("cats", (t) => ({
 }));
 ```
 
-### Best practices
+### Arrays
 
-#### Timestamps
+To define an array column, use the `.array(){:ts}` modifier. Arrays are a good fit for small one-dimensional collections, not [relationships](#relationships) between records.
 
-Consider using the `bigint` column type to store block timestamp values as their EVM `uint256` representation. If you prefer working with JavaScript `Date` objects, you could also use the `timestamp` column type.
-
-```ts filename="ponder.schema.ts" {5,6}
-import { onchainTable } from "@ponder/core";
-
-export const events = onchainTable("events", (t) => ({
-  id: t.text().primaryKey(),
-  timestamp: t.bigint(), // Unix timestamp in seconds
-  timestampDate: t.timestamp(), // JavaScript Date object
-}));
-```
-
-#### JSON
-
-Use the `.$type()` modifier to specify a type-level schema for JSON columns. Note that this does not validate data at runtime or in the database.
-
-{/* prettier-ignore */}
 ```ts filename="ponder.schema.ts" {5}
 import { onchainTable } from "@ponder/core";
 
-export const tokens = onchainTable("tokens", (t) => ({
-  id: t.bigint().primaryKey(),
-  metadata: t.json().$type<{ name: string; symbol: string; decimals: number }>(),
+export const cats = onchainTable("cats", (t) => ({
+  name: t.text().primaryKey(),
+  vaccinations: t.text().array(), // ["rabies", "distemper", "parvo"]
+}));
+```
+
+### Not null
+
+To mark a column as not null, use the `.notNull(){:ts}` modifier. If you attempt to insert a row that does not include a value for a `NOT NULL{:sql}` column, the database will throw an error.
+
+```ts filename="ponder.schema.ts" {5}
+import { onchainTable } from "@ponder/core";
+
+export const cats = onchainTable("cats", (t) => ({
+  name: t.text().primaryKey(),
+  age: t.int().notNull(),
+}));
+```
+
+### Default value
+
+To set a default value for a column, use the `.default(){:ts}` modifier and pass a string, number, boolean, or `null`.
+
+```ts filename="ponder.schema.ts" {5}
+import { onchainTable } from "@ponder/core";
+
+export const cats = onchainTable("cats", (t) => ({
+  name: t.text().primaryKey(),
+  livesRemaining: t.int().default(9),
+}));
+```
+
+Alternatively, use the `.$default(){:ts}` modifier to specify a JavaScript function that returns the default value. With this approach, the database driver calls the function before inserting a row into this table that does not include a value for this column.
+
+```ts filename="ponder.schema.ts" {6}
+import { onchainTable } from "@ponder/core";
+import { generateId } from "../utils";
+
+export const cats = onchainTable("cats", (t) => ({
+  name: t.text().primaryKey(),
+  age: t.int().$default(() => generateId()),
 }));
 ```
 
@@ -288,7 +293,7 @@ export const userTeamsRelations = relations(userTeams, ({ one }) => ({
 Now, any row inserted into the `userTeams` table will create a relationship between the `user` and `team` records. You can query for the relationship by nesting the `with` option in the Query API.
 
 {/* prettier-ignore */}
-```ts filename="src/index.ts" {19,23-33}
+```ts filename="src/index.ts" {19}
 import { users, teams, userTeams } from "../ponder.schema";
 
 await db.insert(users).values([
@@ -359,77 +364,163 @@ query {
 
 </div>
 
-## Indexes
+## Tables
 
-To create a database index, include a second argument to the `p.createTable(){:ts}` function, and use `p.index(){:ts}` to specify which column(s) to include in the index.
+### Primary key
+
+Every table **must** have a primary key. To create a single-column primary key, use the `.primaryKey(){:ts}` modifier.
+
+```ts filename="ponder.schema.ts" {4}
+import { onchainTable } from "@ponder/core";
+
+export const tokens = onchainTable("tokens", (t) => ({
+  id: t.bigint().primaryKey(),
+}));
+```
+
+To create a composite primary key, use the `primaryKey()` function exported by `@ponder/core`. All components of the primary key constraint must be unique and not null.
+
+```ts filename="ponder.schema.ts" {11}
+import { onchainTable, primaryKey } from "@ponder/core";
+
+export const poolStates = onchainTable(
+  "pool_states",
+  (t) => ({
+    poolId: t.bigint().notNull(),
+    address: t.hex().notNull(),
+    balance: t.bigint().notNull(),
+  }),
+  (table) => ({
+    pk: primaryKey({ columns: [table.poolId, table.address] }),
+  })
+);
+```
+
+### Indexes
+
+To create a database index, use the `index(){:ts}` function exported by `@ponder/core`. The following example creates an index on the `persons.name` column to speed up search queries, and an index on the `dogs.ownerId` column to speed up the `persons.dogs` relational query.
+
+```ts filename="ponder.schema.ts" {10,25}
+import { onchainTable, relations, index } from "@ponder/core";
+
+export const persons = onchainTable(
+  "persons",
+  (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }),
+  (table) => ({
+    nameIdx: index("name_idx").on(table.name),
+  })
+);
+
+export const personsRelations = relations(persons, ({ many }) => ({
+  dogs: many(dogs),
+}));
+
+export const dogs = onchainTable(
+  "dogs",
+  (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.text().notNull(),
+  }),
+  (table) => ({
+    ownerIdx: index("owner_idx").on(table.ownerId),
+  })
+);
+
+export const dogsRelations = relations(dogs, ({ one }) => ({
+  owner: one(persons, { fields: [dogs.ownerId], references: [persons.id] }),
+}));
+```
+
+The `index(){:ts}` function supports specifying multiple columns, ordering, and custom index types like GIN and GIST. Read more in the [Drizzle](https://orm.drizzle.team/docs/indexes-constraints#indexes) and [PostgreSQL](https://www.postgresql.org/docs/current/indexes.html) documention.
 
 <Callout type="info">
-  Database indexes are created _after_ historical indexing is complete, just
-  before the app becomes healthy.
+  To improve performance, database indexes are created _after_ historical
+  indexing is complete, just before the app becomes healthy.
 </Callout>
 
-### Single column
+## Best practices
 
-To create a index on a single column, pass the column name to `p.index(){:ts}`.
+### Composite primary keys
+
+If a table has two or more columns that together form a unique identifier for a row, use a composite primary key.
+
+Consider an `allowances` table storing ERC20 token allowances. Each row in this table represents the allowance granted by one owner to one spender.
+
+```ts filename="ponder.schema.ts" {10}
+import { onchainTable, primaryKey } from "@ponder/core";
+
+export const allowances = onchainTable(
+  "allowances",
+  (t) => ({
+    owner: t.hex(),
+    spender: t.hex(),
+    amount: t.bigint(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.owner, table.spender] }) })
+);
+```
+
+### Timestamps
+
+Use the `bigint` column type to store block timestamps using their EVM-native Unix timestamp representation. This maintains consistency with Viem's approach, and avoids error-prone timezone manipulation code.
+
+```ts filename="ponder.schema.ts" {5}
+import { onchainTable } from "@ponder/core";
+
+export const events = onchainTable("events", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.bigint(), // Unix timestamp in seconds
+}));
+```
+
+If you strongly prefer working with JavaScript `Date` objects, you can also use the `timestamp` column type, but we recommend doing this conversion in the view layer.
+
+```ts filename="ponder.schema.ts" {5}
+import { onchainTable } from "@ponder/core";
+
+export const events = onchainTable("events", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.timestamp(), // JavaScript Date object
+}));
+```
+
+### Custom types
+
+Use the `.$type()` modifier to customize the TypeScript type for a column. Note that the `.$type()` modifier does not validate data at runtime or in the database, it only enforces a TypeScript type.
 
 {/* prettier-ignore */}
-```ts filename="ponder.schema.ts" {10,17}
-import { createSchema } from "@ponder/core";
+```ts filename="ponder.schema.ts" {5}
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Person: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    dogs: p.many("Dog.ownerId"),
-  }, {
-    // Index the `name` column to speed up search queries.
-    nameIndex: p.index("name"),
-  }),
-  Dog: p.createTable({
-    id: p.string(),
-    ownerId: p.string().references("Person.id"),
-  }, {
-    // Index the `ownerId` column to speed up relational queries (the `Person.dogs` field).
-    ownerIdIndex: p.index("ownerId"),
-  }),
+export const tokens = onchainTable("tokens", (t) => ({
+  id: t.bigint().primaryKey(),
+  metadata: t.json().$type<{ name: string; symbol: string; decimals: number }>(),
 }));
 ```
 
-For single-column indexes, you can also specify the direction of the index using `.asc(){:ts}` or `.desc(){:ts}`, and the null ordering behavior using `.nullsFirst(){:ts}` or `.nullsLast(){:ts}`. These options can improve query performance if you use the column in an `ORDER BY{:sql}` clause using the same options.
+### `camelCase` vs `snake_case`
 
-```ts filename="ponder.schema.ts" {6}
-import { createSchema } from "@ponder/core";
+Use `camelCase` for TypeScript names and `snake_case` for SQL names. This guideline applies to all database objects and properties, including tables, columns, relations, and indexes.
 
-export default createSchema((p) => ({
-  Person: p.createTable(
-    { id: p.string(), age: p.string() },
-    { ageIndex: p.index("age").asc().nullsLast() }
-  ),
-}));
+```ts filename="ponder.schema.ts"
+import { onchainTable } from "@ponder/core";
+
+export const registrationEvents = onchainTable(
+  "registration_events", // Use snake_case for the SQL table name
+  (t) => ({
+    createdAt: t.bigint(), // Drizzle automatically converts this to `created_at`
+    invitedBy: t.text("invited_by"), // Avoid manual case conversion for columns
+    // ...
+  })
+);
 ```
 
-### Multiple columns
+## Examples
 
-To create a multi-column index, pass an array of column names to `p.index(){:ts}`. The index will be created using the same column order that you specify.
-
-{/* prettier-ignore */}
-```ts filename="ponder.schema.ts" {9}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Person: p.createTable({
-    id: p.string(),
-    age: p.int(),
-    salary: p.bigint(),
-  }, {
-    seniorityIndex: p.index(["age", "salary"]),
-  }),
-}));
-```
-
-The `.asc(){:ts}`, `.desc(){:ts}`, `.nullsFirst(){:ts}` and `.nullsLast(){:ts}` modifiers are not currently supported for multi-column indexes.
-
-## ERC20 example
+### ERC20
 
 Here's a schema for a simple ERC20 app.
 
@@ -463,183 +554,3 @@ export default createSchema((p) => ({
   }),
 }));
 ```
-
-## Old
-
-Here's an example `Account` table that has a column of every type, and a function that inserts an `Account` record.
-
-<div className="code-columns">
-
-```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    daiBalance: p.bigint(),
-    totalUsdValue: p.float(),
-    lastActiveAt: p.int(),
-    isAdmin: p.boolean(),
-    graffiti: p.string(),
-    extra: p.json(),
-  }),
-}));
-```
-
-```ts filename="src/index.ts"
-const { Account } = context.db;
-
-await Account.create({
-  id: "0xabc",
-  data: {
-    daiBalance: 7770000000000000000n,
-    totalUsdValue: 17.38,
-    lastActiveAt: 1679337733,
-    isAdmin: true,
-    graffiti: "LGTM",
-    extra: {
-      middleName: "james",
-    },
-  },
-});
-```
-
-</div>
-
-### Enum
-
-To define a enum, pass a list of allowable values to `p.createEnum(){:ts}` (similar to `p.createTable(){:ts}`). Then use `p.enum(){:ts}` as a column type, passing the enum name as an argument. Enums use the same database and JSON types as `string` columns.
-
-<div className="code-columns">
-
-```ts filename="ponder.schema.ts" {4,7}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Color: p.createEnum(["ORANGE", "BLACK"]),
-  Cat: p.createTable({
-    id: p.string(),
-    color: p.enum("Color"),
-  }),
-}));
-```
-
-```ts filename="src/index.ts" {6}
-const { Cat } = context.db;
-
-await Cat.create({
-  id: "Fluffy",
-  data: {
-    color: "ORANGE",
-  },
-});
-```
-
-</div>
-
-### List
-
-To define a list, add `.list(){:ts}` to any primitive or enum column. Lists should only be used for small one-dimenional collections, not relationships between records.
-
-<div className="code-columns">
-
-```ts filename="ponder.schema.ts" {7}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Color: p.createEnum(["ORANGE", "BLACK"]),
-  FancyCat: p.createTable({
-    id: p.string(),
-    favoriteNumbers: p.int().list(),
-    colors: p.enum("Color").list(),
-  }),
-}));
-```
-
-```ts filename="src/index.ts" {6}
-const { FancyCat } = context.db;
-
-await FancyCat.create({
-  id: "Fluffy",
-  data: {
-    favoriteNumbers: [7, 420, 69],
-    colors: ["ORANGE", "BLACK"],
-  },
-});
-```
-
-</div>
-
-### Optional
-
-All columns are **required** by default (`NOT NULL{:sql}`). To mark a column as optional/nullable, add `.optional(){:ts}` to the primitive type.
-
-<div className="code-columns">
-
-```ts filename="ponder.schema.ts" {7}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  User: p.createTable({
-    id: p.hex(),
-    ens: p.string(),
-    github: p.string().optional(),
-  }),
-}));
-```
-
-```ts filename="src/index.ts" {6-7,14}
-const { User } = context.db;
-
-await User.create({
-  id: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-  data: {
-    ens: "vitalik.eth",
-    github: "https://github.com/vbuterin",
-  },
-});
-
-await User.create({
-  id: "0xD7029BDEa1c17493893AAfE29AAD69EF892B8ff2",
-  data: {
-    ens: "dwr.eth",
-  },
-});
-```
-
-</div>
-
-### Foreign key
-
-Foreign key columns are used to define relationships between records. To define a foreign key column:
-
-1. Add `.references("OtherTable.id"){:ts}` to the column type.
-2. Be sure to use the same column type as the referenced column.
-3. By convention, the foreign key column name should have an `Id` suffix, like `userId` or `tokenId`.
-
-Foreign key columns are just like other primitive columns. They are persisted to the database, and if they are not marked as optional, they must included when creating new records.
-
-```ts filename="ponder.schema.ts" {11,16}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Author: p.createTable({
-    id: p.bigint(),
-    name: p.string(),
-  }),
-  Book: p.createTable({
-    id: p.string(),
-    title: p.string(),
-    authorId: p.bigint().references("Author.id"),
-  }),
-  Page: p.createTable({
-    id: p.bigint(),
-    contents: p.string(),
-    bookId: p.string().references("Book.id"),
-  }),
-}));
-```
-
-<Callout type="info">
-Foreign key columns can only reference primary key columns of other tables. This is because the schema definition does not yet support marking columns other than the primary key as `DISTINCT{:sql}`/`UNIQUE{:sql}`. We may add this feature in a future release - please get in touch if you want it.
-</Callout>
