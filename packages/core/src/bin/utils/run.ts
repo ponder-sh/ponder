@@ -37,18 +37,22 @@ export async function run({
     databaseConfig,
     networks,
     sources,
-    schema,
     indexingFunctions,
+    schema,
+    statements,
+    namespace,
   } = build;
 
   let isKilled = false;
 
   const database = await createDatabase({
     common,
-    schema,
     databaseConfig,
     buildId,
     instanceId,
+    schema,
+    statements,
+    namespace,
   });
   const { checkpoint: initialCheckpoint } = await database.setup();
 

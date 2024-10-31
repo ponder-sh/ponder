@@ -1,4 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import { buildSchema } from "@/build/schema.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import {
@@ -33,13 +34,17 @@ test("setup() succeeds with a fresh database", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   const { checkpoint } = await database.setup();
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
-  const tableNames = await getUserTableNames(database);
+  const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("1234__account");
   expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
@@ -54,7 +59,7 @@ test("setup() succeeds with a fresh database", async (context) => {
   await database.kill();
 });
 
-test("setup() create tables", async (context) => {
+test("setup() creates tables", async (context) => {
   const mood = onchainEnum("mood", ["sad", "happy"]);
 
   const kyle = onchainTable("kyle", (p) => ({
@@ -80,11 +85,15 @@ test("setup() create tables", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account, kyle, mood, user },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
 
-  const tableNames = await getUserTableNames(database);
+  const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("1234__account");
   expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("1234__kyle");
@@ -103,10 +112,14 @@ test("setup() succeeds with a prior app in the same namespace", async (context) 
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
   await database.setup();
 
-  let tableNames = await getUserTableNames(database);
+  let tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("1234__account");
   expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
@@ -119,11 +132,15 @@ test("setup() succeeds with a prior app in the same namespace", async (context) 
     databaseConfig: context.databaseConfig,
     instanceId: "5678",
     buildId: "def",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "5678",
+    }),
   });
 
   await databaseTwo.setup();
 
-  tableNames = await getUserTableNames(databaseTwo);
+  tableNames = await getUserTableNames(databaseTwo, "public");
 
   expect(tableNames).toContain("1234__account");
   expect(tableNames).toContain("1234_reorg__account");
@@ -148,6 +165,10 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -164,6 +185,10 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
     databaseConfig: context.databaseConfig,
     instanceId: "5678",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "5678",
+    }),
   });
 
   const { checkpoint } = await databaseTwo.setup();
@@ -177,7 +202,7 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
 
   expect(metadata).toHaveLength(3);
 
-  const tableNames = await getUserTableNames(databaseTwo);
+  const tableNames = await getUserTableNames(databaseTwo, "public");
   expect(tableNames).toContain("5678__account");
   expect(tableNames).toContain("5678_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
@@ -192,6 +217,10 @@ test("setup() with the same build ID reverts rows", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -237,6 +266,10 @@ test("setup() with the same build ID reverts rows", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "5678",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "5678",
+    }),
   });
 
   const { checkpoint } = await databaseTwo.setup();
@@ -272,6 +305,10 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
   await database.setup();
   await database.finalize({ checkpoint: createCheckpoint(10) });
@@ -282,6 +319,10 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
     databaseConfig: context.databaseConfig,
     instanceId: "5678",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "5678",
+    }),
   });
 
   const { checkpoint } = await databaseTwo.setup();
@@ -302,6 +343,10 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
   await database.setup();
   await database.finalize({ checkpoint: createCheckpoint(10) });
@@ -312,6 +357,10 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
     databaseConfig: context.databaseConfig,
     instanceId: "5678",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "5678",
+    }),
   });
 
   const { checkpoint } = await databaseTwo.setup();
@@ -330,6 +379,10 @@ test("setup() drops old tables", async (context) => {
       databaseConfig: context.databaseConfig,
       instanceId: `123${i}`,
       buildId: `${i}`,
+      ...buildSchema({
+        schema: { account },
+        instanceId: `123${i}`,
+      }),
     });
     await database.setup();
     await database.kill();
@@ -341,10 +394,14 @@ test("setup() drops old tables", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1239",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1239",
+    }),
   });
   await database.setup();
 
-  const tableNames = await getUserTableNames(database);
+  const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toHaveLength(7);
   await database.kill();
 });
@@ -356,13 +413,17 @@ test('setup() with "ponder dev" publishes views', async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   context.common.options.command = "dev";
 
   await database.setup();
 
-  const viewNames = await getUserViewNames(database);
+  const viewNames = await getUserViewNames(database, "public");
   expect(viewNames).toContain("account");
 
   await database.kill();
@@ -377,13 +438,19 @@ test.todo(
       databaseConfig: context.databaseConfig,
       instanceId: "1234",
       buildId: "abc",
+      ...buildSchema({
+        schema: { account },
+        instanceId: "1234",
+      }),
     });
 
     await database.qb.internal.executeQuery(
       ksql`CREATE TABLE "account" (id TEXT)`.compile(database.qb.internal),
     );
 
-    expect(await getUserTableNames(database)).toStrictEqual(["account"]);
+    expect(await getUserTableNames(database, "public")).toStrictEqual([
+      "account",
+    ]);
 
     await expect(() => database.setup()).rejects.toThrow(
       "Unable to create table 'public'.'account' because a table with that name already exists. Is there another application using the 'public' database schema?",
@@ -400,6 +467,10 @@ test("setup() v0.7 migration", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.qb.internal.schema
@@ -438,7 +509,7 @@ test("setup() v0.7 migration", async (context) => {
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
-  const tableNames = await getUserTableNames(database);
+  const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("1234__account");
   expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).not.toContain("account");
@@ -465,6 +536,10 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -499,6 +574,10 @@ test("finalize()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -570,6 +649,10 @@ test("kill()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -581,6 +664,10 @@ test("kill()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   const metadata = await database.qb.internal
@@ -612,12 +699,20 @@ test("createIndexes()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
   await database.createIndexes();
 
-  const indexNames = await getUserIndexNames(database, "1234__account");
+  const indexNames = await getUserIndexNames(
+    database,
+    "public",
+    "1234__account",
+  );
   expect(indexNames).toContain("balance_index");
 
   await database.kill();
@@ -630,12 +725,16 @@ test("createLiveViews()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
   await database.createLiveViews();
 
-  const viewNames = await getUserViewNames(database);
+  const viewNames = await getUserViewNames(database, "public");
   expect(viewNames).toContain("account");
 
   const metadata = await database.qb.internal
@@ -656,31 +755,39 @@ test("createLiveViews() drops old views", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
   await database.createLiveViews();
   await database.kill();
 
+  const transfer = onchainTable("transfer", (p) => ({
+    id: p.serial().primaryKey(),
+    from: p.hex().notNull(),
+    to: p.hex().notNull(),
+    amount: p.hex().notNull(),
+  }));
+
   const databaseTwo = await createDatabase({
     common: context.common,
-    schema: {
-      transfer: onchainTable("transfer", (p) => ({
-        id: p.serial().primaryKey(),
-        from: p.hex().notNull(),
-        to: p.hex().notNull(),
-        amount: p.hex().notNull(),
-      })),
-    },
+    schema: { transfer },
     databaseConfig: context.databaseConfig,
     instanceId: "5678",
     buildId: "def",
+    ...buildSchema({
+      schema: { transfer },
+      instanceId: "5678",
+    }),
   });
 
   await databaseTwo.setup();
   await databaseTwo.createLiveViews();
 
-  const viewNames = await getUserViewNames(databaseTwo);
+  const viewNames = await getUserViewNames(databaseTwo, "public");
   expect(viewNames).toHaveLength(1);
   expect(viewNames).toContain("transfer");
 
@@ -702,6 +809,10 @@ test("createTriggers()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -745,6 +856,10 @@ test("complete()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -791,6 +906,10 @@ test("revert()", async (context) => {
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
   });
 
   await database.setup();
@@ -843,31 +962,35 @@ test("revert()", async (context) => {
   await database.kill();
 });
 
-async function getUserTableNames(database: Database) {
+async function getUserTableNames(database: Database, namespace: string) {
   const { rows } = await database.qb.internal.executeQuery<{ name: string }>(
     ksql`
       SELECT table_name as name
       FROM information_schema.tables
-      WHERE table_schema = '${ksql.raw(database.namespace)}'
+      WHERE table_schema = '${ksql.raw(namespace)}'
       AND table_type = 'BASE TABLE'
     `.compile(database.qb.internal),
   );
   return rows.map(({ name }) => name);
 }
 
-async function getUserViewNames(database: Database) {
+async function getUserViewNames(database: Database, namespace: string) {
   const { rows } = await database.qb.internal.executeQuery<{ name: string }>(
     ksql`
       SELECT table_name as name
       FROM information_schema.tables
-      WHERE table_schema = '${ksql.raw(database.namespace)}'
+      WHERE table_schema = '${ksql.raw(namespace)}'
       AND table_type = 'VIEW'
     `.compile(database.qb.internal),
   );
   return rows.map(({ name }) => name);
 }
 
-async function getUserIndexNames(database: Database, tableName: string) {
+async function getUserIndexNames(
+  database: Database,
+  namespace: string,
+  tableName: string,
+) {
   const { rows } = await database.qb.internal.executeQuery<{
     name: string;
     tbl_name: string;
@@ -875,7 +998,7 @@ async function getUserIndexNames(database: Database, tableName: string) {
     ksql`
       SELECT indexname as name
       FROM pg_indexes
-      WHERE schemaname = '${ksql.raw(database.namespace)}'
+      WHERE schemaname = '${ksql.raw(namespace)}'
       AND tablename = '${ksql.raw(tableName)}'
     `.compile(database.qb.internal),
   );

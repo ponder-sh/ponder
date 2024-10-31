@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { buildSchema } from "@/build/schema.js";
 import type { Common } from "@/common/common.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
@@ -154,12 +155,20 @@ export async function setupDatabaseServices(
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
+
+  const { statements, namespace } = buildSchema({
+    schema: config.schema,
+    instanceId: config.instanceId,
+  });
+
   const database = await createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,
     instanceId: config.instanceId,
     buildId: config.buildId,
+    statements,
+    namespace,
   });
 
   await database.setup();

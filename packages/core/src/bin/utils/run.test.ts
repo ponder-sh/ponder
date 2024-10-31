@@ -4,6 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
+import { buildSchema } from "@/build/schema.js";
 import { onchainTable } from "@/drizzle/index.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -18,12 +19,17 @@ const account = onchainTable("account", (p) => ({
   balance: p.bigint().notNull(),
 }));
 
-// const graphqlSchema = buildGraphQLSchema(schema);
+// const graphqlSchema = buildGraphQLSchema({ schema: { account } });
 
 test("run() setup", async (context) => {
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
+
+  const { statements, namespace } = buildSchema({
+    schema: { account },
+    instanceId: "1234",
+  });
 
   const build: IndexingBuild = {
     buildId: "buildId",
@@ -33,6 +39,8 @@ test("run() setup", async (context) => {
     networks: context.networks,
     sources: context.sources,
     indexingFunctions,
+    statements,
+    namespace,
   };
 
   const kill = await run({
@@ -53,6 +61,11 @@ test("run() setup error", async (context) => {
   };
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
+  const { statements, namespace } = buildSchema({
+    schema: { account },
+    instanceId: "1234",
+  });
+
   const build: IndexingBuild = {
     buildId: "buildId",
     instanceId: "1234",
@@ -61,6 +74,8 @@ test("run() setup error", async (context) => {
     networks: context.networks,
     sources: context.sources,
     indexingFunctions,
+    statements,
+    namespace,
   };
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());

@@ -27,7 +27,23 @@ import {
 type Dialect = "postgresql";
 type CasingType = "snake_case" | "camelCase";
 
-export const getSql = (schema: Schema, instanceId: string) => {
+export type SqlStatements = {
+  schema: {
+    sql: string[];
+    json: JsonCreateSchema[];
+  };
+  tables: {
+    sql: string[];
+    json: JsonCreateTableStatement[];
+  };
+  enums: {
+    sql: string[];
+    json: JsonCreateEnumStatement[];
+  };
+  indexes: { sql: string[]; json: JsonPgCreateIndexStatement[] };
+};
+
+export const getSql = (schema: Schema, instanceId: string): SqlStatements => {
   const { tables, enums, schemas } = prepareFromExports(schema);
   const json = generatePgSnapshot(tables, enums, schemas, "snake_case");
   const squashed = squashPgScheme(json);
