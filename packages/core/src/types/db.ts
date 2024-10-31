@@ -184,7 +184,8 @@ export type Update = <
   table extends Table,
   ///
   serialPrimaryKey extends string | never = InferSerialPrimaryKey<table>,
-  insertValues = Prettify<Omit<InferInsertModel<table>, keyof Key<table>>>,
+  insertModel = InferInsertModel<table>,
+  insertValues = Prettify<Omit<insertModel, keyof Key<table>>>,
 >(
   table: table extends { [onchain]: true }
     ? [serialPrimaryKey] extends [never]
@@ -196,8 +197,8 @@ export type Update = <
   set: (
     values:
       | Partial<insertValues>
-      | ((row: InferSelectModel<table>) => Partial<insertValues>),
-  ) => Promise<InferSelectModel<table>>;
+      | ((row: insertModel) => Partial<insertValues>),
+  ) => Promise<insertModel>;
 };
 
 export type Upsert = <
