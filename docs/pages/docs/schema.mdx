@@ -525,32 +525,45 @@ export const registrationEvents = onchainTable(
 Here's a schema for a simple ERC20 app.
 
 ```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
+import { index, onchainTable, primaryKey } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.string(),
-    balance: p.bigint(),
-    isOwner: p.boolean(),
-    approvals: p.many("Approval.ownerId"),
-    transferFromEvents: p.many("TransferEvent.fromId"),
-    transferToEvents: p.many("TransferEvent.toId"),
+export const account = onchainTable("account", (t) => ({
+  address: t.hex().primaryKey(),
+  balance: t.bigint().notNull(),
+  isOwner: t.boolean().notNull(),
+}));
+
+export const allowance = onchainTable(
+  "allowance",
+  (t) => ({
+    owner: t.hex(),
+    spender: t.hex(),
+    amount: t.bigint().notNull(),
   }),
-  Approval: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    spender: p.string(),
-    ownerId: p.string().references("Account.id"),
-    owner: p.one("ownerId"),
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.spender] }),
+  })
+);
+
+export const transferEvent = onchainTable(
+  "transfer_event",
+  (t) => ({
+    id: t.serial().primaryKey(),
+    amount: t.bigint().notNull(),
+    timestamp: t.integer().notNull(),
+    from: t.hex().notNull(),
+    to: t.hex().notNull(),
   }),
-  TransferEvent: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    fromId: p.string().references("Account.id"),
-    toId: p.string().references("Account.id"),
-    timestamp: p.int(),
-    from: p.one("fromId"),
-    to: p.one("toId"),
-  }),
+  (table) => ({
+    fromIdx: index("from_index").on(table.from),
+  })
+);
+
+export const approvalEvent = onchainTable("approval_event", (t) => ({
+  id: t.serial().primaryKey(),
+  amount: t.bigint().notNull(),
+  timestamp: t.integer().notNull(),
+  owner: t.hex().notNull(),
+  spender: t.hex().notNull(),
 }));
 ```
