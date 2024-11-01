@@ -187,7 +187,7 @@ To create indexes on specific columns, use the `p.index()` function in `ponder.s
 Ponder uses the **public** database schema by default. To use a different schema, use the `onchainSchema` function `ponder.schema.ts`.
 
 ```ts filename="ponder.schema.ts" {3}
-import { onchainSchema } from "@ponder/core/db"
+import { onchainSchema } from "@ponder/core"
 
 export const schema = onchainSchema("ponder");
 
@@ -208,7 +208,7 @@ To get oriented, connect to the database using `psql` ([installation guide](http
   <p />
 
   ```ts filename="ponder.schema.ts"
-  import { onchainTable } from "@ponder/core/db";
+  import { onchainTable } from "@ponder/core";
 
   export const account = onchainTable("account", (p) => ({
     address: p.evmHex().primaryKey(),
