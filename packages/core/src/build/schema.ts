@@ -36,12 +36,12 @@ export const buildSchema = ({
     if (is(s, PgTable)) {
       if (namespace === "public" && getTableConfig(s).schema !== undefined) {
         throw new Error(
-          `Schema validation failed: All entities must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema}' than '${namespace}'.`,
+          `Schema validation failed: All tables must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema}' than '${namespace}'.`,
         );
       }
       if (namespace !== "public" && getTableConfig(s).schema !== namespace) {
         throw new Error(
-          `Schema validation failed: All entities must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema ?? "public"}' than '${namespace}'.`,
+          `Schema validation failed: All tables  must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema ?? "public"}' than '${namespace}'.`,
         );
       }
 
@@ -126,14 +126,14 @@ export const buildSchema = ({
       if (namespace === "public" && (s as PgEnum<any>).schema !== undefined) {
         throw new Error(
           // @ts-ignore
-          `Schema validation failed: All entities must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema}' than '${namespace}'.`,
+          `Schema validation failed: All enums must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema}' than '${namespace}'.`,
         );
       }
       // @ts-ignore
       if (namespace !== "public" && (s as PgEnum<any>).schema !== namespace) {
         throw new Error(
           // @ts-ignore
-          `Schema validation failed: All entities must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema ?? "public"}' than '${namespace}'.`,
+          `Schema validation failed: All enums must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema ?? "public"}' than '${namespace}'.`,
         );
       }
     }
