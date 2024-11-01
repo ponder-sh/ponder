@@ -6,7 +6,6 @@ import {
   type Factory,
   type LogFactory,
   type LogFilter,
-  type TransactionFilter,
   isAddressFactory,
 } from "./source.js";
 
@@ -180,87 +179,7 @@ export const buildBlockFilterFragment = ({
   };
 };
 
-export const buildTransactionFilterFragments = ({
-  chainId,
-  fromAddress,
-  toAddress,
-}: Omit<TransactionFilter, "fromBlock" | "toBlock"> & {
-  chainId: number;
-}): TraceFilterFragment<factory>[] => {
-  const fragments: TraceFilterFragment[] = [];
-
-  const idCallback = ({
-    chainId,
-    fromAddress,
-    toAddress,
-  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    toAddress: Address | null;
-  }) => {
-    return `${chainId}_${fromAddress}_${toAddress}`;
-  };
-
-  const factoryIdCallback = ({
-    chainId,
-    fromAddress,
-    address,
-    eventSelector,
-    childAddressLocation,
-  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    address: Address;
-    eventSelector: LogFactory["eventSelector"];
-    childAddressLocation: LogFactory["childAddressLocation"];
-  }) => {
-    return `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`;
-  };
-
-  if (isAddressFactory(toAddress)) {
-    for (const _fromAddress of Array.isArray(fromAddress)
-      ? fromAddress
-      : [null]) {
-      for (const _factoryAddress of Array.isArray(toAddress.address)
-        ? toAddress.address
-        : [toAddress.address]) {
-        fragments.push({
-          id: factoryIdCallback({
-            chainId,
-            fromAddress: _fromAddress,
-            address: _factoryAddress,
-            eventSelector: toAddress.eventSelector,
-            childAddressLocation: toAddress.childAddressLocation,
-          }),
-          chainId,
-          address: _factoryAddress,
-          eventSelector: toAddress.eventSelector,
-          childAddressLocation: toAddress.childAddressLocation,
-          fromAddress: _fromAddress,
-        });
-      }
-    }
-  } else {
-    for (const _fromAddress of Array.isArray(fromAddress)
-      ? fromAddress
-      : [null]) {
-      for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
-        fragments.push({
-          id: idCallback({
-            chainId,
-            fromAddress: _fromAddress,
-            toAddress: _toAddress,
-          }),
-          chainId,
-          toAddress: _toAddress,
-          fromAddress: _fromAddress,
-        });
-      }
-    }
-  }
-
-  return fragments as TraceFilterFragment<factory>[];
-};
-
-export const buildTransferFilterFragments = <
-  factory extends Factory | undefined,
->({
+export const buildTraceFilterFragments = <factory extends Factory | undefined>({
   chainId,
   fromAddress,
   toAddress,

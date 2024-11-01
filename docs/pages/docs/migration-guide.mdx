@@ -59,7 +59,7 @@ npm run codegen
 Here's a table defined with the new schema definition API, which uses [Drizzle](https://orm.drizzle.team/docs/overview) under the hood.
 
 ```ts filename="ponder.schema.ts (after)"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "@ponder/core/db";
 
 export const accounts = onchainTable("account", (t) => ({
   address: t.hex().primaryKey(),
@@ -86,7 +86,7 @@ The new `onchainTable` function adds several new capabilities.
 Here's a more advanced example with indexes, a serial column, and a composite primary key.
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable, index, primaryKey } from "@ponder/core";
+import { onchainTable, index, primaryKey } from "@ponder/core/db";
 
 export const transferEvents = onchainTable(
   "transfer_event",
@@ -284,7 +284,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 The `context.db.sql` interface replaces the rigid `findMany` method and supports any valid SQL `select` query.
 
 ```ts filename="src/index.ts"
-import { desc } from "@ponder/core";
+import { desc } from "@ponder/core/db";
 import { account } from "../ponder.schema";
 
 ponder.on("...", ({ event, context }) => {
