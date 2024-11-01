@@ -5,7 +5,7 @@ import type { Address, Hash, Hex, LogTopic } from "viem";
 /** @see https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/debug.rs */
 
 /** Result type for geth style transaction trace. */
-type Trace = {
+export type Trace = {
   /** Transaction hash. */
   txHash: Hex;
   /** Trace results produced by the tracer.  */

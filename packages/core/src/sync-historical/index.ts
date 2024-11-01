@@ -12,7 +12,7 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
+import type { SyncBlock, SyncLog, SyncTrace } from "@/types/sync.js";
 import {
   type Interval,
   getChunks,
@@ -24,7 +24,6 @@ import {
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
-  _trace_filter,
 } from "@/utils/rpc.js";
 import { getLogsRetryHelper } from "@ponder/utils";
 import {
@@ -292,110 +291,110 @@ export const createHistoricalSync = async (
     await Promise.all(requiredBlocks.map((b) => syncBlock(BigInt(b))));
   };
 
-  const syncTraceFilter = async (
-    filter: CallTraceFilter,
-    interval: Interval,
-  ) => {
-    // Resolve `filter.toAddress`
-    let toAddress: Address[] | undefined;
-    if (isAddressFactory(filter.toAddress)) {
-      const childAddresses = await syncAddress(filter.toAddress, interval);
-      if (
-        childAddresses.length < args.common.options.factoryAddressCountThreshold
-      ) {
-        toAddress = childAddresses;
-      } else {
-        toAddress = undefined;
-      }
-    } else {
-      toAddress = filter.toAddress;
-    }
+  // const syncTraceFilter = async (
+  //   filter: CallTraceFilter,
+  //   interval: Interval,
+  // ) => {
+  //   // Resolve `filter.toAddress`
+  //   let toAddress: Address[] | undefined;
+  //   if (isAddressFactory(filter.toAddress)) {
+  //     const childAddresses = await syncAddress(filter.toAddress, interval);
+  //     if (
+  //       childAddresses.length < args.common.options.factoryAddressCountThreshold
+  //     ) {
+  //       toAddress = childAddresses;
+  //     } else {
+  //       toAddress = undefined;
+  //     }
+  //   } else {
+  //     toAddress = filter.toAddress;
+  //   }
 
-    if (isKilled) return;
+  //   if (isKilled) return;
 
-    let callTraces = await _trace_filter(args.requestQueue, {
-      fromAddress: filter.fromAddress,
-      toAddress,
-      fromBlock: interval[0],
-      toBlock: interval[1],
-    }).then(
-      (traces) =>
-        traces.flat().filter((t) => t.type === "call") as SyncCallTrace[],
-    );
+  //   let callTraces = await _trace_filter(args.requestQueue, {
+  //     fromAddress: filter.fromAddress,
+  //     toAddress,
+  //     fromBlock: interval[0],
+  //     toBlock: interval[1],
+  //   }).then(
+  //     (traces) =>
+  //       traces.flat().filter((t) => t.type === "call") as SyncCallTrace[],
+  //   );
 
-    if (isKilled) return;
+  //   if (isKilled) return;
 
-    const blocks = await Promise.all(
-      callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
-    );
+  //   const blocks = await Promise.all(
+  //     callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
+  //   );
 
-    const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
+  //   const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
 
-    // Validate that traces point to the valid transaction hash in the block
-    for (let i = 0; i < callTraces.length; i++) {
-      const callTrace = callTraces[i]!;
-      const block = blocks[i]!;
+  //   // Validate that traces point to the valid transaction hash in the block
+  //   for (let i = 0; i < callTraces.length; i++) {
+  //     const callTrace = callTraces[i]!;
+  //     const block = blocks[i]!;
 
-      if (block.hash !== callTrace.blockHash) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'trace.blockHash' ${callTrace.blockHash} does not match 'block.hash' ${block.hash}`,
-        );
-      }
+  //     if (block.hash !== callTrace.blockHash) {
+  //       throw new Error(
+  //         `Detected inconsistent RPC responses. 'trace.blockHash' ${callTrace.blockHash} does not match 'block.hash' ${block.hash}`,
+  //       );
+  //     }
 
-      if (
-        block.transactions.find((t) => t.hash === callTrace.transactionHash) ===
-        undefined
-      ) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'trace.transactionHash' ${callTrace.transactionHash} not found in 'block.transactions' ${block.hash}`,
-        );
-      }
-    }
+  //     if (
+  //       block.transactions.find((t) => t.hash === callTrace.transactionHash) ===
+  //       undefined
+  //     ) {
+  //       throw new Error(
+  //         `Detected inconsistent RPC responses. 'trace.transactionHash' ${callTrace.transactionHash} not found in 'block.transactions' ${block.hash}`,
+  //       );
+  //     }
+  //   }
 
-    // Request transactionReceipts to check for reverted transactions.
-    const transactionReceipts = await Promise.all(
-      Array.from(transactionHashes).map((hash) =>
-        _eth_getTransactionReceipt(args.requestQueue, {
-          hash,
-        }),
-      ),
-    );
+  //   // Request transactionReceipts to check for reverted transactions.
+  //   const transactionReceipts = await Promise.all(
+  //     Array.from(transactionHashes).map((hash) =>
+  //       _eth_getTransactionReceipt(args.requestQueue, {
+  //         hash,
+  //       }),
+  //     ),
+  //   );
 
-    const revertedTransactions = new Set<Hash>();
-    for (const receipt of transactionReceipts) {
-      if (receipt.status === "0x0") {
-        revertedTransactions.add(receipt.transactionHash);
-      }
-    }
+  //   const revertedTransactions = new Set<Hash>();
+  //   for (const receipt of transactionReceipts) {
+  //     if (receipt.status === "0x0") {
+  //       revertedTransactions.add(receipt.transactionHash);
+  //     }
+  //   }
 
-    callTraces = callTraces.filter(
-      (trace) => revertedTransactions.has(trace.transactionHash) === false,
-    );
+  //   callTraces = callTraces.filter(
+  //     (trace) => revertedTransactions.has(trace.transactionHash) === false,
+  //   );
 
-    if (isKilled) return;
+  //   if (isKilled) return;
 
-    for (const hash of transactionHashes) {
-      if (revertedTransactions.has(hash) === false) {
-        transactionsCache.add(hash);
-      }
-    }
+  //   for (const hash of transactionHashes) {
+  //     if (revertedTransactions.has(hash) === false) {
+  //       transactionsCache.add(hash);
+  //     }
+  //   }
 
-    if (isKilled) return;
+  //   if (isKilled) return;
 
-    await args.syncStore.insertCallTraces({
-      callTraces: callTraces.map((callTrace, i) => ({
-        callTrace,
-        block: blocks[i]!,
-      })),
-      chainId: args.network.chainId,
-    });
-  };
+  //   await args.syncStore.insertCallTraces({
+  //     callTraces: callTraces.map((callTrace, i) => ({
+  //       callTrace,
+  //       block: blocks[i]!,
+  //     })),
+  //     chainId: args.network.chainId,
+  //   });
+  // };
 
   const syncTrace = async (
     filter: TransactionFilter | TransferFilter,
     blockNumber: number,
   ) => {
-    // request debug_traceBlockByNumber
+    // request _debug_traceBlockByNumber
     // for each trace, is[type]FilterMatched
     // request block
     // request transactions
@@ -525,13 +524,15 @@ export const createHistoricalSync = async (
                       break;
                     }
 
-                    case "transaction": {
+                    case "transaction":
+                    case "transfer": {
+                      // both use the same underlying data source, so may be able to combine the logic here
+
+                      // for each block
+                      // syncTrace
                       break;
                     }
 
-                    case "transfer": {
-                      break;
-                    }
                     // case "callTrace":
                     //   await Promise.all(
                     //     getChunks({ interval, maxChunkSize: 10 }).map(
