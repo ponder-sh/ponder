@@ -147,59 +147,42 @@ export const _eth_getTransactionReceipt = (
     });
 
 /**
- * Helper function for "trace_filter" request.
- *
- * Note: No strict typing is available.
+ * Helper function for "debug_traceBlockByNumber" request.
  */
-export const _trace_filter = (
+export const _debug_traceBlockByNumber = (
   requestQueue: RequestQueue,
-  params: {
-    fromBlock: Hex | number;
-    toBlock: Hex | number;
-    fromAddress?: Address[];
-    toAddress?: Address[];
-  },
-): Promise<SyncTrace[]> =>
-  requestQueue
-    .request({
-      method: "trace_filter",
-      params: [
-        {
-          fromBlock:
-            typeof params.fromBlock === "number"
-              ? numberToHex(params.fromBlock)
-              : params.fromBlock,
-          toBlock:
-            typeof params.toBlock === "number"
-              ? numberToHex(params.toBlock)
-              : params.toBlock,
-          fromAddress: params.fromAddress
-            ? params.fromAddress.map((a) => toLowerCase(a))
-            : undefined,
-          toAddress: params.toAddress
-            ? params.toAddress.map((a) => toLowerCase(a))
-            : undefined,
-        },
-      ],
-    } as any)
-    .then((traces) => traces as unknown as SyncTrace[]);
-
-/**
- * Helper function for "trace_block" request.
- */
-export const _trace_block = (
-  requestQueue: RequestQueue,
-  params: {
+  {
+    blockNumber,
+  }: {
     blockNumber: Hex | number;
   },
 ): Promise<SyncTrace[]> =>
   requestQueue
     .request({
-      method: "trace_block",
+      method: "debug_traceBlockByNumber",
       params: [
-        typeof params.blockNumber === "number"
-          ? numberToHex(params.blockNumber)
-          : params.blockNumber,
+        typeof blockNumber === "number"
+          ? numberToHex(blockNumber)
+          : blockNumber,
+        { tracer: "callTracer" },
       ],
+    } as any)
+    .then((traces) => traces as unknown as SyncTrace[]);
+
+/**
+ * Helper function for "debug_traceBlockByHash" request.
+ */
+export const _debug_traceBlockByHash = (
+  requestQueue: RequestQueue,
+  {
+    hash,
+  }: {
+    hash: Hash;
+  },
+): Promise<SyncTrace[]> =>
+  requestQueue
+    .request({
+      method: "debug_traceBlockByHash",
+      params: [hash, { tracer: "callTracer" }],
     } as any)
     .then((traces) => traces as unknown as SyncTrace[]);

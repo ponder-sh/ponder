@@ -12,7 +12,6 @@ import {
 } from "@/sync/fragments.js";
 import {
   type BlockFilter,
-  type CallTraceFilter,
   type Factory,
   type Filter,
   type LogFactory,
@@ -23,25 +22,19 @@ import type { CallTrace, Log, TransactionReceipt } from "@/types/eth.js";
 import type {
   LightBlock,
   SyncBlock,
-  SyncCallTrace,
   SyncLog,
+  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import {
   type Interval,
   intervalIntersectionMany,
   intervalUnion,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import {
-  type Insertable,
-  type Kysely,
-  type SelectQueryBuilder,
-  sql as ksql,
-} from "kysely";
+import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
 import {
   type Address,
   type Hash,
@@ -53,7 +46,6 @@ import {
 import {
   type PonderSyncSchema,
   encodeBlock,
-  encodeCallTrace,
   encodeLog,
   encodeTransaction,
   encodeTransactionReceipt,
@@ -96,7 +88,7 @@ export type SyncStore = {
   /** Return true if the transaction receipt is present in the database. */
   hasTransactionReceipt(args: { hash: Hash }): Promise<boolean>;
   insertTraces(args: {
-    callTraces: { callTrace: SyncCallTrace; block: SyncBlock }[];
+    traces: { trace: SyncTrace; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
@@ -674,83 +666,9 @@ export const createSyncStore = ({
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
-  insertCallTraces: async ({ callTraces, chainId }) => {
-    if (callTraces.length === 0) return;
-    await db.wrap({ method: "insertCallTrace" }, async () => {
-      // Delete existing traces with the same `transactionHash`. Then, calculate "callTraces.checkpoint"
-      // based on the ordering of "callTraces.traceAddress" and add all traces to "callTraces" table.
-      const traceByTransactionHash: {
-        [transactionHash: Hex]: { traces: SyncCallTrace[]; block: SyncBlock };
-      } = {};
-
-      for (const { callTrace, block } of callTraces) {
-        if (traceByTransactionHash[callTrace.transactionHash] === undefined) {
-          traceByTransactionHash[callTrace.transactionHash] = {
-            traces: [],
-            block,
-          };
-        }
-        traceByTransactionHash[callTrace.transactionHash]!.traces.push(
-          callTrace,
-        );
-      }
-
-      const values: Insertable<PonderSyncSchema["callTraces"]>[] = [];
-
-      await db.transaction().execute(async (tx) => {
-        for (const transactionHash of Object.keys(traceByTransactionHash)) {
-          const block = traceByTransactionHash[transactionHash as Hex]!.block;
-          const traces = await tx
-            .deleteFrom("callTraces")
-            .returningAll()
-            .where("transactionHash", "=", transactionHash as Hex)
-            .where("chainId", "=", chainId)
-            .execute();
-
-          traces.push(
-            // @ts-ignore
-            ...traceByTransactionHash[transactionHash as Hex]!.traces.map(
-              (trace) => encodeCallTrace({ trace, chainId }),
-            ),
-          );
-
-          // Use lexographical sort of stringified `traceAddress`.
-          traces.sort((a, b) => {
-            return a.traceAddress < b.traceAddress ? -1 : 1;
-          });
-
-          for (let i = 0; i < traces.length; i++) {
-            const trace = traces[i]!;
-
-            const checkpoint = encodeCheckpoint({
-              blockTimestamp: hexToNumber(block.timestamp),
-              chainId: BigInt(chainId),
-              blockNumber: hexToBigInt(block.number),
-              transactionIndex: BigInt(trace.transactionPosition),
-              eventType: EVENT_TYPES.callTraces,
-              eventIndex: BigInt(i),
-            });
-            trace.checkpoint = checkpoint;
-            values.push(trace);
-          }
-        }
-
-        // Calculate `batchSize` based on how many parameters the
-        // input will have
-        const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
-            Object.keys(values[0]!).length,
-        );
-
-        for (let i = 0; i < values.length; i += batchSize) {
-          await tx
-            .insertInto("callTraces")
-            .values(values.slice(i, i + batchSize))
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute();
-        }
-      });
-    });
+  insertTraces: async ({ traces, chainId }) => {
+    if (traces.length === 0) return;
+    await db.wrap({ method: "insertTraces" }, async () => {});
   },
   getEvents: async ({ filters, from, to, limit }) => {
     const addressSQL = (
