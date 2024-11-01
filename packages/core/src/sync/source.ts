@@ -4,14 +4,25 @@ import type { Abi, Address, Hex, LogTopic } from "viem";
 
 export type Source = ContractSource | BlockSource;
 export type ContractSource<
-  filter extends "log" | "trace" = "log" | "trace",
+  filter extends "log" | "transaction" | "transfer" =
+    | "log"
+    | "transaction"
+    | "transfer",
   factory extends Factory | undefined = Factory | undefined,
 > = {
-  filter: filter extends "log" ? LogFilter<factory> : CallTraceFilter<factory>;
+  filter: filter extends "log"
+    ? LogFilter<factory>
+    : filter extends "transaction"
+      ? TransactionFilter
+      : TransferFilter;
 } & ContractMetadata;
 export type BlockSource = { filter: BlockFilter } & BlockMetadata;
 
-export type Filter = LogFilter | BlockFilter | CallTraceFilter;
+export type Filter =
+  | LogFilter
+  | BlockFilter
+  | TransferFilter
+  | TransactionFilter;
 export type Factory = LogFactory;
 
 export type ContractMetadata = {
@@ -49,15 +60,34 @@ export type BlockFilter = {
   toBlock: number | undefined;
 };
 
-export type CallTraceFilter<
-  factory extends Factory | undefined = Factory | undefined,
-> = {
-  type: "callTrace";
+export type TransferFilter = {
+  type: "transfer";
   chainId: number;
-  fromAddress: Address[] | undefined;
-  toAddress: factory extends Factory ? factory : Address[] | undefined;
-  functionSelectors: Hex[];
-  includeTransactionReceipts: boolean;
+  fromAddress: Address | Address[] | Factory | undefined;
+  toAddress: Address | Address[] | Factory | undefined;
+  fromBlock: number;
+  toBlock: number | undefined;
+};
+
+export type TransactionFilter = {
+  type: "transaction";
+  chainId: number;
+  fromAddress: Address | Address[] | Factory | undefined;
+  toAddress: Address | Address[] | Factory | undefined;
+  callType:
+    | (
+        | "call"
+        | "staticcall"
+        | "delegatecall"
+        | "selfdestruct"
+        | "create"
+        | "create2"
+        | "callcode"
+      )[]
+    | undefined;
+  functionSelectors: Hex | Hex[] | undefined;
+  includeInner: boolean;
+  includeFailed: boolean;
   fromBlock: number;
   toBlock: number | undefined;
 };

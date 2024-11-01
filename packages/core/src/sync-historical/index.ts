@@ -3,11 +3,12 @@ import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   type BlockFilter,
-  type CallTraceFilter,
   type Factory,
   type Filter,
   type LogFactory,
   type LogFilter,
+  type TransactionFilter,
+  type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
@@ -390,6 +391,17 @@ export const createHistoricalSync = async (
     });
   };
 
+  const syncTrace = async (
+    filter: TransactionFilter | TransferFilter,
+    blockNumber: number,
+  ) => {
+    // request debug_traceBlockByNumber
+    // for each trace, is[type]FilterMatched
+    // request block
+    // request transactions
+    // syncStore.insertTraces
+  };
+
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
     const logs = await getLogsDynamic({
@@ -513,15 +525,22 @@ export const createHistoricalSync = async (
                       break;
                     }
 
-                    case "callTrace":
-                      await Promise.all(
-                        getChunks({ interval, maxChunkSize: 10 }).map(
-                          async (interval) => {
-                            await syncTraceFilter(filter, interval);
-                          },
-                        ),
-                      );
+                    case "transaction": {
                       break;
+                    }
+
+                    case "transfer": {
+                      break;
+                    }
+                    // case "callTrace":
+                    //   await Promise.all(
+                    //     getChunks({ interval, maxChunkSize: 10 }).map(
+                    //       async (interval) => {
+                    //         await syncTraceFilter(filter, interval);
+                    //       },
+                    //     ),
+                    //   );
+                    //   break;
 
                     default:
                       never(filter);
