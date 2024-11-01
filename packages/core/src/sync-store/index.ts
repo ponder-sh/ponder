@@ -95,7 +95,7 @@ export type SyncStore = {
   }): Promise<void>;
   /** Return true if the transaction receipt is present in the database. */
   hasTransactionReceipt(args: { hash: Hash }): Promise<boolean>;
-  insertCallTraces(args: {
+  insertTraces(args: {
     callTraces: { callTrace: SyncCallTrace; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
