@@ -35,24 +35,25 @@ To get oriented, connect to the SQLite database using `sqlite3` ([installation g
   <summary><p>Example `ponder.schema.ts`</p></summary>
   <p />
 
-  ```ts filename="ponder.schema.ts"
-  import { createSchema } from "@ponder/core";
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
 
-  export default createSchema((p) => ({
-    Account: p.createTable({
-      id: p.hex(),
-      balance: p.bigint(),
-      isOwner: p.boolean(),
-    }),
-    TransferEvent: p.createTable({
-      id: p.string(),
-      amount: p.bigint(),
-      timestamp: p.int(),
-      fromId: p.hex().references("Account.id"),
-      toId: p.hex().references("Account.id"),
-    }),
-  }));
-  ```
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.hex(),
+    balance: p.bigint(),
+    isOwner: p.boolean(),
+  }),
+  TransferEvent: p.createTable({
+    id: p.string(),
+    amount: p.bigint(),
+    timestamp: p.int(),
+    fromId: p.hex().references("Account.id"),
+    toId: p.hex().references("Account.id"),
+  }),
+}));
+```
+
 </details>
 
 <Steps>
@@ -74,7 +75,7 @@ Once connected, you'll see a `sqlite>` prompt.
 ```plaintext filename="shell"
 SQLite version 3.37.0 2021-12-09 01:34:53
 Enter ".help" for usage hints.
-sqlite> 
+sqlite>
 ```
 
 #### Display tables
@@ -121,9 +122,9 @@ SELECT * FROM TransferEvent LIMIT 3;
 
 ```plaintext filename="sqlite3 (result)"
 sqlite> SELECT * FROM TransferEvent LIMIT 3;
-id                                                                        amount                                                                           timestamp   fromId  toId             
+id                                                                        amount                                                                           timestamp   fromId  toId
 ------------------------------------------------------------------------  -------------------------------------------------------------------------------  ----------  ------  -----------------
-0x3783f4bba84605ffa296db73fcbdb010caf0542b460035d7bed4129db02fd0e2-0x1a5  0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630539461          ???\???<0???%d?? 
+0x3783f4bba84605ffa296db73fcbdb010caf0542b460035d7bed4129db02fd0e2-0x1a5  0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630539461          ???\???<0???%d??
 0xd8612316d81529ccc73faf26318594a50cc4dffbbe0553ccf7a14a514f889fff-0xd5   0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630541604          ??ÉhP/w?~?mrrW???R
 0x1605392466b635d4eb1552f66832ade6da40a904b00566502b4ba3bdb08ab6a8-0x1a3  0000000000000000000000000000000000000000000000000000000010000000000000000000000  1630541770          ?7g?ʲo&??<}?x
 ```
@@ -150,9 +151,9 @@ SELECT *
 sqlite> SELECT * FROM Account WHERE id IN ( SELECT toId FROM TransferEvent GROUP BY toId HAVING COUNT(*) > 10 ) LIMIT 3;
 id                balance                                                                          isOwner
 ----------------  -------------------------------------------------------------------------------  -------
-.?˟???(?4[W?      0000000000000000000000000000000000000000000000000000000140000000000000000000000  0      
-y?D???ꎇ ?[?>      0000000000000000000000000000000000000000000000000000000290000000000000000000000  0      
-3?ek{3F4oi}??B?   0000000000000000000000000000000000000000000000000000000230000000000000000000000  0      
+.?˟???(?4[W?      0000000000000000000000000000000000000000000000000000000140000000000000000000000  0
+y?D???ꎇ ?[?>      0000000000000000000000000000000000000000000000000000000290000000000000000000000  0
+3?ek{3F4oi}??B?   0000000000000000000000000000000000000000000000000000000230000000000000000000000  0
 ```
 
 </Steps>
@@ -171,7 +172,6 @@ These are the [SQLite data types](https://www.sqlite.org/datatype3.html) used by
 | `p.boolean(){:ts}` | `INTEGER{:sql}`     | `0` is `false{:ts}`, `1` is `true{:ts}`                                     |
 | `p.json(){:ts}`    | `JSONB{:sql}`       |                                                                             |
 
-
 #### SQLite bigint encoding
 
 SQLite does not natively support integers larger than 8 bytes. To safely store and compare large integers (such as 32-byte EVM `uint256{:solidity}` values) in SQLite, we designed an encoding that uses `VARCHAR(79){:sql}` and takes advantage of SQLite's native lexicographic sort. [Here is the reference implementation](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/utils/encoding.ts) used by Ponder internally.
@@ -187,7 +187,7 @@ To create indexes on specific columns, use the `p.index()` function in `ponder.s
 Ponder uses the **public** database schema by default. To use a different schema, use the `onchainSchema` function `ponder.schema.ts`.
 
 ```ts filename="ponder.schema.ts" {3}
-import { onchainSchema } from "@ponder/core/db"
+import { onchainSchema } from "@ponder/core";
 
 export const schema = onchainSchema("ponder");
 
@@ -207,22 +207,23 @@ To get oriented, connect to the database using `psql` ([installation guide](http
   <summary><p>Example `ponder.schema.ts`</p></summary>
   <p />
 
-  ```ts filename="ponder.schema.ts"
-  import { onchainTable } from "@ponder/core/db";
+```ts filename="ponder.schema.ts"
+import { onchainTable } from "@ponder/core";
 
-  export const account = onchainTable("account", (p) => ({
-    address: p.evmHex().primaryKey(),
-    balance: p.evmBigint().notNull(),
-  }));
+export const account = onchainTable("account", (p) => ({
+  address: p.evmHex().primaryKey(),
+  balance: p.evmBigint().notNull(),
+}));
 
-  export const transferEvent = onchainTable("transfer_event", (p) => ({
-    id: p.serial().primaryKey(),
-    from: p.evmHex().notNull(),
-    to: p.evmHex().notNull(),
-    amount: p.evmBigint().notNull(),
-    timestamp: p.integer().notNull(),
-  }))
-  ```
+export const transferEvent = onchainTable("transfer_event", (p) => ({
+  id: p.serial().primaryKey(),
+  from: p.evmHex().notNull(),
+  to: p.evmHex().notNull(),
+  amount: p.evmBigint().notNull(),
+  timestamp: p.integer().notNull(),
+}));
+```
+
 </details>
 
 <Steps>
@@ -246,7 +247,7 @@ Use the `\dt` command to list all tables in the `public` schema.
 ```plaintext filename="psql (result)"
 username=# \dt
               List of relations
- Schema | Name                | Type  | Owner    
+ Schema | Name                | Type  | Owner
 --------+---------------------+-------+----------
  public | ****__account       | table | username
  public | ****__transfer_event | table | username
@@ -272,7 +273,7 @@ Use the `\dv` command to list all views in the `public` schema.
 ```plaintext filename="psql (result)"
 username=# \dv
             List of relations
- Schema | Name           | Type  | Owner    
+ Schema | Name           | Type  | Owner
 --------+----------------+-------+----------
  public | account        | view | username
  public | transfer_event | view | username
@@ -289,7 +290,7 @@ SELECT * FROM "account" LIMIT 5;
 
 ```plaintext filename="psql (result)"
 username=# SELECT * FROM "account" LIMIT 5;
-                  address                   |         balance         | 
+                  address                   |         balance         |
 --------------------------------------------+-------------------------+
  0xf73fe15cfb88ea3c7f301f16ade3c02564aca407 | 10000000000000000000000 |
  0xb0659bc97ed61b37d6b140f3e12a41d471781714 | 20000000000000000000000 |
@@ -313,7 +314,7 @@ SELECT "to", COUNT(*) AS transfer_count
 
 ```plaintext filename="psql (result)"
 username=# SELECT "to", COUNT(*) AS transfer_count FROM "transfer_event" GROUP BY "to" ORDER BY transfer_count DESC LIMIT 5;
-                     to                     | transfer_count 
+                     to                     | transfer_count
 --------------------------------------------+----------------
  0x5d752f322befb038991579972e912b02f61a3dda |           2342
  0x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
@@ -327,7 +328,7 @@ username=# SELECT "to", COUNT(*) AS transfer_count FROM "transfer_event" GROUP B
 
 ### Column types
 
-| Schema column type | Postgres column type          | Notes                                                     |
-| :----------------- | :---------------------------- | :-------------------------------------------------------- |
-| `evmHex(){:ts}`    | `TEXT`                        | Values are lowercased and padded to be byte aligned       |
-| `evmBigint(){:ts}` | `NUMERIC(78, 0){:sql}`        | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
+| Schema column type | Postgres column type   | Notes                                                     |
+| :----------------- | :--------------------- | :-------------------------------------------------------- |
+| `evmHex(){:ts}`    | `TEXT`                 | Values are lowercased and padded to be byte aligned       |
+| `evmBigint(){:ts}` | `NUMERIC(78, 0){:sql}` | Supports EVM `uint256{:solidity}` and `int256{:solidity}` |
