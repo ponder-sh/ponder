@@ -76,13 +76,13 @@ export type TransactionFilter = {
   toAddress: Address | Address[] | Factory | undefined;
   callType:
     | (
-        | "call"
-        | "staticcall"
-        | "delegatecall"
-        | "selfdestruct"
-        | "create"
-        | "create2"
-        | "callcode"
+        | "CALL"
+        | "STATICCALL"
+        | "DELEGATECALL"
+        | "SELFDESTRUCT"
+        | "CREATE"
+        | "CREATE2"
+        | "CALLCODE"
       )[]
     | undefined;
   functionSelectors: Hex | Hex[] | undefined;
