@@ -10,7 +10,7 @@ export type Trace = {
   txHash: Hex;
   /** Trace results produced by the tracer.  */
   result: CallFrame;
-}[];
+};
 
 /**
  * The response object for `debug_traceBlockByNumber` and `debug_traceBlockByHash`

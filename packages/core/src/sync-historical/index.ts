@@ -12,7 +12,12 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncLog, SyncTrace } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+} from "@/types/sync.js";
 import {
   type Interval,
   getChunks,
@@ -21,6 +26,7 @@ import {
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
+  _debug_traceBlockByNumber,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
@@ -29,6 +35,7 @@ import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
   type Hash,
+  type Hex,
   type RpcError,
   hexToBigInt,
   hexToNumber,
@@ -394,11 +401,200 @@ export const createHistoricalSync = async (
     filter: TransactionFilter | TransferFilter,
     blockNumber: number,
   ) => {
+    let traces = await _debug_traceBlockByNumber(args.requestQueue, {
+      blockNumber: toHex(blockNumber),
+    });
+
+    traces = traces.filter((t) =>
+      filter.type === "transfer"
+        ? isTransferFilterMatched({
+            filter,
+            blockNumber,
+            trace: t,
+          })
+        : isTransactionFilterMatched({
+            filter,
+            blockNumber,
+            trace: t,
+          }),
+    );
+
+    const transactionHashes = new Set(traces.map((t) => t.txHash));
+
+    for (const hash of transactionHashes) {
+      transactionsCache.add(hash);
+    }
+
+    const block = await syncBlock(BigInt(blockNumber));
+    const transactions: SyncTransaction[] = block.transactions.filter((t) =>
+      transactionHashes.has(t.hash),
+    );
+
+    await args.syncStore.insertTransactions({
+      transactions: transactions,
+      chainId: args.network.chainId,
+    });
+
+    await args.syncStore.insertTraces({
+      traces: traces.map((trace) => ({
+        trace,
+        block: block,
+      })),
+      chainId: args.network.chainId,
+    });
+
     // request _debug_traceBlockByNumber
     // for each trace, is[type]FilterMatched
     // request block
     // request transactions
     // syncStore.insertTraces
+  };
+
+  const isTransferFilterMatched = async ({
+    filter,
+    blockNumber,
+    trace,
+  }: {
+    filter: TransferFilter;
+    blockNumber: number;
+    trace: SyncTrace;
+  }): Promise<boolean> => {
+    const toAddress = isAddressFactory(filter.toAddress)
+      ? await syncAddress(filter.toAddress, [blockNumber, blockNumber])
+      : filter.toAddress;
+
+    const fromAddress = isAddressFactory(filter.fromAddress)
+      ? await syncAddress(filter.fromAddress, [blockNumber, blockNumber])
+      : filter.fromAddress;
+
+    const isInputMatched = trace.result.input === "0x";
+    const isFromAddressMatched =
+      fromAddress === undefined
+        ? true
+        : Array.isArray(fromAddress)
+          ? fromAddress.includes(trace.result.from)
+          : fromAddress === trace.result.from;
+    const isToAddressMatched =
+      toAddress === undefined
+        ? true
+        : Array.isArray(toAddress)
+          ? toAddress.includes(trace.result.to)
+          : toAddress === trace.result.to;
+
+    const isMatched =
+      isInputMatched && isFromAddressMatched && isToAddressMatched;
+
+    const calls = trace.result.calls;
+    if (calls !== undefined) {
+      return (
+        isMatched ||
+        calls.some((call) => {
+          isTransferFilterMatched({
+            filter,
+            blockNumber,
+            trace: {
+              txHash: trace.txHash,
+              result: call,
+            },
+          });
+        })
+      );
+    }
+
+    return isMatched;
+  };
+
+  const isTransactionFilterMatched = async ({
+    filter,
+    blockNumber,
+    trace,
+  }: {
+    filter: TransactionFilter;
+    blockNumber: number;
+    trace: SyncTrace;
+  }): Promise<boolean> => {
+    // A bit annoying to have this function, but need to check if it failed/matched when calling subcalls
+    const isFailedMatched = async ({
+      filter,
+      trace,
+    }: {
+      filter: TransactionFilter;
+      trace: SyncTrace;
+    }): Promise<{ failed: boolean; matched: boolean }> => {
+      const toAddress = isAddressFactory(filter.toAddress)
+        ? await syncAddress(filter.toAddress, [blockNumber, blockNumber])
+        : filter.toAddress;
+
+      const fromAddress = isAddressFactory(filter.fromAddress)
+        ? await syncAddress(filter.fromAddress, [blockNumber, blockNumber])
+        : filter.fromAddress;
+
+      const selector = trace.result.input.slice(0, 10) as Hex;
+      const isCallTypeMatched =
+        filter.callType === undefined ||
+        filter.callType.includes(trace.result.type);
+      const isSelectorMatched =
+        filter.functionSelectors === undefined ||
+        Array.isArray(filter.functionSelectors)
+          ? filter.functionSelectors!.includes(selector)
+          : filter.functionSelectors === selector;
+      const isFromAddressMatched =
+        fromAddress === undefined
+          ? true
+          : Array.isArray(fromAddress)
+            ? fromAddress.includes(trace.result.from)
+            : fromAddress === trace.result.from;
+      const isToAddressMatched =
+        toAddress === undefined
+          ? true
+          : Array.isArray(toAddress)
+            ? toAddress.includes(trace.result.to)
+            : toAddress === trace.result.to;
+
+      let isMatched =
+        isCallTypeMatched &&
+        isSelectorMatched &&
+        isFromAddressMatched &&
+        isToAddressMatched;
+      let isFailed =
+        trace.result.error !== undefined ||
+        trace.result.revertReason !== undefined;
+
+      const calls = trace.result.calls;
+      if (calls !== undefined) {
+        for (const call of calls) {
+          // Return early if failed or filter matched
+          if (
+            (filter.includeFailed === false && isFailed) ||
+            (filter.includeFailed && isMatched)
+          ) {
+            return {
+              failed: isFailed,
+              matched: isMatched,
+            };
+          }
+
+          const { failed, matched } = await isFailedMatched({
+            filter,
+            trace: {
+              txHash: trace.txHash,
+              result: call,
+            },
+          });
+          isFailed = isFailed || failed;
+          isMatched = isMatched || matched;
+        }
+      }
+
+      return {
+        failed: isFailed,
+        matched: isMatched,
+      };
+    };
+
+    const { failed, matched } = await isFailedMatched({ filter, trace });
+
+    return filter.includeFailed === false && failed ? false : matched;
   };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
