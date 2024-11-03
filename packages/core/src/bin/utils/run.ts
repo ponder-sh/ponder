@@ -1,7 +1,7 @@
 import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
-import { createDatabase } from "@/database/index.js";
+import type { Database } from "@/database/index.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createIndexingService } from "@/indexing/index.js";
@@ -23,33 +23,20 @@ import { createQueue } from "@ponder/common";
 export async function run({
   common,
   build,
+  database,
   onFatalError,
   onReloadableError,
 }: {
   common: Common;
   build: IndexingBuild;
+  database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const {
-    buildId,
-    instanceId,
-    databaseConfig,
-    networks,
-    sources,
-    schema,
-    indexingFunctions,
-  } = build;
+  const { instanceId, networks, sources, schema, indexingFunctions } = build;
 
   let isKilled = false;
 
-  const database = await createDatabase({
-    common,
-    schema,
-    databaseConfig,
-    buildId,
-    instanceId,
-  });
   const { checkpoint: initialCheckpoint } = await database.setup();
 
   const syncStore = createSyncStore({

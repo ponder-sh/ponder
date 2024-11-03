@@ -1,6 +1,6 @@
 import type { ApiBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
-import { createDatabase } from "@/database/index.js";
+import type { Database } from "@/database/index.js";
 import { createServer } from "@/server/index.js";
 
 /**
@@ -9,19 +9,13 @@ import { createServer } from "@/server/index.js";
 export async function runServer({
   common,
   build,
+  database,
 }: {
   common: Common;
   build: ApiBuild;
+  database: Database;
 }) {
-  const { databaseConfig, schema, buildId, instanceId } = build;
-
-  const database = await createDatabase({
-    common,
-    schema,
-    databaseConfig,
-    buildId,
-    instanceId,
-  });
+  const { schema, instanceId } = build;
 
   const server = await createServer({
     app: build.app,

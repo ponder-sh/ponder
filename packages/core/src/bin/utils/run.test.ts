@@ -4,6 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
+import { createDatabase } from "@/database/index.js";
 import { onchainTable } from "@/drizzle/index.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -35,9 +36,18 @@ test("run() setup", async (context) => {
     indexingFunctions,
   };
 
+  const database = await createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "buildId",
+  });
+
   const kill = await run({
     common: context.common,
     build,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
@@ -63,11 +73,20 @@ test("run() setup error", async (context) => {
     indexingFunctions,
   };
 
+  const database = await createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "buildId",
+  });
+
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const kill = await run({
     common: context.common,
     build,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: () => {
       onReloadableErrorPromiseResolver.resolve();

@@ -4,6 +4,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
+import { createDatabase } from "@/database/index.js";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
@@ -69,9 +70,18 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
+  const database = await createDatabase({
+    common,
+    schema: indexing.build.schema,
+    databaseConfig: indexing.build.databaseConfig,
+    buildId: indexing.build.buildId,
+    instanceId: indexing.build.instanceId,
+  });
+
   cleanupReloadable = await run({
     common,
     build: indexing.build,
+    database,
     onFatalError: () => {
       shutdown({ reason: "Received fatal error", code: 1 });
     },
@@ -83,6 +93,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   cleanupReloadableServer = await runServer({
     common,
     build: api.build,
+    database,
   });
 
   return cleanup;
