@@ -361,7 +361,7 @@ export const start = async (
         cachedConfigResult,
         cachedSchemaResult,
         cachedIndexingResult,
-        exports.instanceId,
+        process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ?? exports.instanceId,
       );
       if (indexingBuildResult.status === "error") {
         onIndexingBuild(indexingBuildResult);
@@ -410,7 +410,7 @@ export const start = async (
     configResult,
     schemaResult,
     indexingResult,
-    exports.instanceId,
+    process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ?? exports.instanceId,
   );
 
   if (initialBuildResult.status === "error") {

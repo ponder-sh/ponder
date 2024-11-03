@@ -35,10 +35,12 @@ import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { getColumnCasing } from "./kit/index.js";
 
 // @ts-ignore
-const instanceId: string = await import("@/generated")
-  // @ts-ignore
-  .then((exports) => exports.instanceId)
-  .catch(() => undefined);
+const instanceId: string =
+  process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
+  (await import("@/generated")
+    // @ts-ignore
+    .then((exports) => exports.instanceId)
+    .catch(() => undefined));
 
 // @ts-ignore
 export function hex(): PgHexBuilderInitial<"">;
