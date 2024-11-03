@@ -623,7 +623,8 @@ const validateAndBuild = async (
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
     schema: schema.schema,
-    instanceId,
+    // @ts-ignore
+    instanceId: globalThis.__PONDER_INSTANCE_ID,
   });
   if (buildSchemaResult.status === "error") {
     common.logger.error({

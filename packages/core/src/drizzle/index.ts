@@ -305,6 +305,8 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     enumName: string,
     values: T | Writable<T>,
   ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
+    // @ts-ignore
+    const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
     if (instanceId === undefined) {
       const e = pgEnumWithSchema(enumName, values, this.schemaName);
 
