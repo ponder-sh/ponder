@@ -1,7 +1,6 @@
-import type { Common } from "@/common/common.js";
 import type { Plugin } from "vite";
 
-const virtualModule = (command: Common["options"]["command"]) => `import { Hono } from "hono";
+const virtualModule = () => `import { Hono } from "hono";
 import crypto from "node:crypto";
 
 const ponderHono = {
@@ -20,8 +19,6 @@ const ponderHono = {
   },
 };
 
-const instanceId = "${command}" === "serve" ? undefined : crypto.randomBytes(2).toString("hex");
-
 const ponder = {
   ...ponderHono,
   hono: new Hono(),
@@ -31,14 +28,14 @@ const ponder = {
   },
 };
 
-export { ponder, instanceId };
+export { ponder };
 `;
 
-export const vitePluginPonder = (common: Common): Plugin => {
+export const vitePluginPonder = (): Plugin => {
   return {
     name: "ponder",
     load: (id) => {
-      if (id === "@/generated") return virtualModule(common.options.command);
+      if (id === "@/generated") return virtualModule();
       return null;
     },
   };

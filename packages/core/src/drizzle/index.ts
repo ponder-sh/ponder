@@ -35,12 +35,6 @@ import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { getColumnCasing } from "./kit/index.js";
 
 // @ts-ignore
-const instanceId: string = await import("@/generated")
-  // @ts-ignore
-  .then((exports) => exports.instanceId)
-  .catch(() => undefined);
-
-// @ts-ignore
 export function hex(): PgHexBuilderInitial<"">;
 export function hex<name extends string>(
   columnName: name,
@@ -225,7 +219,8 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  if (instanceId === undefined) {
+  // @ts-ignore
+  if (globalThis.INSTANCE_ID === undefined) {
     const table = pgTableWithSchema(
       name,
       columns,
@@ -241,7 +236,8 @@ export const onchainTable = <
   }
 
   const table = pgTableWithSchema(
-    userToSqlTableName(name, instanceId),
+    // @ts-ignore
+    userToSqlTableName(name, globalThis.INSTANCE_ID),
     columns,
     extraConfig as any,
     undefined,
@@ -270,7 +266,8 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     extra: extra;
     dialect: "pg";
   }> => {
-    if (instanceId === undefined) {
+    // @ts-ignore
+    if (globalThis.INSTANCE_ID === undefined) {
       const table = pgTableWithSchema(
         name,
         columns,
@@ -286,7 +283,8 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     }
 
     const table = pgTableWithSchema(
-      userToSqlTableName(name, instanceId),
+      // @ts-ignore
+      userToSqlTableName(name, globalThis.INSTANCE_ID),
       columns,
       extraConfig as any,
       this.schemaName,
@@ -343,7 +341,8 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-  if (instanceId === undefined) {
+  // @ts-ignore
+  if (globalThis.INSTANCE_ID === undefined) {
     const e = pgEnumWithSchema(enumName, values, undefined);
 
     // @ts-ignore
@@ -354,7 +353,8 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   }
 
   const e = pgEnumWithSchema(
-    userToSqlTableName(enumName, instanceId),
+    // @ts-ignore
+    userToSqlTableName(enumName, globalThis.INSTANCE_ID),
     values,
     undefined,
   );
