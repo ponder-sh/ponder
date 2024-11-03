@@ -104,6 +104,20 @@ test("generated", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
+test("generated identity", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      id: p
+        .integer()
+        .primaryKey()
+        .generatedAlwaysAsIdentity({ startWith: 1000 }),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
 test("foreign key", () => {
   // @ts-ignore
   const schema = {
