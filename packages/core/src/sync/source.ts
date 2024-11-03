@@ -60,20 +60,34 @@ export type BlockFilter = {
   toBlock: number | undefined;
 };
 
-export type TransferFilter = {
+export type TransferFilter<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
   type: "transfer";
   chainId: number;
-  fromAddress: Address | Address[] | Factory | undefined;
-  toAddress: Address | Address[] | Factory | undefined;
+  fromAddress: fromFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
+  toAddress: toFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
   fromBlock: number;
   toBlock: number | undefined;
 };
 
-export type TransactionFilter = {
+export type TransactionFilter<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
   type: "transaction";
   chainId: number;
-  fromAddress: Address | Address[] | Factory | undefined;
-  toAddress: Address | Address[] | Factory | undefined;
+  fromAddress: fromFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
+  toAddress: toFactory extends Factory
+    ? fromFactory
+    : Address | Address[] | undefined;
   callType:
     | (
         | "CALL"
