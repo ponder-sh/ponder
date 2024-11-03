@@ -35,7 +35,7 @@ test("decodeEvents() log", async (context) => {
 
   const rawEvents = await getEventsLog(sources);
 
-  const events = decodeEvents(common, sources, rawEvents) as [
+  const events = decodeEvents(common, sources, rawEvents, "historical") as [
     LogEvent,
     LogEvent,
     LogEvent,
@@ -74,7 +74,7 @@ test("decodeEvents() log error", async (context) => {
 
   // remove data from log, causing an error when decoding
   rawEvents[0]!.log!.data = "0x0";
-  const events = decodeEvents(common, sources, rawEvents) as [
+  const events = decodeEvents(common, sources, rawEvents, "historical") as [
     LogEvent,
     LogEvent,
   ];
@@ -99,7 +99,9 @@ test("decodeEvents() block", async (context) => {
 
   const rawEvents = await getEventsBlock(sources);
 
-  const events = decodeEvents(common, sources, rawEvents) as [BlockEvent];
+  const events = decodeEvents(common, sources, rawEvents, "historical") as [
+    BlockEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.block).toMatchObject({
@@ -112,7 +114,9 @@ test("decodeEvents() trace", async (context) => {
 
   const rawEvents = await getEventsTrace(sources);
 
-  const events = decodeEvents(common, sources, rawEvents) as [CallTraceEvent];
+  const events = decodeEvents(common, sources, rawEvents, "historical") as [
+    CallTraceEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toBeUndefined();
@@ -127,7 +131,9 @@ test("decodeEvents() trace error", async (context) => {
 
   // change function selector, causing an error when decoding
   rawEvents[0]!.trace!.input = "0x0";
-  const events = decodeEvents(common, sources, rawEvents) as [CallTraceEvent];
+  const events = decodeEvents(common, sources, rawEvents, "historical") as [
+    CallTraceEvent,
+  ];
 
   expect(events).toHaveLength(0);
 });

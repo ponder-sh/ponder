@@ -213,7 +213,7 @@ test("processEvent() log events", async (context) => {
   });
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -301,7 +301,7 @@ test("processEvents() block events", async (context) => {
   });
 
   const rawEvents = await getEventsBlock(sources);
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -376,7 +376,7 @@ test("processEvents() call trace events", async (context) => {
   });
 
   const rawEvents = await getEventsTrace(sources);
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -459,7 +459,7 @@ test("processEvents killed", async (context) => {
   kill(indexingService);
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -508,7 +508,7 @@ test("processEvents eventCount", async (context) => {
   });
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -779,7 +779,7 @@ test("processEvents() context.client", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -848,7 +848,7 @@ test("processEvents() context.db", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -903,7 +903,7 @@ test("processEvents() metrics", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   await processEvents(indexingService, {
     events,
   });
@@ -958,7 +958,7 @@ test("processEvents() error", async (context) => {
     ...(await getEventsBlock(sources)),
     ...(await getEventsTrace(sources)),
   ];
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const result = await processEvents(indexingService, {
     events,
   });
@@ -1013,7 +1013,7 @@ test("execute() error after killed", async (context) => {
   });
 
   const rawEvents = await getEventsLog(sources);
-  const events = decodeEvents(common, sources, rawEvents);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
   const resultPromise = processEvents(indexingService, { events });
   kill(indexingService);
 
