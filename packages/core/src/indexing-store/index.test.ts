@@ -512,41 +512,6 @@ test("missing rows", async (context) => {
   await cleanup();
 });
 
-test("serial", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
-
-  const schema = {
-    account: onchainTable("account", (p) => ({
-      id: p.serial().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  const indexingStore = createIndexingStore({
-    common: context.common,
-    database,
-    schema,
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  // check error
-
-  const error = await indexingStore
-    // @ts-ignore
-    .find(schema.account, { id: 0 })
-    .catch((error) => error);
-
-  expect(error).toBeDefined();
-
-  // insert
-
-  await indexingStore.insert(schema.account).values({
-    balance: 10n,
-  });
-
-  await cleanup();
-});
-
 test("notNull", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 

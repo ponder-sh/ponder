@@ -31,14 +31,7 @@ import {
   getTableColumns,
   sql,
 } from "drizzle-orm";
-import {
-  PgBigSerial53,
-  PgBigSerial64,
-  PgSerial,
-  PgSmallSerial,
-  type PgTable,
-  getTableConfig,
-} from "drizzle-orm/pg-core";
+import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { createQueue } from "../../../common/src/queue.js";
 
@@ -143,35 +136,14 @@ export const createIndexingStore = ({
 
   const tableNameCache: Map<Table, string> = new Map();
   const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
-  const isSerialTableCache: Map<Table, boolean> = new Map();
   const cache: Cache = new Map();
-
-  const isSerialTable = (table: Table) => {
-    const primaryKeys = primaryKeysCache.get(table)!;
-
-    const maybeSerialColumn = getTableColumns(table)[primaryKeys[0]!.js]!;
-    if (
-      primaryKeys.length === 1 &&
-      (maybeSerialColumn instanceof PgSerial ||
-        maybeSerialColumn instanceof PgSmallSerial ||
-        maybeSerialColumn instanceof PgBigSerial53 ||
-        maybeSerialColumn instanceof PgBigSerial64)
-    ) {
-      return true;
-    }
-
-    return false;
-  };
 
   for (const tableName of getTableNames(schema, "")) {
     primaryKeysCache.set(
       schema[tableName.js] as Table,
       getPrimaryKeyColumns(schema[tableName.js] as PgTable),
     );
-    isSerialTableCache.set(
-      schema[tableName.js] as Table,
-      isSerialTable(schema[tableName.js] as Table),
-    );
+
     cache.set(schema[tableName.js] as Table, new Map());
     tableNameCache.set(schema[tableName.js] as Table, tableName.user);
   }
@@ -185,10 +157,6 @@ export const createIndexingStore = ({
     row: { [key: string]: unknown },
   ): string => {
     const primaryKeys = primaryKeysCache.get(table)!;
-
-    if (isSerialTableCache.get(table)) {
-      return `_serial_${totalCacheOps}`;
-    }
 
     return (
       primaryKeys
@@ -257,7 +225,7 @@ export const createIndexingStore = ({
 
   /**
    * Returns true if the column has a "default" value that is used when no value is passed.
-   * Handles `.default`, `.serial`, `.$defaultFn()`, `.$onUpdateFn()`.
+   * Handles `.default`, `.$defaultFn()`, `.$onUpdateFn()`.
    */
   const hasEmptyValue = (column: Column) => {
     return column.hasDefault;
@@ -273,6 +241,8 @@ export const createIndexingStore = ({
     if (column.default) return column.default;
     if (column.defaultFn) return column.defaultFn();
     if (column.onUpdateFn) return column.onUpdateFn();
+
+    // TODO(kyle) is it an invariant that it doesn't get here
 
     return undefined;
   };
@@ -358,18 +328,6 @@ export const createIndexingStore = ({
     return size;
   };
 
-  /** Throw an error if `table` has a `serial` primary key and `method` is unsupported. */
-  const checkSerialTable = (
-    table: Table,
-    method: "find" | "insert" | "update" | "upsert" | "delete",
-  ) => {
-    if (method === "insert" || isSerialTableCache.get(table) === false) return;
-
-    throw new InvalidStoreMethodError(
-      `db.${method}(${tableNameCache.get(table)}) cannot be used on tables with serial primary keys`,
-    );
-  };
-
   let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
   let isHistoricalBackfill = true;
   /** Number of entries in cache. */
@@ -402,7 +360,6 @@ export const createIndexingStore = ({
           { method: `${tableNameCache.get(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table as Table, "find");
-            checkSerialTable(table as Table, "find");
 
             const entry = getCacheEntry(table, key);
 
@@ -441,17 +398,11 @@ export const createIndexingStore = ({
               { method: `${tableNameCache.get(table) ?? "unknown"}.insert()` },
               async () => {
                 checkOnchainTable(table as Table, "insert");
-                checkSerialTable(table as Table, "insert");
-
-                const isSerialTable = isSerialTableCache.get(table);
 
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
-                    if (
-                      isSerialTable === false &&
-                      getCacheEntry(table, value)?.row
-                    ) {
+                    if (getCacheEntry(table, value)?.row) {
                       const error = new UniqueConstraintError(
                         `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                       );
@@ -459,10 +410,7 @@ export const createIndexingStore = ({
                         `db.insert arguments:\n${prettyPrint(value)}`,
                       );
                       throw error;
-                    } else if (
-                      isSerialTable === false &&
-                      isDatabaseEmpty === false
-                    ) {
+                    } else if (isDatabaseEmpty === false) {
                       const findResult = await find(table, value);
 
                       if (findResult) {
@@ -480,10 +428,7 @@ export const createIndexingStore = ({
                   }
                   return rows;
                 } else {
-                  if (
-                    isSerialTable === false &&
-                    getCacheEntry(table, values)?.row
-                  ) {
+                  if (getCacheEntry(table, values)?.row) {
                     const error = new UniqueConstraintError(
                       `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                     );
@@ -491,10 +436,7 @@ export const createIndexingStore = ({
                       `db.insert arguments:\n${prettyPrint(values)}`,
                     );
                     throw error;
-                  } else if (
-                    isSerialTable === false &&
-                    isDatabaseEmpty === false
-                  ) {
+                  } else if (isDatabaseEmpty === false) {
                     const findResult = await find(table, values);
 
                     if (findResult) {
@@ -524,7 +466,6 @@ export const createIndexingStore = ({
               { method: `${tableNameCache.get(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table as Table, "update");
-                checkSerialTable(table as Table, "update");
 
                 const entry = getCacheEntry(table, key);
                 deleteCacheEntry(table, key);
@@ -596,7 +537,6 @@ export const createIndexingStore = ({
                   },
                   async () => {
                     checkOnchainTable(table as Table, "upsert");
-                    checkSerialTable(table as Table, "upsert");
 
                     const entry = getCacheEntry(table, key);
                     deleteCacheEntry(table, key);
@@ -660,7 +600,6 @@ export const createIndexingStore = ({
                     },
                     async () => {
                       checkOnchainTable(table as Table, "upsert");
-                      checkSerialTable(table as Table, "upsert");
 
                       const entry = getCacheEntry(table, key);
 
@@ -713,7 +652,6 @@ export const createIndexingStore = ({
                     },
                     async () => {
                       checkOnchainTable(table as Table, "upsert");
-                      checkSerialTable(table as Table, "upsert");
 
                       const entry = getCacheEntry(table, key);
                       deleteCacheEntry(table, key);
@@ -765,7 +703,6 @@ export const createIndexingStore = ({
           { method: `${tableNameCache.get(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table as Table, "upsert");
-            checkSerialTable(table as Table, "upsert");
 
             const entry = getCacheEntry(table, key);
             deleteCacheEntry(table, key);

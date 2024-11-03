@@ -58,6 +58,12 @@ export const buildSchema = ({
           }
         }
 
+        if (column.columnType === "PgSerial") {
+          throw new Error(
+            `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
+          );
+        }
+
         if (column.isUnique) {
           throw new Error(
             `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,

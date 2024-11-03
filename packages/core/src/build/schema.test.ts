@@ -17,15 +17,16 @@ test("success", () => {
   buildSchema({ schema, instanceId });
 });
 
-test("serial", () => {
+test("schema", () => {
   const schema = {
+    ponder: onchainSchema("ponder"),
     account: onchainTable("account", (p) => ({
-      address: p.serial().primaryKey(),
+      address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
 
-  buildSchema({ schema, instanceId });
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
 test("primary key", () => {
@@ -81,22 +82,10 @@ test("sequences", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("schema", () => {
-  const schema = {
-    ponder: onchainSchema("ponder"),
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
-});
-
 test("generated", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.serial().primaryKey(),
+      address: p.integer().primaryKey(),
       balance: p.bigint().notNull().generatedAlwaysAs(10n),
     })),
   };
@@ -118,11 +107,24 @@ test("generated identity", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
+test("serial", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.serial().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("default");
+
 test("foreign key", () => {
   // @ts-ignore
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.serial().primaryKey(),
+      address: p.integer().primaryKey(),
       balance: p
         .bigint()
         .notNull()
@@ -136,7 +138,7 @@ test("foreign key", () => {
 test("unique", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.serial().primaryKey(),
+      address: p.integer().primaryKey(),
       balance: p.bigint().notNull().unique(),
     })),
   };
@@ -149,7 +151,7 @@ test("check", () => {
     account: onchainTable(
       "account",
       (p) => ({
-        address: p.serial().primaryKey(),
+        address: p.hex().primaryKey(),
         balance: p.bigint().notNull(),
       }),
       () => ({
@@ -168,7 +170,7 @@ test("enum", () => {
     p,
     mood,
     account: p.table("account", (p) => ({
-      address: p.serial().primaryKey(),
+      address: p.hex().primaryKey(),
       m: mood().notNull(),
     })),
   };
