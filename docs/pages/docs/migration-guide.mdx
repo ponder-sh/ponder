@@ -8,11 +8,9 @@ import Architecture from "../../public/architecture.svg";
 
 # Migration guide
 
-## 0.7.0-next.1
+## 0.7.0-next.3
 
-This release migrates to a new schema definition and database API. It also adds native support for offchain data.
-
-The `0.7.0` release contains several breaking changes. We recommend creating a new git branch for the migration.
+The `0.7.0` release includes several breaking changes.
 
 ### Install & run codegen
 
@@ -20,17 +18,17 @@ The `0.7.0` release contains several breaking changes. We recommend creating a n
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tabs.Tab>
 ```bash filename="shell"
-pnpm add @ponder/core@0.7.0-next.1
+pnpm add @ponder/core@0.7.0-next.3
 ```
 </Tabs.Tab>
   <Tabs.Tab>
 ```bash filename="shell"
-yarn add @ponder/core@0.7.0-next.1
+yarn add @ponder/core@0.7.0-next.3
 ```
 </Tabs.Tab>
   <Tabs.Tab>
 ```bash filename="shell"
-npm add @ponder/core@0.7.0-next.1
+npm add @ponder/core@0.7.0-next.3
 ```
 </Tabs.Tab>
 </Tabs>
@@ -61,26 +59,24 @@ npm run codegen
 Here's a table defined with the new schema definition API, which uses [Drizzle](https://orm.drizzle.team/docs/overview) under the hood.
 
 ```ts filename="ponder.schema.ts (after)"
-import { onchainTable } from "@ponder/core/db";
+import { onchainTable } from "@ponder/core";
 
-export const accounts = onchainTable("account", (p) => ({
-  address: p.evmHex().primaryKey(),
-  daiBalance: p.evmBigint().notNull(),
-  isAdmin: p.boolean().notNull(),
-  graffiti: p.string(),
+export const accounts = onchainTable("account", (t) => ({
+  address: t.hex().primaryKey(),
+  daiBalance: t.bigint().notNull(),
+  isAdmin: t.boolean().notNull(),
+  graffiti: t.string(),
 }));
 ```
 
 Key changes:
 
 1. Declare tables with the `onchainTable` function exported from `@ponder/core`
-2. Prefer pluralized table names
-3. Export all table objects from `ponder.schema.ts`
-4. Use `.primaryKey()` to mark the primary key column
-5. Columns are nullable by default, use `.notNull()` to add the constraint
-6. `p.hex()` and `p.bigint()` renamed to `p.evmHex()` and `p.evmBigint()`
+2. Export all table objects from `ponder.schema.ts`
+3. Use `.primaryKey()` to mark the primary key column
+4. Columns are nullable by default, use `.notNull()` to add the constraint
 
-The new `onchainTable` function adds support for several new capabilities.
+The new `onchainTable` function adds several new capabilities.
 
 - Custom primary key column name (other than `id`)
 - Composite primary keys
@@ -90,16 +86,16 @@ The new `onchainTable` function adds support for several new capabilities.
 Here's a more advanced example with indexes, a serial column, and a composite primary key.
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable, index, primaryKey } from "@ponder/core/db";
+import { onchainTable, index, primaryKey } from "@ponder/core";
 
 export const transferEvents = onchainTable(
   "transfer_event",
   (t) => ({
     id: t.serial().primaryKey(),
-    amount: t.evmBigint().notNull(),
+    amount: t.bigint().notNull(),
     timestamp: t.integer().notNull(),
-    from: t.evmHex().notNull(),
-    to: t.evmHex().notNull(),
+    from: t.hex().notNull(),
+    to: t.hex().notNull(),
   }),
   (table) => ({
     fromIdx: index().on(table.from),
@@ -109,9 +105,9 @@ export const transferEvents = onchainTable(
 export const allowance = onchainTable(
   "allowance",
   (t) => ({
-    owner: t.evmHex(),
-    spender: t.evmHex(),
-    amount: t.evmBigint().notNull(),
+    owner: t.hex(),
+    spender: t.hex(),
+    amount: t.bigint().notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.owner, table.spender] }),
@@ -122,8 +118,8 @@ export const approvalEvent = onchainTable("approval_event", (t) => ({
   id: t.serial().primaryKey(),
   amount: t.evmBigint().notNull(),
   timestamp: t.integer().notNull(),
-  owner: t.evmHex().notNull(),
-  spender: t.evmHex().notNull(),
+  owner: t.hex().notNull(),
+  spender: t.hex().notNull(),
 }));
 ```
 
@@ -288,7 +284,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 The `context.db.sql` interface replaces the rigid `findMany` method and supports any valid SQL `select` query.
 
 ```ts filename="src/index.ts"
-import { desc } from "@ponder/core/db";
+import { desc } from "@ponder/core";
 import { account } from "../ponder.schema";
 
 ponder.on("...", ({ event, context }) => {
@@ -299,176 +295,6 @@ ponder.on("...", ({ event, context }) => {
     .limit(1);
 });
 ```
-
-### Offchain Tables
-
-This release adds support for offchain tables. These are "normal" tables that persist across reloads and redeployments and have no special reorg handling properties.
-
-You can write to offchain tables in api functions and read from them in indexing functions.
-
-|                    | onchain tables | offchain tables |
-| ------------------ | -------------- | --------------- |
-| indexing functions | read + write   | read            |
-| api functions      | read           | read + write    |
-
-Use the `offchainTable()` function to define offchain tables in `ponder.schema.ts`.
-
-<Steps>
-
-#### Add an offchain table
-
-```ts filename="ponder.schema.ts"
-import { offchainTable, text, integer } from "@ponder/core/db";
-
-export const author = offchainTable("author", {
-  name: text("name").primaryKey(),
-  age: integer("age").notNull(),
-});
-```
-
-#### Install `drizzle-kit`
-
-Unlike onchain tables, offchain tables are not created automatically. To create them, install `drizzle-kit` run the migration generation script.
-
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
-pnpm add drizzle-kit@latest
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-yarn add drizzle-kit@latest
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm add drizzle-kit@latest
-```
-</Tabs.Tab>
-</Tabs>
-
-```json filename="package.json"
-{
-  "scripts": {
-    "generate": "drizzle-kit generate --dialect postgresql --schema ./ponder.schema.ts --out migrations"
-  }
-}
-```
-
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
-pnpm generate
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-yarn generate
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm run generate
-```
-</Tabs.Tab>
-</Tabs>
-
-#### Run migrations
-
-Start the dev server to apply any pending migrations found in the `migrations/` directory.
-
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
-pnpm dev
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-yarn dev
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm run dev
-```
-</Tabs.Tab>
-</Tabs>
-
-</Steps>
-
-By default, offchain tables are created in the `public` schema. You can specify a different schema using the `offchainSchema()` function.
-
-```ts filename="ponder.schema.ts" {3}
-import { offchainSchema, serial, evmHex } from "@ponder/core/db";
-
-export const offchain = offchainSchema("offchain");
-
-export const metadata = offchain.table("metadata", {
-  id: serial("id").primaryKey(),
-  authors:
-  account: evmHex("account").notNull(),
-});
-```
-
-Here's a complete example that uses an offchain table to store user metadata.
-
-<div className="code-columns">
-```ts filename="ponder.schema.ts"
-import {
-  boolean,
-  evmBigint,
-  evmHex,
-  offchainTable,
-  onchainTable,
-  serial,
-} from "@ponder/core/db";
-
-export const account = onchainTable("account", {
-  address: evmHex("address").primaryKey(),
-  balance: evmBigint("balance").notNull(),
-  isOwner: boolean("is_owner").notNull(),
-});
-
-export const metadata = offchainTable("metadata", {
-  id: serial("id").primaryKey(),
-  account: evmHex("account").notNull(),
-});
-```
-
-```ts filename="src/api/index.ts"
-import { ponder } from "@/generated";
-import { replaceBigInts } from "@ponder/core";
-import { desc, eq } from "@ponder/core/db";
-import { getAddress } from "viem";
-import { account, metadata } from "../../ponder.schema";
-
-ponder.get("/register/:address", async (c) => {
-  const account = c.req.param("address");
-  await c.db.insert(metadata).values({ account });
-  return c.text("Success", 200);
-});
-
-ponder.get("/user-balances", async (c) => {
-  const result = await c.db
-    .select({
-      address: account.address,
-      balance: account.balance,
-    })
-    .from(account)
-    .innerJoin(metadata, eq(account.address, metadata.account))
-    .orderBy(desc(account.balance))
-    .limit(10);
-
-  return c.json(replaceBigInts(result, (b) => formatEther(b)));
-});
-```
-
-</div>
 
 ## 0.6.0
 

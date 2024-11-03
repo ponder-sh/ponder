@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
@@ -135,7 +136,7 @@ export const create = async ({
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common)],
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
@@ -185,6 +186,11 @@ export const start = async (
     | { watch: false; onIndexingBuild?: never; onApiBuild?: never },
 ): Promise<{ indexing: IndexingBuildResult; api: ApiBuildResult }> => {
   const { common } = buildService;
+
+  if (common.options.command !== "serve") {
+    // @ts-ignore
+    globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
+  }
 
   // Note: Don't run these in parallel. If there are circular imports in user code,
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
@@ -317,6 +323,9 @@ export const start = async (
       }
 
       if (hasIndexingUpdate) {
+        // @ts-ignore
+        globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
+
         const files = glob.sync(buildService.indexingPattern, {
           ignore: buildService.apiPattern,
         });
@@ -332,6 +341,9 @@ export const start = async (
       }
 
       if (hasApiUpdate) {
+        // @ts-ignore
+        globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
+
         const files = glob.sync(buildService.apiPattern);
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
@@ -357,15 +369,11 @@ export const start = async (
        * propogated to the api build.
        */
 
-      const exports =
-        await buildService.viteNodeRunner.executeId("@/generated");
-
       const indexingBuildResult = await validateAndBuild(
         buildService,
         cachedConfigResult,
         cachedSchemaResult,
         cachedIndexingResult,
-        exports.instanceId,
       );
       if (indexingBuildResult.status === "error") {
         onIndexingBuild(indexingBuildResult);
@@ -403,8 +411,6 @@ export const start = async (
     buildService.viteDevServer.watcher.on("change", onFileChange);
   }
 
-  const exports = await buildService.viteNodeRunner.executeId("@/generated");
-
   // Build and validate initial indexing and server build.
   // Note: the api build cannot be successful if the indexing
   // build fails
@@ -414,7 +420,6 @@ export const start = async (
     configResult,
     schemaResult,
     indexingResult,
-    exports.instanceId,
   );
 
   if (initialBuildResult.status === "error") {
@@ -614,7 +619,6 @@ const validateAndBuild = async (
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   },
-  instanceId: string,
 ): Promise<IndexingBuildResult> => {
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
@@ -669,7 +673,8 @@ const validateAndBuild = async (
     status: "success",
     build: {
       buildId,
-      instanceId,
+      // @ts-ignore
+      instanceId: globalThis.__PONDER_INSTANCE_ID,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,

@@ -1,0 +1,179 @@
+---
+title: "Insert & update rows"
+description: "Learn how to insert and update rows in the Ponder database."
+---
+
+import { Callout } from "nextra/components";
+
+# Insert & update rows
+
+## Key-value API
+
+The key-value API is optimized for EVM indexing workloads. To eliminate the performance penalty of frequent inserts and updates, most operations run in-memory.
+
+During historical indexing, the engine flushes indexed data to the database periodically in large batches. Once the instance has reached realtime, the engine flushes after each block.
+
+The examples below use the following `accounts` and `tokens` tables.
+
+```ts filename="ponder.schema.ts"
+import { onchainTable, primaryKey } from "@ponder/core";
+
+export const accounts = onchainTable("accounts", (t) => ({
+  address: t.hex().primaryKey(),
+  balance: t.bigint().notNull(),
+  nickname: t.text(),
+}));
+
+export const allowances = onchainTable(
+  "allowances",
+  (t) => ({
+    owner: t.hex().notNull(),
+    spender: t.hex().notNull(),
+    value: t.bigint().notNull(),
+  }),
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.spender] }),
+  })
+);
+```
+
+### `insert`
+
+Insert one or many rows into the database. Returns the inserted rows, **including** any serial or default values that were generated.
+
+{/* prettier-ignore */}
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const row = await db.insert(accounts).values({
+  address: "0x7Df1", balance: 0n
+});
+
+const rows = await db.insert(accounts).values([
+  { address: "0x7Df2", balance: -50n },
+  { address: "0x7Df3", balance: 100n },
+]);
+```
+
+If you insert a row that violates a not null constraint, `insert` will reject with a descriptive error.
+
+```ts filename="src/index.ts" {7}
+import { tokens } from "../ponder.schema";
+
+const row = await db.insert(accounts).values({
+  address: "0x7Df1",
+});
+
+// Error: Column "balance" is required but not present in the values object.
+```
+
+### `find`
+
+Find a single row by primary key. Returns the row, or `null` if no matching row is found.
+
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const row = await db.find(accounts, { address: "0x7Df1" });
+```
+
+If the table has a composite primary key, the second argument is an object including all the primary key values.
+
+```ts filename="src/index.ts"
+import { allowances } from "../ponder.schema";
+
+const row = await db.find(allowances, { owner: "0x7Df1", spender: "0x7Df2" });
+```
+
+### `update`
+
+Update a row by primary key. Returns the updated row.
+
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set({ balance: 100n });
+```
+
+You can also pass a function to `set`, which receives the current row as an argument and returns the new row.
+
+```ts filename="src/index.ts" {5}
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set((row) => ({ ...row, balance: row.balance + 100n }));
+```
+
+If the new row violates a not null constraint, `update` will reject with a descriptive error.
+
+```ts filename="src/index.ts" {7}
+import { tokens } from "../ponder.schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set({ balance: null });
+
+// Error: Column "balance" is required but not present in the object.
+```
+
+### `upsert`
+
+Insert a new row if a row does not already exist with the specified primary key. Otherwise, update the existing row.
+
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .upsert(accounts, { address: "0x7Df1" })
+  .insert({ balance: 0n })
+  .update({ balance: 100n });
+```
+
+Just like with `update`, you can pass a function that receives the current row.
+
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .upsert(accounts, { address: "0x7Df1" })
+  .insert({ balance: 0n })
+  .update((row) => ({ balance: row.balance + 100n }));
+```
+
+### `delete`
+
+Delete a row by primary key. Returns `true` if the row was deleted, or `false` if no matching row was found.
+
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const deleted = await db.delete(accounts, { address: "0x7Df1" });
+```
+
+## Raw SQL
+
+<Callout type="warning">
+  Raw SQL queries are **much slower** than the key-value API. Avoid relying on
+  raw SQL for indexing logic that runs frequently.
+</Callout>
+
+Sometimes, the constraints of the key-value API make it difficult to implement certain indexing logic. In these cases, you can drop down to raw SQL.
+
+The `db.sql` object exposes several raw Drizzle methods. For more information, visit the [Drizzle documentation](https://orm.drizzle.team/docs/sql-api).
+
+- `select`
+- `insert`
+- `update`
+- `delete`
+- `query` -> Drizzle Query API
+
+## Best practices
+
+### Avoid raw SQL
+
+### Use `upsert`
+
+## Examples
