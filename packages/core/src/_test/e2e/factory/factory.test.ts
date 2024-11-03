@@ -66,7 +66,7 @@ test("factory", async (context) => {
 
   expect(swapEvents).toHaveLength(1);
   expect(swapEvents[0]).toMatchObject({
-    id: expect.any(Number),
+    id: expect.any(String),
     from: ALICE.toLowerCase(),
     to: ALICE.toLowerCase(),
     pair: context.factory.pair.toLowerCase(),

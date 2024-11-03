@@ -766,7 +766,7 @@ test("createLiveViews() drops old views", async (context) => {
   await database.kill();
 
   const transfer = onchainTable("transfer", (p) => ({
-    id: p.serial().primaryKey(),
+    id: p.text().primaryKey(),
     from: p.hex().notNull(),
     to: p.hex().notNull(),
     amount: p.hex().notNull(),
