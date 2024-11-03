@@ -1,11 +1,15 @@
 import { BuildError } from "@/common/errors.js";
 import { type Schema, isPgEnumSym } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
-import { getTableColumns, is } from "drizzle-orm";
+import { SQL, getTableColumns, is } from "drizzle-orm";
 import {
+  PgBigSerial53,
+  PgBigSerial64,
   type PgEnum,
   PgSchema,
   PgSequence,
+  PgSerial,
+  PgSmallSerial,
   PgTable,
   PgView,
   getTableConfig,
@@ -58,7 +62,12 @@ export const buildSchema = ({
           }
         }
 
-        if (column.columnType === "PgSerial") {
+        if (
+          column instanceof PgSerial ||
+          column instanceof PgSmallSerial ||
+          column instanceof PgBigSerial53 ||
+          column instanceof PgBigSerial64
+        ) {
           throw new Error(
             `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
           );
@@ -80,6 +89,26 @@ export const buildSchema = ({
           throw new Error(
             `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
           );
+        }
+
+        if (column.hasDefault) {
+          if (column.default && column.default instanceof SQL) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
+            );
+          }
+
+          if (column.defaultFn && column.defaultFn() instanceof SQL) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
+            );
+          }
+
+          if (column.onUpdateFn && column.onUpdateFn() instanceof SQL) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
+            );
+          }
         }
       }
 

@@ -160,7 +160,10 @@ type BuildExtraConfigColumns<
   };
 };
 
-type PgColumnsBuilders = Omit<_PgColumnsBuilders, "bigint"> & {
+type PgColumnsBuilders = Omit<
+  _PgColumnsBuilders,
+  "bigint" | "serial" | "smallserial" | "bigserial"
+> & {
   /**
    * Create an 8 byte number column.
    */

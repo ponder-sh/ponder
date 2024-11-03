@@ -1,6 +1,12 @@
 import { onchainSchema, onchainTable } from "@/index.js";
 import { sql } from "drizzle-orm";
-import { check, pgSequence, pgView, primaryKey } from "drizzle-orm/pg-core";
+import {
+  check,
+  pgSequence,
+  pgView,
+  primaryKey,
+  serial,
+} from "drizzle-orm/pg-core";
 import { expect, test } from "vitest";
 import { buildSchema } from "./schema.js";
 
@@ -110,7 +116,7 @@ test("generated identity", () => {
 test("serial", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
-      address: p.serial().primaryKey(),
+      address: serial().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
@@ -118,7 +124,38 @@ test("serial", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("default");
+test("default", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().default(sql`10`),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("$defaultFn", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().$defaultFn(() => sql`10`),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("$onUpdateFn", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().$onUpdateFn(() => sql`10`),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
 
 test("foreign key", () => {
   // @ts-ignore
