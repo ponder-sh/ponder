@@ -146,13 +146,13 @@ type QueryBuilder = {
   sync: HeadlessKysely<PonderSyncSchema>;
 };
 
-export const createDatabase = async (args: {
+export const createDatabase = (args: {
   common: Common;
   schema: Schema;
   databaseConfig: DatabaseConfig;
   instanceId: string;
   buildId: string;
-}): Promise<Database> => {
+}): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
   let namespace: string;
   const statements = getSql(args.schema, args.instanceId);

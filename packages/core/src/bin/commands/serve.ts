@@ -77,7 +77,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common,
     schema,
     databaseConfig,

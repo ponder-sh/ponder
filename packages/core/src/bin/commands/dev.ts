@@ -80,7 +80,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       if (result.status === "success") {
         metrics.resetIndexingMetrics();
 
-        database = await createDatabase({
+        database = createDatabase({
           common,
           schema: result.build.schema,
           databaseConfig: result.build.databaseConfig,
@@ -157,8 +157,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  // Note: this is awaited to make sure `database` is defined before `apiBuildQueue` runs
-  await indexingBuildQueue.add(indexing);
+  indexingBuildQueue.add(indexing);
   apiBuildQueue.add(api);
 
   return async () => {

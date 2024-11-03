@@ -36,7 +36,7 @@ test("run() setup", async (context) => {
     indexingFunctions,
   };
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -73,7 +73,7 @@ test("run() setup error", async (context) => {
     indexingFunctions,
   };
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,

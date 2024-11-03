@@ -70,7 +70,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common,
     schema: indexing.build.schema,
     databaseConfig: indexing.build.databaseConfig,
