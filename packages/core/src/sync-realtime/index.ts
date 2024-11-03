@@ -23,11 +23,11 @@ import type {
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
+  _debug_traceBlockByNumber,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
-  _trace_block,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
@@ -35,7 +35,6 @@ import { type Address, type Hash, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 import {
   isBlockFilterMatched,
-  isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
   isTransactionFilterMatched,
@@ -583,11 +582,12 @@ export const createRealtimeSync = (
     // Traces
     ////////
 
-    const shouldRequestTraces = callTraceFilters.length > 0;
+    const shouldRequestTraces =
+      transactionFilters.length > 0 || transferFilters.length > 0;
 
-    let callTraces: SyncCallTrace[] = [];
+    let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      const traces = await _trace_block(args.requestQueue, {
+      traces = await _debug_traceBlockByNumber(args.requestQueue, {
         blockNumber: hexToNumber(block.number),
       });
 
@@ -595,20 +595,46 @@ export const createRealtimeSync = (
       // Use the fact that any transaction produces a trace.
       if (block.transactions.length !== 0 && traces.length === 0) {
         throw new Error(
-          "Detected invalid trace_block response. `block.transactions` is not empty but zero traces were returned.",
+          "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
         );
       }
-
-      callTraces = traces.filter(
-        (trace) => trace.type === "call",
-      ) as SyncCallTrace[];
     }
 
+    // let callTraces: SyncCallTrace[] = [];
+    // if (shouldRequestTraces) {
+    //   const traces = await _trace_block(args.requestQueue, {
+    //     blockNumber: hexToNumber(block.number),
+    //   });
+
+    //   // Protect against RPCs returning empty traces. Known to happen near chain tip.
+    //   // Use the fact that any transaction produces a trace.
+    //   if (block.transactions.length !== 0 && traces.length === 0) {
+    //     throw new Error(
+    //       "Detected invalid trace_block response. `block.transactions` is not empty but zero traces were returned.",
+    //     );
+    //   }
+
+    //   callTraces = traces.filter(
+    //     (trace) => trace.type === "call",
+    //   ) as SyncCallTrace[];
+    // }
+
     // Check that traces refer to the correct block
-    for (const trace of callTraces) {
-      if (trace.blockHash !== block.hash) {
+    // for (const trace of callTraces) {
+    //   if (trace.blockHash !== block.hash) {
+    //     throw new Error(
+    //       `Detected inconsistent RPC responses. 'trace.blockHash' ${trace.blockHash} does not match 'block.hash' ${block.hash}`,
+    //     );
+    //   }
+    // }
+
+    // Validate that each trace point to valid transaction in the block
+    for (const trace of traces) {
+      if (
+        block.transactions.find((t) => t.hash === trace.txHash) === undefined
+      ) {
         throw new Error(
-          `Detected inconsistent RPC responses. 'trace.blockHash' ${trace.blockHash} does not match 'block.hash' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'trace.txHash' ${trace.txHash} not found in 'block' ${block.hash}`,
         );
       }
     }
@@ -657,19 +683,38 @@ export const createRealtimeSync = (
     });
 
     // Remove call traces that don't match a filter, recording required transactions
-    callTraces = callTraces.filter((callTrace) => {
-      let isCallTraceMatched = false;
-      for (const filter of callTraceFilters) {
-        if (isCallTraceFilterMatched({ filter, block, callTrace })) {
-          isCallTraceMatched = true;
-          requiredTransactions.add(callTrace.transactionHash);
-          if (filter.includeTransactionReceipts) {
-            requiredTransactionReceipts.add(callTrace.transactionHash);
-          }
+    // callTraces = callTraces.filter((callTrace) => {
+    //   let isCallTraceMatched = false;
+    //   for (const filter of callTraceFilters) {
+    //     if (isCallTraceFilterMatched({ filter, block, callTrace })) {
+    //       isCallTraceMatched = true;
+    //       requiredTransactions.add(callTrace.transactionHash);
+    //       if (filter.includeTransactionReceipts) {
+    //         requiredTransactionReceipts.add(callTrace.transactionHash);
+    //       }
+    //     }
+    //   }
+
+    //   return isCallTraceMatched;
+    // });
+
+    // Remove traces that dont match transaction or transfer filter
+    traces = traces.filter((trace) => {
+      for (const filter of transactionFilters) {
+        if (isTransactionFilterMatched({ filter, block, trace })) {
+          requiredTransactions.add(trace.txHash);
+          return true;
         }
       }
 
-      return isCallTraceMatched;
+      for (const filter of transferFilters) {
+        if (isTransferFilterMatched({ filter, block, trace })) {
+          requiredTransactions.add(trace.txHash);
+          return true;
+        }
+      }
+
+      return false;
     });
 
     ////////
@@ -713,15 +758,15 @@ export const createRealtimeSync = (
       }
     }
 
-    callTraces = callTraces.filter(
-      (trace) => revertedTransactions.has(trace.transactionHash) === false,
-    );
+    // callTraces = callTraces.filter(
+    //   (trace) => revertedTransactions.has(trace.transactionHash) === false,
+    // );
 
     return {
       block,
       logs,
       factoryLogs,
-      callTraces,
+      traces,
       transactions,
       transactionReceipts,
     };
