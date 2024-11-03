@@ -38,6 +38,8 @@ import {
   isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
 } from "./filter.js";
 
 export type RealtimeSync = {
@@ -170,7 +172,7 @@ export const createRealtimeSync = (
     block,
     logs,
     factoryLogs,
-    callTraces,
+    traces,
     transactions,
     transactionReceipts,
   }: Omit<BlockWithEventData, "filters">) => {
@@ -222,20 +224,71 @@ export const createRealtimeSync = (
     });
 
     // Remove call traces that don't match a filter, accounting for factory addresses
-    callTraces = callTraces.filter((callTrace) => {
+    traces = traces.filter((trace) => {
       let isMatched = false;
 
-      for (const filter of callTraceFilters) {
+      const isFactoryAddressMatched = ({
+        filter,
+        trace,
+      }: {
+        filter: TransactionFilter | TransferFilter;
+        trace: SyncTrace;
+      }): boolean => {
+        const calls = trace.result.calls ?? [trace.result];
         if (
-          isCallTraceFilterMatched({ filter, block, callTrace }) &&
-          (isAddressFactory(filter.toAddress)
-            ? finalizedChildAddresses
-                .get(filter.toAddress)!
-                .has(callTrace.action.to.toLowerCase() as Address) ||
-              unfinalizedChildAddresses
-                .get(filter.toAddress)!
-                .has(callTrace.action.to.toLowerCase() as Address)
-            : true)
+          isAddressFactory(filter.toAddress) === false &&
+          isAddressFactory(filter.fromAddress) === false
+        ) {
+          return true;
+        } else {
+          const toChildAddresses = isAddressFactory(filter.toAddress)
+            ? new Set([
+                ...finalizedChildAddresses.get(filter.toAddress)!,
+                ...unfinalizedChildAddresses.get(filter.toAddress)!,
+              ])
+            : undefined;
+          const fromChildAddresses = isAddressFactory(filter.fromAddress)
+            ? new Set([
+                ...finalizedChildAddresses.get(filter.fromAddress)!,
+                ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+              ])
+            : undefined;
+
+          while (calls.length > 0) {
+            const call = calls.shift()!;
+            if (
+              (toChildAddresses !== undefined
+                ? toChildAddresses.has(call.to.toLowerCase() as Address)
+                : true) &&
+              (fromChildAddresses !== undefined
+                ? fromChildAddresses.has(call.from.toLowerCase() as Address)
+                : true)
+            ) {
+              return true;
+            }
+            if (call.calls !== undefined) {
+              calls.concat(call.calls);
+            }
+          }
+
+          return false;
+        }
+      };
+
+      for (const filter of transactionFilters) {
+        if (
+          isTransactionFilterMatched({ filter, block, trace }) &&
+          isFactoryAddressMatched({ filter, trace })
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
+        }
+      }
+
+      for (const filter of transferFilters) {
+        if (
+          isTransferFilterMatched({ filter, block, trace }) &&
+          isFactoryAddressMatched({ filter, trace })
         ) {
           matchedFilters.add(filter);
           isMatched = true;
@@ -250,8 +303,8 @@ export const createRealtimeSync = (
     for (const log of logs) {
       transactionHashes.add(log.transactionHash);
     }
-    for (const trace of callTraces) {
-      transactionHashes.add(trace.transactionHash);
+    for (const trace of traces) {
+      transactionHashes.add(trace.txHash);
     }
 
     transactions = transactions.filter((t) => transactionHashes.has(t.hash));
@@ -266,7 +319,7 @@ export const createRealtimeSync = (
       }
     }
 
-    if (logs.length > 0 || callTraces.length > 0) {
+    if (logs.length > 0 || traces.length > 0) {
       const _text: string[] = [];
 
       if (logs.length === 1) {
@@ -275,10 +328,10 @@ export const createRealtimeSync = (
         _text.push(`${logs.length} logs`);
       }
 
-      if (callTraces.length === 1) {
+      if (traces.length === 1) {
         _text.push("1 call trace");
-      } else if (callTraces.length > 1) {
-        _text.push(`${callTraces.length} call traces`);
+      } else if (traces.length > 1) {
+        _text.push(`${traces.length} call traces`);
       }
 
       const text = _text.filter((t) => t !== undefined).join(" and ");
@@ -305,7 +358,7 @@ export const createRealtimeSync = (
       block,
       factoryLogs,
       logs,
-      callTraces,
+      traces,
       transactions,
       transactionReceipts,
     });
