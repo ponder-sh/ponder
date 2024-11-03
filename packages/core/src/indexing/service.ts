@@ -26,6 +26,7 @@ import type {
   BlockEvent,
   CallTraceEvent,
   Event,
+  IndexingEnv,
   LogEvent,
   SetupEvent,
 } from "../sync/events.js";
@@ -73,6 +74,7 @@ export type Service = {
     contextState: {
       encodedCheckpoint: string;
       blockNumber: bigint;
+      indexingEnv: IndexingEnv;
     };
     context: Context;
   };
@@ -103,6 +105,7 @@ export const create = ({
   const contextState: Service["currentEvent"]["contextState"] = {
     encodedCheckpoint: undefined!,
     blockNumber: undefined!,
+    indexingEnv: undefined!,
   };
   const clientByChainId: Service["clientByChainId"] = {};
   const contractsByChainId: Service["contractsByChainId"] = {};
@@ -251,6 +254,7 @@ export const processSetupEvents = async (
             chainId: BigInt(network.chainId),
             blockNumber: BigInt(source.filter.fromBlock),
           }),
+          indexingEnv: "historical",
 
           name: eventName,
 
@@ -443,6 +447,7 @@ const executeSetup = async (
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.block;
+    currentEvent.contextState.indexingEnv = event.indexingEnv;
 
     const endClock = startClock();
 
@@ -503,7 +508,7 @@ const executeLog = async (
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
-
+    currentEvent.contextState.indexingEnv = event.indexingEnv;
     const endClock = startClock();
 
     await indexingFunction!({
@@ -567,6 +572,7 @@ const executeBlock = async (
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
+    currentEvent.contextState.indexingEnv = event.indexingEnv;
 
     const endClock = startClock();
 
@@ -637,7 +643,7 @@ const executeCallTrace = async (
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.encodedCheckpoint = event.checkpoint;
     currentEvent.contextState.blockNumber = event.event.block.number;
-
+    currentEvent.contextState.indexingEnv = event.indexingEnv;
     const endClock = startClock();
 
     await indexingFunction!({

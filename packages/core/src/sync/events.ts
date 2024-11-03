@@ -56,10 +56,13 @@ export type RawEvent = {
 
 export type Event = LogEvent | BlockEvent | CallTraceEvent;
 
+export type IndexingEnv = "realtime" | "historical";
+
 export type SetupEvent = {
   type: "setup";
   chainId: number;
   checkpoint: string;
+  indexingEnv: IndexingEnv;
 
   /** `${source.name}:setup` */
   name: string;
@@ -71,6 +74,7 @@ export type LogEvent = {
   type: "log";
   chainId: number;
   checkpoint: string;
+  indexingEnv: IndexingEnv;
 
   /** `${source.name}:${safeName}` */
   name: string;
@@ -89,6 +93,7 @@ export type BlockEvent = {
   type: "block";
   chainId: number;
   checkpoint: string;
+  indexingEnv: IndexingEnv;
 
   /** `${source.name}:block` */
   name: string;
@@ -102,7 +107,7 @@ export type CallTraceEvent = {
   type: "callTrace";
   chainId: number;
   checkpoint: string;
-
+  indexingEnv: IndexingEnv;
   /** `${source.name}.${safeName}()` */
   name: string;
 
@@ -288,6 +293,7 @@ export const decodeEvents = (
   common: Common,
   sources: Source[],
   rawEvents: RawEvent[],
+  indexingEnv: IndexingEnv,
 ): Event[] => {
   const events: Event[] = [];
 
@@ -302,7 +308,10 @@ export const decodeEvents = (
           type: "block",
           chainId: event.chainId,
           checkpoint: event.checkpoint,
+          indexingEnv,
+
           name: `${source.name}:block`,
+
           event: {
             block: event.block,
           },
@@ -333,6 +342,7 @@ export const decodeEvents = (
                 type: "log",
                 chainId: event.chainId,
                 checkpoint: event.checkpoint,
+                indexingEnv,
 
                 name: `${source.name}:${safeName}`,
 
@@ -389,6 +399,7 @@ export const decodeEvents = (
                 type: "callTrace",
                 chainId: event.chainId,
                 checkpoint: event.checkpoint,
+                indexingEnv,
 
                 name: `${source.name}.${safeName}`,
 

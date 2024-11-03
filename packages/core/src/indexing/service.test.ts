@@ -1255,3 +1255,95 @@ test.skip("ponderActions multicall()", async (context) => {
 
   await cleanup();
 });
+
+test("processEvents() sets historical indexingEnv", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const sync = await createSync({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => Promise.resolve(),
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
+  };
+
+  const indexingService = create({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    sync,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsLog(sources);
+  const events = decodeEvents(common, sources, rawEvents, "historical");
+  const result = await processEvents(indexingService, {
+    events,
+  });
+
+  expect(result).toStrictEqual({ status: "success" });
+  expect(indexingService.currentEvent.contextState.indexingEnv).toBe(
+    "historical",
+  );
+
+  await cleanup();
+});
+
+test("processEvents() sets realtime indexingEnv", async (context) => {
+  const { common, sources, networks } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
+
+  const sync = await createSync({
+    common,
+    syncStore,
+    networks,
+    sources,
+    onRealtimeEvent: () => Promise.resolve(),
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
+  };
+
+  const indexingService = create({
+    indexingFunctions,
+    common,
+    sources,
+    networks,
+    sync,
+    indexingStore,
+    schema,
+  });
+
+  const rawEvents = await getEventsLog(sources);
+  const events = decodeEvents(common, sources, rawEvents, "realtime");
+  const result = await processEvents(indexingService, {
+    events,
+  });
+
+  expect(result).toStrictEqual({ status: "success" });
+  expect(indexingService.currentEvent.contextState.indexingEnv).toBe(
+    "realtime",
+  );
+
+  await cleanup();
+});
