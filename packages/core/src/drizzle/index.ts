@@ -220,7 +220,8 @@ export const onchainTable = <
   dialect: "pg";
 }> => {
   // @ts-ignore
-  if (globalThis.INSTANCE_ID === undefined) {
+  const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+  if (instanceId === undefined) {
     const table = pgTableWithSchema(
       name,
       columns,
@@ -236,8 +237,7 @@ export const onchainTable = <
   }
 
   const table = pgTableWithSchema(
-    // @ts-ignore
-    userToSqlTableName(name, globalThis.INSTANCE_ID),
+    userToSqlTableName(name, instanceId),
     columns,
     extraConfig as any,
     undefined,
@@ -267,7 +267,8 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     dialect: "pg";
   }> => {
     // @ts-ignore
-    if (globalThis.INSTANCE_ID === undefined) {
+    const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+    if (instanceId === undefined) {
       const table = pgTableWithSchema(
         name,
         columns,
@@ -284,7 +285,7 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
 
     const table = pgTableWithSchema(
       // @ts-ignore
-      userToSqlTableName(name, globalThis.INSTANCE_ID),
+      userToSqlTableName(name, instanceId),
       columns,
       extraConfig as any,
       this.schemaName,
@@ -342,7 +343,8 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
   // @ts-ignore
-  if (globalThis.INSTANCE_ID === undefined) {
+  const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+  if (instanceId === undefined) {
     const e = pgEnumWithSchema(enumName, values, undefined);
 
     // @ts-ignore
@@ -354,7 +356,7 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
 
   const e = pgEnumWithSchema(
     // @ts-ignore
-    userToSqlTableName(enumName, globalThis.INSTANCE_ID),
+    userToSqlTableName(enumName, instanceId),
     values,
     undefined,
   );

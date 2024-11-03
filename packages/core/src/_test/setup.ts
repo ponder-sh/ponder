@@ -138,7 +138,7 @@ const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
 };
 
 // @ts-ignore
-globalThis.INSTANCE_ID = "1234";
+globalThis.__PONDER_INSTANCE_ID = "1234";
 
 export async function setupDatabaseServices(
   context: TestContext,

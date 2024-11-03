@@ -185,7 +185,7 @@ export const start = async (
 
   if (common.options.command !== "serve") {
     // @ts-ignore
-    globalThis.INSTANCE_ID = crypto.randomBytes(2).toString("hex");
+    globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
   }
 
   // Note: Don't run these in parallel. If there are circular imports in user code,
@@ -320,7 +320,7 @@ export const start = async (
 
       if (hasIndexingUpdate) {
         // @ts-ignore
-        globalThis.INSTANCE_ID = crypto.randomBytes(2).toString("hex");
+        globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
 
         const files = glob.sync(buildService.indexingPattern, {
           ignore: buildService.apiPattern,
@@ -338,7 +338,7 @@ export const start = async (
 
       if (hasApiUpdate) {
         // @ts-ignore
-        globalThis.INSTANCE_ID = crypto.randomBytes(2).toString("hex");
+        globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
 
         const files = glob.sync(buildService.apiPattern);
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
@@ -655,7 +655,7 @@ const validateAndBuild = async (
     build: {
       buildId,
       // @ts-ignore
-      instanceId: globalThis.INSTANCE_ID,
+      instanceId: globalThis.__PONDER_INSTANCE_ID,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
