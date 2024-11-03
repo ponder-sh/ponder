@@ -3,19 +3,20 @@ import type { Network } from "@/config/networks.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
-  type CallTraceFilter,
   type Factory,
   type Filter,
   type LogFilter,
   type Source,
+  type TransactionFilter,
+  type TransferFilter,
   getChildAddress,
   isAddressFactory,
 } from "@/sync/source.js";
 import type {
   LightBlock,
   SyncBlock,
-  SyncCallTrace,
   SyncLog,
+  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -64,7 +65,7 @@ export type BlockWithEventData = {
   filters: Set<Filter>;
   logs: SyncLog[];
   factoryLogs: SyncLog[];
-  callTraces: SyncCallTrace[];
+  traces: SyncTrace[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
 };
@@ -112,24 +113,40 @@ export const createRealtimeSync = (
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
-  const callTraceFilters: CallTraceFilter[] = [];
+  const transactionFilters: TransactionFilter[] = [];
+  const transferFilters: TransferFilter[] = [];
   const blockFilters: BlockFilter[] = [];
 
   for (const source of args.sources) {
     if (source.type === "contract") {
       if (source.filter.type === "log") {
         logFilters.push(source.filter);
-      } else if (source.filter.type === "callTrace") {
-        callTraceFilters.push(source.filter);
+      } else if (source.filter.type === "transaction") {
+        transactionFilters.push(source.filter);
+      } else if (source.filter.type === "transfer") {
+        transferFilters.push(source.filter);
       }
 
-      const _address =
+      const [_fromAddress, _toAddress] =
         source.filter.type === "log"
-          ? source.filter.address
-          : source.filter.toAddress;
-      if (isAddressFactory(_address)) {
-        factories.push(_address);
+          ? [source.filter.address, undefined]
+          : [source.filter.fromAddress, source.filter.toAddress];
+
+      if (isAddressFactory(_fromAddress)) {
+        factories.push(_fromAddress);
       }
+
+      if (isAddressFactory(_toAddress)) {
+        factories.push(_toAddress);
+      }
+
+      // const _address =
+      //   source.filter.type === "log"
+      //     ? source.filter.address
+      //     : source.filter.toAddress;
+      // if (isAddressFactory(_address)) {
+      //   factories.push(_address);
+      // }
     } else if (source.type === "block") {
       blockFilters.push(source.filter);
     }

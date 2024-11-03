@@ -478,6 +478,8 @@ export const createHistoricalSync = async (
       const isMatched =
         isInputMatched && isFromAddressMatched && isToAddressMatched;
 
+      // TODO: check for errors and reverts (logic to stop traversing when failed found)
+
       const calls = trace.result.calls;
       if (calls !== undefined) {
         return (
