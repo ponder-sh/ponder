@@ -265,7 +265,53 @@ test("setup() with the same build ID reverts rows", async (context) => {
   await databaseTwo.kill();
 });
 
-test.todo("setup() with the same build ID drops indexes and triggers");
+test("setup() with the same build ID drops indexes and triggers", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      balanceIdx: index().on(table.balance),
+    }),
+  );
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+  });
+
+  await database.setup();
+
+  await database.finalize({
+    checkpoint: createCheckpoint(10),
+  });
+
+  await database.createIndexes();
+
+  await database.unlock();
+  await database.kill();
+
+  const databaseTwo = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "5678",
+    buildId: "abc",
+  });
+
+  await databaseTwo.setup();
+
+  const indexNames = await getUserIndexNames(databaseTwo, "5678__account");
+
+  expect(indexNames).toHaveLength(1);
+
+  await databaseTwo.kill();
+});
 
 test("setup() with the same build ID recovers if the lock expires after waiting", async (context) => {
   context.common.options.databaseHeartbeatInterval = 750;
@@ -378,31 +424,25 @@ test('setup() with "ponder dev" publishes views', async (context) => {
   await database.kill();
 });
 
-test.todo(
-  "setup() throws if there is a table name collision",
-  async (context) => {
-    const database = createDatabase({
-      common: context.common,
-      schema: { account },
-      databaseConfig: context.databaseConfig,
-      instanceId: "1234",
-      buildId: "abc",
-    });
+test("setup() throws if there is a table name collision", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+  });
 
-    await database.qb.internal.executeQuery(
-      ksql`CREATE TABLE "account" (id TEXT)`.compile(database.qb.internal),
-    );
+  await database.qb.internal.executeQuery(
+    ksql`CREATE TABLE "1234__account" (id TEXT)`.compile(database.qb.internal),
+  );
 
-    expect(await getUserTableNames(database)).toStrictEqual(["account"]);
+  await expect(() => database.setup()).rejects.toThrow(
+    "Unable to create table 'public'.'1234__account' because a table with that name already exists.",
+  );
 
-    await expect(() => database.setup()).rejects.toThrow(
-      "Unable to create table 'public'.'account' because a table with that name already exists. Is there another application using the 'public' database schema?",
-    );
-
-    await database.unlock();
-    await database.kill();
-  },
-);
+  await database.kill();
+});
 
 test("setup() v0.7 migration", async (context) => {
   const database = createDatabase({

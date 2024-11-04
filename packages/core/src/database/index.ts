@@ -696,11 +696,29 @@ export const createDatabase = (args: {
                 })
                 .execute();
 
-              for (const statement of statements.enums.sql) {
-                await sql.raw(statement).execute(tx);
+              for (let i = 0; i < statements.enums.sql.length; i++) {
+                await sql
+                  .raw(statements.enums.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    throw new NonRetryableError(
+                      `Unable to create enum '${namespace}'.'${statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                    );
+                  });
               }
-              for (const statement of statements.tables.sql) {
-                await sql.raw(statement).execute(tx);
+              for (let i = 0; i < statements.tables.sql.length; i++) {
+                await sql
+                  .raw(statements.tables.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    throw new NonRetryableError(
+                      `Unable to create table '${namespace}'.'${statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                    );
+                  });
               }
               args.common.logger.info({
                 service: "database",
@@ -766,23 +784,17 @@ export const createDatabase = (args: {
 
               // Remove indexes
 
-              // for (const [tableName, table] of Object.entries(
-              //   getTables(args.schema),
-              // )) {
-              //   if (table.constraints === undefined) continue;
+              for (const indexStatement of statements.indexes.json) {
+                await tx.schema
+                  .dropIndex(indexStatement.data.name)
+                  .ifExists()
+                  .execute();
 
-              //   for (const name of Object.keys(table.constraints)) {
-              //     await tx.schema
-              //       .dropIndex(`${tableName}_${name}`)
-              //       .ifExists()
-              //       .execute();
-
-              //     args.common.logger.info({
-              //       service: "database",
-              //       msg: `Dropped index '${tableName}_${name}' in schema '${namespace}'`,
-              //     });
-              //   }
-              // }
+                args.common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
+                });
+              }
 
               // Rename tables + reorg tables
               for (const tableName of crashRecoveryApp.table_names) {
@@ -874,11 +886,29 @@ export const createDatabase = (args: {
               })
               .execute();
 
-            for (const statement of statements.enums.sql) {
-              await sql.raw(statement).execute(tx);
+            for (let i = 0; i < statements.enums.sql.length; i++) {
+              await sql
+                .raw(statements.enums.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create enum '${namespace}'.'${statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                  );
+                });
             }
-            for (const statement of statements.tables.sql) {
-              await sql.raw(statement).execute(tx);
+            for (let i = 0; i < statements.tables.sql.length; i++) {
+              await sql
+                .raw(statements.tables.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create table '${namespace}'.'${statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                  );
+                });
             }
             args.common.logger.info({
               service: "database",
