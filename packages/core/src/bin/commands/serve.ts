@@ -50,11 +50,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const { api, indexing } = await buildService.start({ watch: false });
+  const buildResult = await buildService.start({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (api.status === "error" || indexing.status === "error") {
+  if (buildResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
@@ -63,12 +63,12 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "serve",
-      ...buildPayload(indexing.build),
+      ...buildPayload(buildResult.indexingBuild),
     },
   });
 
   const { databaseConfig, schema, instanceId, buildId, statements, namespace } =
-    api.build;
+    buildResult.apiBuild;
 
   if (databaseConfig.kind === "pglite") {
     await shutdown({
@@ -89,8 +89,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const server = await createServer({
-    app: api.build.app,
-    routes: api.build.routes,
+    app: buildResult.apiBuild.app,
+    routes: buildResult.apiBuild.routes,
     common,
     schema,
     database,

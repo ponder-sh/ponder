@@ -56,11 +56,11 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const { indexing, api } = await buildService.start({ watch: false });
+  const buildResult = await buildService.start({ watch: false });
   // Once we have the initial build, we can kill the build service.
   await buildService.kill();
 
-  if (indexing.status === "error" || api.status === "error") {
+  if (buildResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
@@ -69,23 +69,23 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "start",
-      ...buildPayload(indexing.build),
+      ...buildPayload(buildResult.indexingBuild),
     },
   });
 
   const database = createDatabase({
     common,
-    schema: indexing.build.schema,
-    databaseConfig: indexing.build.databaseConfig,
-    buildId: indexing.build.buildId,
-    instanceId: indexing.build.instanceId,
-    namespace: indexing.build.namespace,
-    statements: indexing.build.statements,
+    schema: buildResult.indexingBuild.schema,
+    databaseConfig: buildResult.indexingBuild.databaseConfig,
+    buildId: buildResult.indexingBuild.buildId,
+    instanceId: buildResult.indexingBuild.instanceId,
+    namespace: buildResult.indexingBuild.namespace,
+    statements: buildResult.indexingBuild.statements,
   });
 
   cleanupReloadable = await run({
     common,
-    build: indexing.build,
+    build: buildResult.indexingBuild!,
     database,
     onFatalError: () => {
       shutdown({ reason: "Received fatal error", code: 1 });
@@ -97,7 +97,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   cleanupReloadableServer = await runServer({
     common,
-    build: api.build,
+    build: buildResult.apiBuild,
     database,
   });
 
