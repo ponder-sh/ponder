@@ -55,6 +55,8 @@ test("run() setup", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
 
   await kill();
+  await database.unlock();
+  await database.kill();
 });
 
 test("run() setup error", async (context) => {
@@ -98,6 +100,8 @@ test("run() setup error", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 
   await kill();
+  await database.unlock();
+  await database.kill();
 });
 
 test.todo("run() checkpoint");
