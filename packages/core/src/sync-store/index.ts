@@ -45,6 +45,7 @@ import {
   type PonderSyncSchema,
   encodeBlock,
   encodeLog,
+  encodeTrace,
   encodeTransaction,
   encodeTransactionReceipt,
 } from "./encoding.js";
@@ -672,7 +673,34 @@ export const createSyncStore = ({
   insertTraces: async ({ traces, chainId }) => {
     if (traces.length === 0) return;
     await db.wrap({ method: "insertTraces" }, async () => {
-      // TODO(kyle) insert
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTrace({
+              trace: traces[0]!.trace,
+              block: traces[0]!.block,
+              transaction: traces[0]!.transaction,
+              position: traces[0]!.position,
+              chainId,
+            }),
+          ).length,
+      );
+
+      for (let i = 0; i < traces.length; i += batchSize) {
+        await db
+          .insertInto("traces")
+          .values(
+            traces
+              .slice(i, i + batchSize)
+              .map(({ trace, block, transaction, position }) =>
+                encodeTrace({ trace, block, transaction, position, chainId }),
+              ),
+          )
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .execute();
+      }
     });
   },
   getEvents: async ({ filters, from, to, limit }) => {
