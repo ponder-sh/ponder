@@ -300,46 +300,47 @@ export const start = async (
           .join(", ")}`,
       });
 
-      if (hasConfigUpdate) {
-        const result = await executeConfig(buildService);
-        if (result.status === "error") {
-          onIndexingBuild({ status: "error", error: result.error });
-          return;
-        }
-        cachedConfigResult = result;
-      }
-
-      if (hasSchemaUpdate) {
-        const result = await executeSchema(buildService);
-        if (result.status === "error") {
-          onIndexingBuild({ status: "error", error: result.error });
-          return;
-        }
-        cachedSchemaResult = result;
-      }
-
-      if (hasIndexingUpdate) {
+      // re-execute anything that would cause the instance id to change
+      if (hasIndexingUpdate || hasSchemaUpdate || hasConfigUpdate) {
         // @ts-ignore
         globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
 
-        const files = glob.sync(buildService.indexingPattern, {
-          ignore: buildService.apiPattern,
-        });
-        buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree([
+          buildService.common.options.configFile,
+        ]);
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree([
+          buildService.common.options.schemaFile,
+        ]);
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree(
+          glob.sync(buildService.indexingPattern, {
+            ignore: buildService.apiPattern,
+          }),
+        );
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
 
-        const result = await executeIndexingFunctions(buildService);
-        if (result.status === "error") {
-          onIndexingBuild({ status: "error", error: result.error });
+        const configResult = await executeConfig(buildService);
+        const schemaResult = await executeSchema(buildService);
+        const indexingResult = await executeIndexingFunctions(buildService);
+
+        if (configResult.status === "error") {
+          onIndexingBuild({ status: "error", error: configResult.error });
           return;
         }
-        cachedIndexingResult = result;
+        if (schemaResult.status === "error") {
+          onIndexingBuild({ status: "error", error: schemaResult.error });
+          return;
+        }
+        if (indexingResult.status === "error") {
+          onIndexingBuild({ status: "error", error: indexingResult.error });
+          return;
+        }
+
+        cachedConfigResult = configResult;
+        cachedSchemaResult = schemaResult;
+        cachedIndexingResult = indexingResult;
       }
 
       if (hasApiUpdate) {
-        // @ts-ignore
-        globalThis.__PONDER_INSTANCE_ID = crypto.randomBytes(2).toString("hex");
-
         const files = glob.sync(buildService.apiPattern);
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
