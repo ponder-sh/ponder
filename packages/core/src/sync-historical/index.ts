@@ -317,8 +317,15 @@ export const createHistoricalSync = async (
     }[] = [];
 
     let position = 0;
+    // all traces that weren't included because the trace has an error
+    // or the trace's parent has an error, mapped to the error string
+    const failedTraces = new Map<SyncTrace["result"], string>();
 
-    const dfs = (syncTrace: SyncTrace["result"][], transactionHash: Hex) => {
+    const dfs = (
+      syncTrace: SyncTrace["result"][],
+      transactionHash: Hex,
+      parentTrace: SyncTrace["result"] | undefined,
+    ) => {
       for (const trace of syncTrace) {
         if (filter.type === "transfer") {
           if (
@@ -346,17 +353,23 @@ export const createHistoricalSync = async (
           }
         }
 
+        if (trace.error !== undefined) {
+          failedTraces.set(trace, trace.error);
+        } else if (parentTrace && failedTraces.has(parentTrace)) {
+          failedTraces.set(trace, failedTraces.get(parentTrace)!);
+        }
+
         position++;
 
         if (trace.calls) {
-          dfs(trace.calls, transactionHash);
+          dfs(trace.calls, transactionHash, trace);
         }
       }
     };
 
     for (const trace of syncTraces) {
       position = 0;
-      dfs([trace.result], trace.txHash);
+      dfs([trace.result], trace.txHash, undefined);
     }
 
     if (traces.length > 0) {
@@ -387,7 +400,7 @@ export const createHistoricalSync = async (
 
       await args.syncStore.insertTraces({
         traces: traces.map(({ trace, position }, i) => ({
-          trace,
+          trace: { ...trace, error: failedTraces.get(trace) },
           block,
           transaction: transactions[i]!,
           position,
