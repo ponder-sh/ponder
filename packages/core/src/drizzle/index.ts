@@ -222,8 +222,10 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  // @ts-ignore
-  const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+  const instanceId: string | undefined =
+    process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
+    // @ts-ignore
+    globalThis.__PONDER_INSTANCE_ID;
   if (instanceId === undefined) {
     const table = pgTableWithSchema(
       name,
@@ -269,8 +271,10 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     extra: extra;
     dialect: "pg";
   }> => {
-    // @ts-ignore
-    const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+    const instanceId: string | undefined =
+      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
+      // @ts-ignore
+      globalThis.__PONDER_INSTANCE_ID;
     if (instanceId === undefined) {
       const table = pgTableWithSchema(
         name,
@@ -305,8 +309,10 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     enumName: string,
     values: T | Writable<T>,
   ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-    // @ts-ignore
-    const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+    const instanceId: string | undefined =
+      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
+      // @ts-ignore
+      globalThis.__PONDER_INSTANCE_ID;
     if (instanceId === undefined) {
       const e = pgEnumWithSchema(enumName, values, this.schemaName);
 

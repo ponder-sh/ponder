@@ -927,56 +927,59 @@ export const createDatabase = (args: {
         }
       }
 
-      const apps: PonderApp[] = await qb.internal
-        .selectFrom("_ponder_meta")
-        .where("key", "like", "app_%")
-        .select("value")
-        .execute()
-        .then((rows) => rows.map(({ value }) => value as PonderApp));
+      if (process.env.PONDER_EXPERIMENTAL_DB !== "platform") {
+        const apps: PonderApp[] = await qb.internal
+          .selectFrom("_ponder_meta")
+          .where("key", "like", "app_%")
+          .select("value")
+          .execute()
+          .then((rows) => rows.map(({ value }) => value as PonderApp));
 
-      const removedApps = apps
-        .filter((app) =>
-          app.is_dev === 1
-            ? app.is_locked === 0
-            : app.is_locked === 0 ||
-              app.heartbeat_at + args.common.options.databaseHeartbeatTimeout <
-                Date.now(),
-        )
-        .sort((a, b) => (a.heartbeat_at > b.heartbeat_at ? -1 : 1))
-        .slice(2);
+        const removedApps = apps
+          .filter((app) =>
+            app.is_dev === 1
+              ? app.is_locked === 0
+              : app.is_locked === 0 ||
+                app.heartbeat_at +
+                  args.common.options.databaseHeartbeatTimeout <
+                  Date.now(),
+          )
+          .sort((a, b) => (a.heartbeat_at > b.heartbeat_at ? -1 : 1))
+          .slice(2);
 
-      for (const app of removedApps) {
-        for (const table of app.table_names) {
-          await qb.internal.schema
-            .dropTable(userToSqlTableName(table, app.instance_id))
-            .cascade()
-            .ifExists()
+        for (const app of removedApps) {
+          for (const table of app.table_names) {
+            await qb.internal.schema
+              .dropTable(userToSqlTableName(table, app.instance_id))
+              .cascade()
+              .ifExists()
+              .execute();
+            await qb.internal.schema
+              .dropTable(userToReorgTableName(table, app.instance_id))
+              .cascade()
+              .ifExists()
+              .execute();
+          }
+          await qb.internal
+            .deleteFrom("_ponder_meta")
+            .where("key", "=", `status_${app.instance_id}`)
             .execute();
-          await qb.internal.schema
-            .dropTable(userToReorgTableName(table, app.instance_id))
-            .cascade()
-            .ifExists()
+          await qb.internal
+            .deleteFrom("_ponder_meta")
+            .where("key", "=", `app_${app.instance_id}`)
             .execute();
         }
-        await qb.internal
-          .deleteFrom("_ponder_meta")
-          .where("key", "=", `status_${app.instance_id}`)
-          .execute();
-        await qb.internal
-          .deleteFrom("_ponder_meta")
-          .where("key", "=", `app_${app.instance_id}`)
-          .execute();
-      }
 
-      if (removedApps.length > 0) {
-        args.common.logger.debug({
-          service: "database",
-          msg: `Removed tables corresponding to apps [${removedApps.map((app) => app.instance_id)}]`,
-        });
-      }
+        if (removedApps.length > 0) {
+          args.common.logger.debug({
+            service: "database",
+            msg: `Removed tables corresponding to apps [${removedApps.map((app) => app.instance_id)}]`,
+          });
+        }
 
-      if (apps.length === 1 || args.common.options.command === "dev") {
-        await this.createLiveViews();
+        if (apps.length === 1 || args.common.options.command === "dev") {
+          await this.createLiveViews();
+        }
       }
 
       heartbeatInterval = setInterval(async () => {
@@ -1015,6 +1018,8 @@ export const createDatabase = (args: {
       }
     },
     async createLiveViews() {
+      if (process.env.PONDER_EXPERIMENTAL_DB === "platform") return;
+
       await qb.internal.wrap({ method: "createLiveViews" }, async () => {
         // drop old views
 
