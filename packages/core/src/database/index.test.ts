@@ -51,6 +51,7 @@ test("setup() succeeds with a fresh database", async (context) => {
 
   expect(metadata).toHaveLength(3);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -93,6 +94,7 @@ test("setup() create tables", async (context) => {
   expect(tableNames).toContain("1234_reorg__kyle");
   expect(tableNames).toContain("_ponder_meta");
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -111,6 +113,7 @@ test("setup() succeeds with a prior app in the same namespace", async (context) 
   expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
+  await database.unlock();
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -156,6 +159,7 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
     checkpoint: createCheckpoint(10),
   });
 
+  await database.unlock();
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -229,6 +233,7 @@ test("setup() with the same build ID reverts rows", async (context) => {
     checkpoint: createCheckpoint(10),
   });
 
+  await database.unlock();
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -288,6 +293,7 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
 
   expect(checkpoint).toMatchObject(createCheckpoint(10));
 
+  await database.unlock();
   await database.kill();
   await databaseTwo.kill();
 });
@@ -318,6 +324,7 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
+  await database.unlock();
   await database.kill();
   await databaseTwo.kill();
 });
@@ -332,6 +339,7 @@ test("setup() drops old tables", async (context) => {
       buildId: `${i}`,
     });
     await database.setup();
+    await database.unlock();
     await database.kill();
   }
 
@@ -346,6 +354,7 @@ test("setup() drops old tables", async (context) => {
 
   const tableNames = await getUserTableNames(database);
   expect(tableNames).toHaveLength(7);
+  await database.unlock();
   await database.kill();
 });
 
@@ -365,6 +374,7 @@ test('setup() with "ponder dev" publishes views', async (context) => {
   const viewNames = await getUserViewNames(database);
   expect(viewNames).toContain("account");
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -389,6 +399,7 @@ test.todo(
       "Unable to create table 'public'.'account' because a table with that name already exists. Is there another application using the 'public' database schema?",
     );
 
+    await database.unlock();
     await database.kill();
   },
 );
@@ -452,6 +463,7 @@ test("setup() v0.7 migration", async (context) => {
 
   expect(metadata).toHaveLength(3);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -489,6 +501,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     // @ts-ignore
   ).toBeGreaterThan(row!.value!.heartbeat_at as number);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -563,7 +576,7 @@ test("finalize()", async (context) => {
   await database.kill();
 });
 
-test("kill()", async (context) => {
+test("unlock()", async (context) => {
   let database = createDatabase({
     common: context.common,
     schema: { account },
@@ -573,6 +586,7 @@ test("kill()", async (context) => {
   });
 
   await database.setup();
+  await database.unlock();
   await database.kill();
 
   database = createDatabase({
@@ -591,6 +605,7 @@ test("kill()", async (context) => {
 
   expect((metadata[0]!.value as PonderApp).is_locked).toBe(0);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -620,6 +635,7 @@ test("createIndexes()", async (context) => {
   const indexNames = await getUserIndexNames(database, "1234__account");
   expect(indexNames).toContain("balance_index");
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -646,6 +662,7 @@ test("createLiveViews()", async (context) => {
 
   expect(metadata!.value).toStrictEqual({ instance_id: "1234" });
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -660,6 +677,7 @@ test("createLiveViews() drops old views", async (context) => {
 
   await database.setup();
   await database.createLiveViews();
+  await database.unlock();
   await database.kill();
 
   const databaseTwo = createDatabase({
@@ -735,6 +753,7 @@ test("createTriggers()", async (context) => {
     },
   ]);
 
+  await database.unlock();
   await database.kill();
 });
 
