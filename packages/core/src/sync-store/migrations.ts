@@ -842,12 +842,58 @@ const migrations: Record<string, Migration> = {
   },
   "2024_09_09_0_adjacent_interval": {
     async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("interval")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("fragment_id", "text", (col) => col.notNull())
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("start_block", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("end_block", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+
+      await db
+        .insertInto("interval")
+        .columns(["fragment_id", "chain_id", "start_block", "end_block"])
+        .expression(
+          db
+            .selectFrom("logFilters as lf")
+            .innerJoin("logFilterIntervals as lfi", "lf.id", "lfi.logFilterId")
+            .select([
+              "lf.id as fragment_id",
+              "lf.chainId as chain_id",
+              "lfi.startBlock as start_block",
+              "lfi.endBlock as end_block",
+            ]),
+        )
+        .execute();
+
       await db.schema.dropTable("logFilters").ifExists().cascade().execute();
       await db.schema
         .dropTable("logFilterIntervals")
         .ifExists()
         .cascade()
         .execute();
+
+      await db
+        .insertInto("interval")
+        .columns(["fragment_id", "chain_id", "start_block", "end_block"])
+        .expression(
+          db
+            .selectFrom("factoryLogFilters as flf")
+            .innerJoin(
+              "factoryLogFilterIntervals as flfi",
+              "flf.id",
+              "flfi.factoryId",
+            )
+            .select([
+              "flf.id as fragment_id",
+              "flf.chainId as chain_id",
+              "flfi.startBlock as start_block",
+              "flfi.endBlock as end_block",
+            ]),
+        )
+        .execute();
+
       await db.schema
         .dropTable("factoryLogFilters")
         .ifExists()
@@ -858,12 +904,54 @@ const migrations: Record<string, Migration> = {
         .ifExists()
         .cascade()
         .execute();
+
+      await db
+        .insertInto("interval")
+        .columns(["fragment_id", "chain_id", "start_block", "end_block"])
+        .expression(
+          db
+            .selectFrom("traceFilters as tf")
+            .innerJoin(
+              "traceFilterIntervals as tfi",
+              "tf.id",
+              "tfi.traceFilterId",
+            )
+            .select([
+              "tf.id as fragment_id",
+              "tf.chainId as chain_id",
+              "tfi.startBlock as start_block",
+              "tfi.endBlock as end_block",
+            ]),
+        )
+        .execute();
+
       await db.schema.dropTable("traceFilters").ifExists().cascade().execute();
       await db.schema
         .dropTable("traceFilterIntervals")
         .ifExists()
         .cascade()
         .execute();
+
+      await db
+        .insertInto("interval")
+        .columns(["fragment_id", "chain_id", "start_block", "end_block"])
+        .expression(
+          db
+            .selectFrom("factoryTraceFilters as ftf")
+            .innerJoin(
+              "factoryTraceFilterIntervals as ftfi",
+              "ftf.id",
+              "ftfi.factoryId",
+            )
+            .select([
+              "ftf.id as fragment_id",
+              "ftf.chainId as chain_id",
+              "ftfi.startBlock as start_block",
+              "ftfi.endBlock as end_block",
+            ]),
+        )
+        .execute();
+
       await db.schema
         .dropTable("factoryTraceFilters")
         .ifExists()
@@ -874,20 +962,32 @@ const migrations: Record<string, Migration> = {
         .ifExists()
         .cascade()
         .execute();
+
+      await db
+        .insertInto("interval")
+        .columns(["fragment_id", "chain_id", "start_block", "end_block"])
+        .expression(
+          db
+            .selectFrom("blockFilters as bf")
+            .innerJoin(
+              "blockFilterIntervals as bfi",
+              "bf.id",
+              "bfi.blockFilterId",
+            )
+            .select([
+              "bf.id as fragment_id",
+              "bf.chainId as chain_id",
+              "bfi.startBlock as start_block",
+              "bfi.endBlock as end_block",
+            ]),
+        )
+        .execute();
+
       await db.schema.dropTable("blockFilters").ifExists().cascade().execute();
       await db.schema
         .dropTable("blockFilterIntervals")
         .ifExists()
         .cascade()
-        .execute();
-
-      await db.schema
-        .createTable("interval")
-        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("fragment_id", "text", (col) => col.notNull())
-        .addColumn("chain_id", "integer", (col) => col.notNull())
-        .addColumn("start_block", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("end_block", "numeric(78, 0)", (col) => col.notNull())
         .execute();
     },
   },
