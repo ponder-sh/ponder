@@ -5,6 +5,7 @@ import {
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
+import { createDatabase } from "@/database/index.js";
 import { onchainTable } from "@/drizzle/index.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -43,9 +44,20 @@ test("run() setup", async (context) => {
     namespace,
   };
 
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "buildId",
+    statements,
+    namespace,
+  });
+
   const kill = await run({
     common: context.common,
     build,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
@@ -53,6 +65,8 @@ test("run() setup", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
 
   await kill();
+  await database.unlock();
+  await database.kill();
 });
 
 test("run() setup error", async (context) => {
@@ -78,11 +92,22 @@ test("run() setup error", async (context) => {
     namespace,
   };
 
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "buildId",
+    statements,
+    namespace,
+  });
+
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const kill = await run({
     common: context.common,
     build,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: () => {
       onReloadableErrorPromiseResolver.resolve();
@@ -94,6 +119,8 @@ test("run() setup error", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 
   await kill();
+  await database.unlock();
+  await database.kill();
 });
 
 test.todo("run() checkpoint");

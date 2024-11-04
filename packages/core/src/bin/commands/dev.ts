@@ -9,6 +9,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
+import { type Database, createDatabase } from "@/database/index.js";
 import { createUi } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
@@ -63,6 +64,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await indexingCleanupReloadable();
     await apiCleanupReloadable();
+    if (database) {
+      await database.kill();
+    }
     await buildService.kill();
     await telemetry.kill();
     ui.kill();
@@ -79,9 +83,24 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       if (result.status === "success") {
         metrics.resetIndexingMetrics();
 
+        if (database) {
+          await database.kill();
+        }
+
+        database = createDatabase({
+          common,
+          schema: result.build.schema,
+          databaseConfig: result.build.databaseConfig,
+          buildId: result.build.buildId,
+          instanceId: result.build.instanceId,
+          namespace: result.build.namespace,
+          statements: result.build.statements,
+        });
+
         indexingCleanupReloadable = await run({
           common,
           build: result.build,
+          database,
           onFatalError: () => {
             shutdown({ reason: "Received fatal error", code: 1 });
           },
@@ -107,7 +126,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       if (result.status === "success") {
         metrics.resetApiMetrics();
 
-        apiCleanupReloadable = await runServer({ common, build: result.build });
+        apiCleanupReloadable = await runServer({
+          common,
+          build: result.build,
+          database: database!,
+        });
       } else {
         // This handles API function build failures on hot reload.
         metrics.ponder_indexing_has_error.set(1);
@@ -115,6 +138,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       }
     },
   });
+
+  let database: Database | undefined;
 
   const { api, indexing } = await buildService.start({
     watch: true,

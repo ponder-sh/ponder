@@ -158,7 +158,7 @@ export async function setupDatabaseServices(
     instanceId: config.instanceId,
   });
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,

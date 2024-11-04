@@ -80,6 +80,7 @@ export type Database<
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
+  unlock(): Promise<void>;
   kill(): Promise<void>;
 };
 
@@ -145,7 +146,7 @@ type QueryBuilder = {
   sync: HeadlessKysely<PonderSyncSchema>;
 };
 
-export const createDatabase = async (args: {
+export const createDatabase = (args: {
   common: Common;
   schema: Schema;
   statements: SqlStatements;
@@ -153,7 +154,7 @@ export const createDatabase = async (args: {
   databaseConfig: DatabaseConfig;
   instanceId: string;
   buildId: string;
-}): Promise<Database> => {
+}): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   ////////
@@ -678,11 +679,29 @@ export const createDatabase = async (args: {
                 })
                 .execute();
 
-              for (const statement of args.statements.enums.sql) {
-                await sql.raw(statement).execute(tx);
+              for (let i = 0; i < args.statements.enums.sql.length; i++) {
+                await sql
+                  .raw(args.statements.enums.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    throw new NonRetryableError(
+                      `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                    );
+                  });
               }
-              for (const statement of args.statements.tables.sql) {
-                await sql.raw(statement).execute(tx);
+              for (let i = 0; i < args.statements.tables.sql.length; i++) {
+                await sql
+                  .raw(args.statements.tables.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    throw new NonRetryableError(
+                      `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                    );
+                  });
               }
               args.common.logger.info({
                 service: "database",
@@ -748,23 +767,17 @@ export const createDatabase = async (args: {
 
               // Remove indexes
 
-              // for (const [tableName, table] of Object.entries(
-              //   getTables(args.schema),
-              // )) {
-              //   if (table.constraints === undefined) continue;
+              for (const indexStatement of args.statements.indexes.json) {
+                await tx.schema
+                  .dropIndex(indexStatement.data.name)
+                  .ifExists()
+                  .execute();
 
-              //   for (const name of Object.keys(table.constraints)) {
-              //     await tx.schema
-              //       .dropIndex(`${tableName}_${name}`)
-              //       .ifExists()
-              //       .execute();
-
-              //     args.common.logger.info({
-              //       service: "database",
-              //       msg: `Dropped index '${tableName}_${name}' in schema '${namespace}'`,
-              //     });
-              //   }
-              // }
+                args.common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${indexStatement.data.name}' in schema '${args.namespace}'`,
+                });
+              }
 
               // Rename tables + reorg tables
               for (const tableName of crashRecoveryApp.table_names) {
@@ -856,11 +869,29 @@ export const createDatabase = async (args: {
               })
               .execute();
 
-            for (const statement of args.statements.enums.sql) {
-              await sql.raw(statement).execute(tx);
+            for (let i = 0; i < args.statements.enums.sql.length; i++) {
+              await sql
+                .raw(args.statements.enums.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                  );
+                });
             }
-            for (const statement of args.statements.tables.sql) {
-              await sql.raw(statement).execute(tx);
+            for (let i = 0; i < args.statements.tables.sql.length; i++) {
+              await sql
+                .raw(args.statements.tables.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                  );
+                });
             }
             args.common.logger.info({
               service: "database",
@@ -1150,17 +1181,20 @@ $$ LANGUAGE plpgsql
         ),
       );
     },
-    async kill() {
+    async unlock() {
       clearInterval(heartbeatInterval);
 
-      await qb.internal
-        .updateTable("_ponder_meta")
-        .where("key", "=", `app_${args.instanceId}`)
-        .set({
-          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
-        })
-        .execute();
-
+      await qb.internal.wrap({ method: "unlock" }, async () => {
+        await qb.internal
+          .updateTable("_ponder_meta")
+          .where("key", "=", `app_${args.instanceId}`)
+          .set({
+            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+          })
+          .execute();
+      });
+    },
+    async kill() {
       await qb.internal.destroy();
       await qb.user.destroy();
       await qb.readonly.destroy();
