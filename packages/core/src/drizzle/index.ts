@@ -154,7 +154,10 @@ type BuildExtraConfigColumns<
   };
 };
 
-type PgColumnsBuilders = Omit<_PgColumnsBuilders, "bigint"> & {
+type PgColumnsBuilders = Omit<
+  _PgColumnsBuilders,
+  "bigint" | "serial" | "smallserial" | "bigserial"
+> & {
   /**
    * Create an 8 byte number column.
    */
@@ -297,6 +300,35 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
     // @ts-ignore
     return table;
   };
+
+  override enum = <U extends string, T extends Readonly<[U, ...U[]]>>(
+    enumName: string,
+    values: T | Writable<T>,
+  ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
+    // @ts-ignore
+    const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
+    if (instanceId === undefined) {
+      const e = pgEnumWithSchema(enumName, values, this.schemaName);
+
+      // @ts-ignore
+      e[onchain] = true;
+
+      // @ts-ignore
+      return e;
+    }
+
+    const e = pgEnumWithSchema(
+      userToSqlTableName(enumName, instanceId),
+      values,
+      this.schemaName,
+    );
+
+    // @ts-ignore
+    e[onchain] = true;
+
+    // @ts-ignore
+    return e;
+  };
 }
 
 /**
@@ -320,7 +352,7 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
 export const onchainSchema = <T extends string>(name: T) =>
   new OnchainSchema(name);
 
-const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
+export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 
 export interface OnchainEnum<TValues extends [string, ...string[]]> {
   (): PgEnumColumnBuilderInitial<"", TValues>;

@@ -1,18 +1,18 @@
 import { onchainTable } from "@ponder/core";
 
-export const account = onchainTable("account", (p) => ({
-  address: p.hex().primaryKey(),
+export const account = onchainTable("account", (t) => ({
+  address: t.hex().primaryKey(),
 }));
 
-export const token = onchainTable("token", (p) => ({
-  id: p.bigint().primaryKey(),
-  owner: p.hex().notNull(),
+export const token = onchainTable("token", (t) => ({
+  id: t.bigint().primaryKey(),
+  owner: t.hex().notNull(),
 }));
 
-export const transferEvent = onchainTable("transfer_event", (p) => ({
-  id: p.serial().primaryKey(),
-  timestamp: p.integer().notNull(),
-  from: p.hex().notNull(),
-  to: p.hex().notNull(),
-  token: p.bigint().notNull(),
+export const transferEvent = onchainTable("transfer_event", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.integer().notNull(),
+  from: t.hex().notNull(),
+  to: t.hex().notNull(),
+  token: t.bigint().notNull(),
 }));

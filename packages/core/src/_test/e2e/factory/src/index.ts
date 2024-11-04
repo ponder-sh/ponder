@@ -10,6 +10,7 @@ declare const ponder: import("@/index.js").Virtual.Registry<
 
 ponder.on("Pair:Swap", async ({ event, context }) => {
   await context.db.insert(schema.swapEvent).values({
+    id: event.log.id,
     pair: event.log.address,
     from: event.args.sender,
     to: event.args.to,

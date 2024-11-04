@@ -67,7 +67,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const { databaseConfig, schema, instanceId, buildId } = api.build;
+  const { databaseConfig, schema, instanceId, buildId, statements, namespace } =
+    api.build;
 
   if (databaseConfig.kind === "pglite") {
     await shutdown({
@@ -83,6 +84,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     databaseConfig,
     instanceId,
     buildId,
+    statements,
+    namespace,
   });
 
   const server = await createServer({

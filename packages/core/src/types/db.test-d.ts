@@ -1,14 +1,6 @@
 import { onchainTable, primaryKey } from "@/drizzle/index.js";
 import { test } from "vitest";
-import type {
-  Delete,
-  Find,
-  InferSerialPrimaryKey,
-  Insert,
-  Key,
-  Update,
-  Upsert,
-} from "./db.js";
+import type { Delete, Find, Insert, Key, Update, Upsert } from "./db.js";
 
 test("composite primary key", () => {
   const table = onchainTable(
@@ -25,17 +17,6 @@ test("composite primary key", () => {
 
   // @ts-ignore
   type _ = Key<typeof table>;
-  //   ^?
-});
-
-test("serial primary key", () => {
-  const table = onchainTable("table", (t) => ({
-    id: t.serial().primaryKey(),
-    other: t.integer(),
-  }));
-
-  // @ts-ignore
-  type _ = InferSerialPrimaryKey<typeof table>;
   //   ^?
 });
 

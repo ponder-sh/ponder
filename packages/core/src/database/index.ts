@@ -10,7 +10,7 @@ import {
   userToReorgTableName,
   userToSqlTableName,
 } from "@/drizzle/index.js";
-import { getColumnCasing, getSql } from "@/drizzle/kit/index.js";
+import { type SqlStatements, getColumnCasing } from "@/drizzle/kit/index.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
@@ -28,9 +28,9 @@ import { createPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
-import { getTableColumns, is } from "drizzle-orm";
+import { getTableColumns } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import { PgSchema, type PgTable } from "drizzle-orm/pg-core";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import {
   Migrator,
@@ -48,7 +48,6 @@ export type Database<
   dialect extends "pglite" | "postgres" = "pglite" | "postgres",
 > = {
   dialect: dialect;
-  namespace: string;
   driver: Driver<dialect>;
   qb: QueryBuilder;
   drizzle: Drizzle<Schema>;
@@ -150,13 +149,13 @@ type QueryBuilder = {
 export const createDatabase = (args: {
   common: Common;
   schema: Schema;
+  statements: SqlStatements;
+  namespace: string;
   databaseConfig: DatabaseConfig;
   instanceId: string;
   buildId: string;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
-  let namespace: string;
-  const statements = getSql(args.schema, args.instanceId);
 
   ////////
   // Create drivers and orms
@@ -168,8 +167,6 @@ export const createDatabase = (args: {
   const dialect = args.databaseConfig.kind;
 
   if (args.databaseConfig.kind === "pglite") {
-    namespace = "public";
-
     driver = {
       instance: createPglite(args.databaseConfig.options),
     };
@@ -228,16 +225,6 @@ export const createDatabase = (args: {
       }),
     };
   } else {
-    for (const maybeSchema of Object.values(args.schema)) {
-      if (is(maybeSchema, PgSchema)) {
-        namespace = maybeSchema.schemaName;
-      }
-    }
-
-    if (namespace! === undefined) {
-      namespace = "public";
-    }
-
     const internalMax = 2;
     const equalMax = Math.floor(
       (args.databaseConfig.poolConfig.max - internalMax) / 3,
@@ -250,18 +237,18 @@ export const createDatabase = (args: {
     driver = {
       internal: createPool({
         ...args.databaseConfig.poolConfig,
-        application_name: `${namespace}_internal`,
+        application_name: `${args.namespace}_internal`,
         max: internalMax,
         statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
       }),
       user: createPool({
         ...args.databaseConfig.poolConfig,
-        application_name: `${namespace}_user`,
+        application_name: `${args.namespace}_user`,
         max: userMax,
       }),
       readonly: createPool({
         ...args.databaseConfig.poolConfig,
-        application_name: `${namespace}_readonly`,
+        application_name: `${args.namespace}_readonly`,
         max: readonlyMax,
       }),
       sync: createPool({
@@ -283,7 +270,7 @@ export const createDatabase = (args: {
             });
           }
         },
-        plugins: [new WithSchemaPlugin(namespace)],
+        plugins: [new WithSchemaPlugin(args.namespace)],
       }),
       user: new HeadlessKysely({
         name: "user",
@@ -296,7 +283,7 @@ export const createDatabase = (args: {
             });
           }
         },
-        plugins: [new WithSchemaPlugin(namespace)],
+        plugins: [new WithSchemaPlugin(args.namespace)],
       }),
       readonly: new HeadlessKysely({
         name: "readonly",
@@ -309,7 +296,7 @@ export const createDatabase = (args: {
             });
           }
         },
-        plugins: [new WithSchemaPlugin(namespace)],
+        plugins: [new WithSchemaPlugin(args.namespace)],
       }),
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
@@ -368,9 +355,6 @@ export const createDatabase = (args: {
       },
     );
   }
-
-  // TODO(kyle) validate all tables use `namespace`
-  // TODO(kyle) validate all tables have primary key
 
   const drizzle =
     dialect === "pglite"
@@ -482,7 +466,6 @@ export const createDatabase = (args: {
 
   const database = {
     dialect,
-    namespace,
     driver,
     qb,
     drizzle,
@@ -509,12 +492,12 @@ export const createDatabase = (args: {
     },
     async setup() {
       await qb.internal.wrap({ method: "setup" }, async () => {
-        for (const statement of statements.schema.sql) {
+        for (const statement of args.statements.schema.sql) {
           await sql.raw(statement).execute(qb.internal);
         }
 
         await qb.internal.schema
-          .createSchema(namespace)
+          .createSchema(args.namespace)
           .ifNotExists()
           .execute();
 
@@ -696,27 +679,27 @@ export const createDatabase = (args: {
                 })
                 .execute();
 
-              for (let i = 0; i < statements.enums.sql.length; i++) {
+              for (let i = 0; i < args.statements.enums.sql.length; i++) {
                 await sql
-                  .raw(statements.enums.sql[i]!)
+                  .raw(args.statements.enums.sql[i]!)
                   .execute(tx)
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create enum '${namespace}'.'${statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                      `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
                   });
               }
-              for (let i = 0; i < statements.tables.sql.length; i++) {
+              for (let i = 0; i < args.statements.tables.sql.length; i++) {
                 await sql
-                  .raw(statements.tables.sql[i]!)
+                  .raw(args.statements.tables.sql[i]!)
                   .execute(tx)
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create table '${namespace}'.'${statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                      `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                     );
                   });
               }
@@ -766,7 +749,7 @@ export const createDatabase = (args: {
 
               args.common.logger.info({
                 service: "database",
-                msg: `Detected cache hit for build '${args.buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - crashRecoveryApp.heartbeat_at)} ago`,
+                msg: `Detected cache hit for build '${args.buildId}' in schema '${args.namespace}' last active ${formatEta(Date.now() - crashRecoveryApp.heartbeat_at)} ago`,
               });
 
               // Remove triggers
@@ -777,14 +760,14 @@ export const createDatabase = (args: {
               )) {
                 await sql
                   .raw(
-                    `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
+                    `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
                   )
                   .execute(tx);
               }
 
               // Remove indexes
 
-              for (const indexStatement of statements.indexes.json) {
+              for (const indexStatement of args.statements.indexes.json) {
                 await tx.schema
                   .dropIndex(indexStatement.data.name)
                   .ifExists()
@@ -792,7 +775,7 @@ export const createDatabase = (args: {
 
                 args.common.logger.info({
                   service: "database",
-                  msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
+                  msg: `Dropped index '${indexStatement.data.name}' in schema '${args.namespace}'`,
                 });
               }
 
@@ -886,27 +869,27 @@ export const createDatabase = (args: {
               })
               .execute();
 
-            for (let i = 0; i < statements.enums.sql.length; i++) {
+            for (let i = 0; i < args.statements.enums.sql.length; i++) {
               await sql
-                .raw(statements.enums.sql[i]!)
+                .raw(args.statements.enums.sql[i]!)
                 .execute(tx)
                 .catch((_error) => {
                   const error = _error as Error;
                   if (!error.message.includes("already exists")) throw error;
                   throw new NonRetryableError(
-                    `Unable to create enum '${namespace}'.'${statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                    `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                   );
                 });
             }
-            for (let i = 0; i < statements.tables.sql.length; i++) {
+            for (let i = 0; i < args.statements.tables.sql.length; i++) {
               await sql
-                .raw(statements.tables.sql[i]!)
+                .raw(args.statements.tables.sql[i]!)
                 .execute(tx)
                 .catch((_error) => {
                   const error = _error as Error;
                   if (!error.message.includes("already exists")) throw error;
                   throw new NonRetryableError(
-                    `Unable to create table '${namespace}'.'${statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                    `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                   );
                 });
             }
@@ -927,11 +910,11 @@ export const createDatabase = (args: {
         const duration = result.expiry - Date.now();
         args.common.logger.warn({
           service: "database",
-          msg: `Schema '${namespace}' is locked by a different Ponder app`,
+          msg: `Schema '${args.namespace}' is locked by a different Ponder app`,
         });
         args.common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace} to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${args.namespace} to expire...`,
         });
 
         await wait(duration);
@@ -939,7 +922,7 @@ export const createDatabase = (args: {
         result = await attempt({ isFirstAttempt: false });
         if (result.status === "locked") {
           throw new NonRetryableError(
-            `Failed to acquire lock on schema '${namespace}'. A different Ponder app is actively using this database.`,
+            `Failed to acquire lock on schema '${args.namespace}'. A different Ponder app is actively using this database.`,
           );
         }
       }
@@ -1027,7 +1010,7 @@ export const createDatabase = (args: {
       return { checkpoint: result.checkpoint };
     },
     async createIndexes() {
-      for (const statement of statements.indexes.sql) {
+      for (const statement of args.statements.indexes.sql) {
         await sql.raw(statement).execute(qb.internal);
       }
     },
@@ -1084,7 +1067,7 @@ export const createDatabase = (args: {
 
           args.common.logger.info({
             service: "database",
-            msg: `Created view '${namespace}'.'${tableName.user}'`,
+            msg: `Created view '${args.namespace}'.'${tableName.user}'`,
           });
         }
       });
@@ -1124,7 +1107,7 @@ $$ LANGUAGE plpgsql
           await sql
             .raw(`
           CREATE TRIGGER "${tableName.trigger}"
-          AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName.sql}"
+          AFTER INSERT OR UPDATE OR DELETE ON "${args.namespace}"."${tableName.sql}"
           FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
           `)
             .execute(qb.internal);
@@ -1136,7 +1119,7 @@ $$ LANGUAGE plpgsql
         for (const tableName of getTableNames(args.schema, args.instanceId)) {
           await sql
             .raw(
-              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
+              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
         }

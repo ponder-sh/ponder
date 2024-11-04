@@ -79,6 +79,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     databaseConfig: indexing.build.databaseConfig,
     buildId: indexing.build.buildId,
     instanceId: indexing.build.instanceId,
+    namespace: indexing.build.namespace,
+    statements: indexing.build.statements,
   });
 
   cleanupReloadable = await run({

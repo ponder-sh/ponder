@@ -8,6 +8,7 @@ import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Schema } from "@/drizzle/index.js";
+import type { SqlStatements } from "@/drizzle/kit/index.js";
 import type { PonderRoutes } from "@/hono/index.js";
 import type { Source } from "@/sync/source.js";
 import { serialize } from "@/utils/serialize.js";
@@ -25,6 +26,7 @@ import {
   safeBuildConfigAndIndexingFunctions,
 } from "./configAndIndexingFunctions.js";
 import { vitePluginPonder } from "./plugin.js";
+import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 const BUILD_ID_VERSION = "1";
@@ -53,6 +55,8 @@ type BaseBuild = {
   networks: Network[];
   // Schema
   schema: Schema;
+  statements: SqlStatements;
+  namespace: string;
 };
 
 export type IndexingBuild = BaseBuild & {
@@ -617,6 +621,22 @@ const validateAndBuild = async (
     contentHash: string;
   },
 ): Promise<IndexingBuildResult> => {
+  // Validate and build the schema
+  const buildSchemaResult = safeBuildSchema({
+    schema: schema.schema,
+    // @ts-ignore
+    instanceId: globalThis.__PONDER_INSTANCE_ID,
+  });
+  if (buildSchemaResult.status === "error") {
+    common.logger.error({
+      service: "build",
+      msg: "Error while building schema:",
+      error: buildSchemaResult.error,
+    });
+
+    return buildSchemaResult;
+  }
+
   // Validates and build the config
   const buildConfigAndIndexingFunctionsResult =
     await safeBuildConfigAndIndexingFunctions({
@@ -660,9 +680,11 @@ const validateAndBuild = async (
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,
-      schema: schema.schema,
       indexingFunctions:
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
+      schema: schema.schema,
+      statements: buildSchemaResult.statements,
+      namespace: buildSchemaResult.namespace,
     },
   };
 };

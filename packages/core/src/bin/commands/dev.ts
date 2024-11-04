@@ -79,12 +79,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     concurrency: 1,
     worker: async (result: IndexingBuildResult) => {
       await indexingCleanupReloadable();
-      if (database) {
-        await database.kill();
-      }
 
       if (result.status === "success") {
         metrics.resetIndexingMetrics();
+
+        if (database) {
+          await database.kill();
+        }
 
         database = createDatabase({
           common,
@@ -92,6 +93,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           databaseConfig: result.build.databaseConfig,
           buildId: result.build.buildId,
           instanceId: result.build.instanceId,
+          namespace: result.build.namespace,
+          statements: result.build.statements,
         });
 
         indexingCleanupReloadable = await run({
@@ -126,7 +129,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         apiCleanupReloadable = await runServer({
           common,
           build: result.build,
-          database,
+          database: database!,
         });
       } else {
         // This handles API function build failures on hot reload.
@@ -136,7 +139,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  let database: Database;
+  let database: Database | undefined;
 
   const { api, indexing } = await buildService.start({
     watch: true,

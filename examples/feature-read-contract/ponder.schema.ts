@@ -1,11 +1,11 @@
 import { onchainTable } from "@ponder/core";
 
-export const file = onchainTable("file", (p) => ({
-  name: p.text().primaryKey(),
-  size: p.integer().notNull(),
-  contents: p.text().notNull(),
-  createdAt: p.integer().notNull(),
-  type: p.text(),
-  encoding: p.text(),
-  compression: p.text(),
+export const file = onchainTable("file", (t) => ({
+  name: t.text().primaryKey(),
+  size: t.integer().notNull(),
+  contents: t.text().notNull(),
+  createdAt: t.integer().notNull(),
+  type: t.text(),
+  encoding: t.text(),
+  compression: t.text(),
 }));

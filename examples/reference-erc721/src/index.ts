@@ -21,6 +21,7 @@ ponder.on("ERC721:Transfer", async ({ event, context }) => {
 
   // Create a TransferEvent.
   await context.db.insert(schema.transferEvent).values({
+    id: event.log.id,
     from: event.args.from,
     to: event.args.to,
     token: event.args.id,

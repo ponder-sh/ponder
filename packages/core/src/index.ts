@@ -70,7 +70,6 @@ export {
 
 export {
   bigint as int8,
-  bigserial,
   boolean,
   char,
   cidr,
@@ -87,9 +86,7 @@ export {
   numeric,
   point,
   real,
-  serial,
   smallint,
-  smallserial,
   text,
   time,
   timestamp,
