@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.6.24
+
+### Patch Changes
+
+- [#1218](https://github.com/ponder-sh/ponder/pull/1218) [`e988a4f3182da132333057b750cd9bad4aa44e92`](https://github.com/ponder-sh/ponder/commit/e988a4f3182da132333057b750cd9bad4aa44e92) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned hono version to fix a regression with cors headers.
+
 ## 0.6.23
 
 ### Patch Changes
