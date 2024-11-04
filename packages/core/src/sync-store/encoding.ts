@@ -268,17 +268,25 @@ export function encodeTrace({
   trace,
   block,
   transaction,
+  position,
   chainId,
 }: {
   trace: Omit<SyncTrace["result"], "calls" | "logs">;
-  block: SyncBlock;
-  transaction: SyncTransaction;
+  block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
+  transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
+  position: number;
   chainId: number;
-}): Insertable<Omit<TracesTable, "checkpoint">> {
-  // TODO(kyle) checkpoint
-
+}): Insertable<TracesTable> {
   return {
     chainId,
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.traces,
+      eventIndex: BigInt(position),
+    }),
     type: trace.type,
     transactionHash: transaction.hash,
     blockHash: block.hash,

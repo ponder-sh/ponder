@@ -16,7 +16,12 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Source } from "@/sync/source.js";
-import type { SyncBlock, SyncLog, SyncTrace } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+} from "@/types/sync.js";
 import {
   type Interval,
   getChunks,
@@ -305,7 +310,13 @@ export const createHistoricalSync = async (
       blockNumber: toHex(blockNumber),
     });
 
-    const traces: { trace: SyncTrace["result"]; transactionHash: Hex }[] = [];
+    const traces: {
+      trace: SyncTrace["result"];
+      transactionHash: Hex;
+      position: number;
+    }[] = [];
+
+    let position = 0;
 
     const dfs = (syncTrace: SyncTrace["result"][], transactionHash: Hex) => {
       for (const trace of syncTrace) {
@@ -319,7 +330,7 @@ export const createHistoricalSync = async (
           ) {
             // TODO(kyle) handle factory
 
-            traces.push({ trace, transactionHash });
+            traces.push({ trace, transactionHash, position });
           }
         } else {
           if (
@@ -331,9 +342,11 @@ export const createHistoricalSync = async (
           ) {
             // TODO(kyle) handle factory
 
-            traces.push({ trace, transactionHash });
+            traces.push({ trace, transactionHash, position });
           }
         }
+
+        position++;
 
         if (trace.calls) {
           dfs(trace.calls, transactionHash);
@@ -342,6 +355,7 @@ export const createHistoricalSync = async (
     };
 
     for (const trace of syncTraces) {
+      position = 0;
       dfs([trace.result], trace.txHash);
     }
 
@@ -353,24 +367,30 @@ export const createHistoricalSync = async (
         transactionsCache.add(hash);
       }
 
-      for (const hash of transactionHashes) {
-        // Validate that trace points to a transaction inside a block
-        if (block.transactions.find((t) => t.hash === hash) === undefined) {
+      const transactions: SyncTransaction[] = [];
+
+      for (const trace of traces) {
+        const transaction = block.transactions.find(
+          (t) => t.hash === trace.transactionHash,
+        );
+
+        if (transaction === undefined) {
           throw new Error(
-            `Detected inconsistent RPC responses. 'trace.transactionHash' ${hash} not found in 'block.transactions' ${block.hash}`,
+            `Detected inconsistent RPC responses. 'trace.transactionHash' ${trace.transactionHash} not found in 'block.transactions' ${block.hash}`,
           );
         }
 
-        transactionsCache.add(hash);
+        transactions.push(transaction);
       }
 
       if (isKilled) return;
 
       await args.syncStore.insertTraces({
-        traces: traces.map(({ trace, transactionHash }) => ({
+        traces: traces.map(({ trace, position }, i) => ({
           trace,
           block,
-          transaction: { hash: transactionHash },
+          transaction: transactions[i]!,
+          position,
         })),
         chainId: args.network.chainId,
       });

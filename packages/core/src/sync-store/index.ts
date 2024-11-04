@@ -88,8 +88,9 @@ export type SyncStore = {
   insertTraces(args: {
     traces: {
       trace: Omit<SyncTrace["result"], "calls" | "logs">;
-      block: Pick<SyncBlock, "hash" | "number">;
-      transaction: Pick<SyncTransaction, "hash">;
+      block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
+      transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
+      position: number;
     }[];
     chainId: number;
   }): Promise<void>;
