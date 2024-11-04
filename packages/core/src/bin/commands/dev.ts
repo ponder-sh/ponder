@@ -149,7 +149,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
     onApiBuild: (buildResult) => {
       apiBuildQueue.clear();
-      apiBuildQueue.add(buildResult);
+      indexingBuildQueue.onIdle().then(() => apiBuildQueue.add(buildResult));
     },
   });
 

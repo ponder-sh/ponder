@@ -387,7 +387,7 @@ export const start = async (
       }
 
       // If schema or config is updated, rebuild both api and indexing
-      if (hasConfigUpdate || hasSchemaUpdate) {
+      if (hasConfigUpdate || hasSchemaUpdate || hasIndexingUpdate) {
         onIndexingBuild(indexingBuildResult);
         onApiBuild(
           validateAndBuildApi(
@@ -397,19 +397,13 @@ export const start = async (
           ),
         );
       } else {
-        if (hasIndexingUpdate) {
-          onIndexingBuild(indexingBuildResult);
-        }
-
-        if (hasApiUpdate) {
-          onApiBuild(
-            validateAndBuildApi(
-              buildService,
-              indexingBuildResult.build,
-              cachedApiResult,
-            ),
-          );
-        }
+        onApiBuild(
+          validateAndBuildApi(
+            buildService,
+            indexingBuildResult.build,
+            cachedApiResult,
+          ),
+        );
       }
     };
 
