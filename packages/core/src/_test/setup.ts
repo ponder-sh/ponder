@@ -151,7 +151,7 @@ export async function setupDatabaseServices(
   cleanup: () => Promise<void>;
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     databaseConfig: context.databaseConfig,
     schema: config.schema,

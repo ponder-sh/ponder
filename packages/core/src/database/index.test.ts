@@ -27,7 +27,7 @@ function createCheckpoint(index: number): string {
 }
 
 test("setup() succeeds with a fresh database", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -51,6 +51,7 @@ test("setup() succeeds with a fresh database", async (context) => {
 
   expect(metadata).toHaveLength(3);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -74,7 +75,7 @@ test("setup() create tables", async (context) => {
     }),
   );
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account, kyle, mood, user },
     databaseConfig: context.databaseConfig,
@@ -93,11 +94,12 @@ test("setup() create tables", async (context) => {
   expect(tableNames).toContain("1234_reorg__kyle");
   expect(tableNames).toContain("_ponder_meta");
 
+  await database.unlock();
   await database.kill();
 });
 
 test("setup() succeeds with a prior app in the same namespace", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -111,9 +113,10 @@ test("setup() succeeds with a prior app in the same namespace", async (context) 
   expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
+  await database.unlock();
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -142,7 +145,7 @@ test("setup() succeeds with a prior app in the same namespace", async (context) 
 });
 
 test("setup() with the same build ID recovers the finality checkpoint", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -156,9 +159,10 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
     checkpoint: createCheckpoint(10),
   });
 
+  await database.unlock();
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -186,7 +190,7 @@ test("setup() with the same build ID recovers the finality checkpoint", async (c
 });
 
 test("setup() with the same build ID reverts rows", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -229,9 +233,10 @@ test("setup() with the same build ID reverts rows", async (context) => {
     checkpoint: createCheckpoint(10),
   });
 
+  await database.unlock();
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -272,7 +277,7 @@ test("setup() with the same build ID drops indexes and triggers", async (context
     }),
   );
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -288,9 +293,10 @@ test("setup() with the same build ID drops indexes and triggers", async (context
 
   await database.createIndexes();
 
+  await database.unlock();
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -311,7 +317,7 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
   context.common.options.databaseHeartbeatInterval = 750;
   context.common.options.databaseHeartbeatTimeout = 500;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -321,7 +327,7 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
   await database.setup();
   await database.finalize({ checkpoint: createCheckpoint(10) });
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -333,6 +339,7 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
 
   expect(checkpoint).toMatchObject(createCheckpoint(10));
 
+  await database.unlock();
   await database.kill();
   await databaseTwo.kill();
 });
@@ -341,7 +348,7 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -351,7 +358,7 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
   await database.setup();
   await database.finalize({ checkpoint: createCheckpoint(10) });
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -363,13 +370,14 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
+  await database.unlock();
   await database.kill();
   await databaseTwo.kill();
 });
 
 test("setup() drops old tables", async (context) => {
   for (let i = 0; i < 5; i++) {
-    const database = await createDatabase({
+    const database = createDatabase({
       common: context.common,
       schema: { account },
       databaseConfig: context.databaseConfig,
@@ -377,10 +385,11 @@ test("setup() drops old tables", async (context) => {
       buildId: `${i}`,
     });
     await database.setup();
+    await database.unlock();
     await database.kill();
   }
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -391,11 +400,12 @@ test("setup() drops old tables", async (context) => {
 
   const tableNames = await getUserTableNames(database);
   expect(tableNames).toHaveLength(7);
+  await database.unlock();
   await database.kill();
 });
 
 test('setup() with "ponder dev" publishes views', async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -410,11 +420,12 @@ test('setup() with "ponder dev" publishes views', async (context) => {
   const viewNames = await getUserViewNames(database);
   expect(viewNames).toContain("account");
 
+  await database.unlock();
   await database.kill();
 });
 
 test("setup() throws if there is a table name collision", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -434,7 +445,7 @@ test("setup() throws if there is a table name collision", async (context) => {
 });
 
 test("setup() v0.7 migration", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -492,6 +503,7 @@ test("setup() v0.7 migration", async (context) => {
 
   expect(metadata).toHaveLength(3);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -499,7 +511,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -529,11 +541,12 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     // @ts-ignore
   ).toBeGreaterThan(row!.value!.heartbeat_at as number);
 
+  await database.unlock();
   await database.kill();
 });
 
 test("finalize()", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -603,8 +616,8 @@ test("finalize()", async (context) => {
   await database.kill();
 });
 
-test("kill()", async (context) => {
-  let database = await createDatabase({
+test("unlock()", async (context) => {
+  let database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -613,9 +626,10 @@ test("kill()", async (context) => {
   });
 
   await database.setup();
+  await database.unlock();
   await database.kill();
 
-  database = await createDatabase({
+  database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -631,6 +645,7 @@ test("kill()", async (context) => {
 
   expect((metadata[0]!.value as PonderApp).is_locked).toBe(0);
 
+  await database.unlock();
   await database.kill();
 });
 
@@ -646,7 +661,7 @@ test("createIndexes()", async (context) => {
     }),
   );
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -660,11 +675,12 @@ test("createIndexes()", async (context) => {
   const indexNames = await getUserIndexNames(database, "1234__account");
   expect(indexNames).toContain("balance_index");
 
+  await database.unlock();
   await database.kill();
 });
 
 test("createLiveViews()", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -686,11 +702,12 @@ test("createLiveViews()", async (context) => {
 
   expect(metadata!.value).toStrictEqual({ instance_id: "1234" });
 
+  await database.unlock();
   await database.kill();
 });
 
 test("createLiveViews() drops old views", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -700,9 +717,10 @@ test("createLiveViews() drops old views", async (context) => {
 
   await database.setup();
   await database.createLiveViews();
+  await database.unlock();
   await database.kill();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     schema: {
       transfer: onchainTable("transfer", (p) => ({
@@ -736,7 +754,7 @@ test("createLiveViews() drops old views", async (context) => {
 });
 
 test("createTriggers()", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -775,11 +793,12 @@ test("createTriggers()", async (context) => {
     },
   ]);
 
+  await database.unlock();
   await database.kill();
 });
 
 test("complete()", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
@@ -825,7 +844,7 @@ test("complete()", async (context) => {
 });
 
 test("revert()", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     schema: { account },
     databaseConfig: context.databaseConfig,
