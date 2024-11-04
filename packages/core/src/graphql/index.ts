@@ -175,132 +175,130 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
       fields: () => {
         const fieldConfigMap: GraphQLFieldConfigMap<Parent, Context> = {};
 
-        for (const table of tables) {
-          // Scalar fields
-          for (const [columnName, column] of Object.entries(table.columns)) {
-            const type = columnToGraphQLCore(column, enumTypes);
-            fieldConfigMap[columnName] = {
-              type: column.notNull ? new GraphQLNonNull(type) : type,
-            };
-          }
+        // Scalar fields
+        for (const [columnName, column] of Object.entries(table.columns)) {
+          const type = columnToGraphQLCore(column, enumTypes);
+          fieldConfigMap[columnName] = {
+            type: column.notNull ? new GraphQLNonNull(type) : type,
+          };
+        }
 
-          // Relations
-          const relations = Object.entries(table.relations);
-          for (const [relationName, relation] of relations) {
-            const referencedTable = tables.find(
-              (table) => table.dbName === relation.referencedTableName,
+        // Relations
+        const relations = Object.entries(table.relations);
+        for (const [relationName, relation] of relations) {
+          const referencedTable = tables.find(
+            (table) => table.dbName === relation.referencedTableName,
+          );
+          if (!referencedTable)
+            throw new Error(
+              `Internal error: Referenced table "${relation.referencedTableName}" not found`,
             );
-            if (!referencedTable)
+
+          const referencedEntityType = entityTypes[referencedTable.tsName];
+          const referencedEntityPageType =
+            entityPageTypes[referencedTable.tsName];
+          const referencedEntityFilterType =
+            entityFilterTypes[referencedTable.tsName];
+          if (
+            referencedEntityType === undefined ||
+            referencedEntityPageType === undefined ||
+            referencedEntityFilterType === undefined
+          )
+            throw new Error(
+              `Internal error: Referenced entity type not found for table "${referencedTable.tsName}" `,
+            );
+
+          const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>)
+            .query[referencedTable.tsName];
+          if (!baseQuery)
+            throw new Error(
+              `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
+            );
+
+          if (is(relation, One)) {
+            const fields = relation.config?.fields ?? [];
+            const references = relation.config?.references ?? [];
+
+            if (fields.length !== references.length) {
               throw new Error(
-                `Internal error: Referenced table "${relation.referencedTableName}" not found`,
-              );
-
-            const referencedEntityType = entityTypes[referencedTable.tsName];
-            const referencedEntityPageType =
-              entityPageTypes[referencedTable.tsName];
-            const referencedEntityFilterType =
-              entityFilterTypes[referencedTable.tsName];
-            if (
-              referencedEntityType === undefined ||
-              referencedEntityPageType === undefined ||
-              referencedEntityFilterType === undefined
-            )
-              throw new Error(
-                `Internal error: Referenced entity type not found for table "${referencedTable.tsName}" `,
-              );
-
-            const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>)
-              .query[referencedTable.tsName];
-            if (!baseQuery)
-              throw new Error(
-                `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
-              );
-
-            if (is(relation, One)) {
-              const fields = relation.config?.fields ?? [];
-              const references = relation.config?.references ?? [];
-
-              if (fields.length !== references.length) {
-                throw new Error(
-                  "Internal error: Fields and references arrays must be the same length",
-                );
-              }
-
-              fieldConfigMap[relationName] = {
-                // Note: This naming is backwards (Drizzle bug).
-                type: relation.isNullable
-                  ? new GraphQLNonNull(referencedEntityType)
-                  : referencedEntityType,
-                resolve: async (parent, _args, context) => {
-                  const loader = context.getDataLoader({
-                    table: referencedTable,
-                  });
-
-                  const rowFragment: Record<string, unknown> = {};
-                  for (let i = 0; i < references.length; i++) {
-                    const referenceColumn = references[i]!;
-                    const fieldColumn = fields[i]!;
-
-                    const fieldColumnTsName = getColumnTsName(fieldColumn);
-                    const referenceColumnTsName =
-                      getColumnTsName(referenceColumn);
-
-                    rowFragment[referenceColumnTsName] =
-                      parent[fieldColumnTsName];
-                  }
-                  const encodedId = encodeRowFragment(rowFragment);
-
-                  return await loader.load(encodedId);
-                },
-              };
-            } else if (is(relation, Many)) {
-              // Search the relations of the referenced table for the corresponding `one` relation.
-              // If "relationName" is not provided, use the first `one` relation that references this table.
-              const oneRelation = Object.values(referencedTable.relations).find(
-                (relation) =>
-                  relation.relationName === relationName ||
-                  (is(relation, One) &&
-                    relation.referencedTableName === table.dbName),
-              ) as One | undefined;
-              if (!oneRelation)
-                throw new Error(
-                  `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
-                );
-
-              const fields = oneRelation.config?.fields ?? [];
-              const references = oneRelation.config?.references ?? [];
-
-              fieldConfigMap[relationName] = {
-                type: referencedEntityPageType,
-                args: {
-                  where: { type: referencedEntityFilterType },
-                  orderBy: { type: GraphQLString },
-                  orderDirection: { type: GraphQLString },
-                  before: { type: GraphQLString },
-                  after: { type: GraphQLString },
-                  limit: { type: GraphQLInt },
-                },
-                resolve: async (parent, args: PluralArgs, _context) => {
-                  const relationalConditions = [];
-                  for (let i = 0; i < references.length; i++) {
-                    const column = fields[i]!;
-                    const value = parent[references[i]!.name];
-                    relationalConditions.push(eq(column, value));
-                  }
-
-                  return executePluralQuery(
-                    table,
-                    baseQuery,
-                    args,
-                    relationalConditions,
-                  );
-                },
-              };
-            } else {
-              throw new Error(
-                `Internal error: Relation "${relationName}" is unsupported, expected One or Many`,
+                "Internal error: Fields and references arrays must be the same length",
               );
             }
+
+            fieldConfigMap[relationName] = {
+              // Note: This naming is backwards (Drizzle bug).
+              type: relation.isNullable
+                ? new GraphQLNonNull(referencedEntityType)
+                : referencedEntityType,
+              resolve: async (parent, _args, context) => {
+                const loader = context.getDataLoader({
+                  table: referencedTable,
+                });
+
+                const rowFragment: Record<string, unknown> = {};
+                for (let i = 0; i < references.length; i++) {
+                  const referenceColumn = references[i]!;
+                  const fieldColumn = fields[i]!;
+
+                  const fieldColumnTsName = getColumnTsName(fieldColumn);
+                  const referenceColumnTsName =
+                    getColumnTsName(referenceColumn);
+
+                  rowFragment[referenceColumnTsName] =
+                    parent[fieldColumnTsName];
+                }
+                const encodedId = encodeRowFragment(rowFragment);
+
+                return await loader.load(encodedId);
+              },
+            };
+          } else if (is(relation, Many)) {
+            // Search the relations of the referenced table for the corresponding `one` relation.
+            // If "relationName" is not provided, use the first `one` relation that references this table.
+            const oneRelation = Object.values(referencedTable.relations).find(
+              (relation) =>
+                relation.relationName === relationName ||
+                (is(relation, One) &&
+                  relation.referencedTableName === table.dbName),
+            ) as One | undefined;
+            if (!oneRelation)
+              throw new Error(
+                `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
+              );
+
+            const fields = oneRelation.config?.fields ?? [];
+            const references = oneRelation.config?.references ?? [];
+
+            fieldConfigMap[relationName] = {
+              type: referencedEntityPageType,
+              args: {
+                where: { type: referencedEntityFilterType },
+                orderBy: { type: GraphQLString },
+                orderDirection: { type: GraphQLString },
+                before: { type: GraphQLString },
+                after: { type: GraphQLString },
+                limit: { type: GraphQLInt },
+              },
+              resolve: async (parent, args: PluralArgs, _context) => {
+                const relationalConditions = [];
+                for (let i = 0; i < references.length; i++) {
+                  const column = fields[i]!;
+                  const value = parent[references[i]!.name];
+                  relationalConditions.push(eq(column, value));
+                }
+
+                return executePluralQuery(
+                  table,
+                  baseQuery,
+                  args,
+                  relationalConditions,
+                );
+              },
+            };
+          } else {
+            throw new Error(
+              `Internal error: Relation "${relationName}" is unsupported, expected One or Many`,
+            );
           }
         }
 
