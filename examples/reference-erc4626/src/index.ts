@@ -16,6 +16,7 @@ ponder.on("ERC4626:Transfer", async ({ event, context }) => {
 
   // Create a TransferEvent.
   await context.db.insert(schema.transferEvent).values({
+    id: event.log.id,
     from: event.args.from,
     to: event.args.to,
     amount: event.args.amount,
@@ -37,6 +38,7 @@ ponder.on("ERC4626:Approval", async ({ event, context }) => {
 
   // Create an ApprovalEvent.
   await context.db.insert(schema.approvalEvent).values({
+    id: event.log.id,
     owner: event.args.owner,
     spender: event.args.spender,
     amount: event.args.amount,
@@ -46,6 +48,7 @@ ponder.on("ERC4626:Approval", async ({ event, context }) => {
 
 ponder.on("ERC4626:Deposit", async ({ event, context }) => {
   await context.db.insert(schema.depositEvent).values({
+    id: event.log.id,
     sender: event.args.caller,
     receiver: event.args.owner,
     assets: event.args.assets,
@@ -55,6 +58,7 @@ ponder.on("ERC4626:Deposit", async ({ event, context }) => {
 
 ponder.on("ERC4626:Withdraw", async ({ event, context }) => {
   await context.db.insert(schema.withdrawalEvent).values({
+    id: event.log.id,
     sender: event.args.caller,
     owner: event.args.owner,
     receiver: event.args.receiver,

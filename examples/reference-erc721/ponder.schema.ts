@@ -10,7 +10,7 @@ export const token = onchainTable("token", (p) => ({
 }));
 
 export const transferEvent = onchainTable("transfer_event", (p) => ({
-  id: p.serial().primaryKey(),
+  id: p.text().primaryKey(),
   timestamp: p.integer().notNull(),
   from: p.hex().notNull(),
   to: p.hex().notNull(),

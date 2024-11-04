@@ -15,7 +15,7 @@ export const share = onchainTable(
 );
 
 export const tradeEvent = onchainTable("trade_event", (p) => ({
-  id: p.serial().primaryKey(),
+  id: p.text().primaryKey(),
   subject: p.hex().notNull(),
   trader: p.hex().notNull(),
 

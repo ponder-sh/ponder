@@ -38,6 +38,7 @@ ponder.on("ERC1155:TransferSingle", async ({ event, context }) => {
 
   // Create a TransferEvent.
   await context.db.insert(schema.transferEvent).values({
+    id: event.log.id,
     from: event.args.from,
     to: event.args.to,
     token: event.args.id,
@@ -82,6 +83,7 @@ ponder.on("ERC1155:TransferBatch", async ({ event, context }) => {
       }));
 
     await context.db.insert(schema.transferEvent).values({
+      id: event.log.id,
       from: event.args.from,
       to: event.args.to,
       token: id,
