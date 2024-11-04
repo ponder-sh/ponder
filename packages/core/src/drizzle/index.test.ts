@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { getTableName } from "drizzle-orm";
+import { expect, test, vi } from "vitest";
 import { onchainTable, primaryKey } from "./index.js";
 import { getPrimaryKeyColumns } from "./index.js";
 
@@ -52,4 +53,17 @@ test("getPrimaryKeyColumns() composite", () => {
     { js: "name", sql: "name" },
     { js: "address", sql: "address" },
   ]);
+});
+
+test("PONDER_EXPERIMENTAL_INSTANCE_ID", async () => {
+  vi.stubEnv("PONDER_EXPERIMENTAL_INSTANCE_ID", "9876");
+
+  const account = onchainTable("account", (p) => ({
+    address: p.hex().primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  expect(getTableName(account)).toBe("9876__account");
+
+  vi.unstubAllEnvs();
 });
