@@ -1,7 +1,12 @@
 import { buildLogFactory } from "@/build/factory.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import { buildLogFilterFragments } from "./fragments.js";
+import {
+  buildBlockFilterFragment,
+  buildLogFilterFragments,
+  buildTransactionFilterFragments,
+  buildTransferFilterFragments,
+} from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
@@ -205,3 +210,9 @@ test("buildLogFilterFragments builds id with multiple factories", () => {
     "1_0xb_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null_0",
   );
 });
+
+test.todo("buildBlockFilterFragments");
+
+test.todo("buildTransferFilterFragments");
+
+test.todo("buildTransactionFilterFragments");

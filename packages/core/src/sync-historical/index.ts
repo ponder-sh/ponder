@@ -1,5 +1,9 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import {
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
+} from "@/sync-realtime/filter.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   type BlockFilter,
@@ -293,305 +297,84 @@ export const createHistoricalSync = async (
     await Promise.all(requiredBlocks.map((b) => syncBlock(BigInt(b))));
   };
 
-  // const syncTraceFilter = async (
-  //   filter: CallTraceFilter,
-  //   interval: Interval,
-  // ) => {
-  //   // Resolve `filter.toAddress`
-  //   let toAddress: Address[] | undefined;
-  //   if (isAddressFactory(filter.toAddress)) {
-  //     const childAddresses = await syncAddress(filter.toAddress, interval);
-  //     if (
-  //       childAddresses.length < args.common.options.factoryAddressCountThreshold
-  //     ) {
-  //       toAddress = childAddresses;
-  //     } else {
-  //       toAddress = undefined;
-  //     }
-  //   } else {
-  //     toAddress = filter.toAddress;
-  //   }
-
-  //   if (isKilled) return;
-
-  //   let callTraces = await _trace_filter(args.requestQueue, {
-  //     fromAddress: filter.fromAddress,
-  //     toAddress,
-  //     fromBlock: interval[0],
-  //     toBlock: interval[1],
-  //   }).then(
-  //     (traces) =>
-  //       traces.flat().filter((t) => t.type === "call") as SyncCallTrace[],
-  //   );
-
-  //   if (isKilled) return;
-
-  //   const blocks = await Promise.all(
-  //     callTraces.map((trace) => syncBlock(hexToBigInt(trace.blockNumber))),
-  //   );
-
-  //   const transactionHashes = new Set(callTraces.map((t) => t.transactionHash));
-
-  //   // Validate that traces point to the valid transaction hash in the block
-  //   for (let i = 0; i < callTraces.length; i++) {
-  //     const callTrace = callTraces[i]!;
-  //     const block = blocks[i]!;
-
-  //     if (block.hash !== callTrace.blockHash) {
-  //       throw new Error(
-  //         `Detected inconsistent RPC responses. 'trace.blockHash' ${callTrace.blockHash} does not match 'block.hash' ${block.hash}`,
-  //       );
-  //     }
-
-  //     if (
-  //       block.transactions.find((t) => t.hash === callTrace.transactionHash) ===
-  //       undefined
-  //     ) {
-  //       throw new Error(
-  //         `Detected inconsistent RPC responses. 'trace.transactionHash' ${callTrace.transactionHash} not found in 'block.transactions' ${block.hash}`,
-  //       );
-  //     }
-  //   }
-
-  //   // Request transactionReceipts to check for reverted transactions.
-  //   const transactionReceipts = await Promise.all(
-  //     Array.from(transactionHashes).map((hash) =>
-  //       _eth_getTransactionReceipt(args.requestQueue, {
-  //         hash,
-  //       }),
-  //     ),
-  //   );
-
-  //   const revertedTransactions = new Set<Hash>();
-  //   for (const receipt of transactionReceipts) {
-  //     if (receipt.status === "0x0") {
-  //       revertedTransactions.add(receipt.transactionHash);
-  //     }
-  //   }
-
-  //   callTraces = callTraces.filter(
-  //     (trace) => revertedTransactions.has(trace.transactionHash) === false,
-  //   );
-
-  //   if (isKilled) return;
-
-  //   for (const hash of transactionHashes) {
-  //     if (revertedTransactions.has(hash) === false) {
-  //       transactionsCache.add(hash);
-  //     }
-  //   }
-
-  //   if (isKilled) return;
-
-  //   await args.syncStore.insertCallTraces({
-  //     callTraces: callTraces.map((callTrace, i) => ({
-  //       callTrace,
-  //       block: blocks[i]!,
-  //     })),
-  //     chainId: args.network.chainId,
-  //   });
-  // };
-
   const syncTrace = async (
     filter: TransactionFilter | TransferFilter,
     blockNumber: number,
   ) => {
-    let traces = await _debug_traceBlockByNumber(args.requestQueue, {
+    const syncTraces = await _debug_traceBlockByNumber(args.requestQueue, {
       blockNumber: toHex(blockNumber),
     });
 
-    traces = traces.filter((t) =>
-      filter.type === "transfer"
-        ? isTransferFilterMatched({
-            filter,
-            blockNumber,
-            trace: t,
-          })
-        : isTransactionFilterMatched({
-            filter,
-            blockNumber,
-            trace: t,
-          }),
-    );
+    const traces: { trace: SyncTrace["result"]; transactionHash: Hex }[] = [];
 
-    const block = await syncBlock(BigInt(blockNumber));
-    const transactionHashes = new Set(traces.map((t) => t.txHash));
-
-    for (const hash of transactionHashes) {
-      // Validate that trace points to a transaction inside a block
-      if (block.transactions.find((t) => t.hash === hash) === undefined) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'trace.transactionHash' ${hash} not found in 'block.transactions' ${block.hash}`,
-        );
-      }
-
-      transactionsCache.add(hash);
-    }
-
-    await args.syncStore.insertTraces({
-      traces: traces.map((trace) => ({
-        trace,
-        block: block,
-      })),
-      chainId: args.network.chainId,
-    });
-  };
-
-  const isTransferFilterMatched = async ({
-    filter,
-    blockNumber,
-    trace,
-  }: {
-    filter: TransferFilter;
-    blockNumber: number;
-    trace: SyncTrace;
-  }): Promise<boolean> => {
-    const toAddress = isAddressFactory(filter.toAddress)
-      ? await syncAddress(filter.toAddress, [blockNumber, blockNumber])
-      : filter.toAddress;
-
-    const fromAddress = isAddressFactory(filter.fromAddress)
-      ? await syncAddress(filter.fromAddress, [blockNumber, blockNumber])
-      : filter.fromAddress;
-
-    const isFilterMatched = async ({
-      filter,
-      trace,
-    }: {
-      filter: TransferFilter;
-      trace: SyncTrace;
-    }): Promise<boolean> => {
-      const isInputMatched = trace.result.input === "0x";
-      const isFromAddressMatched =
-        fromAddress === undefined
-          ? true
-          : Array.isArray(fromAddress)
-            ? fromAddress.includes(trace.result.from)
-            : fromAddress === trace.result.from;
-      const isToAddressMatched =
-        toAddress === undefined
-          ? true
-          : Array.isArray(toAddress)
-            ? toAddress.includes(trace.result.to)
-            : toAddress === trace.result.to;
-
-      const isMatched =
-        isInputMatched && isFromAddressMatched && isToAddressMatched;
-
-      // TODO: check for errors and reverts (logic to stop traversing when failed found)
-
-      const calls = trace.result.calls;
-      if (calls !== undefined) {
-        return (
-          isMatched ||
-          calls.some((call) => {
-            isFilterMatched({
-              filter,
-              trace: {
-                txHash: trace.txHash,
-                result: call,
-              },
-            });
-          })
-        );
-      }
-
-      return isMatched;
-    };
-
-    return isFilterMatched({ filter, trace });
-  };
-
-  const isTransactionFilterMatched = async ({
-    filter,
-    blockNumber,
-    trace,
-  }: {
-    filter: TransactionFilter;
-    blockNumber: number;
-    trace: SyncTrace;
-  }): Promise<boolean> => {
-    const toAddress = isAddressFactory(filter.toAddress)
-      ? await syncAddress(filter.toAddress, [blockNumber, blockNumber])
-      : filter.toAddress;
-
-    const fromAddress = isAddressFactory(filter.fromAddress)
-      ? await syncAddress(filter.fromAddress, [blockNumber, blockNumber])
-      : filter.fromAddress;
-
-    const isFilterFailedMatched = async ({
-      filter,
-      trace,
-    }: {
-      filter: TransactionFilter;
-      trace: SyncTrace;
-    }): Promise<{ failed: boolean; matched: boolean }> => {
-      const selector = trace.result.input.slice(0, 10) as Hex;
-      const isCallTypeMatched =
-        filter.callType === undefined ||
-        filter.callType.includes(trace.result.type);
-      const isSelectorMatched =
-        filter.functionSelectors === undefined ||
-        Array.isArray(filter.functionSelectors)
-          ? filter.functionSelectors!.includes(selector)
-          : filter.functionSelectors === selector;
-      const isFromAddressMatched =
-        fromAddress === undefined
-          ? true
-          : Array.isArray(fromAddress)
-            ? fromAddress.includes(trace.result.from)
-            : fromAddress === trace.result.from;
-      const isToAddressMatched =
-        toAddress === undefined
-          ? true
-          : Array.isArray(toAddress)
-            ? toAddress.includes(trace.result.to)
-            : toAddress === trace.result.to;
-
-      let isMatched =
-        isCallTypeMatched &&
-        isSelectorMatched &&
-        isFromAddressMatched &&
-        isToAddressMatched;
-      let isFailed =
-        trace.result.error !== undefined ||
-        trace.result.revertReason !== undefined;
-
-      const calls = trace.result.calls;
-      if (calls !== undefined) {
-        for (const call of calls) {
-          // Return early if failed or filter matched
+    const dfs = (syncTrace: SyncTrace["result"][], transactionHash: Hex) => {
+      for (const trace of syncTrace) {
+        if (filter.type === "transfer") {
           if (
-            (filter.includeFailed === false && isFailed) ||
-            (filter.includeFailed && isMatched)
+            isTransferFilterMatched({
+              filter,
+              block: { number: toHex(blockNumber) },
+              trace,
+            })
           ) {
-            return {
-              failed: isFailed,
-              matched: isMatched,
-            };
-          }
+            // TODO(kyle) handle factory
 
-          const { failed, matched } = await isFilterFailedMatched({
-            filter,
-            trace: {
-              txHash: trace.txHash,
-              result: call,
-            },
-          });
-          isFailed = isFailed || failed;
-          isMatched = isMatched || matched;
+            traces.push({ trace, transactionHash });
+          }
+        } else {
+          if (
+            isTransactionFilterMatched({
+              filter,
+              block: { number: toHex(blockNumber) },
+              trace,
+            })
+          ) {
+            // TODO(kyle) handle factory
+
+            traces.push({ trace, transactionHash });
+          }
+        }
+
+        if (trace.calls) {
+          dfs(trace.calls, transactionHash);
         }
       }
-
-      return {
-        failed: isFailed,
-        matched: isMatched,
-      };
     };
 
-    const { failed, matched } = await isFilterFailedMatched({ filter, trace });
+    for (const trace of syncTraces) {
+      dfs([trace.result], trace.txHash);
+    }
 
-    return filter.includeFailed === false && failed ? false : matched;
+    if (traces.length > 0) {
+      const block = await syncBlock(BigInt(blockNumber));
+      const transactionHashes = new Set(traces.map((t) => t.transactionHash));
+
+      for (const hash of transactionHashes) {
+        transactionsCache.add(hash);
+      }
+
+      for (const hash of transactionHashes) {
+        // Validate that trace points to a transaction inside a block
+        if (block.transactions.find((t) => t.hash === hash) === undefined) {
+          throw new Error(
+            `Detected inconsistent RPC responses. 'trace.transactionHash' ${hash} not found in 'block.transactions' ${block.hash}`,
+          );
+        }
+
+        transactionsCache.add(hash);
+      }
+
+      if (isKilled) return;
+
+      await args.syncStore.insertTraces({
+        traces: traces.map(({ trace, transactionHash }) => ({
+          trace,
+          block,
+          transaction: { hash: transactionHash },
+        })),
+        chainId: args.network.chainId,
+      });
+    }
   };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
@@ -730,16 +513,6 @@ export const createHistoricalSync = async (
                       );
                       break;
                     }
-
-                    // case "callTrace":
-                    //   await Promise.all(
-                    //     getChunks({ interval, maxChunkSize: 10 }).map(
-                    //       async (interval) => {
-                    //         await syncTraceFilter(filter, interval);
-                    //       },
-                    //     ),
-                    //   );
-                    //   break;
 
                     default:
                       never(filter);

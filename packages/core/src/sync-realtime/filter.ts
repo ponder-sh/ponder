@@ -1,10 +1,4 @@
-import {
-  type TransactionFilterFragment,
-  type TransferFilterFragment,
-  buildLogFilterFragments,
-  buildTransactionFilterFragments,
-  buildTransferFilterFragments,
-} from "@/sync/fragments.js";
+import { buildLogFilterFragments } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type LogFactory,
@@ -15,7 +9,31 @@ import {
 } from "@/sync/source.js";
 import type { SyncBlock, SyncLog, SyncTrace } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { type Hex, hexToNumber } from "viem";
+import { type Address, hexToBigInt, hexToNumber } from "viem";
+
+const isValueMatched = <T extends string>(
+  filterValue: T | T[] | null | undefined,
+  eventValue: T | undefined,
+): boolean => {
+  // match all
+  if (filterValue === null || filterValue === undefined) return true;
+
+  // missing value
+  if (eventValue === undefined) return false;
+
+  // array
+  if (
+    Array.isArray(filterValue) &&
+    filterValue.some((v) => v === toLowerCase(eventValue))
+  ) {
+    return true;
+  }
+
+  // single
+  if (filterValue === toLowerCase(eventValue)) return true;
+
+  return false;
+};
 
 /**
  * Returns `true` if `log` matches `filter`
@@ -90,47 +108,6 @@ export const isLogFilterMatched = ({
   });
 };
 
-// /**
-//  * Returns `true` if `callTrace` matches `filter`
-//  */
-// export const isCallTraceFilterMatched = ({
-//   filter,
-//   block,
-//   callTrace,
-// }: {
-//   filter: CallTraceFilter;
-//   block: SyncBlock;
-//   callTrace: SyncCallTrace;
-// }): boolean => {
-//   // Return `false` for out of range blocks
-//   if (
-//     hexToNumber(block.number) < filter.fromBlock ||
-//     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
-//   ) {
-//     return false;
-//   }
-
-//   return buildTraceFilterFragments(filter).some((fragment) => {
-//     if (
-//       fragment.fromAddress !== null &&
-//       fragment.fromAddress !== callTrace.action.from.toLowerCase()
-//     ) {
-//       return false;
-//     }
-
-//     if (
-//       isAddressFactory(filter.toAddress) === false &&
-//       (fragment as TraceFilterFragment<undefined>).toAddress !== null &&
-//       (fragment as TraceFilterFragment<undefined>).toAddress !==
-//         callTrace.action.to.toLowerCase()
-//     ) {
-//       return false;
-//     }
-
-//     return true;
-//   });
-// };
-
 /**
  * Returns `true` if `trace` matches `filter`
  */
@@ -140,8 +117,8 @@ export const isTransactionFilterMatched = ({
   trace,
 }: {
   filter: TransactionFilter;
-  block: SyncBlock;
-  trace: SyncTrace;
+  block: Pick<SyncBlock, "number">;
+  trace: Omit<SyncTrace["result"], "calls" | "logs">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -151,79 +128,35 @@ export const isTransactionFilterMatched = ({
     return false;
   }
 
-  const isTransactionFragmentMatched = ({
-    fragment,
-    trace,
-  }: {
-    fragment: TransactionFilterFragment;
-    trace: SyncTrace;
-  }): { failed: boolean; matched: boolean } => {
-    const selector = trace.result.input.slice(0, 10) as Hex;
-    const isCallTypeMatched =
-      fragment.callType === null || fragment.callType === trace.result.type;
-    const isSelectorMatched =
-      fragment.functionSelector === null ||
-      fragment.functionSelector === selector;
-    const isFromAddressMatched = isAddressFactory(filter.fromAddress)
-      ? true
-      : fragment.fromAddress === null
-        ? true
-        : fragment.fromAddress === trace.result.from;
-    const isToAddressMatched = isAddressFactory(filter.toAddress)
-      ? true
-      : fragment.toAddress === null
-        ? true
-        : fragment.toAddress === trace.result.to;
+  if (
+    isValueMatched(filter.functionSelectors, trace.input.slice(0, 10)) === false
+  ) {
+    return false;
+  }
+  if (
+    isAddressFactory(filter.fromAddress) === false &&
+    isValueMatched(
+      filter.fromAddress as Address | Address[] | undefined,
+      trace.from,
+    ) === false
+  ) {
+    return false;
+  }
+  if (
+    isAddressFactory(filter.toAddress) === false &&
+    isValueMatched(
+      filter.toAddress as Address | Address[] | undefined,
+      trace.to,
+    ) === false
+  ) {
+    return false;
+  }
 
-    let isMatched =
-      isCallTypeMatched &&
-      isSelectorMatched &&
-      isFromAddressMatched &&
-      isToAddressMatched;
+  // TODO(kyle) include inner
+  // TODO(kyle) include failed
+  // TODO(kyle) call type
 
-    let isFailed =
-      trace.result.error !== undefined ||
-      trace.result.revertReason !== undefined;
-
-    const calls = trace.result.calls;
-    if (calls !== undefined && fragment.includeInner) {
-      for (const call of calls) {
-        // Return early if failed or filter matched
-        if (
-          (fragment.includeFailed === 0 && isFailed) ||
-          (fragment.includeFailed === 1 && isMatched)
-        ) {
-          return {
-            failed: isFailed,
-            matched: isMatched,
-          };
-        }
-
-        const { failed, matched } = isTransactionFragmentMatched({
-          fragment,
-          trace: {
-            txHash: trace.txHash,
-            result: call,
-          },
-        });
-        isFailed = isFailed || failed;
-        isMatched = isMatched || matched;
-      }
-    }
-
-    return {
-      failed: isFailed,
-      matched: isMatched,
-    };
-  };
-
-  return buildTransactionFilterFragments(filter).some((fragment) => {
-    const { failed, matched } = isTransactionFragmentMatched({
-      fragment,
-      trace,
-    });
-    return fragment.includeFailed === 0 && failed ? false : matched;
-  });
+  return true;
 };
 
 /**
@@ -235,8 +168,8 @@ export const isTransferFilterMatched = ({
   trace,
 }: {
   filter: TransferFilter;
-  block: SyncBlock;
-  trace: SyncTrace;
+  block: Pick<SyncBlock, "number">;
+  trace: Omit<SyncTrace["result"], "calls" | "logs">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -246,52 +179,27 @@ export const isTransferFilterMatched = ({
     return false;
   }
 
-  const isTransferFragmentMatched = ({
-    fragment,
-    trace,
-  }: {
-    fragment: TransferFilterFragment;
-    trace: SyncTrace;
-  }): boolean => {
-    const isInputMatched = trace.result.input === "0x";
-    const isFromAddressMatched = isAddressFactory(filter.fromAddress)
-      ? true
-      : fragment.fromAddress === null
-        ? true
-        : fragment.fromAddress === trace.result.from;
-    const isToAddressMatched = isAddressFactory(filter.toAddress)
-      ? true
-      : fragment.toAddress === null
-        ? true
-        : fragment.toAddress === trace.result.to;
+  if (hexToBigInt(trace.value) === 0n) return false;
+  if (
+    isAddressFactory(filter.fromAddress) === false &&
+    isValueMatched(
+      filter.fromAddress as Address | Address[] | undefined,
+      trace.from,
+    ) === false
+  ) {
+    return false;
+  }
+  if (
+    isAddressFactory(filter.toAddress) === false &&
+    isValueMatched(
+      filter.toAddress as Address | Address[] | undefined,
+      trace.to,
+    ) === false
+  ) {
+    return false;
+  }
 
-    const isMatched =
-      isInputMatched && isFromAddressMatched && isToAddressMatched;
-
-    // TODO: check for errors and reverts (logic to stop traversing when failed found)
-
-    const calls = trace.result.calls;
-    if (calls !== undefined) {
-      return (
-        isMatched ||
-        calls.some((call) => {
-          isTransferFragmentMatched({
-            fragment,
-            trace: {
-              txHash: trace.txHash,
-              result: call,
-            },
-          });
-        })
-      );
-    }
-
-    return isMatched;
-  };
-
-  return buildTransferFilterFragments(filter).some((fragment) =>
-    isTransferFragmentMatched({ fragment, trace }),
-  );
+  return true;
 };
 
 /**

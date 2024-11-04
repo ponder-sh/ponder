@@ -840,6 +840,35 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_11_03_0_debug": {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("callTraces").ifExists().cascade().execute();
+
+      // TODO(kyle) manage intervals once https://github.com/ponder-sh/ponder/pull/1217 gets merged
+
+      await db.schema
+        .createTable("traces")
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) =>
+          col.notNull().primaryKey(),
+        )
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)", (col) => col.notNull())
+        .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("output", "text")
+        .addColumn("error", "text")
+        .addColumn("value", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+
+      // TODO(kyle) indexes
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

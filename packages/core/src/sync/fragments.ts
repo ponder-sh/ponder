@@ -18,12 +18,6 @@ export type LogFilterFragment<
 
 export type BlockFilterFragment = PonderSyncSchema["blockFilters"];
 
-// export type TraceFilterFragment<
-//   factory extends Factory | undefined = Factory | undefined,
-// > = factory extends Factory
-//   ? PonderSyncSchema["factoryTraceFilters"]
-//   : PonderSyncSchema["traceFilters"];
-
 export type TransactionFilterFragment<
   fromFactory extends Factory | undefined = Factory | undefined,
   toFactory extends Factory | undefined = Factory | undefined,
@@ -467,81 +461,3 @@ export const buildTransferFilterFragments = <
 
   return fragments as TransferFilterFragment<fromFactory, toFactory>[];
 };
-
-// export const buildTraceFilterFragments = <factory extends Factory | undefined>({
-//   chainId,
-//   fromAddress,
-//   toAddress,
-// }: Omit<CallTraceFilter<factory>, "fromBlock" | "toBlock"> & {
-//   chainId: number;
-// }): TraceFilterFragment<factory>[] => {
-//   const fragments: TraceFilterFragment[] = [];
-
-//   const idCallback = ({
-//     chainId,
-//     fromAddress,
-//     toAddress,
-//   }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-//     toAddress: Address | null;
-//   }) => {
-//     return `${chainId}_${fromAddress}_${toAddress}`;
-//   };
-
-//   const factoryIdCallback = ({
-//     chainId,
-//     fromAddress,
-//     address,
-//     eventSelector,
-//     childAddressLocation,
-//   }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-//     address: Address;
-//     eventSelector: LogFactory["eventSelector"];
-//     childAddressLocation: LogFactory["childAddressLocation"];
-//   }) => {
-//     return `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`;
-//   };
-
-//   if (isAddressFactory(toAddress)) {
-//     for (const _fromAddress of Array.isArray(fromAddress)
-//       ? fromAddress
-//       : [null]) {
-//       for (const _factoryAddress of Array.isArray(toAddress.address)
-//         ? toAddress.address
-//         : [toAddress.address]) {
-//         fragments.push({
-//           id: factoryIdCallback({
-//             chainId,
-//             fromAddress: _fromAddress,
-//             address: _factoryAddress,
-//             eventSelector: toAddress.eventSelector,
-//             childAddressLocation: toAddress.childAddressLocation,
-//           }),
-//           chainId,
-//           address: _factoryAddress,
-//           eventSelector: toAddress.eventSelector,
-//           childAddressLocation: toAddress.childAddressLocation,
-//           fromAddress: _fromAddress,
-//         });
-//       }
-//     }
-//   } else {
-//     for (const _fromAddress of Array.isArray(fromAddress)
-//       ? fromAddress
-//       : [null]) {
-//       for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
-//         fragments.push({
-//           id: idCallback({
-//             chainId,
-//             fromAddress: _fromAddress,
-//             toAddress: _toAddress,
-//           }),
-//           chainId,
-//           toAddress: _toAddress,
-//           fromAddress: _fromAddress,
-//         });
-//       }
-//     }
-//   }
-
-//   return fragments as TraceFilterFragment<factory>[];
-// };

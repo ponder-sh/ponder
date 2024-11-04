@@ -246,54 +246,51 @@ export const encodeTransactionReceipt = ({
   };
 };
 
-type CallTracesTable = {
-  id: string;
+type TracesTable = {
   chainId: number;
   checkpoint: string;
-  callType: string;
-  from: Address;
-  gas: ColumnType<string, string | bigint, string | bigint>;
-  input: Hex;
-  to: Address;
-  value: ColumnType<string, string | bigint, string | bigint>;
+  type: string;
+  transactionHash: Hex;
   blockHash: Hex;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
-  error: string | null;
-  gasUsed: ColumnType<string, string | bigint, string | bigint> | null;
+  from: Address;
+  to: Address;
+  gas: ColumnType<string, string | bigint, string | bigint>;
+  // TODO(kyle) should be not null?
+  gasUsed: ColumnType<string, string | bigint, string | bigint>;
+  input: Hex;
   output: Hex | null;
-  subtraces: number;
-  traceAddress: string;
-  transactionHash: Hex;
-  transactionPosition: number;
-  functionSelector: Hex;
+  error: string | null;
+  value: ColumnType<string, string | bigint, string | bigint>;
 };
 
-export function encodeCallTrace({
+export function encodeTrace({
   trace,
+  block,
+  transaction,
   chainId,
 }: {
-  trace: SyncCallTrace;
+  trace: Omit<SyncTrace["result"], "calls" | "logs">;
+  block: SyncBlock;
+  transaction: SyncTransaction;
   chainId: number;
-}): Insertable<Omit<CallTracesTable, "checkpoint">> {
+}): Insertable<Omit<TracesTable, "checkpoint">> {
+  // TODO(kyle) checkpoint
+
   return {
-    id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
     chainId,
-    callType: trace.action.callType,
-    from: toLowerCase(trace.action.from),
-    gas: hexToBigInt(trace.action.gas),
-    input: trace.action.input,
-    to: toLowerCase(trace.action.to),
-    value: hexToBigInt(trace.action.value),
-    blockHash: trace.blockHash,
-    blockNumber: hexToBigInt(trace.blockNumber),
+    type: trace.type,
+    transactionHash: transaction.hash,
+    blockHash: block.hash,
+    blockNumber: hexToBigInt(block.number),
+    from: toLowerCase(trace.from),
+    to: toLowerCase(trace.to),
+    gas: hexToBigInt(trace.gas),
+    gasUsed: hexToBigInt(trace.gasUsed),
+    input: trace.input,
+    output: trace.output ?? null,
     error: trace.error ?? null,
-    gasUsed: trace.result ? hexToBigInt(trace.result.gasUsed) : null,
-    output: trace.result ? trace.result.output : null,
-    subtraces: trace.subtraces,
-    traceAddress: JSON.stringify(trace.traceAddress),
-    transactionHash: trace.transactionHash,
-    transactionPosition: trace.transactionPosition,
-    functionSelector: trace.action.input.slice(0, 10).toLowerCase() as Hex,
+    value: hexToBigInt(trace.value),
   };
 }
 
@@ -463,7 +460,7 @@ export type PonderSyncSchema = {
   logs: LogsTable;
   transactions: TransactionsTable;
   transactionReceipts: TransactionReceiptsTable;
-  callTraces: CallTracesTable;
+  traces: TracesTable;
 
   rpcRequestResults: RpcRequestResultsTable;
 
@@ -471,18 +468,14 @@ export type PonderSyncSchema = {
   logFilterIntervals: LogFilterIntervalsTable;
   factoryLogFilters: FactoryLogFiltersTable;
   factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
-  transactionFilters: TransactionFiltersTable;
-  transactionFilterIntervals: TransactionFilterIntervalsTable;
-  factoryTransactionFilters: FactoryTransactionFiltersTable;
-  factoryTransactionFilterIntervals: FactoryTransactionFilterIntervalsTable;
-  transferFilters: TransferFiltersTable;
-  transferFilterIntervals: TransferFilterIntervalsTable;
-  factoryTransferFilters: FactoryTransferFiltersTable;
-  factoryTransferFilterIntervals: FactoryTransferFilterIntervalsTable;
-  // traceFilters: TraceFiltersTable;
-  // traceFilterIntervals: TraceFilterIntervalsTable;
-  // factoryTraceFilters: FactoryTraceFiltersTable;
-  // factoryTraceFilterIntervals: FactoryTraceFilterIntervalsTable;
+  // transactionFilters: TransactionFiltersTable;
+  // transactionFilterIntervals: TransactionFilterIntervalsTable;
+  // factoryTransactionFilters: FactoryTransactionFiltersTable;
+  // factoryTransactionFilterIntervals: FactoryTransactionFilterIntervalsTable;
+  // transferFilters: TransferFiltersTable;
+  // transferFilterIntervals: TransferFilterIntervalsTable;
+  // factoryTransferFilters: FactoryTransferFiltersTable;
+  // factoryTransferFilterIntervals: FactoryTransferFilterIntervalsTable;
   blockFilters: BlockFiltersTable;
   blockFilterIntervals: BlockFilterIntervalsTable;
 };
