@@ -4,47 +4,47 @@ export const tradeType = onchainEnum("trade_type", ["BUY", "SELL"]);
 
 export const share = onchainTable(
   "share",
-  (p) => ({
-    subject: p.hex().notNull(),
-    trader: p.hex().notNull(),
-    amount: p.bigint().notNull(),
+  (t) => ({
+    subject: t.hex().notNull(),
+    trader: t.hex().notNull(),
+    amount: t.bigint().notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.subject, table.trader] }),
   }),
 );
 
-export const tradeEvent = onchainTable("trade_event", (p) => ({
-  id: p.text().primaryKey(),
-  subject: p.hex().notNull(),
-  trader: p.hex().notNull(),
+export const tradeEvent = onchainTable("trade_event", (t) => ({
+  id: t.text().primaryKey(),
+  subject: t.hex().notNull(),
+  trader: t.hex().notNull(),
 
-  shareAmount: p.bigint().notNull(),
+  shareAmount: t.bigint().notNull(),
   tradeType: tradeType().notNull(),
-  ethAmount: p.bigint().notNull(),
-  protocolEthAmount: p.bigint().notNull(),
-  subjectEthAmount: p.bigint().notNull(),
-  traderAmount: p.bigint().notNull(),
-  supply: p.bigint().notNull(),
-  timestamp: p.integer().notNull(),
+  ethAmount: t.bigint().notNull(),
+  protocolEthAmount: t.bigint().notNull(),
+  subjectEthAmount: t.bigint().notNull(),
+  traderAmount: t.bigint().notNull(),
+  supply: t.bigint().notNull(),
+  timestamp: t.integer().notNull(),
 }));
 
-export const subject = onchainTable("subject", (p) => ({
-  address: p.hex().primaryKey(),
-  totalShares: p.bigint().notNull(),
-  totalTrades: p.bigint().notNull(),
-  lastPrice: p.bigint().notNull(),
-  earnings: p.bigint().notNull(),
-  traderVolume: p.bigint().notNull(),
-  protocolFeesGenerated: p.bigint().notNull(),
+export const subject = onchainTable("subject", (t) => ({
+  address: t.hex().primaryKey(),
+  totalShares: t.bigint().notNull(),
+  totalTrades: t.bigint().notNull(),
+  lastPrice: t.bigint().notNull(),
+  earnings: t.bigint().notNull(),
+  traderVolume: t.bigint().notNull(),
+  protocolFeesGenerated: t.bigint().notNull(),
 }));
 
-export const trader = onchainTable("trader", (p) => ({
-  address: p.hex().primaryKey(),
-  totalTrades: p.bigint().notNull(),
-  spend: p.bigint().notNull(),
-  earnings: p.bigint().notNull(),
-  profit: p.bigint().notNull(),
-  subjectFeesPaid: p.bigint().notNull(),
-  protocolFeesPaid: p.bigint().notNull(),
+export const trader = onchainTable("trader", (t) => ({
+  address: t.hex().primaryKey(),
+  totalTrades: t.bigint().notNull(),
+  spend: t.bigint().notNull(),
+  earnings: t.bigint().notNull(),
+  profit: t.bigint().notNull(),
+  subjectFeesPaid: t.bigint().notNull(),
+  protocolFeesPaid: t.bigint().notNull(),
 }));

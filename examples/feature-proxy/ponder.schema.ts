@@ -1,14 +1,14 @@
 import { onchainTable } from "@ponder/core";
 
-export const liquidationEvent = onchainTable("liquidation_event", (p) => ({
-  id: p.text().primaryKey(),
-  liquidator: p.hex().notNull(),
+export const liquidationEvent = onchainTable("liquidation_event", (t) => ({
+  id: t.text().primaryKey(),
+  liquidator: t.hex().notNull(),
 }));
 
 export const ownershipTransferEvent = onchainTable(
   "ownership_transfer_event",
-  (p) => ({
-    id: p.text().primaryKey(),
-    newOwner: p.hex().notNull(),
+  (t) => ({
+    id: t.text().primaryKey(),
+    newOwner: t.hex().notNull(),
   }),
 );

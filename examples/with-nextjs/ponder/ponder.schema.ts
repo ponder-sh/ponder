@@ -1,8 +1,8 @@
 import { onchainTable } from "@ponder/core";
 
-export const depositEvent = onchainTable("deposit_event", (p) => ({
-  id: p.text().primaryKey(),
-  timestamp: p.integer().notNull(),
-  amount: p.bigint().notNull(),
-  account: p.hex().notNull(),
+export const depositEvent = onchainTable("deposit_event", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.integer().notNull(),
+  amount: t.bigint().notNull(),
+  account: t.hex().notNull(),
 }));

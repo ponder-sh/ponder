@@ -1,6 +1,6 @@
 import { onchainTable } from "@ponder/core";
 
-export const chainlinkPrice = onchainTable("chainlink_price", (p) => ({
-  timestamp: p.bigint().primaryKey(),
-  price: p.doublePrecision().notNull(),
+export const chainlinkPrice = onchainTable("chainlink_price", (t) => ({
+  timestamp: t.bigint().primaryKey(),
+  price: t.doublePrecision().notNull(),
 }));

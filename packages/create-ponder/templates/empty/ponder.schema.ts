@@ -1,8 +1,6 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Example: p.createTable({
-    id: p.string(),
-    name: p.string().optional(),
-  }),
+export const example = onchainTable("example", (t) => ({
+  id: t.text().primaryKey(),
+  name: t.text(),
 }));

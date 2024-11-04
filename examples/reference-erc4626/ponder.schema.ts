@@ -1,8 +1,8 @@
 import { onchainTable, primaryKey } from "@ponder/core";
 
-export const account = onchainTable("account", (p) => ({
-  address: p.hex().primaryKey(),
-  balance: p.bigint().notNull(),
+export const account = onchainTable("account", (t) => ({
+  address: t.hex().primaryKey(),
+  balance: t.bigint().notNull(),
 }));
 
 export const allowance = onchainTable(
