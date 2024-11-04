@@ -28,7 +28,7 @@ import type { RequestQueue } from "@/utils/requestQueue.js";
 import pg from "pg";
 import { rimrafSync } from "rimraf";
 import type { Address } from "viem";
-import { type TestContext, afterAll, vi } from "vitest";
+import { type TestContext, afterAll } from "vitest";
 import { deploy, simulate } from "./simulate.js";
 import {
   getConfig,
@@ -137,11 +137,8 @@ const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   indexing: "historical",
 };
 
-vi.mock("@/generated", async () => {
-  return {
-    instanceId: "1234",
-  };
-});
+// @ts-ignore
+globalThis.__PONDER_INSTANCE_ID = "1234";
 
 export async function setupDatabaseServices(
   context: TestContext,
