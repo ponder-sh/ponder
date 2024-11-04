@@ -544,7 +544,7 @@ export const createDatabase = (args: {
             // @ts-ignore
             .select("schema")
             // @ts-ignore
-            .where("namespace", "=", namespace)
+            .where("namespace", "=", args.namespace)
             .executeTakeFirst()
             .then((schema: any | undefined) =>
               schema === undefined
@@ -565,7 +565,7 @@ export const createDatabase = (args: {
               // @ts-ignore
               .deleteFrom("namespace_lock")
               // @ts-ignore
-              .where("namespace", "=", namespace)
+              .where("namespace", "=", args.namespace)
               .execute();
 
             if (namespaceCount!.count === 1) {
