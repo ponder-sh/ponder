@@ -238,11 +238,11 @@ export const getTraceFilterFragmentIds = ({
         const adjacent = [id];
 
         if (_toAddress !== null) {
-          adjacent.push(`${chainId}_${null}_${_fromAddress}`);
+          adjacent.push(`${chainId}_${_fromAddress}_${null}`);
         }
 
         if (_fromAddress !== null) {
-          adjacent.push(`${chainId}_${_toAddress}_${null}`);
+          adjacent.push(`${chainId}_${null}_${_toAddress}`);
         }
 
         fragments.push({ id, adjacent });
