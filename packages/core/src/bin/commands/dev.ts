@@ -64,6 +64,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await indexingCleanupReloadable();
     await apiCleanupReloadable();
+    if (database) {
+      await database.kill();
+    }
     await buildService.kill();
     await telemetry.kill();
     ui.kill();
@@ -76,6 +79,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     concurrency: 1,
     worker: async (result: IndexingBuildResult) => {
       await indexingCleanupReloadable();
+      if (database) {
+        await database.kill();
+      }
 
       if (result.status === "success") {
         metrics.resetIndexingMetrics();

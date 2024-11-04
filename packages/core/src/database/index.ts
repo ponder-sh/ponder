@@ -81,6 +81,7 @@ export type Database<
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
+  unlock(): Promise<void>;
   kill(): Promise<void>;
 };
 
@@ -1167,17 +1168,20 @@ $$ LANGUAGE plpgsql
         ),
       );
     },
-    async kill() {
+    async unlock() {
       clearInterval(heartbeatInterval);
 
-      await qb.internal
-        .updateTable("_ponder_meta")
-        .where("key", "=", `app_${args.instanceId}`)
-        .set({
-          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
-        })
-        .execute();
-
+      await qb.internal.wrap({ method: "unlock" }, async () => {
+        await qb.internal
+          .updateTable("_ponder_meta")
+          .where("key", "=", `app_${args.instanceId}`)
+          .set({
+            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+          })
+          .execute();
+      });
+    },
+    async kill() {
       await qb.internal.destroy();
       await qb.user.destroy();
       await qb.readonly.destroy();

@@ -48,6 +48,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await cleanupReloadable();
     await cleanupReloadableServer();
+    if (database) {
+      await database.kill();
+    }
     await telemetry.kill();
   };
 

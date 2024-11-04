@@ -225,6 +225,6 @@ export async function run({
     realtimeQueue.clear();
     await realtimeQueue.onIdle();
     await startPromise;
-    await database.kill();
+    await database.unlock();
   };
 }
