@@ -669,7 +669,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             .onRealtimeEvent({
               type: "block",
               checkpoint: to,
-              status: JSON.parse(JSON.stringify(status)),
+              status: structuredClone(status),
               events,
             })
             .then(() => {

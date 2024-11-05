@@ -116,9 +116,8 @@ const createReorgTableStatement = (
   statement: JsonCreateTableStatement,
   instance_id: string,
 ) => {
-  const reorgStatement: JsonCreateTableStatement = JSON.parse(
-    JSON.stringify(statement),
-  );
+  const reorgStatement: JsonCreateTableStatement = structuredClone(statement);
+
   reorgStatement.compositePkName = undefined;
   reorgStatement.compositePKs = [];
 
