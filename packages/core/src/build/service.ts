@@ -68,11 +68,34 @@ export type ApiBuild = BaseBuild & {
   routes: PonderRoutes;
 };
 
-export type IndexingBuildResult =
+export type BuildResult =
+  | {
+      status: "success";
+      indexingBuild: IndexingBuild;
+      apiBuild: ApiBuild;
+    }
+  | { status: "error"; error: Error };
+
+export type BuildResultDev =
+  | {
+      status: "success";
+      kind: "indexing";
+      indexingBuild: IndexingBuild;
+      apiBuild: ApiBuild;
+    }
+  | {
+      status: "success";
+      kind: "api";
+      indexingBuild?: never;
+      apiBuild: ApiBuild;
+    }
+  | { status: "error"; kind: "indexing" | "api"; error: Error };
+
+type IndexingBuildResult =
   | { status: "success"; build: IndexingBuild }
   | { status: "error"; error: Error };
 
-export type ApiBuildResult =
+type ApiBuildResult =
   | { status: "success"; build: ApiBuild }
   | { status: "error"; error: Error };
 
@@ -175,16 +198,14 @@ export const start = async (
   buildService: Service,
   {
     watch,
-    onIndexingBuild,
-    onApiBuild,
+    onBuild,
   }:
     | {
         watch: true;
-        onIndexingBuild: (buildResult: IndexingBuildResult) => void;
-        onApiBuild: (buildResult: ApiBuildResult) => void;
+        onBuild: (buildResult: BuildResultDev) => void;
       }
-    | { watch: false; onIndexingBuild?: never; onApiBuild?: never },
-): Promise<{ indexing: IndexingBuildResult; api: ApiBuildResult }> => {
+    | { watch: false; onBuild?: never },
+): Promise<BuildResult> => {
   const { common } = buildService;
 
   if (common.options.command !== "serve") {
@@ -202,28 +223,16 @@ export const start = async (
   const apiResult = await executeApiRoutes(buildService);
 
   if (configResult.status === "error") {
-    return {
-      indexing: { status: "error", error: configResult.error },
-      api: { status: "error", error: configResult.error },
-    };
+    return { status: "error", error: configResult.error };
   }
   if (schemaResult.status === "error") {
-    return {
-      indexing: { status: "error", error: schemaResult.error },
-      api: { status: "error", error: schemaResult.error },
-    };
+    return { status: "error", error: schemaResult.error };
   }
   if (indexingResult.status === "error") {
-    return {
-      indexing: { status: "error", error: indexingResult.error },
-      api: { status: "error", error: indexingResult.error },
-    };
+    return { status: "error", error: indexingResult.error };
   }
   if (apiResult.status === "error") {
-    return {
-      indexing: { status: "error", error: apiResult.error },
-      api: { status: "error", error: apiResult.error },
-    };
+    return { status: "error", error: apiResult.error };
   }
 
   let cachedConfigResult = configResult;
@@ -331,15 +340,27 @@ export const start = async (
         const indexingResult = await executeIndexingFunctions(buildService);
 
         if (configResult.status === "error") {
-          onIndexingBuild({ status: "error", error: configResult.error });
+          onBuild({
+            status: "error",
+            kind: "indexing",
+            error: configResult.error,
+          });
           return;
         }
         if (schemaResult.status === "error") {
-          onIndexingBuild({ status: "error", error: schemaResult.error });
+          onBuild({
+            status: "error",
+            kind: "indexing",
+            error: schemaResult.error,
+          });
           return;
         }
         if (indexingResult.status === "error") {
-          onIndexingBuild({ status: "error", error: indexingResult.error });
+          onBuild({
+            status: "error",
+            kind: "indexing",
+            error: indexingResult.error,
+          });
           return;
         }
 
@@ -355,7 +376,7 @@ export const start = async (
 
         const result = await executeApiRoutes(buildService);
         if (result.status === "error") {
-          onApiBuild({ status: "error", error: result.error });
+          onBuild({ status: "error", kind: "api", error: result.error });
           return;
         }
         cachedApiResult = result;
@@ -381,29 +402,58 @@ export const start = async (
         cachedIndexingResult,
       );
       if (indexingBuildResult.status === "error") {
-        onIndexingBuild(indexingBuildResult);
-        onApiBuild(indexingBuildResult);
+        onBuild({
+          status: "error",
+          kind: "indexing",
+          error: indexingBuildResult.error,
+        });
         return;
       }
 
       // If schema or config is updated, rebuild both api and indexing
       if (hasConfigUpdate || hasSchemaUpdate || hasIndexingUpdate) {
-        onIndexingBuild(indexingBuildResult);
-        onApiBuild(
-          validateAndBuildApi(
-            buildService,
-            indexingBuildResult.build,
-            cachedApiResult,
-          ),
+        const apiBuildResult = validateAndBuildApi(
+          buildService,
+          indexingBuildResult.build,
+          cachedApiResult,
         );
+
+        if (apiBuildResult.status === "error") {
+          onBuild({
+            status: "error",
+            kind: "api",
+            error: apiBuildResult.error,
+          });
+          return;
+        }
+
+        onBuild({
+          status: "success",
+          kind: "indexing",
+          indexingBuild: indexingBuildResult.build,
+          apiBuild: apiBuildResult.build,
+        });
       } else {
-        onApiBuild(
-          validateAndBuildApi(
-            buildService,
-            indexingBuildResult.build,
-            cachedApiResult,
-          ),
+        const apiBuildResult = validateAndBuildApi(
+          buildService,
+          indexingBuildResult.build,
+          cachedApiResult,
         );
+
+        if (apiBuildResult.status === "error") {
+          onBuild({
+            status: "error",
+            kind: "api",
+            error: apiBuildResult.error,
+          });
+          return;
+        }
+
+        onBuild({
+          status: "success",
+          kind: "api",
+          apiBuild: apiBuildResult.build,
+        });
       }
     };
 
@@ -423,8 +473,8 @@ export const start = async (
 
   if (initialBuildResult.status === "error") {
     return {
-      indexing: { status: "error", error: initialBuildResult.error },
-      api: { status: "error", error: initialBuildResult.error },
+      status: "error",
+      error: initialBuildResult.error,
     };
   }
 
@@ -434,9 +484,17 @@ export const start = async (
     apiResult,
   );
 
+  if (initialApiBuildResult.status === "error") {
+    return {
+      status: "error",
+      error: initialApiBuildResult.error,
+    };
+  }
+
   return {
-    indexing: initialBuildResult,
-    api: initialApiBuildResult,
+    status: "success",
+    indexingBuild: initialBuildResult.build,
+    apiBuild: initialApiBuildResult.build,
   };
 };
 

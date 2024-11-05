@@ -40,13 +40,13 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const { indexing } = await buildService.start({ watch: false });
+  const buildResult = await buildService.start({ watch: false });
 
-  if (indexing.status === "error") {
+  if (buildResult.status === "error") {
     logger.error({
       service: "process",
       msg: "Failed schema build",
-      error: indexing.error,
+      error: buildResult.error,
     });
     await shutdown({ reason: "Failed schema build", code: 1 });
     return;
