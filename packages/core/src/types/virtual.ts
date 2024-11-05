@@ -203,23 +203,7 @@ export namespace Virtual {
               keyof config["networks"]]["chainId"];
           };
         }[keyof sourceNetwork];
-    client: Prettify<
-      Omit<
-        ReadOnlyClient,
-        | "extend"
-        | "key"
-        | "batch"
-        | "cacheTime"
-        | "account"
-        | "type"
-        | "uid"
-        | "chain"
-        | "name"
-        | "pollingInterval"
-        | "transport"
-        | "ccipRead"
-      >
-    >;
+    client: Prettify<ReadOnlyClient>;
     db: {
       [key in keyof InferSchemaType<schema>]: DatabaseModel<
         // @ts-ignore

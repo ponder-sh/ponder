@@ -46,6 +46,7 @@ export const cachedTransport = ({
           blockDependentMethods.has(method) ||
           nonBlockDependentMethods.has(method)
         ) {
+          // TODO(kyle) nested order
           const request = toLowerCase(JSON.stringify(body));
           let blockNumber: Hex | "latest" | undefined = undefined;
 
