@@ -859,7 +859,7 @@ const migrations: Record<string, Migration> = {
             .selectFrom("logFilters as lf")
             .innerJoin("logFilterIntervals as lfi", "lf.id", "lfi.logFilterId")
             .select([
-              "lf.id as fragment_id",
+              sql<string>`concat('log', '_', lf.id)`.as("fragment_id"),
               "lf.chainId as chain_id",
               "lfi.startBlock as start_block",
               "lfi.endBlock as end_block",
@@ -886,7 +886,7 @@ const migrations: Record<string, Migration> = {
               "flfi.factoryId",
             )
             .select([
-              "flf.id as fragment_id",
+              sql<string>`concat('log', '_', flf.id)`.as("fragment_id"),
               "flf.chainId as chain_id",
               "flfi.startBlock as start_block",
               "flfi.endBlock as end_block",
@@ -917,7 +917,7 @@ const migrations: Record<string, Migration> = {
               "tfi.traceFilterId",
             )
             .select([
-              "tf.id as fragment_id",
+              sql<string>`concat('trace', '_', tf.id)`.as("fragment_id"),
               "tf.chainId as chain_id",
               "tfi.startBlock as start_block",
               "tfi.endBlock as end_block",
@@ -944,7 +944,7 @@ const migrations: Record<string, Migration> = {
               "ftfi.factoryId",
             )
             .select([
-              "ftf.id as fragment_id",
+              sql<string>`concat('trace', '_', ftf.id)`.as("fragment_id"),
               "ftf.chainId as chain_id",
               "ftfi.startBlock as start_block",
               "ftfi.endBlock as end_block",
@@ -975,7 +975,7 @@ const migrations: Record<string, Migration> = {
               "bfi.blockFilterId",
             )
             .select([
-              "bf.id as fragment_id",
+              sql<string>`concat('block', '_', bf.id)`.as("fragment_id"),
               "bf.chainId as chain_id",
               "bfi.startBlock as start_block",
               "bfi.endBlock as end_block",

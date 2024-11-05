@@ -49,7 +49,7 @@ export const getLogFilterFragmentIds = ({
         for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
           for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
             for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              const id = `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+              const id = `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
                 includeTransactionReceipts ? 1 : 0
               }`;
 
@@ -57,7 +57,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic0_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${null}_${topic1_}_${topic2_}_${topic3_}_${
+                  `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${null}_${topic1_}_${topic2_}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -65,7 +65,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic1_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${null}_${topic2_}_${topic3_}_${
+                  `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${null}_${topic2_}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -73,7 +73,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic2_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${null}_${topic3_}_${
+                  `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${null}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -81,7 +81,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic3_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${null}_${
+                  `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${null}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -89,7 +89,7 @@ export const getLogFilterFragmentIds = ({
 
               if (includeTransactionReceipts === false) {
                 adjacent.push(
-                  `${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${1}`,
+                  `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${1}`,
                 );
               }
 
@@ -107,7 +107,7 @@ export const getLogFilterFragmentIds = ({
         for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
           for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
             for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              const id = `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+              const id = `log_${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
                 includeTransactionReceipts ? 1 : 0
               }`;
 
@@ -115,7 +115,7 @@ export const getLogFilterFragmentIds = ({
 
               if (address_ !== null) {
                 adjacent.push(
-                  `${chainId}_${null}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+                  `log_${chainId}_${null}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -123,7 +123,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic0_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${null}_${topic1_}_${topic2_}_${topic3_}_${
+                  `log_${chainId}_${address_}_${null}_${topic1_}_${topic2_}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -131,7 +131,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic1_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${topic0_}_${null}_${topic2_}_${topic3_}_${
+                  `log_${chainId}_${address_}_${topic0_}_${null}_${topic2_}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -139,7 +139,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic2_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${topic0_}_${topic1_}_${null}_${topic3_}_${
+                  `log_${chainId}_${address_}_${topic0_}_${topic1_}_${null}_${topic3_}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -147,7 +147,7 @@ export const getLogFilterFragmentIds = ({
 
               if (topic3_ !== null) {
                 adjacent.push(
-                  `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${null}_${
+                  `log_${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${null}_${
                     includeTransactionReceipts ? 1 : 0
                   }`,
                 );
@@ -155,7 +155,7 @@ export const getLogFilterFragmentIds = ({
 
               if (includeTransactionReceipts === false) {
                 adjacent.push(
-                  `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${1}`,
+                  `log_${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${1}`,
                 );
               }
 
@@ -191,8 +191,8 @@ export const getBlockFilterFragmentId = ({
 }: Omit<BlockFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
   return [
     {
-      id: `${chainId}_${interval}_${offset}`,
-      adjacent: [`${chainId}_${interval}_${offset}`],
+      id: `block_${chainId}_${interval}_${offset}`,
+      adjacent: [`block_${chainId}_${interval}_${offset}`],
     },
   ];
 };
@@ -213,13 +213,13 @@ export const getTraceFilterFragmentIds = ({
       for (const _toAddress of Array.isArray(toAddress.address)
         ? toAddress.address
         : [toAddress.address]) {
-        const id = `${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${_fromAddress}`;
+        const id = `trace_${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${_fromAddress}`;
 
         const adjacent = [id];
 
         if (_fromAddress !== null) {
           adjacent.push(
-            `${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${null}`,
+            `trace_${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${null}`,
           );
         }
 
@@ -233,16 +233,16 @@ export const getTraceFilterFragmentIds = ({
       for (const _toAddress of toAddress === undefined
         ? [null]
         : (toAddress as Address[])) {
-        const id = `${chainId}_${_fromAddress}_${_toAddress}`;
+        const id = `trace_${chainId}_${_fromAddress}_${_toAddress}`;
 
         const adjacent = [id];
 
         if (_toAddress !== null) {
-          adjacent.push(`${chainId}_${_fromAddress}_${null}`);
+          adjacent.push(`trace_${chainId}_${_fromAddress}_${null}`);
         }
 
         if (_fromAddress !== null) {
-          adjacent.push(`${chainId}_${null}_${_toAddress}`);
+          adjacent.push(`trace_${chainId}_${null}_${_toAddress}`);
         }
 
         fragments.push({ id, adjacent });
