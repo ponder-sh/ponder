@@ -480,8 +480,7 @@ const executeConfig = async (
 const executeSchema = async (
   buildService: Service,
 ): Promise<
-  | { status: "success"; schema: Schema; contentHash: string }
-  | { status: "error"; error: Error }
+  { status: "success"; schema: Schema } | { status: "error"; error: Error }
 > => {
   const executeResult = await executeFile(buildService, {
     file: buildService.common.options.schemaFile,
@@ -499,12 +498,7 @@ const executeSchema = async (
 
   const schema = executeResult.exports;
 
-  // TODO(kyle) hash the contents
-  const contentHash = createHash("sha256")
-    .update(fs.readFileSync(buildService.common.options.schemaFile))
-    .digest("hex");
-
-  return { status: "success", schema, contentHash };
+  return { status: "success", schema };
 };
 
 const executeIndexingFunctions = async (
@@ -613,7 +607,7 @@ const executeApiRoutes = async (
 const validateAndBuild = async (
   { common }: Pick<Service, "common">,
   config: { config: Config; contentHash: string },
-  schema: { schema: Schema; contentHash: string },
+  schema: { schema: Schema },
   indexingFunctions: {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
@@ -661,7 +655,11 @@ const validateAndBuild = async (
   const buildId = createHash("sha256")
     .update(BUILD_ID_VERSION)
     .update(config.contentHash)
-    .update(schema.contentHash)
+    .update(
+      createHash("sha256")
+        .update(serialize(buildSchemaResult.statements))
+        .digest("hex"),
+    )
     .update(indexingFunctions.contentHash)
     .digest("hex")
     .slice(0, 10);
