@@ -12,7 +12,7 @@ import { buildSchema } from "./schema.js";
 
 const instanceId = "1234";
 
-test("success", () => {
+test("buildSchema() success", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -23,7 +23,7 @@ test("success", () => {
   buildSchema({ schema, instanceId });
 });
 
-test("schema", () => {
+test("buildSchema() error with schema", () => {
   const schema = {
     ponder: onchainSchema("ponder"),
     account: onchainTable("account", (p) => ({
@@ -35,7 +35,7 @@ test("schema", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("primary key", () => {
+test("buildSchema() error with multiple primary key", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -46,7 +46,18 @@ test("primary key", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("composite primary key", () => {
+test("buildSchema() error with no primary key", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex(),
+      balance: p.bigint(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildSchema() success with composite primary key", () => {
   const schema = {
     account: onchainTable(
       "account",
@@ -63,7 +74,7 @@ test("composite primary key", () => {
   buildSchema({ schema, instanceId });
 });
 
-test("view", () => {
+test("buildScheama() error with view", () => {
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
     balance: p.bigint().notNull(),
@@ -76,7 +87,7 @@ test("view", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("sequences", () => {
+test("buildScheama() error with sequences", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -88,7 +99,7 @@ test("sequences", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("generated", () => {
+test("buildScheama() error with generated", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -99,7 +110,7 @@ test("generated", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("generated identity", () => {
+test("buildScheama() error with generated identity", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       id: p
@@ -113,7 +124,7 @@ test("generated identity", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("serial", () => {
+test("buildScheama() error with serial", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: serial().primaryKey(),
@@ -124,7 +135,18 @@ test("serial", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("default", () => {
+test("buildScheama() success with default", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().default(10n),
+    })),
+  };
+
+  buildSchema({ schema, instanceId });
+});
+
+test("buildScheama() error with default sql", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -135,7 +157,7 @@ test("default", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("$defaultFn", () => {
+test("buildScheama() error with $defaultFn sql", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -146,7 +168,7 @@ test("$defaultFn", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("$onUpdateFn", () => {
+test("buildScheama() error with $onUpdateFn sql", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -157,7 +179,7 @@ test("$onUpdateFn", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("foreign key", () => {
+test("buildScheama() error with foreign key", () => {
   // @ts-ignore
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -172,7 +194,7 @@ test("foreign key", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("unique", () => {
+test("buildScheama() error with unique", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -183,7 +205,7 @@ test("unique", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("check", () => {
+test("buildScheama() error with check", () => {
   const schema = {
     account: onchainTable(
       "account",
@@ -200,7 +222,7 @@ test("check", () => {
   expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("enum", () => {
+test("buildScheama() success with enum", () => {
   const p = onchainSchema("p");
   const mood = p.enum("mood", ["good", "bad"]);
   const schema = {

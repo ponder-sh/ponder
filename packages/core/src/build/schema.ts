@@ -112,16 +112,25 @@ export const buildSchema = ({
         }
       }
 
-      if (hasPrimaryKey) {
-        if (getTableConfig(s).primaryKeys.length > 0) {
-          throw new Error(
-            `Schema validation failed: '${name}' has multiple primary keys.`,
-          );
-        } else if (getTableConfig(s).primaryKeys.length > 1) {
-          throw new Error(
-            `Schema validation failed: '${name}' has multiple primary keys.`,
-          );
-        }
+      if (getTableConfig(s).primaryKeys.length > 1) {
+        throw new Error(
+          `Schema validation failed: '${name}' has multiple primary keys.`,
+        );
+      }
+
+      if (getTableConfig(s).primaryKeys.length === 1 && hasPrimaryKey) {
+        throw new Error(
+          `Schema validation failed: '${name}' has multiple primary keys.`,
+        );
+      }
+
+      if (
+        getTableConfig(s).primaryKeys.length === 0 &&
+        hasPrimaryKey === false
+      ) {
+        throw new Error(
+          `Schema validation failed: '${name}' has no primary key. Declare one with ".primaryKey()".`,
+        );
       }
 
       if (getTableConfig(s).foreignKeys.length > 0) {
