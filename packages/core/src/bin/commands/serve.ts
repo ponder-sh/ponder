@@ -94,6 +94,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     schema,
     database,
+    instanceId:
+      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID === undefined
+        ? undefined
+        : instanceId,
   });
 
   cleanupReloadable = async () => {
