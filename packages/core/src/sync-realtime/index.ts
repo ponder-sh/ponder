@@ -600,34 +600,6 @@ export const createRealtimeSync = (
       }
     }
 
-    // let callTraces: SyncCallTrace[] = [];
-    // if (shouldRequestTraces) {
-    //   const traces = await _trace_block(args.requestQueue, {
-    //     blockNumber: hexToNumber(block.number),
-    //   });
-
-    //   // Protect against RPCs returning empty traces. Known to happen near chain tip.
-    //   // Use the fact that any transaction produces a trace.
-    //   if (block.transactions.length !== 0 && traces.length === 0) {
-    //     throw new Error(
-    //       "Detected invalid trace_block response. `block.transactions` is not empty but zero traces were returned.",
-    //     );
-    //   }
-
-    //   callTraces = traces.filter(
-    //     (trace) => trace.type === "call",
-    //   ) as SyncCallTrace[];
-    // }
-
-    // Check that traces refer to the correct block
-    // for (const trace of callTraces) {
-    //   if (trace.blockHash !== block.hash) {
-    //     throw new Error(
-    //       `Detected inconsistent RPC responses. 'trace.blockHash' ${trace.blockHash} does not match 'block.hash' ${block.hash}`,
-    //     );
-    //   }
-    // }
-
     // Validate that each trace point to valid transaction in the block
     for (const trace of traces) {
       if (
@@ -681,22 +653,6 @@ export const createRealtimeSync = (
 
       return isLogMatched;
     });
-
-    // Remove call traces that don't match a filter, recording required transactions
-    // callTraces = callTraces.filter((callTrace) => {
-    //   let isCallTraceMatched = false;
-    //   for (const filter of callTraceFilters) {
-    //     if (isCallTraceFilterMatched({ filter, block, callTrace })) {
-    //       isCallTraceMatched = true;
-    //       requiredTransactions.add(callTrace.transactionHash);
-    //       if (filter.includeTransactionReceipts) {
-    //         requiredTransactionReceipts.add(callTrace.transactionHash);
-    //       }
-    //     }
-    //   }
-
-    //   return isCallTraceMatched;
-    // });
 
     // Remove traces that dont match transaction or transfer filter
     traces = traces.filter((trace) => {
