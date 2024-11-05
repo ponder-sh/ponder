@@ -166,18 +166,16 @@ export type Update = <
   table extends Table,
   ///
   insertModel = InferInsertModel<table>,
+  selectModel = InferSelectModel<table>,
   insertValues = Prettify<Omit<insertModel, keyof Key<table>>>,
+  updateFn = (row: selectModel) => Partial<insertModel>,
 >(
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => {
-  set: (
-    values:
-      | Partial<insertValues>
-      | ((row: insertModel) => Partial<insertValues>),
-  ) => Promise<insertModel>;
+  set: (values: Partial<insertValues> | updateFn) => Promise<insertModel>;
 };
 
 export type Upsert = <
