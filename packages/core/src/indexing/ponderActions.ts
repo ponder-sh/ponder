@@ -9,12 +9,16 @@ import type {
   ContractFunctionName,
   GetBalanceParameters,
   GetBalanceReturnType,
+  GetBlockTransactionCountParameters,
+  GetBlockTransactionCountReturnType,
   GetCodeParameters,
   GetCodeReturnType,
   GetEnsNameParameters,
   GetEnsNameReturnType,
   GetStorageAtParameters,
   GetStorageAtReturnType,
+  GetTransactionReceiptParameters,
+  GetTransactionReceiptReturnType,
   MulticallParameters,
   MulticallReturnType,
   PublicRpcSchema,
@@ -24,9 +28,11 @@ import type {
 } from "viem";
 import {
   getBalance as viemGetBalance,
+  getBlockTransactionCount as viemGetBlockTransactionCount,
   getCode as viemGetCode,
   getEnsName as viemGetEnsName,
   getStorageAt as viemGetStorageAt,
+  getTransactionReceipt as viemGetTransactionReceipt,
   multicall as viemMulticall,
   readContract as viemReadContract,
 } from "viem/actions";
@@ -81,6 +87,17 @@ export type PonderActions = {
   getEnsName: (
     args: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> & BlockOptions,
   ) => Promise<GetEnsNameReturnType>;
+  getTransactionReceipt: (
+    args: Omit<GetTransactionReceiptParameters, "blockTag" | "blockNumber"> &
+      BlockOptions,
+  ) => Promise<GetTransactionReceiptReturnType>;
+  getBlockTransactionCount: (
+    args: Omit<
+      GetBlockTransactionCountParameters,
+      "blockTag" | "blockHash" | "blockNumber"
+    > &
+      BlockOptions,
+  ) => Promise<GetBlockTransactionCountReturnType>;
 };
 
 export type ReadOnlyClient<
@@ -185,6 +202,33 @@ export const buildCachedActions = (
     }: Omit<GetEnsNameParameters, "blockTag" | "blockNumber"> &
       BlockOptions): Promise<GetEnsNameReturnType> =>
       viemGetEnsName(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    getTransactionReceipt: ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<GetTransactionReceiptParameters, "blockTag" | "blockNumber"> &
+      BlockOptions): Promise<GetTransactionReceiptReturnType> =>
+      viemGetTransactionReceipt(client, {
+        ...args,
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+      }),
+    getBlockTransactionCount: async ({
+      cache,
+      blockNumber: userBlockNumber,
+      ...args
+    }: Omit<
+      GetBlockTransactionCountParameters,
+      "blockTag" | "blockHash" | "blockNumber"
+    > &
+      BlockOptions): Promise<GetBlockTransactionCountReturnType> =>
+      viemGetBlockTransactionCount(client, {
         ...args,
         ...(cache === "immutable"
           ? { blockTag: "latest" }
