@@ -123,13 +123,15 @@ The custom client uses the transport you specify in `ponder.config.ts`.
 
 ### Supported actions
 
-| name         | description                                               | Viem docs                                                         |
-| :----------- | :-------------------------------------------------------- | :---------------------------------------------------------------- |
-| readContract | Returns the result of a read-only function on a contract. | [readContract](https://viem.sh/docs/contract/readContract.html)   |
-| multicall    | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)         |
-| getBalance   | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html) |
-| getBytecode  | Returns the bytecode at an address.                       | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
-| getStorageAt | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)   |
+| name                     | description                                               | Viem docs                                                                                     |
+|:-------------------------|:----------------------------------------------------------|:----------------------------------------------------------------------------------------------|
+| readContract             | Returns the result of a read-only function on a contract. | [readContract](https://viem.sh/docs/contract/readContract.html)                               |
+| multicall                | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)                                     |
+| getBalance               | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html)                             |
+| getBytecode              | Returns the bytecode at an address.                       | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)                                 |
+| getStorageAt             | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)                               |
+| getTransactionReceipt    | Returns the transaction receipt given a transaction hash. | [getTransactionReceipt](https://viem.sh/docs/actions/public/getTransactionReceipt.html)       |
+| getBlockTransactionCount | Returns the number of transactions at a block number.     | [getBlockTransactionCount](https://viem.sh/docs/actions/public/getBlockTransactionCount.html) |
 
 ### Block number
 
