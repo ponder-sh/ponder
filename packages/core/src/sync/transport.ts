@@ -4,6 +4,7 @@ import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { Hex, Transport } from "viem";
 import { custom, hexToBigInt, maxUint256 } from "viem";
 
+/** RPC methods that reference a block. */
 const blockDependentMethods = new Set([
   "eth_getBalance",
   "eth_getTransactionCount",
@@ -19,6 +20,7 @@ const blockDependentMethods = new Set([
   "eth_getUncleByBlockNumberAndIndex",
 ]);
 
+/** RPC methods that don't reference a block. */
 const nonBlockDependentMethods = new Set([
   "eth_getBlockByHash",
   "eth_getTransactionByHash",

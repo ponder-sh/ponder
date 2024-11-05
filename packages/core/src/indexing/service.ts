@@ -33,8 +33,7 @@ import { addStackTrace } from "./addStackTrace.js";
 import {
   type ReadOnlyClient,
   buildDb,
-  getBlockDependentActions,
-  getNonBlockDependentActions,
+  getPonderActions,
 } from "./ponderActions.js";
 
 export type Context = {
@@ -165,10 +164,7 @@ export const create = ({
       transport,
       chain: network.chain,
       // @ts-ignore
-    }).extend({
-      ...getBlockDependentActions(contextState),
-      ...getNonBlockDependentActions(),
-    });
+    }).extend(getPonderActions(contextState));
   }
 
   // build eventCount

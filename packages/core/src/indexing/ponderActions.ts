@@ -3,10 +3,15 @@ import type { Prettify } from "@/types/utils.js";
 import {
   type Abi,
   type Account,
+  type Address,
   type Chain,
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
+  type GetBlockReturnType,
+  type GetBlockTransactionCountReturnType,
+  type GetTransactionCountReturnType,
+  type Hash,
   type MulticallParameters,
   type MulticallReturnType,
   type PublicActions,
@@ -21,6 +26,7 @@ import {
 
 import type { Service, create } from "./service.js";
 
+/** Viem actions where the `block` property is optional and implicit. */
 const blockDependentActions = [
   "getBalance",
   "call",
@@ -36,16 +42,16 @@ const blockDependentActions = [
   "getEnsText",
 ] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
 
+// TODO(kyle) "getBlock", "getBlockTransactionCount", "getTransactionCount";
+
+/** Viem actions where the `block` property is non-existent. */
 const nonBlockDependentActions = [
-  "getBlock",
-  "getTransactionCount",
-  "getBlockTransactionCount",
   "getTransaction",
   "getTransactionReceipt",
   "getTransactionConfirmations",
 ] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
 
-export type BlockOptions =
+type BlockOptions =
   | {
       cache?: undefined;
       blockNumber?: undefined;
@@ -59,6 +65,18 @@ export type BlockOptions =
       blockNumber: bigint;
     };
 
+type RequiredBlockOptions =
+  | {
+      /** Hash of the block. */
+      blockHash: Hash;
+      blockNumber?: undefined;
+    }
+  | {
+      blockHash?: undefined;
+      /** The block number. */
+      blockNumber: bigint;
+    };
+
 type BlockDependentAction<
   fn extends (client: any, args: any) => unknown,
   ///
@@ -68,7 +86,7 @@ type BlockDependentAction<
   args: Omit<params, "blockTag" | "blockNumber"> & BlockOptions,
 ) => returnType;
 
-export type BlockDependentActions = {
+export type PonderActions = {
   [action in (typeof blockDependentActions)[number]]: BlockDependentAction<
     ReturnType<typeof publicActions>[action]
   >;
@@ -109,19 +127,29 @@ export type BlockDependentActions = {
     > &
       BlockOptions,
   ) => Promise<SimulateContractReturnType<abi, functionName, args>>;
-};
-
-export type NonBlockDependentActions = Pick<
-  PublicActions,
-  (typeof nonBlockDependentActions)[number]
->;
+  getBlock: <includeTransactions extends boolean = false>(
+    args: {
+      /** Whether or not to include transaction data in the response. */
+      includeTransactions?: includeTransactions | undefined;
+    } & RequiredBlockOptions,
+  ) => Promise<GetBlockReturnType<Chain | undefined, includeTransactions>>;
+  getTransactionCount: (
+    args: {
+      /** The account address. */
+      address: Address;
+    } & RequiredBlockOptions,
+  ) => Promise<GetTransactionCountReturnType>;
+  getBlockTransactionCount: (
+    args: RequiredBlockOptions,
+  ) => Promise<GetBlockTransactionCountReturnType>;
+} & Pick<PublicActions, (typeof nonBlockDependentActions)[number]>;
 
 export type ReadOnlyClient<
   transport extends Transport = Transport,
   chain extends Chain | undefined = Chain | undefined,
 > = Prettify<
   Omit<
-    Client<transport, chain, undefined, PublicRpcSchema, BlockDependentActions>,
+    Client<transport, chain, undefined, PublicRpcSchema, PonderActions>,
     | "extend"
     | "key"
     | "batch"
@@ -137,7 +165,7 @@ export type ReadOnlyClient<
   >
 >;
 
-export const getBlockDependentActions = (
+export const getPonderActions = (
   contextState: Pick<Service["currentEvent"]["contextState"], "blockNumber">,
 ) => {
   return <
@@ -146,10 +174,17 @@ export const getBlockDependentActions = (
     TAccount extends Account | undefined = Account | undefined,
   >(
     client: Client<TTransport, TChain, TAccount>,
-  ): BlockDependentActions => {
-    const actions = {} as BlockDependentActions;
+  ): PonderActions => {
+    const actions = {} as PonderActions;
+    const _publicActions = publicActions(client);
 
-    const addAction = <action extends keyof BlockDependentActions>(
+    const addAction = <
+      action extends
+        | (typeof blockDependentActions)[number]
+        | "multicall"
+        | "readContract"
+        | "simulateContract",
+    >(
       action: action,
     ) => {
       // @ts-ignore
@@ -157,7 +192,7 @@ export const getBlockDependentActions = (
         cache,
         blockNumber: userBlockNumber,
         ...args
-      }: Parameters<BlockDependentActions[action]>[0]) =>
+      }: Parameters<PonderActions[action]>[0]) =>
         // @ts-ignore
         publicActions[action](client, {
           ...args,
@@ -174,21 +209,6 @@ export const getBlockDependentActions = (
     addAction("multicall");
     addAction("readContract");
     addAction("simulateContract");
-
-    return actions;
-  };
-};
-
-export const getNonBlockDependentActions = () => {
-  return <
-    TTransport extends Transport = Transport,
-    TChain extends Chain | undefined = Chain | undefined,
-    TAccount extends Account | undefined = Account | undefined,
-  >(
-    client: Client<TTransport, TChain, TAccount>,
-  ): NonBlockDependentActions => {
-    const actions = {} as NonBlockDependentActions;
-    const _publicActions = publicActions(client);
 
     for (const action of nonBlockDependentActions) {
       // @ts-ignore
