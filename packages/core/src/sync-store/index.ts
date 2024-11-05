@@ -106,15 +106,14 @@ export type SyncStore = {
   }): Promise<{ events: RawEvent[]; cursor: string }>;
   insertRpcRequestResult(args: {
     request: string;
-    blockNumber: bigint;
     chainId: number;
+    blockNumber: bigint | undefined;
     result: string;
   }): Promise<void>;
   getRpcRequestResult(args: {
     request: string;
-    blockNumber: bigint;
     chainId: number;
-  }): Promise<string | null>;
+  }): Promise<string | undefined>;
   pruneRpcRequestResult(args: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
@@ -1257,28 +1256,28 @@ export const createSyncStore = ({
         .insertInto("rpcRequestResults")
         .values({
           request,
-          blockNumber: formatBig(dialect, blockNumber),
+          blockNumber:
+            blockNumber === undefined
+              ? undefined
+              : formatBig(dialect, blockNumber),
           chainId,
           result,
         })
         .onConflict((oc) =>
-          oc
-            .columns(["request", "chainId", "blockNumber"])
-            .doUpdateSet({ result }),
+          oc.columns(["request", "chainId"]).doUpdateSet({ result }),
         )
         .execute();
     }),
-  getRpcRequestResult: async ({ request, blockNumber, chainId }) =>
+  getRpcRequestResult: async ({ request, chainId }) =>
     db.wrap({ method: "getRpcRequestResult" }, async () => {
       const result = await db
         .selectFrom("rpcRequestResults")
         .select("result")
         .where("request", "=", request)
         .where("chainId", "=", chainId)
-        .where("blockNumber", "=", formatBig(dialect, blockNumber))
         .executeTakeFirst();
 
-      return result?.result ?? null;
+      return result?.result;
     }),
   pruneRpcRequestResult: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneRpcRequestResult" }, async () => {

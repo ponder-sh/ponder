@@ -832,6 +832,25 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_11_04_0_request_cache": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("rpcRequestResults")
+        .dropConstraint("rpcRequestResultPrimaryKey")
+        .execute();
+      await db.schema
+        .alterTable("rpcRequestResults")
+        .addPrimaryKeyConstraint("rpcRequestResultPrimaryKey", [
+          "request",
+          "chainId",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("rpcRequestResults")
+        .alterColumn("blockNumber", (qb) => qb.dropNotNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
