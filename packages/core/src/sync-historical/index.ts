@@ -407,6 +407,8 @@ export const createHistoricalSync = async (
         })),
         chainId: args.network.chainId,
       });
+
+      // TODO(kyle) includeTransactionReceipt
     }
   };
 
