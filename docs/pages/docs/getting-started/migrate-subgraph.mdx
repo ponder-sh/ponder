@@ -84,7 +84,7 @@ PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 
 Open any file in the `src/` directory. Ponder indexing functions are very similar to subgraph mapping functions, with some key differences. You will need to refactor your code, but because the local dev server has hot reloading, you'll get instant feedback on your changes.
 
-See [tips for migrating mapping functions](/docs/getting-started/migrate-subgraph) for more details.
+See [tips for migrating mapping functions](#migration-tips) for more details.
 
 ### Query the GraphQL API
 
@@ -92,13 +92,13 @@ As you migrate your indexing functions and start inserting data, open the Graphi
 
 </Steps>
 
-## Tips for migrating mapping functions
+## Migration tips
 
 ### Functions run in Node.js, not WebAssembly
 
 You can import NPM packages, debug with `console.log`, and use normal JavaScript types like `string` and `number`.
 
-### Database models & contracts are injected, not imported
+### Database & contracts are injected, not imported
 
 In a Graph Protocol subgraph mapping file, entity models and contract factories are imported:
 
@@ -121,10 +121,11 @@ With Ponder, these objects are injected as properties of `context`.
 
 ```ts filename="src/MyNftContract.ts"
 import { ponder } from "@/generated";
+import { tokens } from "../ponder.schema";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   // Get a database record
-  const token = await context.db.Token.findUnique({ id: event.args.id });
+  const token = await context.db.find(tokens, { id: event.args.id });
 
   // Call a contract read function
   const tokenUri = await context.client.readContract({
@@ -138,4 +139,4 @@ ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
 });
 ```
 
-See the [Create & update records](/docs/indexing/create-update-records) and [Read contract data](/docs/indexing/read-contract-data) guides for more details.
+Read more on how to [insert & update rows](/docs/indexing/insert-update-rows) and [read contract data](/docs/indexing/read-contract-data).
