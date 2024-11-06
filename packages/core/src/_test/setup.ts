@@ -91,7 +91,7 @@ afterAll(() => pgliteDataDirs.forEach((dataDir) => rimrafSync(dataDir)));
 export async function setupIsolatedDatabase(context: TestContext) {
   const connectionString = process.env.DATABASE_URL;
 
-  if (connectionString !== undefined) {
+  if (connectionString) {
     console.log("using postgres");
     const databaseName = `vitest_${poolId}`;
 
