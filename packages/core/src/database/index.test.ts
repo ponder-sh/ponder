@@ -399,46 +399,45 @@ test("setup() with the same build ID recovers if the lock expires after waiting"
 
 // PGlite not being able to concurrently connect to the same database from two different clients
 // makes this test impossible.
-test.skipIf(process.env.DATABASE_URL === undefined)(
-  "setup() with the same build ID succeeds if the lock doesn't expires after waiting",
-  async (context) => {
-    context.common.options.databaseHeartbeatInterval = 250;
-    context.common.options.databaseHeartbeatTimeout = 1000;
+test("setup() with the same build ID succeeds if the lock doesn't expires after waiting", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") return;
 
-    const database = createDatabase({
-      common: context.common,
+  context.common.options.databaseHeartbeatInterval = 250;
+  context.common.options.databaseHeartbeatTimeout = 1000;
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
       schema: { account },
-      databaseConfig: context.databaseConfig,
       instanceId: "1234",
-      buildId: "abc",
-      ...buildSchema({
-        schema: { account },
-        instanceId: "1234",
-      }),
-    });
-    await database.setup();
-    await database.finalize({ checkpoint: createCheckpoint(10) });
+    }),
+  });
+  await database.setup();
+  await database.finalize({ checkpoint: createCheckpoint(10) });
 
-    const databaseTwo = createDatabase({
-      common: context.common,
+  const databaseTwo = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "5678",
+    buildId: "abc",
+    ...buildSchema({
       schema: { account },
-      databaseConfig: context.databaseConfig,
       instanceId: "5678",
-      buildId: "abc",
-      ...buildSchema({
-        schema: { account },
-        instanceId: "5678",
-      }),
-    });
+    }),
+  });
 
-    const { checkpoint } = await databaseTwo.setup();
+  const { checkpoint } = await databaseTwo.setup();
 
-    expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
+  expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
-    await database.kill();
-    await databaseTwo.kill();
-  },
-);
+  await database.kill();
+  await databaseTwo.kill();
+});
 
 test("setup() drops old tables", async (context) => {
   for (let i = 0; i < 5; i++) {
