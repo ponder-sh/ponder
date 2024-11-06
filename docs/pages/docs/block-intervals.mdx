@@ -42,6 +42,7 @@ This indexing function uses block events to index price chart data by reading th
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
 import { ChainlinkOracleAbi } from "../abis/ChainlinkOracle.ts";
+import { prices } from "../ponder.schema";
 
 ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {
   // Fetch the price at the current block height.
@@ -51,14 +52,12 @@ ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {
     functionName: "latestAnswer",
   });
 
-  // Insert a Price record.
-  const token = await context.db.Price.create({
+  // Insert a row into the prices table.
+  await context.db.insert(prices).values({
     id: event.block.timestamp,
-    data: {
-      blockNumber: event.block.number,
-      timestamp: event.block.timestamp,
-      price: latestPrice,
-    },
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    price: latestPrice,
   });
 });
 ```
@@ -79,9 +78,9 @@ For example, if the network block time is 3 seconds and you want to run an index
 // 24 hours per day, 60 minutes per hour, 60 seconds per minute
 const secondsInterval = 24 * 60 * 60;
 // 3 seconds per block
-const blockTime = 3
+const blockTime = 3;
 // 28800 blocks per day
-const blockInterval = secondsInterval / blockTime
+const blockInterval = secondsInterval / blockTime;
 ```
 
 To find the block time of a specific chain, check the chain's documentation website or block explorer. Most Etherscan deployments have a [`/chart/blocktime`](https://polygonscan.com/chart/blocktime) page.

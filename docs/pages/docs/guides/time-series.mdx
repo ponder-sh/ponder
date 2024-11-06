@@ -14,24 +14,21 @@ This guide describes techniques for working with time-series data in your app.
 To power a [candlestick](https://en.wikipedia.org/wiki/Candlestick_chart) or open-high-low-close chart, create a table that stores OHLC data for a specific time interval.
 
 ```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  HourBucket: p.createTable({
-    id: p.int(), // Unix timestamp of the start of the hour.
-    open: p.float(),
-    close: p.float(),
-    low: p.float(),
-    high: p.float(),
-    average: p.float(),
-    count: p.int(),
-  }),
+export const hourBuckets = onchainTable("hour_buckets", (t) => ({
+  id: t.int().primaryKey(),
+  open: t.float().notNull(),
+  close: t.float().notNull(),
+  low: t.float().notNull(),
+  high: t.float().notNull(),
+  average: t.float().notNull(),
+  count: t.int().notNull(),
 }));
 ```
 
 Then, in your indexing function, create or update the bucket record that the current event falls into.
 
-{/* prettier-ignore */}
 ```ts filename="src/index.ts"
 import { ponder, type Schema } from "@/generated";
 
@@ -43,17 +40,24 @@ ponder.on("Token:Swap", async ({ event, context }) => {
 
   const hourId = Math.floor(timestamp / secondsInHour) * secondsInHour;
 
-  await context.db.HourBucket.upsert({
-    id: hourId,
-    create: { open: price, close: price, low: price, high: price, average: price, count: 1 },
-    update: ({ current }) => ({
+  await context.db
+    .upsert(hourBuckets, { id: hourId })
+    .insert({
+      id: hourId,
+      open: price,
       close: price,
-      low: current.low > price ? price : current.low,
-      high: current.high < price ? price : current.high,
-      average: (current.average * current.count + price) / current.count + 1,
-      count: current.count + 1,
-    }),
-  });
+      low: price,
+      high: price,
+      average: price,
+      count: 1,
+    })
+    .update((row) => ({
+      close: price,
+      low: Math.min(row.low, price),
+      high: Math.max(row.high, price),
+      average: (row.average * row.count + price) / (row.count + 1),
+      count: row.count + 1,
+    }));
 });
 ```
 
@@ -63,10 +67,7 @@ Here are GraphQL and SQL queries that return the last 48 hours of OHLC data. The
 
 ```graphql filename="GraphQL query"
 {
-  HourBucket(
-    orderBy: { id: "desc" },
-    limit: 48
-  ) {
+  hourBuckets(orderBy: { id: "desc" }, limit: 48) {
     items {
       id
       open
@@ -89,7 +90,6 @@ SELECT *
 
 </div>
 
-
 ## Include `block.timestamp`
 
 The simplest way to add a time dimension to your data is to include the block number or block timestamp (or both!) as a column.
@@ -97,43 +97,41 @@ The simplest way to add a time dimension to your data is to include the block nu
 <div class="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  SwapEvent: p.createTable({
-    id: p.string(),
-    from: p.hex(),
-    to: p.hex(),
-    amount: p.bigint(),
-    timestamp: p.bigint()
-  })
+export const swapEvents = onchainTable("swap_events", (t) => ({
+  id: t.text().primaryKey(),
+  from: t.hex().notNull(),
+  to: t.hex().notNull(),
+  amount: t.bigint().notNull(),
+  timestamp: t.bigint().notNull(),
 }));
 ```
 
 ```ts filename="src/index.ts" {10}
 import { ponder } from "@/generated";
+import { swapEvents } from "../ponder.schema";
 
 ponder.on("Token:Swap", async ({ event, context }) => {
-  await context.db.SwapEvent.create({
+  await context.db.insert(swapEvents).values({
     id: event.log.id,
-    data: {
-      from: event.args.from,
-      to: event.args.to,
-      amount: event.args.amount,
-      timestamp: event.block.timestamp,
-    }
+    from: event.args.from,
+    to: event.args.to,
+    amount: event.args.amount,
+    timestamp: event.block.timestamp,
   });
 });
 ```
+
 </div>
 
 Now, you can use the `timestamp` column to filter and sort data over different time intervals.
 
 ```graphql filename="GraphQL query"
 {
-  SwapEvent(
-    orderBy: { timestamp: "desc" },
-    where: { timestamp_gt: 1712500000, timestamp_lt: 1713000000 },
+  swapEvents(
+    orderBy: { timestamp: "desc" }
+    where: { timestamp_gt: 1712500000, timestamp_lt: 1713000000 }
   ) {
     items {
       id
