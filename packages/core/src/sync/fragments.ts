@@ -2,10 +2,22 @@ import type { Address, Hex } from "viem";
 import {
   type BlockFilter,
   type CallTraceFilter,
+  type Factory,
   type Filter,
   type LogFilter,
   isAddressFactory,
 } from "./source.js";
+
+type FragmentAddress =
+  | Address
+  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | null;
+type FragmentTopic = Hex | null;
+
+export type FragmentId =
+  | `log_${number}_${FragmentAddress}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
+  | `trace_${number}_${FragmentAddress}_${Address | null}`
+  | `block_${number}_${number}_${number}`;
 
 export const getFragmentIds = (
   filter: Omit<Filter, "startBlock" | "endBlock">,
@@ -22,8 +34,8 @@ export const getFragmentIds = (
 };
 
 type FragmentReturnType = {
-  id: string;
-  adjacent: string[];
+  id: FragmentId;
+  adjacent: FragmentId[];
 }[];
 
 /**
@@ -49,9 +61,10 @@ export const getLogFilterFragmentIds = ({
         for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
           for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
             for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              const id = `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-                includeTransactionReceipts ? 1 : 0
-              }`;
+              const id =
+                `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+                  includeTransactionReceipts ? 1 : 0
+                }` as const;
 
               const adjacent = [id];
 
@@ -107,9 +120,10 @@ export const getLogFilterFragmentIds = ({
         for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
           for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
             for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              const id = `log_${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-                includeTransactionReceipts ? 1 : 0
-              }`;
+              const id =
+                `log_${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
+                  includeTransactionReceipts ? 1 : 0
+                }` as const;
 
               const adjacent = [id];
 
@@ -213,7 +227,8 @@ export const getTraceFilterFragmentIds = ({
       for (const _toAddress of Array.isArray(toAddress.address)
         ? toAddress.address
         : [toAddress.address]) {
-        const id = `trace_${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${_fromAddress}`;
+        const id =
+          `trace_${chainId}_${_toAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${_fromAddress}` as const;
 
         const adjacent = [id];
 
@@ -233,7 +248,7 @@ export const getTraceFilterFragmentIds = ({
       for (const _toAddress of toAddress === undefined
         ? [null]
         : (toAddress as Address[])) {
-        const id = `trace_${chainId}_${_fromAddress}_${_toAddress}`;
+        const id = `trace_${chainId}_${_fromAddress}_${_toAddress}` as const;
 
         const adjacent = [id];
 

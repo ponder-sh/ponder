@@ -1,3 +1,4 @@
+import type { FragmentId } from "@/sync/fragments.js";
 import type {
   SyncBlock,
   SyncCallTrace,
@@ -306,7 +307,7 @@ type RpcRequestResultsTable = {
 
 type IntervalTable = {
   id: Generated<number>;
-  fragment_id: string;
+  fragment_id: FragmentId;
   chain_id: number;
   start_block: ColumnType<string, string | bigint, string | bigint>;
   end_block: ColumnType<string, string | bigint, string | bigint>;
