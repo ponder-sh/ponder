@@ -12,8 +12,8 @@ import { Steps, Tabs, Callout } from "nextra/components";
 ### Create a new Ponder project
 
 <Callout type="info">
-  If the contract you're indexing has already been deployed, use the [Etherscan
-  contract link template](/docs/api-reference/create-ponder#etherscan-contract-link).
+  If the contract you're indexing has already been deployed, use the Etherscan
+  link [template](/docs/api-reference/create-ponder#etherscan-contract-link).
 </Callout>
 
 {/* prettier-ignore */}
@@ -90,11 +90,11 @@ export default createSchema((p) => ({
 }));
 ```
 
-See the [design your schema](/docs/schema) guide for more details.
+Read more about [designing your schema](/docs/schema).
 
 ### Write indexing functions
 
-Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to insert data into the store.
+Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to write indexed data to the database.
 
 Here's a sample indexing function for an ERC721 `Transfer` event.
 
@@ -113,7 +113,7 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 });
 ```
 
-See [Create & update records](/docs/indexing/create-update-records) for a detailed guide on writing indexing functions.
+Read more on how to [write to the database](/docs/indexing/write-to-the-database) and [read contract data](/docs/indexing/read-contract-data).
 
 ### Query the GraphQL API
 
