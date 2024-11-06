@@ -35,7 +35,13 @@ export async function buildConfigAndIndexingFunctions({
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
   options: Pick<Options, "ponderDir" | "rootDir">;
-}) {
+}): Promise<{
+  databaseConfig: DatabaseConfig;
+  networks: Network[];
+  sources: (BlockSource | ContractSource)[];
+  indexingFunctions: IndexingFunctions;
+  logs: { level: "warn" | "info" | "debug"; msg: string }[];
+}> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
   // Build database.
@@ -82,10 +88,7 @@ export async function buildConfigAndIndexingFunctions({
         connectionString,
       };
 
-      databaseConfig = {
-        kind: "postgres",
-        poolConfig,
-      };
+      databaseConfig = { kind: "postgres", poolConfig };
     } else {
       logs.push({
         level: "info",
@@ -114,10 +117,7 @@ export async function buildConfigAndIndexingFunctions({
 
       const poolConfig = { max: 30, connectionString };
 
-      databaseConfig = {
-        kind: "postgres",
-        poolConfig,
-      };
+      databaseConfig = { kind: "postgres", poolConfig };
     } else {
       // Fall back to PGlite.
       logs.push({

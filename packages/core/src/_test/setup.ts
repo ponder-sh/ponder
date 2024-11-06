@@ -1,6 +1,3 @@
-import { randomUUID } from "node:crypto";
-import os from "node:os";
-import path from "node:path";
 import { buildSchema } from "@/build/schema.js";
 import type { Common } from "@/common/common.js";
 import { createLogger } from "@/common/logger.js";
@@ -81,12 +78,6 @@ afterAll(async () => {
   await Promise.all(
     Array.from(pgliteInstances.values()).map(async (instance) => {
       await instance.close();
-      // PGlite.close() seems to have a bug where it uses the dataDir after resolving.
-      // When this is uncommented, we get an unhandled error:
-      // `Error: ENOENT: no such file or directory, mkdir '{dataDir}'`
-      // if (instance.dataDir !== undefined) {
-      //   rmSync(instance.dataDir, { recursive: true, force: true });
-      // }
     }),
   );
 });
@@ -119,14 +110,13 @@ export async function setupIsolatedDatabase(context: TestContext) {
   } else {
     let instance = pgliteInstances.get(poolId);
     if (instance === undefined) {
-      const dataDir = path.join(os.tmpdir(), randomUUID());
-      instance = createPglite({ dataDir });
+      instance = createPglite({ dataDir: "memory://" });
       pgliteInstances.set(poolId, instance);
     }
 
     // Because PGlite takes ~500ms to open a new connection, and it's not possible to drop the
-    // current database from within a connection, we run this query to mimic the effect of "DROP DATABASE"
-    // without closing the connection. This speeds up the tests quite a lot.
+    // current database from within a connection, we run this query to mimic the effect of
+    // "DROP DATABASE" without closing the connection. This speeds up the tests quite a lot.
     await instance.exec(`
       DO $$
       DECLARE
@@ -173,7 +163,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
               END LOOP;
           END LOOP;
       END $$;
-      `);
+    `);
 
     context.databaseConfig = { kind: "pglite_test", instance };
   }
