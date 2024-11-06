@@ -36,12 +36,11 @@ import { drizzle } from "drizzle-orm/pg-proxy";
 import { createQueue } from "../../../common/src/queue.js";
 
 export type IndexingStore = Db<Schema> & {
-  /**
-   * Persist the cache to the database.
-   */
+  /** Persist the cache to the database. */
   flush: () => Promise<void>;
   isCacheFull: () => boolean;
   setPolicy: (policy: "historical" | "realtime") => void;
+  emptyCache: () => void;
 };
 
 enum EntryType {
@@ -916,6 +915,13 @@ export const createIndexingStore = ({
     },
     setPolicy(policy) {
       isHistoricalBackfill = policy === "historical";
+    },
+    emptyCache() {
+      for (const table of cache.keys()) {
+        cache.set(table, new Map());
+      }
+
+      isDatabaseEmpty = false;
     },
   } satisfies IndexingStore;
 

@@ -17,9 +17,7 @@ import {
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
-/**
- * Starts the sync and indexing services for the specified build.
- */
+/** Starts the sync and indexing services for the specified build. */
 export async function run({
   common,
   build,
@@ -86,7 +84,7 @@ export async function run({
       switch (event.type) {
         case "block": {
           // Events must be run block-by-block, so that `database.complete` can accurately
-          // update the temporary value used in the trigger.
+          // update the temporary `checkpoint` value set in the trigger.
           for (const events of splitEvents(event.events)) {
             const result = await handleEvents(
               decodeEvents(common, sources, events),
@@ -96,6 +94,7 @@ export async function run({
             if (result.status === "error") onReloadableError(result.error);
 
             await indexingStore.flush();
+            // Set reorg table `checkpoint` column for newly inserted rows.
             await database.complete({ checkpoint: event.checkpoint });
           }
 
@@ -105,6 +104,9 @@ export async function run({
         }
         case "reorg":
           await database.revert({ checkpoint: event.checkpoint });
+          // Remove all cached data from the indexing store, as some entries
+          // may have been reorged out.
+          indexingStore.emptyCache();
           break;
 
         case "finalize":
