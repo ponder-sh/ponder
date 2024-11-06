@@ -137,7 +137,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
           FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
           LOOP
               -- Drop all tables
-              FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_schema = schema
+              FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = schema
               LOOP
                   EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
               END LOOP;
@@ -173,7 +173,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
               END LOOP;
           END LOOP;
       END $$;
-    `);
+      `);
 
     context.databaseConfig = { kind: "pglite_test", instance };
   }
