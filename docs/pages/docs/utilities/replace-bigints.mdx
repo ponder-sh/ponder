@@ -26,7 +26,7 @@ const result = replaceBigInts(obj, (v) => String(v));
 
 ## Usage in Ponder
 
-The [`p.json(){:ts}` column type](/docs/schema#json-type) uses the `JSONB{:sql}` data type in SQLite and Postgres, which [does not support](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json) `BigInt` values.
+The [`p.json(){:ts}` column type](/docs/schema#json-type) uses the `JSONB{:sql}` data type in PGlite and Postgres, which [does not support](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json) `BigInt` values.
 
 Use `replaceBigInts` to prepare objects containing `BigInt` values for insertion into `p.json(){:ts}` columns. In your schema, use the `ReplaceBigInts{:ts}` generic in the `p.json(){:ts}` type annotation.
 

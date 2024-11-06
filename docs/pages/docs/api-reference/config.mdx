@@ -135,19 +135,19 @@ Here is the logic Ponder uses to determine which database to use:
 
 - If the `database.kind` option is specified, Ponder will use that database.
 - If the `DATABASE_URL` environment variable is defined, Ponder will use Postgres with that as the connection string.
-- If `DATABASE_URL` is not defined, Ponder will use SQLite.
+- If `DATABASE_URL` is not defined, Ponder will use PGlite.
 
 For more details, see the guide on [production deployments](/docs/production/deploy).
 
-### SQLite
+### PGlite
 
 | field         |         type          |                                                                                 |
 | :------------ | :-------------------: | :------------------------------------------------------------------------------ |
-| **kind**      |      `"sqlite"`       |                                                                                 |
-| **directory** | `string \| undefined` | **Default: `.ponder/sqlite`**. Directory path to use for SQLite database files. |
+| **kind**      |      `"pglite"`       |                                                                                 |
+| **directory** | `string \| undefined` | **Default: `.ponder/pglite`**. Directory path to use for PGlite database files. |
 
 <details>
-  <summary><p>Example `ponder.config.ts` using SQLite</p></summary>
+  <summary><p>Example `ponder.config.ts` using PGlite</p></summary>
   <p />
 
 ```ts filename="ponder.config.ts" {4-7}
@@ -155,8 +155,8 @@ import { createConfig } from "@ponder/core";
 
 export default createConfig({
   database: {
-    kind: "sqlite",
-    directory: "./.ponder/sqlite2",
+    kind: "pglite",
+    directory: "./.ponder/pglite",
   },
   // ... more config
 });
