@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildSchema } from "@/build/schema.js";
@@ -26,8 +25,8 @@ import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import { rimrafSync } from "rimraf";
 import type { Address } from "viem";
 import { type TestContext, afterAll } from "vitest";
 import { deploy, simulate } from "./simulate.js";
@@ -77,8 +76,20 @@ export function setupCommon(context: TestContext) {
   };
 }
 
-const pgliteDataDirs = new Map<number, string>();
-afterAll(() => pgliteDataDirs.forEach((dataDir) => rimrafSync(dataDir)));
+const pgliteInstances = new Map<number, PGlite>();
+afterAll(async () => {
+  await Promise.all(
+    Array.from(pgliteInstances.values()).map(async (instance) => {
+      await instance.close();
+      // PGlite.close() seems to have a bug where it uses the dataDir after resolving.
+      // When this is uncommented, we get an unhandled error:
+      // `Error: ENOENT: no such file or directory, mkdir '{dataDir}'`
+      // if (instance.dataDir !== undefined) {
+      //   rmSync(instance.dataDir, { recursive: true, force: true });
+      // }
+    }),
+  );
+});
 
 /**
  * Sets up an isolated database on the test context.
@@ -106,23 +117,65 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
     context.databaseConfig = { kind: "postgres", poolConfig };
   } else {
-    let dataDir = pgliteDataDirs.get(poolId);
-    if (dataDir === undefined) {
-      dataDir = path.join(os.tmpdir(), randomUUID());
-      mkdirSync(dataDir, { recursive: true });
-      pgliteDataDirs.set(poolId, dataDir);
+    let instance = pgliteInstances.get(poolId);
+    if (instance === undefined) {
+      const dataDir = path.join(os.tmpdir(), randomUUID());
+      instance = createPglite({ dataDir });
+      pgliteInstances.set(poolId, instance);
     }
 
-    const databaseName = `vitest_${poolId}`;
+    // Because PGlite takes ~500ms to open a new connection, and it's not possible to drop the
+    // current database from within a connection, we run this query to mimic the effect of "DROP DATABASE"
+    // without closing the connection. This speeds up the tests quite a lot.
+    await instance.exec(`
+      DO $$
+      DECLARE
+          obj TEXT;
+          schema TEXT;
+      BEGIN
+          -- Loop over all user-defined schemas
+          FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
+          LOOP
+              -- Drop all tables
+              FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_schema = schema
+              LOOP
+                  EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+              END LOOP;
 
-    const parent = createPglite({ dataDir });
-    await parent.exec(`DROP DATABASE IF EXISTS "${databaseName}"`);
-    await parent.exec(`CREATE DATABASE "${databaseName}"`);
-    await parent.close();
+              -- Drop all sequences
+              FOR obj IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = schema
+              LOOP
+                  EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+              END LOOP;
 
-    const options = { dataDir, database: databaseName };
+              -- Drop all views
+              FOR obj IN SELECT table_name FROM information_schema.views WHERE table_schema = schema
+              LOOP
+                  EXECUTE 'DROP VIEW IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+              END LOOP;
 
-    context.databaseConfig = { kind: "pglite", options };
+              -- Drop all functions
+              FOR obj IN SELECT routine_name FROM information_schema.routines WHERE routine_type = 'FUNCTION' AND routine_schema = schema
+              LOOP
+                  EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+              END LOOP;
+
+              -- Drop all custom types
+              FOR obj IN SELECT typname FROM pg_type WHERE typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
+              LOOP
+                  EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+              END LOOP;
+
+              -- Drop all extensions (extensions are usually in public, but handling if in other schemas)
+              FOR obj IN SELECT extname FROM pg_extension WHERE extnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
+              LOOP
+                  EXECUTE 'DROP EXTENSION IF EXISTS ' || quote_ident(obj) || ' CASCADE;';
+              END LOOP;
+          END LOOP;
+      END $$;
+    `);
+
+    context.databaseConfig = { kind: "pglite_test", instance };
   }
 }
 

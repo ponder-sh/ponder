@@ -524,6 +524,10 @@ const migrations: Record<string, Migration> = {
           WHERE ponder_sync.logs.id = cp_vals.id
         `.compile(db),
       );
+
+      await db.executeQuery(
+        sql`DROP TABLE IF EXISTS cp_vals CASCADE;`.compile(db),
+      );
     },
   },
   "2024_04_14_3_index_on_logs_checkpoint": {
@@ -667,6 +671,10 @@ const migrations: Record<string, Migration> = {
           FROM bcp_vals
           WHERE ponder_sync.blocks.hash = bcp_vals.hash
         `.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`DROP TABLE IF EXISTS bcp_vals CASCADE;`.compile(db),
       );
 
       await db.schema

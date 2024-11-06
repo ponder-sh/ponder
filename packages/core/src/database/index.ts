@@ -45,7 +45,10 @@ import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database<
-  dialect extends "pglite" | "postgres" = "pglite" | "postgres",
+  dialect extends "pglite" | "pglite_test" | "postgres" =
+    | "pglite"
+    | "pglite_test"
+    | "postgres",
 > = {
   dialect: dialect;
   driver: Driver<dialect>;
@@ -96,20 +99,9 @@ export type PonderApp = {
 
 type PonderInternalSchema = {
   _ponder_meta:
-    | {
-        key: `app_${string}`;
-        value: PonderApp;
-      }
-    | {
-        key: `status_${string}`;
-        value: Status | null;
-      }
-    | {
-        key: `live`;
-        value: {
-          instance_id: string;
-        };
-      };
+    | { key: `app_${string}`; value: PonderApp }
+    | { key: `status_${string}`; value: Status | null }
+    | { key: `live`; value: { instance_id: string } };
 } & {
   [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
 } & {
@@ -131,9 +123,8 @@ type PostgresDriver = {
   sync: Pool;
 };
 
-type Driver<dialect extends "pglite" | "postgres"> = dialect extends "pglite"
-  ? PGliteDriver
-  : PostgresDriver;
+type Driver<dialect extends "pglite" | "pglite_test" | "postgres"> =
+  dialect extends "pglite" | "pglite_test" ? PGliteDriver : PostgresDriver;
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
@@ -166,9 +157,12 @@ export const createDatabase = (args: {
 
   const dialect = args.databaseConfig.kind;
 
-  if (args.databaseConfig.kind === "pglite") {
+  if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
-      instance: createPglite(args.databaseConfig.options),
+      instance:
+        dialect === "pglite"
+          ? createPglite(args.databaseConfig.options)
+          : args.databaseConfig.instance,
     };
 
     const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
@@ -357,7 +351,7 @@ export const createDatabase = (args: {
   }
 
   const drizzle =
-    dialect === "pglite"
+    dialect === "pglite" || dialect === "pglite_test"
       ? drizzlePglite((driver as PGliteDriver).instance, {
           casing: "snake_case",
           schema: args.schema,
@@ -1208,6 +1202,10 @@ $$ LANGUAGE plpgsql
       if (dialect === "pglite") {
         const d = driver as PGliteDriver;
         await d.instance.close();
+      }
+
+      if (dialect === "pglite_test") {
+        // no-op, allow test harness to clean up the instance
       }
 
       if (dialect === "postgres") {
