@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.6.25
+
+### Patch Changes
+
+- [#1223](https://github.com/ponder-sh/ponder/pull/1223) [`bbc5cda48670010dd2d229d95a2da4e23c1a414d`](https://github.com/ponder-sh/ponder/commit/bbc5cda48670010dd2d229d95a2da4e23c1a414d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a compatibility issue with hono 4.6.9.
+
+## 0.6.24
+
+### Patch Changes
+
+- [#1218](https://github.com/ponder-sh/ponder/pull/1218) [`e988a4f3182da132333057b750cd9bad4aa44e92`](https://github.com/ponder-sh/ponder/commit/e988a4f3182da132333057b750cd9bad4aa44e92) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned hono version to fix a regression with cors headers.
+
 ## 0.6.23
 
 ### Patch Changes

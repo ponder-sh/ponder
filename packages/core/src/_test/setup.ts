@@ -90,7 +90,8 @@ afterAll(() => pgliteDataDirs.forEach((dataDir) => rimrafSync(dataDir)));
  */
 export async function setupIsolatedDatabase(context: TestContext) {
   const connectionString = process.env.DATABASE_URL;
-  if (connectionString !== undefined) {
+
+  if (connectionString) {
     const databaseName = `vitest_${poolId}`;
 
     const client = new pg.Client({ connectionString });

@@ -85,10 +85,10 @@ test("erc20", async (context) => {
   await cleanup();
 });
 
-const shouldSkip = process.env.DATABASE_URL === undefined;
+const isPglite = !!process.env.DATABASE_URL;
 
 // Fix this once it's easier to have per-command kill functions in Ponder.ts.
-describe.skipIf(shouldSkip)("postgres database", () => {
+describe.skipIf(isPglite)("postgres database", () => {
   test.todo("ponder serve", async (context) => {
     const startPort = await getFreePort();
 
