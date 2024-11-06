@@ -92,7 +92,6 @@ export async function setupIsolatedDatabase(context: TestContext) {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
-    console.log("using postgres");
     const databaseName = `vitest_${poolId}`;
 
     const client = new pg.Client({ connectionString });
@@ -107,7 +106,6 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
     context.databaseConfig = { kind: "postgres", poolConfig };
   } else {
-    console.log("using pglite");
     let dataDir = pgliteDataDirs.get(poolId);
     if (dataDir === undefined) {
       dataDir = path.join(os.tmpdir(), randomUUID());
