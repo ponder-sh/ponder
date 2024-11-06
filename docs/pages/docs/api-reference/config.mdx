@@ -9,25 +9,22 @@ import { Callout, Tabs } from "nextra/components";
 
 The `ponder.config.ts` file contains contract names, addresses, and ABIs; network information like chain IDs and RPC URLs; database configuration; and general options.
 
-The `createConfig` function exported from `@ponder/core` returns the config object, which must be exported (named export called `config`) from `ponder.config.ts`.
-
 ## File requirements
 
-The `createConfig` function exported by `@ponder/core` returns a config object which must be the default export of `ponder.config.ts`. By default, `ponder dev` and `start` look for `ponder.config.ts` in the current working directory – use the `--config-file` CLI option to specify a different path.
+The `ponder.config.ts` file must **default export** the object returned by `createConfig`.
 
+{/* prettier-ignore */}
 ```ts filename="ponder.config.ts" {1,4}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
 export default createConfig({
-  networks: {
-    // ...
-  },
-  contracts: {
-    // ...
-  },
+  networks: { /* ... */ },
+  contracts: { /* ... */ },
 });
 ```
+
+By default, `ponder dev` and `start` look for `ponder.config.ts` in the current working directory. Use the `--config-file` CLI option to specify a different path.
 
 ## Networks
 

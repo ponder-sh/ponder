@@ -11,7 +11,7 @@ The `ponder.schema.ts` file defines your database tables and their relationships
 
 ## File requirements
 
-Tables, enums, and relations **must** use the corresponding functions exported by `@ponder/core` and **must** be exported as named exports from `ponder.schema.ts`.
+The `ponder.schema.ts` must use **named exports** for tables, enums, and relations, and these objects must be created using the corresponding functions exported by `@ponder/core`.
 
 ```ts filename="ponder.schema.ts" {1,3}
 import { onchainTable } from "@ponder/core";
