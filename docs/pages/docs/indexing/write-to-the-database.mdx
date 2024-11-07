@@ -245,7 +245,7 @@ Drizzle's relational query builder (AKA Drizzle Queries) offers a great develope
 
 Here's an example that uses the relational query builder in an API function to find the 10 largest trades in the past hour joined with the account that made the trade.
 
-```ts filename="src/index.ts"
+```ts filename="src/api/index.ts"
 import { accounts, tradeEvents } from "../ponder.schema";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
