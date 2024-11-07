@@ -7,13 +7,15 @@ import { Callout } from "nextra/components";
 
 # Write to the database
 
-## Key-value API
+The purpose of indexing functions is to write application-ready data to the database. Ponder has two reorg-resistant database interfaces: the **store API** and **raw SQL**.
 
-The key-value API is optimized for EVM indexing workloads. To eliminate the performance penalty of frequent inserts and updates, most operations run in-memory.
+## Store API
 
-During historical indexing, the engine flushes indexed data to the database periodically in large batches. Once the instance has reached realtime, the engine flushes after each block.
+The store API is a SQL-like query builder optimized for EVM indexing workloads. It's less flexible than raw SQL, but is often several orders of magnitude faster.
 
-The examples below use the following `accounts` and `tokens` tables.
+<details>
+  <summary><p>The examples below use this `ponder.schema.ts`.</p></summary>
+  <p />
 
 ```ts filename="ponder.schema.ts"
 import { onchainTable, primaryKey } from "@ponder/core";
@@ -37,9 +39,11 @@ export const allowances = onchainTable(
 );
 ```
 
+</details>
+
 ### `insert`
 
-Insert one or many rows into the database. Returns the inserted rows, **including** any serial or default values that were generated.
+Insert one or many rows into the database. Returns the inserted rows, **including** any default values that were generated.
 
 {/* prettier-ignore */}
 ```ts filename="src/index.ts"
@@ -55,7 +59,7 @@ const rows = await db.insert(accounts).values([
 ]);
 ```
 
-If you insert a row that violates a not null constraint, `insert` will reject with a descriptive error.
+If you insert a row that violates a not null constraint, `insert` will reject with an error.
 
 ```ts filename="src/index.ts" {7}
 import { tokens } from "../ponder.schema";
@@ -97,7 +101,7 @@ const row = await db
   .set({ balance: 100n });
 ```
 
-You can also pass a function to `set`, which receives the current row as an argument and returns the new row.
+You can also pass a function to `set` which receives the existing row and returns the update object.
 
 ```ts filename="src/index.ts" {5}
 import { accounts } from "../ponder.schema";
@@ -107,7 +111,19 @@ const row = await db
   .set((row) => ({ ...row, balance: row.balance + 100n }));
 ```
 
-If the new row violates a not null constraint, `update` will reject with a descriptive error.
+If the target row is not found, `update` will reject with an error.
+
+```ts filename="src/index.ts" {7}
+import { tokens } from "../ponder.schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set({ balance: null });
+
+// Error: No row found for address "0x7Df1".
+```
+
+If the new row violates a not null constraint, `update` will reject with an error.
 
 ```ts filename="src/index.ts" {7}
 import { tokens } from "../ponder.schema";
@@ -117,30 +133,6 @@ const row = await db
   .set({ balance: null });
 
 // Error: Column "balance" is required but not present in the object.
-```
-
-### `upsert`
-
-Insert a new row if a row does not already exist with the specified primary key. Otherwise, update the existing row.
-
-```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
-
-const row = await db
-  .upsert(accounts, { address: "0x7Df1" })
-  .insert({ balance: 0n })
-  .update({ balance: 100n });
-```
-
-Just like with `update`, you can pass a function that receives the current row.
-
-```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
-
-const row = await db
-  .upsert(accounts, { address: "0x7Df1" })
-  .insert({ balance: 0n })
-  .update((row) => ({ balance: row.balance + 100n }));
 ```
 
 ### `delete`
@@ -153,27 +145,121 @@ import { accounts } from "../ponder.schema";
 const deleted = await db.delete(accounts, { address: "0x7Df1" });
 ```
 
+### Upsert & conflict resolution
+
+If you insert a duplicate row that violates the table's primary key constraint, `insert` will reject with an error. Use `onConflictDoNothing` to skip the insert operation if a row with the same primary key already exists.
+
+```ts filename="src/index.ts" {6}
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoNothing();
+```
+
+Or, perform an **upsert** with `onConflictDoUpdate`.
+
+```ts filename="src/index.ts" {6}
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n, activeAt: event.block.timestamp })
+  .onConflictDoUpdate({ activeAt: event.block.timestamp });
+```
+
+Like `update`, you can pass a function to `onConflictDoUpdate` which receives the existing row and returns the update object.
+
+```ts filename="src/index.ts" {6}
+import { accounts } from "../ponder.schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoUpdate((row) => ({ balance: row.balance + 100n }));
+```
+
+Both `onConflictDoNothing` and `onConflictDoUpdate` also work when inserting many rows at once. The conflict resolution logic gets applied to each row individually.
+
+```ts filename="src/index.ts"
+import { accounts } from "../ponder.schema";
+
+const rows = await db
+  .insert(accounts)
+  .values([
+    { address: "0x7Df1", balance: 0n },
+    { address: "0x7Df2", balance: 100n },
+  ])
+  .onConflictDoNothing();
+```
+
+### How it works
+
+EVM indexing workloads often involve a high number of small inserts and updates. To mitigate the performance penalty of frequent (blocking) database queries, the store API runs most operations **in-memory**.
+
+During historical indexing, the engine flushes indexed data to the database periodically in **large batches**. Once the instance has reached realtime, the engine flushes after each block.
+
 ## Raw SQL
 
 <Callout type="warning">
-  Raw SQL queries are **much slower** than the key-value API. Avoid relying on
-  raw SQL for indexing logic that runs frequently.
+  Raw SQL queries are **much slower** than the store API. Avoid raw SQL for
+  indexing logic that runs often.
 </Callout>
 
-Sometimes, the constraints of the key-value API make it difficult to implement certain indexing logic. In these cases, you can drop down to raw SQL.
+The constraints of the store API make it difficult to implement complex business logic. In these cases, you can drop down to raw SQL.
 
-The `db.sql` object exposes several raw Drizzle methods. For more information, visit the [Drizzle documentation](https://orm.drizzle.team/docs/sql-api).
+### Query builder
 
-- `select`
-- `insert`
-- `update`
-- `delete`
-- `query` -> Drizzle Query API
+The `db.sql` object exposes the raw Drizzle PostgreSQL query builder, including the `select`, `insert`, `update`, and `delete` functions. Visit the [Drizzle docs](https://orm.drizzle.team/docs/select) for more information and a detailed API reference.
 
-## Best practices
+Here's an example that uses the raw SQL `update` function to execute a complex bulk update query.
 
-### Avoid raw SQL
+```ts filename="ponder.schema.ts"
+import { ponder } from "@/generated";
+import { accounts, tradeEvents } from "../ponder.schema";
+import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
-### Use `upsert`
+ponder.on("EveryDay:block", async ({ event, context }) => {
+  // Add 100 points to all accounts that submitted a trade in the last 24 hours.
+  await db.sql
+    .update(accounts)
+    .set({ points: sql`${accounts.points} + 100` })
+    .where(
+      inArray(
+        accounts.address,
+        db.sql
+          .select({ address: tradeEvents.from })
+          .from(tradeEvents)
+          .where(
+            gte(tradeEvents.timestamp, event.block.timestamp - 24 * 60 * 60)
+          )
+      )
+    );
+});
+```
 
-## Examples
+### Relational queries
+
+Drizzle's relational query builder (AKA Drizzle Queries) offers a great developer experience for complex `SELECT{:sql}` queries that join multiple tables. The `db.sql.query` object exposes the raw Drizzle relational query builder. Visit the [Drizzle Queries docs](https://orm.drizzle.team/docs/rqb) for more details.
+
+Here's an example that uses the relational query builder in an API function to find the 10 largest trades in the past hour joined with the account that made the trade.
+
+```ts filename="src/index.ts"
+import { accounts, tradeEvents } from "../ponder.schema";
+import { eq, and, gte, inArray, sql } from "drizzle-orm";
+
+ponder.get("/hot-trades", async (c) => {
+  const trades = await c.db.query.tradeEvents.findMany({
+    where: (table, { gt, gte, and }) =>
+      and(
+        gt(table.amount, 1_000n),
+        gte(table.timestamp, Date.now() - 1000 * 60 * 60)
+      ),
+    limit: 10,
+    with: { account: true },
+  });
+
+  return c.json(trades);
+});
+```
