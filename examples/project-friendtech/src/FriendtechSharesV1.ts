@@ -28,8 +28,9 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
   });
 
   await context.db
-    .upsert(schema.subject, { address: event.args.subject })
-    .insert({
+    .insert(schema.subject)
+    .values({
+      address: event.args.subject,
       totalTrades: 0n,
       totalShares: 0n,
       lastPrice: 0n,
@@ -37,7 +38,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
       traderVolume: 0n,
       protocolFeesGenerated: 0n,
     })
-    .update((row) => {
+    .onConflictDoUpdate((row) => {
       const shareDelta =
         tradeEvent.tradeType === "BUY"
           ? tradeEvent.shareAmount
@@ -61,8 +62,9 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
     });
 
   await context.db
-    .upsert(schema.trader, { address: event.args.trader })
-    .insert({
+    .insert(schema.trader)
+    .values({
+      address: event.args.trader,
       totalTrades: 0n,
       spend: 0n,
       earnings: 0n,
@@ -70,7 +72,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
       subjectFeesPaid: 0n,
       protocolFeesPaid: 0n,
     })
-    .update((row) => {
+    .onConflictDoUpdate((row) => {
       const spendDelta = tradeEvent.tradeType === "BUY" ? traderAmount : 0n;
       const earningsDelta = tradeEvent.tradeType === "BUY" ? 0n : traderAmount;
       const profitDelta =
@@ -87,14 +89,13 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
 
   if (tradeEvent.tradeType === "BUY") {
     await context.db
-      .upsert(schema.share, {
+      .insert(schema.share)
+      .values({
         subject: event.args.subject,
         trader: event.args.trader,
-      })
-      .insert({
         amount: tradeEvent.shareAmount,
       })
-      .update((row) => ({
+      .onConflictDoUpdate((row) => ({
         amount: row.amount + tradeEvent.shareAmount,
       }));
   } else {

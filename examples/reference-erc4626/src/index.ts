@@ -4,15 +4,19 @@ import * as schema from "../ponder.schema";
 ponder.on("ERC4626:Transfer", async ({ event, context }) => {
   // Create an Account for the sender, or update the balance if it already exists.
   await context.db
-    .upsert(schema.account, { address: event.args.from })
-    .insert({ balance: 0n })
-    .update((row) => ({ balance: row.balance - event.args.amount }));
+    .insert(schema.account)
+    .values({ address: event.args.from, balance: 0n })
+    .onConflictDoUpdate((row) => ({
+      balance: row.balance - event.args.amount,
+    }));
 
   // Create an Account for the recipient, or update the balance if it already exists.
   await context.db
-    .upsert(schema.account, { address: event.args.to })
-    .insert({ balance: event.args.amount })
-    .update((row) => ({ balance: row.balance + event.args.amount }));
+    .insert(schema.account)
+    .values({ address: event.args.to, balance: event.args.amount })
+    .onConflictDoUpdate((row) => ({
+      balance: row.balance + event.args.amount,
+    }));
 
   // Create a TransferEvent.
   await context.db.insert(schema.transferEvent).values({
@@ -27,14 +31,13 @@ ponder.on("ERC4626:Transfer", async ({ event, context }) => {
 ponder.on("ERC4626:Approval", async ({ event, context }) => {
   // Create or update the Allowance.
   await context.db
-    .upsert(schema.allowance, {
+    .insert(schema.allowance)
+    .values({
       owner: event.args.owner,
       spender: event.args.spender,
-    })
-    .insert({
       amount: event.args.amount,
     })
-    .update({ amount: event.args.amount });
+    .onConflictDoUpdate({ amount: event.args.amount });
 
   // Create an ApprovalEvent.
   await context.db.insert(schema.approvalEvent).values({

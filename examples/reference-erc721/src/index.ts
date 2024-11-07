@@ -4,20 +4,23 @@ import * as schema from "../ponder.schema";
 ponder.on("ERC721:Transfer", async ({ event, context }) => {
   // Create an Account for the sender, or update the balance if it already exists.
   await context.db
-    .upsert(schema.account, { address: event.args.from })
-    .insert({});
+    .insert(schema.account)
+    .values({ address: event.args.from })
+    .onConflictDoNothing();
   // Create an Account for the recipient, or update the balance if it already exists.
   await context.db
-    .upsert(schema.account, { address: event.args.to })
-    .insert({});
+    .insert(schema.account)
+    .values({ address: event.args.to })
+    .onConflictDoNothing();
 
   // Create or update a Token.
   await context.db
-    .upsert(schema.token, { id: event.args.id })
-    .insert({
+    .insert(schema.token)
+    .values({
+      id: event.args.id,
       owner: event.args.to,
     })
-    .update({ owner: event.args.to });
+    .onConflictDoUpdate({ owner: event.args.to });
 
   // Create a TransferEvent.
   await context.db.insert(schema.transferEvent).values({

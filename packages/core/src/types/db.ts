@@ -41,6 +41,20 @@ export type Db<schema extends Schema> = {
    * ]);
    * ```
    *
+   * @example
+   * ```ts twoslash
+   * await db.insert(table).values({ id: 10, name: "joe" }).onConflictDoNothing();
+   * ```
+   *
+   * @example
+   * ```ts twoslash
+   * await db
+   *   .insert(table)
+   *   .values({ id: 10, name: "joe" })
+   *   .onConflictDoUpdate((row) => ({ age: row.age + 3 }));
+   *
+   * ```
+   *
    * @param table - The table to insert into.
    */
   insert: Insert;
@@ -65,29 +79,6 @@ export type Db<schema extends Schema> = {
    * @param key - The primary key.
    */
   update: Update;
-  /**
-   * If row exists, update, else insert
-   *
-   * @example
-   * ```ts twoslash
-   * await db
-   *   .upsert(table, { id: 10 })
-   *   .insert({ age: 23 })
-   *   .update({ age: 64 });
-   * ```
-   *
-   * @example
-   * ```ts twoslash
-   * await db
-   *   .upsert(table, { id: 10 })
-   *   .insert({ age: 52 })
-   *   .update((row) => ({ age: row.age + 3 }));
-   * ```
-   *
-   * @param table - The table to select from.
-   * @param key - The primary key.
-   */
-  upsert: Upsert;
   /**
    * Delete a row
    *
@@ -152,14 +143,26 @@ export type Find = <table extends Table>(
   key: Key<table>,
 ) => Promise<InferSelectModel<table> | typeof empty>;
 
-export type Insert = <table extends Table>(
+export type Insert = <
+  table extends Table,
+  ///
+  insertModel = InferInsertModel<table>,
+  selectModel = InferSelectModel<table>,
+  updateModel = Prettify<Omit<insertModel, keyof Key<table>>>,
+  updateFn = (row: selectModel) => Partial<updateModel>,
+>(
   table: table extends { [onchain]: true }
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
 ) => {
-  values: <values extends InferInsertModel<table> | InferInsertModel<table>[]>(
+  values: <values extends insertModel | insertModel[]>(
     values: values,
-  ) => Promise<values>;
+  ) => Promise<selectModel> & {
+    onConflictDoNothing: () => Promise<selectModel>;
+    onConflictDoUpdate: (
+      values: Partial<updateModel> | updateFn,
+    ) => Promise<selectModel>;
+  };
 };
 
 export type Update = <
@@ -175,34 +178,7 @@ export type Update = <
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => {
-  set: (values: Partial<insertValues> | updateFn) => Promise<insertModel>;
-};
-
-export type Upsert = <
-  table extends Table,
-  ///
-  insertModel = InferInsertModel<table>,
-  selectModel = InferSelectModel<table>,
-  insertValues = Prettify<Omit<insertModel, keyof Key<table>>>,
-  updateFn = (row: selectModel) => Partial<insertModel>,
->(
-  table: table extends { [onchain]: true }
-    ? table
-    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
-  key: Key<table>,
-) => {
-  /** Insert a row */
-  insert: (values: insertValues) => {
-    /** Update the existing row */
-    update: (
-      values: Partial<insertModel> | updateFn,
-    ) => Promise<InferSelectModel<table>>;
-  } & Promise<InferSelectModel<table> | null>;
-  /** Update the existing row */
-  update: (values: Partial<insertModel> | updateFn) => {
-    /** Insert a row */
-    insert: (values: insertValues) => Promise<InferSelectModel<table>>;
-  } & Promise<InferSelectModel<table> | null>;
+  set: (values: Partial<insertValues> | updateFn) => Promise<selectModel>;
 };
 
 export type Delete = <table extends Table>(

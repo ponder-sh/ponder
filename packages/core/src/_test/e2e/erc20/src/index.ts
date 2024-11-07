@@ -12,20 +12,22 @@ ponder.on(
   "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
   async ({ event, context }) => {
     await context.db
-      .upsert(schema.account, { address: event.args.from })
-      .insert({
+      .insert(schema.account)
+      .values({
+        address: event.args.from,
         balance: -event.args.amount,
       })
-      .update((row) => ({
+      .onConflictDoUpdate((row) => ({
         balance: row.balance - event.args.amount,
       }));
 
     await context.db
-      .upsert(schema.account, { address: event.args.to })
-      .insert({
+      .insert(schema.account)
+      .values({
+        address: event.args.to,
         balance: event.args.amount,
       })
-      .update((row) => ({
+      .onConflictDoUpdate((row) => ({
         balance: row.balance + event.args.amount,
       }));
   },

@@ -96,7 +96,7 @@ const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
 /** Throw an error if `table` is not an `onchainTable`. */
 const checkOnchainTable = (
   table: Table,
-  method: "find" | "insert" | "update" | "upsert" | "delete",
+  method: "find" | "insert" | "update" | "delete",
 ) => {
   if (table === undefined)
     throw new UndefinedTableError(
@@ -184,7 +184,6 @@ export const createIndexingStore = ({
       existingRow = normalizeRow(table, existingRow, entryType);
       const bytes = getBytes(existingRow);
 
-      cacheSize += 1;
       cacheBytes += bytes;
 
       cache.get(table)!.set(getCacheKey(table, existingRow), {
@@ -199,7 +198,6 @@ export const createIndexingStore = ({
       row = normalizeRow(table, row, entryType);
       const bytes = getBytes(row);
 
-      cacheSize += 1;
       cacheBytes += bytes;
 
       cache.get(table)!.set(getCacheKey(table, row), {
@@ -217,7 +215,6 @@ export const createIndexingStore = ({
     const entry = getCacheEntry(table, row);
     if (entry) {
       cacheBytes -= entry!.bytes;
-      cacheSize -= 1;
     }
     return cache.get(table)!.delete(getCacheKey(table, row));
   };
@@ -329,8 +326,6 @@ export const createIndexingStore = ({
 
   let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
   let isHistoricalBackfill = true;
-  /** Number of entries in cache. */
-  let cacheSize = 0;
   /** Estimated number of bytes used by cache. */
   let cacheBytes = 0;
   /** LRU counter. */
@@ -373,7 +368,6 @@ export const createIndexingStore = ({
               const row = await find(table, key);
               const bytes = getBytes(row);
 
-              cacheSize += 1;
               cacheBytes += bytes;
 
               cache.get(table)!.set(getCacheKey(table, key), {
@@ -388,73 +382,249 @@ export const createIndexingStore = ({
           },
         ),
       ),
+
     // @ts-ignore
     insert(table: Table) {
-      return {
-        values: (values: any) =>
-          queue.add(() =>
-            database.qb.user.wrap(
-              { method: `${tableNameCache.get(table) ?? "unknown"}.insert()` },
-              async () => {
-                checkOnchainTable(table as Table, "insert");
+      const values = (values: any) => {
+        // @ts-ignore
+        const inner = {
+          onConflictDoNothing: () =>
+            queue.add(() =>
+              database.qb.user.wrap(
+                {
+                  method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                },
+                async () => {
+                  checkOnchainTable(table as Table, "insert");
 
-                if (Array.isArray(values)) {
-                  const rows = [];
-                  for (const value of values) {
-                    if (getCacheEntry(table, value)?.row) {
-                      const error = new UniqueConstraintError(
-                        `Unique constraint failed for '${tableNameCache.get(table)}'.`,
-                      );
-                      error.meta.push(
-                        `db.insert arguments:\n${prettyPrint(value)}`,
-                      );
-                      throw error;
-                    } else if (isDatabaseEmpty === false) {
-                      const findResult = await find(table, value);
+                  if (Array.isArray(values)) {
+                    const rows = [];
+                    for (const value of values) {
+                      const entry = getCacheEntry(table, value);
 
-                      if (findResult) {
+                      let row: { [key: string]: unknown } | null;
+
+                      if (entry?.row) {
+                        row = entry.row;
+                      } else {
+                        if (isDatabaseEmpty) row = null;
+                        else row = await find(table, value);
+                      }
+
+                      if (row === null) {
+                        rows.push(
+                          setCacheEntry(table, value, EntryType.INSERT),
+                        );
+                      }
+
+                      rows.push(structuredClone(row));
+                    }
+                    return rows;
+                  } else {
+                    const entry = getCacheEntry(table, values);
+
+                    let row: { [key: string]: unknown } | null;
+
+                    if (entry?.row) {
+                      row = entry.row;
+                    } else {
+                      if (isDatabaseEmpty) row = null;
+                      else row = await find(table, values);
+                    }
+
+                    if (row === null) {
+                      return setCacheEntry(table, values, EntryType.INSERT);
+                    }
+
+                    return structuredClone(row);
+                  }
+                },
+              ),
+            ),
+          onConflictDoUpdate: (valuesU: any) =>
+            queue.add(() =>
+              database.qb.user.wrap(
+                {
+                  method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                },
+                async () => {
+                  checkOnchainTable(table as Table, "insert");
+
+                  if (Array.isArray(values)) {
+                    const rows = [];
+                    for (const value of values) {
+                      const entry = getCacheEntry(table, value);
+                      deleteCacheEntry(table, value);
+
+                      let row: { [key: string]: unknown } | typeof empty;
+
+                      if (entry?.row) {
+                        row = entry.row;
+                      } else {
+                        if (isDatabaseEmpty) row = null;
+                        else row = await find(table, value);
+                      }
+
+                      if (row === null) {
+                        rows.push(
+                          setCacheEntry(table, value, EntryType.INSERT),
+                        );
+                      } else {
+                        if (typeof valuesU === "function") {
+                          rows.push(
+                            setCacheEntry(
+                              table,
+                              valuesU(row),
+                              entry?.type === EntryType.INSERT
+                                ? EntryType.INSERT
+                                : EntryType.UPDATE,
+                              row,
+                            ),
+                          );
+                        } else {
+                          rows.push(
+                            setCacheEntry(
+                              table,
+                              valuesU,
+                              entry?.type === EntryType.INSERT
+                                ? EntryType.INSERT
+                                : EntryType.UPDATE,
+                              row,
+                            ),
+                          );
+                        }
+                      }
+                    }
+                    return rows;
+                  } else {
+                    const entry = getCacheEntry(table, values);
+                    deleteCacheEntry(table, values);
+
+                    let row: { [key: string]: unknown } | typeof empty;
+
+                    if (entry?.row) {
+                      row = entry.row;
+                    } else {
+                      if (isDatabaseEmpty) row = null;
+                      else row = await find(table, values);
+                    }
+
+                    if (row === null) {
+                      return setCacheEntry(table, values, EntryType.INSERT);
+                    } else {
+                      if (typeof valuesU === "function") {
+                        return setCacheEntry(
+                          table,
+                          valuesU(row),
+                          entry?.type === EntryType.INSERT
+                            ? EntryType.INSERT
+                            : EntryType.UPDATE,
+                          row,
+                        );
+                      } else {
+                        return setCacheEntry(
+                          table,
+                          valuesU,
+                          entry?.type === EntryType.INSERT
+                            ? EntryType.INSERT
+                            : EntryType.UPDATE,
+                          row,
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+            ),
+          // biome-ignore lint/suspicious/noThenProperty: <explanation>
+          then: (onFulfilled, onRejected) =>
+            queue
+              .add(() =>
+                database.qb.user.wrap(
+                  {
+                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                  },
+                  async () => {
+                    checkOnchainTable(table as Table, "insert");
+
+                    if (Array.isArray(values)) {
+                      const rows = [];
+                      for (const value of values) {
+                        if (getCacheEntry(table, value)?.row) {
+                          const error = new UniqueConstraintError(
+                            `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                          );
+                          error.meta.push(
+                            `db.insert arguments:\n${prettyPrint(value)}`,
+                          );
+                          throw error;
+                        } else if (isDatabaseEmpty === false) {
+                          const findResult = await find(table, value);
+
+                          if (findResult) {
+                            const error = new UniqueConstraintError(
+                              `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                            );
+                            error.meta.push(
+                              `db.insert arguments:\n${prettyPrint(value)}`,
+                            );
+                            throw error;
+                          }
+                        }
+
+                        rows.push(
+                          setCacheEntry(table, value, EntryType.INSERT),
+                        );
+                      }
+                      return rows;
+                    } else {
+                      if (getCacheEntry(table, values)?.row) {
                         const error = new UniqueConstraintError(
                           `Unique constraint failed for '${tableNameCache.get(table)}'.`,
                         );
                         error.meta.push(
-                          `db.insert arguments:\n${prettyPrint(value)}`,
+                          `db.insert arguments:\n${prettyPrint(values)}`,
                         );
                         throw error;
+                      } else if (isDatabaseEmpty === false) {
+                        const findResult = await find(table, values);
+
+                        if (findResult) {
+                          const error = new UniqueConstraintError(
+                            `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                          );
+                          error.meta.push(
+                            `db.insert arguments:\n${prettyPrint(values)}`,
+                          );
+                          throw error;
+                        }
                       }
+
+                      return setCacheEntry(table, values, EntryType.INSERT);
                     }
-
-                    rows.push(setCacheEntry(table, value, EntryType.INSERT));
-                  }
-                  return rows;
-                } else {
-                  if (getCacheEntry(table, values)?.row) {
-                    const error = new UniqueConstraintError(
-                      `Unique constraint failed for '${tableNameCache.get(table)}'.`,
-                    );
-                    error.meta.push(
-                      `db.insert arguments:\n${prettyPrint(values)}`,
-                    );
-                    throw error;
-                  } else if (isDatabaseEmpty === false) {
-                    const findResult = await find(table, values);
-
-                    if (findResult) {
-                      const error = new UniqueConstraintError(
-                        `Unique constraint failed for '${tableNameCache.get(table)}'.`,
-                      );
-                      error.meta.push(
-                        `db.insert arguments:\n${prettyPrint(values)}`,
-                      );
-                      throw error;
-                    }
-                  }
-
-                  return setCacheEntry(table, values, EntryType.INSERT);
-                }
+                  },
+                ),
+              )
+              .then(onFulfilled, onRejected),
+          catch: (onRejected) => inner.then(undefined, onRejected),
+          finally: (onFinally) =>
+            inner.then(
+              (value: any) => {
+                onFinally?.();
+                return value;
+              },
+              (reason: any) => {
+                onFinally?.();
+                throw reason;
               },
             ),
-          ),
+          // @ts-ignore
+        } satisfies ReturnType<ReturnType<IndexingStore["insert"]>["values"]>;
+
+        return inner;
       };
+
+      return { values };
     },
     // @ts-ignore
     update(table: Table, key) {
@@ -524,184 +694,12 @@ export const createIndexingStore = ({
       };
     },
     // @ts-ignore
-    upsert(table: Table, key) {
-      return {
-        insert(valuesI: any) {
-          return {
-            update: (valuesU: any) =>
-              queue.add(() =>
-                database.qb.user.wrap(
-                  {
-                    method: `${tableNameCache.get(table) ?? "unknown"}.upsert()`,
-                  },
-                  async () => {
-                    checkOnchainTable(table as Table, "upsert");
-
-                    const entry = getCacheEntry(table, key);
-                    deleteCacheEntry(table, key);
-
-                    let row: { [key: string]: unknown } | typeof empty;
-
-                    if (entry?.row) {
-                      row = entry.row;
-                    } else {
-                      if (isDatabaseEmpty) row = null;
-                      else row = await find(table, key);
-                    }
-
-                    if (row === null) {
-                      return setCacheEntry(
-                        table,
-                        valuesI,
-                        EntryType.INSERT,
-                        key,
-                      );
-                    } else {
-                      if (typeof valuesU === "function") {
-                        return setCacheEntry(
-                          table,
-                          valuesU(row),
-                          entry?.type === EntryType.INSERT
-                            ? EntryType.INSERT
-                            : EntryType.UPDATE,
-                          row,
-                        );
-                      } else {
-                        return setCacheEntry(
-                          table,
-                          valuesU,
-                          entry?.type === EntryType.INSERT
-                            ? EntryType.INSERT
-                            : EntryType.UPDATE,
-                          row,
-                        );
-                      }
-                    }
-                  },
-                ),
-              ),
-            // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: <TResult1 = void, TResult2 = never>(
-              onFulfilled?:
-                | ((value: void) => TResult1 | PromiseLike<TResult1>)
-                | undefined
-                | null,
-              onRejected?:
-                | ((reason: any) => TResult2 | PromiseLike<TResult2>)
-                | undefined
-                | null,
-            ) =>
-              queue
-                .add(() =>
-                  database.qb.user.wrap(
-                    {
-                      method: `${tableNameCache.get(table) ?? "unknown"}.upsert()`,
-                    },
-                    async () => {
-                      checkOnchainTable(table as Table, "upsert");
-
-                      const entry = getCacheEntry(table, key);
-
-                      let row: { [key: string]: unknown } | null;
-
-                      if (entry?.row) {
-                        row = entry.row;
-                      } else {
-                        if (isDatabaseEmpty) row = null;
-                        else row = await find(table, key);
-                      }
-
-                      if (row === null) {
-                        return setCacheEntry(
-                          table,
-                          valuesI,
-                          EntryType.INSERT,
-                          key,
-                        );
-                      }
-
-                      return null;
-                    },
-                  ),
-                )
-                // @ts-ignore
-                .then(onFulfilled, onRejected),
-          };
-        },
-        update(valuesU: any) {
-          return {
-            insert: (valuesI: any) =>
-              indexingStore.upsert(table, key).insert(valuesI).update(valuesU),
-            // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: <TResult1 = void, TResult2 = never>(
-              onFulfilled?:
-                | ((value: void) => TResult1 | PromiseLike<TResult1>)
-                | undefined
-                | null,
-              onRejected?:
-                | ((reason: any) => TResult2 | PromiseLike<TResult2>)
-                | undefined
-                | null,
-            ) =>
-              queue
-                .add(() =>
-                  database.qb.user.wrap(
-                    {
-                      method: `${tableNameCache.get(table) ?? "unknown"}.upsert()`,
-                    },
-                    async () => {
-                      checkOnchainTable(table as Table, "upsert");
-
-                      const entry = getCacheEntry(table, key);
-                      deleteCacheEntry(table, key);
-
-                      let row: { [key: string]: unknown } | null;
-
-                      if (entry?.row) {
-                        row = entry.row;
-                      } else {
-                        if (isDatabaseEmpty) row = null;
-                        else row = await find(table, key);
-                      }
-
-                      if (row) {
-                        if (typeof valuesU === "function") {
-                          return setCacheEntry(
-                            table,
-                            valuesU(row),
-                            entry?.type === EntryType.INSERT
-                              ? EntryType.INSERT
-                              : EntryType.UPDATE,
-                            row,
-                          );
-                        } else {
-                          return setCacheEntry(
-                            table,
-                            valuesU,
-                            entry?.type === EntryType.INSERT
-                              ? EntryType.INSERT
-                              : EntryType.UPDATE,
-                            row,
-                          );
-                        }
-                      }
-                      return null;
-                    },
-                  ),
-                )
-                // @ts-ignore
-                .then(onFulfilled, onRejected),
-          };
-        },
-      };
-    },
-    // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
           { method: `${tableNameCache.get(table) ?? "unknown"}.delete()` },
           async () => {
-            checkOnchainTable(table as Table, "upsert");
+            checkOnchainTable(table as Table, "delete");
 
             const entry = getCacheEntry(table, key);
             deleteCacheEntry(table, key);
@@ -887,6 +885,10 @@ export const createIndexingStore = ({
 
         await Promise.all(promises);
 
+        let cacheSize = 0;
+
+        for (const c of cache.values()) cacheSize += c.size;
+
         const flushIndex =
           totalCacheOps -
           cacheSize * (1 - common.options.indexingCacheFlushRatio);
@@ -900,7 +902,6 @@ export const createIndexingStore = ({
             if (shouldDelete && entry.operationIndex < flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
-              cacheSize -= 1;
             }
           }
         }

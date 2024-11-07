@@ -104,7 +104,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.table).values({
+  await indexingStore.insert(schema.table).values({
     id: "0",
     string: "0",
     int: 0,
@@ -230,7 +230,7 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.table).values({
+  await indexingStore.insert(schema.table).values({
     id: "0",
     enum: null,
     enumNotNull: "A",
@@ -283,7 +283,7 @@ test("json, json not null", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.table).values({
+  await indexingStore.insert(schema.table).values({
     id: "0",
     json: null,
     jsonNotNull: { kevin: 52 },
@@ -340,11 +340,11 @@ test("singular", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.transferEvents).values([
+  await indexingStore.insert(schema.transferEvents).values([
     { id: "0", amount: 0n },
     { id: "1", amount: 10n },
   ]);
-  indexingStore.insert(schema.allowances).values([
+  await indexingStore.insert(schema.allowances).values([
     { owner: "0", spender: "0", amount: 1n },
     { owner: "0", spender: "1", amount: 10n },
     { owner: "1", spender: "0", amount: 100n },
@@ -439,11 +439,11 @@ test("singular with one relation", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values([
+  await indexingStore.insert(schema.person).values([
     { id: "jake", name: "jake" },
     { id: "kyle", name: "kyle" },
   ]);
-  indexingStore
+  await indexingStore
     .insert(schema.pet)
     .values({ id: "dog1", ownerIdNotNull: "jake" });
   await indexingStore.flush();
@@ -506,8 +506,10 @@ test("singular with many relation", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
-  indexingStore.insert(schema.pet).values([
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
     { id: "dog1", ownerId: "jake" },
     { id: "dog2", ownerId: "jake" },
     { id: "dog3", ownerId: "kyle" },
@@ -563,8 +565,10 @@ test("singular with many relation using filter", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
-  indexingStore.insert(schema.pet).values([
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
     { id: "dog1", age: 1, ownerId: "jake" },
     { id: "dog2", age: 2, ownerId: "jake" },
     { id: "dog3", age: 3, ownerId: "jake" },
@@ -625,8 +629,10 @@ test("plural with one relation uses dataloader", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values({ id: "jake", name: "jake" });
-  indexingStore.insert(schema.pet).values([
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
     { id: "dog1", ownerId: "jake" },
     { id: "dog2", ownerId: "jake" },
     { id: "dog3", ownerId: "kyle" },
@@ -830,7 +836,7 @@ test("filter universal", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore
+  await indexingStore
     .insert(schema.person)
     .values([{ id: 1n }, { id: 2n }, { id: 3n }]);
   await indexingStore.flush();
@@ -881,7 +887,7 @@ test("filter singular", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore
+  await indexingStore
     .insert(schema.person)
     .values([{ id: "0x01" }, { id: "0x02" }, { id: "0x03" }]);
   await indexingStore.flush();
@@ -935,7 +941,7 @@ test("filter plural", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values([
+  await indexingStore.insert(schema.person).values([
     { id: "1", number: [1, 2, 3] },
     { id: "2", number: [3, 4, 5] },
     { id: "3", number: [5, 6, 7] },
@@ -1045,7 +1051,7 @@ test("filter numeric", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values([
+  await indexingStore.insert(schema.person).values([
     {
       id: "1",
       number: 1,
@@ -1171,7 +1177,7 @@ test("filter string", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values([
+  await indexingStore.insert(schema.person).values([
     { id: "1", text: "one", hex: "0xabc" },
     { id: "2", text: "two", hex: "0xcde" },
     { id: "3", text: "three", hex: "0xef0" },
@@ -1242,7 +1248,7 @@ test("filter and/or", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.pet).values([
+  await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
     { id: "id2", name: "Foo", bigAge: 10n },
     { id: "id3", name: "Bar", bigAge: 190n },
@@ -1294,7 +1300,7 @@ test("order by", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.person).values([
+  await indexingStore.insert(schema.person).values([
     {
       id: "1",
       integer: 1,
@@ -1416,7 +1422,7 @@ test("limit", async (context) => {
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   for (let i = 0; i < 100; i++) {
-    indexingStore.insert(schema.person).values({ id: String(i) });
+    await indexingStore.insert(schema.person).values({ id: String(i) });
   }
   await indexingStore.flush();
 
@@ -1483,7 +1489,7 @@ test("cursor pagination ascending", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.pet).values([
+  await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip" },
     { id: "id2", name: "Foo" },
     { id: "id3", name: "Bar" },
@@ -1627,7 +1633,7 @@ test("cursor pagination descending", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.pet).values([
+  await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
     { id: "id2", name: "Foo", bigAge: 10n },
     { id: "id3", name: "Bar", bigAge: 190n },
@@ -1760,7 +1766,7 @@ test("cursor pagination start and end cursors", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.pet).values([
+  await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
     { id: "id2", name: "Foo", bigAge: 10n },
     { id: "id3", name: "Bar", bigAge: 190n },
@@ -1827,7 +1833,7 @@ test("cursor pagination has previous page", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.pet).values([
+  await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
     { id: "id2", name: "Foo", bigAge: 10n },
     { id: "id3", name: "Bar", bigAge: 190n },
@@ -1914,7 +1920,7 @@ test("cursor pagination composite primary key", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.allowance).values([
+  await indexingStore.insert(schema.allowance).values([
     { owner: "alice", spender: "bob", amount: 100n },
     { owner: "bob", spender: "alice", amount: 400n },
     { owner: "bob", spender: "bill", amount: 500n },
@@ -2055,7 +2061,7 @@ test("column casing", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  indexingStore.insert(schema.table).values({
+  await indexingStore.insert(schema.table).values({
     id: "0",
     userName: "0",
     camelCase: "0",
