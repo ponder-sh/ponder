@@ -44,7 +44,6 @@ test("middleware serves request", async (context) => {
     hex: "0x0",
     bigint: 0n,
   });
-  await indexingStore.flush();
 
   const app = new Hono().use(contextMiddleware).use("/graphql", graphql());
 

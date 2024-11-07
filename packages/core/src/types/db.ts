@@ -1,6 +1,5 @@
 import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/index.js";
 import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
-import type { empty } from "@/indexing-store/index.js";
 import type {
   Column,
   GetColumnData,
@@ -141,7 +140,7 @@ export type Find = <table extends Table>(
     ? table
     : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
-) => Promise<InferSelectModel<table> | typeof empty>;
+) => Promise<InferSelectModel<table> | null>;
 
 export type Insert = <
   table extends Table,

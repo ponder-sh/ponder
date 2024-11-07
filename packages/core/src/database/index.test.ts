@@ -1,7 +1,7 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,
   maxCheckpoint,
@@ -233,18 +233,16 @@ test("setup() with the same build ID reverts rows", async (context) => {
 
   await database.createTriggers();
 
-  const indexingStore = createIndexingStore({
+  const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
     schema: { account },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await indexingStore
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(9),
   });
@@ -253,7 +251,6 @@ test("setup() with the same build ID reverts rows", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(11),
   });
@@ -652,18 +649,16 @@ test("finalize()", async (context) => {
 
   await database.createTriggers();
 
-  const indexingStore = createIndexingStore({
+  const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
     schema: { account },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await indexingStore
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(9),
   });
@@ -676,7 +671,6 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(11),
   });
@@ -889,18 +883,15 @@ test("createTriggers()", async (context) => {
   await database.setup();
   await database.createTriggers();
 
-  const indexingStore = createIndexingStore({
+  const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
     schema: { account },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await indexingStore
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
-
-  await indexingStore.flush();
 
   const rows = await database.qb.user
     .selectFrom("1234_reorg__account")
@@ -937,18 +928,16 @@ test("complete()", async (context) => {
   await database.setup();
   await database.createTriggers();
 
-  const indexingStore = createIndexingStore({
+  const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
     schema: { account },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await indexingStore
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(10),
   });
@@ -990,18 +979,16 @@ test("revert()", async (context) => {
 
   await database.createTriggers();
 
-  const indexingStore = createIndexingStore({
+  const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
     schema: { account },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   await indexingStore
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(9),
   });
@@ -1014,7 +1001,6 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await indexingStore.flush();
   await database.complete({
     checkpoint: createCheckpoint(11),
   });

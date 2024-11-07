@@ -9,17 +9,14 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
-import {
-  type IndexingStore,
-  createIndexingStore,
-} from "@/indexing-store/index.js";
+import type { IndexingStore } from "@/indexing-store/index.js";
 import {
   type MetadataStore,
   getMetadataStore,
 } from "@/indexing-store/metadata.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -191,7 +188,7 @@ export async function setupDatabaseServices(
 ): Promise<{
   database: Database;
   syncStore: SyncStore;
-  indexingStore: IndexingStore;
+  indexingStore: IndexingStore<"realtime">;
   metadataStore: MetadataStore;
   cleanup: () => Promise<void>;
 }> {
@@ -224,11 +221,10 @@ export async function setupDatabaseServices(
     db: database.qb.sync,
   });
 
-  const indexingStore = createIndexingStore({
+  const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
     schema: config.schema,
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const metadataStore = getMetadataStore({
