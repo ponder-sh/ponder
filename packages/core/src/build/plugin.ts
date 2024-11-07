@@ -1,7 +1,6 @@
 import type { Plugin } from "vite";
 
 const virtualModule = () => `import { Hono } from "hono";
-import crypto from "node:crypto";
 
 const ponderHono = {
   routes: [],
