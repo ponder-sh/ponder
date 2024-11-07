@@ -16,7 +16,7 @@ import { onchainTable } from "@ponder/core";
 
 export const pets = onchainTable("pets", (t) => ({
   name: t.text().primaryKey(),
-  age: t.int().notNull(),
+  age: t.integer().notNull(),
 }));
 ```
 
@@ -34,7 +34,7 @@ The schema definition API supports most PostgreSQL data types. Here's a quick re
 | name             | description                        | TypeScript type          | SQL data type     |
 | :--------------- | :--------------------------------- | :----------------------- | :---------------- |
 | `text{:ts}`      | UTF‐8 character sequence           | `string`                 | `TEXT{:sql}`      |
-| `int{:ts}`       | Signed 4‐byte integer              | `number`                 | `INTEGER{:sql}`   |
+| `integer{:ts}`   | Signed 4‐byte integer              | `number`                 | `INTEGER{:sql}`   |
 | `real{:ts}`      | Signed 8-byte floating‐point value | `number`                 | `REAL{:sql}`      |
 | `boolean{:ts}`   | `true` or `false`                  | `boolean`                | `BOOLEAN{:sql}`   |
 | `timestamp{:ts}` | Date and time value (no time zone) | `Date`                   | `TIMESTAMP{:sql}` |
@@ -117,7 +117,7 @@ import { onchainTable } from "@ponder/core";
 
 export const cats = onchainTable("cats", (t) => ({
   name: t.text().primaryKey(),
-  age: t.int().notNull(),
+  age: t.integer().notNull(),
 }));
 ```
 
@@ -130,7 +130,7 @@ import { onchainTable } from "@ponder/core";
 
 export const cats = onchainTable("cats", (t) => ({
   name: t.text().primaryKey(),
-  livesRemaining: t.int().default(9),
+  livesRemaining: t.integer().default(9),
 }));
 ```
 
@@ -142,7 +142,7 @@ import { generateId } from "../utils";
 
 export const cats = onchainTable("cats", (t) => ({
   name: t.text().primaryKey(),
-  age: t.int().$default(() => generateId()),
+  age: t.integer().$default(() => generateId()),
 }));
 ```
 
@@ -177,7 +177,7 @@ export const usersRelations = relations(users, ({ one }) => ({
 export const profiles = onchainTable("profiles", (t) => ({
   id: t.text().primaryKey(),
   userId: t.text().notNull(),
-  age: t.int().notNull(),
+  age: t.integer().notNull(),
 }));
 ```
 

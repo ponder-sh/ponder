@@ -18,7 +18,7 @@ import { onchainTable } from "@ponder/core";
 
 export const pets = onchainTable("pets", (t) => ({
   name: t.text().primaryKey(),
-  age: t.int().notNull(),
+  age: t.integer().notNull(),
 }));
 ```
 
@@ -57,8 +57,8 @@ The schema definition API supports most PostgreSQL data types. Here's a quick re
 | Name             | Description                                  | TypeScript type          | SQL data type         |
 | :--------------- | :------------------------------------------- | :----------------------- | :-------------------- |
 | `text{:ts}`      | UTF‐8 character sequence                     | `string`                 | `TEXT{:sql}`          |
-| `int{:ts}`       | Signed 4‐byte integer                        | `number`                 | `INTEGER{:sql}`       |
-| `real{:ts}`      | Signed 8-byte floating‐point value           | `number`                 | `REAL{:sql}`          |
+| `integer{:ts}`   | Signed 4‐byte integer                        | `number`                 | `INTEGER{:sql}`       |
+| `real{:ts}`      | Signed 4-byte floating‐point value           | `number`                 | `REAL{:sql}`          |
 | `boolean{:ts}`   | `true` or `false`                            | `boolean`                | `BOOLEAN{:sql}`       |
 | `timestamp{:ts}` | Date and time value (no time zone)           | `Date`                   | `TIMESTAMP{:sql}`     |
 | `json{:ts}`      | JSON object                                  | `any` or [custom](#json) | `JSON{:sql}`          |
