@@ -265,10 +265,9 @@ import { world } from "../ponder.schema";
 
 ponder.on("FunGame:NewPlayer", async ({ context }) => {
   await context.db
-    .upsert(world, { id: 1 })
-    .insert({ playerCount: 0 })
-    .update((row) => ({
-      ...row,
+    .insert(world)
+    .values({ id: 1, playerCount: 0 })
+    .onConflictDoUpdate((row) => ({
       playerCount: row.playerCount + 1,
     }));
 });
@@ -292,7 +291,6 @@ ponder.on("FunGame:NewPlayer", async ({ context }) => {
   await context.db
     .update(world, { id: 1 })
     .set((row) => ({
-      ...row,
       playerCount: row.playerCount + 1,
   }));
 });

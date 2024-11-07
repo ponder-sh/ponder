@@ -41,8 +41,8 @@ ponder.on("Token:Swap", async ({ event, context }) => {
   const hourId = Math.floor(timestamp / secondsInHour) * secondsInHour;
 
   await context.db
-    .upsert(hourBuckets, { id: hourId })
-    .insert({
+    .insert(hourBuckets)
+    .values({
       id: hourId,
       open: price,
       close: price,
@@ -51,7 +51,7 @@ ponder.on("Token:Swap", async ({ event, context }) => {
       average: price,
       count: 1,
     })
-    .update((row) => ({
+    .onConflictDoUpdate((row) => ({
       close: price,
       low: Math.min(row.low, price),
       high: Math.max(row.high, price),

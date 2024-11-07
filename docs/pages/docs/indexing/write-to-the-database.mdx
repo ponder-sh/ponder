@@ -108,7 +108,7 @@ import { accounts } from "../ponder.schema";
 
 const row = await db
   .update(accounts, { address: "0x7Df1" })
-  .set((row) => ({ ...row, balance: row.balance + 100n }));
+  .set((row) => ({ balance: row.balance + 100n }));
 ```
 
 If the target row is not found, `update` will reject with an error.
@@ -198,7 +198,6 @@ const rows = await db
 
 EVM indexing workloads often involve a high number of small inserts and updates. To mitigate the performance penalty of frequent (blocking) database queries, the store API runs most operations **in-memory**.
 
-During historical indexing, the engine flushes indexed data to the database periodically in **large batches**. Once the instance has reached realtime, the engine flushes after each block.
 
 ## Raw SQL
 
