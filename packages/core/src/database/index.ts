@@ -44,14 +44,7 @@ import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
-export type Database<
-  dialect extends "pglite" | "pglite_test" | "postgres" =
-    | "pglite"
-    | "pglite_test"
-    | "postgres",
-> = {
-  dialect: dialect;
-  driver: Driver<dialect>;
+export type Database = {
   qb: QueryBuilder;
   drizzle: Drizzle<Schema>;
   migrateSync(): Promise<void>;
@@ -123,9 +116,6 @@ type PostgresDriver = {
   sync: Pool;
 };
 
-type Driver<dialect extends "pglite" | "pglite_test" | "postgres"> =
-  dialect extends "pglite" | "pglite_test" ? PGliteDriver : PostgresDriver;
-
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
   internal: HeadlessKysely<PonderInternalSchema>;
@@ -152,7 +142,7 @@ export const createDatabase = (args: {
   // Create drivers and orms
   ////////
 
-  let driver: Database["driver"];
+  let driver: PGliteDriver | PostgresDriver;
   let qb: Database["qb"];
 
   const dialect = args.databaseConfig.kind;
@@ -459,8 +449,6 @@ export const createDatabase = (args: {
   };
 
   const database = {
-    dialect,
-    driver,
     qb,
     drizzle,
     async migrateSync() {
