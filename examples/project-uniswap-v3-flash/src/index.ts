@@ -20,27 +20,31 @@ ponder.on("UniswapV3Pool:Flash", async ({ event, context }) => {
   ]);
 
   await context.db
-    .upsert(schema.tokenBorrowed, { address: token0 })
-    .insert({
+    .insert(schema.tokenBorrowed)
+    .values({
+      address: token0,
       amount: event.args.amount0,
     })
-    .update((row) => ({ amount: row.amount + event.args.amount0 }));
+    .onConflictDoUpdate((row) => ({ amount: row.amount + event.args.amount0 }));
   await context.db
-    .upsert(schema.tokenBorrowed, { address: token1 })
-    .insert({
+    .insert(schema.tokenBorrowed)
+    .values({
+      address: token1,
       amount: event.args.amount1,
     })
-    .update((row) => ({ amount: row.amount + event.args.amount1 }));
+    .onConflictDoUpdate((row) => ({ amount: row.amount + event.args.amount1 }));
   await context.db
-    .upsert(schema.tokenPaid, { address: token0 })
-    .insert({
+    .insert(schema.tokenPaid)
+    .values({
+      address: token0,
       amount: event.args.paid0,
     })
-    .update((row) => ({ amount: row.amount + event.args.amount0 }));
+    .onConflictDoUpdate((row) => ({ amount: row.amount + event.args.amount0 }));
   await context.db
-    .upsert(schema.tokenPaid, { address: token1 })
-    .insert({
+    .insert(schema.tokenPaid)
+    .values({
+      address: token1,
       amount: event.args.paid1,
     })
-    .update((row) => ({ amount: row.amount + event.args.amount1 }));
+    .onConflictDoUpdate((row) => ({ amount: row.amount + event.args.amount1 }));
 });

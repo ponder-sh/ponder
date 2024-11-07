@@ -3,8 +3,9 @@ import * as schema from "../ponder.schema";
 
 ponder.on("multicall3.aggregate3()", async ({ event, context }) => {
   await context.db
-    .upsert(schema.multicall, { from: event.trace.from })
-    .insert({
+    .insert(schema.multicall)
+    .values({
+      from: event.trace.from,
       gasUsed: event.trace.gasUsed,
       bytes: event.args[0].reduce<number>(
         (acc, cur) => acc + Math.ceil((cur.callData.length - 2) / 8),
@@ -15,7 +16,7 @@ ponder.on("multicall3.aggregate3()", async ({ event, context }) => {
       failedCalls: event.result.filter(({ success }) => success === false)
         .length,
     })
-    .update((row) => ({
+    .onConflictDoUpdate((row) => ({
       gasUsed: row.gasUsed + event.trace.gasUsed,
       bytes:
         row.bytes +

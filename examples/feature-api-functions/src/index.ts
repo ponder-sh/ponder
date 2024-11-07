@@ -8,16 +8,24 @@ import {
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db
-    .upsert(account, { address: event.args.from })
-    .insert({ balance: 0n, isOwner: false })
-    .update((row) => ({
+    .insert(account)
+    .values({
+      address: event.args.from,
+      balance: 0n,
+      isOwner: false,
+    })
+    .onConflictDoUpdate((row) => ({
       balance: row.balance - event.args.amount,
     }));
 
   await context.db
-    .upsert(account, { address: event.args.to })
-    .insert({ balance: 0n, isOwner: false })
-    .update((row) => ({
+    .insert(account)
+    .values({
+      address: event.args.to,
+      balance: 0n,
+      isOwner: false,
+    })
+    .onConflictDoUpdate((row) => ({
       balance: row.balance + event.args.amount,
     }));
 
@@ -34,12 +42,15 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 ponder.on("ERC20:Approval", async ({ event, context }) => {
   // upsert "allowance".
   await context.db
-    .upsert(allowance, {
+    .insert(allowance)
+    .values({
       spender: event.args.spender,
       owner: event.args.owner,
+      amount: event.args.amount,
     })
-    .insert({ amount: event.args.amount })
-    .update({ amount: event.args.amount });
+    .onConflictDoUpdate({
+      amount: event.args.amount,
+    });
 
   // add row to "approval_event".
   await context.db.insert(approvalEvent).values({
