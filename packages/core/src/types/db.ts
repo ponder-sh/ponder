@@ -15,6 +15,8 @@ export type Db<schema extends Schema> = {
   /**
    * Find a row
    *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#find
+   *
    * @example
    * ```ts twoslash
    * const result = await db.find(table, { id: 10 });
@@ -27,6 +29,8 @@ export type Db<schema extends Schema> = {
   find: Find;
   /**
    * Create new rows
+   *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#insert
    *
    * @example
    * ```ts twoslash
@@ -52,7 +56,6 @@ export type Db<schema extends Schema> = {
    *   .insert(table)
    *   .values({ id: 10, name: "joe" })
    *   .onConflictDoUpdate((row) => ({ age: row.age + 3 }));
-   *
    * ```
    *
    * @param table - The table to insert into.
@@ -60,6 +63,8 @@ export type Db<schema extends Schema> = {
   insert: Insert;
   /**
    * Update a row
+   *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#update
    *
    * @example
    * ```ts twoslash
@@ -82,6 +87,8 @@ export type Db<schema extends Schema> = {
   /**
    * Delete a row
    *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#delete
+   *
    * @example
    * ```ts twoslash
    * const deleted = await db.delete(table, { id: 10 });
@@ -94,6 +101,8 @@ export type Db<schema extends Schema> = {
   delete: Delete;
   /**
    * Access the raw drizzle object
+   *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#raw-sql
    */
   sql: Prettify<Omit<Drizzle<schema>, "refreshMaterializedView" | "_">>;
 };
@@ -155,10 +164,62 @@ export type Insert = <
     ? table
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
 ) => {
+  /**
+   * Create new rows
+   *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#insert
+   *
+   * @example
+   * ```ts twoslash
+   * await db.insert(table).values({ id: 10, name: "joe" });
+   * ```
+   *
+   * @example
+   * ```ts twoslash
+   * await db.insert(table).values([
+   *   { id: 10, name: "joe" },
+   *   { id: 3, name: "rob" }
+   * ]);
+   * ```
+   * @param table - The table to insert into.
+   */
   values: <values extends insertModel | insertModel[]>(
     values: values,
   ) => Promise<selectModel> & {
+    /**
+     * Create new rows, cancelling the insert if there is a conflict
+     *
+     * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#upsert--conflict-resolution
+     * @example
+     * ```ts twoslash
+     * await db.insert(table).values({ id: 10, name: "joe" }).onConflictDoNothing();
+     * ```
+     * @param table - The table to insert into.
+     */
     onConflictDoNothing: () => Promise<selectModel>;
+    /**
+     * Create new rows, updating the row if there is a conflict
+     *
+     * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#upsert--conflict-resolution
+     *
+     * @example
+     * ```ts twoslash
+     * await db
+     *   .insert(table)
+     *   .values({ id: 10, name: "joe" })
+     *   .onConflictDoUpdate({ age: 24 });
+     * ```
+     *
+     * @example
+     * ```ts twoslash
+     * await db
+     *   .insert(table)
+     *   .values({ id: 10, name: "joe" })
+     *   .onConflictDoUpdate((row) => ({ age: row.age + 3 }));
+     * ```
+     *
+     * @param table - The table to insert into.
+     */
     onConflictDoUpdate: (
       values: Partial<updateModel> | updateFn,
     ) => Promise<selectModel>;
@@ -178,6 +239,28 @@ export type Update = <
     : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
   key: Key<table>,
 ) => {
+  /**
+   * Update a row
+   *
+   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#update
+   *
+   * @example
+   * ```ts twoslash
+   * await db
+   *   .update(table, { id: 10 })
+   *   .set({ age: 19 });
+   * ```
+   *
+   * @example
+   * ```ts twoslash
+   * await db
+   *   .update(table, { id: 10 })
+   *   .set((row) => ({ age: row.age + 3 }));
+   * ```
+   *
+   * @param table - The table to select from.
+   * @param key - The primary key.
+   */
   set: (values: Partial<insertValues> | updateFn) => Promise<selectModel>;
 };
 
