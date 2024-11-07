@@ -4,4 +4,5 @@ export default {
   "indexing-functions": "Indexing functions",
   "ponder-cli": "CLI (dev, start, serve)",
   "create-ponder": "create-ponder",
+  database: "Database reference",
 };

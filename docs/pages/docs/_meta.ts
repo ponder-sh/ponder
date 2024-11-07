@@ -31,11 +31,11 @@ export default {
   },
   indexing: { display: "children", title: "Indexing" },
 
-  "-- Query": {
+  "-- Query the database": {
     type: "separator",
-    title: "Query",
+    title: "Query the database",
   },
-  query: { display: "children", title: "Query" },
+  query: { display: "children", title: "Query the database" },
 
   "-- Production": {
     type: "separator",

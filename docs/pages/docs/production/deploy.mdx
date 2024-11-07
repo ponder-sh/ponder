@@ -29,12 +29,12 @@ From the Railway console:
 
 1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list
 2. Click **Add variables**, then add RPC URLs (e.g. `PONDER_RPC_URL_1`) and other environment variables
-3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain** 
+3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain**
 4. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `86400` seconds (1 day)
 
 <Callout type="warning">
-  _Monorepo users:_ Configure the **Root Directory** and **Start Command**
-  such that `ponder start` runs at the Ponder project root. For example, set the root
+  _Monorepo users:_ Configure the **Root Directory** and **Start Command** such
+  that `ponder start` runs at the Ponder project root. For example, set the root
   directory to `packages/ponder` or set the start command to `cd packages/ponder
   && pnpm start`.
 </Callout>
@@ -54,10 +54,19 @@ After a moment, the Ponder app service should redeploy successfully. Check the *
 
 In general, hosting a Ponder app is similar to hosting a normal Node.js HTTP server. Rather than offer a step-by-step guide, this section describes the key Ponder-specific quirks to consider when self-hosting.
 
+### Health checks & probes
+
+Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
+
+- **`/health`**: Returns an HTTP `200` response immediately after the process starts.
+- **`/ready`**: Returns an HTTP `200` response once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns an HTTP `503` response.
+
 ### Database connection
 
 <Callout type="warning">
-  You app will have performance issues if the roundtrip database latency exceeds ~20 milliseconds. This is common when using a database in different private network or region.
+  You app will have performance issues if the roundtrip database latency exceeds
+  ~20 milliseconds. This is common when using a database in different private
+  network or region.
 </Callout>
 
 In production, Ponder works best with a Postgres database in the same private network. Set the `DATABASE_URL` environment variable to the connection string of your Postgres database, or manually override the `database.connectionString` option in `ponder.config.ts`.
@@ -76,38 +85,27 @@ export default createConfig({
 
 ### Table names and live views
 
-When a Ponder app starts up, it creates user tables (defined in `ponder.schema.ts`) in the target schema. To avoid naming conflicts with other Ponder apps or previous instances of the current app, onchain tables are prefixed with an unique four character ID.
+When a Ponder app starts up, it creates a table in the database for each table exported from `ponder.schema.ts`. To avoid naming conflicts with prior instances of the same app, the tables are prefixed with a random four-character `instance_id`.
 
-In order to support zero-downtime redeployments, the `0.7` release reintroduced the concept of "live views". Live views: are created once an app completes its historical backfill. They don't use any naming prefixes and point to the "live", or most recently healthy, tables.
-- are created once an app completes its historical backfill
-- don't use naming prefixes
-- point to the most
+When the app finishes the historical backfill (or immediately after startup when using `ponder dev`) it creates a view for each table in `ponder.schema.ts` using this command.
+
+```sql
+CREATE VIEW {table_name} AS ( SELECT * FROM {instance_id}__{table_name} );
+```
+
+The **live view** mechanism is essential for zero-downtime deployments, horizontal scaling, and direct SQL queries.
 
 #### Example
 
-Here's a zero-downtime scenario, where views continously serve live data:
-1. App with `instance_id: 1234` creates and uses `1234__account` table
-2. App with `instance_id: 1234` completes the historical backfill, creates `account` view that points to `1234__account`
-3. App with `instance_id: 5678` creates and uses `5678__account` table
-4. App with `instance_id: 5678` completes the historical backfill, replaces `account` with a view that points to `5678__account`
+Here's a zero-downtime redeployment scenario, where views continously serve data from the most recent instance to go live.
 
-<Callout type="info">
-  In some cases, it may be useful to change the target schema. [Read more](/docs/schema).
-</Callout>
+1. App `1234` starts up. It creates and begins writing to a table named `1234__account`.
+2. App `1234` completes the historical backfill. It creates a view named `account` that points at `1234__account`.
+3. App `5678` starts up. It creates and begins writing to a table named `5678__account`.
+4. App `5678` completes the historical backfill. It updates the `account` view to point at `5678__account`.
+5. App `1234` shuts down.
+6. App `5678` continues to serve live data via the `account` view.
 
 ### Crash recovery
 
-Ponder apps support shutting down and resuming the previous progress without reindexing.
-
-[something about kubernetes/railway restarts]
-
-### Health checks & probes
-
-<Callout type="info">
-  The `0.6` release added the `/ready` endpoint and simplified `/health`. Read the [migration guide](/docs/migration-guide#060).
-</Callout>
-
-Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
-
-- **`/health`**: Returns an HTTP `200` response immediately after the process starts.
-- **`/ready`**: Returns an HTTP `200` response once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns an HTTP `503` response.
+If a Ponder app running `ponder start` crashes and restarts, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/database) about the instance lifecycle and crash recovery mechanism.

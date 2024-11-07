@@ -132,3 +132,7 @@
 ._list-decimal, ._list-disc {
   margin-top: 12px;
 }
+
+._list-decimal, ._list-disc > li {
+  line-height: 1.75rem;
+}
