@@ -139,9 +139,13 @@ import { account } from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db
-    .upsert(account, { address: event.args.from })
-    .insert({ balance: 0n, isOwner: false })
-    .update((row) => ({
+    .insert(account)
+    .values({ 
+      address: event.args.from, 
+      balance: 0n, 
+      isOwner: false,
+    })
+    .onConflictDoUpdate((row) => ({
       balance: row.balance - event.args.amount,
     }));
 });
@@ -228,9 +232,9 @@ await context.db.Account.upsert({
   update: ({ current }) => ({ balance: current.balance + 100n }),
 });
 await context.db
-  .upsert(account, { address: event.args.from })
-  .insert({ balance: 0n })
-  .update((row) => ({ balance: row.balance + 100n }));
+  .insert(account)
+  .values({ address: event.args.from, balance: 0n })
+  .onConflictDoUpdate((row) => ({ balance: row.balance + 100n }));
 
 // delete
 await context.db.Account.delete({ id: event.args.from });
@@ -272,9 +276,13 @@ import { account } from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db
-    .upsert(account, { address: event.args.from })
-    .insert({ balance: 0n, isOwner: false })
-    .update((row) => ({
+    .insert(account)
+    .values({
+      address: event.args.from,
+      balance: 0n, 
+      isOwner: false,
+    })
+    .onConflictDoUpdate((row) => ({
       balance: row.balance - event.args.amount,
     }));
 });
