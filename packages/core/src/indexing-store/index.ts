@@ -184,7 +184,6 @@ export const createIndexingStore = ({
       existingRow = normalizeRow(table, existingRow, entryType);
       const bytes = getBytes(existingRow);
 
-      cacheSize += 1;
       cacheBytes += bytes;
 
       cache.get(table)!.set(getCacheKey(table, existingRow), {
@@ -199,7 +198,6 @@ export const createIndexingStore = ({
       row = normalizeRow(table, row, entryType);
       const bytes = getBytes(row);
 
-      cacheSize += 1;
       cacheBytes += bytes;
 
       cache.get(table)!.set(getCacheKey(table, row), {
@@ -217,7 +215,6 @@ export const createIndexingStore = ({
     const entry = getCacheEntry(table, row);
     if (entry) {
       cacheBytes -= entry!.bytes;
-      cacheSize -= 1;
     }
     return cache.get(table)!.delete(getCacheKey(table, row));
   };
@@ -329,8 +326,6 @@ export const createIndexingStore = ({
 
   let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
   let isHistoricalBackfill = true;
-  /** Number of entries in cache. */
-  let cacheSize = 0;
   /** Estimated number of bytes used by cache. */
   let cacheBytes = 0;
   /** LRU counter. */
@@ -373,7 +368,6 @@ export const createIndexingStore = ({
               const row = await find(table, key);
               const bytes = getBytes(row);
 
-              cacheSize += 1;
               cacheBytes += bytes;
 
               cache.get(table)!.set(getCacheKey(table, key), {
@@ -891,6 +885,10 @@ export const createIndexingStore = ({
 
         await Promise.all(promises);
 
+        let cacheSize = 0;
+
+        for (const c of cache.values()) cacheSize += c.size;
+
         const flushIndex =
           totalCacheOps -
           cacheSize * (1 - common.options.indexingCacheFlushRatio);
@@ -904,7 +902,6 @@ export const createIndexingStore = ({
             if (shouldDelete && entry.operationIndex < flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
-              cacheSize -= 1;
             }
           }
         }
