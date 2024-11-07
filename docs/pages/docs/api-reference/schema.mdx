@@ -45,7 +45,7 @@ export const transferEvents = onchainTable(
     value: t.bigint().notNull(),
   }),
   (table) => ({  // Constraints & indexes
-    fromIdx: index("from_idx").on(table.from),
+    fromIdx: index().on(table.from),
   })
 );
 ```
@@ -120,7 +120,7 @@ export const persons = onchainTable(
     name: t.text(),
   }),
   (table) => ({
-    nameIdx: index("name_idx").on(table.name),
+    nameIdx: index().on(table.name),
   })
 );
 ```

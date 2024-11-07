@@ -410,7 +410,7 @@ export const persons = onchainTable(
     name: t.text(),
   }),
   (table) => ({
-    nameIdx: index("name_idx").on(table.name),
+    nameIdx: index().on(table.name),
   })
 );
 
@@ -425,7 +425,7 @@ export const dogs = onchainTable(
     ownerId: t.text().notNull(),
   }),
   (table) => ({
-    ownerIdx: index("owner_idx").on(table.ownerId),
+    ownerIdx: index().on(table.ownerId),
   })
 );
 
@@ -555,7 +555,7 @@ export const transferEvent = onchainTable(
     to: t.hex().notNull(),
   }),
   (table) => ({
-    fromIdx: index("from_index").on(table.from),
+    fromIdx: index().on(table.from),
   })
 );
 
