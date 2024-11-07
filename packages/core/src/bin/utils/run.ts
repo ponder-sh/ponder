@@ -3,7 +3,6 @@ import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
-// import { createIndexingStore } from "@/indexing-store/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexingService } from "@/indexing/index.js";

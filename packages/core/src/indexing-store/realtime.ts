@@ -181,7 +181,7 @@ export const createRealtimeIndexingStore = ({
                             rows.push(
                               await database.drizzle
                                 .insert(table)
-                                .values(values)
+                                .values(value)
                                 .returning(),
                             );
                           } catch (e) {
