@@ -85,9 +85,8 @@ The new `onchainTable` function adds several new capabilities.
 - Custom primary key column name (other than `id`)
 - Composite primary keys
 - Default column values
-- Serial (autoincrementing) column types
 
-Here's a more advanced example with indexes, a serial column, and a composite primary key.
+Here's a more advanced example with indexes and a composite primary key.
 
 ```ts filename="ponder.schema.ts"
 import { onchainTable, index, primaryKey } from "@ponder/core";
@@ -95,7 +94,7 @@ import { onchainTable, index, primaryKey } from "@ponder/core";
 export const transferEvents = onchainTable(
   "transfer_event",
   (t) => ({
-    id: t.serial().primaryKey(),
+    id: t.text().primaryKey(),
     amount: t.bigint().notNull(),
     timestamp: t.integer().notNull(),
     from: t.hex().notNull(),
@@ -109,8 +108,8 @@ export const transferEvents = onchainTable(
 export const allowance = onchainTable(
   "allowance",
   (t) => ({
-    owner: t.hex(),
-    spender: t.hex(),
+    owner: t.hex().notNull(),
+    spender: t.hex().notNull(),
     amount: t.bigint().notNull(),
   }),
   (table) => ({
@@ -119,7 +118,7 @@ export const allowance = onchainTable(
 );
 
 export const approvalEvent = onchainTable("approval_event", (t) => ({
-  id: t.serial().primaryKey(),
+  id: t.text().primaryKey(),
   amount: t.evmBigint().notNull(),
   timestamp: t.integer().notNull(),
   owner: t.hex().notNull(),

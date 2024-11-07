@@ -18,11 +18,11 @@ import { onchainTable } from "@ponder/core";
 
 export const hourBuckets = onchainTable("hour_buckets", (t) => ({
   id: t.int().primaryKey(),
-  open: t.float().notNull(),
-  close: t.float().notNull(),
-  low: t.float().notNull(),
-  high: t.float().notNull(),
-  average: t.float().notNull(),
+  open: t.real().notNull(),
+  close: t.real().notNull(),
+  low: t.real().notNull(),
+  high: t.real().notNull(),
+  average: t.real().notNull(),
   count: t.int().notNull(),
 }));
 ```
