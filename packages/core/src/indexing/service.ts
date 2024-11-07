@@ -186,7 +186,6 @@ export const create = ({
           find: indexingStore.find,
           insert: indexingStore.insert,
           update: indexingStore.update,
-          upsert: indexingStore.upsert,
           delete: indexingStore.delete,
           sql: indexingStore.sql,
         },

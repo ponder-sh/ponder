@@ -113,6 +113,82 @@ test("insert", async (context) => {
     balance: 52n,
   });
 
+  // on conflict do nothing
+
+  await indexingStore
+    .insert(schema.account)
+    .values({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 44n,
+    })
+    .onConflictDoNothing();
+
+  result = await indexingStore.find(schema.account, {
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  expect(result).toStrictEqual({
+    address: "0x0000000000000000000000000000000000000001",
+    balance: 12n,
+  });
+
+  await indexingStore
+    .insert(schema.account)
+    .values([
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+      { address: "0x0000000000000000000000000000000000000002", balance: 0n },
+    ])
+    .onConflictDoNothing();
+
+  result = await indexingStore.find(schema.account, {
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  expect(result).toStrictEqual({
+    address: "0x0000000000000000000000000000000000000001",
+    balance: 12n,
+  });
+
+  // on conflict do update
+
+  await indexingStore
+    .insert(schema.account)
+    .values({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 90n,
+    })
+    .onConflictDoUpdate({
+      balance: 16n,
+    });
+
+  result = await indexingStore.find(schema.account, {
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  expect(result).toStrictEqual({
+    address: "0x0000000000000000000000000000000000000001",
+    balance: 16n,
+  });
+
+  await indexingStore
+    .insert(schema.account)
+    .values([
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+      { address: "0x0000000000000000000000000000000000000002", balance: 0n },
+    ])
+    .onConflictDoUpdate((row) => ({
+      balance: row.balance + 16n,
+    }));
+
+  result = await indexingStore.find(schema.account, {
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  expect(result).toStrictEqual({
+    address: "0x0000000000000000000000000000000000000001",
+    balance: 32n,
+  });
+
   await cleanup();
 });
 
@@ -168,105 +244,6 @@ test("update", async (context) => {
     address: zeroAddress,
     balance: 22n,
   });
-
-  await cleanup();
-});
-
-test("upsert", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
-
-  const schema = {
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  const indexingStore = createIndexingStore({
-    common: context.common,
-    database,
-    schema,
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  // insert
-
-  await indexingStore
-    .upsert(schema.account, { address: zeroAddress })
-    .insert({ balance: 12n })
-    .update({ balance: 5n });
-
-  let result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 12n,
-  });
-
-  // insert then
-
-  await indexingStore
-    .upsert(schema.account, {
-      address: "0x0000000000000000000000000000000000000001",
-    })
-    .insert({ balance: 88n });
-
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000001",
-  });
-
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000001",
-    balance: 88n,
-  });
-
-  // update
-
-  await indexingStore
-    .upsert(schema.account, { address: zeroAddress })
-    .insert({ balance: 12n })
-    .update({ balance: 5n });
-
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 5n,
-  });
-
-  // update fn
-
-  await indexingStore
-    .upsert(schema.account, { address: zeroAddress })
-    .insert({ balance: 12n })
-    .update((row) => ({ balance: row.balance * 2n }));
-
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 10n,
-  });
-
-  // update then
-
-  await indexingStore
-    .upsert(schema.account, {
-      address: "0x0000000000000000000000000000000000000002",
-    })
-    .update({ balance: 88n });
-
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000002",
-  });
-
-  expect(result).toBe(null);
 
   await cleanup();
 });

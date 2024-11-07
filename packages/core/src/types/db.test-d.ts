@@ -1,6 +1,6 @@
 import { onchainTable, primaryKey } from "@/drizzle/index.js";
 import { test } from "vitest";
-import type { Delete, Find, Insert, Key, Update, Upsert } from "./db.js";
+import type { Delete, Find, Insert, Key, Update } from "./db.js";
 
 test("composite primary key", () => {
   const table = onchainTable(
@@ -45,8 +45,26 @@ test("insert", () => {
   const insert: Insert = () => {};
   () => {
     // @ts-ignore
-    const _ = insert(table).values({ id: "kevin" });
+    const t1 = insert(table).values({ id: "kevin" });
     //    ^?
+
+    // @ts-ignore
+    const t2 = insert(table).values({ id: "kevin" }).onConflictDoNothing();
+    //    ^?
+
+    // @ts-ignore
+    const t3 = insert(table).values({ id: "kevin" }).onConflictDoUpdate({
+      //  ^?
+      other: 9,
+    });
+
+    // @ts-ignore
+    const t4 = insert(table)
+      //  ^?
+      .values({ id: "kevin" })
+      .onConflictDoUpdate((row) => ({
+        other: row.other ?? 8,
+      }));
   };
 });
 
@@ -62,43 +80,6 @@ test("update", () => {
     // @ts-ignore
     const _ = update(table, { id: "kevin" }).set({ other: 52 });
     //    ^?
-  };
-});
-
-test("upsert", async () => {
-  const table = onchainTable("table", (t) => ({
-    id: t.text().primaryKey(),
-    other: t.integer(),
-  }));
-
-  // @ts-ignore
-  const upsert: Upsert = () => {};
-  async () => {
-    // @ts-ignore
-    const t1 = await upsert(table, { id: "kevin" }).insert({ other: 52 });
-    //    ^?
-    // @ts-ignore
-    const t2 = await upsert(table, { id: "kevin" }).update({ other: 52 });
-    // @ts-ignore
-    const t3 = await upsert(table, { id: "kevin" })
-      //  ^?
-      .insert({ other: 52 })
-      .update({ other: 52 });
-    // @ts-ignore
-    const t4 = await upsert(table, { id: "kevin" })
-      //  ^?
-      .update({ other: 52 })
-      .insert({ other: 52 });
-    // @ts-ignore
-    const t5 = await upsert(table, { id: "kevin" })
-      //  ^?
-      .insert({ other: 52 })
-      .update((cur) => ({ other: cur.other ?? 99 }));
-    // @ts-ignore
-    const t6 = await upsert(table, { id: "kevin" })
-      //  ^?
-      .update((cur) => ({ other: cur.other ?? 99 }))
-      .insert({ other: 52 });
   };
 });
 
