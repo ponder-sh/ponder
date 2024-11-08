@@ -163,11 +163,17 @@ export async function run({
         checkpoint,
       );
 
+      // Persist the indexing store to the db if it is too full. The `finalized`
+      // checkpoint is used as a mutex. Any rows in the reorg table that may
+      // have been written because of raw sql access are deleted.
       if (historicalIndexingStore.isCacheFull() && events.length > 0) {
         await database.finalize({
           checkpoint: encodeCheckpoint(zeroCheckpoint),
         });
         await historicalIndexingStore.flush();
+        await database.complete({
+          checkpoint: encodeCheckpoint(zeroCheckpoint),
+        });
         await database.finalize({
           checkpoint: events[events.length - 1]!.checkpoint,
         });
