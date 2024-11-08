@@ -23,7 +23,7 @@ import type {
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
-  _debug_traceBlockByNumber,
+  _debug_traceBlockByHash,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
@@ -587,8 +587,8 @@ export const createRealtimeSync = (
 
     let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _debug_traceBlockByNumber(args.requestQueue, {
-        blockNumber: hexToNumber(block.number),
+      traces = await _debug_traceBlockByHash(args.requestQueue, {
+        hash: block.hash,
       });
 
       // Protect against RPCs returning empty traces. Known to happen near chain tip.

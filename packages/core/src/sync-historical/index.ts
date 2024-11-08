@@ -537,10 +537,10 @@ export const createHistoricalSync = async (
 
                     case "transaction":
                     case "transfer": {
-                      const blocks = Array.from(
-                        { length: interval[1] - interval[0] + 1 },
-                        (_, i) => interval[0] + i,
-                      );
+                      const blocks = [];
+                      for (let i = interval[0]; i <= interval[1]; i++) {
+                        blocks.push(i);
+                      }
                       await Promise.all(
                         blocks.map((blockNumber) =>
                           syncTrace(filter, blockNumber),
