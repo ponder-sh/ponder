@@ -2,8 +2,9 @@ import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
+import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import type { Event } from "@/sync/events.js";
@@ -93,7 +94,6 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await indexingStore.flush();
             // Set reorg table `checkpoint` column for newly inserted rows.
             await database.complete({ checkpoint: event.checkpoint });
           }
@@ -104,9 +104,7 @@ export async function run({
         }
         case "reorg":
           await database.revert({ checkpoint: event.checkpoint });
-          // Remove all cached data from the indexing store, as some entries
-          // may have been reorged out.
-          indexingStore.emptyCache();
+
           break;
 
         case "finalize":
@@ -119,22 +117,22 @@ export async function run({
     },
   });
 
-  const indexingStore = createIndexingStore({
-    common,
-    database,
-    schema,
-    initialCheckpoint,
-  });
-
   const indexingService = createIndexingService({
     indexingFunctions,
     common,
     sources,
     networks,
     sync,
-    indexingStore,
-    database,
   });
+
+  const historicalIndexingStore = createHistoricalIndexingStore({
+    common,
+    database,
+    schema,
+    initialCheckpoint,
+  });
+
+  indexingService.setIndexingStore(historicalIndexingStore);
 
   await metadataStore.setStatus(sync.getStatus());
 
@@ -164,6 +162,17 @@ export async function run({
         decodeEvents(common, sources, events),
         checkpoint,
       );
+
+      if (historicalIndexingStore.isCacheFull() && events.length > 0) {
+        await database.finalize({
+          checkpoint: encodeCheckpoint(zeroCheckpoint),
+        });
+        await historicalIndexingStore.flush();
+        await database.finalize({
+          checkpoint: events[events.length - 1]!.checkpoint,
+        });
+      }
+
       await metadataStore.setStatus(sync.getStatus());
       if (result.status === "killed") {
         return;
@@ -176,10 +185,8 @@ export async function run({
     if (isKilled) return;
 
     await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
-    await indexingStore.flush();
+    await historicalIndexingStore.flush();
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
-
-    indexingStore.setPolicy("realtime");
 
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
@@ -206,6 +213,14 @@ export async function run({
     await database.createIndexes();
     await database.createLiveViews();
     await database.createTriggers();
+
+    indexingService.setIndexingStore(
+      createRealtimeIndexingStore({
+        database,
+        schema,
+        common,
+      }),
+    );
 
     await sync.startRealtime();
 

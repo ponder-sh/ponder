@@ -134,7 +134,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     hexArrayNotNull: ["0x0"],
     bigintArrayNotNull: [0n],
   });
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -237,7 +236,6 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
     enumArray: null,
     enumArrayNotNull: ["A"],
   });
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -288,7 +286,6 @@ test("json, json not null", async (context) => {
     json: null,
     jsonNotNull: { kevin: 52 },
   });
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -349,7 +346,6 @@ test("singular", async (context) => {
     { owner: "0", spender: "1", amount: 10n },
     { owner: "1", spender: "0", amount: 100n },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -446,7 +442,6 @@ test("singular with one relation", async (context) => {
   await indexingStore
     .insert(schema.pet)
     .values({ id: "dog1", ownerIdNotNull: "jake" });
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -514,7 +509,6 @@ test("singular with many relation", async (context) => {
     { id: "dog2", ownerId: "jake" },
     { id: "dog3", ownerId: "kyle" },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -573,7 +567,6 @@ test("singular with many relation using filter", async (context) => {
     { id: "dog2", age: 2, ownerId: "jake" },
     { id: "dog3", age: 3, ownerId: "jake" },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -637,7 +630,6 @@ test("plural with one relation uses dataloader", async (context) => {
     { id: "dog2", ownerId: "jake" },
     { id: "dog3", ownerId: "kyle" },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -839,7 +831,6 @@ test("filter universal", async (context) => {
   await indexingStore
     .insert(schema.person)
     .values([{ id: 1n }, { id: 2n }, { id: 3n }]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -890,7 +881,6 @@ test("filter singular", async (context) => {
   await indexingStore
     .insert(schema.person)
     .values([{ id: "0x01" }, { id: "0x02" }, { id: "0x03" }]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -946,7 +936,6 @@ test("filter plural", async (context) => {
     { id: "2", number: [3, 4, 5] },
     { id: "3", number: [5, 6, 7] },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1077,7 +1066,6 @@ test("filter numeric", async (context) => {
       bigint: 3n,
     },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1182,7 +1170,6 @@ test("filter string", async (context) => {
     { id: "2", text: "two", hex: "0xcde" },
     { id: "3", text: "three", hex: "0xef0" },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1255,7 +1242,6 @@ test("filter and/or", async (context) => {
     { id: "id4", name: "Zarbar" },
     { id: "id5", name: "Winston", age: 12 },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1326,7 +1312,6 @@ test("order by", async (context) => {
       hex: "0xb",
     },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1424,7 +1409,6 @@ test("limit", async (context) => {
   for (let i = 0; i < 100; i++) {
     await indexingStore.insert(schema.person).values({ id: String(i) });
   }
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1500,7 +1484,6 @@ test("cursor pagination ascending", async (context) => {
     { id: "id8", name: "Snack" },
     { id: "id9", name: "Last" },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1640,7 +1623,6 @@ test("cursor pagination descending", async (context) => {
     { id: "id4", name: "Zarbar" },
     { id: "id5", name: "Winston", age: 12 },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1773,7 +1755,6 @@ test("cursor pagination start and end cursors", async (context) => {
     { id: "id4", name: "Zarbar" },
     { id: "id5", name: "Winston", age: 12 },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1840,7 +1821,6 @@ test("cursor pagination has previous page", async (context) => {
     { id: "id4", name: "Zarbar" },
     { id: "id5", name: "Winston", age: 12 },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -1928,7 +1908,6 @@ test("cursor pagination composite primary key", async (context) => {
     { owner: "bill", spender: "jenny", amount: 700n },
     { owner: "jenny", spender: "bill", amount: 800n },
   ]);
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 
@@ -2066,7 +2045,6 @@ test("column casing", async (context) => {
     userName: "0",
     camelCase: "0",
   });
-  await indexingStore.flush();
 
   const graphqlSchema = buildGraphQLSchema(database.drizzle);
 

@@ -1,7 +1,6 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type { Database } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Sync } from "@/sync/index.js";
@@ -51,8 +50,6 @@ export type Service = {
   // static
   common: Common;
   indexingFunctions: IndexingFunctions;
-  indexingStore: IndexingStore;
-  database: Database;
 
   // state
   isKilled: boolean;
@@ -85,16 +82,12 @@ export const create = ({
   sources,
   networks,
   sync,
-  indexingStore,
-  database,
 }: {
   indexingFunctions: IndexingFunctions;
   common: Common;
   sources: Source[];
   networks: Network[];
   sync: Sync;
-  indexingStore: IndexingStore;
-  database: Database;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
     blockNumber: undefined!,
@@ -171,8 +164,6 @@ export const create = ({
   return {
     common,
     indexingFunctions,
-    indexingStore,
-    database,
     isKilled: false,
     eventCount,
     startCheckpoint: decodeCheckpoint(sync.getStartCheckpoint()),
@@ -182,13 +173,7 @@ export const create = ({
         network: { name: undefined!, chainId: undefined! },
         contracts: undefined!,
         client: undefined!,
-        db: {
-          find: indexingStore.find,
-          insert: indexingStore.insert,
-          update: indexingStore.update,
-          delete: indexingStore.delete,
-          sql: indexingStore.sql,
-        },
+        db: undefined!,
       },
     },
     networkByChainId,
@@ -333,14 +318,6 @@ export const processEvents = async (
         never(event);
     }
 
-    if (indexingService.indexingStore.isCacheFull()) {
-      await indexingService.database.finalize({
-        checkpoint: encodeCheckpoint(zeroCheckpoint),
-      });
-      await indexingService.indexingStore.flush();
-      await indexingService.database.finalize({ checkpoint: event.checkpoint });
-    }
-
     // periodically update metrics
     if (i % 93 === 0) {
       updateCompletedEvents(indexingService);
@@ -377,6 +354,19 @@ export const processEvents = async (
   updateCompletedEvents(indexingService);
 
   return { status: "success" };
+};
+
+export const setIndexingStore = (
+  indexingService: Service,
+  indexingStore: IndexingStore<"historical" | "realtime">,
+) => {
+  indexingService.currentEvent.context.db = {
+    find: indexingStore.find,
+    insert: indexingStore.insert,
+    update: indexingStore.update,
+    delete: indexingStore.delete,
+    sql: indexingStore.sql,
+  };
 };
 
 export const kill = (indexingService: Service) => {
