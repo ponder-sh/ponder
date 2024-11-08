@@ -1,5 +1,5 @@
-import os from "node:os";
 import path from "node:path";
+import v8 from "node:v8";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
 
@@ -103,11 +103,18 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     factoryAddressCountThreshold: 1_000,
 
-    // os.freemem() / 4, bucketed closest to 64, 128, 256, 512, 1024, 2048 mB
+    // v8.getHeapStatistics().heap_size_limit / 4, bucketed closest to 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:
       2 **
         Math.min(
-          Math.max(Math.round(Math.log2(os.freemem() / 1_024 / 1_024 / 4)), 6),
+          Math.max(
+            Math.round(
+              Math.log2(
+                v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 4,
+              ),
+            ),
+            7,
+          ),
           11,
         ) *
       1_024 *
