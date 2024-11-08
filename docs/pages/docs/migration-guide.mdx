@@ -12,10 +12,6 @@ import Architecture from "../../public/architecture.svg";
 
 The `0.7.0` release includes several breaking changes.
 
-### API functions
-
-removed c.tables
-
 ### Install & run codegen
 
 {/* prettier-ignore */}
@@ -290,7 +286,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 
 </div>
 
-**Direct SQL API**
+#### Direct SQL API
 
 The `context.db.sql` interface replaces the rigid `findMany` method and supports any valid SQL `select` query.
 
@@ -306,6 +302,10 @@ ponder.on("...", ({ event, context }) => {
     .limit(1);
 });
 ```
+
+### Migrate API functions
+
+- Removed `c.tables` in favor of importing table objects from `ponder.schema.ts`
 
 ## 0.6.0
 
