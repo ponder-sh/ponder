@@ -1,13 +1,22 @@
 ---
-title: "0.2.0 - Concurrent indexing and cursor pagination"
-description: "A blog post for the 0.2.0 release which introduces concurrent indexing and cursor pagination."
+title: "0.2 - Concurrent indexing and cursor pagination"
+description: "A blog post for the 0.2 release which introduces concurrent indexing and cursor pagination."
 ---
 
-import { Callout, Tabs } from 'nextra/components'
+import { Callout, Tabs } from "nextra/components";
 
-# 0.2.0
+# 0.2
 
-Ponder 0.2.0 adds concurrent indexing, cursor pagination in GraphQL, and a new column type for hexadecimal strings.
+{/* prettier-ignore */}
+<div className="flex flex-row items-center gap-4 mt-5">
+  <img src="/kevin-avatar.jpg" className="w-10 h-10 rounded-full" />
+  <div className="flex flex-col">
+    <span className="font-medium">Kevin</span>
+    <span className="text-sm text-gray-400 dark:text-gray-500">March 15, 2024</span>
+  </div>
+</div>
+
+Ponder 0.2 adds concurrent indexing, cursor pagination in GraphQL, and a new column type for hexadecimal strings.
 
 ## Concurrent indexing
 
@@ -18,6 +27,8 @@ For a simple ERC20 app, concurrent indexing was 22% faster than sequential in ou
 In many cases, indexing functions do not depend on the results of other indexing functions. Consider a simple Ponder app that indexes ERC20 Transfer events.
 
 <div className="code-columns">
+
+{/* prettier-ignore */}
 ```ts filename="ponder.schema.ts"
 import { createSchema } from "@ponder/core";
 
@@ -30,9 +41,9 @@ export default createSchema((p) => ({
     timestamp: p.int(),
   }),
 }));
-
 ```
 
+{/* prettier-ignore */}
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated"
 
@@ -41,7 +52,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 
   await TransferEvent.create({
     id: event.log.id,
-    data: { 
+    data: {
       from: event.args.from,
       to: event.args.to,
       amount: event.args.value,
@@ -50,12 +61,16 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
   });
 });
 ```
+
 </div>
 
 In this example, the indexing funtion only writes to the `TransferEvent` table. It doesn't read from any tables.
 
 <Callout type="info">
-  Technically, the indexing engine still uses a finite concurrency factor that's often less than the theoretical concurrency. In these cases, indexing throughput is bottlenecked by the database, so the internal queue concurrency starts to matter less.
+  Technically, the indexing engine still uses a finite concurrency factor that's
+  often less than the theoretical concurrency. In these cases, indexing
+  throughput is bottlenecked by the database, so the internal queue concurrency
+  starts to matter less.
 </Callout>
 
 Concurrent indexing is backwards compatible and requires no changes to your indexing function code.
@@ -118,7 +133,6 @@ query {
 
 </div>
 
-
 Take a look at the new [pagination docs](/docs/query/graphql#pagination) for more details.
 
 ## `p.hex()`
@@ -139,7 +153,7 @@ export default createSchema((p) => ({
     // ...
   }),
   Log: p.createTable({
-    id: p.string(), 
+    id: p.string(),
     topic0: p.hex(), // Log topic
     // ...
   }),
@@ -148,14 +162,14 @@ export default createSchema((p) => ({
 
 Under the hood, `p.hex()` uses the `bytea` column type in Postgres and `blob` in SQLite. Database operations using `p.hex()` have similar performance to those using `p.string()`, but `p.hex()` values take up less space in the database.
 
-
 <Callout type="warning">
-  The `p.bytes()` column type had a serious performance issue when used with `id` columns. This has been fixed with the migration to `p.hex()`.
+  The `p.bytes()` column type had a serious performance issue when used with
+  `id` columns. This has been fixed with the migration to `p.hex()`.
 </Callout>
 
 ## Get started
 
-To create a new Ponder app using `0.2.0`, follow the [Getting started](/docs/getting-started/new-project) guide.
+To create a new Ponder app using `0.2`, follow the [Getting started](/docs/getting-started/new-project) guide.
 
 To upgrade an existing app, run:
 
@@ -177,5 +191,3 @@ npm upgrade @ponder/core
 ```
 </Tabs.Tab>
 </Tabs>
-
-

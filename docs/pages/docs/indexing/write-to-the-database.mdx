@@ -198,7 +198,6 @@ const rows = await db
 
 EVM indexing workloads often involve a high number of small inserts and updates. To mitigate the performance penalty of frequent (blocking) database queries, the store API runs most operations **in-memory**.
 
-
 ## Raw SQL
 
 <Callout type="warning">
@@ -214,13 +213,13 @@ The `db.sql` object exposes the raw Drizzle PostgreSQL query builder, including 
 
 Here's an example that uses the raw SQL `update` function to execute a complex bulk update query.
 
-```ts filename="ponder.schema.ts"
+```ts filename="src/index.ts"
 import { ponder } from "@/generated";
 import { accounts, tradeEvents } from "../ponder.schema";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
+// Add 100 points to all accounts that submitted a trade in the last 24 hours.
 ponder.on("EveryDay:block", async ({ event, context }) => {
-  // Add 100 points to all accounts that submitted a trade in the last 24 hours.
   await db.sql
     .update(accounts)
     .set({ points: sql`${accounts.points} + 100` })
