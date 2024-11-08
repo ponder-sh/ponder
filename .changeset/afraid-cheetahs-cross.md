@@ -2,4 +2,4 @@
 "@ponder/core": minor
 ---
 
-Migrated `ponder.schema.ts` to use Drizzle based table definitions and updated store API. Please read the [migration guide](https://ponder.sh/docs/migration-guide) for more information.
+Introduced several breaking changes to `ponder.schema.ts` and the store API. Please read the [migration guide](https://ponder.sh/docs/migration-guide#07) for more information.
