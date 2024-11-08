@@ -81,6 +81,11 @@ export const createHistoricalSync = async (
    */
   const transactionsCache = new Set<Hash>();
   /**
+   * Traces that have already been fetched.
+   * Note: All entries are deleted at the end of each call to `sync()`.
+   */
+  const traceCache = new Map<bigint, Promise<SyncTrace[]>>();
+  /**
    * Data about the range passed to "eth_getLogs" for all log
    *  filters and log factories.
    */
@@ -304,11 +309,21 @@ export const createHistoricalSync = async (
 
   const syncTrace = async (
     filter: TransactionFilter | TransferFilter,
-    blockNumber: number,
+    blockNumber: bigint,
   ) => {
-    const syncTraces = await _debug_traceBlockByNumber(args.requestQueue, {
-      blockNumber: toHex(blockNumber),
-    });
+    let syncTraces: SyncTrace[] = [];
+
+    if (traceCache.has(blockNumber)) {
+      syncTraces = await traceCache.get(blockNumber)!;
+    } else {
+      const _syncTraces = _debug_traceBlockByNumber(args.requestQueue, {
+        blockNumber: toHex(blockNumber),
+      });
+
+      traceCache.set(blockNumber, _syncTraces);
+
+      syncTraces = await _syncTraces;
+    }
 
     const traces: {
       trace: SyncTrace["result"];
@@ -539,7 +554,7 @@ export const createHistoricalSync = async (
                     case "transfer": {
                       const blocks = [];
                       for (let i = interval[0]; i <= interval[1]; i++) {
-                        blocks.push(i);
+                        blocks.push(BigInt(i));
                       }
                       await Promise.all(
                         blocks.map((blockNumber) =>
@@ -604,6 +619,7 @@ export const createHistoricalSync = async (
 
       blockCache.clear();
       transactionsCache.clear();
+      traceCache.clear();
 
       return latestBlock;
     },
