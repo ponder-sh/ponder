@@ -1,8 +1,6 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    balance: p.bigint(),
-  }),
+export const account = onchainTable("account", (t) => ({
+  address: t.hex().primaryKey(),
+  balance: t.bigint().notNull(),
 }));

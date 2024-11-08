@@ -1,23 +1,14 @@
 import { ponder } from "@/generated";
+import * as schema from "../ponder.schema";
 
 ponder.on("AstariaRouter:Liquidation", async ({ event, context }) => {
-  const { LiquidationEvent } = context.db;
-
-  await LiquidationEvent.create({
-    id: event.log.id,
-    data: {
-      liquidator: event.args.liquidator,
-    },
-  });
+  await context.db
+    .insert(schema.liquidationEvent)
+    .values({ id: event.log.id, liquidator: event.args.liquidator });
 });
 
 ponder.on("AstariaRouter:OwnershipTransferred", async ({ event, context }) => {
-  const { OwnershipTransferredEvent } = context.db;
-
-  await OwnershipTransferredEvent.create({
-    id: event.log.id,
-    data: {
-      newOwner: event.args.newOwner,
-    },
-  });
+  await context.db
+    .insert(schema.ownershipTransferEvent)
+    .values({ id: event.log.id, newOwner: event.args.newOwner });
 });

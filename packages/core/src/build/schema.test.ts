@@ -1,411 +1,238 @@
-import { createSchema } from "@/schema/schema.js";
+import { onchainSchema, onchainTable } from "@/index.js";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  pgSequence,
+  pgView,
+  primaryKey,
+  serial,
+} from "drizzle-orm/pg-core";
 import { expect, test } from "vitest";
-import { safeBuildSchema } from "./schema.js";
+import { buildSchema } from "./schema.js";
 
-test("safeBuildSchema() returns error for duplicate enum values", () => {
-  const schema = createSchema((p) => ({
-    myEnum: p.createEnum(["duplicate", "duplicate"]),
-  }));
+const instanceId = "1234";
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Enum 'myEnum' contains duplicate value 'duplicate'.",
-  );
+test("buildSchema() success", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  buildSchema({ schema, instanceId });
 });
 
-test("safeBuildSchema() returns error for table without ID column", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({}),
-  }));
+test("buildSchema() error with schema", () => {
+  const schema = {
+    ponder: onchainSchema("ponder"),
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Table 'myTable' does not have an 'id' column.",
-  );
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("safeBuildSchema() returns error for ID column typed as an enum", () => {
-  const schema = createSchema((p) => ({
-    myEnum: p.createEnum(["value1", "value2"]),
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.enum("myEnum"),
-    }),
-  }));
+test("buildSchema() error with multiple primary key", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().primaryKey(),
+    })),
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'enum', expected one of ['string', 'hex', 'bigint', 'int'].",
-  );
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("safeBuildSchema() returns error for ID column typed as a 'one' relationship", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.one("refTableId"),
-      refTableId: p.string().references("refTable.id"),
-    }),
-    refTable: p.createTable({
-      id: p.string(),
-    }),
-  }));
+test("buildSchema() error with no primary key", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex(),
+      balance: p.bigint(),
+    })),
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'one', expected one of ['string', 'hex', 'bigint', 'int'].",
-  );
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("safeBuildSchema() returns error for ID column typed as a 'many' relationship", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.many("refTable.myTableId"),
-    }),
-    // @ts-expect-error
-    refTable: p.createTable({
-      id: p.string(),
-      myTableId: p.string().references("myTable.id"),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'many', expected one of ['string', 'hex', 'bigint', 'int'].",
-  );
-});
-
-test("safeBuildSchema() returns error for ID column with the references modifier", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.string().references("refTable.id"),
-    }),
-    refTable: p.createTable({
-      id: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. ID columns cannot use the '.references' modifier.",
-  );
-});
-
-test("safeBuildSchema() returns error for invalid ID column type boolean", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.boolean(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'boolean', expected one of ['string', 'hex', 'bigint', 'int'].",
-  );
-});
-
-test("safeBuildSchema() returns error for invalid ID column type float", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.float(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. Got 'float', expected one of ['string', 'hex', 'bigint', 'int'].",
-  );
-});
-
-test("safeBuildSchema() returns error for ID column with optional modifier", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.string().optional(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. ID columns cannot be optional.",
-  );
-});
-
-test("safeBuildSchema() returns error for ID column with list modifier", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      // @ts-expect-error
-      id: p.string().list(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid type for ID column 'myTable.id'. ID columns cannot be a list.",
-  );
-});
-
-test("safeBuildSchema() returns error for empty table or enum name", () => {
-  const schema = createSchema((p) => ({
-    "": p.createEnum(["value1", "value2"]),
-    myTable: p.createTable({
-      id: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Enum name can't be an empty string.",
-  );
-});
-
-test("safeBuildSchema() returns error for table or enum name with invalid characters", () => {
-  const schema = createSchema((p) => ({
-    "invalid-name": p.createEnum(["value1", "value2"]),
-    myTable: p.createTable({
-      id: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Enum name 'invalid-name' contains an invalid character.",
-  );
-});
-
-test("safeBuildSchema() returns error for 'one' relationship with non-existent reference column", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      id: p.string(),
-      // @ts-expect-error
-      refColumn: p.one("nonExistentColumn"),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("uses a column that does not exist");
-});
-
-test("safeBuildSchema() returns error for 'one' relationship with reference to non-foreign key column", () => {
-  const schema = createSchema((p) => ({
-    myTable: p.createTable({
-      id: p.string(),
-      refColumn: p.one("nonForeignKeyColumn"),
-      nonForeignKeyColumn: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "uses a column that is not foreign key column",
-  );
-});
-
-test("safeBuildSchema() returns error for 'many' relationship with non-existent reference table", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      id: p.string(),
-      refColumn: p.many("nonExistentTable.nonExistentColumn"),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("uses a table that does not exist");
-});
-
-test("safeBuildSchema() returns error for 'many' relationship with non-existent reference column", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      id: p.string(),
-      refColumn: p.many("otherTable.nonExistentColumn"),
-    }),
-    otherTable: p.createTable({
-      id: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("uses a column that does not exist");
-});
-
-test("safeBuildSchema() returns error for 'many' relationship with reference to non-foreign key column", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      id: p.string(),
-      refColumn: p.many("otherTable.nonForeignKeyColumn"),
-    }),
-    otherTable: p.createTable({
-      id: p.string(),
-      nonForeignKeyColumn: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "uses a column that is not foreign key column",
-  );
-});
-
-test("safeBuildSchema() returns error for enum column referencing non-existent enum", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      id: p.string(),
-      enumColumn: p.enum("nonExistentEnum"),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("doesn't reference a valid enum");
-});
-
-test("safeBuildSchema() returns error for foreign key column referencing non-existent ID column", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable({
-      id: p.string(),
-      fkColumn: p.string().references("nonExistentTable.id"),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "does not reference a valid ID column",
-  );
-});
-
-test("safeBuildSchema() returns error for foreign key column type mismatch", () => {
-  const schema = createSchema((p) => ({
-    myTable: p.createTable({
-      id: p.string(),
-      fkColumn: p.bigint().references("otherTable.id"),
-    }),
-    otherTable: p.createTable({
-      id: p.string(),
-    }),
-  }));
-
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "type does not match the referenced table's ID column type",
-  );
-});
-
-test("safeBuildSchema() returns error for empty index", () => {
-  const schema = createSchema((p) => ({
-    myTable: p.createTable(
-      {
-        id: p.string(),
-        col: p.int(),
-      },
-      {
-        colIndex: p.index([]),
-      },
+test("buildSchema() success with composite primary key", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.address, table.balance] }),
+      }),
     ),
-  }));
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain("Index 'colIndex' cannot be empty.");
+  buildSchema({ schema, instanceId });
 });
 
-test("safeBuildSchema() returns error for duplicate index", () => {
-  const schema = createSchema((p) => ({
-    myTable: p.createTable(
-      {
-        id: p.string(),
-        col: p.int(),
-      },
-      {
-        colIndex: p.index(["col", "col"]),
-      },
-    ),
+test("buildScheama() error with view", () => {
+  const account = onchainTable("account", (p) => ({
+    address: p.hex().primaryKey(),
+    balance: p.bigint().notNull(),
   }));
+  const schema = {
+    account,
+    v: pgView("v").as((qb) => qb.select().from(account)),
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "Index 'colIndex' cannot contain duplicate columns.",
-  );
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("safeBuildSchema() returns error for invalid multi-column index", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable(
-      {
-        id: p.string(),
-        col: p.int(),
-      },
-      {
-        // @ts-expect-error
-        colIndex: p.index(["coll"]),
-      },
-    ),
-  }));
+test("buildScheama() error with sequences", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+    seq: pgSequence("seq"),
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "Index 'colIndex' does not reference a valid column.",
-  );
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
 });
 
-test("safeBuildSchema() returns error for invalid index", () => {
-  const schema = createSchema((p) => ({
-    // @ts-expect-error
-    myTable: p.createTable(
-      {
-        id: p.string(),
-        col: p.int(),
-      },
-      {
-        // @ts-expect-error
-        colIndex: p.index("col1"),
-      },
-    ),
-  }));
+test("buildScheama() error with generated", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().notNull().generatedAlwaysAs(10n),
+    })),
+  };
 
-  const result = safeBuildSchema({ schema });
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toContain(
-    "Index 'colIndex' does not reference a valid column.",
-  );
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with generated identity", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      id: p
+        .integer()
+        .primaryKey()
+        .generatedAlwaysAsIdentity({ startWith: 1000 }),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with serial", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: serial().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() success with default", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().default(10n),
+    })),
+  };
+
+  buildSchema({ schema, instanceId });
+});
+
+test("buildScheama() error with default sql", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().default(sql`10`),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with $defaultFn sql", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().$defaultFn(() => sql`10`),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with $onUpdateFn sql", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().$onUpdateFn(() => sql`10`),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with foreign key", () => {
+  // @ts-ignore
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p
+        .bigint()
+        .notNull()
+        .references(() => schema.account.address),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with unique", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.integer().primaryKey(),
+      balance: p.bigint().notNull().unique(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() error with check", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        address: p.hex().primaryKey(),
+        balance: p.bigint().notNull(),
+      }),
+      () => ({
+        check: check("test", sql``),
+      }),
+    ),
+  };
+
+  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+});
+
+test("buildScheama() success with enum", () => {
+  const p = onchainSchema("p");
+  const mood = p.enum("mood", ["good", "bad"]);
+  const schema = {
+    p,
+    mood,
+    account: p.table("account", (p) => ({
+      address: p.hex().primaryKey(),
+      m: mood().notNull(),
+    })),
+  };
+
+  buildSchema({ schema, instanceId });
 });

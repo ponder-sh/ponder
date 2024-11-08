@@ -6,9 +6,8 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
-import type { Schema as BuilderSchema } from "@/schema/common.js";
-import type { InferSchemaType } from "@/schema/infer.js";
 import type {
   Block,
   CallTrace,
@@ -16,8 +15,8 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
-import type { DatabaseModel } from "@/types/model.js";
-import type { ApiRegistry, ApiContext as _ApiContext } from "./api.js";
+import type { ApiRegistry } from "./api.js";
+import type { Db } from "./db.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {
@@ -158,7 +157,7 @@ export namespace Virtual {
 
   export type Context<
     config extends Config,
-    schema extends BuilderSchema,
+    schema extends Schema,
     name extends EventNames<config>,
     ///
     sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
@@ -220,28 +219,19 @@ export namespace Virtual {
         | "ccipRead"
       >
     >;
-    db: {
-      [key in keyof InferSchemaType<schema>]: DatabaseModel<
-        // @ts-ignore
-        InferSchemaType<schema>[key]
-      >;
-    };
+    db: Db<schema>;
   };
-
-  export type Drizzle<schema extends BuilderSchema> = _ApiContext<schema>;
 
   export type IndexingFunctionArgs<
     config extends Config,
-    schema extends BuilderSchema,
+    schema extends Schema,
     name extends EventNames<config>,
   > = {
     event: Event<config, name>;
     context: Context<config, schema, name>;
   };
 
-  export type Schema<schema extends BuilderSchema> = InferSchemaType<schema>;
-
-  export type Registry<config extends Config, schema extends BuilderSchema> = {
+  export type Registry<config extends Config, schema extends Schema> = {
     on: <name extends EventNames<config>>(
       _name: name,
       indexingFunction: (
@@ -251,4 +241,8 @@ export namespace Virtual {
       ) => Promise<void> | void,
     ) => void;
   } & ApiRegistry<schema>;
+
+  export type ApiContext<schema extends Schema> = {
+    db: Drizzle<schema>;
+  };
 }

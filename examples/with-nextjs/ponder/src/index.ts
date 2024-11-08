@@ -1,14 +1,11 @@
 import { ponder } from "@/generated";
+import * as schema from "../ponder.schema";
 
 ponder.on("WETH:Deposit", async ({ event, context }) => {
-  const { DepositEvent } = context.db;
-
-  await DepositEvent.create({
+  await context.db.insert(schema.depositEvent).values({
     id: event.log.id,
-    data: {
-      account: event.args.dst,
-      amount: event.args.wad,
-      timestamp: Number(event.block.timestamp),
-    },
+    account: event.args.dst,
+    amount: event.args.wad,
+    timestamp: Number(event.block.timestamp),
   });
 });

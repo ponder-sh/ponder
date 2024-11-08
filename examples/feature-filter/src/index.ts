@@ -1,13 +1,10 @@
 import { ponder } from "@/generated";
+import * as schema from "../ponder.schema";
 
 ponder.on("PrimitiveManager:Swap", async ({ event, context }) => {
-  const { SwapEvent } = context.db;
-
-  await SwapEvent.create({
+  await context.db.insert(schema.swapEvent).values({
     id: event.log.id,
-    data: {
-      payer: event.args.payer,
-      recipient: event.args.recipient,
-    },
+    payer: event.args.payer,
+    recipient: event.args.recipient,
   });
 });

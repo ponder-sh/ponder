@@ -1,8 +1,6 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  ChainlinkPrice: p.createTable({
-    id: p.bigint(),
-    price: p.float(),
-  }),
+export const chainlinkPrice = onchainTable("chainlink_price", (t) => ({
+  timestamp: t.bigint().primaryKey(),
+  price: t.doublePrecision().notNull(),
 }));

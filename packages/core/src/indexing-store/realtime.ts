@@ -1,469 +1,378 @@
 import type { Common } from "@/common/common.js";
-import type { HeadlessKysely } from "@/database/kysely.js";
-import type { Schema, Table } from "@/schema/common.js";
-import type {
-  DatabaseRecord,
-  DatabaseValue,
-  UserId,
-  UserRecord,
-} from "@/types/schema.js";
-import type { WhereInput, WriteStore } from "./store.js";
-import { decodeRecord, encodeRecord, encodeValue } from "./utils/encoding.js";
-import { parseStoreError } from "./utils/errors.js";
-import { buildWhereConditions } from "./utils/filter.js";
+import {
+  InvalidStoreMethodError,
+  RecordNotFoundError,
+  UndefinedTableError,
+} from "@/common/errors.js";
+import type { Database } from "@/database/index.js";
+import {
+  type Schema,
+  getPrimaryKeyColumns,
+  getTableNames,
+  onchain,
+} from "@/drizzle/index.js";
+import { prettyPrint } from "@/utils/print.js";
+import {
+  type QueryWithTypings,
+  type SQL,
+  type SQLWrapper,
+  type Table,
+  and,
+  eq,
+} from "drizzle-orm";
+import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { drizzle } from "drizzle-orm/pg-proxy";
+import { createQueue } from "../../../common/src/queue.js";
+import { type IndexingStore, parseSqlError } from "./index.js";
 
-export const getRealtimeStore = ({
-  dialect,
+/** Throw an error if `table` is not an `onchainTable`. */
+const checkOnchainTable = (
+  table: Table,
+  method: "find" | "insert" | "update" | "delete",
+) => {
+  if (table === undefined)
+    throw new UndefinedTableError(
+      `Table object passed to db.${method}() is undefined`,
+    );
+
+  if (onchain in table) return;
+
+  throw new InvalidStoreMethodError(
+    method === "find"
+      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
+      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
+  );
+};
+
+export const createRealtimeIndexingStore = ({
+  database,
   schema,
-  db,
-  common,
 }: {
-  dialect: "sqlite" | "postgres";
-  schema: Schema;
-  db: HeadlessKysely<any>;
   common: Common;
-}): WriteStore<"realtime"> => ({
-  create: ({
-    tableName,
-    encodedCheckpoint,
-    id,
-    data = {},
-  }: {
-    tableName: string;
-    encodedCheckpoint: string;
-    id: UserId;
-    data?: Omit<UserRecord, "id">;
-  }) => {
-    const table = (schema[tableName] as { table: Table }).table;
+  database: Database;
+  schema: Schema;
+}): IndexingStore<"realtime"> => {
+  // Operation queue to make sure all queries are run in order, circumventing race conditions
+  const queue = createQueue<unknown, () => Promise<unknown>>({
+    browser: false,
+    initialStart: true,
+    concurrency: 1,
+    worker: (fn) => {
+      return fn();
+    },
+  });
 
-    return db.wrap({ method: `${tableName}.create` }, async () => {
-      const createRecord = encodeRecord({
-        record: { id, ...data },
-        table,
-        dialect,
-        schema,
-        skipValidation: false,
-      });
+  const tableNameCache: Map<Table, string> = new Map();
+  const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
 
-      return await db.transaction().execute(async (tx) => {
-        const record = await tx
-          .insertInto(tableName)
-          .values(createRecord)
-          .returningAll()
-          .executeTakeFirstOrThrow()
-          .catch((err) => {
-            throw parseStoreError(err, { id, ...data });
-          });
+  for (const tableName of getTableNames(schema, "")) {
+    primaryKeysCache.set(
+      schema[tableName.js] as Table,
+      getPrimaryKeyColumns(schema[tableName.js] as PgTable),
+    );
 
-        await tx
-          .insertInto(`_ponder_reorg__${tableName}`)
-          .values({
-            operation: 0,
-            id: createRecord.id,
-            checkpoint: encodedCheckpoint,
-          })
-          .execute();
+    tableNameCache.set(schema[tableName.js] as Table, tableName.user);
+  }
 
-        return decodeRecord({ record: record, table, dialect });
-      });
-    });
-  },
-  createMany: ({
-    tableName,
-    encodedCheckpoint,
-    data,
-  }: {
-    tableName: string;
-    encodedCheckpoint: string;
-    data: UserRecord[];
-  }) => {
-    const table = (schema[tableName] as { table: Table }).table;
+  ////////
+  // Helper functions
+  ////////
 
-    return db.wrap({ method: `${tableName}.createMany` }, async () => {
-      const records: DatabaseRecord[] = [];
-      await db.transaction().execute(async (tx) => {
-        const batchSize = Math.round(
-          common.options.databaseMaxQueryParameters / Object.keys(table).length,
-        );
-        for (let i = 0, len = data.length; i < len; i += batchSize) {
-          const createRecords = data.slice(i, i + batchSize).map((d) =>
-            encodeRecord({
-              record: d,
-              table,
-              dialect,
-              schema,
-              skipValidation: false,
-            }),
-          );
+  /** Returns an sql where condition for `table` with `key`. */
+  const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
+    primaryKeysCache.get(table)!;
 
-          const _records = await tx
-            .insertInto(tableName)
-            .values(createRecords)
-            .returningAll()
-            .execute()
-            .catch((err) => {
-              throw parseStoreError(err, data.length > 0 ? data[0]! : {});
-            });
+    const conditions: SQLWrapper[] = [];
 
-          records.push(..._records);
-
-          await tx
-            .insertInto(`_ponder_reorg__${tableName}`)
-            .values(
-              createRecords.map((record) => ({
-                operation: 0,
-                id: record.id,
-                checkpoint: encodedCheckpoint,
-              })),
-            )
-            .execute();
-        }
-      });
-
-      return records.map((record) => decodeRecord({ record, table, dialect }));
-    });
-  },
-  update: ({
-    tableName,
-    encodedCheckpoint,
-    id,
-    data = {},
-  }: {
-    tableName: string;
-    encodedCheckpoint: string;
-    id: UserId;
-    data?:
-      | Partial<Omit<UserRecord, "id">>
-      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
-  }) => {
-    const table = (schema[tableName] as { table: Table }).table;
-
-    return db.wrap({ method: `${tableName}.update` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, dialect });
-
-      const record = await db.transaction().execute(async (tx) => {
-        const latestRecord = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirstOrThrow()
-          .catch((err) => {
-            throw parseStoreError(err, { id, data: "(function)" });
-          });
-
-        const updateObject =
-          typeof data === "function"
-            ? data({
-                current: decodeRecord({
-                  record: latestRecord,
-                  table,
-                  dialect,
-                }),
-              })
-            : data;
-        const updateRecord = encodeRecord({
-          record: { id, ...updateObject },
-          table,
-          dialect,
-          schema,
-          skipValidation: false,
-        });
-
-        const updateResult = await tx
-          .updateTable(tableName)
-          .set(updateRecord)
-          .where("id", "=", encodedId)
-          .returningAll()
-          .executeTakeFirstOrThrow()
-          .catch((err) => {
-            throw parseStoreError(err, { id, ...updateObject });
-          });
-
-        await tx
-          .insertInto(`_ponder_reorg__${tableName}`)
-          .values({
-            operation: 1,
-            checkpoint: encodedCheckpoint,
-            ...latestRecord,
-          })
-          .execute();
-
-        return updateResult;
-      });
-
-      const result = decodeRecord({ record: record, table, dialect });
-
-      return result;
-    });
-  },
-  updateMany: async ({
-    tableName,
-    encodedCheckpoint,
-    where,
-    data = {},
-  }: {
-    tableName: string;
-    encodedCheckpoint: string;
-    where: WhereInput<any>;
-    data?:
-      | Partial<Omit<UserRecord, "id">>
-      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
-  }) => {
-    const table = (schema[tableName] as { table: Table }).table;
-
-    const records: UserRecord[] = [];
-    let cursor: DatabaseValue = null;
-
-    while (true) {
-      const _records = await db.wrap(
-        { method: `${tableName}.updateMany` },
-        () =>
-          db.transaction().execute(async (tx) => {
-            const latestRecords: DatabaseRecord[] = await tx
-              .selectFrom(tableName)
-              .selectAll()
-              .where((eb) =>
-                buildWhereConditions({
-                  eb,
-                  where,
-                  table,
-                  dialect,
-                }),
-              )
-              .orderBy("id", "asc")
-              .limit(common.options.databaseMaxRowLimit)
-              .$if(cursor !== null, (qb) => qb.where("id", ">", cursor))
-              .execute();
-
-            const records: DatabaseRecord[] = [];
-
-            for (const latestRecord of latestRecords) {
-              const updateObject =
-                typeof data === "function"
-                  ? data({
-                      current: decodeRecord({
-                        record: latestRecord,
-                        table,
-                        dialect,
-                      }),
-                    })
-                  : data;
-
-              // Here, `latestRecord` is already encoded, so we need to exclude it from `encodeRecord`.
-              const updateRecord = {
-                id: latestRecord.id,
-                ...encodeRecord({
-                  record: updateObject,
-                  table,
-                  dialect,
-                  schema,
-                  skipValidation: false,
-                }),
-              };
-
-              const record = await tx
-                .updateTable(tableName)
-                .set(updateRecord)
-                .where("id", "=", latestRecord.id)
-                .returningAll()
-                .executeTakeFirstOrThrow()
-                .catch((err) => {
-                  throw parseStoreError(err, updateObject);
-                });
-
-              records.push(record);
-
-              await tx
-                .insertInto(`_ponder_reorg__${tableName}`)
-                .values({
-                  operation: 1,
-                  checkpoint: encodedCheckpoint,
-                  ...latestRecord,
-                })
-                .execute();
-            }
-
-            return records.map((record) =>
-              decodeRecord({ record, table, dialect }),
-            );
-          }),
-      );
-
-      records.push(..._records);
-
-      if (_records.length === 0) {
-        break;
-      } else {
-        cursor = encodeValue({
-          value: _records[_records.length - 1]!.id,
-          column: table.id,
-          dialect,
-        });
-      }
+    for (const { js } of primaryKeysCache.get(table)!) {
+      // @ts-ignore
+      conditions.push(eq(table[js]!, key[js]));
     }
 
-    return records;
-  },
-  upsert: ({
-    tableName,
-    encodedCheckpoint,
-    id,
-    create = {},
-    update = {},
-  }: {
-    tableName: string;
-    encodedCheckpoint: string;
-    id: UserId;
-    create?: Omit<UserRecord, "id">;
-    update?:
-      | Partial<Omit<UserRecord, "id">>
-      | ((args: { current: UserRecord }) => Partial<Omit<UserRecord, "id">>);
-  }) => {
-    const table = (schema[tableName] as { table: Table }).table;
+    return and(...conditions)!;
+  };
 
-    return db.wrap({ method: `${tableName}.upsert` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, dialect });
-      const createRecord = encodeRecord({
-        record: { id, ...create },
-        table,
-        dialect,
-        schema,
-        skipValidation: false,
-      });
+  const find = (table: Table, key: object) => {
+    return database.drizzle
+      .select()
+      .from(table)
+      .where(getWhereCondition(table, key))
+      .then((res) => (res.length === 0 ? null : res[0]!));
+  };
 
-      const record = await db.transaction().execute(async (tx) => {
-        // Find the latest version of this instance.
-        const latestRecord = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
+  // @ts-ignore
+  const indexingStore = {
+    // @ts-ignore
+    find: (table: Table, key) =>
+      queue.add(() =>
+        database.qb.user.wrap(
+          { method: `${tableNameCache.get(table) ?? "unknown"}.find()` },
+          async () => {
+            checkOnchainTable(table, "find");
 
-        // If there is no latest version, insert a new version using the create data.
-        if (latestRecord === undefined) {
-          const record = await tx
-            .insertInto(tableName)
-            .values(createRecord)
-            .returningAll()
-            .executeTakeFirstOrThrow()
-            .catch((err) => {
-              const prettyObject: any = { id };
-              for (const [key, value] of Object.entries(create))
-                prettyObject[`create.${key}`] = value;
-              if (typeof update === "function") {
-                prettyObject.update = "(function)";
-              } else {
-                for (const [key, value] of Object.entries(update))
-                  prettyObject[`update.${key}`] = value;
+            return find(table, key);
+          },
+        ),
+      ),
+
+    // @ts-ignore
+    insert(table: Table) {
+      return {
+        values: (values: any) => {
+          // @ts-ignore
+          const inner = {
+            onConflictDoNothing: () =>
+              queue.add(() =>
+                database.qb.user.wrap(
+                  {
+                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                  },
+                  async () => {
+                    checkOnchainTable(table, "insert");
+
+                    try {
+                      return await database.drizzle
+                        .insert(table)
+                        .values(values)
+                        .onConflictDoNothing()
+                        .returning();
+                    } catch (e) {
+                      parseSqlError(e);
+                      throw e;
+                    }
+                  },
+                ),
+              ),
+            onConflictDoUpdate: (valuesU: any) =>
+              queue.add(() =>
+                database.qb.user.wrap(
+                  {
+                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                  },
+                  async () => {
+                    checkOnchainTable(table, "insert");
+
+                    if (typeof valuesU === "object") {
+                      try {
+                        return await database.drizzle
+                          .insert(table)
+                          .values(values)
+                          .onConflictDoUpdate({
+                            target: primaryKeysCache
+                              .get(table)!
+                              // @ts-ignore
+                              .map(({ js }) => table[js]),
+                            set: valuesU,
+                          })
+                          .returning();
+                      } catch (e) {
+                        parseSqlError(e);
+                        throw e;
+                      }
+                    }
+
+                    if (Array.isArray(values)) {
+                      const rows = [];
+                      for (const value of values) {
+                        const row = await find(table, value);
+
+                        if (row === null) {
+                          try {
+                            rows.push(
+                              await database.drizzle
+                                .insert(table)
+                                .values(value)
+                                .returning(),
+                            );
+                          } catch (e) {
+                            parseSqlError(e);
+                            throw e;
+                          }
+                        } else {
+                          try {
+                            rows.push(
+                              await database.drizzle
+                                .update(table)
+                                .set(valuesU(row))
+                                .where(getWhereCondition(table, value))
+                                .returning(),
+                            );
+                          } catch (e) {
+                            parseSqlError(e);
+                            throw e;
+                          }
+                        }
+                      }
+                      return rows;
+                    } else {
+                      const row = await find(table, values);
+
+                      if (row === null) {
+                        try {
+                          return await database.drizzle
+                            .insert(table)
+                            .values(values)
+                            .returning();
+                        } catch (e) {
+                          parseSqlError(e);
+                          throw e;
+                        }
+                      } else {
+                        try {
+                          return await database.drizzle
+                            .update(table)
+                            .set(valuesU(row))
+                            .where(getWhereCondition(table, values))
+                            .returning();
+                        } catch (e) {
+                          parseSqlError(e);
+                          throw e;
+                        }
+                      }
+                    }
+                  },
+                ),
+              ),
+            // biome-ignore lint/suspicious/noThenProperty: <explanation>
+            then: (onFulfilled, onRejected) =>
+              queue
+                .add(() =>
+                  database.qb.user.wrap(
+                    {
+                      method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                    },
+                    async () => {
+                      checkOnchainTable(table, "insert");
+
+                      try {
+                        return await database.drizzle
+                          .insert(table)
+                          .values(values)
+                          .returning();
+                      } catch (e) {
+                        parseSqlError(e);
+                        throw e;
+                      }
+                    },
+                  ),
+                )
+                .then(onFulfilled, onRejected),
+            catch: (onRejected) => inner.then(undefined, onRejected),
+            finally: (onFinally) =>
+              inner.then(
+                (value: any) => {
+                  onFinally?.();
+                  return value;
+                },
+                (reason: any) => {
+                  onFinally?.();
+                  throw reason;
+                },
+              ),
+            // @ts-ignore
+          } satisfies ReturnType<
+            ReturnType<IndexingStore<"realtime">["insert"]>["values"]
+          >;
+
+          return inner;
+        },
+      };
+    },
+    // @ts-ignore
+    update(table: Table, key) {
+      return {
+        set: (values: any) =>
+          queue.add(() =>
+            database.qb.user.wrap(
+              { method: `${tableNameCache.get(table) ?? "unknown"}.update()` },
+              async () => {
+                checkOnchainTable(table, "update");
+
+                if (typeof values === "function") {
+                  const row = await find(table, key);
+
+                  if (row === null) {
+                    const error = new RecordNotFoundError(
+                      `No existing record found in table '${tableNameCache.get(table)}'`,
+                    );
+                    error.meta.push(
+                      `db.update arguments:\n${prettyPrint(values)}`,
+                    );
+                    throw error;
+                  }
+
+                  try {
+                    return await database.drizzle
+                      .update(table)
+                      .set(values(row))
+                      .where(getWhereCondition(table, key))
+                      .returning();
+                  } catch (e) {
+                    parseSqlError(e);
+                    throw e;
+                  }
+                } else {
+                  try {
+                    return await database.drizzle
+                      .update(table)
+                      .set(values)
+                      .where(getWhereCondition(table, key))
+                      .returning();
+                  } catch (e) {
+                    parseSqlError(e);
+                    throw e;
+                  }
+                }
+              },
+            ),
+          ),
+      };
+    },
+    // @ts-ignore
+    delete: (table: Table, key) =>
+      queue.add(() =>
+        database.qb.user.wrap(
+          { method: `${tableNameCache.get(table) ?? "unknown"}.delete()` },
+          async () => {
+            checkOnchainTable(table, "delete");
+
+            const deleted = await database.drizzle
+              .delete(table)
+              .where(getWhereCondition(table, key))
+              .returning();
+
+            return deleted.length > 0;
+          },
+        ),
+      ),
+    // @ts-ignore
+    sql: drizzle(
+      (_sql, params, method, typings) =>
+        // @ts-ignore
+        queue.add(async () => {
+          const query: QueryWithTypings = { sql: _sql, params, typings };
+
+          const res = await database.qb.user.wrap(
+            { method: "sql" },
+            async () => {
+              try {
+                return await database.drizzle._.session
+                  .prepareQuery(query, undefined, undefined, method === "all")
+                  .execute();
+              } catch (e) {
+                parseSqlError(e);
+                throw e;
               }
-              throw parseStoreError(err, prettyObject);
-            });
+            },
+          );
 
-          await tx
-            .insertInto(`_ponder_reorg__${tableName}`)
-            .values({
-              operation: 0,
-              id: createRecord.id,
-              checkpoint: encodedCheckpoint,
-            })
-            .execute();
+          // @ts-ignore
+          return { rows: res.rows.map((row) => Object.values(row)) };
+        }),
+      { schema, casing: "snake_case" },
+    ),
+  } satisfies IndexingStore<"realtime">;
 
-          return record;
-        }
-
-        const updateObject =
-          typeof update === "function"
-            ? update({
-                current: decodeRecord({
-                  record: latestRecord,
-                  table,
-                  dialect,
-                }),
-              })
-            : update;
-        const updateRecord = encodeRecord({
-          record: { id, ...updateObject },
-          table,
-          dialect,
-          schema,
-          skipValidation: false,
-        });
-
-        const record = await tx
-          .updateTable(tableName)
-          .set(updateRecord)
-          .where("id", "=", encodedId)
-          .returningAll()
-          .executeTakeFirstOrThrow()
-          .catch((err) => {
-            const prettyObject: any = { id };
-            for (const [key, value] of Object.entries(create))
-              prettyObject[`create.${key}`] = value;
-            for (const [key, value] of Object.entries(updateObject))
-              prettyObject[`update.${key}`] = value;
-            throw parseStoreError(err, prettyObject);
-          });
-
-        await tx
-          .insertInto(`_ponder_reorg__${tableName}`)
-          .values({
-            operation: 1,
-            checkpoint: encodedCheckpoint,
-            ...latestRecord,
-          })
-          .execute();
-
-        return record;
-      });
-
-      return decodeRecord({ record, table, dialect });
-    });
-  },
-  delete: ({
-    tableName,
-    encodedCheckpoint,
-    id,
-  }: {
-    tableName: string;
-    encodedCheckpoint: string;
-    id: UserId;
-  }) => {
-    const table = (schema[tableName] as { table: Table }).table;
-
-    return db.wrap({ method: `${tableName}.delete` }, async () => {
-      const encodedId = encodeValue({ value: id, column: table.id, dialect });
-
-      const isDeleted = await db.transaction().execute(async (tx) => {
-        const record = await tx
-          .selectFrom(tableName)
-          .selectAll()
-          .where("id", "=", encodedId)
-          .executeTakeFirst();
-
-        const deletedRecord = await tx
-          .deleteFrom(tableName)
-          .where("id", "=", encodedId)
-          .returning(["id"])
-          .executeTakeFirst()
-          .catch((err) => {
-            throw parseStoreError(err, { id });
-          });
-
-        if (record !== undefined) {
-          await tx
-            .insertInto(`_ponder_reorg__${tableName}`)
-            .values({
-              operation: 2,
-              checkpoint: encodedCheckpoint,
-              ...record,
-            })
-            .execute();
-        }
-
-        return !!deletedRecord;
-      });
-
-      return isDeleted;
-    });
-  },
-});
+  // @ts-ignore
+  return indexingStore;
+};

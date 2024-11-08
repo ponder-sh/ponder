@@ -1,7 +1,5 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  LlamaCoreInstance: p.createTable({
-    id: p.string(),
-  }),
+export const llama = onchainTable("llama", (t) => ({
+  id: t.text().primaryKey(),
 }));

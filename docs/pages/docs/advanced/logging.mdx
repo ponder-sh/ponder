@@ -65,7 +65,7 @@ ponder start --log-format pretty
 ```
 
 ```bash filename="bash"
-11:54:36 AM INFO  build      Using SQLite database at .ponder/sqlite (default)
+11:54:36 AM INFO  build      Using PGlite database at .ponder/pglite (default)
 11:54:36 AM INFO  database   Created table 'Account' in 'public.db'
 11:54:36 AM INFO  server     Started listening on port 42069
 11:54:36 AM INFO  historical Started syncing 'optimism' logs for 'weth9' with 0.0% cached
@@ -83,7 +83,7 @@ ponder start --log-format json
 The JSON log format emits newline-delimited JSON objects with properties `level`, `time`, `service`, `msg`, and (optionally) `error`.
 
 ```json filename="bash"
-{"level":30,"time":1717170664426,"service":"build","msg":"Using SQLite database at .ponder/sqlite (default)"}
+{"level":30,"time":1717170664426,"service":"build","msg":"Using PGlite database at .ponder/pglite (default)"}
 {"level":30,"time":1717170664454,"service":"database","msg":"Created table 'Account' in 'public.db'"}
 {"level":30,"time":1717170664458,"service":"server","msg":"Started listening on port 42069"}
 {"level":30,"time":1717170664625,"service":"historical","msg":"Started syncing 'base' logs for 'weth9' with 0.0% cached"}

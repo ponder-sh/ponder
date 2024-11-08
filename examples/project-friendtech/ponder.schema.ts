@@ -1,62 +1,50 @@
-import { createSchema } from "@ponder/core";
+import { onchainEnum, onchainTable, primaryKey } from "@ponder/core";
 
-export default createSchema((p) => ({
-  TradeType: p.createEnum(["BUY", "SELL"]),
-  Share: p.createTable({
-    id: p.string(),
+export const tradeType = onchainEnum("trade_type", ["BUY", "SELL"]);
 
-    subjectId: p.hex().references("Subject.id"),
-    traderId: p.hex().references("Trader.id"),
-
-    subject: p.one("subjectId"),
-    trader: p.one("traderId"),
-
-    shareAmount: p.bigint(),
+export const share = onchainTable(
+  "share",
+  (t) => ({
+    subject: t.hex().notNull(),
+    trader: t.hex().notNull(),
+    amount: t.bigint().notNull(),
   }),
-  TradeEvent: p.createTable({
-    id: p.string(),
-
-    subjectId: p.hex().references("Subject.id"),
-    traderId: p.hex().references("Trader.id"),
-
-    subject: p.one("subjectId"),
-    trader: p.one("traderId"),
-
-    shareAmount: p.bigint(),
-    tradeType: p.enum("TradeType"),
-    ethAmount: p.bigint(),
-    protocolEthAmount: p.bigint(),
-    subjectEthAmount: p.bigint(),
-    traderAmount: p.bigint(),
-    supply: p.bigint(),
-    timestamp: p.int(),
+  (table) => ({
+    pk: primaryKey({ columns: [table.subject, table.trader] }),
   }),
-  Subject: p.createTable({
-    id: p.hex(),
-    totalShares: p.bigint(),
-    totalTrades: p.bigint(),
-    lastPrice: p.bigint(),
-    earnings: p.bigint(),
-    traderVolume: p.bigint(),
-    protocolFeesGenerated: p.bigint(),
+);
 
-    shares: p.many("Share.subjectId"),
-    trades: p.many("TradeEvent.subjectId"),
-  }),
-  Trader: p.createTable({
-    id: p.hex(),
-    totalTrades: p.bigint(),
-    spend: p.bigint(),
-    earnings: p.bigint(),
-    profit: p.bigint(),
-    subjectFeesPaid: p.bigint(),
-    protocolFeesPaid: p.bigint(),
+export const tradeEvent = onchainTable("trade_event", (t) => ({
+  id: t.text().primaryKey(),
+  subject: t.hex().notNull(),
+  trader: t.hex().notNull(),
 
-    shares: p.many("Share.traderId"),
-    trades: p.many("TradeEvent.traderId"),
-  }),
-  Protocol: p.createTable({
-    id: p.int(),
-    earnings: p.bigint(),
-  }),
+  shareAmount: t.bigint().notNull(),
+  tradeType: tradeType().notNull(),
+  ethAmount: t.bigint().notNull(),
+  protocolEthAmount: t.bigint().notNull(),
+  subjectEthAmount: t.bigint().notNull(),
+  traderAmount: t.bigint().notNull(),
+  supply: t.bigint().notNull(),
+  timestamp: t.integer().notNull(),
+}));
+
+export const subject = onchainTable("subject", (t) => ({
+  address: t.hex().primaryKey(),
+  totalShares: t.bigint().notNull(),
+  totalTrades: t.bigint().notNull(),
+  lastPrice: t.bigint().notNull(),
+  earnings: t.bigint().notNull(),
+  traderVolume: t.bigint().notNull(),
+  protocolFeesGenerated: t.bigint().notNull(),
+}));
+
+export const trader = onchainTable("trader", (t) => ({
+  address: t.hex().primaryKey(),
+  totalTrades: t.bigint().notNull(),
+  spend: t.bigint().notNull(),
+  earnings: t.bigint().notNull(),
+  profit: t.bigint().notNull(),
+  subjectFeesPaid: t.bigint().notNull(),
+  protocolFeesPaid: t.bigint().notNull(),
 }));

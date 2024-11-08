@@ -6,7 +6,6 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { IndexingBuild } from "@/build/service.js";
 import type { Options } from "@/common/options.js";
-import { getTables } from "@/schema/utils.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
@@ -279,7 +278,7 @@ function getPackageJson(rootDir: string) {
 }
 
 export function buildPayload(build: IndexingBuild) {
-  const table_count = Object.keys(getTables(build.schema)).length;
+  const table_count = Object.keys(build.schema).length;
   const indexing_function_count = Object.values(build.indexingFunctions).reduce(
     (acc, f) => acc + Object.keys(f).length,
     0,

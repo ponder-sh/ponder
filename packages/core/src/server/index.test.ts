@@ -105,8 +105,8 @@ test("ready", async (context) => {
   });
 
   await getMetadataStore({
-    dialect: database.dialect,
     db: database.qb.user,
+    instanceId: "1234",
   }).setStatus({});
 
   const response = await server.hono.request("/ready");

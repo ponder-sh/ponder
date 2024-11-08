@@ -119,7 +119,7 @@ When adding new features or fixing bugs, it's important to add test cases to cov
 
 ### Run tests against Postgres
 
-By default, the test suite runs against in-memory SQLite databases which mimic Ponder development environments. Unless you are specifically testing Postgres behavior, you don't need to run tests against Postgres locally and can instead rely on CI to catch any regressions.
+By default, the test suite runs against in-memory PGlite databases which mimic Ponder development environments. Unless you are specifically testing Postgres behavior, you don't need to run tests against Postgres locally and can instead rely on CI to catch any regressions.
 
 To run the test suite against Postgres, set the `DATABASE_URL` env var in `packages/core/.env.local`.
 

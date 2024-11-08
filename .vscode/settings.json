@@ -15,5 +15,8 @@
   "editor.codeActionsOnSave": {
     "source.organizeImports.biome": "explicit",
     "quickfix.biome": "explicit"
+  },
+  "[mdx]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   }
 }

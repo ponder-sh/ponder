@@ -1,14 +1,12 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import {
-  type ApiBuildResult,
-  type IndexingBuildResult,
-  createBuildService,
-} from "@/build/index.js";
+import { createBuildService } from "@/build/index.js";
+import type { BuildResultDev } from "@/build/service.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
+import { type Database, createDatabase } from "@/database/index.js";
 import { createUi } from "@/ui/service.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
@@ -63,6 +61,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await indexingCleanupReloadable();
     await apiCleanupReloadable();
+    if (database) {
+      await database.kill();
+    }
     await buildService.kill();
     await telemetry.kill();
     ui.kill();
@@ -70,65 +71,75 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const indexingBuildQueue = createQueue({
+  const buildQueue = createQueue({
     initialStart: true,
     concurrency: 1,
-    worker: async (result: IndexingBuildResult) => {
-      await indexingCleanupReloadable();
+    worker: async (result: BuildResultDev) => {
+      if (result.kind === "indexing") {
+        await indexingCleanupReloadable();
+      }
+      await apiCleanupReloadable();
 
       if (result.status === "success") {
-        metrics.resetIndexingMetrics();
+        if (result.kind === "indexing") {
+          metrics.resetIndexingMetrics();
 
-        indexingCleanupReloadable = await run({
+          if (database) {
+            await database.kill();
+          }
+
+          database = createDatabase({
+            common,
+            schema: result.indexingBuild.schema,
+            databaseConfig: result.indexingBuild.databaseConfig,
+            buildId: result.indexingBuild.buildId,
+            instanceId: result.indexingBuild.instanceId,
+            namespace: result.indexingBuild.namespace,
+            statements: result.indexingBuild.statements,
+          });
+
+          indexingCleanupReloadable = await run({
+            common,
+            build: result.indexingBuild,
+            database,
+            onFatalError: () => {
+              shutdown({ reason: "Received fatal error", code: 1 });
+            },
+            onReloadableError: (error) => {
+              buildQueue.clear();
+              buildQueue.add({ status: "error", kind: "indexing", error });
+            },
+          });
+        }
+        metrics.resetApiMetrics();
+
+        apiCleanupReloadable = await runServer({
           common,
-          build: result.build,
-          onFatalError: () => {
-            shutdown({ reason: "Received fatal error", code: 1 });
-          },
-          onReloadableError: (error) => {
-            indexingBuildQueue.clear();
-            indexingBuildQueue.add({ status: "error", error });
-          },
+          build: result.apiBuild,
+          database: database!,
         });
       } else {
         // This handles indexing function build failures on hot reload.
         metrics.ponder_indexing_has_error.set(1);
-        indexingCleanupReloadable = () => Promise.resolve();
-      }
-    },
-  });
-
-  const apiBuildQueue = createQueue({
-    initialStart: true,
-    concurrency: 1,
-    worker: async (result: ApiBuildResult) => {
-      await apiCleanupReloadable();
-
-      if (result.status === "success") {
-        metrics.resetApiMetrics();
-
-        apiCleanupReloadable = await runServer({ common, build: result.build });
-      } else {
-        // This handles API function build failures on hot reload.
-        metrics.ponder_indexing_has_error.set(1);
+        if (result.kind === "indexing") {
+          indexingCleanupReloadable = () => Promise.resolve();
+        }
         apiCleanupReloadable = () => Promise.resolve();
       }
     },
   });
 
-  const { api, indexing } = await buildService.start({
+  let database: Database | undefined;
+
+  const buildResult = await buildService.start({
     watch: true,
-    onIndexingBuild: (buildResult) => {
-      indexingBuildQueue.clear();
-      indexingBuildQueue.add(buildResult);
-    },
-    onApiBuild: (buildResult) => {
-      apiBuildQueue.clear();
-      apiBuildQueue.add(buildResult);
+    onBuild: (buildResult) => {
+      buildQueue.clear();
+      buildQueue.add(buildResult);
     },
   });
 
-  if (indexing.status === "error" || api.status === "error") {
+  if (buildResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
@@ -137,16 +148,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "dev",
-      ...buildPayload(indexing.build),
+      ...buildPayload(buildResult.indexingBuild),
     },
   });
 
-  indexingBuildQueue.add(indexing);
-  apiBuildQueue.add(api);
+  buildQueue.add({ ...buildResult, kind: "indexing" });
 
   return async () => {
-    indexingBuildQueue.pause();
-    apiBuildQueue.pause();
+    buildQueue.pause();
     await cleanup();
   };
 }

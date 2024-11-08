@@ -117,7 +117,7 @@ export const blockToCheckpoint = (
  * Returns true if all filters have a defined end block and the current
  * sync progress has reached the final end block.
  */
-export const isSyncEnd = (syncProgress: SyncProgress) => {
+const isSyncEnd = (syncProgress: SyncProgress) => {
   if (syncProgress.end === undefined || syncProgress.current === undefined) {
     return false;
   }
@@ -129,7 +129,7 @@ export const isSyncEnd = (syncProgress: SyncProgress) => {
 };
 
 /** Returns true if sync progress has reached the finalized block. */
-export const isSyncFinalized = (syncProgress: SyncProgress) => {
+const isSyncFinalized = (syncProgress: SyncProgress) => {
   if (syncProgress.current === undefined) {
     return false;
   }
@@ -141,7 +141,7 @@ export const isSyncFinalized = (syncProgress: SyncProgress) => {
 };
 
 /** Returns the closest-to-tip block that is part of the historical sync. */
-export const getHistoricalLast = (
+const getHistoricalLast = (
   syncProgress: Pick<SyncProgress, "finalized" | "end">,
 ) => {
   return syncProgress.end === undefined
@@ -153,13 +153,29 @@ export const getHistoricalLast = (
 };
 
 /** Compute the minimum checkpoint, filtering out undefined */
-export const min = (...checkpoints: (string | undefined)[]) => {
+const min = (...checkpoints: (string | undefined)[]) => {
   return checkpoints.reduce((acc, cur) => {
     if (cur === undefined) return acc;
     if (acc === undefined) return cur;
     if (acc < cur) return acc;
     return cur;
   })!;
+};
+
+export const splitEvents = (events: RawEvent[]): RawEvent[][] => {
+  let prevHash: Hash | undefined;
+  const result: RawEvent[][] = [];
+
+  for (const event of events) {
+    if (prevHash === undefined || prevHash !== event.block.hash) {
+      result.push([]);
+      prevHash = event.block.hash;
+    }
+
+    result[result.length - 1]!.push(event);
+  }
+
+  return result;
 };
 
 /** Returns the checkpoint for a given block tag. */
@@ -641,9 +657,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          const events: RawEvent[] = pendingEvents.filter(
-            ({ checkpoint }) => checkpoint <= to,
-          );
+          const events = pendingEvents
+            .filter(({ checkpoint }) => checkpoint <= to)
+            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+
           pendingEvents = pendingEvents.filter(
             ({ checkpoint }) => checkpoint > to,
           );
@@ -652,10 +669,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             .onRealtimeEvent({
               type: "block",
               checkpoint: to,
-              status: JSON.parse(JSON.stringify(status)),
-              events: events.sort((a, b) =>
-                a.checkpoint < b.checkpoint ? -1 : 1,
-              ),
+              status: structuredClone(status),
+              events,
             })
             .then(() => {
               if (events.length > 0 && isKilled === false) {

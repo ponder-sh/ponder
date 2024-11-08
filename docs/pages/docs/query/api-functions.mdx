@@ -15,7 +15,7 @@ API functions are built on top of [Hono](https://hono.dev/), a fast and lightwei
 
 These example apps demonstrate how to use API functions.
 
-- [**Basic**](https://github.com/ponder-sh/ponder/tree/main/examples/feature-api-functions/src/api/index.ts) - An ERC20 app that responds to `GET` requests and uses the [Select API](#query-the-database) to build custom SQL queries.
+- [**Basic**](https://github.com/ponder-sh/ponder/tree/main/examples/feature-api-functions/src/api/index.ts) - An ERC20 app that responds to `GET` requests and uses [Drizzle](#query-the-database) to build custom SQL queries.
 - [**tRPC**](https://github.com/ponder-sh/ponder/tree/main/examples/with-trpc/client/index.ts) - An app that creates a [tRPC](https://trpc.io) server and a script that uses a tRPC client with end-to-end type safety.
 
 ## Get started
@@ -69,85 +69,53 @@ ponder.use("/graphql", graphql());
 
 ## Query the database
 
-API functions can query the database using the read-only **Select API**, a type-safe query builder powered by [Drizzle](https://orm.drizzle.team/docs/overview). The Select API supports complex filters, joins, aggregations, set operations, and more.
-
-<Callout type="info">
-  The Select API is only available within API functions. Indexing functions use
-  the [Store API](/docs/indexing/create-update-records) (`findUnique`, `upsert`,
-  etc) which supports writes and is reorg-aware.
-</Callout>
+The API function context includes a ready-to-use Drizzle database client at `c.db`. To query the database, import table objects from `ponder.schema.ts` and pass them to `c.db.select()` or use relational queries.
 
 ### Select
 
-The API function context contains a built-in database client (`db`) and an object for each table in your schema (`tables`). These objects are type-safe – changes to your `ponder.schema.ts` file will be reflected immediately.
+Here's a simple query using the Drizzle `select` query builder.
 
-To build a query, use `c.db.select(){:ts}` and include a table object using `.from(c.tables.TableName){:ts}`.
-
-<div className="code-columns">
-
-```ts filename="ponder.schema.ts" {4}
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.string(),
-    balance: p.bigint(),
-  }),
-}));
-```
-
-```ts filename="src/api/index.ts" {6}
+```ts filename="src/api/index.ts"
 import { ponder } from "@/generated";
+import { accounts } from "../../ponder.schema";
 
 ponder.get("/account/:address", async (c) => {
   const address = c.req.param("address");
 
-  const account = await c.db.select().from(c.tables.Account).limit(1);
+  const account = await c.db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.address, address))
+    .limit(1);
 
   return c.json(account);
 });
 ```
 
-</div>
+To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `@ponder/core`. Visit the Drizzle [documentation](https://orm.drizzle.team/docs/select) for more details.
 
-To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `@ponder/core`.
+### Relational queries
 
-For more details, please reference the [Drizzle documentation](https://orm.drizzle.team/docs/select).
+Drizzle's relational query builder (AKA Drizzle Queries) offers a great developer experience for complex queries. The `c.db.query` object exposes the raw Drizzle relational query builder.
 
-```ts filename="src/api/index.ts" {2,7-11}
-import { ponder } from "@/generated";
-import { gte } from "@ponder/core";
+Here's an example that uses the relational query builder in an API function to find the 10 largest trades in the past hour joined with the account that made the trade. Visit the Drizzle Queries [documentation](https://orm.drizzle.team/docs/rqb) for more details.
 
-ponder.get("/whales", async (c) => {
-  const { Account } = c.tables;
+```ts filename="src/api/index.ts"
+import { accounts, tradeEvents } from "../ponder.schema";
+import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
-  const whales = await c.db
-    .select({ address: Account.id, balance: Account.balance })
-    .from(Account.id)
-    .where(gte(TransferEvent.balance, 1_000_000_000n))
-    .limit(1);
+ponder.get("/hot-trades", async (c) => {
+  const trades = await c.db.query.tradeEvents.findMany({
+    where: (table, { gt, gte, and }) =>
+      and(
+        gt(table.amount, 1_000n),
+        gte(table.timestamp, Date.now() - 1000 * 60 * 60)
+      ),
+    limit: 10,
+    with: { account: true },
+  });
 
-  return c.json(whales);
-});
-```
-
-### Execute
-
-To run raw SQL queries, use `db.execute(...){:ts}` with the `sql` utility function. [Read more](https://orm.drizzle.team/docs/sql) about the `sql` function.
-
-```ts filename="src/api/index.ts" {2,7-9}
-import { ponder } from "@/generated";
-import { sql } from "@ponder/core";
-
-ponder.get("/:token/ticker", async (c) => {
-  const token = c.req.param("token");
-
-  const result = await c.db.execute(
-    sql`SELECT ticker FROM "Token" WHERE id = ${token}`
-  );
-  const ticker = result.rows[0]?.ticker;
-
-  return c.text(ticker);
+  return c.json(trades);
 });
 ```
 
@@ -157,18 +125,18 @@ ponder.get("/:token/ticker", async (c) => {
 
 Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
 
-```ts filename="src/api/index.ts" {3,5}
+```ts filename="src/api/index.ts" {5}
 import { ponder } from "@/generated";
 import { eq } from "@ponder/core";
+import { accounts } from "../../ponder.schema";
 
 ponder.get("/account/:address", async (c) => {
-  const { Account } = c.tables;
   const address = c.req.param("address");
 
   const account = await c.db
     .select()
-    .from(Account)
-    .where(eq(Accout.address, address))
+    .from(accounts)
+    .where(eq(accounts.address, address))
     .first();
 
   if (account) {
@@ -190,27 +158,26 @@ Use `ponder.post()` to handle HTTP `POST` requests.
 
 In this example, we calculate the volume of transfers for each recipient within a given time range. The `fromTimestamp` and `toTimestamp` parameters are passed in the request body.
 
-```ts filename="src/api/index.ts" {5,7-9}
+```ts filename="src/api/index.ts" {5}
 import { ponder } from "@/generated";
 import { and, gte, sum } from "@ponder/core";
+import { transferEvents } from "../../ponder.schema";
 
 ponder.post("/volume", async (c) => {
-  const { TransferEvent } = c.tables;
-
   const body = await c.req.json();
   const { fromTimestamp, toTimestamp } = body;
 
   const volumeChartData = await c.db
     .select({
-      to: TransferEvent.toId,
-      volume: sum(TransferEvent.amount),
+      to: transferEvents.toId,
+      volume: sum(transferEvents.amount),
     })
-    .from(TransferEvent)
-    .groupBy(TransferEvent.toId)
+    .from(transferEvents)
+    .groupBy(transferEvents.toId)
     .where(
       and(
-        gte(TransferEvent.timestamp, fromTimestamp),
-        lte(TransferEvent.timestamp, toTimestamp)
+        gte(transferEvents.timestamp, fromTimestamp),
+        lte(transferEvents.timestamp, toTimestamp)
       )
     )
     .limit(1);
