@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1177](https://github.com/ponder-sh/ponder/pull/1177) [`374e7af4dba05ce7297a1d11c610ff01f5e3c991`](https://github.com/ponder-sh/ponder/commit/374e7af4dba05ce7297a1d11c610ff01f5e3c991) Thanks [@kyscott18](https://github.com/kyscott18)! - Introduced several breaking changes to `ponder.schema.ts` and the store API. Please read the [migration guide](https://ponder.sh/docs/migration-guide#07) for more information.
+
 ## 0.6.25
 
 ### Patch Changes
