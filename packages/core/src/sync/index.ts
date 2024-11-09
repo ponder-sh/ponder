@@ -635,7 +635,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           filters: event.filters,
           logs: event.logs,
           factoryLogs: event.factoryLogs,
-          callTraces: event.callTraces,
+          traces: event.traces,
           transactions: event.transactions,
           transactionReceipts: event.transactionReceipts,
         };
@@ -760,9 +760,17 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ),
             chainId: network.chainId,
           }),
-          args.syncStore.insertCallTraces({
-            callTraces: finalizedEventData.flatMap(({ callTraces, block }) =>
-              callTraces.map((callTrace) => ({ callTrace, block })),
+          args.syncStore.insertTraces({
+            traces: finalizedEventData.flatMap(
+              ({ traces, block, transactions }) =>
+                traces.map(({ trace, position, transactionHash }) => ({
+                  trace,
+                  block,
+                  transaction: transactions.find(
+                    (t) => t.hash === transactionHash,
+                  )!,
+                  position,
+                })),
             ),
             chainId: network.chainId,
           }),

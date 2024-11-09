@@ -46,7 +46,9 @@ export type RealtimeSync = {
   start(args: {
     syncProgress: Pick<SyncProgress, "finalized">;
     initialChildAddresses: Map<Factory, Set<Address>>;
-  }): Promise<Queue<void, BlockWithEventData>>;
+  }): Promise<
+    Queue<void, Omit<BlockWithEventData, "traces"> & { traces: SyncTrace[] }>
+  >;
   kill(): Promise<void>;
   unfinalizedBlocks: LightBlock[];
   finalizedChildAddresses: Map<Factory, Set<Address>>;
@@ -67,7 +69,7 @@ export type BlockWithEventData = {
   filters: Set<Filter>;
   logs: SyncLog[];
   factoryLogs: SyncLog[];
-  traces: SyncTrace[];
+  traces: SyncTraceFlat[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
 };
@@ -75,9 +77,7 @@ export type BlockWithEventData = {
 export type RealtimeSyncEvent =
   | ({
       type: "block";
-    } & Omit<BlockWithEventData, "traces"> & {
-        traces: SyncTraceFlat[];
-      })
+    } & BlockWithEventData)
   | {
       type: "finalize";
       block: LightBlock;
@@ -111,7 +111,10 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
+  let queue: Queue<
+    void,
+    Omit<BlockWithEventData, "filters" | "traces"> & { traces: SyncTrace[] }
+  >;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -177,7 +180,9 @@ export const createRealtimeSync = (
     traces,
     transactions,
     transactionReceipts,
-  }: Omit<BlockWithEventData, "filters">) => {
+  }: Omit<BlockWithEventData, "filters" | "traces"> & {
+    traces: SyncTrace[];
+  }) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
@@ -608,7 +613,9 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<Omit<BlockWithEventData, "filters">> => {
+  ): Promise<
+    Omit<BlockWithEventData, "filters" | "traces"> & { traces: SyncTrace[] }
+  > => {
     ////////
     // Logs
     ////////
