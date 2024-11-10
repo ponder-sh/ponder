@@ -17,6 +17,7 @@ import type {
   SyncBlock,
   SyncLog,
   SyncTrace,
+  SyncTraceFlat,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -31,7 +32,7 @@ import {
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Address, type Hash, hexToNumber } from "viem";
+import { type Address, type Hash, type Hex, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 import {
   isBlockFilterMatched,
@@ -74,7 +75,9 @@ export type BlockWithEventData = {
 export type RealtimeSyncEvent =
   | ({
       type: "block";
-    } & BlockWithEventData)
+    } & Omit<BlockWithEventData, "traces"> & {
+        traces: SyncTraceFlat[];
+      })
   | {
       type: "finalize";
       block: LightBlock;
@@ -222,88 +225,156 @@ export const createRealtimeSync = (
       return isMatched;
     });
 
-    // Remove call traces that don't match a filter, accounting for factory addresses
-    traces = traces.filter((trace) => {
-      let isMatched = false;
+    const flatTraces: SyncTraceFlat[] = [];
 
-      const isFactoryAddressMatched = ({
-        filter,
-        trace,
-      }: {
-        filter: TransactionFilter | TransferFilter;
-        trace: SyncTrace;
-      }): boolean => {
-        const calls = trace.result.calls ?? [trace.result];
-        if (
-          isAddressFactory(filter.toAddress) === false &&
-          isAddressFactory(filter.fromAddress) === false
-        ) {
-          return true;
-        } else {
-          const toChildAddresses = isAddressFactory(filter.toAddress)
-            ? new Set([
-                ...finalizedChildAddresses.get(filter.toAddress)!,
-                ...unfinalizedChildAddresses.get(filter.toAddress)!,
-              ])
-            : undefined;
-          const fromChildAddresses = isAddressFactory(filter.fromAddress)
-            ? new Set([
-                ...finalizedChildAddresses.get(filter.fromAddress)!,
-                ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-              ])
-            : undefined;
+    let position = 0;
+    // all traces that weren't included because the trace has an error
+    // or the trace's parent has an error, mapped to the error string
+    const failedTraces = new Map<SyncTrace["result"], string>();
 
-          while (calls.length > 0) {
-            const call = calls.shift()!;
-            if (
-              (toChildAddresses !== undefined
-                ? toChildAddresses.has(call.to.toLowerCase() as Address)
-                : true) &&
-              (fromChildAddresses !== undefined
-                ? fromChildAddresses.has(call.from.toLowerCase() as Address)
-                : true)
-            ) {
-              return true;
-            }
-            if (call.calls !== undefined) {
-              calls.concat(call.calls);
+    const dfs = (
+      syncTrace: SyncTrace["result"][],
+      transactionHash: Hex,
+      parentTrace: SyncTrace["result"] | undefined,
+    ) => {
+      for (const trace of syncTrace) {
+        let isMatched = false;
+        for (const filter of transferFilters) {
+          if (
+            isTransferFilterMatched({
+              filter,
+              block: { number: block.number },
+              trace,
+            })
+          ) {
+            // TODO(kyle) handle factory
+            matchedFilters.add(filter);
+            if (isMatched === false) {
+              flatTraces.push({ trace, transactionHash, position });
+              isMatched = true;
             }
           }
-
-          return false;
         }
-      };
 
-      for (const filter of transactionFilters) {
-        if (
-          isTransactionFilterMatched({ filter, block, trace }) &&
-          isFactoryAddressMatched({ filter, trace })
-        ) {
-          matchedFilters.add(filter);
-          isMatched = true;
+        for (const filter of transactionFilters) {
+          if (
+            isTransactionFilterMatched({
+              filter,
+              block: { number: block.number },
+              trace,
+            })
+          ) {
+            // TODO(kyle) handle factory
+
+            matchedFilters.add(filter);
+            if (isMatched === false) {
+              flatTraces.push({ trace, transactionHash, position });
+              isMatched = true;
+            }
+          }
+        }
+
+        if (trace.error !== undefined) {
+          failedTraces.set(trace, trace.error);
+        } else if (parentTrace && failedTraces.has(parentTrace)) {
+          failedTraces.set(trace, failedTraces.get(parentTrace)!);
+        }
+
+        position++;
+
+        if (trace.calls) {
+          dfs(trace.calls, transactionHash, trace);
         }
       }
+    };
 
-      for (const filter of transferFilters) {
-        if (
-          isTransferFilterMatched({ filter, block, trace }) &&
-          isFactoryAddressMatched({ filter, trace })
-        ) {
-          matchedFilters.add(filter);
-          isMatched = true;
-        }
-      }
+    for (const trace of traces) {
+      position = 0;
+      dfs([trace.result], trace.txHash, undefined);
+    }
 
-      return isMatched;
-    });
+    // Remove call traces that don't match a filter, accounting for factory addresses
+    // traces = traces.filter((trace) => {
+    //   let isMatched = false;
+
+    //   const isFactoryAddressMatched = ({
+    //     filter,
+    //     trace,
+    //   }: {
+    //     filter: TransactionFilter | TransferFilter;
+    //     trace: SyncTrace;
+    //   }): boolean => {
+    //     const calls = trace.result.calls ?? [trace.result];
+    //     if (
+    //       isAddressFactory(filter.toAddress) === false &&
+    //       isAddressFactory(filter.fromAddress) === false
+    //     ) {
+    //       return true;
+    //     } else {
+    //       const toChildAddresses = isAddressFactory(filter.toAddress)
+    //         ? new Set([
+    //             ...finalizedChildAddresses.get(filter.toAddress)!,
+    //             ...unfinalizedChildAddresses.get(filter.toAddress)!,
+    //           ])
+    //         : undefined;
+    //       const fromChildAddresses = isAddressFactory(filter.fromAddress)
+    //         ? new Set([
+    //             ...finalizedChildAddresses.get(filter.fromAddress)!,
+    //             ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+    //           ])
+    //         : undefined;
+
+    //       while (calls.length > 0) {
+    //         const call = calls.shift()!;
+    //         if (
+    //           (toChildAddresses !== undefined
+    //             ? toChildAddresses.has(call.to.toLowerCase() as Address)
+    //             : true) &&
+    //           (fromChildAddresses !== undefined
+    //             ? fromChildAddresses.has(call.from.toLowerCase() as Address)
+    //             : true)
+    //         ) {
+    //           return true;
+    //         }
+    //         if (call.calls !== undefined) {
+    //           calls.concat(call.calls);
+    //         }
+    //       }
+
+    //       return false;
+    //     }
+    //   };
+
+    //   for (const filter of transactionFilters) {
+    //     if (
+    //       isTransactionFilterMatched({ filter, block, trace }) &&
+    //       isFactoryAddressMatched({ filter, trace })
+    //     ) {
+    //       matchedFilters.add(filter);
+    //       isMatched = true;
+    //     }
+    //   }
+
+    //   for (const filter of transferFilters) {
+    //     if (
+    //       isTransferFilterMatched({ filter, block, trace }) &&
+    //       isFactoryAddressMatched({ filter, trace })
+    //     ) {
+    //       matchedFilters.add(filter);
+    //       isMatched = true;
+    //     }
+    //   }
+
+    //   return isMatched;
+    // });
 
     // Remove transactions and transaction receipts that may have been filtered out
     const transactionHashes = new Set<Hash>();
     for (const log of logs) {
       transactionHashes.add(log.transactionHash);
     }
-    for (const trace of traces) {
-      transactionHashes.add(trace.txHash);
+    for (const trace of flatTraces) {
+      transactionHashes.add(trace.transactionHash);
     }
 
     transactions = transactions.filter((t) => transactionHashes.has(t.hash));
@@ -318,7 +389,7 @@ export const createRealtimeSync = (
       }
     }
 
-    if (logs.length > 0 || traces.length > 0) {
+    if (logs.length > 0 || flatTraces.length > 0) {
       const _text: string[] = [];
 
       if (logs.length === 1) {
@@ -327,10 +398,10 @@ export const createRealtimeSync = (
         _text.push(`${logs.length} logs`);
       }
 
-      if (traces.length === 1) {
+      if (flatTraces.length === 1) {
         _text.push("1 call trace");
-      } else if (traces.length > 1) {
-        _text.push(`${traces.length} call traces`);
+      } else if (flatTraces.length > 1) {
+        _text.push(`${flatTraces.length} call traces`);
       }
 
       const text = _text.filter((t) => t !== undefined).join(" and ");
@@ -357,7 +428,7 @@ export const createRealtimeSync = (
       block,
       factoryLogs,
       logs,
-      traces,
+      traces: flatTraces,
       transactions,
       transactionReceipts,
     });
@@ -654,24 +725,64 @@ export const createRealtimeSync = (
       return isLogMatched;
     });
 
-    // Remove traces that dont match transaction or transfer filter
-    traces = traces.filter((trace) => {
-      for (const filter of transactionFilters) {
-        if (isTransactionFilterMatched({ filter, block, trace })) {
-          requiredTransactions.add(trace.txHash);
-          return true;
+    // Remove call traces that don't match a filter, recording required transactions
+    // callTraces = callTraces.filter((callTrace) => {
+    //   let isCallTraceMatched = false;
+    //   for (const filter of callTraceFilters) {
+    //     if (isCallTraceFilterMatched({ filter, block, callTrace })) {
+    //       isCallTraceMatched = true;
+    //       requiredTransactions.add(callTrace.transactionHash);
+    //       if (filter.includeTransactionReceipts) {
+    //         requiredTransactionReceipts.add(callTrace.transactionHash);
+    //       }
+    //     }
+    //   }
+
+    //   return isCallTraceMatched;
+    // });
+
+    const dfs = (
+      syncTrace: SyncTrace["result"][],
+      transactionHash: Hex,
+    ): boolean => {
+      for (const trace of syncTrace) {
+        for (const filter of transferFilters) {
+          if (
+            isTransferFilterMatched({
+              filter,
+              block: { number: block.number },
+              trace,
+            })
+          ) {
+            requiredTransactions.add(transactionHash);
+            return true;
+          }
+        }
+
+        for (const filter of transactionFilters) {
+          if (
+            isTransactionFilterMatched({
+              filter,
+              block: { number: block.number },
+              trace,
+            })
+          ) {
+            requiredTransactions.add(transactionHash);
+            return true;
+          }
+        }
+
+        if (trace.calls) {
+          if (dfs(trace.calls, transactionHash) === true) {
+            return true;
+          }
         }
       }
-
-      for (const filter of transferFilters) {
-        if (isTransferFilterMatched({ filter, block, trace })) {
-          requiredTransactions.add(trace.txHash);
-          return true;
-        }
-      }
-
       return false;
-    });
+    };
+
+    // Initial weak trace filtering before full filtering with factory addresses in handleBlock
+    traces = traces.filter((trace) => dfs([trace.result], trace.txHash));
 
     ////////
     // Transactions
