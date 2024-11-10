@@ -30,7 +30,7 @@ export function Footer() {
 
               <div className="min-h-full w-[1px] bg-neutral-300 dark:bg-neutral-600" />
 
-              <Link href="https://github.com/ponder-sh/ponder" target="_blank">
+              <Link href="https://twitter.com/ponder_sh" target="_blank">
                 <TwitterIcon className="text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors h-5 w-5" />
                 <span className="_sr-only">Twitter</span>
               </Link>
