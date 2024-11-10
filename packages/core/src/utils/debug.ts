@@ -29,7 +29,7 @@ type CallFrame = {
   /** The address of that initiated the call. */
   from: Address;
   /** The address of the contract that was called. */
-  to: Address;
+  to?: Address;
   /** How much gas was left before the call. */
   gas: Hex;
   /** How much gas was used by the call. */
@@ -47,7 +47,7 @@ type CallFrame = {
   /** Logs emitted by this call. */
   logs?: CallLogFrame[];
   /** Value transferred. */
-  value: Hex;
+  value?: Hex;
 };
 
 /** Represents a recorded log that is emitted during a trace call. */

@@ -857,13 +857,13 @@ const migrations: Record<string, Migration> = {
         .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
         .addColumn("from", "varchar(42)", (col) => col.notNull())
-        .addColumn("to", "varchar(42)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
         .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("input", "text", (col) => col.notNull())
         .addColumn("output", "text")
         .addColumn("error", "text")
-        .addColumn("value", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("value", "numeric(78, 0)")
         .execute();
 
       // TODO(kyle) indexes
