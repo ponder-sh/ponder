@@ -1,5 +1,6 @@
 import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { Hex, Transport } from "viem";
 import { custom, hexToBigInt, maxUint256 } from "viem";
@@ -48,8 +49,7 @@ export const cachedTransport = ({
           blockDependentMethods.has(method) ||
           nonBlockDependentMethods.has(method)
         ) {
-          // TODO(kyle) nested order
-          const request = toLowerCase(JSON.stringify(body));
+          const request = toLowerCase(JSON.stringify(orderObject(body)));
           let blockNumber: Hex | "latest" | undefined = undefined;
 
           switch (method) {
