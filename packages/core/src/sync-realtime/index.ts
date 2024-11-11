@@ -17,7 +17,6 @@ import type {
   SyncBlock,
   SyncLog,
   SyncTrace,
-  SyncTraceFlat,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -69,7 +68,7 @@ export type BlockWithEventData = {
   filters: Set<Filter>;
   logs: SyncLog[];
   factoryLogs: SyncLog[];
-  traces: SyncTraceFlat[];
+  traces: SyncTrace[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
 };

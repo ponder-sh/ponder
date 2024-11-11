@@ -12,7 +12,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { ColumnType, Generated, Insertable } from "kysely";
+import type { ColumnType, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
@@ -254,14 +254,18 @@ type TracesTable = {
   blockHash: Hex;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
-  to: Address;
+  to: Address | null;
   gas: ColumnType<string, string | bigint, string | bigint>;
   // TODO(kyle) should be not null?
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
   output: Hex | null;
   error: string | null;
-  value: ColumnType<string, string | bigint, string | bigint>;
+  value: ColumnType<
+    string | null,
+    string | bigint | null,
+    string | bigint | null
+  >;
 };
 
 export function encodeTrace({
@@ -271,7 +275,7 @@ export function encodeTrace({
   position,
   chainId,
 }: {
-  trace: Omit<SyncTrace["result"], "calls" | "logs">;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
   block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
   transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
   position: number;
@@ -292,13 +296,13 @@ export function encodeTrace({
     blockHash: block.hash,
     blockNumber: hexToBigInt(block.number),
     from: toLowerCase(trace.from),
-    to: toLowerCase(trace.to),
+    to: trace.to ? toLowerCase(trace.to) : null,
     gas: hexToBigInt(trace.gas),
     gasUsed: hexToBigInt(trace.gasUsed),
     input: trace.input,
     output: trace.output ?? null,
     error: trace.error ?? null,
-    value: hexToBigInt(trace.value),
+    value: trace.value ? hexToBigInt(trace.value) : null,
   };
 }
 
@@ -309,115 +313,115 @@ type RpcRequestResultsTable = {
   result: string;
 };
 
-type LogFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex | null;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
+// type LogFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   address: Hex | null;
+//   topic0: Hex | null;
+//   topic1: Hex | null;
+//   topic2: Hex | null;
+//   topic3: Hex | null;
+//   includeTransactionReceipts: 0 | 1;
+// };
 
-type LogFilterIntervalsTable = {
-  id: Generated<number>;
-  logFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type LogFilterIntervalsTable = {
+//   id: Generated<number>;
+//   logFilterId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
-type FactoryLogFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex;
-  eventSelector: Hex;
-  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
+// type FactoryLogFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   address: Hex;
+//   eventSelector: Hex;
+//   childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
+//   topic0: Hex | null;
+//   topic1: Hex | null;
+//   topic2: Hex | null;
+//   topic3: Hex | null;
+//   includeTransactionReceipts: 0 | 1;
+// };
 
-type FactoryLogFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type FactoryLogFilterIntervalsTable = {
+//   id: Generated<number>;
+//   factoryId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
-type TransactionFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  toAddress: Address | null;
-  callType: string | null;
-  functionSelector: Hex | null;
-  includeInner: 0 | 1;
-  includeFailed: 0 | 1;
-};
+// type TransactionFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   fromAddress: Address | null;
+//   toAddress: Address | null;
+//   callType: string | null;
+//   functionSelector: Hex | null;
+//   includeInner: 0 | 1;
+//   includeFailed: 0 | 1;
+// };
 
-type TransactionFilterIntervalsTable = {
-  id: Generated<number>;
-  transactionFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type TransactionFilterIntervalsTable = {
+//   id: Generated<number>;
+//   transactionFilterId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
-type FactoryTransactionFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  fromEventSelector: Hex | null;
-  fromChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
-  toAddress: Address | null;
-  toEventSelector: Hex | null;
-  toChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
-  callType: string | null;
-  functionSelector: Hex | null;
-  includeInner: 0 | 1;
-  includeFailed: 0 | 1;
-};
+// type FactoryTransactionFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   fromAddress: Address | null;
+//   fromEventSelector: Hex | null;
+//   fromChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+//   toAddress: Address | null;
+//   toEventSelector: Hex | null;
+//   toChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+//   callType: string | null;
+//   functionSelector: Hex | null;
+//   includeInner: 0 | 1;
+//   includeFailed: 0 | 1;
+// };
 
-type FactoryTransactionFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type FactoryTransactionFilterIntervalsTable = {
+//   id: Generated<number>;
+//   factoryId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
-type TransferFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  toAddress: Address | null;
-};
+// type TransferFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   fromAddress: Address | null;
+//   toAddress: Address | null;
+// };
 
-type TransferFilterIntervalsTable = {
-  id: Generated<number>;
-  transactionFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type TransferFilterIntervalsTable = {
+//   id: Generated<number>;
+//   transactionFilterId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
-type FactoryTransferFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  fromEventSelector: Hex | null;
-  fromChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
-  toAddress: Address | null;
-  toEventSelector: Hex | null;
-  toChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
-};
+// type FactoryTransferFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   fromAddress: Address | null;
+//   fromEventSelector: Hex | null;
+//   fromChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+//   toAddress: Address | null;
+//   toEventSelector: Hex | null;
+//   toChildAddressLocation: `topic${1 | 2 | 3}` | `offset${number}` | null;
+// };
 
-type FactoryTransferFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type FactoryTransferFilterIntervalsTable = {
+//   id: Generated<number>;
+//   factoryId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
 // type TraceFiltersTable = {
 //   id: string;
@@ -449,19 +453,19 @@ type FactoryTransferFilterIntervalsTable = {
 //   endBlock: ColumnType<string, string | bigint, string | bigint>;
 // };
 
-type BlockFiltersTable = {
-  id: string;
-  chainId: number;
-  interval: number;
-  offset: number;
-};
+// type BlockFiltersTable = {
+//   id: string;
+//   chainId: number;
+//   interval: number;
+//   offset: number;
+// };
 
-type BlockFilterIntervalsTable = {
-  id: Generated<number>;
-  blockFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
+// type BlockFilterIntervalsTable = {
+//   id: Generated<number>;
+//   blockFilterId: string;
+//   startBlock: ColumnType<string, string | bigint, string | bigint>;
+//   endBlock: ColumnType<string, string | bigint, string | bigint>;
+// };
 
 export type PonderSyncSchema = {
   blocks: BlocksTable;
@@ -472,10 +476,10 @@ export type PonderSyncSchema = {
 
   rpcRequestResults: RpcRequestResultsTable;
 
-  logFilters: LogFiltersTable;
-  logFilterIntervals: LogFilterIntervalsTable;
-  factoryLogFilters: FactoryLogFiltersTable;
-  factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
+  // logFilters: LogFiltersTable;
+  // logFilterIntervals: LogFilterIntervalsTable;
+  // factoryLogFilters: FactoryLogFiltersTable;
+  // factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
   // transactionFilters: TransactionFiltersTable;
   // transactionFilterIntervals: TransactionFilterIntervalsTable;
   // factoryTransactionFilters: FactoryTransactionFiltersTable;
@@ -484,6 +488,6 @@ export type PonderSyncSchema = {
   // transferFilterIntervals: TransferFilterIntervalsTable;
   // factoryTransferFilters: FactoryTransferFiltersTable;
   // factoryTransferFilterIntervals: FactoryTransferFilterIntervalsTable;
-  blockFilters: BlockFiltersTable;
-  blockFilterIntervals: BlockFilterIntervalsTable;
+  // blockFilters: BlockFiltersTable;
+  // blockFilterIntervals: BlockFilterIntervalsTable;
 };

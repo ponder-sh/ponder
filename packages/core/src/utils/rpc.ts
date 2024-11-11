@@ -34,7 +34,7 @@ export const _eth_getBlockByNumber = (
       params: [
         typeof blockNumber === "number"
           ? numberToHex(blockNumber)
-          : (blockNumber ?? blockTag),
+          : blockNumber ?? blockTag,
         true,
       ],
     })
@@ -166,8 +166,54 @@ export const _debug_traceBlockByNumber = (
           : blockNumber,
         { tracer: "callTracer" },
       ],
-    } as any)
-    .then((traces) => traces as unknown as SyncTrace[]);
+    })
+    .then((traces) => {
+      const result: SyncTrace[] = [];
+      let position = 0;
+      // all traces that weren't included because the trace has an error
+      // or the trace's parent has an error, mapped to the error string
+      const failedTraces = new Map<
+        (typeof traces)[number]["result"],
+        { error?: string; revertReason?: string }
+      >();
+
+      const dfs = (
+        frames: (typeof traces)[number]["result"][],
+        transactionHash: Hex,
+        parentFrame: (typeof traces)[number]["result"] | undefined,
+      ) => {
+        for (const frame of frames) {
+          if (frame.error !== undefined) {
+            failedTraces.set(frame, {
+              error: frame.error,
+              revertReason: frame.revertReason,
+            });
+          } else if (parentFrame && failedTraces.has(parentFrame)) {
+            const error = failedTraces.get(parentFrame)!;
+
+            frame.error = error.error;
+            frame.revertReason = error.revertReason;
+
+            failedTraces.set(frame, error);
+          }
+
+          result.push({ trace: frame, transactionHash, position });
+
+          position++;
+
+          if (frame.calls) {
+            dfs(frame.calls, transactionHash, frame);
+          }
+        }
+      };
+
+      for (const trace of traces) {
+        position = 0;
+        dfs([trace.result], trace.txHash, undefined);
+      }
+
+      return result;
+    });
 
 /**
  * Helper function for "debug_traceBlockByHash" request.
@@ -184,5 +230,51 @@ export const _debug_traceBlockByHash = (
     .request({
       method: "debug_traceBlockByHash",
       params: [hash, { tracer: "callTracer" }],
-    } as any)
-    .then((traces) => traces as unknown as SyncTrace[]);
+    })
+    .then((traces) => {
+      const result: SyncTrace[] = [];
+      let position = 0;
+      // all traces that weren't included because the trace has an error
+      // or the trace's parent has an error, mapped to the error string
+      const failedTraces = new Map<
+        (typeof traces)[number]["result"],
+        { error?: string; revertReason?: string }
+      >();
+
+      const dfs = (
+        frames: (typeof traces)[number]["result"][],
+        transactionHash: Hex,
+        parentFrame: (typeof traces)[number]["result"] | undefined,
+      ) => {
+        for (const frame of frames) {
+          if (frame.error !== undefined) {
+            failedTraces.set(frame, {
+              error: frame.error,
+              revertReason: frame.revertReason,
+            });
+          } else if (parentFrame && failedTraces.has(parentFrame)) {
+            const error = failedTraces.get(parentFrame)!;
+
+            frame.error = error.error;
+            frame.revertReason = error.revertReason;
+
+            failedTraces.set(frame, error);
+          }
+
+          result.push({ trace: frame, transactionHash, position });
+
+          position++;
+
+          if (frame.calls) {
+            dfs(frame.calls, transactionHash, frame);
+          }
+        }
+      };
+
+      for (const trace of traces) {
+        position = 0;
+        dfs([trace.result], trace.txHash, undefined);
+      }
+
+      return result;
+    });

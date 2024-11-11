@@ -208,7 +208,7 @@ export type Trace = {
   /** The address of that initiated the call. */
   from: Address;
   /** The address of the contract that was called. */
-  to: Address;
+  to: Address | null;
   /** How much gas was left before the call. */
   gas: bigint;
   /** How much gas was used by the call. */
@@ -222,7 +222,7 @@ export type Trace = {
   /** Why this call reverted, if it reverted. */
   revertReason?: string;
   /** Value transferred. */
-  value: bigint;
+  value: bigint | null;
   /** Hash of the transaction that created this trace */
   transactionHash: Hash;
 };

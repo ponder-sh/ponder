@@ -1,7 +1,7 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
-  isTransactionFilterMatched,
+  isTraceFilterMatched,
   isTransferFilterMatched,
 } from "@/sync-realtime/filter.js";
 import type { SyncStore } from "@/sync-store/index.js";
@@ -11,7 +11,7 @@ import {
   type Filter,
   type LogFactory,
   type LogFilter,
-  type TransactionFilter,
+  type TraceFilter,
   type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
@@ -39,7 +39,6 @@ import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
   type Hash,
-  type Hex,
   type RpcError,
   hexToBigInt,
   hexToNumber,
@@ -142,7 +141,14 @@ export const createHistoricalSync = async (
       : [interval];
 
     const topics =
-      "eventSelector" in filter ? [filter.eventSelector] : filter.topics;
+      "eventSelector" in filter
+        ? [filter.eventSelector]
+        : [
+            filter.topic0 ?? null,
+            filter.topic1 ?? null,
+            filter.topic2 ?? null,
+            filter.topic3 ?? null,
+          ];
 
     // Batch large arrays of addresses, handling arrays that are empty or over the threshold
 
@@ -278,20 +284,20 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    if (filter.includeTransactionReceipts) {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map((hash) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
-        ),
-      );
+    // if (filter.includeTransactionReceipts) {
+    //   const transactionReceipts = await Promise.all(
+    //     Array.from(transactionHashes).map((hash) =>
+    //       _eth_getTransactionReceipt(args.requestQueue, { hash }),
+    //     ),
+    //   );
 
-      if (isKilled) return;
+    //   if (isKilled) return;
 
-      await args.syncStore.insertTransactionReceipts({
-        transactionReceipts,
-        chainId: args.network.chainId,
-      });
-    }
+    //   await args.syncStore.insertTransactionReceipts({
+    //     transactionReceipts,
+    //     chainId: args.network.chainId,
+    //   });
+    // }
   };
 
   const syncBlockFilter = async (filter: BlockFilter, interval: Interval) => {
@@ -308,83 +314,48 @@ export const createHistoricalSync = async (
   };
 
   const syncTrace = async (
-    filter: TransactionFilter | TransferFilter,
+    filter: TransferFilter | TraceFilter,
     blockNumber: bigint,
   ) => {
-    let syncTraces: SyncTrace[] = [];
+    let traces: SyncTrace[] = [];
 
     if (traceCache.has(blockNumber)) {
-      syncTraces = await traceCache.get(blockNumber)!;
+      traces = await traceCache.get(blockNumber)!;
     } else {
-      const _syncTraces = _debug_traceBlockByNumber(args.requestQueue, {
+      const _traces = _debug_traceBlockByNumber(args.requestQueue, {
         blockNumber: toHex(blockNumber),
       });
 
-      traceCache.set(blockNumber, _syncTraces);
+      traceCache.set(blockNumber, _traces);
 
-      syncTraces = await _syncTraces;
-    }
-
-    const traces: {
-      trace: SyncTrace["result"];
-      transactionHash: Hex;
-      position: number;
-    }[] = [];
-
-    let position = 0;
-    // all traces that weren't included because the trace has an error
-    // or the trace's parent has an error, mapped to the error string
-    const failedTraces = new Map<SyncTrace["result"], string>();
-
-    const dfs = (
-      syncTrace: SyncTrace["result"][],
-      transactionHash: Hex,
-      parentTrace: SyncTrace["result"] | undefined,
-    ) => {
-      for (const trace of syncTrace) {
-        if (filter.type === "transfer") {
+      // TODO(kyle) handle factory
+      traces = await _traces.then((_traces) =>
+        _traces.filter((trace) => {
           if (
+            filter.type === "transfer" &&
             isTransferFilterMatched({
               filter,
               block: { number: toHex(blockNumber) },
               trace,
             })
           ) {
-            // TODO(kyle) handle factory
-
-            traces.push({ trace, transactionHash, position });
+            return true;
           }
-        } else {
+
           if (
-            isTransactionFilterMatched({
+            filter.type === "trace" &&
+            isTraceFilterMatched({
               filter,
               block: { number: toHex(blockNumber) },
               trace,
             })
           ) {
-            // TODO(kyle) handle factory
-
-            traces.push({ trace, transactionHash, position });
+            return true;
           }
-        }
 
-        if (trace.error !== undefined) {
-          failedTraces.set(trace, trace.error);
-        } else if (parentTrace && failedTraces.has(parentTrace)) {
-          failedTraces.set(trace, failedTraces.get(parentTrace)!);
-        }
-
-        position++;
-
-        if (trace.calls) {
-          dfs(trace.calls, transactionHash, trace);
-        }
-      }
-    };
-
-    for (const trace of syncTraces) {
-      position = 0;
-      dfs([trace.result], trace.txHash, undefined);
+          return false;
+        }),
+      );
     }
 
     if (traces.length > 0) {
@@ -415,7 +386,7 @@ export const createHistoricalSync = async (
 
       await args.syncStore.insertTraces({
         traces: traces.map(({ trace, position }, i) => ({
-          trace: { ...trace, error: failedTraces.get(trace) },
+          trace,
           block,
           transaction: transactions[i]!,
           position,
@@ -514,13 +485,15 @@ export const createHistoricalSync = async (
           // Skip sync if the interval is after the `toBlock` or before
           // the `fromBlock`.
           if (
-            source.filter.fromBlock > _interval[1] ||
-            (source.filter.toBlock && source.filter.toBlock < _interval[0])
+            (source.filter.fromBlock !== undefined &&
+              source.filter.fromBlock > _interval[1]) ||
+            (source.filter.toBlock !== undefined &&
+              source.filter.toBlock < _interval[0])
           ) {
             return;
           }
           const interval: Interval = [
-            Math.max(source.filter.fromBlock, _interval[0]),
+            Math.max(source.filter.fromBlock ?? 0, _interval[0]),
             Math.min(
               source.filter.toBlock ?? Number.POSITIVE_INFINITY,
               _interval[1],
@@ -542,33 +515,39 @@ export const createHistoricalSync = async (
             // sync required intervals, account for chunk sizes
             await Promise.all(
               requiredIntervals.map(async (interval) => {
-                if (source.type === "contract") {
-                  const filter = source.filter;
-                  switch (filter.type) {
-                    case "log": {
-                      await syncLogFilter(filter, interval);
-                      break;
-                    }
-
-                    case "transaction":
-                    case "transfer": {
-                      const blocks = [];
-                      for (let i = interval[0]; i <= interval[1]; i++) {
-                        blocks.push(BigInt(i));
-                      }
-                      await Promise.all(
-                        blocks.map((blockNumber) =>
-                          syncTrace(filter, blockNumber),
-                        ),
-                      );
-                      break;
-                    }
-
-                    default:
-                      never(filter);
+                const filter = source.filter;
+                switch (filter.type) {
+                  case "log": {
+                    await syncLogFilter(filter, interval);
+                    break;
                   }
-                } else {
-                  await syncBlockFilter(source.filter, interval);
+
+                  case "block": {
+                    await syncBlockFilter(filter, interval);
+                    break;
+                  }
+
+                  case "transaction": {
+                    // TODO(kyle)
+                    break;
+                  }
+
+                  case "transfer":
+                  case "trace": {
+                    const blocks = [];
+                    for (let i = interval[0]; i <= interval[1]; i++) {
+                      blocks.push(BigInt(i));
+                    }
+                    await Promise.all(
+                      blocks.map((blockNumber) =>
+                        syncTrace(filter, blockNumber),
+                      ),
+                    );
+                    break;
+                  }
+
+                  default:
+                    never(filter);
                 }
               }),
             );

@@ -16,7 +16,7 @@ export type ContractSource<
     ? LogFilter<factory>
     : filter extends "transaction"
       ? TransactionFilter
-      : filter extends "tranfer"
+      : filter extends "transfer"
         ? TransferFilter
         : TraceFilter;
 } & ContractMetadata;
@@ -26,7 +26,8 @@ export type Filter =
   | LogFilter
   | BlockFilter
   | TransferFilter
-  | TransactionFilter;
+  | TransactionFilter
+  | TraceFilter;
 export type Factory = LogFactory;
 
 export type ContractMetadata = {

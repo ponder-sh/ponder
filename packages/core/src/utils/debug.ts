@@ -87,7 +87,7 @@ export type DebugRpcSchema = [
       hash: Hash,
       tracingOptions: { tracer: "callTracer"; tracerConfig?: CallConfig },
     ];
-    ReturnType: Trace;
+    ReturnType: Trace[];
   },
   /**
    * @description Returns tracing results by executing all transactions in the block specified by the block hash
@@ -105,6 +105,6 @@ export type DebugRpcSchema = [
       block: Hex,
       tracingOptions: { tracer: "callTracer"; tracerConfig?: CallConfig },
     ];
-    ReturnType: Trace;
+    ReturnType: Trace[];
   },
 ];

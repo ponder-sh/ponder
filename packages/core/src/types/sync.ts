@@ -12,8 +12,7 @@ export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
-export type SyncTrace = Trace;
-export type SyncTraceFlat = {
+export type SyncTrace = {
   trace: Trace["result"];
   transactionHash: Trace["txHash"];
   position: number;
