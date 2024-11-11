@@ -10,8 +10,8 @@ import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type {
   Block,
-  CallTrace,
   Log,
+  Trace,
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
@@ -119,7 +119,7 @@ export namespace Virtual {
               config["contracts"][contractName]["abi"],
               eventName
             >;
-            trace: Prettify<CallTrace>;
+            trace: Prettify<Trace>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
           } & FormatTransactionReceipts<config["contracts"][contractName]>

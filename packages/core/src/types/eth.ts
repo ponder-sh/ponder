@@ -193,45 +193,6 @@ export type TransactionReceipt = {
   type: TransactionType;
 };
 
-type _TraceAddress = number | _TraceAddress[];
-type TraceAddress = _TraceAddress[];
-
-// /**
-//  * An Ethereum call trace.
-//  */
-// export type CallTrace = {
-//   /** Globally unique identifier for this trace (`${transactionHash}-${traceAddress}`) */
-//   id: string;
-//   /** Message sender */
-//   from: Address;
-//   /** Message receipient  */
-//   to: Address;
-//   /** Amount of gas allocated to this call */
-//   gas: bigint;
-//   /** Value in wei sent with this call */
-//   value: bigint;
-//   /** Calldata sent with this call */
-//   input: Hex;
-//   /** Contains return data */
-//   output: Hex;
-//   /** Total used gas by this trace */
-//   gasUsed: bigint;
-//   /** Number of traces created by this trace */
-//   subtraces: number;
-//   /** Description of this traces position within all traces in the transaction */
-//   traceAddress: TraceAddress;
-//   /** Hash of block containing this trace */
-//   blockHash: Hash;
-//   /** Number of block containing this trace */
-//   blockNumber: bigint;
-//   /** Hash of the transaction that created this trace */
-//   transactionHash: Hash;
-//   /** Index of the transaction that created this trace */
-//   transactionIndex: number;
-//   /** EVM opcode used to make this call */
-//   callType: "call" | "staticcall" | "delegatecall" | "callcode";
-// };
-
 export type Trace = {
   /** Globally unique identifier for this trace (`${transactionHash}-${tracePosition}`) */
   id: string;
@@ -262,14 +223,6 @@ export type Trace = {
   revertReason?: string;
   /** Value transferred. */
   value: bigint;
-  /** Number of traces created by this trace */
-  subtraces: number;
-  /** Hash of block containing this trace */
-  blockHash: Hash;
-  /** Number of block containing this trace */
-  blockNumber: bigint;
   /** Hash of the transaction that created this trace */
   transactionHash: Hash;
-  /** Index of the transaction that created this trace */
-  transactionIndex: number;
 };

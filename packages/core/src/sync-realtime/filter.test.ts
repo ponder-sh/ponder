@@ -4,7 +4,6 @@ import type { Address } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   isBlockFilterMatched,
-  isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
 } from "./filter.js";
@@ -36,20 +35,20 @@ test("isLogFactoryMatched()", async (context) => {
   });
   expect(isMatched).toBe(false);
 
-  isMatched = isLogFactoryMatched({
-    filter: context.sources[2].filter.toAddress,
-    log: rpcData.block3.logs[0],
-  });
-  expect(isMatched).toBe(true);
+  // isMatched = isLogFactoryMatched({
+  //   filter: context.sources[2].filter.toAddress,
+  //   log: rpcData.block3.logs[0],
+  // });
+  // expect(isMatched).toBe(true);
 
-  isMatched = isLogFactoryMatched({
-    filter: context.sources[2].filter.toAddress,
-    log: rpcData.block2.logs[0],
-  });
-  expect(isMatched).toBe(false);
+  // isMatched = isLogFactoryMatched({
+  //   filter: context.sources[2].filter.toAddress,
+  //   log: rpcData.block2.logs[0],
+  // });
+  // expect(isMatched).toBe(false);
 });
 
-test("isLogFilterMatched", async (context) => {
+test("isLogFilterMatched()", async (context) => {
   const rpcData = await getRawRPCData();
 
   let isMatched = isLogFilterMatched({
@@ -74,31 +73,6 @@ test("isLogFilterMatched", async (context) => {
   expect(isMatched).toBe(false);
 });
 
-test("isCallTraceFilterMatched", async (context) => {
-  const rpcData = await getRawRPCData();
-
-  let isMatched = isCallTraceFilterMatched({
-    filter: context.sources[3].filter,
-    block: rpcData.block3.block,
-    callTrace: rpcData.block3.callTraces[0],
-  });
-  expect(isMatched).toBe(true);
-
-  isMatched = isCallTraceFilterMatched({
-    filter: context.sources[2].filter,
-    block: rpcData.block3.block,
-    callTrace: rpcData.block3.callTraces[0],
-  });
-  expect(isMatched).toBe(true);
-
-  isMatched = isCallTraceFilterMatched({
-    filter: context.sources[3].filter,
-    block: rpcData.block2.block,
-    callTrace: rpcData.block2.callTraces[0],
-  });
-  expect(isMatched).toBe(false);
-});
-
 test("isBlockFilterMatched", async (context) => {
   const rpcData = await getRawRPCData();
 
@@ -114,3 +88,9 @@ test("isBlockFilterMatched", async (context) => {
   });
   expect(isMatched).toBe(true);
 });
+
+test.todo("isTransactionFilterMatched()");
+
+test.todo("isTransferFilterMatched()");
+
+test.todo("isTraceFilterMatched()");

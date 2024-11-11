@@ -3,11 +3,17 @@ import {
   type BlockFilter,
   type LogFactory,
   type LogFilter,
+  type TraceFilter,
   type TransactionFilter,
   type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
-import type { SyncBlock, SyncLog, SyncTrace } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+} from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Address, hexToBigInt, hexToNumber } from "viem";
 
@@ -69,7 +75,7 @@ export const isLogFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
@@ -109,30 +115,68 @@ export const isLogFilterMatched = ({
 };
 
 /**
- * Returns `true` if `trace` matches `filter`
+ * Returns `true` if `transaction` matches `filter`
  */
 export const isTransactionFilterMatched = ({
   filter,
   block,
-  trace,
+  transaction,
 }: {
   filter: TransactionFilter;
   block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["result"], "calls" | "logs">;
+  transaction: SyncTransaction;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
   if (
-    isValueMatched(filter.functionSelectors, trace.input.slice(0, 10)) === false
+    isAddressFactory(filter.fromAddress) === false &&
+    isValueMatched(
+      filter.fromAddress as Address | Address[] | undefined,
+      transaction.from,
+    ) === false
   ) {
     return false;
   }
+  if (
+    isAddressFactory(filter.toAddress) === false &&
+    transaction.to &&
+    isValueMatched(
+      filter.toAddress as Address | Address[] | undefined,
+      transaction.to,
+    ) === false
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Returns `true` if `trace` matches `filter`
+ */
+export const isTraceFilterMatched = ({
+  filter,
+  block,
+  trace,
+}: {
+  filter: TraceFilter;
+  block: Pick<SyncBlock, "number">;
+  trace: Omit<SyncTrace["result"], "calls" | "logs">;
+}): boolean => {
+  // Return `false` for out of range blocks
+  if (
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
+  }
+
   if (
     isAddressFactory(filter.fromAddress) === false &&
     isValueMatched(
@@ -152,8 +196,12 @@ export const isTransactionFilterMatched = ({
     return false;
   }
 
-  // TODO(kyle) include inner
-  // TODO(kyle) include failed
+  if (
+    isValueMatched(filter.functionSelector, trace.input.slice(0, 10)) === false
+  ) {
+    return false;
+  }
+
   // TODO(kyle) call type
 
   return true;
@@ -173,13 +221,15 @@ export const isTransferFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
-  if (hexToBigInt(trace.value) === 0n) return false;
+  if (trace.value === undefined || hexToBigInt(trace.value) === 0n) {
+    return false;
+  }
   if (
     isAddressFactory(filter.fromAddress) === false &&
     isValueMatched(
@@ -214,7 +264,7 @@ export const isBlockFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;

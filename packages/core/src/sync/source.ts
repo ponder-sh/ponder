@@ -1,20 +1,24 @@
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type { SyncLog } from "@/types/sync.js";
+import type { Trace } from "@/utils/debug.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
 
 export type Source = ContractSource | BlockSource;
 export type ContractSource<
-  filter extends "log" | "transaction" | "transfer" =
+  filter extends "log" | "transaction" | "transfer" | "trace" =
     | "log"
     | "transaction"
-    | "transfer",
+    | "transfer"
+    | "trace",
   factory extends Factory | undefined = Factory | undefined,
 > = {
   filter: filter extends "log"
     ? LogFilter<factory>
     : filter extends "transaction"
       ? TransactionFilter
-      : TransferFilter;
+      : filter extends "tranfer"
+        ? TransferFilter
+        : TraceFilter;
 } & ContractMetadata;
 export type BlockSource = { filter: BlockFilter } & BlockMetadata;
 
@@ -45,9 +49,11 @@ export type LogFilter<
   type: "log";
   chainId: number;
   address: factory extends Factory ? factory : Address | Address[] | undefined;
-  topics: LogTopic[];
-  includeTransactionReceipts: boolean;
-  fromBlock: number;
+  topic0: LogTopic | undefined;
+  topic1: LogTopic | undefined;
+  topic2: LogTopic | undefined;
+  topic3: LogTopic | undefined;
+  fromBlock: number | undefined;
   toBlock: number | undefined;
 };
 
@@ -56,7 +62,7 @@ export type BlockFilter = {
   chainId: number;
   interval: number;
   offset: number;
-  fromBlock: number;
+  fromBlock: number | undefined;
   toBlock: number | undefined;
 };
 
@@ -72,7 +78,7 @@ export type TransferFilter<
   toAddress: toFactory extends Factory
     ? fromFactory
     : Address | Address[] | undefined;
-  fromBlock: number;
+  fromBlock: number | undefined;
   toBlock: number | undefined;
 };
 
@@ -86,23 +92,29 @@ export type TransactionFilter<
     ? fromFactory
     : Address | Address[] | undefined;
   toAddress: toFactory extends Factory
+    ? toFactory
+    : Address | Address[] | undefined;
+  includeReverted: boolean;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
+};
+
+export type TraceFilter<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
+  type: "trace";
+  chainId: number;
+  fromAddress: fromFactory extends Factory
     ? fromFactory
     : Address | Address[] | undefined;
-  callType:
-    | (
-        | "CALL"
-        | "STATICCALL"
-        | "DELEGATECALL"
-        | "SELFDESTRUCT"
-        | "CREATE"
-        | "CREATE2"
-        | "CALLCODE"
-      )[]
-    | undefined;
-  functionSelectors: Hex | Hex[] | undefined;
-  includeInner: boolean;
-  includeFailed: boolean;
-  fromBlock: number;
+  toAddress: toFactory extends Factory
+    ? toFactory
+    : Address | Address[] | undefined;
+  functionSelector: Hex | Hex[] | undefined;
+  callType: Trace["result"]["type"] | Trace["result"]["type"][] | undefined;
+  includeReverted: boolean;
+  fromBlock: number | undefined;
   toBlock: number | undefined;
 };
 

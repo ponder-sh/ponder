@@ -5,8 +5,8 @@ import { assertType, test } from "vitest";
 import type { Db } from "./db.js";
 import type {
   Block,
-  CallTrace,
   Log,
+  Trace,
   Transaction,
   TransactionReceipt,
 } from "./eth.js";
@@ -382,7 +382,7 @@ test("Event with functions", () => {
   type expectedEvent = {
     args: readonly [Address];
     result: bigint;
-    trace: CallTrace;
+    trace: Trace;
     block: Block;
     transaction: Transaction;
   };
@@ -398,7 +398,7 @@ test("Event with functions and no inputs or outputs", () => {
   type expectedEvent = {
     args: never;
     result: never;
-    trace: CallTrace;
+    trace: Trace;
     block: Block;
     transaction: Transaction;
   };
