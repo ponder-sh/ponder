@@ -7,15 +7,13 @@ import { Callout } from "nextra/components";
 
 # replaceBigInts
 
-Replaces all `BigInt{:ts}` values in an object using the provided [replacer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#replacer) function. The target can be a scalar, array, or object.
-
-The `ReplaceBigInt{:ts}` generic type implements the same funtionality at the type level.
+Replaces all instances of [`BigInt`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt) in an object with a new value, specified by a replacer function.
 
 ## Usage
 
 This example simply converts `BigInt` values to a string.
 
-```ts filename="index.ts"
+```ts filename="index.ts" {5}
 import { replaceBigInts } from "@ponder/utils";
 
 const obj = { a: 100n, b: [-12n, 3_000_000_000n] };
@@ -26,44 +24,64 @@ const result = replaceBigInts(obj, (v) => String(v));
 
 ## Usage in Ponder
 
-The [`p.json(){:ts}` column type](/docs/schema#json-type) uses the `JSONB{:sql}` data type in SQLite and Postgres, which [does not support](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json) `BigInt` values.
+Here are a few common scenarios where you might want to replace `BigInt` values in a Ponder app.
 
-Use `replaceBigInts` to prepare objects containing `BigInt` values for insertion into `p.json(){:ts}` columns. In your schema, use the `ReplaceBigInts{:ts}` generic in the `p.json(){:ts}` type annotation.
+### `json` columns
 
-<div className="code-columns">
+The [`json` column type](/docs/schema#json-type) does not support `BigInt` values. Use `replaceBigInts` to prepare objects containing `BigInt` values for insertion.
 
-```ts filename="ponder.schema.ts" {2,8}
-import { createSchema } from "@ponder/core";
-import type { ReplaceBigInts } from "@ponder/utils";
-import type { TransactionReceipt, Hex } from "viem";
-
-export default createSchema((p) => ({
-  UserOperation: p.createTable({
-    id: p.string(),
-    receipt: p.json<ReplaceBigInts<TransactionReceipt, Hex>>(),
-    // ...
-  }),
-}));
-```
-
-```ts filename="src/index.ts" {2,11}
+```ts filename="src/index.ts" {2,9}
 import { ponder } from "@/generated";
 import { replaceBigInts } from "@ponder/utils";
 import { toHex } from "viem";
+import { userOperations } from "../ponder.schema";
 
 ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
-  const { UserOperation } = context.db;
-
-  await UserOperation.create({
+  await context.db.insert(userOperations).values({
     id: event.log.id,
-    data: {
-      receipt: replaceBigInts(event.transactionReceipt, toHex),
-    },
+    receipt: replaceBigInts(event.transactionReceipt, toHex),
   });
 });
 ```
 
-</div>
+To maintain type safety for column values, use the `ReplaceBigInts{:ts}` helper type in the column `$type` annotation.
+
+```ts filename="ponder.schema.ts" {2,7}
+import { onchainTable } from "@ponder/core";
+import type { ReplaceBigInts } from "@ponder/utils";
+import type { TransactionReceipt, Hex } from "viem";
+
+export const userOperations = onchainTable("user_operations", (t) => ({
+  id: t.text().primaryKey(),
+  receipt: t.json<ReplaceBigInts<TransactionReceipt, Hex>>(),
+}));
+```
+
+### HTTP responses
+
+The GraphQL API automatically serializes `BigInt` values to strings before returning them in HTTP responses. In API functions, you need to handle this serialization process manually.
+
+```ts filename="src/api/index.ts" {2,16}
+import { ponder } from "@/generated";
+import { replaceBigInts } from "@ponder/utils";
+import { numberToHex } from "viem";
+import { accounts } from "../../ponder.schema";
+
+ponder.get("/whale-balances", async (c) => {
+  const rows = await c.db
+    .select({
+      address: accounts.address,
+      ethBalance: accounts.ethBalance,
+      dogeBalance: accounts.dogeBalance,
+    })
+    .from(accounts)
+    .where(eq(accounts.address, address));
+
+  const result = replaceBigInts(rows, (v) => numberToHex(v));
+
+  return c.json(result);
+});
+```
 
 ## Replacer functions
 

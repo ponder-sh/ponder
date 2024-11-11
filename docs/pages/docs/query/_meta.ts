@@ -1,5 +1,5 @@
 export default {
-  "api-functions": "API functions",
   "graphql": "GraphQL",
+  "api-functions": "API functions",
   "direct-sql": "Direct SQL",
 };

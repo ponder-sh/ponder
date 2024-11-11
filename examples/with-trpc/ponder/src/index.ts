@@ -1,70 +1,53 @@
 import { ponder } from "@/generated";
+import {
+  account,
+  allowance,
+  approvalEvent,
+  transferEvent,
+} from "../ponder.schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
-  const { Account, TransferEvent } = context.db;
+  await context.db
+    .insert(account)
+    .values({ address: event.args.from, balance: 0n, isOwner: false })
+    .onConflictDoUpdate((row) => ({
+      balance: row.balance - event.args.amount,
+    }));
 
-  // Create an Account for the sender, or update the balance if it already exists.
-  await Account.upsert({
-    id: event.args.from,
-    create: {
-      balance: BigInt(0),
-      isOwner: false,
-    },
-    update: ({ current }) => ({
-      balance: current.balance - event.args.amount,
-    }),
-  });
+  await context.db
+    .insert(account)
+    .values({ address: event.args.to, balance: 0n, isOwner: false })
+    .onConflictDoUpdate((row) => ({
+      balance: row.balance + event.args.amount,
+    }));
 
-  // Create an Account for the recipient, or update the balance if it already exists.
-  await Account.upsert({
-    id: event.args.to,
-    create: {
-      balance: event.args.amount,
-      isOwner: false,
-    },
-    update: ({ current }) => ({
-      balance: current.balance + event.args.amount,
-    }),
-  });
-
-  // Create a TransferEvent.
-  await TransferEvent.create({
+  // add row to "transfer_event".
+  await context.db.insert(transferEvent).values({
     id: event.log.id,
-    data: {
-      fromId: event.args.from,
-      toId: event.args.to,
-      amount: event.args.amount,
-      timestamp: Number(event.block.timestamp),
-    },
+    amount: event.args.amount,
+    timestamp: Number(event.block.timestamp),
+    from: event.args.from,
+    to: event.args.to,
   });
 });
 
 ponder.on("ERC20:Approval", async ({ event, context }) => {
-  const { Allowance, ApprovalEvent } = context.db;
-
-  const allowanceId = `${event.args.owner}-${event.args.spender}`;
-
-  // Create or update the Allowance.
-  await Allowance.upsert({
-    id: allowanceId,
-    create: {
-      ownerId: event.args.owner,
-      spenderId: event.args.spender,
+  // upsert "allowance".
+  await context.db
+    .insert(allowance)
+    .values({
+      spender: event.args.spender,
+      owner: event.args.owner,
       amount: event.args.amount,
-    },
-    update: {
-      amount: event.args.amount,
-    },
-  });
+    })
+    .onConflictDoUpdate({ amount: event.args.amount });
 
-  // Create an ApprovalEvent.
-  await ApprovalEvent.create({
+  // add row to "approval_event".
+  await context.db.insert(approvalEvent).values({
     id: event.log.id,
-    data: {
-      ownerId: event.args.owner,
-      spenderId: event.args.spender,
-      amount: event.args.amount,
-      timestamp: Number(event.block.timestamp),
-    },
+    amount: event.args.amount,
+    timestamp: Number(event.block.timestamp),
+    owner: event.args.owner,
+    spender: event.args.spender,
   });
 });

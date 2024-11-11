@@ -1,68 +1,58 @@
-import { entityKind } from "drizzle-orm";
+import {
+  type ColumnBaseConfig,
+  type ColumnBuilderBaseConfig,
+  type ColumnBuilderRuntimeConfig,
+  type MakeColumnConfig,
+  entityKind,
+} from "drizzle-orm";
 import {
   type AnyPgTable,
   PgColumn,
   PgColumnBuilder,
 } from "drizzle-orm/pg-core";
-import {
-  type AnySQLiteTable,
-  SQLiteColumn,
-  SQLiteColumnBuilder,
-} from "drizzle-orm/sqlite-core";
-import { bytesToHex, hexToBytes } from "viem";
 
-export class PgHexBuilder extends PgColumnBuilder {
+export type PgHexBuilderInitial<TName extends string> = PgHexBuilder<{
+  name: TName;
+  dataType: "string";
+  columnType: "PgHex";
+  data: `0x${string}`;
+  driverParam: string;
+  enumValues: undefined;
+  generated: undefined;
+}>;
+
+export class PgHexBuilder<
+  T extends ColumnBuilderBaseConfig<"string", "PgHex">,
+> extends PgColumnBuilder<T> {
   static readonly [entityKind]: string = "PgHexBuilder";
 
-  constructor(columnName: string) {
-    super(columnName, "buffer", "PgHex");
+  constructor(name: T["name"]) {
+    super(name, "string", "PgHex");
   }
 
-  build(table: AnyPgTable) {
-    return new PgHex(table, this.config);
+  /** @internal */
+  // @ts-ignore
+  override build<TTableName extends string>(
+    table: AnyPgTable<{ name: TTableName }>,
+  ): PgHex<MakeColumnConfig<T, TTableName>> {
+    return new PgHex<MakeColumnConfig<T, TTableName>>(
+      table,
+      this.config as ColumnBuilderRuntimeConfig<any, any>,
+    );
   }
 }
 
-export class PgHex extends PgColumn {
+export class PgHex<
+  T extends ColumnBaseConfig<"string", "PgHex">,
+> extends PgColumn<T> {
   static readonly [entityKind]: string = "PgHex";
 
   getSQLType(): string {
-    return "bytea";
+    return "text";
   }
 
-  override mapFromDriverValue(value: Buffer) {
-    return bytesToHex(value);
-  }
-
-  override mapToDriverValue(value: `0x${string}`): Buffer {
-    return Buffer.from(hexToBytes(value));
-  }
-}
-
-export class SQLiteHexBuilder extends SQLiteColumnBuilder {
-  static readonly [entityKind]: string = "SQliteHexBuilder";
-
-  constructor(columnName: string) {
-    super(columnName, "buffer", "SQLiteHex");
-  }
-
-  build(table: AnySQLiteTable) {
-    return new SQLiteHex(table, this.config);
-  }
-}
-
-export class SQLiteHex extends SQLiteColumn {
-  static readonly [entityKind]: string = "SQLiteHex";
-
-  getSQLType(): string {
-    return "blob";
-  }
-
-  override mapFromDriverValue(value: Buffer) {
-    return bytesToHex(value);
-  }
-
-  override mapToDriverValue(value: `0x${string}`): Buffer {
-    return Buffer.from(hexToBytes(value));
+  override mapToDriverValue(value: `0x${string}`) {
+    if (value.length % 2 === 0) return value.toLowerCase() as `0x${string}`;
+    return `0x0${value.slice(2)}`.toLowerCase() as `0x${string}`;
   }
 }

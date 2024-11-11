@@ -1,11 +1,9 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  multicalls: p.createTable({
-    id: p.hex(),
-    gasUsed: p.bigint(),
-    bytes: p.int(),
-    successfulCalls: p.int(),
-    failedCalls: p.int(),
-  }),
+export const multicall = onchainTable("multicall", (t) => ({
+  from: t.hex().primaryKey(),
+  gasUsed: t.bigint().notNull(),
+  bytes: t.integer().notNull(),
+  successfulCalls: t.integer().notNull(),
+  failedCalls: t.integer().notNull(),
 }));

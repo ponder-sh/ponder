@@ -1,12 +1,13 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
-import { createDrizzleDb, createDrizzleTables } from "@/drizzle/runtime.js";
-import { graphql } from "@/graphql/index.js";
+import type { Schema } from "@/drizzle/index.js";
+import { graphql } from "@/graphql/middleware.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
-import { getMetadataStore } from "@/indexing-store/metadata.js";
-import { getReadonlyStore } from "@/indexing-store/readonly.js";
-import type { Schema } from "@/schema/common.js";
+import {
+  getLiveMetadataStore,
+  getMetadataStore,
+} from "@/indexing-store/metadata.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -27,26 +28,24 @@ export async function createServer({
   common,
   schema,
   database,
+  instanceId,
 }: {
   app: Hono;
   routes: PonderRoutes;
   common: Common;
   schema: Schema;
   database: Database;
+  instanceId?: string;
 }): Promise<Server> {
   // Create hono app
 
-  const readonlyStore = getReadonlyStore({
-    dialect: database.dialect,
-    schema,
-    db: database.qb.readonly,
-    common,
-  });
-
-  const metadataStore = getMetadataStore({
-    dialect: database.dialect,
-    db: database.qb.readonly,
-  });
+  const metadataStore =
+    instanceId === undefined
+      ? getLiveMetadataStore({ db: database.qb.readonly })
+      : getMetadataStore({
+          db: database.qb.readonly,
+          instanceId,
+        });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes
@@ -92,14 +91,10 @@ export async function createServer({
     }
   });
 
-  const db = createDrizzleDb(database);
-  const tables = createDrizzleTables(schema, database);
-
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("db", db);
-    c.set("tables", tables);
-    c.set("readonlyStore", readonlyStore);
+    c.set("common", common);
+    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
     c.set("schema", schema);
     await next();
@@ -144,8 +139,8 @@ export async function createServer({
     hono.use("/", graphql());
   } else {
     // apply user routes to hono instance, registering a custom error handler
-    applyHonoRoutes(hono, userRoutes, { db, tables }).onError((error, c) =>
-      onError(error, c, common),
+    applyHonoRoutes(hono, userRoutes, { db: database.drizzle }).onError(
+      (error, c) => onError(error, c, common),
     );
 
     common.logger.debug({

@@ -58,7 +58,7 @@ test("erc20", async (context) => {
     `
     accounts {
       items {
-        id
+        address
         balance
       }
     }
@@ -69,27 +69,26 @@ test("erc20", async (context) => {
   const body = (await response.json()) as any;
   expect(body.errors).toBe(undefined);
   const accounts = body.data.accounts.items;
-
   expect(accounts[0]).toMatchObject({
-    id: zeroAddress,
+    address: zeroAddress,
     balance: (-2 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
-    id: BOB.toLowerCase(),
+    address: BOB.toLowerCase(),
     balance: (2 * 10 ** 18).toString(),
   });
   expect(accounts[2]).toMatchObject({
-    id: ALICE.toLowerCase(),
+    address: ALICE.toLowerCase(),
     balance: "0",
   });
 
   await cleanup();
 });
 
-const shouldSkip = process.env.DATABASE_URL === undefined;
+const isPglite = !!process.env.DATABASE_URL;
 
 // Fix this once it's easier to have per-command kill functions in Ponder.ts.
-describe.skipIf(shouldSkip)("postgres database", () => {
+describe.skipIf(isPglite)("postgres database", () => {
   test.todo("ponder serve", async (context) => {
     const startPort = await getFreePort();
 
@@ -123,7 +122,7 @@ describe.skipIf(shouldSkip)("postgres database", () => {
       `
       accounts {
         items {
-          id
+          address
           balance
         }
       }
@@ -137,15 +136,15 @@ describe.skipIf(shouldSkip)("postgres database", () => {
 
     expect(accounts).toHaveLength(3);
     expect(accounts[0]).toMatchObject({
-      id: zeroAddress,
+      address: zeroAddress,
       balance: (-4 * 10 ** 18).toString(),
     });
     expect(accounts[1]).toMatchObject({
-      id: BOB.toLowerCase(),
+      address: BOB.toLowerCase(),
       balance: (4 * 10 ** 18).toString(),
     });
     expect(accounts[2]).toMatchObject({
-      id: ALICE.toLowerCase(),
+      address: ALICE.toLowerCase(),
       balance: "0",
     });
 

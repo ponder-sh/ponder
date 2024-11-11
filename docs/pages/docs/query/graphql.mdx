@@ -8,86 +8,88 @@ import { Callout } from "nextra/components";
 # Query the GraphQL API
 
 <Callout type="info">
-  This guide assumes you have a working knowledge of GraphQL query syntax. For a
-  general overview of GraphQL, please refer to the
-  [documentation](https://graphql.org/learn/).
+  This guide assumes you have a working knowledge of GraphQL. Visit the
+  [documentation](https://graphql.org/learn/) for an overview.
 </Callout>
 
-Ponder uses your `ponder.schema.ts` file to generate a GraphQL API for your app. With the dev server running, open `http://localhost:42069` in your browser to use the [GraphiQL](https://github.com/graphql/graphiql/tree/main/packages/graphiql#graphiql) interface. GraphiQL is a useful tool for exploring your schema and testing queries during development.
+Ponder automatically generates a GraphQL schema based on your `ponder.schema.ts` file that uses efficient resolver logic to avoid common performance pitfalls.
+
+## GraphiQL
+
+With the dev server running, open `http://localhost:42069` in your browser to use the [GraphiQL](https://github.com/graphql/graphiql/tree/main/packages/graphiql#graphiql) interface. GraphiQL is a useful tool for exploring your schema and testing queries during development.
 
 ## Schema generation
 
-Ponder creates a **singular** and a **plural** query field for each table in your schema. For example, if your schema contains a `Person` table, Ponder will create a `person` and a `persons` field on the root `Query` type. The singular query field returns a single record (or null), while the plural query field returns a page of records.
+The GraphQL schema includes a **singular** and a **plural** query field for each table in `ponder.schema.ts`.
+
+If your schema contains a `person` table, the GraphQL schema will include a `person` and a `persons` field on the root `Query` type. The singular query field returns a single record (or null) and the plural query field returns a page of records.
 
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Person: p.createTable({
-    id: p.int(),
-    name: p.string(),
-    age: p.int().optional(),
-  }),
+export const person = onchainTable("person", (t) => ({
+  id: t.integer().primaryKey(),
+  name: t.text().notNull(),
+  age: t.integer(),
 }));
 ```
 
 {/* prettier-ignore */}
 ```graphql filename="Generated schema"
-type Person {
-  id: Int!
-  name: String!
-  age: Int
-}
-
-type PersonPage {
-  items: [Person!]!
-  pageInfo: PageInfo!
-}
-
 type Query {
-  person(id: Int!, timestamp: Int): Person
+  person(id: Int!, timestamp: Int): person
   persons(
-    where: PetFilter, 
+    where: personFilter, 
     orderBy: String,
     orderDirection: String,
     before: String,
     after: String,
     limit: Int,
     timestamp: Int,
-  ): PersonPage!
+  ): personPage!
 }
+
+type person {
+  id: Int!
+  name: String!
+  age: Int
+}
+
+type personPage {
+  items: [person!]!
+  pageInfo: PageInfo!
+}
+
 ```
 
 </div>
 
 ## Filtering
 
-Use the `where` argument to filter for records that match the specified criteria.
+Use the `where` argument to filter for records that match certain criteria. The `where` argument type includes filter options for every column defined on a table. Here are the filter options available for each column type.
 
-The `where` argument type includes filter options for every column defined on a table. Here are the filter options available for each column type:
+| Filter option              | Available for column types    | _Include records where \{column\}..._     |
+| :------------------------- | :---------------------------- | :---------------------------------------- |
+| `{column}`                 | All                           | **equals** the value                      |
+| `{column}_not`             | All                           | **does not equal** the value              |
+| `{column}_in`              | All primitives and enums      | **is one of** the values                  |
+| `{column}_not_in`          | All primitives and enums      | **is not one of** the values              |
+| `{column}_gt`              | Numeric primitives            | is **greater than** the value             |
+| `{column}_lt`              | Numeric primitives            | is **less than** the value                |
+| `{column}_gte`             | Numeric primitives            | is **greater than or equal to** the value |
+| `{column}_lte`             | Numeric primitives            | is **less than or equal to** the value    |
+| `{column}_contains`        | String primitives             | **contains** the substring                |
+| `{column}_not_contains`    | String primitives             | **does not contain** the substring        |
+| `{column}_starts_with`     | String primitives             | **starts with** the substring             |
+| `{column}_not_starts_with` | String primitives             | **does not start with** the substring     |
+| `{column}_ends_with`       | String primitives             | **ends with** the substring               |
+| `{column}_not_ends_with`   | String primitives             | **does not end with** the substring       |
+| `{column}_has`             | Lists of primitives and enums | **has** the value as an element           |
+| `{column}_not_has`         | Lists of primitives and enums | **does not have** the value as an element |
 
-| Filter option              | Available for column types                           | _Include records where \{column\}..._     |
-| :------------------------- | :--------------------------------------------------- | :---------------------------------------- |
-| `{column}`                 | All                                                  | **equals** the value                      |
-| `{column}_not`             | All                                                  | **does not equal** the value              |
-| `{column}_in`              | All primitives and enums                             | **is one of** the values                  |
-| `{column}_not_in`          | All primitives and enums                             | **is not one of** the values              |
-| `{column}_gt`              | Numeric primitives (`int`, `float`, `bigint`, `hex`) | is **greater than** the value             |
-| `{column}_lt`              | Numeric primitives                                   | is **less than** the value                |
-| `{column}_gte`             | Numeric primitives                                   | is **greater than or equal to** the value |
-| `{column}_lte`             | Numeric primitives                                   | is **less than or equal to** the value    |
-| `{column}_contains`        | String primitives (`string`)                         | **contains** the substring                |
-| `{column}_not_contains`    | String primitives                                    | **does not contain** the substring        |
-| `{column}_starts_with`     | String primitives                                    | **starts with** the substring             |
-| `{column}_not_starts_with` | String primitives                                    | **does not start with** the substring     |
-| `{column}_ends_with`       | String primitives                                    | **ends with** the substring               |
-| `{column}_not_ends_with`   | String primitives                                    | **does not end with** the substring       |
-| `{column}_has`             | Lists of primitives and enums                        | **has** the value as an element           |
-| `{column}_not_has`         | Lists of primitives and enums                        | **does not have** the value as an element |
-
-You can also compose filters using the `AND` and `OR` operators. These special fields accept an array of filter objects.
+You can compose filters using the `AND` and `OR` operators. These special fields accept an array of filter objects.
 
 ### Examples
 
@@ -95,7 +97,7 @@ For the following examples, assume these records exist in your database.
 
 <div className="code-columns">
 {/* prettier-ignore */}
-```json filename="Person data"
+```json filename="person data"
 [
   { "id": 1, "name": "Barry", "age": 57 },
   { "id": 2, "name": "Lucile", "age": 32 },
@@ -106,7 +108,7 @@ For the following examples, assume these records exist in your database.
 <div></div>
 </div>
 
-Get all `Person` records with an `age` greater than `32`.
+Get all `person` records with an `age` greater than `32`.
 
 <div className="code-columns">
 {/* prettier-ignore */}
@@ -131,13 +133,20 @@ query {
 
 </div>
 
-Get all `Person` records with a `name` that does not end with `"y"` _and_ an age greater than `60`. Note that when you include multiple filter conditions, they are combined with a logical `AND`.
+Get all `person` records with a `name` that does not end with `"y"` _and_ an age greater than `60`. Note that when you include multiple filter conditions, they are combined with a logical `AND`.
 
 <div className="code-columns">
 {/* prettier-ignore */}
 ```graphql filename="Query"
 query {
-  persons(where: { name_not_ends_with: "y" }) {
+  persons(
+    where: {
+      AND: [
+        { name_not_ends_with: "y" },
+        { age_gte: 60 }
+      ]
+    }
+  ) {
     name
     age
   }
@@ -148,14 +157,14 @@ query {
 ```json filename="Result"
 {
   "persons": [
-    { "name": "Lucile", "age": 32 },
     { "name": "Pablo", "age": 71 },
   ]
 }
 ```
+
 </div>
 
-Get all `Person` records with a `name` that contains `"ll"` _or_ an age greater than or equal to `60`. In this case, we use the special `OR` operator to combine multiple filter conditions.
+Get all `person` records with a `name` that contains `"ll"` _or_ an age greater than or equal to `50`. In this case, we use the special `OR` operator to combine multiple filter conditions.
 
 <div className="code-columns">
 {/* prettier-ignore */}
@@ -165,7 +174,7 @@ query {
     where: {
       OR: [
         { name_contains: "ll" },
-        { age_gte: 60 }
+        { age_gte: 50 }
       ] 
     }
   ) {
@@ -185,6 +194,7 @@ query {
   ]
 }
 ```
+
 </div>
 
 ## Sorting
@@ -237,13 +247,11 @@ Top-level plural query fields and `p.many()` relationship fields return a `Page`
 
 <div className="code-columns">
 ```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Pet: p.createTable({
-    id: p.string(),
-    name: p.string(),
-  }),
+export const pet = onchainTable("pet", (t) => ({
+  id: t.text().primaryKey(),
+  name: t.text().notNull(),
 }));
 ```
 
@@ -256,13 +264,13 @@ type PageInfo {
   hasNextPage: Boolean!
 }
 
-type Pet {
+type pet {
   id: String!
   name: String!
 }
 
-type PetPage {
-  items: [Pet!]!
+type petPage {
+  items: [pet!]!
   pageInfo: PageInfo!
 }
 ```
@@ -284,7 +292,7 @@ As a reminder, assume that these records exist in your database for the followin
 
 <div className="code-columns">
 {/* prettier-ignore */}
-```json filename="Person data"
+```json filename="person data"
 [
   { "id": 1, "name": "Barry", "age": 57 },
   { "id": 2, "name": "Lucile", "age": 32 },
@@ -292,7 +300,6 @@ As a reminder, assume that these records exist in your database for the followin
   { "id": 4, "name": "Pablo", "age": 71 },
 ]
 ```
-<div></div>
 </div>
 
 First, make a request without specifying any pagination options. The `items` list will contain the first `n=limit` records that match the filter and sort criteria.
@@ -427,68 +434,66 @@ query {
 ## Relationship fields
 
 <Callout type="info">
-  See the [design your schema](/docs/schema#one-to-many-relationships) guide for a
-  detailed overview of how to define relationships in your schema.
+  [Read more](/docs/schema#relationships) about how to define relationships in
+  your schema.
 </Callout>
 
-When you define a column in your schema using `p.one(){:ts}` or `p.many(){:ts}`, Ponder creates a one-to-one or one-to-many relationship field in the GraphQL schema.
-
-Fields created by `p.many(){:ts}` are very similar to the top-level plural query field, except they are automatically filtered by the parent entity ID.
+The GraphQL schema includes a relationship field for each `one` or `many` relation defined in your schema. One-to-many fields are very similar to the top-level plural query field, except they are automatically filtered by the parent row ID.
 
 <div className="code-columns">
-```ts filename="ponder.schema.ts" {8,12}
-import { createSchema } from "@ponder/core";
+```ts filename="ponder.schema.ts"
+import { onchainTable, relations } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Pet: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    ownerId: p.int().references("Person.id"),
-    owner: p.one("ownerId"),
-  }),
-  Person: p.createTable({
-    id: p.int(),
-    dogs: p.many("Pet.ownerId"),
-  }),
+export const pet = onchainTable("pet", (t) => ({
+  id: t.text().primaryKey(),
+  name: t.text().notNull(),
+  ownerId: t.integer().notNull(),
+}));
+
+export const petRelations = relations(pet, ({ one }) => ({
+  owner: one(person, { fields: [pet.ownerId], references: [person.id] }),
+}));
+
+export const person = onchainTable("person", (t) => ({
+  id: t.integer().primaryKey(),
+}));
+
+export const personRelations = relations(person, ({ many }) => ({
+  dogs: many(pet),
 }));
 ```
 
 {/* prettier-ignore */}
 ```graphql filename="Generated schema"
-type Pet {
+type pet {
   id: String!
   name: String!
   ownerId: Int!
-  owner: Person!
+  owner: person!
 }
 
-type Person {
+type person {
   id: Int!
   pets(
     # Has { ownerId: person.id } applied
-    where: PetFilter, 
+    where: petFilter, 
     orderBy: String,
     orderDirection: String,
     before: String,
     after: String,
     limit: Int,
     timestamp: Int,
-  ): PetPage!
+  ): petPage!
 }
 ```
 
 </div>
 
-## How to speed up queries
+## Performance tips
 
-Here are a few tips for speeding up slow queries.
+Here are a few tips for speeding up slow GraphQL queries.
 
-1. **Create database indexes**: Create indexes to speed up filters, joins, and sort conditions. [Read more](/docs/schema#indexes).
+1. **Create database indexes**: Create indexes to speed up filters, joins, and sort conditions. Keep in mind that relations **do not** automatically create indexes. [Read more](/docs/schema#indexes).
 2. **Enable horizontal scaling**: If the GraphQL API is struggling to keep up with request volume, consider spreading the load across multiple instances. [Read more](/docs/production/horizontal-scaling).
 3. **Limit query depth**: Each layer of depth in a GraphQL query introduces at least one additional sequential database query. Avoid queries that are more than 2 layers deep.
-3. **Use pagination**: Use cursor-based pagination to fetch records in smaller, more manageable chunks. This can help reduce the load on the database.
-
-## Time-travel queries
-
-<Callout type="warning">Native support for time-travel queries was removed in `0.4.0`. [Read more](/docs/indexing/time-series).</Callout>
-
+4. **Use pagination**: Use cursor-based pagination to fetch records in smaller, more manageable chunks. This can help reduce the load on the database.

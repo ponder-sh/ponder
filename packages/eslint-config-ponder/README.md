@@ -92,15 +92,12 @@ The `ponder.schema.ts` file contains the database schema, and defines the shape 
 ```ts
 // ponder.schema.ts
 
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  EnsName: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    owner: p.string(),
-    registeredAt: p.int(),
-  }),
+export const ensName = onchainTable("ens_name", (t) => ({
+  name: p.text().primaryKey(),
+  owner: p.text().notNull(),
+  registeredAt: p.integer().notNull(),
 }));
 ```
 
@@ -112,18 +109,15 @@ Files in the `src/` directory contain **indexing functions**, which are TypeScri
 // src/BaseRegistrar.ts
 
 import { ponder } from "@/generated";
+import * as schema from "../ponder.schema";
 
 ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
-  const { EnsName } = context.entities;
   const { name, owner } = event.params;
 
-  await EnsName.create({
-    id: `${name}-${owner}`,
-    data: {
-      name: name,
-      owner: owner,
-      registeredAt: event.block.timestamp,
-    },
+  await context.db.insert(schema.ensName).values({
+    name: name,
+    owner: owner,
+    registeredAt: event.block.timestamp,
   });
 });
 ```

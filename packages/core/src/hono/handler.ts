@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/common.js";
+import type { Schema } from "@/drizzle/index.js";
 import type { ApiRegistry } from "@/types/api.js";
 import type { BlankInput, HandlerResponse, Input, Next } from "hono/types";
 import type { Context, MiddlewareContext } from "./context.js";

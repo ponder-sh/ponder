@@ -1,9 +1,6 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Counter: p.createTable({
-    id: p.int(),
-    value: p.int(),
-    block: p.int(),
-  }),
+export const counter = onchainTable("counter", (t) => ({
+  value: t.integer().primaryKey(),
+  block: t.integer().notNull(),
 }));

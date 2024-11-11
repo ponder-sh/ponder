@@ -1,14 +1,11 @@
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  File: p.createTable({
-    id: p.string(),
-    name: p.string(),
-    size: p.int(),
-    contents: p.string(),
-    createdAt: p.int(),
-    type: p.string().optional(),
-    encoding: p.string().optional(),
-    compression: p.string().optional(),
-  }),
+export const file = onchainTable("file", (t) => ({
+  name: t.text().primaryKey(),
+  size: t.integer().notNull(),
+  contents: t.text().notNull(),
+  createdAt: t.integer().notNull(),
+  type: t.text(),
+  encoding: t.text(),
+  compression: t.text(),
 }));

@@ -127,3 +127,12 @@
     ),
     url("/hero.png") lightgray 50% / cover no-repeat;
 }
+
+/* MISC NEXTRA OVERRIDES */
+._list-decimal, ._list-disc {
+  margin-top: 12px;
+}
+
+._list-decimal, ._list-disc > li {
+  line-height: 1.75rem;
+}

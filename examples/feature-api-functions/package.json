@@ -7,11 +7,13 @@
     "start": "ponder start",
     "codegen": "ponder codegen",
     "serve": "ponder serve",
+    "generate": "drizzle-kit generate --dialect postgresql --schema ./ponder.schema.ts --out migrations",
     "lint": "eslint .",
     "typecheck": "tsc"
   },
   "dependencies": {
     "@ponder/core": "workspace:*",
+    "drizzle-kit": "0.25.0",
     "hono": "^4.5.0",
     "viem": "^2.21.3"
   },

@@ -7,19 +7,17 @@ import { Callout } from "nextra/components";
 
 # Indexing function API
 
-Indexing functions are user-defined functions that process blockchain data. They can be registered within any `.ts` file inside the `src/` directory. There are two kinds of events: **log events** and the **`"setup"` event**.
+Indexing functions are user-defined functions that receive blockchain data (a log, block, or trace) and insert data into the database. You can register indexing functions within any `.ts` file inside the `src/` directory.
 
 ## Registration
 
 To register an indexing function, use the `.on(){:ts}` method of the `ponder` object exported from `"@/generated"{:ts}`.
 
-Ponder uses
-
 <Callout type="info">
   Values returned by indexing functions are ignored.
 </Callout>
 
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {3}
 import { ponder } from "@/generated";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => {
@@ -30,12 +28,12 @@ ponder.on("ContractName:EventName", async ({ event, context }) => {
 });
 ```
 
-## Event
+## Log event
 
-The `event` argument passed to each indexing function contains raw event data.
+The `event` argument contains the decoded log arguments and the raw log, block, and transaction.
 
 ```ts
-type Event = {
+type LogEvent = {
   name: string;
   args: Args;
   log: Log;
@@ -44,9 +42,9 @@ type Event = {
 };
 ```
 
-### Event arguments
+### Log event arguments
 
-The `event.args` object contains event log arguments decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html).
+The `event.args` object contains event log arguments decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html) function.
 
 ```ts
 /** Sample `args` type for an ERC20 Transfer event. */
@@ -57,11 +55,35 @@ type Args = {
 };
 ```
 
-### Block, transaction, and log
+### Raw log, block, and transaction
 
 The `event.block`, `event.transaction`, and `event.log` objects contain raw blockchain data.
 
 ```ts filename="Block, transaction, and log types"
+/** The log being processed. */
+type Log = {
+  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
+  id: string;
+  /** The address from which this log originated */
+  address: `0x${string}`;
+  /** Hash of block containing this log */
+  blockHash: `0x${string}`;
+  /** Number of block containing this log */
+  blockNumber: bigint;
+  /** Contains the non-indexed arguments of the log */
+  data: `0x${string}`;
+  /** Index of this log within its block */
+  logIndex: number;
+  /** `true` if this log has been removed in a chain reorganization */
+  removed: boolean;
+  /** List of order-dependent topics */
+  topics: [`0x${string}`, ...`0x${string}`[]] | [];
+  /** Hash of the transaction that created this log */
+  transactionHash: `0x${string}`;
+  /** Index of the transaction that created this log */
+  transactionIndex: number;
+};
+
 /** The block containing the transaction that emitted the log being processed. */
 type Block = {
   /** Base fee per gas */
@@ -125,30 +147,6 @@ type Transaction = {
   /** Value in wei sent with this transaction */
   value: bigint;
 };
-
-/** The log being processed. */
-type Log = {
-  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
-  id: string;
-  /** The address from which this log originated */
-  address: `0x${string}`;
-  /** Hash of block containing this log */
-  blockHash: `0x${string}`;
-  /** Number of block containing this log */
-  blockNumber: bigint;
-  /** Contains the non-indexed arguments of the log */
-  data: `0x${string}`;
-  /** Index of this log within its block */
-  logIndex: number;
-  /** `true` if this log has been removed in a chain reorganization */
-  removed: boolean;
-  /** List of order-dependent topics */
-  topics: [`0x${string}`, ...`0x${string}`[]] | [];
-  /** Hash of the transaction that created this log */
-  transactionHash: `0x${string}`;
-  /** Index of the transaction that created this log */
-  transactionIndex: number;
-};
 ```
 
 ### Transaction receipt
@@ -195,60 +193,37 @@ The `context` argument passed to each indexing function contains database model 
 
 At runtime, the indexing engine uses a different `context` object depending on the network the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.network` and `context.contracts`.
 
+{/* prettier-ignore */}
 ```ts
 type Context = {
-  db: Record<string, DatabaseModel>;
+  db: Database;
   network: { name: string; chainId: number };
   client: ReadOnlyClient;
   contracts: Record<
     string,
-    {
-      abi: Abi;
-      address?: `0x${string}`;
-      startBlock?: number;
-      endBlock?: number;
-    }
+    { abi: Abi; address?: `0x${string}`; startBlock?: number; endBlock?: number; }
   >;
 };
 ```
 
 ### Database
 
-The `context.db` object contains ORM-style models that can be used to create, read, update, and delete database records. See [Create & update records](/docs/indexing/create-update-records) for a detailed overview.
+The `context.db` object is a live database connection. [Read more](/docs/indexing/write-to-the-database) about writing to the database.
 
-<div className="code-columns">
-
-```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
-
-export default createSchema((p) => ({
-  Person: p.createTable({
-    id: p.string(),
-    age: p.int().optional(),
-  }),
-  Dog: p.createTable({
-    id: p.bigint(),
-    ownerId: p.string().references("Person.id"),
-  }),
-}));
-```
-
-```ts filename="src/index.ts"
+```ts filename="src/index.ts" {5-7}
 import { ponder } from "@/generated";
+import { persons, dogs } from "../ponder.schema";
 
-ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
-  const { Person } = context.db;
-  //      ^? Model<{ id: string; age?: number }>;
-  const { Dog } = context.db;
-  //      ^? Model<{ id: bigint; ownerId: string; }>;
+ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
+  await context.db.insert(persons).values({ name: "bob", age: 30 });
+  await context.db.insert(dogs).values({ name: "jake", ownerName: "bob" });
+  const jake = await context.db.find(dogs, { name: "jake" });
 });
 ```
 
-</div>
-
 ### Network
 
-The `context.network` object contains information about the network that the current event was emitted on. The name and chain ID properties are strictly typed as a union of possible values based on the networks that the contract is configured to run on.
+The `context.network` object includes information about the network that the current event is from. The object is strictly typed according to the networks you defined in your config.
 
 ```ts filename="src/index.ts"
 ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
@@ -282,44 +257,41 @@ You can also define a setup function for each contract that runs before indexing
 - The indexing function does not receive an `event` argument, only `context`.
 - If you read from contracts in a `"setup"` indexing function, the `blockNumber` for the request is set to the contract's `startBlock`.
 
-For example, you might have a singleton `World` record that gets updated in indexing functions. Without the `"setup"` event, you would need to upsert the record in each indexing function that attempts to use it, which is clunky and inefficient.
-
-<div className="code-columns">
+For example, you might have a singleton `World` record that occasionally gets updated in indexing functions.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
+import { world } from "../ponder.schema";
 
 ponder.on("FunGame:NewPlayer", async ({ context }) => {
-  await context.db.World.upsert({
-    id: 1,
-    create: { playerCount: 0 },
-    update: ({ current }) => ({
-      ...current,
-      playerCount: current.playerCount + 1,
-    }),
-  });
+  await context.db
+    .insert(world)
+    .values({ id: 1, playerCount: 0 })
+    .onConflictDoUpdate((row) => ({
+      playerCount: row.playerCount + 1,
+    }));
 });
 ```
 
+Without the `"setup"` event, you need to upsert the record in each indexing function that attempts to use it, which is clunky and bad for performance. Instead, use the `"setup"` event to create the singleton record once at the beginning of indexing.
+
+{/* prettier-ignore */}
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
+import { world } from "../ponder.schema";
 
 ponder.on("FunGame:setup", async ({ context }) => {
-  await context.db.World.create({
+  await context.db.insert(world).values({
     id: 1,
-    data: { playerCount: 0 },
+    playerCount: 0,
   });
 });
 
 ponder.on("FunGame:NewPlayer", async ({ context }) => {
-  await context.db.World.update({
-    id: 1,
-    data: ({ current }) => ({
-      ...current,
-      playerCount: current.playerCount + 1,
-    }),
-  });
+  await context.db
+    .update(world, { id: 1 })
+    .set((row) => ({
+      playerCount: row.playerCount + 1,
+  }));
 });
 ```
-
-</div>

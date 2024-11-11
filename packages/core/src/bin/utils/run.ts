@@ -1,17 +1,15 @@
 import type { IndexingBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
-import { createDatabase } from "@/database/index.js";
-import { getHistoricalStore } from "@/indexing-store/historical.js";
+import type { Database } from "@/database/index.js";
+import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
-import { getReadonlyStore } from "@/indexing-store/readonly.js";
-import { getRealtimeStore } from "@/indexing-store/realtime.js";
-import type { IndexingStore } from "@/indexing-store/store.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexingService } from "@/indexing/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
-import { type RealtimeEvent, createSync } from "@/sync/index.js";
+import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -20,57 +18,41 @@ import {
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
-/**
- * Starts the sync and indexing services for the specified build.
- */
+/** Starts the sync and indexing services for the specified build. */
 export async function run({
   common,
   build,
+  database,
   onFatalError,
   onReloadableError,
 }: {
   common: Common;
   build: IndexingBuild;
+  database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const {
-    buildId,
-    databaseConfig,
-    networks,
-    sources,
-    graphqlSchema,
-    schema,
-    indexingFunctions,
-  } = build;
+  const { instanceId, networks, sources, schema, indexingFunctions } = build;
 
   let isKilled = false;
 
-  const database = createDatabase({
-    common,
-    schema,
-    databaseConfig,
-  });
-  const { checkpoint: initialCheckpoint } = await database.setup({
-    buildId,
-  });
+  const { checkpoint: initialCheckpoint } = await database.setup();
 
   const syncStore = createSyncStore({
     common,
     db: database.qb.sync,
-    dialect: database.dialect,
   });
 
   const metadataStore = getMetadataStore({
-    dialect: database.dialect,
     db: database.qb.user,
+    instanceId,
   });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  runCodegen({ common, graphqlSchema });
+  runCodegen({ common });
 
   // Note: can throw
   const sync = await createSync({
@@ -102,12 +84,19 @@ export async function run({
     worker: async (event: RealtimeEvent) => {
       switch (event.type) {
         case "block": {
-          const result = await handleEvents(
-            decodeEvents(common, sources, event.events),
-            event.checkpoint,
-          );
+          // Events must be run block-by-block, so that `database.complete` can accurately
+          // update the temporary `checkpoint` value set in the trigger.
+          for (const events of splitEvents(event.events)) {
+            const result = await handleEvents(
+              decodeEvents(common, sources, events),
+              event.checkpoint,
+            );
 
-          if (result.status === "error") onReloadableError(result.error);
+            if (result.status === "error") onReloadableError(result.error);
+
+            // Set reorg table `checkpoint` column for newly inserted rows.
+            await database.complete({ checkpoint: event.checkpoint });
+          }
 
           await metadataStore.setStatus(event.status);
 
@@ -115,6 +104,7 @@ export async function run({
         }
         case "reorg":
           await database.revert({ checkpoint: event.checkpoint });
+
           break;
 
         case "finalize":
@@ -127,33 +117,22 @@ export async function run({
     },
   });
 
-  const readonlyStore = getReadonlyStore({
-    dialect: database.dialect,
-    schema,
-    db: database.qb.user,
-    common,
-  });
-
-  const historicalStore = getHistoricalStore({
-    dialect: database.dialect,
-    schema,
-    readonlyStore,
-    db: database.qb.user,
-    common,
-    isCacheExhaustive: encodeCheckpoint(zeroCheckpoint) === initialCheckpoint,
-  });
-
-  let indexingStore: IndexingStore = historicalStore;
-
   const indexingService = createIndexingService({
     indexingFunctions,
     common,
-    indexingStore,
     sources,
     networks,
     sync,
-    schema,
   });
+
+  const historicalIndexingStore = createHistoricalIndexingStore({
+    common,
+    database,
+    schema,
+    initialCheckpoint,
+  });
+
+  indexingService.setIndexingStore(historicalIndexingStore);
 
   await metadataStore.setStatus(sync.getStatus());
 
@@ -183,6 +162,23 @@ export async function run({
         decodeEvents(common, sources, events),
         checkpoint,
       );
+
+      // Persist the indexing store to the db if it is too full. The `finalized`
+      // checkpoint is used as a mutex. Any rows in the reorg table that may
+      // have been written because of raw sql access are deleted.
+      if (historicalIndexingStore.isCacheFull() && events.length > 0) {
+        await database.finalize({
+          checkpoint: encodeCheckpoint(zeroCheckpoint),
+        });
+        await historicalIndexingStore.flush();
+        await database.complete({
+          checkpoint: encodeCheckpoint(zeroCheckpoint),
+        });
+        await database.finalize({
+          checkpoint: events[events.length - 1]!.checkpoint,
+        });
+      }
+
       await metadataStore.setStatus(sync.getStatus());
       if (result.status === "killed") {
         return;
@@ -194,7 +190,9 @@ export async function run({
 
     if (isKilled) return;
 
-    await historicalStore.flush({ isFullFlush: true });
+    await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
+    await historicalIndexingStore.flush();
+    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     // Manually update metrics to fix a UI bug that occurs when the end
     // checkpoint is between the last processed event and the finalized
@@ -218,21 +216,17 @@ export async function run({
       msg: "Completed historical indexing",
     });
 
-    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
+    await database.createIndexes();
+    await database.createLiveViews();
+    await database.createTriggers();
 
-    await database.createIndexes({ schema });
-
-    indexingStore = {
-      ...readonlyStore,
-      ...getRealtimeStore({
-        dialect: database.dialect,
+    indexingService.setIndexingStore(
+      createRealtimeIndexingStore({
+        database,
         schema,
-        db: database.qb.user,
         common,
       }),
-    };
-
-    indexingService.updateIndexingStore({ indexingStore, schema });
+    );
 
     await sync.startRealtime();
 
@@ -254,6 +248,6 @@ export async function run({
     realtimeQueue.clear();
     await realtimeQueue.onIdle();
     await startPromise;
-    await database.kill();
+    await database.unlock();
   };
 }

@@ -17,6 +17,7 @@ export default {
   },
   "contracts-and-networks": "Contracts & networks",
   "block-intervals": "Block intervals",
+  "call-traces": "Call traces",
 
   "-- Schema": {
     type: "separator",
@@ -30,11 +31,11 @@ export default {
   },
   indexing: { display: "children", title: "Indexing" },
 
-  "-- Query": {
+  "-- Query the database": {
     type: "separator",
-    title: "Query",
+    title: "Query the database",
   },
-  query: { display: "children", title: "Query" },
+  query: { display: "children", title: "Query the database" },
 
   "-- Production": {
     type: "separator",
@@ -59,4 +60,10 @@ export default {
     title: "Advanced",
   },
   advanced: { display: "children", title: "Advanced" },
+
+  "-- Guides": {
+    type: "separator",
+    title: "Guides 🚧",
+  },
+  guides: { display: "children", title: "Guides" },
 };

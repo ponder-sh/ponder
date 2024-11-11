@@ -1,9 +1,8 @@
+import { ponder } from "@/generated";
 import type { Hex } from "viem";
 import { fromHex } from "viem";
-
-import { ponder } from "@/generated";
-
 import { FileStoreFrontendAbi } from "../abis/FileStoreFrontendAbi";
+import * as schema from "../ponder.schema";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
@@ -18,25 +17,22 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
 
   const metadata = parseJson(fromHex(rawMetadata as Hex, "string"));
 
-  await context.db.File.create({
-    id: filename,
-    data: {
-      name: filename,
-      size: Number(size),
-      contents: await context.client.readContract({
-        abi: FileStoreFrontendAbi,
-        functionName: "readFile",
-        address: "0xBc66C61BCF49Cc3fe4E321aeCEa307F61EC57C0b",
-        args: [event.transaction.to!, filename],
-      }),
-      createdAt: Number(event.block.timestamp),
-      type: metadata?.type,
-      compression: metadata?.compression,
-      encoding: metadata?.encoding,
-    },
+  await context.db.insert(schema.file).values({
+    name: filename,
+    size: Number(size),
+    contents: await context.client.readContract({
+      abi: FileStoreFrontendAbi,
+      functionName: "readFile",
+      address: "0xBc66C61BCF49Cc3fe4E321aeCEa307F61EC57C0b",
+      args: [event.transaction.to!, filename],
+    }),
+    createdAt: Number(event.block.timestamp),
+    type: metadata?.type,
+    compression: metadata?.compression,
+    encoding: metadata?.encoding,
   });
 });
 
 ponder.on("FileStore:FileDeleted", async ({ event, context }) => {
-  await context.db.File.delete({ id: event.args.filename });
+  await context.db.delete(schema.file, { name: event.args.filename });
 });

@@ -1,6 +1,6 @@
 import type { Plugin } from "vite";
 
-const virtualModule = `import { Hono } from "hono";
+const virtualModule = () => `import { Hono } from "hono";
 
 const ponderHono = {
   routes: [],
@@ -34,7 +34,7 @@ export const vitePluginPonder = (): Plugin => {
   return {
     name: "ponder",
     load: (id) => {
-      if (id === "@/generated") return virtualModule;
+      if (id === "@/generated") return virtualModule();
       return null;
     },
   };

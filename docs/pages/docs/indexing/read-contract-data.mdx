@@ -9,7 +9,7 @@ import { Callout } from "nextra/components";
 
 Ideally, smart contracts emit event logs containing all the data you need to build your application. In practice, developers often forget to include certain event logs, or omit them as a gas optimization. In some cases, you can address these gaps by reading data directly from a contract.
 
-Ponder natively supports this pattern by injecting a custom [Viem Client](https://viem.sh/docs/clients/intro.html) into the indexing function context. This modified client automatically caches RPC requests and supports several RPC methods including `eth_call`, `multicall`, `eth_getStorageAt`, and `eth_getCode`.
+Ponder natively supports this pattern by injecting a custom [Viem Client](https://viem.sh/docs/clients/intro.html) into the indexing function context. This modified client automatically caches RPC requests and supports most standard Viem actions.
 
 ## Basic example
 
@@ -43,6 +43,7 @@ export default createConfig({
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
+import { tokens } from "../ponder.schema";
 
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
   const { client } = context;
@@ -62,9 +63,9 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
   });
 
   // Insert a Token record, including the URI.
-  const token = await context.db.Token.create({
+  await context.db.insert(tokens).values({
     id: event.args.tokenId,
-    data: { uri: tokenUri },
+    uri: tokenUri,
   });
 });
 ```
@@ -167,8 +168,6 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 <Callout>
   The `blockTag` option is not supported by custom client actions.
 </Callout>
-
-
 
 ### Caching
 
@@ -334,10 +333,11 @@ Every Zorb has a gradient, but the contract doesn't emit gradient data in any ev
 
 ```ts filename="src/index.ts" {6-11}
 import { ponder } from "@/generated";
+import { zorbs } from "../ponder.schema";
 
 ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
-  // If this is a mint, read gradient metadata from the contract.
   if (event.args.from === ZERO_ADDRESS) {
+    // If this is a mint, read gradient metadata from the contract.
     const gradientData = await context.client.readContract({
       abi: context.contracts.ZorbNft.abi,
       address: context.contracts.ZorbNft.address,
@@ -345,23 +345,16 @@ ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
       args: [event.args.to],
     });
 
-    await context.db.Zorb.create({
+    await context.db.insert(zorbs).values({
       id: event.args.tokenId,
-      data: {
-        gradient: gradientData,
-        ownerId: event.args.to,
-      },
-    });
-
-    return;
-  }
-
-  // If not a mint, just update ownership information.
-  await context.db.Zorb.update({
-    id: event.args.tokenId,
-    data: {
+      gradient: gradientData,
       ownerId: event.args.to,
-    },
-  });
+    });
+  } else {
+    // If not a mint, just update ownership information.
+    await context.db
+      .update(zorbs, { id: event.args.tokenId })
+      .set({ ownerId: event.args.to });
+  }
 });
 ```

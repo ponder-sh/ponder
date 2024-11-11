@@ -12,8 +12,8 @@ import { Steps, Tabs, Callout } from "nextra/components";
 ### Create a new Ponder project
 
 <Callout type="info">
-  If the contract you're indexing has already been deployed, use the [Etherscan
-  contract link template](/docs/api-reference/create-ponder#etherscan-contract-link).
+  If the contract you're indexing has already been deployed, use the Etherscan
+  link [template](/docs/api-reference/create-ponder#etherscan-contract-link).
 </Callout>
 
 {/* prettier-ignore */}
@@ -80,40 +80,33 @@ PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 The `ponder.schema.ts` file contains the database schema, and defines the shape data that the GraphQL API serves.
 
 ```ts filename="ponder.schema.ts"
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "@ponder/core";
 
-export default createSchema((p) => ({
-  BlitmapToken: p.createTable({
-    id: p.string(),
-    owner: p.string(), // Ethereum address
-  }),
+export const blitmapTokens = onchainTable("blitmap_tokens", (t) => ({
+  id: t.int().primaryKey(),
+  owner: t.hex(),
 }));
 ```
 
-See the [design your schema](/docs/schema) guide for more details.
+Read more about [designing your schema](/docs/schema).
 
 ### Write indexing functions
 
-Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to insert data into the store.
-
-Here's a sample indexing function for an ERC721 `Transfer` event.
+Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to write indexed data to the database.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
+import { blitmapTokens } from "../ponder.schema";
 
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
-  const { BlitmapToken } = context.db;
-
-  await BlitmapToken.create({
+  await context.db.insert(blitmapTokens).values({
     id: event.args.tokenId,
-    data: {
-      owner: event.args.to,
-    },
+    owner: event.args.to,
   });
 });
 ```
 
-See [Create & update records](/docs/indexing/create-update-records) for a detailed guide on writing indexing functions.
+Read more on how to [write to the database](/docs/indexing/write-to-the-database) and [read contract data](/docs/indexing/read-contract-data).
 
 ### Query the GraphQL API
 

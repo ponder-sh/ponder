@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.6.25",
+  "version": "0.7.0",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -23,8 +23,8 @@
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
-    "import": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "types": "./dist/index.d.ts",
+    "import": "./dist/index.js"
   },
   "scripts": {
     "build": "tsup",
@@ -45,25 +45,26 @@
   "dependencies": {
     "@babel/code-frame": "^7.23.4",
     "@commander-js/extra-typings": "^12.0.1",
+    "@electric-sql/pglite": "^0.2.5",
     "@escape.tech/graphql-armor-max-aliases": "^2.3.0",
     "@escape.tech/graphql-armor-max-depth": "^2.2.0",
     "@escape.tech/graphql-armor-max-tokens": "^2.3.0",
     "@hono/node-server": "1.13.3",
     "@ponder/utils": "workspace:*",
     "abitype": "^0.10.2",
-    "better-sqlite3": "^11.1.2",
     "commander": "^12.0.0",
     "conf": "^12.0.0",
     "dataloader": "^2.2.2",
     "detect-package-manager": "^3.0.2",
     "dotenv": "^16.3.1",
-    "drizzle-orm": "^0.31.2",
+    "drizzle-orm": "0.34.1",
     "glob": "^10.3.10",
     "graphql": "^16.8.1",
     "graphql-yoga": "^5.3.0",
     "http-terminator": "^3.2.0",
     "ink": "^4.4.1",
     "kysely": "^0.26.3",
+    "kysely-pglite": "^0.6.0",
     "pg": "^8.11.3",
     "pg-connection-string": "^2.6.2",
     "picocolors": "^1.0.0",
@@ -77,7 +78,6 @@
   },
   "devDependencies": {
     "@types/babel__code-frame": "^7.0.6",
-    "@types/better-sqlite3": "^7.6.10",
     "@types/glob": "^8.1.0",
     "@types/node": "^20.10.0",
     "@types/pg": "^8.10.9",

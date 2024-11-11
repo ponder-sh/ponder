@@ -8,9 +8,9 @@ import { Callout } from "nextra/components";
 
 # Horizontal scaling
 
-By default, Ponder runs the sync engine, indexing engine, and GraphQL HTTP server in the same Node.js process. This works well for small apps, but can lead to performance issues as your app grows.
+By default, Ponder runs the sync engine, indexing engine, and HTTP server (GraphQL and API functions) in the same Node.js process. This works well for small apps, but can lead to performance issues as your app grows.
 
-If the HTTP server experiences high request volume, it contends with the indexing services for CPU and memory resources on the host. This can quickly lead to degraded indexing performance.
+If the HTTP server experiences high request volume, it contends with the indexing services for CPU and memory resources on the host, which can lead to degraded indexing performance.
 
 To solve this, you can use the `ponder serve` command to horizontally scale the HTTP service. `ponder serve` is similar to `ponder start`, but only runs the HTTP server. It doesn't run the indexing or sync engines.
 
@@ -18,9 +18,9 @@ To solve this, you can use the `ponder serve` command to horizontally scale the 
 graph LR
   A[Clients]
   B[Proxy]
-  C["HTTP server (ponder serve)"]
-  D["HTTP server (ponder serve)"]
-  E["HTTP server (ponder serve)"]
+  C["HTTP (ponder serve)"]
+  D["HTTP (ponder serve)"]
+  E["HTTP (ponder serve)"]
   F["Database"]
   G["Indexer (ponder start)"]
   A --> B
@@ -33,7 +33,10 @@ graph LR
   F <--> G
 ```
 
-<Callout type="info">At this time, `ponder serve` only works with Postgres. SQLite is not supported.</Callout>
+<Callout type="info">
+  At this time, `ponder serve` only works with Postgres. PGlite is not
+  supported.
+</Callout>
 
 ## Railway Replicas
 

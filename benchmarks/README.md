@@ -4,7 +4,7 @@ This directory contains tooling to benchmark Ponder against the Graph Protocol's
 
 ## Methodology
 
-The benchmarks are run by sequentially running each indexer.An indexer run is considered finished when the endpoint starts responding as healthy. All dbs are cleared before the run. TheGraph indexing cache is busted by programmatically changing the hander function before each run. Ponder doesn't cache indexing function results so no actions are necessary.
+The benchmarks are run by sequentially running each indexer.An indexer run is considered finished when the endpoint starts responding as healthy. All dbs are cleared before the run. TheGraph indexing cache is busted by programmatically changing the handler function before each run. Ponder doesn't cache indexing function results so no actions are necessary.
 
 ## Run Benchmarks
 

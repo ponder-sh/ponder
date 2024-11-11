@@ -35,13 +35,13 @@ import { ponder, type Event } from "@/generated";
 
 function helper(event: Event<"Weth:Deposit">) {
   event;
-  // ^? { 
+  // ^? {
   //      args: { dst: `0x${string}`; wad: bigint };
   //      block: Block;
   //      event: "Deposit";
   //      transaction: Transaction;
   //      log: Log;
-  //    }  
+  //    }
 }
 ```
 
@@ -67,12 +67,12 @@ import { ponder, type Context } from "@/generated";
 
 function helper(context: Context<"Weth:Deposit">) {
   event;
-  // ^? { 
+  // ^? {
   //      network: { name: "mainnet"; chainId: 1; };
   //      client: ReadonlyClient;
   //      db: { Account: DatabaseModel<{ id: `0x${string}`; balance: bigint; }> };
   //      contracts: { weth9: { abi: ...; address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" } };
-  //    }  
+  //    }
 }
 ```
 
@@ -87,7 +87,7 @@ import { ponder, type IndexingFunctionArgs } from "@/generated";
 
 function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
   args;
-  // ^? { 
+  // ^? {
   //      event: { ... };
   //      context: { ... };
   //    }
@@ -98,12 +98,12 @@ Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all inde
 
 ### Schema
 
-A generic type that requires a table name from `ponder.schema.ts` and returns the type of a record in that table.
+Use the [Drizzle type helpers](https://orm.drizzle.team/docs/goodies#type-api) to create custom types for database records.
 
-```ts filename="src/helpers.ts" {1}
-import { ponder, type Schema } from "@/generated";
+```ts filename="src/helpers.ts" {3}
+import { accounts } from "../ponder.schema";
 
-function helper(account: Schema["Account"]) {
+function helper(account: typeof accounts.$inferSelect) {
   account;
   // ^? {
   //      id: bigint;
@@ -186,12 +186,12 @@ export default createConfig({
 
 The type of a database in `createConfig(){:ts}`.
 
-```ts filename="ponder.config.ts" {1}
+```ts filename="ponder.config.ts" {1,6}
 import { createConfig, type DatabaseConfig } from "@ponder/core";
 
 const database = {
   kind: "postgres",
-  schema: "production"
+  connectionString: process.env.DATABASE_URL,
 } as const satisfies DatabaseConfig;
 
 export default createConfig({

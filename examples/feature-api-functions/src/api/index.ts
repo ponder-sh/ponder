@@ -1,13 +1,12 @@
 import { ponder } from "@/generated";
 import { count, desc, eq, graphql, or, replaceBigInts } from "@ponder/core";
 import { formatEther, getAddress } from "viem";
+import { account, transferEvent } from "../../ponder.schema";
 
 ponder.use("/graphql", graphql());
 
 ponder.get("/count", async (c) => {
-  const result = await c.db
-    .select({ count: count() })
-    .from(c.tables.TransferEvent);
+  const result = await c.db.select({ count: count() }).from(transferEvent);
 
   if (result.length === 0) return c.text("0");
   return c.text(String(result[0]!.count));
@@ -15,31 +14,27 @@ ponder.get("/count", async (c) => {
 
 ponder.get("/count/:address", async (c) => {
   const account = getAddress(c.req.param("address"));
-  const { TransferEvent } = c.tables;
 
   const result = await c.db
     .select({ count: count() })
-    .from(c.tables.TransferEvent)
-    .where(
-      or(eq(TransferEvent.fromId, account), eq(TransferEvent.toId, account)),
-    );
+    .from(transferEvent)
+    .where(or(eq(transferEvent.from, account), eq(transferEvent.to, account)));
 
   if (result.length === 0) return c.text("0");
   return c.text(String(result[0]!.count));
 });
 
 ponder.get("/whale-transfers", async (c) => {
-  const { TransferEvent, Account } = c.tables;
-
   // Top 10 transfers from whale accounts
   const result = await c.db
     .select({
-      amount: TransferEvent.amount,
-      senderBalance: Account.balance,
+      sender: account.address,
+      senderBalance: account.balance,
+      amount: transferEvent.amount,
     })
-    .from(TransferEvent)
-    .innerJoin(Account, eq(TransferEvent.fromId, Account.id))
-    .orderBy(desc(Account.balance))
+    .from(transferEvent)
+    .innerJoin(account, eq(transferEvent.from, account.address))
+    .orderBy(desc(account.balance))
     .limit(10);
 
   if (result.length === 0) return c.text("Not found", 500);

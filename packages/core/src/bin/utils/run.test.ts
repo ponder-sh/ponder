@@ -4,8 +4,9 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { IndexingBuild } from "@/build/index.js";
-import { buildGraphQLSchema } from "@/graphql/buildGraphqlSchema.js";
-import { createSchema } from "@/schema/schema.js";
+import { buildSchema } from "@/build/schema.js";
+import { createDatabase } from "@/database/index.js";
+import { onchainTable } from "@/drizzle/index.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -14,37 +15,49 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-const schema = createSchema((p) => ({
-  TransferEvent: p.createTable({
-    id: p.string(),
-    timestamp: p.int(),
-  }),
-  Supply: p.createTable({
-    id: p.string(),
-    supply: p.bigint(),
-  }),
+const account = onchainTable("account", (p) => ({
+  address: p.hex().primaryKey(),
+  balance: p.bigint().notNull(),
 }));
 
-const graphqlSchema = buildGraphQLSchema(schema);
+// const graphqlSchema = buildGraphQLSchema({ schema: { account } });
 
 test("run() setup", async (context) => {
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
 
+  const { statements, namespace } = buildSchema({
+    schema: { account },
+    instanceId: "1234",
+  });
+
   const build: IndexingBuild = {
     buildId: "buildId",
-    schema,
-    graphqlSchema,
+    instanceId: "1234",
+    schema: { account },
     databaseConfig: context.databaseConfig,
     networks: context.networks,
     sources: context.sources,
     indexingFunctions,
+    statements,
+    namespace,
   };
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "buildId",
+    statements,
+    namespace,
+  });
 
   const kill = await run({
     common: context.common,
     build,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
@@ -52,6 +65,8 @@ test("run() setup", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
 
   await kill();
+  await database.unlock();
+  await database.kill();
 });
 
 test("run() setup error", async (context) => {
@@ -60,21 +75,39 @@ test("run() setup error", async (context) => {
   };
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
+  const { statements, namespace } = buildSchema({
+    schema: { account },
+    instanceId: "1234",
+  });
+
   const build: IndexingBuild = {
     buildId: "buildId",
-    schema,
-    graphqlSchema,
+    instanceId: "1234",
+    schema: { account },
     databaseConfig: context.databaseConfig,
     networks: context.networks,
     sources: context.sources,
     indexingFunctions,
+    statements,
+    namespace,
   };
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "buildId",
+    statements,
+    namespace,
+  });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const kill = await run({
     common: context.common,
     build,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: () => {
       onReloadableErrorPromiseResolver.resolve();
@@ -86,6 +119,8 @@ test("run() setup error", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 
   await kill();
+  await database.unlock();
+  await database.kill();
 });
 
 test.todo("run() checkpoint");

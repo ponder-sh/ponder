@@ -1,50 +1,41 @@
-import { createSchema } from "@ponder/core";
+import { index, onchainTable, primaryKey } from "@ponder/core";
 
-export default createSchema((p) => ({
-  Account: p.createTable({
-    id: p.hex(),
-    balance: p.bigint(),
-    isOwner: p.boolean(),
+export const account = onchainTable("account", (p) => ({
+  address: p.hex().primaryKey(),
+  balance: p.bigint().notNull(),
+  isOwner: p.boolean().notNull(),
+}));
 
-    allowances: p.many("Allowance.ownerId"),
-    approvalOwnerEvents: p.many("ApprovalEvent.ownerId"),
-    approvalSpenderEvents: p.many("ApprovalEvent.spenderId"),
-    transferFromEvents: p.many("TransferEvent.fromId"),
-    transferToEvents: p.many("TransferEvent.toId"),
+export const allowance = onchainTable(
+  "allowance",
+  (p) => ({
+    owner: p.hex(),
+    spender: p.hex(),
+    amount: p.bigint().notNull(),
   }),
-  Allowance: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-
-    ownerId: p.hex().references("Account.id"),
-    spenderId: p.hex().references("Account.id"),
-
-    owner: p.one("ownerId"),
-    spender: p.one("spenderId"),
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.spender] }),
   }),
-  TransferEvent: p.createTable(
-    {
-      id: p.string(),
-      amount: p.bigint(),
-      timestamp: p.int(),
+);
 
-      fromId: p.hex().references("Account.id"),
-      toId: p.hex().references("Account.id"),
-
-      from: p.one("fromId"),
-      to: p.one("toId"),
-    },
-    { fromIdIndex: p.index("fromId") },
-  ),
-  ApprovalEvent: p.createTable({
-    id: p.string(),
-    amount: p.bigint(),
-    timestamp: p.int(),
-
-    ownerId: p.hex().references("Account.id"),
-    spenderId: p.hex().references("Account.id"),
-
-    owner: p.one("ownerId"),
-    spender: p.one("spenderId"),
+export const transferEvent = onchainTable(
+  "transfer_event",
+  (p) => ({
+    id: p.text().primaryKey(),
+    amount: p.bigint().notNull(),
+    timestamp: p.integer().notNull(),
+    from: p.hex().notNull(),
+    to: p.hex().notNull(),
   }),
+  (table) => ({
+    fromIdx: index("from_index").on(table.from),
+  }),
+);
+
+export const approvalEvent = onchainTable("approval_event", (p) => ({
+  id: p.text().primaryKey(),
+  amount: p.bigint().notNull(),
+  timestamp: p.integer().notNull(),
+  owner: p.hex().notNull(),
+  spender: p.hex().notNull(),
 }));
