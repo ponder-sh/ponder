@@ -992,22 +992,6 @@ export const createSyncStore = ({
     db.wrap({ method: "pruneByChain" }, () =>
       db.transaction().execute(async (tx) => {
         await tx
-          .deleteFrom("interval")
-          .where("chain_id", "=", chainId)
-          .where("start_block", ">=", fromBlock.toString())
-          .execute();
-
-        await tx
-          .updateTable("interval")
-          .set({
-            end_block: BigInt(fromBlock),
-          })
-          .where("chain_id", "=", chainId)
-          .where("start_block", "<", fromBlock.toString())
-          .where("end_block", ">", fromBlock.toString())
-          .execute();
-
-        await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">=", fromBlock.toString())

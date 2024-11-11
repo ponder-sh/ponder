@@ -91,8 +91,12 @@ export const createHistoricalSync = async (
 
   // Populate `intervalsCache` by querying the sync-store.
   for (const { filter } of args.sources) {
-    const intervals = await args.syncStore.getIntervals({ filter });
-    intervalsCache.set(filter, intervals);
+    if (args.network.disableCache === false) {
+      intervalsCache.set(filter, []);
+    } else {
+      const intervals = await args.syncStore.getIntervals({ filter });
+      intervalsCache.set(filter, intervals);
+    }
   }
 
   // Closest-to-tip block that has been synced.
@@ -567,9 +571,11 @@ export const createHistoricalSync = async (
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
-      await args.syncStore.insertIntervals({
-        intervals: syncedIntervals,
-      });
+      if (args.network.disableCache === false) {
+        await args.syncStore.insertIntervals({
+          intervals: syncedIntervals,
+        });
+      }
 
       blockCache.clear();
       transactionsCache.clear();
