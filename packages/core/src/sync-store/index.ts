@@ -32,6 +32,7 @@ import {
   type Kysely,
   type SelectQueryBuilder,
   sql as ksql,
+  sql,
 } from "kysely";
 import type { InsertObject } from "kysely";
 import {
@@ -59,8 +60,8 @@ export type SyncStore = {
     }[];
   }): Promise<void>;
   getIntervals(args: {
-    filter: Filter;
-  }): Promise<Interval[]>;
+    filters: Filter[];
+  }): Promise<Map<Filter, Interval[]>>;
   getChildAddresses(args: {
     filter: Factory;
     limit?: number;
@@ -184,30 +185,48 @@ export const createSyncStore = ({
         )
         .execute();
     }),
-  getIntervals: async ({ filter }) =>
+  getIntervals: async ({ filters }) =>
     db.wrap({ method: "getIntervals" }, async () => {
-      const fragments = getFragmentIds(filter);
-
       let query:
-        | SelectQueryBuilder<PonderSyncSchema, "interval", { blocks: string }>
+        | SelectQueryBuilder<
+            PonderSyncSchema,
+            "interval",
+            { blocks: string; filter: string }
+          >
         | undefined;
 
-      for (const fragment of fragments) {
-        const _query = db
-          .selectFrom("interval")
-          .where("fragment_id", "in", fragment.adjacent)
-          .select("blocks");
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+        const fragments = getFragmentIds(filter);
+        for (const fragment of fragments) {
+          const _query = db
+            .selectFrom("interval")
+            .where("fragment_id", "in", fragment.adjacent)
+            .select(["blocks", sql<string>`${i}`.as("filter")]);
 
-        query = query === undefined ? _query : query.unionAll(_query);
+          query = query === undefined ? _query : query.unionAll(_query);
+        }
       }
 
       const rows = await query!.execute();
 
-      return intervalIntersectionMany(
-        rows.map((row) =>
-          intervalUnion(JSON.parse(`[${row.blocks.slice(1, -1)}]`)),
-        ),
-      );
+      const result: Map<Filter, Interval[]> = new Map();
+
+      // intervals use "union" for the same fragment, and
+      // "intersection" for the same filter
+
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+        const intervals = rows
+          .filter((row) => row.filter === `${i}`)
+          .map((row) =>
+            intervalUnion(JSON.parse(`[${row.blocks.slice(1, -1)}]`)),
+          );
+
+        result.set(filter, intervalIntersectionMany(intervals));
+      }
+
+      return result;
     }),
   getChildAddresses: ({ filter, limit }) =>
     db.wrap({ method: "getChildAddresses" }, async () => {

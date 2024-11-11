@@ -40,10 +40,10 @@ test("getIntervals() empty", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -61,11 +61,11 @@ test("getIntervals() returns intervals", async (context) => {
   });
 
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   await cleanup();
 });
@@ -91,11 +91,11 @@ test("getIntervals() merges intervals", async (context) => {
     ],
   });
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 8]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
 
   await cleanup();
 });
@@ -113,20 +113,24 @@ test("getIntervals() handles log filter logic", async (context) => {
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[0].filter,
-      includeTransactionReceipts: false,
-    },
+    filters: [
+      {
+        ...context.sources[0].filter,
+        includeTransactionReceipts: false,
+      },
+    ],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: { ...context.sources[0].filter, address: context.factory.address },
+    filters: [
+      { ...context.sources[0].filter, address: context.factory.address },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -144,26 +148,30 @@ test("getIntervals() handles factory log filter logic", async (context) => {
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[1].filter,
-      includeTransactionReceipts: false,
-    },
+    filters: [
+      {
+        ...context.sources[1].filter,
+        includeTransactionReceipts: false,
+      },
+    ],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[1].filter,
-      address: {
-        ...context.sources[1].filter.address,
-        childAddressLocation: "topic2",
+    filters: [
+      {
+        ...context.sources[1].filter,
+        address: {
+          ...context.sources[1].filter.address,
+          childAddressLocation: "topic2",
+        },
       },
-    },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -181,20 +189,22 @@ test("getIntervals() handles trace filter logic", async (context) => {
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: context.sources[3].filter,
+    filters: [context.sources[3].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[3].filter,
-      toAddress: [context.erc20.address],
-    },
+    filters: [
+      {
+        ...context.sources[3].filter,
+        toAddress: [context.erc20.address],
+      },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -212,23 +222,25 @@ test("getIntervals() handles factory trace filter logic", async (context) => {
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: context.sources[2].filter,
+    filters: [context.sources[2].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[2].filter,
-      toAddress: {
-        ...context.sources[2].filter.toAddress,
-        childAddressLocation: "topic2",
+    filters: [
+      {
+        ...context.sources[2].filter,
+        toAddress: {
+          ...context.sources[2].filter.toAddress,
+          childAddressLocation: "topic2",
+        },
       },
-    },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -237,7 +249,7 @@ test("getIntervals() handles block filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   await syncStore.getIntervals({
-    filter: context.sources[4].filter,
+    filters: [context.sources[4].filter],
   });
 
   await syncStore.insertIntervals({
@@ -250,17 +262,17 @@ test("getIntervals() handles block filter logic", async (context) => {
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: context.sources[4].filter,
+    filters: [context.sources[4].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: { ...context.sources[4].filter, interval: 69 },
+    filters: [{ ...context.sources[4].filter, interval: 69 }],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -285,10 +297,10 @@ test("getIntervals() handles size over max", async (context) => {
   }
 
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toMatchObject([[0, 24]]);
+  expect(Array.from(intervals.values())[0]).toMatchObject([[0, 24]]);
 
   await cleanup();
 });
