@@ -192,7 +192,7 @@ export const getPonderActions = (
         ...args
       }: Parameters<PonderActions[action]>[0]) =>
         // @ts-ignore
-        publicActions[action](client, {
+        _publicActions[action]({
           ...args,
           ...(cache === "immutable"
             ? { blockTag: "latest" }

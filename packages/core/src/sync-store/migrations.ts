@@ -843,19 +843,22 @@ const migrations: Record<string, Migration> = {
   "2024_11_04_0_request_cache": {
     async up(db: Kysely<any>) {
       await db.schema
-        .alterTable("rpcRequestResults")
-        .dropConstraint("rpcRequestResultPrimaryKey")
-        .execute();
-      await db.schema
-        .alterTable("rpcRequestResults")
-        .addPrimaryKeyConstraint("rpcRequestResultPrimaryKey", [
+        .createTable("rpc_request_results")
+        .addColumn("request", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)")
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("rpc_request_result_primary_key", [
           "request",
           "chainId",
         ])
         .execute();
+    },
+    async down(db: Kysely<any>) {
       await db.schema
-        .alterTable("rpcRequestResults")
-        .alterColumn("blockNumber", (qb) => qb.dropNotNull())
+        .dropTable("rpc_request_results")
+        .ifExists()
+        .cascade()
         .execute();
     },
   },

@@ -397,7 +397,7 @@ export type PonderSyncSchema = {
   transactionReceipts: TransactionReceiptsTable;
   callTraces: CallTracesTable;
 
-  rpcRequestResults: RpcRequestResultsTable;
+  rpc_request_results: RpcRequestResultsTable;
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;

@@ -1228,7 +1228,7 @@ export const createSyncStore = ({
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     db.wrap({ method: "insertRpcRequestResult" }, async () => {
       await db
-        .insertInto("rpcRequestResults")
+        .insertInto("rpc_request_results")
         .values({
           request,
           blockNumber,
@@ -1243,7 +1243,7 @@ export const createSyncStore = ({
   getRpcRequestResult: async ({ request, chainId }) =>
     db.wrap({ method: "getRpcRequestResult" }, async () => {
       const result = await db
-        .selectFrom("rpcRequestResults")
+        .selectFrom("rpc_request_results")
         .select("result")
         .where("request", "=", request)
         .where("chainId", "=", chainId)
@@ -1260,7 +1260,7 @@ export const createSyncStore = ({
       );
 
       await db
-        .deleteFrom("rpcRequestResults")
+        .deleteFrom("rpc_request_results")
         .where("chainId", "=", chainId)
         .where("blockNumber", "in", numbers)
         .execute();
@@ -1488,7 +1488,7 @@ export const createSyncStore = ({
           .where("number", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("rpcRequestResults")
+          .deleteFrom("rpc_request_results")
           .where("chainId", "=", chainId)
           .where("blockNumber", ">=", fromBlock.toString())
           .execute();
