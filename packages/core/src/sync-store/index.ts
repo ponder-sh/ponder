@@ -161,8 +161,10 @@ export const createSyncStore = ({
   common: Common;
   db: HeadlessKysely<PonderSyncSchema>;
 }): SyncStore => ({
-  insertIntervals: async ({ intervals }) =>
-    db.wrap({ method: "insertIntervals" }, async () => {
+  insertIntervals: async ({ intervals }) => {
+    if (intervals.length === 0) return;
+
+    await db.wrap({ method: "insertIntervals" }, async () => {
       const values: InsertObject<PonderSyncSchema, "interval">[] = [];
 
       for (const { interval, filter } of intervals) {
@@ -184,7 +186,8 @@ export const createSyncStore = ({
           }),
         )
         .execute();
-    }),
+    });
+  },
   getIntervals: async ({ filters }) =>
     db.wrap({ method: "getIntervals" }, async () => {
       let query:
