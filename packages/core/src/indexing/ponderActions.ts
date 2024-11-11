@@ -40,8 +40,6 @@ const blockDependentActions = [
   "getEnsText",
 ] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
 
-// TODO(kyle) "getBlock", "getBlockTransactionCount", "getTransactionCount";
-
 /** Viem actions where the `block` property is non-existent. */
 const nonBlockDependentActions = [
   "getTransaction",
@@ -212,6 +210,11 @@ export const getPonderActions = (
       // @ts-ignore
       actions[action] = _publicActions[action];
     }
+
+    // maybe block dependent actions
+    // getBlock()
+    // getBlockTransactionCount()
+    // getTransactionCount()
 
     return actions;
   };
