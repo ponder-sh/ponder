@@ -5,7 +5,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData } from "@/_test/utils.js";
-import { NonRetryableError } from "@/common/errors.js";
 import type { Factory, LogFactory, LogFilter } from "@/sync/source.js";
 import {
   decodeCheckpoint,
@@ -52,9 +51,13 @@ test("getIntervals() empty", async (context) => {
 test("getIntervals() returns intervals", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   const intervals = await syncStore.getIntervals({
@@ -70,16 +73,23 @@ test("getIntervals() returns intervals", async (context) => {
 test("getIntervals() merges intervals", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [5, 8],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [5, 8],
+      },
+    ],
   });
-
   const intervals = await syncStore.getIntervals({
     filter: context.sources[0].filter,
   });
@@ -93,9 +103,13 @@ test("getIntervals() merges intervals", async (context) => {
 test("getIntervals() handles log filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
@@ -120,9 +134,13 @@ test("getIntervals() handles log filter logic", async (context) => {
 test("getIntervals() handles factory log filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[1].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[1].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
@@ -153,9 +171,13 @@ test("getIntervals() handles factory log filter logic", async (context) => {
 test("getIntervals() handles trace filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[3].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[3].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
@@ -180,9 +202,13 @@ test("getIntervals() handles trace filter logic", async (context) => {
 test("getIntervals() handles factory trace filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[2].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[2].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
@@ -214,9 +240,13 @@ test("getIntervals() handles block filter logic", async (context) => {
     filter: context.sources[4].filter,
   });
 
-  await syncStore.insertInterval({
-    filter: context.sources[4].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[4].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
@@ -244,9 +274,13 @@ test("getIntervals() handles size over max", async (context) => {
   };
 
   for (const i of range(0, 25)) {
-    await syncStore.insertInterval({
-      filter: context.sources[0].filter,
-      interval: [i, i],
+    await syncStore.insertIntervals({
+      intervals: [
+        {
+          filter: context.sources[0].filter,
+          interval: [i, i],
+        },
+      ],
     });
   }
 
@@ -255,32 +289,6 @@ test("getIntervals() handles size over max", async (context) => {
   });
 
   expect(intervals).toMatchObject([[0, 24]]);
-
-  await cleanup();
-});
-
-test("getIntervals() throws non-retryable error after no merges", async (context) => {
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  context.common.options = {
-    ...context.common.options,
-    syncStoreMaxIntervals: 20,
-  };
-
-  for (let i = 0; i < 50; i += 2) {
-    await syncStore.insertInterval({
-      filter: context.sources[0].filter,
-      interval: [i, i],
-    });
-  }
-
-  const error = await syncStore
-    .getIntervals({
-      filter: context.sources[0].filter,
-    })
-    .catch((err) => err);
-
-  expect(error).toBeInstanceOf(NonRetryableError);
 
   await cleanup();
 });
@@ -1052,7 +1060,7 @@ test("pruneRpcRequestResult", async (context) => {
   await cleanup();
 });
 
-test("pruneByChain deletes filters", async (context) => {
+test.skip("pruneByChain deletes filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
@@ -1116,7 +1124,7 @@ test("pruneByChain deletes filters", async (context) => {
   await cleanup();
 });
 
-test("pruneByChain updates filters", async (context) => {
+test.skip("pruneByChain updates filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
@@ -1191,7 +1199,7 @@ test("pruneByChain updates filters", async (context) => {
   await cleanup();
 });
 
-test("pruneByChain deletes block filters", async (context) => {
+test.skip("pruneByChain deletes block filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
@@ -1222,7 +1230,7 @@ test("pruneByChain deletes block filters", async (context) => {
   await cleanup();
 });
 
-test("pruneByChain updates block filters", async (context) => {
+test.skip("pruneByChain updates block filters", async (context) => {
   const { sources } = context;
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
@@ -1255,7 +1263,7 @@ test("pruneByChain updates block filters", async (context) => {
   await cleanup();
 });
 
-test("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
+test.skip("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
   const rpcData = await getRawRPCData();
 

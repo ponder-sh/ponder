@@ -567,14 +567,9 @@ export const createHistoricalSync = async (
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
-      await Promise.all(
-        syncedIntervals.map(({ filter, interval }) =>
-          args.syncStore.insertInterval({
-            filter,
-            interval,
-          }),
-        ),
-      );
+      await args.syncStore.insertIntervals({
+        intervals: syncedIntervals,
+      });
 
       blockCache.clear();
       transactionsCache.clear();

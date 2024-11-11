@@ -770,13 +770,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         // Add corresponding intervals to the sync-store
         // Note: this should happen after so the database doesn't become corrupted
-        await Promise.all(
-          args.sources
+
+        await args.syncStore.insertIntervals({
+          intervals: args.sources
             .filter(({ filter }) => filter.chainId === network.chainId)
-            .map(({ filter }) =>
-              args.syncStore.insertInterval({ filter, interval }),
-            ),
-        );
+            .map(({ filter }) => ({ filter, interval })),
+        });
 
         /**
          * The realtime service can be killed if `endBlock` is

@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
 import { getFragmentIds } from "@/sync/fragments.js";
@@ -34,6 +33,7 @@ import {
   type SelectQueryBuilder,
   sql as ksql,
 } from "kysely";
+import type { InsertObject } from "kysely";
 import {
   type Address,
   type Hash,
@@ -52,9 +52,11 @@ import {
 } from "./encoding.js";
 
 export type SyncStore = {
-  insertInterval(args: {
-    filter: Filter;
-    interval: Interval;
+  insertIntervals(args: {
+    intervals: {
+      filter: Filter;
+      interval: Interval;
+    }[];
   }): Promise<void>;
   getIntervals(args: {
     filter: Filter;
@@ -158,112 +160,54 @@ export const createSyncStore = ({
   common: Common;
   db: HeadlessKysely<PonderSyncSchema>;
 }): SyncStore => ({
-  insertInterval: async ({ filter, interval }) =>
-    db.wrap({ method: "insertInterval" }, async () => {
-      const startBlock = BigInt(interval[0]);
-      const endBlock = BigInt(interval[1]);
+  insertIntervals: async ({ intervals }) =>
+    db.wrap({ method: "insertIntervals" }, async () => {
+      const values: InsertObject<PonderSyncSchema, "interval">[] = [];
 
-      const fragments = getFragmentIds(filter);
-
-      // TODO(kyle) batch
-
-      for (const fragment of fragments!) {
-        await db
-          .insertInto("interval")
-          .values({
+      for (const { interval, filter } of intervals) {
+        for (const fragment of getFragmentIds(filter)) {
+          values.push({
             fragment_id: fragment.id,
             chain_id: filter.chainId,
-            start_block: startBlock,
-            end_block: endBlock,
-          })
-          .execute();
+            blocks: ksql`nummultirange(numrange(${interval[0]}, ${interval[1]}, '[]'))`,
+          });
+        }
       }
+
+      await db
+        .insertInto("interval")
+        .values(values)
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: ksql`interval.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
     }),
   getIntervals: async ({ filter }) =>
     db.wrap({ method: "getIntervals" }, async () => {
       const fragments = getFragmentIds(filter);
 
-      // First, attempt to merge overlapping and adjacent intervals.
-      for (const fragment of fragments!) {
-        let mergeComplete = false;
-        while (mergeComplete === false) {
-          await db.transaction().execute(async (tx) => {
-            // This is a trick to add a LIMIT to a DELETE statement
-            const existingIntervals = await tx
-              .deleteFrom("interval")
-              .where(
-                "id",
-                "in",
-                tx
-                  .selectFrom("interval")
-                  .where("fragment_id", "=", fragment.id)
-                  .select("id")
-                  .orderBy("start_block asc")
-                  .limit(common.options.syncStoreMaxIntervals),
-              )
-              .returning(["start_block", "end_block"])
-              .execute();
+      let query:
+        | SelectQueryBuilder<PonderSyncSchema, "interval", { blocks: string }>
+        | undefined;
 
-            const mergedIntervals = intervalUnion(
-              existingIntervals.map((i) => [
-                Number(i.start_block),
-                Number(i.end_block),
-              ]),
-            );
-
-            const mergedIntervalRows = mergedIntervals.map(
-              ([startBlock, endBlock]) => ({
-                fragment_id: fragment.id,
-                chain_id: filter.chainId,
-                start_block: BigInt(startBlock),
-                end_block: BigInt(endBlock),
-              }),
-            );
-
-            if (mergedIntervalRows.length > 0) {
-              await tx
-                .insertInto("interval")
-                .values(mergedIntervalRows)
-                .execute();
-            }
-
-            if (
-              mergedIntervalRows.length === common.options.syncStoreMaxIntervals
-            ) {
-              // This occurs when there are too many non-mergeable ranges with the same fragment_id. Should be almost impossible.
-              throw new NonRetryableError(
-                `'interval' table for chain '${filter.chainId}' has reached an unrecoverable level of fragmentation.`,
-              );
-            }
-
-            if (
-              existingIntervals.length !== common.options.syncStoreMaxIntervals
-            ) {
-              mergeComplete = true;
-            }
-          });
-        }
-      }
-
-      const intervals: Interval[][] = [];
-      for (const fragment of fragments!) {
-        const _intervals = await db
+      for (const fragment of fragments) {
+        const _query = db
           .selectFrom("interval")
           .where("fragment_id", "in", fragment.adjacent)
-          .select(["start_block", "end_block"])
-          .execute();
+          .select("blocks");
 
-        const union = intervalUnion(
-          _intervals.map(({ start_block, end_block }) => [
-            Number(start_block),
-            Number(end_block),
-          ]),
-        );
-
-        intervals.push(union);
+        query = query === undefined ? _query : query.unionAll(_query);
       }
 
-      return intervalIntersectionMany(intervals);
+      const rows = await query!.execute();
+
+      return intervalIntersectionMany(
+        rows.map((row) =>
+          intervalUnion(JSON.parse(`[${row.blocks.slice(1, -1)}]`)),
+        ),
+      );
     }),
   getChildAddresses: ({ filter, limit }) =>
     db.wrap({ method: "getChildAddresses" }, async () => {

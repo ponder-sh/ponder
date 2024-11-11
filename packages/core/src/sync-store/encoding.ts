@@ -13,7 +13,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { ColumnType, Generated, Insertable } from "kysely";
+import type { ColumnType, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
@@ -306,11 +306,9 @@ type RpcRequestResultsTable = {
 };
 
 type IntervalTable = {
-  id: Generated<number>;
   fragment_id: FragmentId;
   chain_id: number;
-  start_block: ColumnType<string, string | bigint, string | bigint>;
-  end_block: ColumnType<string, string | bigint, string | bigint>;
+  blocks: string;
 };
 
 export type PonderSyncSchema = {
