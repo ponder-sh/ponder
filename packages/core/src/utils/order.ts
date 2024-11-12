@@ -1,5 +1,7 @@
-export const orderObject = <T extends { [key: string]: any }>(obj: T): T => {
-  if (Array.isArray(obj)) return obj;
+export const orderObject = <T extends { [key: string]: any } | any[]>(
+  obj: T,
+): T => {
+  if (Array.isArray(obj)) return obj.map((x) => orderObject(x)) as T;
 
   const newObj = {} as T;
   for (const key of Object.keys(obj).sort()) {
