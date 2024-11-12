@@ -895,10 +895,9 @@ WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_call_%'
 AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
 `.compile(db),
       );
-    },
-    async down(db: Kysely<any>) {
+
       await db.schema
-        .dropTable("rpc_request_results")
+        .dropTable("rpcRequestResults")
         .ifExists()
         .cascade()
         .execute();
