@@ -33,7 +33,7 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("callTraces");
   expect(tableNames).toContain("transactionReceipts");
 
-  expect(tableNames).toContain("rpcRequestResults");
+  expect(tableNames).toContain("rpc_request_results");
   await cleanup();
 });
 
