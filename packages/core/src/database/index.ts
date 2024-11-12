@@ -828,7 +828,8 @@ export const createDatabase = (args: {
             if (
               isFirstAttempt &&
               args.common.options.command !== "dev" &&
-              crashRecoveryApp?.is_locked === 1
+              (crashRecoveryApp === undefined ||
+                crashRecoveryApp.is_locked === 1)
             ) {
               return {
                 status: "locked",
