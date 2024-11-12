@@ -211,10 +211,16 @@ export const getPonderActions = (
       actions[action] = _publicActions[action];
     }
 
-    // maybe block dependent actions
-    // getBlock()
-    // getBlockTransactionCount()
-    // getTransactionCount()
+    // required block actions
+
+    for (const action of [
+      "getBlock",
+      "getBlockTransactionCount",
+      "getTransactionCount",
+    ]) {
+      // @ts-ignore
+      actions[action] = _publicActions[action];
+    }
 
     return actions;
   };
