@@ -1,147 +1,167 @@
-import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import type { Address, Hex } from "viem";
 import {
   type BlockFilter,
   type CallTraceFilter,
   type Factory,
-  type LogFactory,
+  type Filter,
   type LogFilter,
   isAddressFactory,
 } from "./source.js";
 
-export type LogFilterFragment<
-  factory extends Factory | undefined = Factory | undefined,
-> = factory extends Factory
-  ? PonderSyncSchema["factoryLogFilters"]
-  : PonderSyncSchema["logFilters"];
+type FragmentAddress =
+  | Address
+  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | null;
+type FragmentTopic = Hex | null;
 
-export type BlockFilterFragment = PonderSyncSchema["blockFilters"];
+export type FragmentId =
+  | `log_${number}_${FragmentAddress}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
+  | `trace_${number}_${FragmentAddress}_${Address | null}`
+  | `block_${number}_${number}_${number}`;
 
-export type TraceFilterFragment<
-  factory extends Factory | undefined = Factory | undefined,
-> = factory extends Factory
-  ? PonderSyncSchema["factoryTraceFilters"]
-  : PonderSyncSchema["traceFilters"];
+export const getFragmentIds = (
+  filter: Filter extends Filter
+    ? Omit<Filter, "startBlock" | "endBlock">
+    : never,
+): FragmentReturnType => {
+  if (filter.type === "log") {
+    return getLogFilterFragmentIds(filter as LogFilter);
+  }
+
+  if (filter.type === "callTrace") {
+    return getTraceFilterFragmentIds(filter as CallTraceFilter);
+  }
+
+  return getBlockFilterFragmentId(filter as BlockFilter);
+};
+
+type FragmentReturnType = {
+  id: FragmentId;
+  adjacent: FragmentId[];
+}[];
 
 /**
- * Generates log filter fragments from a log filter.
+ * Generates log filter fragment IDs from a log filter.
  *
  * @param logFilter Log filter to be decomposed into fragments.
- * @returns A list of log filter fragments.
+ * @returns A list of log filter fragment IDs.
  */
-export const buildLogFilterFragments = <factory extends Factory | undefined>({
+export const getLogFilterFragmentIds = ({
   chainId,
   address,
   topics,
   includeTransactionReceipts,
-}: Omit<
-  LogFilter<factory>,
-  "fromBlock" | "toBlock"
->): LogFilterFragment<factory>[] => {
-  const fragments: LogFilterFragment[] = [];
+}: Omit<LogFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
+  const fragments: FragmentReturnType = [];
   const { topic0, topic1, topic2, topic3 } = parseTopics(topics);
 
-  const idCallback = ({
-    chainId,
-    address: address_,
-    topic0: topic0_,
-    topic1: topic1_,
-    topic2: topic2_,
-    topic3: topic3_,
-    includeTransactionReceipts,
-  }: Omit<LogFilterFragment, "id" | "address"> & {
-    address: Address | null;
-  }) => {
-    return `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-      includeTransactionReceipts
-    }`;
-  };
-
-  const factoryIdCallback = ({
-    chainId,
-    address: address_,
-    eventSelector: eventSelector_,
-    childAddressLocation: childAddressLocation_,
-    topic0: topic0_,
-    topic1: topic1_,
-    topic2: topic2_,
-    topic3: topic3_,
-    includeTransactionReceipts,
-  }: Omit<LogFilterFragment, "id" | "address"> & {
-    address: Address;
-    eventSelector: LogFactory["eventSelector"];
-    childAddressLocation: LogFactory["childAddressLocation"];
-  }) => {
-    return `${chainId}_${address_}_${eventSelector_}_${childAddressLocation_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}_${
-      includeTransactionReceipts
-    }`;
-  };
-
   if (isAddressFactory(address)) {
-    for (const factoryAddress_ of Array.isArray(address.address)
+    for (const fragmentAddress of Array.isArray(address.address)
       ? address.address
       : [address.address]) {
-      for (const topic0_ of Array.isArray(topic0) ? topic0 : [topic0]) {
-        for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
-          for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
-            for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              fragments.push({
-                id: factoryIdCallback({
-                  chainId,
-                  address: factoryAddress_,
-                  eventSelector: address.eventSelector,
-                  childAddressLocation: address.childAddressLocation,
-                  topic0: topic0_,
-                  topic1: topic1_,
-                  topic2: topic2_,
-                  topic3: topic3_,
-                  includeTransactionReceipts: includeTransactionReceipts
-                    ? 1
-                    : 0,
-                }),
-                chainId,
-                address: factoryAddress_,
-                eventSelector: address.eventSelector,
-                childAddressLocation: address.childAddressLocation,
-                topic0: topic0_,
-                topic1: topic1_,
-                topic2: topic2_,
-                topic3: topic3_,
-                includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
-              });
+      for (const fragmentTopic0 of Array.isArray(topic0) ? topic0 : [topic0]) {
+        for (const fragmentTopic1 of Array.isArray(topic1)
+          ? topic1
+          : [topic1]) {
+          for (const fragmentTopic2 of Array.isArray(topic2)
+            ? topic2
+            : [topic2]) {
+            for (const fragmentTopic3 of Array.isArray(topic3)
+              ? topic3
+              : [topic3]) {
+              const id =
+                `log_${chainId}_${fragmentAddress}_${address.eventSelector}_${address.childAddressLocation}_${fragmentTopic0}_${fragmentTopic1}_${fragmentTopic2}_${fragmentTopic3}_${
+                  includeTransactionReceipts ? 1 : 0
+                }` as const;
+
+              const adjacent: FragmentId[] = [];
+
+              for (const adjacentTopic0 of fragmentTopic0 === null
+                ? [fragmentTopic0]
+                : [fragmentTopic0, null]) {
+                for (const adjacentTopic1 of fragmentTopic1 === null
+                  ? [fragmentTopic1]
+                  : [fragmentTopic1, null]) {
+                  for (const adjacentTopic2 of fragmentTopic2 === null
+                    ? [fragmentTopic2]
+                    : [fragmentTopic3, null]) {
+                    for (const adjacentTopic3 of fragmentTopic3 === null
+                      ? [fragmentTopic3]
+                      : [fragmentTopic3, null]) {
+                      for (const adjacentTxr of includeTransactionReceipts ===
+                      true
+                        ? [1]
+                        : [0, 1]) {
+                        adjacent.push(
+                          `log_${chainId}_${fragmentAddress}_${address.eventSelector}_${address.childAddressLocation}_${adjacentTopic0}_${adjacentTopic1}_${adjacentTopic2}_${adjacentTopic3}_${
+                            adjacentTxr as 0 | 1
+                          }`,
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+
+              fragments.push({ id, adjacent });
             }
           }
         }
       }
     }
   } else {
-    for (const address_ of Array.isArray(address)
+    for (const fragmentAddress of Array.isArray(address)
       ? address
       : [address ?? null]) {
-      for (const topic0_ of Array.isArray(topic0) ? topic0 : [topic0]) {
-        for (const topic1_ of Array.isArray(topic1) ? topic1 : [topic1]) {
-          for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
-            for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
-              fragments.push({
-                id: idCallback({
-                  chainId,
-                  address: address_,
-                  topic0: topic0_,
-                  topic1: topic1_,
-                  topic2: topic2_,
-                  topic3: topic3_,
-                  includeTransactionReceipts: includeTransactionReceipts
-                    ? 1
-                    : 0,
-                }),
-                chainId,
-                address: address_,
-                topic0: topic0_,
-                topic1: topic1_,
-                topic2: topic2_,
-                topic3: topic3_,
-                includeTransactionReceipts: includeTransactionReceipts ? 1 : 0,
-              });
+      for (const fragmentTopic0 of Array.isArray(topic0) ? topic0 : [topic0]) {
+        for (const fragmentTopic1 of Array.isArray(topic1)
+          ? topic1
+          : [topic1]) {
+          for (const fragmentTopic2 of Array.isArray(topic2)
+            ? topic2
+            : [topic2]) {
+            for (const fragmentTopic3 of Array.isArray(topic3)
+              ? topic3
+              : [topic3]) {
+              const id =
+                `log_${chainId}_${fragmentAddress}_${fragmentTopic0}_${fragmentTopic1}_${fragmentTopic2}_${fragmentTopic3}_${
+                  includeTransactionReceipts ? 1 : 0
+                }` as const;
+
+              const adjacent: FragmentId[] = [];
+
+              for (const adjacentAddress of fragmentAddress === null
+                ? [fragmentAddress]
+                : [fragmentAddress, null]) {
+                for (const adjacentTopic0 of fragmentTopic0 === null
+                  ? [fragmentTopic0]
+                  : [fragmentTopic0, null]) {
+                  for (const adjacentTopic1 of fragmentTopic1 === null
+                    ? [fragmentTopic1]
+                    : [fragmentTopic1, null]) {
+                    for (const adjacentTopic2 of fragmentTopic2 === null
+                      ? [fragmentTopic2]
+                      : [fragmentTopic3, null]) {
+                      for (const adjacentTopic3 of fragmentTopic3 === null
+                        ? [fragmentTopic3]
+                        : [fragmentTopic3, null]) {
+                        for (const adjacentTxr of includeTransactionReceipts ===
+                        true
+                          ? [1]
+                          : [0, 1]) {
+                          adjacent.push(
+                            `log_${chainId}_${adjacentAddress}_${adjacentTopic0}_${adjacentTopic1}_${adjacentTopic2}_${adjacentTopic3}_${
+                              adjacentTxr as 0 | 1
+                            }`,
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              fragments.push({ id, adjacent });
             }
           }
         }
@@ -149,7 +169,7 @@ export const buildLogFilterFragments = <factory extends Factory | undefined>({
     }
   }
 
-  return fragments as LogFilterFragment<factory>[];
+  return fragments;
 };
 
 function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
@@ -166,93 +186,79 @@ function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
   };
 }
 
-export const buildBlockFilterFragment = ({
+export const getBlockFilterFragmentId = ({
   chainId,
   interval,
   offset,
-}: Omit<BlockFilter, "fromBlock" | "toBlock">): BlockFilterFragment => {
-  return {
-    id: `${chainId}_${interval}_${offset}`,
-    chainId,
-    interval,
-    offset,
-  };
+}: Omit<BlockFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
+  return [
+    {
+      id: `block_${chainId}_${interval}_${offset}`,
+      adjacent: [`block_${chainId}_${interval}_${offset}`],
+    },
+  ];
 };
 
-export const buildTraceFilterFragments = <factory extends Factory | undefined>({
+export const getTraceFilterFragmentIds = ({
   chainId,
   fromAddress,
   toAddress,
-}: Omit<CallTraceFilter<factory>, "fromBlock" | "toBlock"> & {
+}: Omit<CallTraceFilter, "fromBlock" | "toBlock"> & {
   chainId: number;
-}): TraceFilterFragment<factory>[] => {
-  const fragments: TraceFilterFragment[] = [];
-
-  const idCallback = ({
-    chainId,
-    fromAddress,
-    toAddress,
-  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    toAddress: Address | null;
-  }) => {
-    return `${chainId}_${fromAddress}_${toAddress}`;
-  };
-
-  const factoryIdCallback = ({
-    chainId,
-    fromAddress,
-    address,
-    eventSelector,
-    childAddressLocation,
-  }: Omit<TraceFilterFragment, "id" | "toAddress"> & {
-    address: Address;
-    eventSelector: LogFactory["eventSelector"];
-    childAddressLocation: LogFactory["childAddressLocation"];
-  }) => {
-    return `${chainId}_${address}_${eventSelector}_${childAddressLocation}_${fromAddress}`;
-  };
+}): FragmentReturnType => {
+  const fragments: FragmentReturnType = [];
 
   if (isAddressFactory(toAddress)) {
-    for (const _fromAddress of Array.isArray(fromAddress)
-      ? fromAddress
-      : [null]) {
-      for (const _factoryAddress of Array.isArray(toAddress.address)
+    for (const fragmentFromAddress of fromAddress === undefined
+      ? [null]
+      : fromAddress) {
+      for (const fragmentToAddress of Array.isArray(toAddress.address)
         ? toAddress.address
         : [toAddress.address]) {
-        fragments.push({
-          id: factoryIdCallback({
-            chainId,
-            fromAddress: _fromAddress,
-            address: _factoryAddress,
-            eventSelector: toAddress.eventSelector,
-            childAddressLocation: toAddress.childAddressLocation,
-          }),
-          chainId,
-          address: _factoryAddress,
-          eventSelector: toAddress.eventSelector,
-          childAddressLocation: toAddress.childAddressLocation,
-          fromAddress: _fromAddress,
-        });
+        const id =
+          `trace_${chainId}_${fragmentToAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${fragmentFromAddress}` as const;
+
+        const adjacent: FragmentId[] = [];
+
+        for (const adjacentFromAddress of fragmentFromAddress === null
+          ? [fragmentFromAddress]
+          : [fragmentFromAddress, null]) {
+          adjacent.push(
+            `trace_${chainId}_${fragmentToAddress}_${toAddress.eventSelector}_${toAddress.childAddressLocation}_${adjacentFromAddress}`,
+          );
+        }
+
+        fragments.push({ id, adjacent });
       }
     }
   } else {
-    for (const _fromAddress of Array.isArray(fromAddress)
-      ? fromAddress
-      : [null]) {
-      for (const _toAddress of Array.isArray(toAddress) ? toAddress : [null]) {
-        fragments.push({
-          id: idCallback({
-            chainId,
-            fromAddress: _fromAddress,
-            toAddress: _toAddress,
-          }),
-          chainId,
-          toAddress: _toAddress,
-          fromAddress: _fromAddress,
-        });
+    for (const fragmentFromAddress of fromAddress === undefined
+      ? [null]
+      : fromAddress) {
+      for (const fragmentToAddress of toAddress === undefined
+        ? [null]
+        : (toAddress as Address[])) {
+        const id =
+          `trace_${chainId}_${fragmentFromAddress}_${fragmentToAddress}` as const;
+
+        const adjacent: FragmentId[] = [];
+
+        for (const adjacentFromAddress of fragmentFromAddress === null
+          ? [fragmentFromAddress]
+          : [fragmentFromAddress, null]) {
+          for (const adjacentToAddress of fragmentToAddress === null
+            ? [fragmentToAddress]
+            : [fragmentToAddress, null]) {
+            adjacent.push(
+              `trace_${chainId}_${adjacentFromAddress}_${adjacentToAddress}`,
+            );
+          }
+        }
+
+        fragments.push({ id, adjacent });
       }
     }
   }
 
-  return fragments as TraceFilterFragment<factory>[];
+  return fragments;
 };

@@ -840,6 +840,185 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "2024_09_09_0_adjacent_interval": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("intervals")
+        .addColumn("fragment_id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("blocks", sql`nummultirange`, (col) => col.notNull())
+        .execute();
+
+      await db
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          db
+            .selectFrom("logFilters as lf")
+            .innerJoin("logFilterIntervals as lfi", "lf.id", "lfi.logFilterId")
+            .select([
+              sql<string>`concat('log', '_', lf.id)`.as("fragment_id"),
+              "lf.chainId as chain_id",
+              sql`nummultirange(numrange(lfi."startBlock", lfi."endBlock", '[]'))`.as(
+                "blocks",
+              ),
+            ]),
+        )
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: sql`intervals.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
+
+      await db.schema.dropTable("logFilters").ifExists().cascade().execute();
+      await db.schema
+        .dropTable("logFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+
+      await db
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          db
+            .selectFrom("factoryLogFilters as flf")
+            .innerJoin(
+              "factoryLogFilterIntervals as flfi",
+              "flf.id",
+              "flfi.factoryId",
+            )
+            .select([
+              sql<string>`concat('log', '_', flf.id)`.as("fragment_id"),
+              "flf.chainId as chain_id",
+              sql`nummultirange(numrange(flfi."startBlock", flfi."endBlock", '[]'))`.as(
+                "blocks",
+              ),
+            ]),
+        )
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: sql`intervals.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
+
+      await db.schema
+        .dropTable("factoryLogFilters")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .dropTable("factoryLogFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+
+      await db
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          db
+            .selectFrom("traceFilters as tf")
+            .innerJoin(
+              "traceFilterIntervals as tfi",
+              "tf.id",
+              "tfi.traceFilterId",
+            )
+            .select([
+              sql<string>`concat('trace', '_', tf.id)`.as("fragment_id"),
+              "tf.chainId as chain_id",
+              sql`nummultirange(numrange(tfi."startBlock", tfi."endBlock", '[]'))`.as(
+                "blocks",
+              ),
+            ]),
+        )
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: sql`intervals.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
+
+      await db.schema.dropTable("traceFilters").ifExists().cascade().execute();
+      await db.schema
+        .dropTable("traceFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+
+      await db
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          db
+            .selectFrom("factoryTraceFilters as ftf")
+            .innerJoin(
+              "factoryTraceFilterIntervals as ftfi",
+              "ftf.id",
+              "ftfi.factoryId",
+            )
+            .select([
+              sql<string>`concat('trace', '_', ftf.id)`.as("fragment_id"),
+              "ftf.chainId as chain_id",
+              sql`nummultirange(numrange(ftfi."startBlock", ftfi."endBlock", '[]'))`.as(
+                "blocks",
+              ),
+            ]),
+        )
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: sql`intervals.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
+
+      await db.schema
+        .dropTable("factoryTraceFilters")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .dropTable("factoryTraceFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+
+      await db
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          db
+            .selectFrom("blockFilters as bf")
+            .innerJoin(
+              "blockFilterIntervals as bfi",
+              "bf.id",
+              "bfi.blockFilterId",
+            )
+            .select([
+              sql<string>`concat('block', '_', bf.id)`.as("fragment_id"),
+              "bf.chainId as chain_id",
+              sql`nummultirange(numrange(bfi."startBlock", bfi."endBlock", '[]'))`.as(
+                "blocks",
+              ),
+            ]),
+        )
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: sql`intervals.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
+
+      await db.schema.dropTable("blockFilters").ifExists().cascade().execute();
+      await db.schema
+        .dropTable("blockFilterIntervals")
+        .ifExists()
+        .cascade()
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

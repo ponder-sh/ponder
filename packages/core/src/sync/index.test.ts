@@ -111,7 +111,7 @@ test("getEvents() with cache", async (context) => {
 
   await drainAsyncGenerator(sync.getEvents());
 
-  const spy = vi.spyOn(syncStore, "insertInterval");
+  const spy = vi.spyOn(syncStore, "insertIntervals");
 
   sync = await createSync({
     syncStore,

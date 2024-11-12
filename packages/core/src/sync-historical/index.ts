@@ -87,12 +87,16 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  const intervalsCache: Map<Filter, Interval[]> = new Map();
-
-  // Populate `intervalsCache` by querying the sync-store.
-  for (const { filter } of args.sources) {
-    const intervals = await args.syncStore.getIntervals({ filter });
-    intervalsCache.set(filter, intervals);
+  let intervalsCache: Map<Filter, Interval[]>;
+  if (args.network.disableCache) {
+    intervalsCache = new Map();
+    for (const { filter } of args.sources) {
+      intervalsCache.set(filter, []);
+    }
+  } else {
+    intervalsCache = await args.syncStore.getIntervals({
+      filters: args.sources.map(({ filter }) => filter),
+    });
   }
 
   // Closest-to-tip block that has been synced.
@@ -567,14 +571,11 @@ export const createHistoricalSync = async (
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
-      await Promise.all(
-        syncedIntervals.map(({ filter, interval }) =>
-          args.syncStore.insertInterval({
-            filter,
-            interval,
-          }),
-        ),
-      );
+      if (args.network.disableCache === false) {
+        await args.syncStore.insertIntervals({
+          intervals: syncedIntervals,
+        });
+      }
 
       blockCache.clear();
       transactionsCache.clear();
