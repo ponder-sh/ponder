@@ -100,6 +100,36 @@ test("getIntervals() merges intervals", async (context) => {
   await cleanup();
 });
 
+test("getIntervals() adjacent intervals", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
+  });
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: { ...context.sources[0].filter, address: undefined },
+        interval: [5, 8],
+      },
+    ],
+  });
+  const intervals = await syncStore.getIntervals({
+    filters: [context.sources[0].filter],
+  });
+
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
+
+  await cleanup();
+});
+
 test("getIntervals() handles log filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 

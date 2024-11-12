@@ -194,7 +194,7 @@ export const createSyncStore = ({
         | SelectQueryBuilder<
             PonderSyncSchema,
             "interval",
-            { blocks: string; filter: string }
+            { merged_blocks: string; filter: string }
           >
         | undefined;
 
@@ -203,10 +203,19 @@ export const createSyncStore = ({
         const fragments = getFragmentIds(filter);
         for (const fragment of fragments) {
           const _query = db
-            .selectFrom("interval")
-            .where("fragment_id", "in", fragment.adjacent)
-            .select(["blocks", sql<string>`${i}`.as("filter")]);
+            .with("unnested(blocks)", (db) =>
+              db
+                .selectFrom("interval")
+                .select(sql`unnest(blocks)`.as("blocks"))
+                .where("fragment_id", "in", fragment.adjacent),
+            )
+            .selectFrom("unnested")
 
+            .select([
+              sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
+              sql<string>`${i}`.as("filter"),
+            ]);
+          // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);
         }
       }
@@ -218,12 +227,15 @@ export const createSyncStore = ({
       // intervals use "union" for the same fragment, and
       // "intersection" for the same filter
 
+      // NOTE: range_agg does not merge non-overlapping columns in the same way that `intervalUnion` does.
+      // [0, 2] and [3, 5] should be merged into [0, 5]
+
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i]!;
         const intervals = rows
           .filter((row) => row.filter === `${i}`)
           .map((row) =>
-            intervalUnion(JSON.parse(`[${row.blocks.slice(1, -1)}]`)),
+            intervalUnion(JSON.parse(`[${row.merged_blocks.slice(1, -1)}]`)),
           );
 
         result.set(filter, intervalIntersectionMany(intervals));

@@ -68,6 +68,8 @@ export const getLogFilterFragmentIds = ({
 
               const adjacent = [id];
 
+              // TODO(kyle) missing adjacent intervals
+
               if (topic0_ !== null) {
                 adjacent.push(
                   `log_${chainId}_${address_}_${address.eventSelector}_${address.childAddressLocation}_${null}_${topic1_}_${topic2_}_${topic3_}_${
