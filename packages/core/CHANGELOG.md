@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.1
+
+### Patch Changes
+
+- [#1227](https://github.com/ponder-sh/ponder/pull/1227) [`903d9189094b4bb68c90b425835515783e4c8612`](https://github.com/ponder-sh/ponder/commit/903d9189094b4bb68c90b425835515783e4c8612) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for caching all available rpc methods. Several new client actions are available, including `context.client.simulateCall()`, `context.client.getTransactionCount()`, `context.client.getTransactionReceipt()`, and `context.client.getBlockTransactionCount()`. See [docs](https://ponder.sh/docs/indexing/read-contract-data#supported-actions) for all actions.
+
 ## 0.7.0
 
 ### Minor Changes
