@@ -87,8 +87,13 @@ export const cachedTransport = ({
 
           const cachedResult = await syncStore.getRpcRequestResult(cacheKey);
 
-          if (cachedResult !== undefined) return JSON.parse(cachedResult);
-          else {
+          if (cachedResult !== undefined) {
+            try {
+              return JSON.parse(cachedResult);
+            } catch {
+              return cachedResult;
+            }
+          } else {
             const response = await requestQueue.request(body);
             await syncStore.insertRpcRequestResult({
               ...cacheKey,
