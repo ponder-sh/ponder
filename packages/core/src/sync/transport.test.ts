@@ -61,7 +61,7 @@ test("request() block dependent method", async (context) => {
     params: [toHex(blockNumber), false],
   });
 
-  expect(response1).toBeDefined;
+  expect(response1).toBeDefined();
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
