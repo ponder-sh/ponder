@@ -859,8 +859,8 @@ const migrations: Record<string, Migration> = {
 INSERT INTO ponder_sync.rpc_request_results (request, "blockNumber", "chainId", result)
 SELECT 
   CONCAT (
-    '{"method":"eth_getBalance","params":{"0":"',
-    SUBSTRING(request, 15),
+    '{"method":"eth_getbalance","params":{"0":"',
+    LOWER(SUBSTRING(request, 16)),
     '","1":0x"',
     to_hex("blockNumber"::bigint),
     '"}}'
@@ -880,9 +880,9 @@ INSERT INTO ponder_sync.rpc_request_results (request, "blockNumber", "chainId", 
 SELECT 
   CONCAT (
     '{"method":"eth_call","params":{"0":{"address":"',
-    SUBSTRING(request, 10, 42),
+    LOWER(SUBSTRING(request, 10, 42)),
     '","data":"',
-    SUBSTRING(request, 53),
+    LOWER(SUBSTRING(request, 53)),
     '"},"1":"0x',
     to_hex("blockNumber"::bigint),
     '"}}'
