@@ -1,15 +1,14 @@
-export const orderObject = <T extends { [key: string]: any } | any[]>(
-  obj: T,
-): T => {
-  if (Array.isArray(obj)) return obj.map((x) => orderObject(x)) as T;
+export const orderObject = (obj: any): any => {
+  if (Array.isArray(obj)) return obj.map((x) => orderObject(x));
+  if (typeof obj !== "object") return obj;
 
-  const newObj = {} as T;
+  const newObj = {} as any;
   for (const key of Object.keys(obj).sort()) {
     const val = obj[key];
     if (typeof val === "object") {
-      newObj[key as keyof T] = orderObject(obj[key]);
+      newObj[key] = orderObject(obj[key]);
     } else {
-      newObj[key as keyof T] = obj[key];
+      newObj[key] = obj[key];
     }
   }
 

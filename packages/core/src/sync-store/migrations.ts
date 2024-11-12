@@ -879,10 +879,10 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
 INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
 SELECT 
   CONCAT (
-    '{"method":"eth_call","params":[{"address":"',
-    LOWER(SUBSTRING(request, 10, 42)),
-    '","data":"',
+    '{"method":"eth_call","params":[{"data":"',
     LOWER(SUBSTRING(request, 53)),
+    '","to":"',
+    LOWER(SUBSTRING(request, 10, 42)),
     '"},"0x',
     to_hex("blockNumber"::bigint),
     '"]}'
