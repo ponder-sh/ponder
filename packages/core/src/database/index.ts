@@ -825,7 +825,11 @@ export const createDatabase = (args: {
               a.heartbeat_at < b.heartbeat_at ? -1 : 1,
             )[0]!;
 
-            if (isFirstAttempt && args.common.options.command !== "dev") {
+            if (
+              isFirstAttempt &&
+              args.common.options.command !== "dev" &&
+              crashRecoveryApp?.is_locked === 1
+            ) {
               return {
                 status: "locked",
                 expiry:
@@ -842,6 +846,8 @@ export const createDatabase = (args: {
             await tx
               .insertInto("_ponder_meta")
               .values({ key: `status_${args.instanceId}`, value: null })
+              // @ts-ignore
+              .onConflict((oc) => oc.column("key").doUpdateSet({ value: null }))
               .execute();
             await tx
               .insertInto("_ponder_meta")
@@ -849,7 +855,31 @@ export const createDatabase = (args: {
                 key: `app_${args.instanceId}`,
                 value: newApp,
               })
+              .onConflict((oc) =>
+                oc
+                  .column("key")
+                  // @ts-ignore
+                  .doUpdateSet({ value: newApp }),
+              )
               .execute();
+
+            // drop tables in case of non-unique instance_id
+
+            for (const tableName of getTableNames(
+              args.schema,
+              newApp.instance_id,
+            )) {
+              await tx.schema
+                .dropTable(tableName.sql)
+                .cascade()
+                .ifExists()
+                .execute();
+              await tx.schema
+                .dropTable(tableName.reorg)
+                .cascade()
+                .ifExists()
+                .execute();
+            }
 
             for (let i = 0; i < args.statements.enums.sql.length; i++) {
               await sql
