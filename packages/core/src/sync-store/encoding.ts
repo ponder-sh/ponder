@@ -299,8 +299,8 @@ export function encodeCallTrace({
 
 type RpcRequestResultsTable = {
   request: string;
-  chainId: number;
-  blockNumber: ColumnType<
+  chain_id: number;
+  block_number: ColumnType<
     string | undefined,
     string | bigint | undefined,
     string | bigint | undefined

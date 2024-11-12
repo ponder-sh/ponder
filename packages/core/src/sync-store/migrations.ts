@@ -845,18 +845,18 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("rpc_request_results")
         .addColumn("request", "text", (col) => col.notNull())
-        .addColumn("blockNumber", "numeric(78, 0)")
-        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
         .addColumn("result", "text", (col) => col.notNull())
         .addPrimaryKeyConstraint("rpc_request_result_primary_key", [
           "request",
-          "chainId",
+          "chain_id",
         ])
         .execute();
 
       await db.executeQuery(
         sql`
-INSERT INTO ponder_sync.rpc_request_results (request, "blockNumber", "chainId", result)
+INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
 SELECT 
   CONCAT (
     '{"method":"eth_getbalance","params":{"0":"',
@@ -865,8 +865,8 @@ SELECT
     to_hex("blockNumber"::bigint),
     '"}}'
   ) as request,
-  "blockNumber",
-  "chainId",
+  "blockNumber" as block_number,
+  "chainId" as chain_id,
   result
 FROM ponder_sync."rpcRequestResults"
 WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_getBalance_%'
@@ -876,7 +876,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
 
       await db.executeQuery(
         sql`
-INSERT INTO ponder_sync.rpc_request_results (request, "blockNumber", "chainId", result)
+INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
 SELECT 
   CONCAT (
     '{"method":"eth_call","params":{"0":{"address":"',
@@ -887,8 +887,8 @@ SELECT
     to_hex("blockNumber"::bigint),
     '"}}'
   ) as request,
-  "blockNumber",
-  "chainId",
+  "blockNumber" as block_number,
+  "chainId" as chain_id,
   result
 FROM ponder_sync."rpcRequestResults"
 WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_call_%'
