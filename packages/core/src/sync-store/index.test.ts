@@ -1043,7 +1043,7 @@ test("pruneRpcRequestResult", async (context) => {
   });
 
   const requestResults = await database.qb.sync
-    .selectFrom("rpc_request_results")
+    .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
 

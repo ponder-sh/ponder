@@ -1,37 +1,15 @@
 import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import type { Hex, Transport } from "viem";
+import type { Address, Hex, Transport } from "viem";
 import { custom, hexToBigInt, maxUint256 } from "viem";
 
-/** RPC methods that reference a block. */
-const blockDependentMethods = new Set([
-  "eth_getBalance",
-  "eth_getTransactionCount",
-  "eth_getBlockByNumber",
-  "eth_getBlockTransactionCountByNumber",
-  "eth_getTransactionByBlockNumberAndIndex",
+const cachedMethods = [
   "eth_call",
-  "eth_estimateGas",
-  "eth_feeHistory",
-  "eth_getProof",
+  "eth_getBalance",
   "eth_getCode",
   "eth_getStorageAt",
-  "eth_getUncleByBlockNumberAndIndex",
-]);
-
-/** RPC methods that don't reference a block. */
-const nonBlockDependentMethods = new Set([
-  "eth_getBlockByHash",
-  "eth_getTransactionByHash",
-  "eth_getBlockTransactionCountByHash",
-  "eth_getTransactionByBlockHashAndIndex",
-  "eth_getTransactionConfirmations",
-  "eth_getTransactionReceipt",
-  "eth_getUncleByBlockHashAndIndex",
-  "eth_getUncleCountByBlockHash",
-]);
+] as const;
 
 export const cachedTransport = ({
   requestQueue,
@@ -45,54 +23,56 @@ export const cachedTransport = ({
       async request({ method, params }) {
         const body = { method, params };
 
-        if (
-          blockDependentMethods.has(method) ||
-          nonBlockDependentMethods.has(method)
-        ) {
-          const request = toLowerCase(JSON.stringify(orderObject(body)));
-          let blockNumber: Hex | "latest" | undefined = undefined;
+        if (cachedMethods.includes(method)) {
+          let request: string = undefined!;
+          let blockNumber: Hex | "latest" = undefined!;
 
-          switch (method) {
-            case "eth_getBlockByNumber":
-            case "eth_getBlockTransactionCountByNumber":
-            case "eth_getTransactionByBlockNumberAndIndex":
-            case "eth_getUncleByBlockNumberAndIndex":
-              [blockNumber] = params;
-              break;
-            case "eth_getBalance":
-            case "eth_call":
-            case "eth_getCode":
-            case "eth_estimateGas":
-            case "eth_feeHistory":
-            case "eth_getTransactionCount":
-              [, blockNumber] = params;
-              break;
+          if (method === "eth_call") {
+            const [{ data, to }, _blockNumber] = params as [
+              { data: Hex; to: Hex },
+              Hex | "latest",
+            ];
 
-            case "eth_getProof":
-            case "eth_getStorageAt":
-              [, , blockNumber] = params;
-              break;
+            request = `${method as string}_${toLowerCase(to)}_${toLowerCase(data)}`;
+            blockNumber = _blockNumber;
+          } else if (method === "eth_getBalance") {
+            const [address, _blockNumber] = params as [Address, Hex | "latest"];
+
+            request = `${method as string}_${toLowerCase(address)}`;
+            blockNumber = _blockNumber;
+          } else if (method === "eth_getCode") {
+            const [address, _blockNumber] = params as [Address, Hex | "latest"];
+
+            request = `${method as string}_${toLowerCase(address)}`;
+            blockNumber = _blockNumber;
+          } else if (method === "eth_getStorageAt") {
+            const [address, slot, _blockNumber] = params as [
+              Address,
+              Hex,
+              Hex | "latest",
+            ];
+
+            request = `${method as string}_${toLowerCase(address)}_${toLowerCase(slot)}`;
+            blockNumber = _blockNumber;
           }
 
-          const cacheKey = {
+          const blockNumberBigInt =
+            blockNumber === "latest" ? maxUint256 : hexToBigInt(blockNumber);
+
+          const cachedResult = await syncStore.getRpcRequestResult({
+            blockNumber: blockNumberBigInt,
             chainId: chain!.id,
             request,
-            blockNumber:
-              blockNumber === undefined
-                ? undefined
-                : blockNumber === "latest"
-                  ? maxUint256
-                  : hexToBigInt(blockNumber),
-          };
+          });
 
-          const cachedResult = await syncStore.getRpcRequestResult(cacheKey);
-
-          if (cachedResult !== undefined) return JSON.parse(cachedResult);
+          if (cachedResult !== null) return cachedResult;
           else {
             const response = await requestQueue.request(body);
             await syncStore.insertRpcRequestResult({
-              ...cacheKey,
-              result: JSON.stringify(response),
+              blockNumber: blockNumberBigInt,
+              chainId: chain!.id,
+              request,
+              result: response as string,
             });
             return response;
           }

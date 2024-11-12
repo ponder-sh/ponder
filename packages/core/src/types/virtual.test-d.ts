@@ -272,6 +272,7 @@ test("Context client", () => {
     | "getEnsName";
 
   assertType<keyof a>({} as any as expectedFunctions);
+  assertType<expectedFunctions>({} as any as keyof a);
 });
 
 test("Context contracts", () => {

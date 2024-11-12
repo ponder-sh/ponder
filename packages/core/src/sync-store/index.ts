@@ -108,14 +108,15 @@ export type SyncStore = {
   }): Promise<{ events: RawEvent[]; cursor: string }>;
   insertRpcRequestResult(args: {
     request: string;
+    blockNumber: bigint;
     chainId: number;
-    blockNumber: bigint | undefined;
     result: string;
   }): Promise<void>;
   getRpcRequestResult(args: {
     request: string;
+    blockNumber: bigint;
     chainId: number;
-  }): Promise<string | undefined>;
+  }): Promise<string | null>;
   pruneRpcRequestResult(args: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
@@ -1228,28 +1229,31 @@ export const createSyncStore = ({
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     db.wrap({ method: "insertRpcRequestResult" }, async () => {
       await db
-        .insertInto("rpc_request_results")
+        .insertInto("rpcRequestResults")
         .values({
           request,
-          block_number: blockNumber,
-          chain_id: chainId,
+          blockNumber,
+          chainId,
           result,
         })
         .onConflict((oc) =>
-          oc.columns(["request", "chain_id"]).doUpdateSet({ result }),
+          oc
+            .columns(["request", "chainId", "blockNumber"])
+            .doUpdateSet({ result }),
         )
         .execute();
     }),
-  getRpcRequestResult: async ({ request, chainId }) =>
+  getRpcRequestResult: async ({ request, blockNumber, chainId }) =>
     db.wrap({ method: "getRpcRequestResult" }, async () => {
       const result = await db
-        .selectFrom("rpc_request_results")
+        .selectFrom("rpcRequestResults")
         .select("result")
         .where("request", "=", request)
-        .where("chain_id", "=", chainId)
+        .where("chainId", "=", chainId)
+        .where("blockNumber", "=", blockNumber.toString())
         .executeTakeFirst();
 
-      return result?.result;
+      return result?.result ?? null;
     }),
   pruneRpcRequestResult: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneRpcRequestResult" }, async () => {
@@ -1260,9 +1264,9 @@ export const createSyncStore = ({
       );
 
       await db
-        .deleteFrom("rpc_request_results")
-        .where("chain_id", "=", chainId)
-        .where("block_number", "in", numbers)
+        .deleteFrom("rpcRequestResults")
+        .where("chainId", "=", chainId)
+        .where("blockNumber", "in", numbers)
         .execute();
     }),
   pruneByChain: async ({ fromBlock, chainId }) =>
@@ -1488,9 +1492,9 @@ export const createSyncStore = ({
           .where("number", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("rpc_request_results")
-          .where("chain_id", "=", chainId)
-          .where("block_number", ">=", fromBlock.toString())
+          .deleteFrom("rpcRequestResults")
+          .where("chainId", "=", chainId)
+          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("callTraces")

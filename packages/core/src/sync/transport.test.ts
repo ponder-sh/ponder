@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { anvil, publicClient } from "@/_test/utils.js";
 import type { Transport } from "viem";
-import { toHex } from "viem";
+import { getFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
 
@@ -44,8 +44,8 @@ test("default", async (context) => {
   await cleanup();
 });
 
-test("request() block dependent method", async (context) => {
-  const { requestQueues } = context;
+test("eth_call", async (context) => {
+  const { erc20, requestQueues } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
@@ -57,32 +57,59 @@ test("request() block dependent method", async (context) => {
   });
 
   const response1 = await transport.request({
-    method: "eth_getBlockByNumber",
-    params: [toHex(blockNumber), false],
+    method: "eth_call",
+    params: [
+      {
+        data: getFunctionSelector("totalSupply()"),
+        to: erc20.address,
+      },
+      toHex(blockNumber),
+    ],
   });
 
   expect(response1).toBeDefined();
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
   const response2 = await transport.request({
-    method: "eth_getBlockByNumber",
-    params: [toHex(blockNumber), false],
+    method: "eth_call",
+    params: [
+      {
+        data: getFunctionSelector("totalSupply()"),
+        to: erc20.address,
+      },
+      toHex(blockNumber),
+    ],
   });
 
-  expect(response1).toStrictEqual(response2);
+  expect(response1).toBe(response2);
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+
+  const response3 = await transport.request({
+    method: "eth_call",
+    params: [
+      {
+        data: getFunctionSelector("totalSupply()"),
+        to: erc20.address,
+      },
+      "latest",
+    ],
+  });
+
+  expect(response3).toBeDefined();
+
   expect(getSpy).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });
 
-test("request() non-block dependent method", async (context) => {
-  const { requestQueues } = context;
+test("eth_getBalance", async (context) => {
+  const { erc20, requestQueues } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const block = await publicClient.getBlock({ blockNumber: 2n });
+  const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
     requestQueue: requestQueues[0],
@@ -92,29 +119,126 @@ test("request() non-block dependent method", async (context) => {
   });
 
   const response1 = await transport.request({
-    method: "eth_getTransactionByHash",
-    params: [block.transactions[0]!],
+    method: "eth_getBalance",
+    params: [erc20.address, toHex(blockNumber)],
   });
 
-  expect(response1).toBeDefined;
+  expect(response1).toBeDefined();
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
   const response2 = await transport.request({
-    method: "eth_getTransactionByHash",
-    params: [block.transactions[0]!],
+    method: "eth_getBalance",
+    params: [erc20.address, toHex(blockNumber)],
   });
 
-  expect(response1).toStrictEqual(response2);
+  expect(response1).toBe(response2);
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+
+  const response3 = await transport.request({
+    method: "eth_getBalance",
+    params: [erc20.address, "latest"],
+  });
+
+  expect(response3).toBeDefined();
+
   expect(getSpy).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });
 
-test("request() non-cached method", async (context) => {
+test("eth_getStorageAt", async (context) => {
+  const { erc20, requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumber = await publicClient.getBlockNumber();
+
+  const transport = cachedTransport({
+    requestQueue: requestQueues[0],
+    syncStore,
+  })({
+    chain: anvil,
+  });
+
+  const response1 = await transport.request({
+    method: "eth_getStorageAt",
+    params: [erc20.address, toHex(3), toHex(blockNumber)],
+  });
+
+  expect(response1).toBeDefined();
+
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
+
+  const response2 = await transport.request({
+    method: "eth_getStorageAt",
+    params: [erc20.address, toHex(3), toHex(blockNumber)],
+  });
+
+  expect(response1).toBe(response2);
+
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+
+  const response3 = await transport.request({
+    method: "eth_getStorageAt",
+    params: [erc20.address, toHex(3), "latest"],
+  });
+
+  expect(response3).toBeDefined();
+
+  expect(getSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
+});
+
+test("eth_getCode", async (context) => {
+  const { erc20, requestQueues } = context;
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const blockNumber = await publicClient.getBlockNumber();
+
+  const transport = cachedTransport({
+    requestQueue: requestQueues[0],
+    syncStore,
+  })({
+    chain: anvil,
+  });
+
+  const response1 = await transport.request({
+    method: "eth_getCode",
+    params: [erc20.address, toHex(blockNumber)],
+  });
+
+  expect(response1).toBeDefined();
+
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
+
+  const response2 = await transport.request({
+    method: "eth_getCode",
+    params: [erc20.address, toHex(blockNumber)],
+  });
+
+  expect(response1).toBe(response2);
+
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+
+  const response3 = await transport.request({
+    method: "eth_getCode",
+    params: [erc20.address, "latest"],
+  });
+
+  expect(response3).toBeDefined();
+
+  expect(getSpy).toHaveBeenCalledTimes(1);
+
+  await cleanup();
+});
+
+test("fallback method", async (context) => {
   const { requestQueues } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const transport = cachedTransport({
@@ -124,13 +248,7 @@ test("request() non-cached method", async (context) => {
     chain: anvil,
   });
 
-  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
-
   expect(await transport.request({ method: "eth_blockNumber" })).toBeDefined();
-
-  expect(insertSpy).toHaveBeenCalledTimes(0);
-  expect(getSpy).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
