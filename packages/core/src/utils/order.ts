@@ -1,4 +1,6 @@
 export const orderObject = <T extends { [key: string]: any }>(obj: T): T => {
+  if (Array.isArray(obj)) return obj;
+
   const newObj = {} as T;
   for (const key of Object.keys(obj).sort()) {
     const val = obj[key];
