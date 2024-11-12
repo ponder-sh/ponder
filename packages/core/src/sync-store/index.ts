@@ -22,11 +22,7 @@ import type {
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import {
-  type Interval,
-  intervalIntersectionMany,
-  intervalUnion,
-} from "@/utils/interval.js";
+import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
 import {
   type Insertable,
   type Kysely,
@@ -167,12 +163,15 @@ export const createSyncStore = ({
     await db.wrap({ method: "insertIntervals" }, async () => {
       const values: InsertObject<PonderSyncSchema, "interval">[] = [];
 
+      // NOTE: In order to force proper range union behavior, `interval[1]` must
+      // be rounded up.
+
       for (const { interval, filter } of intervals) {
         for (const fragment of getFragmentIds(filter)) {
           values.push({
             fragment_id: fragment.id,
             chain_id: filter.chainId,
-            blocks: ksql`nummultirange(numrange(${interval[0]}, ${interval[1]}, '[]'))`,
+            blocks: ksql`nummultirange(numrange(${interval[0]}, ${interval[1] + 1}, '[]'))`,
           });
         }
       }
@@ -227,15 +226,17 @@ export const createSyncStore = ({
       // intervals use "union" for the same fragment, and
       // "intersection" for the same filter
 
-      // NOTE: range_agg does not merge non-overlapping columns in the same way that `intervalUnion` does.
-      // [0, 2] and [3, 5] should be merged into [0, 5]
+      // NOTE: `interval[1]` must be rounded down in order to offset the previous
+      // rounding.
 
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i]!;
         const intervals = rows
           .filter((row) => row.filter === `${i}`)
           .map((row) =>
-            intervalUnion(JSON.parse(`[${row.merged_blocks.slice(1, -1)}]`)),
+            (
+              JSON.parse(`[${row.merged_blocks.slice(1, -1)}]`) as Interval[]
+            ).map((interval) => [interval[0], interval[1] - 1] as Interval),
           );
 
         result.set(filter, intervalIntersectionMany(intervals));
