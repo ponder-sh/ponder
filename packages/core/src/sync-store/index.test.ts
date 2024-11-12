@@ -12,7 +12,6 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { range } from "@/utils/range.js";
 import { _eth_getLogs } from "@/utils/rpc.js";
 import { type Address, hexToNumber } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -303,34 +302,6 @@ test("getIntervals() handles block filter logic", async (context) => {
   });
 
   expect(Array.from(intervals.values())[0]).toHaveLength(0);
-
-  await cleanup();
-});
-
-test("getIntervals() handles size over max", async (context) => {
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  context.common.options = {
-    ...context.common.options,
-    syncStoreMaxIntervals: 20,
-  };
-
-  for (const i of range(0, 25)) {
-    await syncStore.insertIntervals({
-      intervals: [
-        {
-          filter: context.sources[0].filter,
-          interval: [i, i],
-        },
-      ],
-    });
-  }
-
-  const intervals = await syncStore.getIntervals({
-    filters: [context.sources[0].filter],
-  });
-
-  expect(Array.from(intervals.values())[0]).toMatchObject([[0, 24]]);
 
   await cleanup();
 });

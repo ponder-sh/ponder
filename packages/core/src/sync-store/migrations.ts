@@ -843,14 +843,14 @@ const migrations: Record<string, Migration> = {
   "2024_09_09_0_adjacent_interval": {
     async up(db: Kysely<any>) {
       await db.schema
-        .createTable("interval")
+        .createTable("intervals")
         .addColumn("fragment_id", "text", (col) => col.notNull().primaryKey())
         .addColumn("chain_id", "integer", (col) => col.notNull())
         .addColumn("blocks", sql`nummultirange`, (col) => col.notNull())
         .execute();
 
       await db
-        .insertInto("interval")
+        .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
         .expression(
           db
@@ -866,7 +866,7 @@ const migrations: Record<string, Migration> = {
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
-            blocks: sql`interval.blocks + excluded.blocks`,
+            blocks: sql`intervals.blocks + excluded.blocks`,
           }),
         )
         .execute();
@@ -879,7 +879,7 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db
-        .insertInto("interval")
+        .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
         .expression(
           db
@@ -899,7 +899,7 @@ const migrations: Record<string, Migration> = {
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
-            blocks: sql`interval.blocks + excluded.blocks`,
+            blocks: sql`intervals.blocks + excluded.blocks`,
           }),
         )
         .execute();
@@ -916,7 +916,7 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db
-        .insertInto("interval")
+        .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
         .expression(
           db
@@ -936,7 +936,7 @@ const migrations: Record<string, Migration> = {
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
-            blocks: sql`interval.blocks + excluded.blocks`,
+            blocks: sql`intervals.blocks + excluded.blocks`,
           }),
         )
         .execute();
@@ -949,7 +949,7 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db
-        .insertInto("interval")
+        .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
         .expression(
           db
@@ -969,7 +969,7 @@ const migrations: Record<string, Migration> = {
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
-            blocks: sql`interval.blocks + excluded.blocks`,
+            blocks: sql`intervals.blocks + excluded.blocks`,
           }),
         )
         .execute();
@@ -986,7 +986,7 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db
-        .insertInto("interval")
+        .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
         .expression(
           db
@@ -1006,7 +1006,7 @@ const migrations: Record<string, Migration> = {
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
-            blocks: sql`interval.blocks + excluded.blocks`,
+            blocks: sql`intervals.blocks + excluded.blocks`,
           }),
         )
         .execute();

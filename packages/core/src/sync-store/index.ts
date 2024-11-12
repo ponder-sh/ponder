@@ -161,7 +161,7 @@ export const createSyncStore = ({
     if (intervals.length === 0) return;
 
     await db.wrap({ method: "insertIntervals" }, async () => {
-      const values: InsertObject<PonderSyncSchema, "interval">[] = [];
+      const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
 
       // NOTE: In order to force proper range union behavior, `interval[1]` must
       // be rounded up.
@@ -177,11 +177,11 @@ export const createSyncStore = ({
       }
 
       await db
-        .insertInto("interval")
+        .insertInto("intervals")
         .values(values)
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
-            blocks: ksql`interval.blocks + excluded.blocks`,
+            blocks: ksql`intervals.blocks + excluded.blocks`,
           }),
         )
         .execute();
@@ -192,8 +192,8 @@ export const createSyncStore = ({
       let query:
         | SelectQueryBuilder<
             PonderSyncSchema,
-            "interval",
-            { merged_blocks: string; filter: string }
+            "intervals",
+            { merged_blocks: string | null; filter: string }
           >
         | undefined;
 
@@ -202,14 +202,13 @@ export const createSyncStore = ({
         const fragments = getFragmentIds(filter);
         for (const fragment of fragments) {
           const _query = db
-            .with("unnested(blocks)", (db) =>
+            .selectFrom(
               db
-                .selectFrom("interval")
+                .selectFrom("intervals")
                 .select(sql`unnest(blocks)`.as("blocks"))
-                .where("fragment_id", "in", fragment.adjacent),
+                .where("fragment_id", "in", fragment.adjacent)
+                .as("unnested"),
             )
-            .selectFrom("unnested")
-
             .select([
               sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
               sql<string>`${i}`.as("filter"),
@@ -234,8 +233,11 @@ export const createSyncStore = ({
         const intervals = rows
           .filter((row) => row.filter === `${i}`)
           .map((row) =>
-            (
-              JSON.parse(`[${row.merged_blocks.slice(1, -1)}]`) as Interval[]
+            (row.merged_blocks
+              ? (JSON.parse(
+                  `[${row.merged_blocks.slice(1, -1)}]`,
+                ) as Interval[])
+              : []
             ).map((interval) => [interval[0], interval[1] - 1] as Interval),
           );
 

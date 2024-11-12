@@ -320,5 +320,5 @@ export type PonderSyncSchema = {
 
   rpcRequestResults: RpcRequestResultsTable;
 
-  interval: IntervalTable;
+  intervals: IntervalTable;
 };
