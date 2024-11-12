@@ -29,7 +29,7 @@ import type {
   SetupEvent,
 } from "../sync/events.js";
 import { addStackTrace } from "./addStackTrace.js";
-import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
+import { type ReadOnlyClient, buildCachedActions } from "./ponderActions.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -142,6 +142,9 @@ export const create = ({
     };
   }
 
+  // build cachedActions
+  const cachedActions = buildCachedActions(contextState);
+
   // build clientByChainId
   for (const network of networks) {
     const transport = sync.getCachedTransport(network);
@@ -149,7 +152,7 @@ export const create = ({
       transport,
       chain: network.chain,
       // @ts-ignore
-    }).extend(getPonderActions(contextState));
+    }).extend(cachedActions);
   }
 
   // build eventCount

@@ -202,7 +202,23 @@ export namespace Virtual {
               keyof config["networks"]]["chainId"];
           };
         }[keyof sourceNetwork];
-    client: Prettify<ReadOnlyClient>;
+    client: Prettify<
+      Omit<
+        ReadOnlyClient,
+        | "extend"
+        | "key"
+        | "batch"
+        | "cacheTime"
+        | "account"
+        | "type"
+        | "uid"
+        | "chain"
+        | "name"
+        | "pollingInterval"
+        | "transport"
+        | "ccipRead"
+      >
+    >;
     db: Db<schema>;
   };
 
