@@ -853,6 +853,48 @@ const migrations: Record<string, Migration> = {
           "chainId",
         ])
         .execute();
+
+      await db.executeQuery(
+        sql`
+INSERT INTO ponder_sync.rpc_request_results (request, "blockNumber", "chainId", result)
+SELECT 
+  CONCAT (
+    '{"method":"eth_getBalance","params":{"0":"',
+    SUBSTRING(request, 15),
+    '","1":0x"',
+    to_hex("blockNumber"::bigint),
+    '"}}'
+  ) as request,
+  "blockNumber",
+  "chainId",
+  result
+FROM ponder_sync."rpcRequestResults"
+WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_getBalance_%'
+AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
+`.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+INSERT INTO ponder_sync.rpc_request_results (request, "blockNumber", "chainId", result)
+SELECT 
+  CONCAT (
+    '{"method":"eth_call","params":{"0":{"address":"',
+    SUBSTRING(request, 10, 42),
+    '","data":"',
+    SUBSTRING(request, 53),
+    '"},"1":"0x',
+    to_hex("blockNumber"::bigint),
+    '"}}'
+  ) as request,
+  "blockNumber",
+  "chainId",
+  result
+FROM ponder_sync."rpcRequestResults"
+WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_call_%'
+AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
+`.compile(db),
+      );
     },
     async down(db: Kysely<any>) {
       await db.schema
