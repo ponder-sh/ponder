@@ -25,3 +25,9 @@ export async function* mergeAsyncGenerators<T>(
     }
   }
 }
+
+export function getNonblockingAsyncGenerator<T>(
+  generator: AsyncGenerator<T>,
+): AsyncGenerator<T> {
+  return mergeAsyncGenerators([generator]);
+}
