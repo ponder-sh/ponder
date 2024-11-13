@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { Common } from "@/common/common.js";
 import {
   BigIntSerializationError,
@@ -15,9 +17,9 @@ import {
   getTableNames,
   onchain,
 } from "@/drizzle/index.js";
-import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
+import { createQueue } from "@ponder/common";
 import {
   type Column,
   type QueryWithTypings,
@@ -27,11 +29,13 @@ import {
   and,
   eq,
   getTableColumns,
+  getTableName,
   sql,
 } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { createQueue } from "../../../common/src/queue.js";
+import type { Pool } from "pg";
+import copy from "pg-copy-streams";
 import { type IndexingStore, parseSqlError } from "./index.js";
 
 enum EntryType {
@@ -277,6 +281,37 @@ export const createHistoricalIndexingStore = ({
         throw error;
       }
     }
+  };
+
+  const getReadableStream = (
+    table: Table,
+    entries: (InsertEntry | UpdateEntry)["row"][],
+    type: EntryType,
+  ) => {
+    return new Readable({
+      read() {
+        for (const entry of entries) {
+          this.push(
+            `${Object.entries(getTableColumns(table))
+              .map(([columnName, column]) => {
+                const value = entry[columnName];
+
+                if (value === undefined) {
+                  if (hasEmptyValue(column)) return getEmptyValue(column, type);
+                  return null;
+                }
+                if (column.mapToDriverValue === undefined) {
+                  return value;
+                }
+                return column.mapToDriverValue(value);
+              })
+              .join(",")}\n`,
+          );
+        }
+        // signal end of stream
+        this.push(null);
+      },
+    });
   };
 
   const getBytes = (value: unknown) => {
@@ -758,18 +793,13 @@ export const createHistoricalIndexingStore = ({
         for (const [table, tableCache] of cache) {
           const entries = Array.from(tableCache.values());
 
-          const batchSize = Math.round(
-            common.options.databaseMaxQueryParameters /
-              Object.keys(getTableColumns(table)).length,
-          );
-
           const insertValues = entries
             .filter((e) => e.type === EntryType.INSERT)
-            .map((e) => e.row);
+            .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
 
           const updateValues = entries
             .filter((e) => e.type === EntryType.UPDATE)
-            .map((e) => e.row);
+            .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
 
           if (insertValues.length > 0) {
             common.logger.debug({
@@ -777,81 +807,88 @@ export const createHistoricalIndexingStore = ({
               msg: `Inserting ${insertValues.length} cached '${tableNameCache.get(table)}' rows into the database`,
             });
 
-            for (
-              let i = 0, len = insertValues.length;
-              i < len;
-              i += batchSize
-            ) {
-              promises.push(
-                database.qb.user.wrap(
-                  {
-                    method: `${tableNameCache.get(table)}.flush()`,
-                  },
-                  async () =>
-                    await database.drizzle
-                      .insert(table)
-                      .values(insertValues.slice(i, i + batchSize))
-                      .catch((_error) => {
-                        const error = _error as Error;
-                        common.logger.error({
-                          service: "indexing",
-                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        });
-                        throw new FlushError(error.message);
-                      }),
-                ),
-              );
-            }
+            promises.push(
+              database.qb.user.wrap(
+                { method: `${tableNameCache.get(table)}.flush()` },
+                async () => {
+                  const client = await (
+                    database.driver as { internal: Pool }
+                  ).internal.connect();
+
+                  const copyStream = client.query(
+                    copy.from(
+                      `COPY "${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
+                    ),
+                  );
+
+                  try {
+                    await pipeline(
+                      getReadableStream(table, insertValues, EntryType.INSERT),
+                      copyStream,
+                    );
+                  } catch (_error) {
+                    const error = _error as Error;
+                    common.logger.error({
+                      service: "indexing",
+                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                    });
+                    throw new FlushError(error.message);
+                  } finally {
+                    client.release();
+                  }
+                },
+              ),
+            );
           }
 
-          if (updateValues.length > 0) {
-            common.logger.debug({
-              service: "indexing",
-              msg: `Updating ${updateValues.length} cached '${tableNameCache.get(table)}' records in the database`,
-            });
+          // if (updateValues.length > 0) {
+          //   common.logger.debug({
+          //     service: "indexing",
+          //     msg: `Updating ${updateValues.length} cached '${tableNameCache.get(table)}' records in the database`,
+          //   });
 
-            const primaryKeys = primaryKeysCache.get(table)!;
+          //   const primaryKeys = primaryKeysCache.get(table)!;
 
-            const set: { [column: string]: SQL } = {};
-            for (const [columnName, column] of Object.entries(
-              getTableColumns(table),
-            )) {
-              set[columnName] = sql.raw(
-                `excluded."${getColumnCasing(column, "snake_case")}"`,
-              );
-            }
+          //   const set: { [column: string]: SQL } = {};
+          //   for (const [columnName, column] of Object.entries(
+          //     getTableColumns(table),
+          //   )) {
+          //     set[columnName] = sql.raw(
+          //       `excluded."${getColumnCasing(column, "snake_case")}"`,
+          //     );
+          //   }
 
-            for (
-              let i = 0, len = updateValues.length;
-              i < len;
-              i += batchSize
-            ) {
-              promises.push(
-                database.qb.user.wrap(
-                  {
-                    method: `${tableNameCache.get(table)}.flush()`,
-                  },
-                  async () =>
-                    await database.drizzle
-                      .insert(table)
-                      .values(updateValues.slice(i, i + batchSize))
-                      .onConflictDoUpdate({
-                        // @ts-ignore
-                        target: primaryKeys.map(({ js }) => table[js]),
-                        set,
-                      })
-                      .catch((_error) => {
-                        const error = _error as Error;
-                        common.logger.error({
-                          service: "indexing",
-                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        });
-                        throw new FlushError(error.message);
-                      }),
-                ),
-              );
-            }
-          }
+          //   for (
+          //     let i = 0, len = updateValues.length;
+          //     i < len;
+          //     i += batchSize
+          //   ) {
+          //     promises.push(
+          //       database.qb.user.wrap(
+          //         {
+          //           method: `${tableNameCache.get(table)}.flush()`,
+          //         },
+          //         async () =>
+          //           await database.drizzle
+          //             .insert(table)
+          //             .values(updateValues.slice(i, i + batchSize))
+          //             .onConflictDoUpdate({
+          //               // @ts-ignore
+          //               target: primaryKeys.map(({ js }) => table[js]),
+          //               set,
+          //             })
+          //             .catch((_error) => {
+          //               const error = _error as Error;
+          //               common.logger.error({
+          //                 service: "indexing",
+          //                 msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+          //               });
+          //               throw new FlushError(error.message);
+          //             }),
+          //       ),
+          //     );
+          //   }
+          // }
         }
 
         await Promise.all(promises);

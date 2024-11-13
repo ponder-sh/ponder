@@ -545,7 +545,7 @@ export const createSyncStore = ({
           .insertInto("logs")
           .values(
             logs
-              .slice(i, i + batchSize)
+              .splice(i, i + batchSize)
               .map(({ log, block }) => encodeLog({ log, block, chainId })),
           )
           .onConflict((oc) =>
