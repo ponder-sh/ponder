@@ -840,7 +840,70 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  "2024_09_09_0_adjacent_interval": {
+  "2024_11_04_0_request_cache": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("rpc_request_results")
+        .addColumn("request", "text", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("rpc_request_result_primary_key", [
+          "request",
+          "chain_id",
+        ])
+        .execute();
+
+      await db.executeQuery(
+        sql`
+INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
+SELECT 
+  CONCAT (
+    '{"method":"eth_getbalance","params":["',
+    LOWER(SUBSTRING(request, 16)),
+    '","0x',
+    to_hex("blockNumber"::bigint),
+    '"]}'
+  ) as request,
+  "blockNumber" as block_number,
+  "chainId" as chain_id,
+  result
+FROM ponder_sync."rpcRequestResults"
+WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_getBalance_%'
+AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
+`.compile(db),
+      );
+
+      await db.executeQuery(
+        sql`
+INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
+SELECT 
+  CONCAT (
+    '{"method":"eth_call","params":[{"data":"',
+    LOWER(SUBSTRING(request, 53)),
+    '","to":"',
+    LOWER(SUBSTRING(request, 10, 42)),
+    '"},"0x',
+    to_hex("blockNumber"::bigint),
+    '"]}'
+  ) as request,
+  "blockNumber" as block_number,
+  "chainId" as chain_id,
+  result
+FROM ponder_sync."rpcRequestResults"
+WHERE ponder_sync."rpcRequestResults".request LIKE 'eth_call_%'
+AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
+`.compile(db),
+      );
+
+      await db.schema
+        .dropTable("rpcRequestResults")
+        .ifExists()
+        .cascade()
+        .execute();
+    },
+  },
+  "2024_11_09_0_adjacent_interval": {
     async up(db: Kysely<any>) {
       await db.schema
         .createTable("intervals")

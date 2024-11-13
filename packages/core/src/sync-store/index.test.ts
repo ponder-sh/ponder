@@ -31,7 +31,7 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("callTraces");
   expect(tableNames).toContain("transactionReceipts");
 
-  expect(tableNames).toContain("rpcRequestResults");
+  expect(tableNames).toContain("rpc_request_results");
   await cleanup();
 });
 
@@ -1064,7 +1064,7 @@ test("pruneRpcRequestResult", async (context) => {
   });
 
   const requestResults = await database.qb.sync
-    .selectFrom("rpcRequestResults")
+    .selectFrom("rpc_request_results")
     .selectAll()
     .execute();
 

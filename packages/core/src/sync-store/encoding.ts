@@ -300,8 +300,12 @@ export function encodeCallTrace({
 
 type RpcRequestResultsTable = {
   request: string;
-  chainId: number;
-  blockNumber: ColumnType<string, string | bigint, string | bigint>;
+  chain_id: number;
+  block_number: ColumnType<
+    string | undefined,
+    string | bigint | undefined,
+    string | bigint | undefined
+  >;
   result: string;
 };
 
@@ -318,7 +322,7 @@ export type PonderSyncSchema = {
   transactionReceipts: TransactionReceiptsTable;
   callTraces: CallTracesTable;
 
-  rpcRequestResults: RpcRequestResultsTable;
+  rpc_request_results: RpcRequestResultsTable;
 
   intervals: IntervalTable;
 };
