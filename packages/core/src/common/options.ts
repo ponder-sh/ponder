@@ -34,7 +34,6 @@ export type Options = {
   indexingCacheMaxBytes: number;
   indexingCacheFlushRatio: number;
 
-  syncStoreMaxIntervals: number;
   syncEventsQuerySize: number;
   syncHandoffStaleSeconds: number;
 };
@@ -121,7 +120,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
       1_024,
     indexingCacheFlushRatio: 0.35,
 
-    syncStoreMaxIntervals: 5_000,
     syncEventsQuerySize: 10_000,
     syncHandoffStaleSeconds: 300,
   } satisfies Options;

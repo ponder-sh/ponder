@@ -1,15 +1,7 @@
 import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
-import {
-  type BlockFilterFragment,
-  type LogFilterFragment,
-  type TraceFilterFragment,
-  buildBlockFilterFragment,
-  buildLogFilterFragments,
-  buildTraceFilterFragments,
-} from "@/sync/fragments.js";
+import { getFragmentIds } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type CallTraceFilter,
@@ -30,18 +22,15 @@ import type {
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import {
-  type Interval,
-  intervalIntersectionMany,
-  intervalUnion,
-} from "@/utils/interval.js";
-import { never } from "@/utils/never.js";
+import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
 import {
   type Insertable,
   type Kysely,
   type SelectQueryBuilder,
   sql as ksql,
+  sql,
 } from "kysely";
+import type { InsertObject } from "kysely";
 import {
   type Address,
   type Hash,
@@ -60,13 +49,15 @@ import {
 } from "./encoding.js";
 
 export type SyncStore = {
-  insertInterval(args: {
-    filter: Filter;
-    interval: Interval;
+  insertIntervals(args: {
+    intervals: {
+      filter: Filter;
+      interval: Interval;
+    }[];
   }): Promise<void>;
   getIntervals(args: {
-    filter: Filter;
-  }): Promise<Interval[]>;
+    filters: Filter[];
+  }): Promise<Map<Filter, Interval[]>>;
   getChildAddresses(args: {
     filter: Factory;
     limit?: number;
@@ -165,329 +156,94 @@ export const createSyncStore = ({
   common: Common;
   db: HeadlessKysely<PonderSyncSchema>;
 }): SyncStore => ({
-  insertInterval: async ({ filter, interval }) =>
-    db.wrap({ method: "insertInterval" }, async () => {
-      const startBlock = BigInt(interval[0]);
-      const endBlock = BigInt(interval[1]);
+  insertIntervals: async ({ intervals }) => {
+    if (intervals.length === 0) return;
 
-      switch (filter.type) {
-        case "log": {
-          for (const fragment of buildLogFilterFragments(filter)) {
-            if (isAddressFactory(filter.address)) {
-              await db
-                .insertInto("factoryLogFilterIntervals")
-                .values({
-                  factoryId: fragment.id,
-                  startBlock,
-                  endBlock,
-                })
-                .execute();
-            } else {
-              await db
-                .insertInto("logFilterIntervals")
-                .values({
-                  logFilterId: fragment.id,
-                  startBlock,
-                  endBlock,
-                })
-                .execute();
-            }
-          }
-          break;
-        }
+    await db.wrap({ method: "insertIntervals" }, async () => {
+      const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
 
-        case "block": {
-          const fragment = buildBlockFilterFragment(filter);
-          await db
-            .insertInto("blockFilterIntervals")
-            .values({
-              blockFilterId: fragment.id,
-              startBlock,
-              endBlock,
-            })
-            .execute();
-          break;
-        }
+      // NOTE: In order to force proper range union behavior, `interval[1]` must
+      // be rounded up.
 
-        case "callTrace": {
-          for (const fragment of buildTraceFilterFragments(filter)) {
-            if (isAddressFactory(filter.toAddress)) {
-              await db
-                .insertInto("factoryTraceFilterIntervals")
-                .values({
-                  factoryId: fragment.id,
-                  startBlock,
-                  endBlock,
-                })
-                .execute();
-            } else {
-              await db
-                .insertInto("traceFilterIntervals")
-                .values({
-                  traceFilterId: fragment.id,
-                  startBlock,
-                  endBlock,
-                })
-                .execute();
-            }
-          }
-          break;
-        }
-
-        default:
-          never(filter);
-      }
-    }),
-  getIntervals: async ({ filter }) =>
-    db.wrap({ method: "getIntervals" }, async () => {
-      const topicSQL = (
-        qb: SelectQueryBuilder<
-          PonderSyncSchema,
-          | "logFilters"
-          | "logFilterIntervals"
-          | "factoryLogFilters"
-          | "factoryLogFilterIntervals",
-          {}
-        >,
-        fragment: LogFilterFragment,
-      ) =>
-        qb
-          .where((eb) =>
-            eb.or([
-              eb("topic0", "is", null),
-              eb("topic0", "=", fragment.topic0),
-            ]),
-          )
-          .where((eb) =>
-            eb.or([
-              eb("topic1", "is", null),
-              eb("topic1", "=", fragment.topic1),
-            ]),
-          )
-          .where((eb) =>
-            eb.or([
-              eb("topic2", "is", null),
-              eb("topic2", "=", fragment.topic2),
-            ]),
-          )
-          .where((eb) =>
-            eb.or([
-              eb("topic3", "is", null),
-              eb("topic3", "=", fragment.topic3),
-            ]),
-          );
-
-      let fragments:
-        | LogFilterFragment[]
-        | TraceFilterFragment[]
-        | BlockFilterFragment[];
-      let table:
-        | "logFilter"
-        | "factoryLogFilter"
-        | "traceFilter"
-        | "factoryTraceFilter"
-        | "blockFilter";
-      let idCol:
-        | "logFilterId"
-        | "traceFilterId"
-        | "blockFilterId"
-        | "factoryId";
-      let fragmentSelect: (
-        fragment: any,
-        qb: SelectQueryBuilder<PonderSyncSchema, keyof PonderSyncSchema, {}>,
-      ) => SelectQueryBuilder<PonderSyncSchema, keyof PonderSyncSchema, {}>;
-
-      switch (filter.type) {
-        case "log":
-          {
-            if (isAddressFactory(filter.address)) {
-              fragments = buildLogFilterFragments(filter);
-              table = "factoryLogFilter";
-              idCol = "factoryId";
-              // @ts-ignore
-              fragmentSelect = (fragment: LogFilterFragment<LogFactory>, qb) =>
-                qb
-                  .where("address", "=", fragment.address)
-                  .where("eventSelector", "=", fragment.eventSelector)
-                  .where(
-                    "childAddressLocation",
-                    "=",
-                    fragment.childAddressLocation,
-                  )
-                  .where(
-                    "includeTransactionReceipts",
-                    ">=",
-                    fragment.includeTransactionReceipts,
-                  )
-                  .$call((qb) => topicSQL(qb, fragment));
-            } else {
-              fragments = buildLogFilterFragments(filter);
-              table = "logFilter";
-              idCol = "logFilterId";
-              // @ts-ignore
-              fragmentSelect = (fragment: LogFilterFragment<undefined>, qb) =>
-                qb
-                  .where((eb) =>
-                    eb.or([
-                      eb("address", "is", null),
-                      eb("address", "=", fragment.address),
-                    ]),
-                  )
-                  .where(
-                    "includeTransactionReceipts",
-                    ">=",
-                    fragment.includeTransactionReceipts,
-                  )
-                  .$call((qb) => topicSQL(qb, fragment));
-            }
-          }
-          break;
-
-        case "block":
-          {
-            fragments = [buildBlockFilterFragment(filter)];
-            table = "blockFilter";
-            idCol = "blockFilterId";
-            fragmentSelect = (fragment, qb) =>
-              qb.where("blockFilterId", "=", fragment.id);
-          }
-          break;
-
-        case "callTrace":
-          {
-            if (isAddressFactory(filter.toAddress)) {
-              fragments = buildTraceFilterFragments(filter);
-              table = "factoryTraceFilter";
-              idCol = "factoryId";
-              fragmentSelect = (fragment: TraceFilterFragment<Factory>, qb) =>
-                qb
-                  .where("address", "=", fragment.address)
-                  .where("eventSelector", "=", fragment.eventSelector)
-                  .where(
-                    "childAddressLocation",
-                    "=",
-                    fragment.childAddressLocation,
-                  )
-                  .where((eb) =>
-                    eb.or([
-                      eb("fromAddress", "is", null),
-                      eb("fromAddress", "=", fragment.fromAddress),
-                    ]),
-                  );
-            } else {
-              fragments = buildTraceFilterFragments(filter);
-              table = "traceFilter";
-              idCol = "traceFilterId";
-              fragmentSelect = (fragment: TraceFilterFragment<undefined>, qb) =>
-                qb
-                  .where((eb) =>
-                    eb.or([
-                      eb("fromAddress", "is", null),
-                      eb("fromAddress", "=", fragment.fromAddress),
-                    ]),
-                  )
-                  .where((eb) =>
-                    eb.or([
-                      eb("toAddress", "is", null),
-                      eb("toAddress", "=", fragment.toAddress),
-                    ]),
-                  );
-            }
-          }
-          break;
-
-        default:
-          never(filter);
-      }
-
-      // First, attempt to merge overlapping and adjacent intervals.
-      for (const fragment of fragments!) {
-        await db
-          .insertInto(`${table!}s`)
-          .values(fragment)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-
-        let mergeComplete = false;
-        while (mergeComplete === false) {
-          await db.transaction().execute(async (tx) => {
-            // This is a trick to add a LIMIT to a DELETE statement
-            const existingIntervals = await tx
-              .deleteFrom(`${table}Intervals`)
-              .where(
-                "id",
-                "in",
-                tx
-                  .selectFrom(`${table}Intervals`)
-                  .where(idCol, "=", fragment.id)
-                  .select("id")
-                  .orderBy("startBlock asc")
-                  .limit(common.options.syncStoreMaxIntervals),
-              )
-              .returning(["startBlock", "endBlock"])
-              .execute();
-
-            const mergedIntervals = intervalUnion(
-              existingIntervals.map((i) => [
-                Number(i.startBlock),
-                Number(i.endBlock),
-              ]),
-            );
-
-            const mergedIntervalRows = mergedIntervals.map(
-              ([startBlock, endBlock]) => ({
-                [idCol as string]: fragment.id,
-                startBlock: BigInt(startBlock),
-                endBlock: BigInt(endBlock),
-              }),
-            );
-
-            if (mergedIntervalRows.length > 0) {
-              await tx
-                .insertInto(`${table}Intervals`)
-                .values(mergedIntervalRows)
-                .execute();
-            }
-
-            if (
-              mergedIntervalRows.length === common.options.syncStoreMaxIntervals
-            ) {
-              // This occurs when there are too many non-mergeable ranges with the same logFilterId. Should be almost impossible.
-              throw new NonRetryableError(
-                `'${table}Intervals' table for chain '${fragment.chainId}' has reached an unrecoverable level of fragmentation.`,
-              );
-            }
-
-            if (
-              existingIntervals.length !== common.options.syncStoreMaxIntervals
-            ) {
-              mergeComplete = true;
-            }
+      for (const { interval, filter } of intervals) {
+        for (const fragment of getFragmentIds(filter)) {
+          values.push({
+            fragment_id: fragment.id,
+            chain_id: filter.chainId,
+            blocks: ksql`nummultirange(numrange(${interval[0]}, ${interval[1] + 1}, '[]'))`,
           });
         }
       }
 
-      const intervals: Interval[][] = [];
-      for (const fragment of fragments!) {
-        const _intervals = await db
-          .selectFrom(`${table!}Intervals`)
-          .innerJoin(`${table!}s`, idCol!, `${table!}s.id`)
-          .$call((qb) => fragmentSelect(fragment, qb as any))
-          .where("chainId", "=", fragment.chainId)
-          .select(["startBlock", "endBlock"])
-          .execute();
+      await db
+        .insertInto("intervals")
+        .values(values)
+        .onConflict((oc) =>
+          oc.column("fragment_id").doUpdateSet({
+            blocks: ksql`intervals.blocks + excluded.blocks`,
+          }),
+        )
+        .execute();
+    });
+  },
+  getIntervals: async ({ filters }) =>
+    db.wrap({ method: "getIntervals" }, async () => {
+      let query:
+        | SelectQueryBuilder<
+            PonderSyncSchema,
+            "intervals",
+            { merged_blocks: string | null; filter: string }
+          >
+        | undefined;
 
-        const union = intervalUnion(
-          _intervals.map(({ startBlock, endBlock }) => [
-            Number(startBlock),
-            Number(endBlock),
-          ]),
-        );
-
-        intervals.push(union);
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+        const fragments = getFragmentIds(filter);
+        for (const fragment of fragments) {
+          const _query = db
+            .selectFrom(
+              db
+                .selectFrom("intervals")
+                .select(sql`unnest(blocks)`.as("blocks"))
+                .where("fragment_id", "in", fragment.adjacent)
+                .as("unnested"),
+            )
+            .select([
+              sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
+              sql<string>`${i}`.as("filter"),
+            ]);
+          // @ts-ignore
+          query = query === undefined ? _query : query.unionAll(_query);
+        }
       }
 
-      return intervalIntersectionMany(intervals);
+      const rows = await query!.execute();
+
+      const result: Map<Filter, Interval[]> = new Map();
+
+      // intervals use "union" for the same fragment, and
+      // "intersection" for the same filter
+
+      // NOTE: `interval[1]` must be rounded down in order to offset the previous
+      // rounding.
+
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+        const intervals = rows
+          .filter((row) => row.filter === `${i}`)
+          .map((row) =>
+            (row.merged_blocks
+              ? (JSON.parse(
+                  `[${row.merged_blocks.slice(1, -1)}]`,
+                ) as Interval[])
+              : []
+            ).map((interval) => [interval[0], interval[1] - 1] as Interval),
+          );
+
+        result.set(filter, intervalIntersectionMany(intervals));
+      }
+
+      return result;
     }),
   getChildAddresses: ({ filter, limit }) =>
     db.wrap({ method: "getChildAddresses" }, async () => {
@@ -1268,215 +1024,6 @@ export const createSyncStore = ({
   pruneByChain: async ({ fromBlock, chainId }) =>
     db.wrap({ method: "pruneByChain" }, () =>
       db.transaction().execute(async (tx) => {
-        await tx
-          .with("deleteLogFilter(logFilterId)", (qb) =>
-            qb
-              .selectFrom("logFilterIntervals")
-              .innerJoin("logFilters", "logFilterId", "logFilters.id")
-              .select("logFilterId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", ">=", fromBlock.toString()),
-          )
-          .deleteFrom("logFilterIntervals")
-          .where(
-            "logFilterId",
-            "in",
-            ksql`(SELECT "logFilterId" FROM ${ksql.table("deleteLogFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("updateLogFilter(logFilterId)", (qb) =>
-            qb
-              .selectFrom("logFilterIntervals")
-              .innerJoin("logFilters", "logFilterId", "logFilters.id")
-              .select("logFilterId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", "<", fromBlock.toString())
-              .where("endBlock", ">", fromBlock.toString()),
-          )
-          .updateTable("logFilterIntervals")
-          .set({
-            endBlock: fromBlock.toString(),
-          })
-          .where(
-            "logFilterId",
-            "in",
-            ksql`(SELECT "logFilterId" FROM ${ksql.table("updateLogFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("deleteFactoryLogFilter(factoryId)", (qb) =>
-            qb
-              .selectFrom("factoryLogFilterIntervals")
-              .innerJoin(
-                "factoryLogFilters",
-                "factoryId",
-                "factoryLogFilters.id",
-              )
-
-              .select("factoryId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", ">=", fromBlock.toString()),
-          )
-          .deleteFrom("factoryLogFilterIntervals")
-          .where(
-            "factoryId",
-            "in",
-            ksql`(SELECT "factoryId" FROM ${ksql.table("deleteFactoryLogFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("updateFactoryLogFilter(factoryId)", (qb) =>
-            qb
-              .selectFrom("factoryLogFilterIntervals")
-              .innerJoin(
-                "factoryLogFilters",
-                "factoryId",
-                "factoryLogFilters.id",
-              )
-
-              .select("factoryId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", "<", fromBlock.toString())
-              .where("endBlock", ">", fromBlock.toString()),
-          )
-          .updateTable("factoryLogFilterIntervals")
-          .set({
-            endBlock: BigInt(fromBlock),
-          })
-          .where(
-            "factoryId",
-            "in",
-            ksql`(SELECT "factoryId" FROM ${ksql.table("updateFactoryLogFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("deleteTraceFilter(traceFilterId)", (qb) =>
-            qb
-              .selectFrom("traceFilterIntervals")
-              .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
-              .select("traceFilterId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", ">=", fromBlock.toString()),
-          )
-          .deleteFrom("traceFilterIntervals")
-          .where(
-            "traceFilterId",
-            "in",
-            ksql`(SELECT "traceFilterId" FROM ${ksql.table("deleteTraceFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("updateTraceFilter(traceFilterId)", (qb) =>
-            qb
-              .selectFrom("traceFilterIntervals")
-              .innerJoin("traceFilters", "traceFilterId", "traceFilters.id")
-              .select("traceFilterId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", "<", fromBlock.toString())
-              .where("endBlock", ">", fromBlock.toString()),
-          )
-          .updateTable("traceFilterIntervals")
-          .set({
-            endBlock: BigInt(fromBlock),
-          })
-          .where(
-            "traceFilterId",
-            "in",
-            ksql`(SELECT "traceFilterId" FROM ${ksql.table("updateTraceFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("deleteFactoryTraceFilter(factoryId)", (qb) =>
-            qb
-              .selectFrom("factoryTraceFilterIntervals")
-              .innerJoin(
-                "factoryTraceFilters",
-                "factoryId",
-                "factoryTraceFilters.id",
-              )
-              .select("factoryId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", ">=", fromBlock.toString()),
-          )
-          .deleteFrom("factoryTraceFilterIntervals")
-          .where(
-            "factoryId",
-            "in",
-            ksql`(SELECT "factoryId" FROM ${ksql.table("deleteFactoryTraceFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("updateFactoryTraceFilter(factoryId)", (qb) =>
-            qb
-              .selectFrom("factoryTraceFilterIntervals")
-              .innerJoin(
-                "factoryTraceFilters",
-                "factoryId",
-                "factoryTraceFilters.id",
-              )
-
-              .select("factoryId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", "<", fromBlock.toString())
-              .where("endBlock", ">", fromBlock.toString()),
-          )
-          .updateTable("factoryTraceFilterIntervals")
-          .set({
-            endBlock: BigInt(fromBlock),
-          })
-          .where(
-            "factoryId",
-            "in",
-            ksql`(SELECT "factoryId" FROM ${ksql.table("updateFactoryTraceFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("deleteBlockFilter(blockFilterId)", (qb) =>
-            qb
-              .selectFrom("blockFilterIntervals")
-              .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
-              .select("blockFilterId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", ">=", fromBlock.toString()),
-          )
-          .deleteFrom("blockFilterIntervals")
-          .where(
-            "blockFilterId",
-            "in",
-            ksql`(SELECT "blockFilterId" FROM ${ksql.table("deleteBlockFilter")})`,
-          )
-          .execute();
-
-        await tx
-          .with("updateBlockFilter(blockFilterId)", (qb) =>
-            qb
-              .selectFrom("blockFilterIntervals")
-              .innerJoin("blockFilters", "blockFilterId", "blockFilters.id")
-              .select("blockFilterId")
-              .where("chainId", "=", chainId)
-              .where("startBlock", "<", fromBlock.toString())
-              .where("endBlock", ">", fromBlock.toString()),
-          )
-          .updateTable("blockFilterIntervals")
-          .set({
-            endBlock: BigInt(fromBlock),
-          })
-          .where(
-            "blockFilterId",
-            "in",
-            ksql`(SELECT "blockFilterId" FROM ${ksql.table("updateBlockFilter")})`,
-          )
-          .execute();
-
         await tx
           .deleteFrom("logs")
           .where("chainId", "=", chainId)

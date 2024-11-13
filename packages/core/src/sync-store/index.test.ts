@@ -5,7 +5,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData } from "@/_test/utils.js";
-import { NonRetryableError } from "@/common/errors.js";
 import type { Factory, LogFactory, LogFilter } from "@/sync/source.js";
 import {
   decodeCheckpoint,
@@ -13,7 +12,6 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { range } from "@/utils/range.js";
 import { _eth_getLogs } from "@/utils/rpc.js";
 import { type Address, hexToNumber } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -41,10 +39,10 @@ test("getIntervals() empty", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -52,17 +50,21 @@ test("getIntervals() empty", async (context) => {
 test("getIntervals() returns intervals", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   await cleanup();
 });
@@ -70,22 +72,59 @@ test("getIntervals() returns intervals", async (context) => {
 test("getIntervals() merges intervals", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [5, 8],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [5, 8],
+      },
+    ],
   });
-
   const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
+    filters: [context.sources[0].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 8]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
+
+  await cleanup();
+});
+
+test("getIntervals() adjacent intervals", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
+  });
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: { ...context.sources[0].filter, address: undefined },
+        interval: [5, 8],
+      },
+    ],
+  });
+  const intervals = await syncStore.getIntervals({
+    filters: [context.sources[0].filter],
+  });
+
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
 
   await cleanup();
 });
@@ -93,26 +132,34 @@ test("getIntervals() merges intervals", async (context) => {
 test("getIntervals() handles log filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[0].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[0].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[0].filter,
-      includeTransactionReceipts: false,
-    },
+    filters: [
+      {
+        ...context.sources[0].filter,
+        includeTransactionReceipts: false,
+      },
+    ],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: { ...context.sources[0].filter, address: context.factory.address },
+    filters: [
+      { ...context.sources[0].filter, address: context.factory.address },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -120,32 +167,40 @@ test("getIntervals() handles log filter logic", async (context) => {
 test("getIntervals() handles factory log filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[1].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[1].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[1].filter,
-      includeTransactionReceipts: false,
-    },
+    filters: [
+      {
+        ...context.sources[1].filter,
+        includeTransactionReceipts: false,
+      },
+    ],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[1].filter,
-      address: {
-        ...context.sources[1].filter.address,
-        childAddressLocation: "topic2",
+    filters: [
+      {
+        ...context.sources[1].filter,
+        address: {
+          ...context.sources[1].filter.address,
+          childAddressLocation: "topic2",
+        },
       },
-    },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -153,26 +208,32 @@ test("getIntervals() handles factory log filter logic", async (context) => {
 test("getIntervals() handles trace filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[3].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[3].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: context.sources[3].filter,
+    filters: [context.sources[3].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[3].filter,
-      toAddress: [context.erc20.address],
-    },
+    filters: [
+      {
+        ...context.sources[3].filter,
+        toAddress: [context.erc20.address],
+      },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -180,29 +241,35 @@ test("getIntervals() handles trace filter logic", async (context) => {
 test("getIntervals() handles factory trace filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertInterval({
-    filter: context.sources[2].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[2].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: context.sources[2].filter,
+    filters: [context.sources[2].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: {
-      ...context.sources[2].filter,
-      toAddress: {
-        ...context.sources[2].filter.toAddress,
-        childAddressLocation: "topic2",
+    filters: [
+      {
+        ...context.sources[2].filter,
+        toAddress: {
+          ...context.sources[2].filter.toAddress,
+          childAddressLocation: "topic2",
+        },
       },
-    },
+    ],
   });
 
-  expect(intervals).toHaveLength(0);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -211,76 +278,30 @@ test("getIntervals() handles block filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   await syncStore.getIntervals({
-    filter: context.sources[4].filter,
+    filters: [context.sources[4].filter],
   });
 
-  await syncStore.insertInterval({
-    filter: context.sources[4].filter,
-    interval: [0, 4],
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter: context.sources[4].filter,
+        interval: [0, 4],
+      },
+    ],
   });
 
   let intervals = await syncStore.getIntervals({
-    filter: context.sources[4].filter,
+    filters: [context.sources[4].filter],
   });
 
-  expect(intervals).toHaveLength(1);
-  expect(intervals[0]).toStrictEqual([0, 4]);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   intervals = await syncStore.getIntervals({
-    filter: { ...context.sources[4].filter, interval: 69 },
+    filters: [{ ...context.sources[4].filter, interval: 69 }],
   });
 
-  expect(intervals).toHaveLength(0);
-
-  await cleanup();
-});
-
-test("getIntervals() handles size over max", async (context) => {
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  context.common.options = {
-    ...context.common.options,
-    syncStoreMaxIntervals: 20,
-  };
-
-  for (const i of range(0, 25)) {
-    await syncStore.insertInterval({
-      filter: context.sources[0].filter,
-      interval: [i, i],
-    });
-  }
-
-  const intervals = await syncStore.getIntervals({
-    filter: context.sources[0].filter,
-  });
-
-  expect(intervals).toMatchObject([[0, 24]]);
-
-  await cleanup();
-});
-
-test("getIntervals() throws non-retryable error after no merges", async (context) => {
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-
-  context.common.options = {
-    ...context.common.options,
-    syncStoreMaxIntervals: 20,
-  };
-
-  for (let i = 0; i < 50; i += 2) {
-    await syncStore.insertInterval({
-      filter: context.sources[0].filter,
-      interval: [i, i],
-    });
-  }
-
-  const error = await syncStore
-    .getIntervals({
-      filter: context.sources[0].filter,
-    })
-    .catch((err) => err);
-
-  expect(error).toBeInstanceOf(NonRetryableError);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -1048,242 +1069,6 @@ test("pruneRpcRequestResult", async (context) => {
     .execute();
 
   expect(requestResults).toHaveLength(2);
-
-  await cleanup();
-});
-
-test("pruneByChain deletes filters", async (context) => {
-  const { sources } = context;
-  const { syncStore, database, cleanup } = await setupDatabaseServices(context);
-
-  await syncStore.getIntervals({ filter: sources[0].filter });
-  await syncStore.getIntervals({ filter: sources[1].filter });
-  await syncStore.getIntervals({ filter: sources[2].filter });
-  await syncStore.getIntervals({ filter: sources[3].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[0].filter,
-    interval: [1, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[1].filter,
-    interval: [1, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[2].filter,
-    interval: [1, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[3].filter,
-    interval: [1, 4],
-  });
-
-  sources[0].filter.chainId = 2;
-  sources[1].filter.chainId = 2;
-  sources[2].filter.chainId = 2;
-  sources[3].filter.chainId = 2;
-
-  await syncStore.getIntervals({ filter: sources[0].filter });
-  await syncStore.getIntervals({ filter: sources[1].filter });
-  await syncStore.getIntervals({ filter: sources[2].filter });
-  await syncStore.getIntervals({ filter: sources[3].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[0].filter,
-    interval: [1, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[1].filter,
-    interval: [1, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[2].filter,
-    interval: [1, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[3].filter,
-    interval: [1, 4],
-  });
-
-  await syncStore.pruneByChain({ chainId: 1, fromBlock: 0 });
-
-  const logFilterIntervals = await database.qb.sync
-    .selectFrom("logFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(logFilterIntervals).toHaveLength(1);
-
-  const factoryLogFilterIntervals = await database.qb.sync
-    .selectFrom("factoryLogFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(factoryLogFilterIntervals).toHaveLength(1);
-
-  const traceFilterIntervals = await database.qb.sync
-    .selectFrom("traceFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(traceFilterIntervals).toHaveLength(1);
-
-  const factoryTraceFilterIntervals = await database.qb.sync
-    .selectFrom("factoryTraceFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(factoryTraceFilterIntervals).toHaveLength(1);
-
-  await cleanup();
-});
-
-test("pruneByChain updates filters", async (context) => {
-  const { sources } = context;
-  const { syncStore, database, cleanup } = await setupDatabaseServices(context);
-
-  await syncStore.getIntervals({ filter: sources[0].filter });
-  await syncStore.getIntervals({ filter: sources[1].filter });
-  await syncStore.getIntervals({ filter: sources[2].filter });
-  await syncStore.getIntervals({ filter: sources[3].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[0].filter,
-    interval: [0, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[1].filter,
-    interval: [0, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[2].filter,
-    interval: [0, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[3].filter,
-    interval: [0, 4],
-  });
-
-  sources[0].filter.chainId = 2;
-  sources[1].filter.chainId = 2;
-  sources[2].filter.chainId = 2;
-  sources[3].filter.chainId = 2;
-
-  await syncStore.getIntervals({ filter: sources[0].filter });
-  await syncStore.getIntervals({ filter: sources[1].filter });
-  await syncStore.getIntervals({ filter: sources[2].filter });
-  await syncStore.getIntervals({ filter: sources[3].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[0].filter,
-    interval: [0, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[1].filter,
-    interval: [0, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[2].filter,
-    interval: [0, 4],
-  });
-  await syncStore.insertInterval({
-    filter: sources[3].filter,
-    interval: [0, 4],
-  });
-
-  await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
-
-  const logFilterIntervals = await database.qb.sync
-    .selectFrom("logFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(logFilterIntervals).toHaveLength(2);
-  expect(Number(logFilterIntervals[0]!.endBlock)).toBe(1);
-
-  const factoryLogFilterIntervals = await database.qb.sync
-    .selectFrom("factoryLogFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(factoryLogFilterIntervals).toHaveLength(2);
-  expect(Number(factoryLogFilterIntervals[0]!.endBlock)).toBe(1);
-
-  const traceFilterIntervals = await database.qb.sync
-    .selectFrom("traceFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(traceFilterIntervals).toHaveLength(2);
-  expect(Number(traceFilterIntervals[0]!.endBlock)).toBe(1);
-
-  const factoryTraceFilterIntervals = await database.qb.sync
-    .selectFrom("factoryTraceFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(factoryTraceFilterIntervals).toHaveLength(2);
-  expect(Number(factoryTraceFilterIntervals[0]!.endBlock)).toBe(1);
-
-  await cleanup();
-});
-
-test("pruneByChain deletes block filters", async (context) => {
-  const { sources } = context;
-  const { syncStore, database, cleanup } = await setupDatabaseServices(context);
-
-  await syncStore.getIntervals({ filter: sources[4].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[4].filter,
-    interval: [2, 4],
-  });
-
-  sources[4].filter.chainId = 2;
-
-  await syncStore.getIntervals({ filter: sources[4].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[4].filter,
-    interval: [2, 4],
-  });
-
-  await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
-
-  const blockFilterIntervals = await database.qb.sync
-    .selectFrom("blockFilterIntervals")
-    .selectAll()
-    .execute();
-  expect(blockFilterIntervals).toHaveLength(1);
-
-  await cleanup();
-});
-
-test("pruneByChain updates block filters", async (context) => {
-  const { sources } = context;
-  const { syncStore, database, cleanup } = await setupDatabaseServices(context);
-
-  await syncStore.getIntervals({ filter: sources[4].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[4].filter,
-    interval: [0, 4],
-  });
-
-  sources[4].filter.chainId = 2;
-
-  await syncStore.getIntervals({ filter: sources[4].filter });
-
-  await syncStore.insertInterval({
-    filter: sources[4].filter,
-    interval: [0, 4],
-  });
-
-  await syncStore.pruneByChain({ chainId: 1, fromBlock: 1 });
-
-  const blockFilterIntervals = await database.qb.sync
-    .selectFrom("blockFilterIntervals")
-    .selectAll()
-    .orderBy("endBlock", "asc")
-    .execute();
-  expect(blockFilterIntervals).toHaveLength(2);
-  expect(Number(blockFilterIntervals[0]!.endBlock)).toBe(1);
 
   await cleanup();
 });

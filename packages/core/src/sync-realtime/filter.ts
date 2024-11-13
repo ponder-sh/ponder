@@ -1,9 +1,4 @@
 import {
-  type TraceFilterFragment,
-  buildLogFilterFragments,
-  buildTraceFilterFragments,
-} from "@/sync/fragments.js";
-import {
   type BlockFilter,
   type CallTraceFilter,
   type LogFactory,
@@ -12,7 +7,31 @@ import {
 } from "@/sync/source.js";
 import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { hexToNumber } from "viem";
+import { type Address, hexToNumber } from "viem";
+
+const isValueMatched = <T extends string>(
+  filterValue: T | T[] | null | undefined,
+  eventValue: T | undefined,
+): boolean => {
+  // match all
+  if (filterValue === null || filterValue === undefined) return true;
+
+  // missing value
+  if (eventValue === undefined) return false;
+
+  // array
+  if (
+    Array.isArray(filterValue) &&
+    filterValue.some((v) => v === toLowerCase(eventValue))
+  ) {
+    return true;
+  }
+
+  // single
+  if (filterValue === toLowerCase(eventValue)) return true;
+
+  return false;
+};
 
 /**
  * Returns `true` if `log` matches `filter`
@@ -54,37 +73,21 @@ export const isLogFilterMatched = ({
     return false;
   }
 
-  return buildLogFilterFragments(filter).some((fragment) => {
-    if (
-      fragment.topic0 !== null &&
-      fragment.topic0 !== log.topics[0]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic1 !== null &&
-      fragment.topic1 !== log.topics[1]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic2 !== null &&
-      fragment.topic2 !== log.topics[2]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic3 !== null &&
-      fragment.topic3 !== log.topics[3]?.toLowerCase()
-    )
-      return false;
+  if (isValueMatched(filter.topics[0], log.topics[0]) === false) return false;
+  if (isValueMatched(filter.topics[1], log.topics[1]) === false) return false;
+  if (isValueMatched(filter.topics[2], log.topics[2]) === false) return false;
+  if (isValueMatched(filter.topics[3], log.topics[3]) === false) return false;
+  if (
+    isAddressFactory(filter.address) === false &&
+    isValueMatched(
+      filter.address as Address | Address[] | undefined,
+      log.address,
+    ) === false
+  ) {
+    return false;
+  }
 
-    if (
-      isAddressFactory(filter.address) === false &&
-      fragment.address !== null &&
-      fragment.address !== log.address.toLowerCase()
-    )
-      return false;
-
-    return true;
-  });
+  return true;
 };
 
 /**
@@ -107,25 +110,21 @@ export const isCallTraceFilterMatched = ({
     return false;
   }
 
-  return buildTraceFilterFragments(filter).some((fragment) => {
-    if (
-      fragment.fromAddress !== null &&
-      fragment.fromAddress !== callTrace.action.from.toLowerCase()
-    ) {
-      return false;
-    }
+  if (isValueMatched(filter.fromAddress, callTrace.action.from) === false) {
+    return false;
+  }
 
-    if (
-      isAddressFactory(filter.toAddress) === false &&
-      (fragment as TraceFilterFragment<undefined>).toAddress !== null &&
-      (fragment as TraceFilterFragment<undefined>).toAddress !==
-        callTrace.action.to.toLowerCase()
-    ) {
-      return false;
-    }
+  if (
+    isAddressFactory(filter.toAddress) === false &&
+    isValueMatched(
+      filter.toAddress as Address | Address[] | undefined,
+      callTrace.action.to,
+    ) === false
+  ) {
+    return false;
+  }
 
-    return true;
-  });
+  return true;
 };
 
 /**
