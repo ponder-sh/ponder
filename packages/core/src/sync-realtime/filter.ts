@@ -1,4 +1,3 @@
-import { buildLogFilterFragments } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type LogFactory,
@@ -81,37 +80,21 @@ export const isLogFilterMatched = ({
     return false;
   }
 
-  return buildLogFilterFragments(filter).some((fragment) => {
-    if (
-      fragment.topic0 !== null &&
-      fragment.topic0 !== log.topics[0]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic1 !== null &&
-      fragment.topic1 !== log.topics[1]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic2 !== null &&
-      fragment.topic2 !== log.topics[2]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic3 !== null &&
-      fragment.topic3 !== log.topics[3]?.toLowerCase()
-    )
-      return false;
+  if (isValueMatched(filter.topic0, log.topics[0]) === false) return false;
+  if (isValueMatched(filter.topic1, log.topics[1]) === false) return false;
+  if (isValueMatched(filter.topic2, log.topics[2]) === false) return false;
+  if (isValueMatched(filter.topic3, log.topics[3]) === false) return false;
+  if (
+    isAddressFactory(filter.address) === false &&
+    isValueMatched(
+      filter.address as Address | Address[] | undefined,
+      log.address,
+    ) === false
+  ) {
+    return false;
+  }
 
-    if (
-      isAddressFactory(filter.address) === false &&
-      fragment.address !== null &&
-      fragment.address !== log.address.toLowerCase()
-    )
-      return false;
-
-    return true;
-  });
+  return true;
 };
 
 /**
@@ -167,7 +150,7 @@ export const isTraceFilterMatched = ({
 }: {
   filter: TraceFilter;
   block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["result"], "calls" | "logs">;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -202,7 +185,9 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  // TODO(kyle) call type
+  if (filter.callType !== trace.type) {
+    return false;
+  }
 
   return true;
 };
@@ -217,7 +202,7 @@ export const isTransferFilterMatched = ({
 }: {
   filter: TransferFilter;
   block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["result"], "calls" | "logs">;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (

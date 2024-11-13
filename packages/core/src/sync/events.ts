@@ -311,7 +311,7 @@ export const buildEvents = ({
             isTraceFilterMatched({
               filter,
               block,
-              trace,
+              trace: trace.trace,
             })
           ) {
             // TODO: filter on factory

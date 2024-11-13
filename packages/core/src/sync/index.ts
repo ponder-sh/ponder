@@ -763,13 +763,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           args.syncStore.insertTraces({
             traces: finalizedEventData.flatMap(
               ({ traces, block, transactions }) =>
-                traces.map(({ trace, position, transactionHash }) => ({
+                traces.map((trace) => ({
                   trace,
                   block,
                   transaction: transactions.find(
-                    (t) => t.hash === transactionHash,
+                    (t) => t.hash === trace.transactionHash,
                   )!,
-                  position,
                 })),
             ),
             chainId: network.chainId,
@@ -778,13 +777,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         // Add corresponding intervals to the sync-store
         // Note: this should happen after so the database doesn't become corrupted
-        await Promise.all(
-          args.sources
-            .filter(({ filter }) => filter.chainId === network.chainId)
-            .map(({ filter }) =>
-              args.syncStore.insertInterval({ filter, interval }),
-            ),
-        );
+
+        if (network.disableCache === false) {
+          await args.syncStore.insertIntervals({
+            intervals: args.sources
+              .filter(({ filter }) => filter.chainId === network.chainId)
+              .map(({ filter }) => ({ filter, interval })),
+          });
+        }
 
         /**
          * The realtime service can be killed if `endBlock` is
@@ -986,7 +986,7 @@ export const getCachedBlock = ({
 }): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
-      filter.fromBlock,
+      filter.fromBlock ?? 0,
       filter.toBlock ?? Number.POSITIVE_INFINITY,
     ] satisfies Interval;
     const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
@@ -1015,7 +1015,8 @@ export const getCachedBlock = ({
   if (
     latestCompletedBlocks.every(
       (block, i) =>
-        block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
+        block !== undefined ||
+        (sources[i]!.filter.fromBlock ?? 0) > minCompletedBlock,
     )
   ) {
     return _eth_getBlockByNumber(requestQueue, {
@@ -1084,7 +1085,7 @@ export async function* localHistoricalSyncGenerator({
     intervalDifference(
       [
         [
-          filter.fromBlock,
+          filter.fromBlock ?? 0,
           Math.min(
             filter.toBlock ?? Number.POSITIVE_INFINITY,
             totalInterval[1],

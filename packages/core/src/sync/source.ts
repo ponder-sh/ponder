@@ -113,7 +113,7 @@ export type TraceFilter<
     ? toFactory
     : Address | Address[] | undefined;
   functionSelector: Hex | Hex[] | undefined;
-  callType: Trace["result"]["type"] | Trace["result"]["type"][] | undefined;
+  callType: Trace["result"]["type"] | undefined;
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;

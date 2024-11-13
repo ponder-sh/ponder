@@ -124,13 +124,29 @@ The custom client uses the transport you specify in `ponder.config.ts`.
 
 ### Supported actions
 
-| name         | description                                               | Viem docs                                                         |
-| :----------- | :-------------------------------------------------------- | :---------------------------------------------------------------- |
-| readContract | Returns the result of a read-only function on a contract. | [readContract](https://viem.sh/docs/contract/readContract.html)   |
-| multicall    | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)         |
-| getBalance   | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html) |
-| getBytecode  | Returns the bytecode at an address.                       | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
-| getStorageAt | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)   |
+| name                        | description                                                                                         | Viem docs                                                                                        |
+| :-------------------------- | :-------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| readContract                | Returns the result of a read-only function on a contract.                                           | [readContract](https://viem.sh/docs/contract/readContract.html)                                  |
+| multicall                   | Similar to readContract, but batches requests.                                                      | [multicall](https://viem.sh/docs/contract/multicall.html)                                        |
+| simulateContract            | Simulates & validates a contract interaction.                                                       | [simulateContract](https://viem.sh/docs/contract/simulateContract)                               |
+| getBalance                  | Returns the balance of an address in wei.                                                           | [getBalance](https://viem.sh/docs/actions/public/getBalance.html)                                |
+| getBytecode                 | Returns the bytecode at an address.                                                                 | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)                                    |
+| getStorageAt                | Returns the value from a storage slot at a given address.                                           | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)                                  |
+| getBlock                    | Returns information about a block at a block number, hash or tag.                                   | [getBlock](https://viem.sh/docs/actions/public/getBlock)                                         |
+| getTransactionCount         | Returns the number of transactions an account has broadcast / sent.                                 | [getTransactionCount](https://viem.sh/docs/actions/public/getTransactionCount)                   |
+| getBlockTransactionCount    | Returns the number of Transactions at a block number, hash or tag.                                  | [getBlockTransactionCount](https://viem.sh/docs/actions/public/getBlockTransactionCount)         |
+| getTransaction              | Returns information about a transaction given a hash or block identifier.                           | [getTransaction](https://viem.sh/docs/actions/public/getTransaction)                             |
+| getTransactionReceipt       | Returns the transaction receipt given a transaction hash.                                           | [getTransactionReceipt](https://viem.sh/docs/actions/public/getTransactionReceipt)               |
+| getTransactionConfirmations | Returns the number of blocks passed (confirmations) since the transaction was processed on a block. | [getTransactionConfirmations](https://viem.sh/docs/actions/public/getTransactionConfirmations)   |
+| call                        | An Action for executing a new message call.                                                         | [call](https://viem.sh/docs/actions/public/call)                                                 |
+| estimateGas                 | An Action for estimating gas for a transaction.                                                     | [estimateGas](https://viem.sh/docs/actions/public/estimateGas)                                   |
+| getFeeHistory               | Returns a collection of historical gas information.                                                 | [getFeeHistory](https://viem.sh/docs/actions/public/getFeeHistory)                               |
+| getProof                    | Returns the account and storage values of the specified account including the Merkle-proof.         | [getProof](https://viem.sh/docs/actions/public/getProof)                                         |
+| getEnsAddress               | Gets address for ENS name.                                                                          | [getEnsAddress](https://viem.sh/docs/ens/actions/getEnsAddress)                                  |
+| getEnsAvatar                | Gets the avatar of an ENS name.                                                                     | [getEnsAvatar](https://viem.sh/docs/ens/actions/getEnsAvatar)                                    |
+| getEnsName                  | Gets primary name for specified address.                                                            | [getEnsName](https://viem.sh/docs/ens/actions/getEnsName)                                        |
+| getEnsResolver              | Gets resolver for ENS name.                                                                         | [getEnsResolver](https://viem.sh/docs/ens/actions/getEnsResolver)                                |
+| getEnsText                  | Gets a text record for specified ENS name.                                                          | [getEnsText](https://viem.sh/docs/ens/actions/getEnsText)                                        |
 
 ### Block number
 

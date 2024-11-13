@@ -102,12 +102,16 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  const intervalsCache: Map<Filter, Interval[]> = new Map();
-
-  // Populate `intervalsCache` by querying the sync-store.
-  for (const { filter } of args.sources) {
-    const intervals = await args.syncStore.getIntervals({ filter });
-    intervalsCache.set(filter, intervals);
+  let intervalsCache: Map<Filter, Interval[]>;
+  if (args.network.disableCache) {
+    intervalsCache = new Map();
+    for (const { filter } of args.sources) {
+      intervalsCache.set(filter, []);
+    }
+  } else {
+    intervalsCache = await args.syncStore.getIntervals({
+      filters: args.sources.map(({ filter }) => filter),
+    });
   }
 
   // Closest-to-tip block that has been synced.
@@ -336,7 +340,7 @@ export const createHistoricalSync = async (
             isTransferFilterMatched({
               filter,
               block: { number: toHex(blockNumber) },
-              trace,
+              trace: trace.trace,
             })
           ) {
             return true;
@@ -347,7 +351,7 @@ export const createHistoricalSync = async (
             isTraceFilterMatched({
               filter,
               block: { number: toHex(blockNumber) },
-              trace,
+              trace: trace.trace,
             })
           ) {
             return true;
@@ -385,11 +389,10 @@ export const createHistoricalSync = async (
       if (isKilled) return;
 
       await args.syncStore.insertTraces({
-        traces: traces.map(({ trace, position }, i) => ({
+        traces: traces.map((trace, i) => ({
           trace,
           block,
           transaction: transactions[i]!,
-          position,
         })),
         chainId: args.network.chainId,
       });
@@ -587,14 +590,11 @@ export const createHistoricalSync = async (
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
-      await Promise.all(
-        syncedIntervals.map(({ filter, interval }) =>
-          args.syncStore.insertInterval({
-            filter,
-            interval,
-          }),
-        ),
-      );
+      if (args.network.disableCache === false) {
+        await args.syncStore.insertIntervals({
+          intervals: syncedIntervals,
+        });
+      }
 
       blockCache.clear();
       transactionsCache.clear();
