@@ -17,6 +17,7 @@ import {
   getTableNames,
   onchain,
 } from "@/drizzle/index.js";
+import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
@@ -30,7 +31,6 @@ import {
   eq,
   getTableColumns,
   getTableName,
-  sql,
 } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
@@ -286,32 +286,21 @@ export const createHistoricalIndexingStore = ({
   const getReadableStream = (
     table: Table,
     entries: (InsertEntry | UpdateEntry)["row"][],
-    type: EntryType,
   ) => {
-    return new Readable({
-      read() {
-        for (const entry of entries) {
-          this.push(
-            `${Object.entries(getTableColumns(table))
-              .map(([columnName, column]) => {
-                const value = entry[columnName];
+    return Readable.from(
+      entries
+        .map((entry) =>
+          Object.entries(getTableColumns(table)).map(([columnName, column]) => {
+            const value = entry[columnName];
 
-                if (value === undefined) {
-                  if (hasEmptyValue(column)) return getEmptyValue(column, type);
-                  return null;
-                }
-                if (column.mapToDriverValue === undefined) {
-                  return value;
-                }
-                return column.mapToDriverValue(value);
-              })
-              .join(",")}\n`,
-          );
-        }
-        // signal end of stream
-        this.push(null);
-      },
-    });
+            if (column.mapToDriverValue === undefined) {
+              return value;
+            }
+            return column.mapToDriverValue(value);
+          }),
+        )
+        .join("\n"),
+    );
   };
 
   const getBytes = (value: unknown) => {
@@ -793,18 +782,16 @@ export const createHistoricalIndexingStore = ({
         for (const [table, tableCache] of cache) {
           const entries = Array.from(tableCache.values());
 
-          const insertValues = entries
-            .filter((e) => e.type === EntryType.INSERT)
+          const values = entries
+            .filter(
+              (e) => e.type === EntryType.INSERT || e.type === EntryType.UPDATE,
+            )
             .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
 
-          const updateValues = entries
-            .filter((e) => e.type === EntryType.UPDATE)
-            .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
-
-          if (insertValues.length > 0) {
+          if (values.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Inserting ${insertValues.length} cached '${tableNameCache.get(table)}' rows into the database`,
+              msg: `Inserting ${values.length} cached '${tableNameCache.get(table)}' rows into the database`,
             });
 
             promises.push(
@@ -815,17 +802,37 @@ export const createHistoricalIndexingStore = ({
                     database.driver as { internal: Pool }
                   ).internal.connect();
 
+                  await client.query(`
+CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
+SELECT * FROM "${getTableName(table)}"
+WITH NO DATA;
+                    `);
+
                   const copyStream = client.query(
                     copy.from(
-                      `COPY "${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
+                      `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
                     ),
                   );
 
                   try {
                     await pipeline(
-                      getReadableStream(table, insertValues, EntryType.INSERT),
+                      getReadableStream(table, values),
                       copyStream,
                     );
+
+                    const primaryKeys = primaryKeysCache.get(table)!;
+                    const set = Object.values(getTableColumns(table))
+                      .map(
+                        (column) =>
+                          `"${getColumnCasing(column, "snake_case")}" = excluded."${getColumnCasing(column, "snake_case")}"`,
+                      )
+                      .join(",\n");
+
+                    await client.query(`
+INSERT INTO "${getTableName(table)}"
+SELECT * FROM "${tableNameCache.get(table)}"
+ON CONFLICT (${primaryKeys.map(({ sql }) => `"${sql}"`).join(",")}) DO UPDATE SET ${set};
+`);
                   } catch (_error) {
                     const error = _error as Error;
                     common.logger.error({
@@ -840,55 +847,6 @@ export const createHistoricalIndexingStore = ({
               ),
             );
           }
-
-          // if (updateValues.length > 0) {
-          //   common.logger.debug({
-          //     service: "indexing",
-          //     msg: `Updating ${updateValues.length} cached '${tableNameCache.get(table)}' records in the database`,
-          //   });
-
-          //   const primaryKeys = primaryKeysCache.get(table)!;
-
-          //   const set: { [column: string]: SQL } = {};
-          //   for (const [columnName, column] of Object.entries(
-          //     getTableColumns(table),
-          //   )) {
-          //     set[columnName] = sql.raw(
-          //       `excluded."${getColumnCasing(column, "snake_case")}"`,
-          //     );
-          //   }
-
-          //   for (
-          //     let i = 0, len = updateValues.length;
-          //     i < len;
-          //     i += batchSize
-          //   ) {
-          //     promises.push(
-          //       database.qb.user.wrap(
-          //         {
-          //           method: `${tableNameCache.get(table)}.flush()`,
-          //         },
-          //         async () =>
-          //           await database.drizzle
-          //             .insert(table)
-          //             .values(updateValues.slice(i, i + batchSize))
-          //             .onConflictDoUpdate({
-          //               // @ts-ignore
-          //               target: primaryKeys.map(({ js }) => table[js]),
-          //               set,
-          //             })
-          //             .catch((_error) => {
-          //               const error = _error as Error;
-          //               common.logger.error({
-          //                 service: "indexing",
-          //                 msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-          //               });
-          //               throw new FlushError(error.message);
-          //             }),
-          //       ),
-          //     );
-          //   }
-          // }
         }
 
         await Promise.all(promises);
