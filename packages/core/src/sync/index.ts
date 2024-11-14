@@ -90,7 +90,7 @@ export type Status = {
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
   end: SyncBlock | LightBlock | undefined;
-  cached: SyncBlock | LightBlock | undefined;
+
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
 };
@@ -249,69 +249,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const sources = args.sources.filter(
         ({ filter }) => filter.chainId === network.chainId,
       );
-      const filters = sources.map(({ filter }) => filter);
 
-      const syncProgress = {} as SyncProgress;
-
-      // Earliest `fromBlock` among all `filters`
-      const start = Math.min(...filters.map((filter) => filter.fromBlock ?? 0));
-
-      if (filters.some((filter) => filter.toBlock === undefined)) {
-        const diagnostics = await Promise.all([
-          requestQueue.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
-          _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }).then(
-            (latest) =>
-              _eth_getBlockByNumber(requestQueue, {
-                blockNumber: Math.max(
-                  0,
-                  hexToNumber(latest.number) - network.finalityBlockCount,
-                ),
-              }),
-          ),
-        ]);
-
-        // Warn if the config has a different chainId than the remote.
-        if (hexToNumber(diagnostics[0]) !== network.chainId) {
-          args.common.logger.warn({
-            service: "sync",
-            msg: `Remote chain ID (${hexToNumber(diagnostics[0])}) does not match configured chain ID (${network.chainId}) for network "${network.name}"`,
-          });
-        }
-
-        syncProgress.start = diagnostics[1];
-        syncProgress.finalized = diagnostics[2];
-      } else {
-        // Latest `toBlock` among all `filters`
-        const end = Math.max(...filters.map((filter) => filter.toBlock!));
-
-        const diagnostics = await Promise.all([
-          requestQueue.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
-          _eth_getBlockByNumber(requestQueue, { blockNumber: end }),
-          _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }).then(
-            (latest) =>
-              _eth_getBlockByNumber(requestQueue, {
-                blockNumber: Math.max(
-                  0,
-                  hexToNumber(latest.number) - network.finalityBlockCount,
-                ),
-              }),
-          ),
-        ]);
-
-        // Warn if the config has a different chainId than the remote.
-        if (hexToNumber(diagnostics[0]) !== network.chainId) {
-          args.common.logger.warn({
-            service: "sync",
-            msg: `Remote chain ID (${hexToNumber(diagnostics[0])}) does not match configured chain ID (${network.chainId}) for network "${network.name}"`,
-          });
-        }
-
-        syncProgress.start = diagnostics[1];
-        syncProgress.end = diagnostics[2];
-        syncProgress.finalized = diagnostics[3];
-      }
+      const syncProgress = await getLocalSyncProgress({
+        common: args.common,
+        network,
+        requestQueue,
+        sources,
+      });
 
       const historicalSync = await createHistoricalSync({
         common: args.common,
@@ -468,7 +412,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         const localEventGenerator = getLocalEventGenerator({
           syncStore: args.syncStore,
           filters,
-          syncProgress,
           localSyncGenerator,
           from:
             args.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
@@ -877,7 +820,6 @@ export async function* getLocalSyncGenerator(params: {
     historicalSync: params.historicalSync,
   });
 
-  params.syncProgress.cached = cached;
   params.syncProgress.current = cached;
 
   const last = getHistoricalLast(params.syncProgress);
@@ -888,7 +830,7 @@ export async function* getLocalSyncGenerator(params: {
 
   // Handle two special cases:
   // 1. `syncProgress.start` > `syncProgress.finalized`
-  // 2 `syncProgress.cache` is defined
+  // 2. `cached` is defined
 
   // Handle unfinalized start block
   if (
@@ -959,24 +901,17 @@ export async function* getLocalSyncGenerator(params: {
   });
 
   // Handle cache hit
-  if (params.syncProgress.cached !== undefined) {
+  if (cached !== undefined) {
     params.common.metrics.ponder_sync_block.set(
       label,
-      hexToNumber(params.syncProgress.cached.number),
+      hexToNumber(cached.number),
     );
     // `getEvents` can make progress without calling `sync`, so immediately "yield"
     yield encodeCheckpoint(
-      blockToCheckpoint(
-        params.syncProgress.cached,
-        params.network.chainId,
-        "up",
-      ),
+      blockToCheckpoint(cached, params.network.chainId, "up"),
     );
 
-    if (
-      hexToNumber(params.syncProgress.cached.number) ===
-      hexToNumber(last.number)
-    ) {
+    if (hexToNumber(cached.number) === hexToNumber(last.number)) {
       params.common.logger.info({
         service: "historical",
         msg: `Skipped historical sync for '${params.network.name}' because all blocks are cached.`,
@@ -985,7 +920,7 @@ export async function* getLocalSyncGenerator(params: {
       return;
     }
 
-    cursor = hexToNumber(params.syncProgress.cached.number) + 1;
+    cursor = hexToNumber(cached.number) + 1;
   }
 
   while (true) {
@@ -1068,7 +1003,6 @@ export async function* getLocalSyncGenerator(params: {
 export async function* getLocalEventGenerator(params: {
   syncStore: SyncStore;
   filters: Filter[];
-  syncProgress: SyncProgress;
   localSyncGenerator: AsyncGenerator<string>;
   from: string;
   to: string;
@@ -1131,7 +1065,78 @@ export async function* getLocalEventGenerator(params: {
   }
 }
 
-// TODO(kyle) getSyncProgress
+const getLocalSyncProgress = async (params: {
+  common: Common;
+  network: Network;
+  requestQueue: RequestQueue;
+  sources: Source[];
+}): Promise<SyncProgress> => {
+  const syncProgress = {} as SyncProgress;
+
+  const filters = params.sources.map(({ filter }) => filter);
+
+  // Earliest `fromBlock` among all `filters`
+  const start = Math.min(...filters.map((filter) => filter.fromBlock ?? 0));
+
+  if (filters.some((filter) => filter.toBlock === undefined)) {
+    const diagnostics = await Promise.all([
+      params.requestQueue.request({ method: "eth_chainId" }),
+      _eth_getBlockByNumber(params.requestQueue, { blockNumber: start }),
+      _eth_getBlockByNumber(params.requestQueue, { blockTag: "latest" }).then(
+        (latest) =>
+          _eth_getBlockByNumber(params.requestQueue, {
+            blockNumber: Math.max(
+              0,
+              hexToNumber(latest.number) - params.network.finalityBlockCount,
+            ),
+          }),
+      ),
+    ]);
+
+    // Warn if the config has a different chainId than the remote.
+    if (hexToNumber(diagnostics[0]) !== params.network.chainId) {
+      params.common.logger.warn({
+        service: "sync",
+        msg: `Remote chain ID (${hexToNumber(diagnostics[0])}) does not match configured chain ID (${params.network.chainId}) for network "${params.network.name}"`,
+      });
+    }
+
+    syncProgress.start = diagnostics[1];
+    syncProgress.finalized = diagnostics[2];
+  } else {
+    // Latest `toBlock` among all `filters`
+    const end = Math.max(...filters.map((filter) => filter.toBlock!));
+
+    const diagnostics = await Promise.all([
+      params.requestQueue.request({ method: "eth_chainId" }),
+      _eth_getBlockByNumber(params.requestQueue, { blockNumber: start }),
+      _eth_getBlockByNumber(params.requestQueue, { blockNumber: end }),
+      _eth_getBlockByNumber(params.requestQueue, { blockTag: "latest" }).then(
+        (latest) =>
+          _eth_getBlockByNumber(params.requestQueue, {
+            blockNumber: Math.max(
+              0,
+              hexToNumber(latest.number) - params.network.finalityBlockCount,
+            ),
+          }),
+      ),
+    ]);
+
+    // Warn if the config has a different chainId than the remote.
+    if (hexToNumber(diagnostics[0]) !== params.network.chainId) {
+      params.common.logger.warn({
+        service: "sync",
+        msg: `Remote chain ID (${hexToNumber(diagnostics[0])}) does not match configured chain ID (${params.network.chainId}) for network "${params.network.name}"`,
+      });
+    }
+
+    syncProgress.start = diagnostics[1];
+    syncProgress.end = diagnostics[2];
+    syncProgress.finalized = diagnostics[3];
+  }
+
+  return syncProgress;
+};
 
 /** Returns the closest-to-tip block that has been synced for all `sources`. */
 const getCachedBlock = ({
