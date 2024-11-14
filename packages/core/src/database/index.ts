@@ -473,25 +473,6 @@ export const createDatabase = (args: {
       });
     },
     async setup() {
-      await qb.internal.wrap({ method: "setup" }, async () => {
-        for (const statement of args.statements.schema.sql) {
-          await sql.raw(statement).execute(qb.internal);
-        }
-
-        await qb.internal.schema
-          .createSchema(args.namespace)
-          .ifNotExists()
-          .execute();
-
-        // Create "_ponder_meta" table if it doesn't exist
-        await qb.internal.schema
-          .createTable("_ponder_meta")
-          .addColumn("key", "text", (col) => col.primaryKey())
-          .addColumn("value", "jsonb")
-          .ifNotExists()
-          .execute();
-      });
-
       ////////
       // Migrate
       ////////
@@ -511,113 +492,154 @@ export const createDatabase = (args: {
         .then((schema) => schema?.schema_name === "ponder");
 
       if (hasPonderSchema) {
-        await qb.internal.wrap({ method: "setup" }, async () => {
-          const namespaceCount = await qb.internal
-            .withSchema("ponder")
-            // @ts-ignore
-            .selectFrom("namespace_lock")
-            .select(sql`count(*)`.as("count"))
-            .executeTakeFirst();
+        const hasNamespaceLockTable = await qb.internal
+          // @ts-ignore
+          .selectFrom("information_schema.tables")
+          // @ts-ignore
+          .select("table_name")
+          // @ts-ignore
+          .where("table_name", "=", "namespace_lock")
+          .executeTakeFirst()
+          .then((table) => table?.table_name === "namespace_lock");
 
-          const tableNames = await qb.internal
-            .withSchema("ponder")
-            // @ts-ignore
-            .selectFrom("namespace_lock")
-            // @ts-ignore
-            .select("schema")
-            // @ts-ignore
-            .where("namespace", "=", args.namespace)
-            .executeTakeFirst()
-            .then((schema: any | undefined) =>
-              schema === undefined
-                ? undefined
-                : Object.keys(schema.schema.tables),
-            );
-          if (tableNames) {
-            for (const tableName of tableNames) {
-              await qb.internal.schema
-                .dropTable(tableName)
-                .ifExists()
-                .cascade()
-                .execute();
-            }
-
-            await qb.internal
+        if (hasNamespaceLockTable) {
+          await qb.internal.wrap({ method: "migrates" }, async () => {
+            const namespaceCount = await qb.internal
               .withSchema("ponder")
               // @ts-ignore
-              .deleteFrom("namespace_lock")
+              .selectFrom("namespace_lock")
+              .select(sql`count(*)`.as("count"))
+              .executeTakeFirst();
+
+            const tableNames = await qb.internal
+              .withSchema("ponder")
+              // @ts-ignore
+              .selectFrom("namespace_lock")
+              // @ts-ignore
+              .select("schema")
               // @ts-ignore
               .where("namespace", "=", args.namespace)
-              .execute();
+              .executeTakeFirst()
+              .then((schema: any | undefined) =>
+                schema === undefined
+                  ? undefined
+                  : Object.keys(schema.schema.tables),
+              );
+            if (tableNames) {
+              for (const tableName of tableNames) {
+                await qb.internal.schema
+                  .dropTable(tableName)
+                  .ifExists()
+                  .cascade()
+                  .execute();
+              }
 
-            if (namespaceCount!.count === 1) {
-              await qb.internal.schema.dropSchema("ponder").cascade().execute();
+              await qb.internal
+                .withSchema("ponder")
+                // @ts-ignore
+                .deleteFrom("namespace_lock")
+                // @ts-ignore
+                .where("namespace", "=", args.namespace)
+                .execute();
 
-              args.common.logger.debug({
-                service: "database",
-                msg: `Removed 'ponder' schema`,
-              });
+              if (namespaceCount!.count === 1) {
+                await qb.internal.schema
+                  .dropSchema("ponder")
+                  .cascade()
+                  .execute();
+
+                args.common.logger.debug({
+                  service: "database",
+                  msg: `Removed 'ponder' schema`,
+                });
+              }
             }
-          }
-        });
+          });
+        }
       }
 
       // v0.7 migration
 
-      await qb.internal.wrap({ method: "migrate" }, () =>
-        qb.internal.transaction().execute(async (tx) => {
-          const previousApp: PonderApp | undefined = await tx
-            .selectFrom("_ponder_meta")
-            // @ts-ignore
-            .where("key", "=", "app")
-            .select("value")
-            .executeTakeFirst()
-            .then((row) =>
-              row === undefined ? undefined : (row.value as PonderApp),
-            );
+      const hasPonderMetaTable = await qb.internal
+        // @ts-ignore
+        .selectFrom("information_schema.tables")
+        // @ts-ignore
+        .select("table_name")
+        // @ts-ignore
+        .where("table_name", "=", "_ponder_meta")
+        .executeTakeFirst()
+        .then((table) => table?.table_name === "_ponder_meta");
 
-          if (previousApp) {
-            const instanceId = crypto.randomBytes(2).toString("hex");
-
-            await tx
-              .deleteFrom("_ponder_meta")
+      if (hasPonderMetaTable) {
+        await qb.internal.wrap({ method: "migrate" }, () =>
+          qb.internal.transaction().execute(async (tx) => {
+            const previousApp: PonderApp | undefined = await tx
+              .selectFrom("_ponder_meta")
               // @ts-ignore
               .where("key", "=", "app")
-              .execute();
+              .select("value")
+              .executeTakeFirst()
+              .then((row) =>
+                row === undefined ? undefined : (row.value as PonderApp),
+              );
 
-            await tx
-              .deleteFrom("_ponder_meta")
-              // @ts-ignore
-              .where("key", "=", "status")
-              .execute();
+            if (previousApp) {
+              const instanceId = crypto.randomBytes(2).toString("hex");
 
-            for (const tableName of previousApp.table_names) {
-              await tx.schema
-                .alterTable(tableName)
-                .renameTo(userToSqlTableName(tableName, instanceId))
+              await tx
+                .deleteFrom("_ponder_meta")
+                // @ts-ignore
+                .where("key", "=", "app")
                 .execute();
 
-              await tx.schema
-                .alterTable(`_ponder_reorg__${tableName}`)
-                .renameTo(userToReorgTableName(tableName, instanceId))
+              await tx
+                .deleteFrom("_ponder_meta")
+                // @ts-ignore
+                .where("key", "=", "status")
                 .execute();
+
+              for (const tableName of previousApp.table_names) {
+                await tx.schema
+                  .alterTable(tableName)
+                  .renameTo(userToSqlTableName(tableName, instanceId))
+                  .execute();
+
+                await tx.schema
+                  .alterTable(`_ponder_reorg__${tableName}`)
+                  .renameTo(userToReorgTableName(tableName, instanceId))
+                  .execute();
+              }
+
+              await tx
+                .insertInto("_ponder_meta")
+                .values({
+                  key: `app_${instanceId}`,
+                  value: { ...previousApp, instance_id: instanceId },
+                })
+                .execute();
+
+              args.common.logger.debug({
+                service: "database",
+                msg: "Migrated previous app to v0.7",
+              });
             }
+          }),
+        );
+      }
 
-            await tx
-              .insertInto("_ponder_meta")
-              .values({
-                key: `app_${instanceId}`,
-                value: { ...previousApp, instance_id: instanceId },
-              })
-              .execute();
+      await qb.internal.wrap({ method: "setup" }, async () => {
+        for (const statement of args.statements.schema.sql) {
+          await sql.raw(statement).execute(qb.internal);
+        }
 
-            args.common.logger.debug({
-              service: "database",
-              msg: "Migrated previous app to v0.7",
-            });
-          }
-        }),
-      );
+        // Create "_ponder_meta" table if it doesn't exist
+        await qb.internal.schema
+          .createTable("_ponder_meta")
+          .addColumn("key", "text", (col) => col.primaryKey())
+          .addColumn("value", "jsonb")
+          .ifNotExists()
+          .execute();
+      });
 
       const attempt = async ({ isFirstAttempt }: { isFirstAttempt: boolean }) =>
         qb.internal.wrap({ method: "setup" }, () =>
