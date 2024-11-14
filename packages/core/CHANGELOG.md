@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.1
+
+### Patch Changes
+
+- [#1237](https://github.com/ponder-sh/ponder/pull/1237) [`ea872481f6eaf61fbc7a94fe60a21bdabd7a0352`](https://github.com/ponder-sh/ponder/commit/ea872481f6eaf61fbc7a94fe60a21bdabd7a0352) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with database instance id.
+
 ## 0.7.0
 
 ### Minor Changes
