@@ -503,7 +503,7 @@ export const createDatabase = (args: {
           .then((table) => table?.table_name === "namespace_lock");
 
         if (hasNamespaceLockTable) {
-          await qb.internal.wrap({ method: "migrates" }, async () => {
+          await qb.internal.wrap({ method: "migrate" }, async () => {
             const namespaceCount = await qb.internal
               .withSchema("ponder")
               // @ts-ignore
