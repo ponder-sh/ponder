@@ -471,7 +471,7 @@ test("setup() with the same instance ID upserts", async (context) => {
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
-  const metadata = await database.qb.internal
+  const metadata = await databaseTwo.qb.internal
     .selectFrom("_ponder_meta")
     .selectAll()
     .execute();
