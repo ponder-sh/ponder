@@ -436,6 +436,51 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
   await databaseTwo.kill();
 });
 
+test("setup() with the same instance ID upserts", async (context) => {
+  context.common.options.databaseHeartbeatInterval = 750;
+  context.common.options.databaseHeartbeatTimeout = 500;
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
+  });
+  await database.setup();
+  await database.unlock();
+  await database.kill();
+
+  const databaseTwo = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
+  });
+
+  const { checkpoint } = await databaseTwo.setup();
+
+  expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
+
+  const metadata = await databaseTwo.qb.internal
+    .selectFrom("_ponder_meta")
+    .selectAll()
+    .execute();
+
+  expect(metadata).toHaveLength(3);
+
+  await databaseTwo.kill();
+});
+
 test("setup() drops old tables", async (context) => {
   for (let i = 0; i < 5; i++) {
     const database = createDatabase({
