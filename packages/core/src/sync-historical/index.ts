@@ -2,6 +2,7 @@ import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
 import {
   isTraceFilterMatched,
+  isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/sync-realtime/filter.js";
 import type { SyncStore } from "@/sync-store/index.js";
@@ -15,7 +16,7 @@ import {
   type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
-import type { Source } from "@/sync/source.js";
+import type { Source, TransactionFilter } from "@/sync/source.js";
 import type {
   SyncBlock,
   SyncLog,
@@ -304,6 +305,63 @@ export const createHistoricalSync = async (
     // }
   };
 
+  const syncTransactionFilter = async (
+    filter: TransactionFilter,
+    interval: Interval,
+  ) => {
+    const requiredBlocks: number[] = [];
+    for (let b = interval[0]; b <= interval[1]; b += 1) {
+      requiredBlocks.push(b);
+    }
+
+    const blocks = await Promise.all(
+      requiredBlocks.map((b) => syncBlock(BigInt(b))),
+    );
+
+    if (isKilled) return;
+
+    const transactionHashes: Set<Hash> = new Set();
+
+    for (const block of blocks) {
+      block.transactions.map((transaction) => {
+        if (isTransactionFilterMatched({ filter, block, transaction })) {
+          transactionHashes.add(transaction.hash);
+        }
+      });
+    }
+
+    if (isKilled) return;
+
+    if (filter.includeReverted) {
+      for (const hash of transactionHashes) {
+        transactionsCache.add(hash);
+      }
+      return;
+    }
+
+    const revertedTransactions = new Set<Hash>();
+
+    const transactionReceipts = await Promise.all(
+      Array.from(transactionHashes).map((hash) =>
+        _eth_getTransactionReceipt(args.requestQueue, { hash }),
+      ),
+    );
+
+    if (isKilled) return;
+
+    for (const receipt of transactionReceipts) {
+      if (receipt.status === "0x0") {
+        revertedTransactions.add(receipt.transactionHash);
+      }
+    }
+
+    for (const hash of transactionHashes) {
+      if (revertedTransactions.has(hash) === false) {
+        transactionsCache.add(hash);
+      }
+    }
+  };
+
   const syncBlockFilter = async (filter: BlockFilter, interval: Interval) => {
     const baseOffset = (interval[0] - filter.offset) % filter.interval;
     const offset = baseOffset === 0 ? 0 : filter.interval - baseOffset;
@@ -531,7 +589,7 @@ export const createHistoricalSync = async (
                   }
 
                   case "transaction": {
-                    // TODO(kyle)
+                    await syncTransactionFilter(filter, interval);
                     break;
                   }
 
