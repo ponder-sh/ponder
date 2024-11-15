@@ -674,6 +674,12 @@ export const createDatabase = (args: {
               await tx
                 .insertInto("_ponder_meta")
                 .values({ key: `status_${args.instanceId}`, value: null })
+                .onConflict((oc) =>
+                  oc
+                    .column("key")
+                    // @ts-ignore
+                    .doUpdateSet({ value: null }),
+                )
                 .execute();
               await tx
                 .insertInto("_ponder_meta")
@@ -681,7 +687,29 @@ export const createDatabase = (args: {
                   key: `app_${args.instanceId}`,
                   value: newApp,
                 })
+                .onConflict((oc) =>
+                  oc
+                    .column("key")
+                    // @ts-ignore
+                    .doUpdateSet({ value: newApp }),
+                )
                 .execute();
+
+              for (const tableName of getTableNames(
+                args.schema,
+                newApp.instance_id,
+              )) {
+                await tx.schema
+                  .dropTable(tableName.sql)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+                await tx.schema
+                  .dropTable(tableName.reorg)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+              }
 
               for (let i = 0; i < args.statements.enums.sql.length; i++) {
                 await sql
