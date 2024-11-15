@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.7.4
+
+### Patch Changes
+
+- [#1247](https://github.com/ponder-sh/ponder/pull/1247) [`214b7fad6272a402a57e0e11d5e9d7680c0f1ea7`](https://github.com/ponder-sh/ponder/commit/214b7fad6272a402a57e0e11d5e9d7680c0f1ea7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `onchainSchema()` with pglite.
+
+- [#1247](https://github.com/ponder-sh/ponder/pull/1247) [`214b7fad6272a402a57e0e11d5e9d7680c0f1ea7`](https://github.com/ponder-sh/ponder/commit/214b7fad6272a402a57e0e11d5e9d7680c0f1ea7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed crash recovery, specifically build ID generation.
+
 ## 0.7.3
 
 ### Patch Changes
