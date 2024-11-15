@@ -505,11 +505,7 @@ export const createDatabase = (args: {
           // @ts-ignore
           .where("table_schema", "=", "ponder")
           .executeTakeFirst()
-          .then(
-            (table) =>
-              table?.table_name === "namespace_lock" &&
-              table?.table_schema === "ponder",
-          );
+          .then((table) => table !== undefined);
 
         if (hasNamespaceLockTable) {
           await qb.internal.wrap({ method: "migrate" }, async () => {
@@ -579,11 +575,7 @@ export const createDatabase = (args: {
         // @ts-ignore
         .where("table_schema", "=", args.namespace)
         .executeTakeFirst()
-        .then(
-          (table) =>
-            table?.table_name === "_ponder_meta" &&
-            table?.table_schema === args.namespace,
-        );
+        .then((table) => table !== undefined);
 
       if (hasPonderMetaTable) {
         await qb.internal.wrap({ method: "migrate" }, () =>
