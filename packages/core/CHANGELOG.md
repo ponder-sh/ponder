@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.7.2
+
+### Patch Changes
+
+- [#1243](https://github.com/ponder-sh/ponder/pull/1243) [`2cf9d8d45a688039c186884ff5dd97aa3fd5c7ae`](https://github.com/ponder-sh/ponder/commit/2cf9d8d45a688039c186884ff5dd97aa3fd5c7ae) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `onchainSchema`.
+
+- [#1242](https://github.com/ponder-sh/ponder/pull/1242) [`26edcd1c66741288fcce9600769bc27268c50e9e`](https://github.com/ponder-sh/ponder/commit/26edcd1c66741288fcce9600769bc27268c50e9e) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a bug with database instance id.
+
 ## 0.7.1
 
 ### Patch Changes
