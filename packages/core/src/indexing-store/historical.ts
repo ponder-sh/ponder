@@ -216,9 +216,9 @@ export const createHistoricalIndexingStore = ({
     if (type === EntryType.UPDATE && column.onUpdateFn) {
       return column.onUpdateFn();
     }
-    if (column.default) return column.default;
-    if (column.defaultFn) return column.defaultFn();
-    if (column.onUpdateFn) return column.onUpdateFn();
+    if (column.default !== undefined) return column.default;
+    if (column.defaultFn !== undefined) return column.defaultFn();
+    if (column.onUpdateFn !== undefined) return column.onUpdateFn();
 
     // TODO(kyle) is it an invariant that it doesn't get here
 
