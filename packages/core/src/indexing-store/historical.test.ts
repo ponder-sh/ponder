@@ -556,7 +556,7 @@ test("default", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
-      balance: p.bigint().default(10n),
+      balance: p.integer().default(0),
     })),
   };
 
@@ -573,7 +573,7 @@ test("default", async (context) => {
     address: zeroAddress,
   });
 
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+  expect(result).toStrictEqual({ address: zeroAddress, balance: 0 });
 
   await cleanup();
 });
