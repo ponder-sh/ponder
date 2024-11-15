@@ -169,6 +169,7 @@ export const createDatabase = (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin(args.namespace)],
       }),
       user: new HeadlessKysely({
         name: "user",
@@ -181,6 +182,7 @@ export const createDatabase = (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin(args.namespace)],
       }),
       readonly: new HeadlessKysely({
         name: "readonly",
@@ -193,6 +195,7 @@ export const createDatabase = (args: {
             });
           }
         },
+        plugins: [new WithSchemaPlugin(args.namespace)],
       }),
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
@@ -496,11 +499,13 @@ export const createDatabase = (args: {
           // @ts-ignore
           .selectFrom("information_schema.tables")
           // @ts-ignore
-          .select("table_name")
+          .select(["table_name", "table_schema"])
           // @ts-ignore
           .where("table_name", "=", "namespace_lock")
+          // @ts-ignore
+          .where("table_schema", "=", "ponder")
           .executeTakeFirst()
-          .then((table) => table?.table_name === "namespace_lock");
+          .then((table) => table !== undefined);
 
         if (hasNamespaceLockTable) {
           await qb.internal.wrap({ method: "migrate" }, async () => {
@@ -564,11 +569,13 @@ export const createDatabase = (args: {
         // @ts-ignore
         .selectFrom("information_schema.tables")
         // @ts-ignore
-        .select("table_name")
+        .select(["table_name", "table_schema"])
         // @ts-ignore
         .where("table_name", "=", "_ponder_meta")
+        // @ts-ignore
+        .where("table_schema", "=", args.namespace)
         .executeTakeFirst()
-        .then((table) => table?.table_name === "_ponder_meta");
+        .then((table) => table !== undefined);
 
       if (hasPonderMetaTable) {
         await qb.internal.wrap({ method: "migrate" }, () =>
@@ -1157,13 +1164,13 @@ CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${args.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${args.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${args.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
   END IF;
   RETURN NULL;

@@ -1,6 +1,11 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
+import {
+  onchainEnum,
+  onchainSchema,
+  onchainTable,
+  primaryKey,
+} from "@/drizzle/index.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,
@@ -101,6 +106,36 @@ test("setup() creates tables", async (context) => {
   expect(tableNames).toContain("1234_reorg__kyle");
   expect(tableNames).toContain("1234__kyle");
   expect(tableNames).toContain("1234_reorg__kyle");
+  expect(tableNames).toContain("_ponder_meta");
+
+  await database.unlock();
+  await database.kill();
+});
+
+test("setup() with onchainSchema", async (context) => {
+  const schema = onchainSchema("multichain");
+  const account = schema.table("account", (t) => ({
+    address: t.hex().primaryKey(),
+    balance: t.bigint(),
+  }));
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { schema, account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
+      schema: { schema, account },
+      instanceId: "1234",
+    }),
+  });
+
+  await database.setup();
+
+  const tableNames = await getUserTableNames(database, "multichain");
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
   await database.unlock();
