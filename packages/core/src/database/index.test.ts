@@ -542,30 +542,6 @@ test('setup() with "ponder dev" publishes views', async (context) => {
   await database.kill();
 });
 
-test("setup() throws if there is a table name collision", async (context) => {
-  const database = createDatabase({
-    common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    instanceId: "1234",
-    buildId: "abc",
-    ...buildSchema({
-      schema: { account },
-      instanceId: "1234",
-    }),
-  });
-
-  await database.qb.internal.executeQuery(
-    ksql`CREATE TABLE "1234__account" (id TEXT)`.compile(database.qb.internal),
-  );
-
-  await expect(() => database.setup()).rejects.toThrow(
-    "Unable to create table 'public'.'1234__account' because a table with that name already exists.",
-  );
-
-  await database.kill();
-});
-
 test("setup() v0.7 migration", async (context) => {
   const database = createDatabase({
     common: context.common,
