@@ -669,9 +669,25 @@ export const createDatabase = (args: {
                   oc
                     .column("key")
                     // @ts-ignore
-                    .doUpdateSet({ value: null }),
+                    .doUpdateSet({ value: newApp }),
                 )
                 .execute();
+
+              for (const tableName of getTableNames(
+                args.schema,
+                newApp.instance_id,
+              )) {
+                await tx.schema
+                  .dropTable(tableName.sql)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+                await tx.schema
+                  .dropTable(tableName.reorg)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+              }
 
               for (let i = 0; i < args.statements.enums.sql.length; i++) {
                 await sql
