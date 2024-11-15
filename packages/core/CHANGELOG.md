@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.3
+
+### Patch Changes
+
+- [#1245](https://github.com/ponder-sh/ponder/pull/1245) [`7f4f456ab574a5017c7e45e3667eb16ab8a719a9`](https://github.com/ponder-sh/ponder/commit/7f4f456ab574a5017c7e45e3667eb16ab8a719a9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the `.default()` column modifier causing the value to be undefined.
+
 ## 0.7.2
 
 ### Patch Changes
