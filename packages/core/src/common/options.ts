@@ -103,14 +103,14 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     factoryAddressCountThreshold: 1_000,
 
-    // v8.getHeapStatistics().heap_size_limit / 4, bucketed closest to 128, 256, 512, 1024, 2048 mB
+    // v8.getHeapStatistics().heap_size_limit / 8, bucketed closest to 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:
       2 **
         Math.min(
           Math.max(
             Math.round(
               Math.log2(
-                v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 4,
+                v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 8,
               ),
             ),
             7,

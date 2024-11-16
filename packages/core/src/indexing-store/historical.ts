@@ -20,6 +20,7 @@ import {
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
+import { startClock } from "@/utils/timer.js";
 import { createQueue } from "@ponder/common";
 import {
   type Column,
@@ -287,20 +288,36 @@ export const createHistoricalIndexingStore = ({
     table: Table,
     entries: (InsertEntry | UpdateEntry)["row"][],
   ) => {
-    return Readable.from(
-      entries
-        .map((entry) =>
-          Object.entries(getTableColumns(table)).map(([columnName, column]) => {
+    const columns = Object.entries(getTableColumns(table));
+    const results: string[] = [];
+
+    while (entries.length > 0) {
+      const entry = entries.pop()!;
+      results.push(
+        columns
+          .map(([columnName, column]) => {
             const value = entry[columnName];
 
-            if (column.mapToDriverValue === undefined) {
-              return value;
+            if (value === null || value === undefined) {
+              return "\\N"; // PostgreSQL's NULL representation in COPY
             }
-            return column.mapToDriverValue(value);
-          }),
-        )
-        .join("\n"),
-    );
+
+            if (column.mapToDriverValue === undefined) {
+              // Escape special characters and quote the value
+              return `"${String(value).replace(/"/g, '""')}"`;
+            }
+
+            const mappedValue = column.mapToDriverValue(value);
+            if (mappedValue === null || mappedValue === undefined) {
+              return "\\N";
+            }
+            // Escape special characters and quote the value
+            return `"${String(mappedValue).replace(/"/g, '""')}"`;
+          })
+          .join(","),
+      );
+    }
+    return Readable.from(`${results.join("\n")}\n`);
   };
 
   const getBytes = (value: unknown) => {
@@ -777,21 +794,72 @@ export const createHistoricalIndexingStore = ({
     ),
     async flush() {
       await queue.add(async () => {
-        const promises: Promise<any>[] = [];
+        let cacheSize = 0;
+        for (const c of cache.values()) cacheSize += c.size;
+
+        const flushIndex =
+          totalCacheOps -
+          cacheSize * (1 - common.options.indexingCacheFlushRatio);
+        const shouldDelete = cacheBytes > maxBytes;
+        if (shouldDelete) isDatabaseEmpty = false;
+
+        const promises: Promise<void>[] = [];
 
         for (const [table, tableCache] of cache) {
-          const entries = Array.from(tableCache.values());
-
-          const values = entries
+          const removableInsertValues = Array.from(tableCache.values())
             .filter(
-              (e) => e.type === EntryType.INSERT || e.type === EntryType.UPDATE,
+              (e) =>
+                e.type === EntryType.INSERT &&
+                shouldDelete &&
+                e.operationIndex < flushIndex,
             )
             .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
 
-          if (values.length > 0) {
+          const removableUpdateValues = Array.from(tableCache.values())
+            .filter(
+              (e) =>
+                e.type === EntryType.UPDATE &&
+                shouldDelete &&
+                e.operationIndex < flushIndex,
+            )
+            .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
+
+          // remove outdated entries, making them eligible for garbage collection
+          for (const [key, entry] of tableCache) {
+            if (shouldDelete && entry.operationIndex < flushIndex) {
+              tableCache.delete(key);
+              cacheBytes -= entry.bytes;
+            }
+          }
+
+          const nonRemovableInsertValues = Array.from(tableCache.values())
+            .filter((e) => e.type === EntryType.INSERT)
+            .map((e) => e.row) as UpdateEntry["row"][];
+
+          const nonRemovableUpdateValues = Array.from(tableCache.values())
+            .filter((e) => e.type === EntryType.UPDATE)
+            .map((e) => e.row) as InsertEntry["row"][];
+
+          for (const [, entry] of tableCache) {
+            entry.type = EntryType.FIND;
+          }
+
+          const insertValues = removableInsertValues.concat(
+            nonRemovableInsertValues,
+          );
+          const updateValues = removableUpdateValues.concat(
+            nonRemovableUpdateValues,
+          );
+
+          const insertSize = insertValues.length;
+          const updateSize = updateValues.length;
+          const insertStream = getReadableStream(table, insertValues);
+          const updateStream = getReadableStream(table, updateValues);
+
+          if (insertSize > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Inserting ${values.length} cached '${tableNameCache.get(table)}' rows into the database`,
+              msg: `Inserting ${insertSize} cached '${tableNameCache.get(table)}' rows into the database`,
             });
 
             promises.push(
@@ -802,37 +870,76 @@ export const createHistoricalIndexingStore = ({
                     database.driver as { internal: Pool }
                   ).internal.connect();
 
-                  await client.query(`
-CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
-SELECT * FROM "${getTableName(table)}"
-WITH NO DATA;
-                    `);
-
                   const copyStream = client.query(
                     copy.from(
-                      `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
+                      `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
                     ),
                   );
 
                   try {
-                    await pipeline(
-                      getReadableStream(table, values),
-                      copyStream,
+                    await pipeline(insertStream, copyStream);
+                  } catch (_error) {
+                    const error = _error as Error;
+                    common.logger.error({
+                      service: "indexing",
+                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                    });
+                    throw new FlushError(error.message);
+                  } finally {
+                    client.release();
+                  }
+                },
+              ),
+            );
+          }
+
+          if (updateSize > 0) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Updating ${updateSize} cached '${tableNameCache.get(table)}' rows in the database`,
+            });
+
+            promises.push(
+              database.qb.user.wrap(
+                { method: `${tableNameCache.get(table)}.flush()` },
+                async () => {
+                  const client = await (
+                    database.driver as { internal: Pool }
+                  ).internal.connect();
+
+                  try {
+                    await client.query(`
+CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
+SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"
+WITH NO DATA;
+`);
+
+                    const copyStream = client.query(
+                      copy.from(
+                        `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
+                      ),
                     );
+
+                    await pipeline(updateStream, copyStream);
 
                     const primaryKeys = primaryKeysCache.get(table)!;
                     const set = Object.values(getTableColumns(table))
                       .map(
                         (column) =>
-                          `"${getColumnCasing(column, "snake_case")}" = excluded."${getColumnCasing(column, "snake_case")}"`,
+                          `"${getColumnCasing(column, "snake_case")}" = source."${getColumnCasing(column, "snake_case")}"`,
                       )
                       .join(",\n");
 
                     await client.query(`
-INSERT INTO "${getTableName(table)}"
-SELECT * FROM "${tableNameCache.get(table)}"
-ON CONFLICT (${primaryKeys.map(({ sql }) => `"${sql}"`).join(",")}) DO UPDATE SET ${set};
+UPDATE "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" as target
+SET ${set}
+FROM "${tableNameCache.get(table)}" as source
+WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
 `);
+
+                    await client.query(
+                      `DROP TABLE IF EXISTS "${tableNameCache.get(table)}"`,
+                    );
                   } catch (_error) {
                     const error = _error as Error;
                     common.logger.error({
@@ -850,31 +957,6 @@ ON CONFLICT (${primaryKeys.map(({ sql }) => `"${sql}"`).join(",")}) DO UPDATE SE
         }
 
         await Promise.all(promises);
-
-        let cacheSize = 0;
-
-        for (const c of cache.values()) cacheSize += c.size;
-
-        const flushIndex =
-          totalCacheOps -
-          cacheSize * (1 - common.options.indexingCacheFlushRatio);
-
-        const shouldDelete = cacheBytes > maxBytes;
-
-        for (const tableCache of cache.values()) {
-          for (const [key, entry] of tableCache) {
-            entry.type = EntryType.FIND;
-
-            if (shouldDelete && entry.operationIndex < flushIndex) {
-              tableCache.delete(key);
-              cacheBytes -= entry.bytes;
-            }
-          }
-        }
-
-        if (shouldDelete) {
-          isDatabaseEmpty = false;
-        }
       });
     },
     isCacheFull() {
