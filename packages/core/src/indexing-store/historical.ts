@@ -20,7 +20,6 @@ import {
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
-import { startClock } from "@/utils/timer.js";
 import { createQueue } from "@ponder/common";
 import {
   type Column,
