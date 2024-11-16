@@ -103,7 +103,9 @@ export async function run({
           break;
         }
         case "reorg":
+          await database.removeTriggers();
           await database.revert({ checkpoint: event.checkpoint });
+          await database.createTriggers();
 
           break;
 
