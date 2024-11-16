@@ -646,7 +646,7 @@ export const createHistoricalIndexingStore = ({
                       `No existing record found in table '${tableNameCache.get(table)}'`,
                     );
                     error.meta.push(
-                      `db.update arguments:\n${prettyPrint(values)}`,
+                      `db.update arguments:\n${prettyPrint(key)}`,
                     );
                     throw error;
                   }
@@ -660,7 +660,7 @@ export const createHistoricalIndexingStore = ({
                       `No existing record found in table '${tableNameCache.get(table)}'`,
                     );
                     error.meta.push(
-                      `db.update arguments:\n${prettyPrint(values)}`,
+                      `db.update arguments:\n${prettyPrint(key)}`,
                     );
                     throw error;
                   }
