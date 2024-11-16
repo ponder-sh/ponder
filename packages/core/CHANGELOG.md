@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.5
+
+### Patch Changes
+
+- [#1252](https://github.com/ponder-sh/ponder/pull/1252) [`8b211d652dce3c0449d20e39a2d88c0463f44891`](https://github.com/ponder-sh/ponder/commit/8b211d652dce3c0449d20e39a2d88c0463f44891) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error log for `context.db.update()`.
+
 ## 0.7.4
 
 ### Patch Changes
