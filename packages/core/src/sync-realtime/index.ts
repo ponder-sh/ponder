@@ -680,10 +680,11 @@ export const createRealtimeSync = (
     // Validate that each trace point to valid transaction in the block
     for (const trace of traces) {
       if (
-        block.transactions.find((t) => t.hash === trace.txHash) === undefined
+        block.transactions.find((t) => t.hash === trace.transactionHash) ===
+        undefined
       ) {
         throw new Error(
-          `Detected inconsistent RPC responses. 'trace.txHash' ${trace.txHash} not found in 'block' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'trace.txHash' ${trace.transactionHash} not found in 'block' ${block.hash}`,
         );
       }
     }
