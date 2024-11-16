@@ -1,6 +1,11 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
+import {
+  onchainEnum,
+  onchainSchema,
+  onchainTable,
+  primaryKey,
+} from "@/drizzle/index.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,
@@ -101,6 +106,36 @@ test("setup() creates tables", async (context) => {
   expect(tableNames).toContain("1234_reorg__kyle");
   expect(tableNames).toContain("1234__kyle");
   expect(tableNames).toContain("1234_reorg__kyle");
+  expect(tableNames).toContain("_ponder_meta");
+
+  await database.unlock();
+  await database.kill();
+});
+
+test("setup() with onchainSchema", async (context) => {
+  const schema = onchainSchema("multichain");
+  const account = schema.table("account", (t) => ({
+    address: t.hex().primaryKey(),
+    balance: t.bigint(),
+  }));
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { schema, account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
+      schema: { schema, account },
+      instanceId: "1234",
+    }),
+  });
+
+  await database.setup();
+
+  const tableNames = await getUserTableNames(database, "multichain");
+  expect(tableNames).toContain("1234__account");
+  expect(tableNames).toContain("1234_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
   await database.unlock();
@@ -436,6 +471,51 @@ test("setup() with the same build ID succeeds if the lock doesn't expires after 
   await databaseTwo.kill();
 });
 
+test("setup() with the same instance ID upserts", async (context) => {
+  context.common.options.databaseHeartbeatInterval = 750;
+  context.common.options.databaseHeartbeatTimeout = 500;
+
+  const database = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
+  });
+  await database.setup();
+  await database.unlock();
+  await database.kill();
+
+  const databaseTwo = createDatabase({
+    common: context.common,
+    schema: { account },
+    databaseConfig: context.databaseConfig,
+    instanceId: "1234",
+    buildId: "abc",
+    ...buildSchema({
+      schema: { account },
+      instanceId: "1234",
+    }),
+  });
+
+  const { checkpoint } = await databaseTwo.setup();
+
+  expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
+
+  const metadata = await databaseTwo.qb.internal
+    .selectFrom("_ponder_meta")
+    .selectAll()
+    .execute();
+
+  expect(metadata).toHaveLength(3);
+
+  await databaseTwo.kill();
+});
+
 test("setup() drops old tables", async (context) => {
   for (let i = 0; i < 5; i++) {
     const database = createDatabase({
@@ -494,30 +574,6 @@ test('setup() with "ponder dev" publishes views', async (context) => {
   expect(viewNames).toContain("account");
 
   await database.unlock();
-  await database.kill();
-});
-
-test("setup() throws if there is a table name collision", async (context) => {
-  const database = createDatabase({
-    common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    instanceId: "1234",
-    buildId: "abc",
-    ...buildSchema({
-      schema: { account },
-      instanceId: "1234",
-    }),
-  });
-
-  await database.qb.internal.executeQuery(
-    ksql`CREATE TABLE "1234__account" (id TEXT)`.compile(database.qb.internal),
-  );
-
-  await expect(() => database.setup()).rejects.toThrow(
-    "Unable to create table 'public'.'1234__account' because a table with that name already exists.",
-  );
-
   await database.kill();
 });
 

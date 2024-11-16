@@ -62,8 +62,7 @@ export const getSql = (schema: Schema, instanceId: string): SqlStatements => {
     }) ?? [];
 
   const jsonCreateSchemas = prepareCreateSchemasJson(
-    // @ts-ignore
-    Object.values(squashed.schemas).map((it: { name: any }) => it.name),
+    Object.values(squashed.schemas),
   );
 
   const jsonCreateTables = Object.values(squashed.tables).map((it: any) => {
@@ -589,7 +588,7 @@ class PgCreateSchemaConvertor extends Convertor {
 
   convert(statement: JsonCreateSchema) {
     const { name } = statement;
-    return `CREATE SCHEMA "${name}";\n`;
+    return `CREATE SCHEMA IF NOT EXISTS"${name}";\n`;
   }
 }
 

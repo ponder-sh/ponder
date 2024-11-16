@@ -1,5 +1,33 @@
 # @ponder/core
 
+## 0.7.4
+
+### Patch Changes
+
+- [#1247](https://github.com/ponder-sh/ponder/pull/1247) [`214b7fad6272a402a57e0e11d5e9d7680c0f1ea7`](https://github.com/ponder-sh/ponder/commit/214b7fad6272a402a57e0e11d5e9d7680c0f1ea7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `onchainSchema()` with pglite.
+
+- [#1247](https://github.com/ponder-sh/ponder/pull/1247) [`214b7fad6272a402a57e0e11d5e9d7680c0f1ea7`](https://github.com/ponder-sh/ponder/commit/214b7fad6272a402a57e0e11d5e9d7680c0f1ea7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed crash recovery, specifically build ID generation.
+
+## 0.7.3
+
+### Patch Changes
+
+- [#1245](https://github.com/ponder-sh/ponder/pull/1245) [`7f4f456ab574a5017c7e45e3667eb16ab8a719a9`](https://github.com/ponder-sh/ponder/commit/7f4f456ab574a5017c7e45e3667eb16ab8a719a9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the `.default()` column modifier causing the value to be undefined.
+
+## 0.7.2
+
+### Patch Changes
+
+- [#1243](https://github.com/ponder-sh/ponder/pull/1243) [`2cf9d8d45a688039c186884ff5dd97aa3fd5c7ae`](https://github.com/ponder-sh/ponder/commit/2cf9d8d45a688039c186884ff5dd97aa3fd5c7ae) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `onchainSchema`.
+
+- [#1242](https://github.com/ponder-sh/ponder/pull/1242) [`26edcd1c66741288fcce9600769bc27268c50e9e`](https://github.com/ponder-sh/ponder/commit/26edcd1c66741288fcce9600769bc27268c50e9e) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a bug with database instance id.
+
+## 0.7.1
+
+### Patch Changes
+
+- [#1237](https://github.com/ponder-sh/ponder/pull/1237) [`ea872481f6eaf61fbc7a94fe60a21bdabd7a0352`](https://github.com/ponder-sh/ponder/commit/ea872481f6eaf61fbc7a94fe60a21bdabd7a0352) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with database instance id.
+
 ## 0.7.0
 
 ### Minor Changes
