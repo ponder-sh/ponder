@@ -812,7 +812,7 @@ export const createHistoricalIndexingStore = ({
                 shouldDelete &&
                 e.operationIndex < flushIndex,
             )
-            .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
+            .map((e) => e.row) as InsertEntry["row"][];
 
           const removableUpdateValues = Array.from(tableCache.values())
             .filter(
@@ -821,7 +821,7 @@ export const createHistoricalIndexingStore = ({
                 shouldDelete &&
                 e.operationIndex < flushIndex,
             )
-            .map((e) => e.row) as (InsertEntry | UpdateEntry)["row"][];
+            .map((e) => e.row) as UpdateEntry["row"][];
 
           // remove outdated entries, making them eligible for garbage collection
           for (const [key, entry] of tableCache) {
