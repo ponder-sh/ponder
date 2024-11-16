@@ -3,23 +3,28 @@ import type { SyncLog } from "@/types/sync.js";
 import type { Trace } from "@/utils/debug.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
 
-export type Source = ContractSource | BlockSource;
+export type Source = ContractSource | AccountSource | BlockSource;
 export type ContractSource<
-  filter extends "log" | "transaction" | "transfer" | "trace" =
-    | "log"
-    | "transaction"
-    | "transfer"
-    | "trace",
+  filter extends "log" | "trace" = "log" | "trace",
   factory extends Factory | undefined = Factory | undefined,
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
 > = {
   filter: filter extends "log"
     ? LogFilter<factory>
-    : filter extends "transaction"
-      ? TransactionFilter
-      : filter extends "transfer"
-        ? TransferFilter
-        : TraceFilter;
+    : TraceFilter<fromFactory, toFactory>;
 } & ContractMetadata;
+
+export type AccountSource<
+  filter extends "transaction" | "transfer" = "transaction" | "transfer",
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
+  filter: filter extends "transaction"
+    ? TransactionFilter<fromFactory, toFactory>
+    : TransferFilter<fromFactory, toFactory>;
+} & AccountMetadata;
+
 export type BlockSource = { filter: BlockFilter } & BlockMetadata;
 
 export type Filter =
@@ -35,6 +40,11 @@ export type ContractMetadata = {
   abi: Abi;
   abiEvents: AbiEvents;
   abiFunctions: AbiFunctions;
+  name: string;
+  networkName: string;
+};
+export type AccountMetadata = {
+  type: "account";
   name: string;
   networkName: string;
 };

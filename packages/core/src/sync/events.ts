@@ -13,6 +13,7 @@ import type {
   Trace,
   Transaction,
   TransactionReceipt,
+  Transfer,
 } from "@/types/eth.js";
 import type {
   SyncBlock,
@@ -43,7 +44,12 @@ import {
   hexToBigInt,
   hexToNumber,
 } from "viem";
-import { type Factory, type Source, isAddressFactory } from "./source.js";
+import {
+  type BlockFilter,
+  type Factory,
+  type Source,
+  isAddressFactory,
+} from "./source.js";
 
 export type RawEvent = {
   chainId: number;
@@ -110,6 +116,7 @@ export type TransactionEvent = {
   chainId: number;
   checkpoint: string;
 
+  /** `${source.name}.{safeName}()` */
   name: string;
 
   event: {
@@ -124,13 +131,15 @@ export type TransferEvent = {
   chainId: number;
   checkpoint: string;
 
+  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
   name: string;
 
   event: {
-    trace: Trace;
+    transfer: Transfer;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
+    trace: Trace;
   };
 };
 
@@ -139,6 +148,7 @@ export type TraceEvent = {
   chainId: number;
   checkpoint: string;
 
+  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
   name: string;
 
   event: {
@@ -188,43 +198,159 @@ export const buildEvents = ({
   }
 
   for (let i = 0; i < sources.length; i++) {
-    const filter = sources[i]!.filter;
+    const source = sources[i]!;
+    const filter = source.filter;
     if (chainId !== filter.chainId) continue;
-    switch (filter.type) {
-      case "log": {
-        for (const log of logs) {
-          if (
-            isLogFilterMatched({ filter, block, log }) &&
-            (isAddressFactory(filter.address)
-              ? finalizedChildAddresses.get(filter.address)!.has(log.address) ||
-                unfinalizedChildAddresses.get(filter.address)!.has(log.address)
-              : true)
-          ) {
-            events.push({
-              chainId: filter.chainId,
-              sourceIndex: i,
-              checkpoint: encodeCheckpoint({
-                blockTimestamp: hexToNumber(block.timestamp),
-                chainId: BigInt(filter.chainId),
-                blockNumber: hexToBigInt(log.blockNumber),
-                transactionIndex: hexToBigInt(log.transactionIndex),
-                eventType: EVENT_TYPES.logs,
-                eventIndex: hexToBigInt(log.logIndex),
-              }),
-              log: convertLog(log),
-              block: convertBlock(block),
-              transaction: convertTransaction(
-                transactionCache.get(log.transactionHash)!,
-              ),
-              trace: undefined,
-            });
+    switch (source.type) {
+      case "contract": {
+        switch (filter.type) {
+          case "log": {
+            for (const log of logs) {
+              if (
+                isLogFilterMatched({ filter, block, log }) &&
+                (isAddressFactory(filter.address)
+                  ? finalizedChildAddresses
+                      .get(filter.address)!
+                      .has(log.address) ||
+                    unfinalizedChildAddresses
+                      .get(filter.address)!
+                      .has(log.address)
+                  : true)
+              ) {
+                events.push({
+                  chainId: filter.chainId,
+                  sourceIndex: i,
+                  checkpoint: encodeCheckpoint({
+                    blockTimestamp: hexToNumber(block.timestamp),
+                    chainId: BigInt(filter.chainId),
+                    blockNumber: hexToBigInt(log.blockNumber),
+                    transactionIndex: hexToBigInt(log.transactionIndex),
+                    eventType: EVENT_TYPES.logs,
+                    eventIndex: hexToBigInt(log.logIndex),
+                  }),
+                  log: convertLog(log),
+                  block: convertBlock(block),
+                  transaction: convertTransaction(
+                    transactionCache.get(log.transactionHash)!,
+                  ),
+                  trace: undefined,
+                });
+              }
+            }
+            break;
+          }
+
+          case "trace": {
+            for (const trace of traces) {
+              if (
+                isTraceFilterMatched({
+                  filter,
+                  block,
+                  trace: trace.trace,
+                })
+              ) {
+                // TODO: filter on factory
+
+                const transaction = transactionCache.get(
+                  trace.transactionHash,
+                )!;
+                events.push({
+                  chainId: filter.chainId,
+                  sourceIndex: i,
+                  checkpoint: encodeCheckpoint({
+                    blockTimestamp: hexToNumber(block.timestamp),
+                    chainId: BigInt(filter.chainId),
+                    blockNumber: hexToBigInt(block.number),
+                    transactionIndex: BigInt(transaction.transactionIndex),
+                    eventType: EVENT_TYPES.traces,
+                    eventIndex: BigInt(trace.position),
+                  }),
+                  log: undefined,
+                  trace: convertTrace(trace),
+                  block: convertBlock(block),
+                  transaction: convertTransaction(transaction),
+                  transactionReceipt: undefined,
+                });
+              }
+            }
+            break;
+          }
+        }
+        break;
+      }
+
+      case "account": {
+        switch (filter.type) {
+          case "transaction": {
+            for (const transaction of transactions) {
+              if (
+                isTransactionFilterMatched({
+                  filter,
+                  block,
+                  transaction,
+                })
+              ) {
+                // TODO: filter on factory
+
+                events.push({
+                  chainId: filter.chainId,
+                  sourceIndex: i,
+                  checkpoint: encodeCheckpoint({
+                    blockTimestamp: hexToNumber(block.timestamp),
+                    chainId: BigInt(filter.chainId),
+                    blockNumber: hexToBigInt(block.number),
+                    transactionIndex: BigInt(transaction.transactionIndex),
+                    eventType: EVENT_TYPES.transactions,
+                    eventIndex: 0n,
+                  }),
+                  log: undefined,
+                  trace: undefined,
+                  block: convertBlock(block),
+                  transaction: convertTransaction(transaction),
+                  transactionReceipt: undefined,
+                });
+              }
+            }
+            break;
+          }
+
+          case "transfer": {
+            for (const trace of traces) {
+              if (
+                isTransferFilterMatched({ filter, block, trace: trace.trace })
+              ) {
+                // TODO: filter on factory
+
+                const transaction = transactionCache.get(
+                  trace.transactionHash,
+                )!;
+                events.push({
+                  chainId: filter.chainId,
+                  sourceIndex: i,
+                  checkpoint: encodeCheckpoint({
+                    blockTimestamp: hexToNumber(block.timestamp),
+                    chainId: BigInt(filter.chainId),
+                    blockNumber: hexToBigInt(block.number),
+                    transactionIndex: BigInt(transaction.transactionIndex),
+                    eventType: EVENT_TYPES.traces,
+                    eventIndex: BigInt(trace.position),
+                  }),
+                  log: undefined,
+                  trace: convertTrace(trace),
+                  block: convertBlock(block),
+                  transaction: convertTransaction(transaction),
+                  transactionReceipt: undefined,
+                });
+              }
+            }
+            break;
           }
         }
         break;
       }
 
       case "block": {
-        if (isBlockFilterMatched({ filter, block })) {
+        if (isBlockFilterMatched({ filter: filter as BlockFilter, block })) {
           events.push({
             chainId: filter.chainId,
             sourceIndex: i,
@@ -245,102 +371,8 @@ export const buildEvents = ({
         }
         break;
       }
-
-      case "transaction": {
-        for (const transaction of transactions) {
-          if (
-            isTransactionFilterMatched({
-              filter,
-              block,
-              transaction,
-            })
-          ) {
-            // TODO: filter on factory
-
-            events.push({
-              chainId: filter.chainId,
-              sourceIndex: i,
-              checkpoint: encodeCheckpoint({
-                blockTimestamp: hexToNumber(block.timestamp),
-                chainId: BigInt(filter.chainId),
-                blockNumber: hexToBigInt(block.number),
-                transactionIndex: BigInt(transaction.transactionIndex),
-                eventType: EVENT_TYPES.transactions,
-                eventIndex: 0n,
-              }),
-              log: undefined,
-              trace: undefined,
-              block: convertBlock(block),
-              transaction: convertTransaction(transaction),
-              transactionReceipt: undefined,
-            });
-          }
-        }
-        break;
-      }
-      case "transfer": {
-        for (const trace of traces) {
-          if (isTransferFilterMatched({ filter, block, trace: trace.trace })) {
-            // TODO: filter on factory
-
-            const transaction = transactionCache.get(trace.transactionHash)!;
-            events.push({
-              chainId: filter.chainId,
-              sourceIndex: i,
-              checkpoint: encodeCheckpoint({
-                blockTimestamp: hexToNumber(block.timestamp),
-                chainId: BigInt(filter.chainId),
-                blockNumber: hexToBigInt(block.number),
-                transactionIndex: BigInt(transaction.transactionIndex),
-                eventType: EVENT_TYPES.traces,
-                eventIndex: BigInt(trace.position),
-              }),
-              log: undefined,
-              trace: convertTrace(trace),
-              block: convertBlock(block),
-              transaction: convertTransaction(transaction),
-              transactionReceipt: undefined,
-            });
-          }
-        }
-        break;
-      }
-      case "trace": {
-        for (const trace of traces) {
-          if (
-            isTraceFilterMatched({
-              filter,
-              block,
-              trace: trace.trace,
-            })
-          ) {
-            // TODO: filter on factory
-
-            const transaction = transactionCache.get(trace.transactionHash)!;
-            events.push({
-              chainId: filter.chainId,
-              sourceIndex: i,
-              checkpoint: encodeCheckpoint({
-                blockTimestamp: hexToNumber(block.timestamp),
-                chainId: BigInt(filter.chainId),
-                blockNumber: hexToBigInt(block.number),
-                transactionIndex: BigInt(transaction.transactionIndex),
-                eventType: EVENT_TYPES.traces,
-                eventIndex: BigInt(trace.position),
-              }),
-              log: undefined,
-              trace: convertTrace(trace),
-              block: convertBlock(block),
-              transaction: convertTransaction(transaction),
-              transactionReceipt: undefined,
-            });
-          }
-        }
-        break;
-      }
-
       default:
-        never(filter);
+        never(source);
     }
   }
 
@@ -360,18 +392,6 @@ export const decodeEvents = (
     const source = sources[event.sourceIndex]!;
 
     switch (source.type) {
-      case "block": {
-        events.push({
-          type: "block",
-          chainId: event.chainId,
-          checkpoint: event.checkpoint,
-          name: `${source.name}:block`,
-          event: {
-            block: event.block,
-          },
-        });
-        break;
-      }
       case "contract": {
         switch (source.filter.type) {
           case "log": {
@@ -424,45 +444,6 @@ export const decodeEvents = (
             break;
           }
 
-          case "transaction": {
-            events.push({
-              type: "transaction",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
-
-              // TODO(kyle)
-              name: "transaction",
-
-              event: {
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-              },
-            });
-
-            break;
-          }
-
-          case "transfer": {
-            events.push({
-              type: "transfer",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
-
-              // TODO(kyle)
-              name: "transfer",
-
-              event: {
-                trace: event.trace!,
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-              },
-            });
-
-            break;
-          }
-
           case "trace": {
             try {
               const selector = event
@@ -473,7 +454,8 @@ export const decodeEvents = (
                 throw new Error();
               }
 
-              const { item } = source.abiFunctions.bySelector[selector]!;
+              const { item, safeName } =
+                source.abiFunctions.bySelector[selector]!;
 
               const { args, functionName } = decodeFunctionData({
                 abi: [item],
@@ -491,8 +473,8 @@ export const decodeEvents = (
                 chainId: event.chainId,
                 checkpoint: event.checkpoint,
 
-                // TODO(kyle)
-                name: "trace",
+                // TODO(kyle) "()"
+                name: `${source.name}.${safeName}`,
 
                 event: {
                   args,
@@ -522,6 +504,71 @@ export const decodeEvents = (
           default:
             never(source.filter);
         }
+        break;
+      }
+
+      case "account": {
+        switch (source.filter.type) {
+          case "transaction": {
+            // TODO(kyle) what if toAddress and fromAddress are both undefined?
+            const isFrom = source.filter.toAddress === undefined;
+
+            events.push({
+              type: "transaction",
+              chainId: event.chainId,
+              checkpoint: event.checkpoint,
+
+              name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
+
+              event: {
+                block: event.block,
+                transaction: event.transaction!,
+                transactionReceipt: event.transactionReceipt,
+              },
+            });
+
+            break;
+          }
+
+          case "transfer": {
+            const isFrom = source.filter.toAddress === undefined;
+
+            events.push({
+              type: "transfer",
+              chainId: event.chainId,
+              checkpoint: event.checkpoint,
+
+              name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
+
+              event: {
+                transfer: {
+                  from: event.trace!.from,
+                  to: event.trace!.to!,
+                  value: event.trace!.value!,
+                },
+                block: event.block,
+                transaction: event.transaction!,
+                transactionReceipt: event.transactionReceipt,
+                trace: event.trace!,
+              },
+            });
+
+            break;
+          }
+        }
+        break;
+      }
+
+      case "block": {
+        events.push({
+          type: "block",
+          chainId: event.chainId,
+          checkpoint: event.checkpoint,
+          name: `${source.name}:block`,
+          event: {
+            block: event.block,
+          },
+        });
         break;
       }
 
@@ -746,22 +793,14 @@ const convertTransactionReceipt = (
             : transactionReceipt.type,
 });
 
-const convertTrace = (
-  trace: SyncTrace,
-  // block: SyncBlock,
-  // transaction: SyncTransaction,
-): Trace => ({
+const convertTrace = (trace: SyncTrace): Trace => ({
   id: `${trace.transactionHash}-${trace.position}`,
   type: trace.trace.type,
   from: checksumAddress(trace.trace.from),
   to: trace.trace.to ? checksumAddress(trace.trace.to) : null,
-  gas: hexToBigInt(trace.trace.gas),
-  value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
   input: trace.trace.input,
   output: trace.trace.output,
+  gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
-  // blockHash: block.hash,
-  // blockNumber: hexToBigInt(block.number),
-  transactionHash: trace.transactionHash,
-  // transactionIndex: hexToNumber(transaction.transactionIndex),
+  value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
 });

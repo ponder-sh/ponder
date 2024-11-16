@@ -159,9 +159,7 @@ export type Log = {
   transactionIndex: number;
 };
 
-/**
- * A confirmed Ethereum transaction receipt.
- */
+/** A confirmed Ethereum transaction receipt. */
 export type TransactionReceipt = {
   /** Hash of block containing this transaction */
   blockHash: Hash;
@@ -223,4 +221,14 @@ export type Trace = {
   revertReason?: string;
   /** Value transferred. */
   value: bigint | null;
+};
+
+/** A native token transfer. */
+export type Transfer = {
+  /** The address that sent the transfer */
+  from: Address;
+  /** The address that received the transfer */
+  to: Address;
+  /** The amount of tokens transferred */
+  value: bigint;
 };
