@@ -20,11 +20,11 @@ type FragmentTopic = Hex | null;
 export type FragmentId =
   /** log_{chainId}_{address}_{topic0}_{topic1}_{topic2}_{topic3}_{includeReceipts} */
   | `log_${number}_${FragmentAddress}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
-  /** transaction_{chainId}_{fromAddress}_{toAddress}_{includeReverted} */
+  /** transaction_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
   | `transaction_${number}_${FragmentAddress}_${FragmentAddress}_${0 | 1}`
   /** transfer_{chainId}_{fromAddress}_{toAddress} */
   | `transfer_${number}_${FragmentAddress}_${FragmentAddress}`
-  /** trace_{chainId}_{fromAddress}_{toAddress}_{callType}_{functionSelector}_{includeReverted} */
+  /** trace_{chainId}_{fromAddress}_{toAddress}_{callType}_{functionSelector}_{includeReceipts} */
   | `trace_${number}_${FragmentAddress}_${FragmentAddress}_${Trace["result"]["type"] | null}_${Hex | null}_${0 | 1}`
   /** block_{chainId}_{interval}_{offset} */
   | `block_${number}_${number}_${number}`;
@@ -189,7 +189,6 @@ export const getTransactionFilterFragmentIds = ({
   chainId,
   fromAddress,
   toAddress,
-  includeReverted,
 }: Omit<TransactionFilter, "fromBlock" | "toBlock"> & {
   chainId: number;
 }): FragmentReturnType => {
@@ -200,23 +199,15 @@ export const getTransactionFilterFragmentIds = ({
   for (const fragmentFromAddress of fromAddressFragmentIds) {
     for (const fragmentToAddress of toAddressFragmentIds) {
       const id =
-        `transaction_${chainId}_${fragmentFromAddress.id}_${fragmentToAddress.id}_${
-          includeReverted ? 1 : 0
-        }` as const;
+        `transaction_${chainId}_${fragmentFromAddress.id}_${fragmentToAddress.id}_${0}` as const;
 
       const adjacent: FragmentId[] = [];
 
       for (const adjacentFromAddress of fragmentFromAddress.adjacent) {
         for (const adjacentToAddress of fragmentToAddress.adjacent) {
-          for (const adjacentIncludeReverted of includeReverted === true
-            ? [1]
-            : [0, 1]) {
-            adjacent.push(
-              `transaction_${chainId}_${adjacentFromAddress}_${adjacentToAddress}_${
-                adjacentIncludeReverted ? 1 : 0
-              }`,
-            );
-          }
+          adjacent.push(
+            `transaction_${chainId}_${adjacentFromAddress}_${adjacentToAddress}_${0}`,
+          );
         }
       }
 
@@ -266,7 +257,6 @@ export const getTraceFilterFragmentIds = ({
   toAddress,
   callType,
   functionSelector,
-  includeReverted,
 }: Omit<TraceFilter, "fromBlock" | "toBlock"> & {
   chainId: number;
 }): FragmentReturnType => {
@@ -280,9 +270,7 @@ export const getTraceFilterFragmentIds = ({
         ? functionSelector
         : [functionSelector]) {
         const id =
-          `trace_${chainId}_${fragmentFromAddress.id}_${fragmentToAddress.id}_${callType ?? null}_${fragmentFunctionSelector ?? null}_${
-            includeReverted ? 1 : 0
-          }` as const;
+          `trace_${chainId}_${fragmentFromAddress.id}_${fragmentToAddress.id}_${callType ?? null}_${fragmentFunctionSelector ?? null}_${0}` as const;
 
         const adjacent: FragmentId[] = [];
 
@@ -292,9 +280,7 @@ export const getTraceFilterFragmentIds = ({
               ? [fragmentFunctionSelector, null]
               : [null]) {
               adjacent.push(
-                `trace_${chainId}_${adjacentFromAddress}_${adjacentToAddress}_${callType ?? null}_${adjacentFunctionSelector}_${
-                  includeReverted ? 1 : 0
-                }`,
+                `trace_${chainId}_${adjacentFromAddress}_${adjacentToAddress}_${callType ?? null}_${adjacentFunctionSelector}_${0}`,
               );
             }
           }

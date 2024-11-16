@@ -223,6 +223,4 @@ export type Trace = {
   revertReason?: string;
   /** Value transferred. */
   value: bigint | null;
-  /** Hash of the transaction that created this trace */
-  transactionHash: Hash;
 };

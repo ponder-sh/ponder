@@ -140,6 +140,8 @@ export const encodeLog = ({
 
 type TransactionsTable = {
   hash: Hash;
+  chainId: number;
+  checkpoint: string;
   blockHash: Hash;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
@@ -161,8 +163,6 @@ type TransactionsTable = {
     string | bigint
   > | null;
   accessList: string | null;
-
-  chainId: number;
 };
 
 export const encodeTransaction = ({
@@ -174,6 +174,14 @@ export const encodeTransaction = ({
 }): Insertable<TransactionsTable> => {
   return {
     hash: transaction.hash,
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(transaction.blockNumber),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(transaction.blockNumber),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.transactions,
+      eventIndex: zeroCheckpoint.eventIndex,
+    }),
     chainId,
     blockHash: transaction.blockHash,
     blockNumber: hexToBigInt(transaction.blockNumber),
@@ -248,6 +256,7 @@ export const encodeTransactionReceipt = ({
 };
 
 type TracesTable = {
+  id: string;
   chainId: number;
   checkpoint: string;
   type: string;
@@ -262,6 +271,7 @@ type TracesTable = {
   input: Hex;
   output: Hex | null;
   error: string | null;
+  revertReason: string | null;
   value: ColumnType<
     string | null,
     string | bigint | null,
@@ -283,6 +293,7 @@ export function encodeTrace({
   chainId: number;
 }): Insertable<TracesTable> {
   return {
+    id: `${transaction.hash}-${position}`,
     chainId,
     checkpoint: encodeCheckpoint({
       blockTimestamp: hexToNumber(block.timestamp),
@@ -302,6 +313,7 @@ export function encodeTrace({
     gasUsed: hexToBigInt(trace.gasUsed),
     input: trace.input,
     output: trace.output ?? null,
+    revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
     value: trace.value ? hexToBigInt(trace.value) : null,
   };

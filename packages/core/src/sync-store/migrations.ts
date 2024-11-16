@@ -1093,10 +1093,9 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
 
       await db.schema
         .createTable("traces")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("checkpoint", "varchar(75)", (col) =>
-          col.notNull().primaryKey(),
-        )
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
         .addColumn("type", "text", (col) => col.notNull())
         .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
         .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
@@ -1108,8 +1107,13 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .addColumn("input", "text", (col) => col.notNull())
         .addColumn("output", "text")
         .addColumn("error", "text")
+        .addColumn("revertReason", "text")
         .addColumn("value", "numeric(78, 0)")
         .execute();
+
+      // TODO(kyle) indexes
+
+      // TODO(kyle): add `checkpoint` to `transactions` table
     },
   },
 };
