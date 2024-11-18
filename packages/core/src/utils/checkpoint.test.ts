@@ -310,12 +310,3 @@ test("checkpointMin compares properly on blockNumber", () => {
   const max = checkpointMin(checkpointOne, checkpointTwo, checkpointThree);
   expect(max).toMatchObject(checkpointOne);
 });
-
-/*
-checkpoint/base64: (24 characters)
-Zztd5AAAAAAAHoUfAcUBAAw=
-checkpoint/hex: (34 characters)
-673b5de400000000001e851f01c501000c
-checkpoint/stringified: (75 characters)
-173194390800000000000000010000000002000159000000000000045310000000000000012
-*/
