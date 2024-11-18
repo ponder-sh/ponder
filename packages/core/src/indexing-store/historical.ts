@@ -20,6 +20,7 @@ import {
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
+import type { PGlite } from "@electric-sql/pglite";
 import { createQueue } from "@ponder/common";
 import {
   type Column,
@@ -283,7 +284,7 @@ export const createHistoricalIndexingStore = ({
     }
   };
 
-  const getReadableStream = (
+  const getCopyCSV = (
     table: Table,
     entries: (InsertEntry | UpdateEntry)["row"][],
   ) => {
@@ -316,7 +317,7 @@ export const createHistoricalIndexingStore = ({
           .join(","),
       );
     }
-    return Readable.from(`${results.join("\n")}\n`);
+    return `${results.join("\n")}\n`;
   };
 
   const getBytes = (value: unknown) => {
@@ -852,8 +853,9 @@ export const createHistoricalIndexingStore = ({
 
           const insertSize = insertValues.length;
           const updateSize = updateValues.length;
-          const insertStream = getReadableStream(table, insertValues);
-          const updateStream = getReadableStream(table, updateValues);
+          // `insertValues` and `updateValues` are mutated, so that the entries may be garbage collected
+          const insertCSV = getCopyCSV(table, insertValues);
+          const updateCSV = getCopyCSV(table, updateValues);
 
           if (insertSize > 0) {
             common.logger.debug({
@@ -865,89 +867,148 @@ export const createHistoricalIndexingStore = ({
               database.qb.user.wrap(
                 { method: `${tableNameCache.get(table)}.flush()` },
                 async () => {
-                  const client = await (
-                    database.driver as { internal: Pool }
-                  ).internal.connect();
+                  if (database.dialect === "pglite") {
+                    try {
+                      const client = (database.driver as { instance: PGlite })
+                        .instance;
 
-                  const copyStream = client.query(
-                    copy.from(
-                      `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
-                    ),
-                  );
+                      await client.query(
+                        `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob' WITH (FORMAT csv)`,
+                        [],
+                        {
+                          blob: new Blob([insertCSV]),
+                        },
+                      );
+                    } catch (_error) {
+                      const error = _error as Error;
+                      common.logger.error({
+                        service: "indexing",
+                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                      });
+                      throw new FlushError(error.message);
+                    }
+                  } else {
+                    const client = await (
+                      database.driver as { internal: Pool }
+                    ).internal.connect();
 
-                  try {
-                    await pipeline(insertStream, copyStream);
-                  } catch (_error) {
-                    const error = _error as Error;
-                    common.logger.error({
-                      service: "indexing",
-                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                    });
-                    throw new FlushError(error.message);
-                  } finally {
-                    client.release();
+                    try {
+                      await pipeline(
+                        Readable.from(insertCSV),
+                        client.query(
+                          copy.from(
+                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
+                          ),
+                        ),
+                      );
+                    } catch (_error) {
+                      const error = _error as Error;
+                      common.logger.error({
+                        service: "indexing",
+                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                      });
+                      throw new FlushError(error.message);
+                    } finally {
+                      client.release();
+                    }
                   }
                 },
               ),
             );
           }
 
+          // Steps for flushing "update" entries:
+          // 1. Create temp table
+          // 2. Copy into temp table
+          // 3. Update target table with data from temp table
+          // 4. Drop temp table
           if (updateSize > 0) {
             common.logger.debug({
               service: "indexing",
               msg: `Updating ${updateSize} cached '${tableNameCache.get(table)}' rows in the database`,
             });
 
-            promises.push(
-              database.qb.user.wrap(
-                { method: `${tableNameCache.get(table)}.flush()` },
-                async () => {
-                  const client = await (
-                    database.driver as { internal: Pool }
-                  ).internal.connect();
+            const primaryKeys = primaryKeysCache.get(table)!;
+            const set = Object.values(getTableColumns(table))
+              .map(
+                (column) =>
+                  `"${getColumnCasing(column, "snake_case")}" = source."${getColumnCasing(column, "snake_case")}"`,
+              )
+              .join(",\n");
 
-                  try {
-                    await client.query(`
+            const createTempTableQuery = `
 CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
 SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"
 WITH NO DATA;
-`);
+`;
 
-                    const copyStream = client.query(
-                      copy.from(
-                        `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
-                      ),
-                    );
-
-                    await pipeline(updateStream, copyStream);
-
-                    const primaryKeys = primaryKeysCache.get(table)!;
-                    const set = Object.values(getTableColumns(table))
-                      .map(
-                        (column) =>
-                          `"${getColumnCasing(column, "snake_case")}" = source."${getColumnCasing(column, "snake_case")}"`,
-                      )
-                      .join(",\n");
-
-                    await client.query(`
+            const updateQuery = `
 UPDATE "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" as target
 SET ${set}
 FROM "${tableNameCache.get(table)}" as source
 WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
-`);
+`;
 
-                    await client.query(
-                      `DROP TABLE IF EXISTS "${tableNameCache.get(table)}"`,
-                    );
-                  } catch (_error) {
-                    const error = _error as Error;
-                    common.logger.error({
-                      service: "indexing",
-                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                    });
-                    throw new FlushError(error.message);
-                  } finally {
-                    client.release();
+            const dropTempTableQuery = `DROP TABLE IF EXISTS "${tableNameCache.get(table)}"`;
+
+            promises.push(
+              database.qb.user.wrap(
+                { method: `${tableNameCache.get(table)}.flush()` },
+                async () => {
+                  if (database.dialect === "pglite") {
+                    try {
+                      const client = (database.driver as { instance: PGlite })
+                        .instance;
+
+                      await client.query(createTempTableQuery);
+
+                      await client.query(
+                        `COPY "${tableNameCache.get(table)}" FROM '/dev/blob' WITH (FORMAT csv)`,
+                        [],
+                        {
+                          blob: new Blob([updateCSV]),
+                        },
+                      );
+
+                      await client.query(updateQuery);
+                      await client.query(dropTempTableQuery);
+                    } catch (_error) {
+                      const error = _error as Error;
+                      common.logger.error({
+                        service: "indexing",
+                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                      });
+                      throw new FlushError(error.message);
+                    }
+                  } else {
+                    const client = await (
+                      database.driver as { internal: Pool }
+                    ).internal.connect();
+
+                    try {
+                      await client.query(createTempTableQuery);
+
+                      await pipeline(
+                        Readable.from(updateCSV),
+                        client.query(
+                          copy.from(
+                            `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
+                          ),
+                        ),
+                      );
+
+                      await client.query(updateQuery);
+                      await client.query(dropTempTableQuery);
+                    } catch (_error) {
+                      const error = _error as Error;
+                      common.logger.error({
+                        service: "indexing",
+                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                      });
+                      throw new FlushError(error.message);
+                    } finally {
+                      client.release();
+                    }
                   }
                 },
               ),
