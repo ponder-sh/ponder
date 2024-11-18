@@ -304,7 +304,7 @@ export const createRealtimeSync = (
       }
     }
 
-    if (logs.length > 0 || traces.length > 0) {
+    if (logs.length > 0 || traces.length > 0 || transactions.length > 0) {
       const _text: string[] = [];
 
       if (logs.length === 1) {
@@ -314,9 +314,15 @@ export const createRealtimeSync = (
       }
 
       if (traces.length === 1) {
-        _text.push("1 call trace");
+        _text.push("1 trace");
       } else if (traces.length > 1) {
-        _text.push(`${traces.length} call traces`);
+        _text.push(`${traces.length} traces`);
+      }
+
+      if (transactions.length === 1) {
+        _text.push("1 transaction");
+      } else if (transactions.length > 1) {
+        _text.push(`${transactions.length} transactions`);
       }
 
       const text = _text.filter((t) => t !== undefined).join(" and ");
