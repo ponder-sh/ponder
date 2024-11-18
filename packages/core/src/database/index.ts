@@ -45,6 +45,8 @@ import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database = {
+  dialect: "pglite" | "postgres";
+  driver: PGliteDriver | PostgresDriver;
   qb: QueryBuilder;
   drizzle: Drizzle<Schema>;
   migrateSync(): Promise<void>;
@@ -452,6 +454,8 @@ export const createDatabase = (args: {
   };
 
   const database = {
+    dialect: dialect === "postgres" ? "postgres" : "pglite",
+    driver,
     qb,
     drizzle,
     async migrateSync() {
