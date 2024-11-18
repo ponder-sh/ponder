@@ -7,9 +7,8 @@ import type { Status } from "@/sync/index.js";
 import type { Source } from "@/sync/source.js";
 import type {
   SyncBlock,
-  SyncCallTrace,
-  SyncCreateTrace,
   SyncLog,
+  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -27,7 +26,6 @@ import {
   encodeFunctionResult,
   formatTransactionReceipt,
   hexToBigInt,
-  hexToNumber,
   parseEther,
 } from "viem";
 import {
@@ -239,50 +237,30 @@ export const getRawRPCData = async () => {
       block: blocks[0],
       transactions: [],
       transactionReceipts: [],
-      callTraces: [
+      traces: [
         {
-          action: {
+          trace: {
+            type: "CREATE",
             from: ALICE,
             gas: "0x0",
-            init: "0x0",
+            gasUsed: "0x0",
+            input: "0x0",
             value: "0x0",
           },
-          blockHash: blocks[0]!.hash,
-          blockNumber: blocks[0]!.number,
-          result: {
-            address: "0x0",
-            code: "0x0",
-            gasUsed: "0x0",
-          },
-          subtraces: 0,
-          traceAddress: [0],
           transactionHash: blocks[0]!.transactions[0]!.hash,
-          transactionPosition: hexToNumber(
-            blocks[0]!.transactions[0]!.transactionIndex,
-          ),
-          type: "create",
+          position: 0,
         },
         {
-          action: {
+          trace: {
+            type: "CREATE",
             from: ALICE,
             gas: "0x0",
-            init: "0x0",
+            gasUsed: "0x0",
+            input: "0x0",
             value: "0x0",
           },
-          blockHash: blocks[0]!.hash,
-          blockNumber: blocks[0]!.number,
-          result: {
-            address: "0x0",
-            code: "0x0",
-            gasUsed: "0x0",
-          },
-          subtraces: 0,
-          traceAddress: [0],
           transactionHash: blocks[0]!.transactions[1]!.hash,
-          transactionPosition: hexToNumber(
-            blocks[0]!.transactions[1]!.transactionIndex,
-          ),
-          type: "create",
+          position: 1,
         },
       ],
     },
@@ -293,66 +271,48 @@ export const getRawRPCData = async () => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[1]?.number,
       ),
-      callTraces: [
+      traces: [
         {
-          action: {
-            callType: "call",
+          trace: {
+            type: "CALL",
             from: ALICE,
+            to: logs[0]!.address,
             gas: "0x0",
+            gasUsed: "0x0",
             input: encodeFunctionData({
               abi: erc20ABI,
               functionName: "mint",
               args: [ALICE, parseEther("1")],
             }),
-            to: logs[0]!.address,
-            value: "0x0",
-          },
-          blockHash: blocks[1]!.hash,
-          blockNumber: blocks[1]!.number,
-          result: {
-            gasUsed: "0x0",
             output: encodeFunctionResult({
               abi: erc20ABI,
               functionName: "mint",
             }),
+            value: "0x0",
           },
-          subtraces: 0,
-          traceAddress: [0],
           transactionHash: blocks[1]!.transactions[0]!.hash,
-          transactionPosition: hexToNumber(
-            blocks[1]!.transactions[0]!.transactionIndex,
-          ),
-          type: "call",
+          position: 0,
         },
         {
-          action: {
-            callType: "call",
+          trace: {
+            type: "CALL",
             from: ALICE,
+            to: logs[1]!.address,
             gas: "0x0",
+            gasUsed: "0x0",
             input: encodeFunctionData({
               abi: erc20ABI,
               functionName: "mint",
               args: [BOB, parseEther("1")],
             }),
-            to: logs[1]!.address,
-            value: "0x0",
-          },
-          blockHash: blocks[1]!.hash,
-          blockNumber: blocks[1]!.number,
-          result: {
-            gasUsed: "0x0",
             output: encodeFunctionResult({
               abi: erc20ABI,
               functionName: "mint",
             }),
+            value: "0x0",
           },
-          subtraces: 0,
-          traceAddress: [0],
           transactionHash: blocks[1]!.transactions[1]!.hash,
-          transactionPosition: hexToNumber(
-            blocks[1]!.transactions[1]!.transactionIndex,
-          ),
-          type: "call",
+          position: 1,
         },
       ],
     },
@@ -363,36 +323,27 @@ export const getRawRPCData = async () => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[2]?.number,
       ),
-      callTraces: [
+      traces: [
         {
-          action: {
-            callType: "call",
+          trace: {
+            type: "CALL",
             from: ALICE,
+            to: logs[2]!.address,
             gas: "0x0",
+            gasUsed: "0x0",
             input: encodeFunctionData({
               abi: factoryABI,
               functionName: "createPair",
             }),
-            to: logs[2]!.address,
-            value: "0x0",
-          },
-          blockHash: blocks[2]!.hash,
-          blockNumber: blocks[2]!.number,
-          result: {
-            gasUsed: "0x0",
             output: encodeFunctionResult({
               abi: factoryABI,
               functionName: "createPair",
               result: logs[3]!.address,
             }),
+            value: "0x0",
           },
-          subtraces: 0,
-          traceAddress: [0],
           transactionHash: blocks[2]!.transactions[0]!.hash,
-          transactionPosition: hexToNumber(
-            blocks[2]!.transactions[0]!.transactionIndex,
-          ),
-          type: "call",
+          position: 0,
         },
       ],
     },
@@ -403,36 +354,27 @@ export const getRawRPCData = async () => {
       transactionReceipts: transactionReceipts.filter(
         (tr) => tr?.blockNumber === blocks[3]?.number,
       ),
-      callTraces: [
+      traces: [
         {
-          action: {
-            callType: "call",
+          trace: {
+            type: "CALL",
             from: ALICE,
+            to: logs[3]!.address,
             gas: "0x0",
+            gasUsed: "0x0",
             input: encodeFunctionData({
               abi: pairABI,
               functionName: "swap",
               args: [1n, 2n, ALICE],
             }),
-            to: logs[3]!.address,
-            value: "0x0",
-          },
-          blockHash: blocks[3]!.hash,
-          blockNumber: blocks[3]!.number,
-          result: {
-            gasUsed: "0x0",
             output: encodeFunctionResult({
               abi: pairABI,
               functionName: "swap",
             }),
+            value: "0x0",
           },
-          subtraces: 0,
-          traceAddress: [0],
           transactionHash: blocks[3]!.transactions[0]!.hash,
-          transactionPosition: hexToNumber(
-            blocks[3]!.transactions[0]!.transactionIndex,
-          ),
-          type: "call",
+          position: 0,
         },
       ],
     },
@@ -441,7 +383,7 @@ export const getRawRPCData = async () => {
       block: blocks[4]!,
       transactions: [],
       transactionReceipts: [],
-      callTraces: [],
+      traces: [],
     },
   } as unknown as {
     block1: {
@@ -449,35 +391,35 @@ export const getRawRPCData = async () => {
       block: SyncBlock;
       transactions: [];
       transactionReceipts: [];
-      callTraces: [SyncCreateTrace, SyncCreateTrace];
+      traces: [SyncTrace, SyncTrace];
     };
     block2: {
       logs: [SyncLog, SyncLog];
       block: SyncBlock;
       transactions: [SyncTransaction, SyncTransaction];
       transactionReceipts: [SyncTransactionReceipt, SyncTransactionReceipt];
-      callTraces: [SyncCallTrace, SyncCallTrace];
+      traces: [SyncTrace, SyncTrace];
     };
     block3: {
       logs: [SyncLog];
       block: SyncBlock;
       transactions: [SyncTransaction];
       transactionReceipts: [SyncTransactionReceipt];
-      callTraces: [SyncCallTrace];
+      traces: [SyncTrace];
     };
     block4: {
       logs: [SyncLog];
       block: SyncBlock;
       transactions: [SyncTransaction];
       transactionReceipts: [SyncTransactionReceipt];
-      callTraces: [SyncCallTrace];
+      traces: [SyncTrace];
     };
     block5: {
       logs: [];
       block: SyncBlock;
       transactions: [];
       transactionReceipts: [];
-      callTraces: [];
+      traces: [];
     };
   };
 };
@@ -592,7 +534,7 @@ export const getEventsTrace = async (
 
   return [
     {
-      trace: rpcData.block3.callTraces[0],
+      trace: rpcData.block3.traces[0],
       block: rpcData.block3.block,
       transaction: rpcData.block3.transactions[0]!,
       transactionReceipt: rpcData.block3.transactionReceipts[0]!,
@@ -616,21 +558,17 @@ export const getEventsTrace = async (
         eventIndex: 0n,
       }),
       trace: {
-        id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
-        from: checksumAddress(trace.action.from),
-        to: checksumAddress(trace.action.to),
-        gas: hexToBigInt(trace.action.gas),
-        value: hexToBigInt(trace.action.value),
-        input: trace.action.input,
-        output: trace.result!.output,
-        gasUsed: hexToBigInt(trace.result!.gasUsed),
-        subtraces: trace.subtraces,
-        traceAddress: trace.traceAddress,
-        blockHash: trace.blockHash,
-        blockNumber: hexToBigInt(trace.blockNumber),
-        transactionHash: trace.transactionHash,
-        transactionIndex: trace.transactionPosition,
-        callType: trace.action.callType,
+        id: `${trace.transactionHash}-${trace.position}`,
+        type: trace.trace.type,
+        from: checksumAddress(trace.trace.from),
+        to: trace.trace.to ? checksumAddress(trace.trace.to) : undefined,
+        gas: hexToBigInt(trace.trace.gas),
+        gasUsed: hexToBigInt(trace.trace.gasUsed),
+        input: trace.trace.input,
+        output: trace.trace.output,
+        error: trace.trace.error,
+        revertReason: trace.trace.revertReason,
+        value: trace.trace.value ? hexToBigInt(trace.trace.value) : undefined,
       },
       block: { ...block, miner: checksumAddress(block.miner) },
       transaction: {

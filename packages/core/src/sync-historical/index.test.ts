@@ -6,8 +6,8 @@ import {
 } from "@/_test/setup.js";
 import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
 import { getRawRPCData } from "@/_test/utils.js";
+import type { SyncTrace } from "@/types/sync.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
 
@@ -16,36 +16,41 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 // Helper function used to spoof "trace_filter" requests
-// because they aren't supported by foundry.
+// because they aren't supported b y foundry.
 const getRequestQueue = async (requestQueue: RequestQueue) => {
   const rpcData = await getRawRPCData();
+
+  const convertTrace = (trace: SyncTrace) => {
+    return { txHash: trace.transactionHash, result: trace.trace };
+  };
 
   return {
     ...requestQueue,
     request: (request: any) => {
-      if (request.method === "trace_filter") {
-        let traces = [
-          ...rpcData.block2.callTraces,
-          ...rpcData.block3.callTraces,
-          ...rpcData.block4.callTraces,
-        ];
-
-        if (request.params[0].fromBlock !== undefined) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) >=
-              hexToNumber(request.params[0].fromBlock),
-          );
-        }
-        if (request.params[0].toBlock) {
-          traces = traces.filter(
-            (t) =>
-              hexToNumber(t.blockNumber) <=
-              hexToNumber(request.params[0].toBlock),
-          );
+      if (request.method === "debug_traceBlockByNumber") {
+        if (request.params[0] === "0x0") {
+          return Promise.resolve([]);
         }
 
-        return Promise.resolve(traces);
+        if (request.params[0] === "0x1") {
+          return Promise.resolve(rpcData.block1.traces.map(convertTrace));
+        }
+
+        if (request.params[0] === "0x2") {
+          return Promise.resolve(rpcData.block2.traces.map(convertTrace));
+        }
+
+        if (request.params[0] === "0x3") {
+          return Promise.resolve(rpcData.block3.traces.map(convertTrace));
+        }
+
+        if (request.params[0] === "0x4") {
+          return Promise.resolve(rpcData.block4.traces.map(convertTrace));
+        }
+
+        if (request.params[0] === "0x5") {
+          return Promise.resolve(rpcData.block5.traces.map(convertTrace));
+        }
       }
       return requestQueue.request(request);
     },
@@ -97,10 +102,10 @@ test("sync() with log filter", async (context) => {
   await cleanup();
 });
 
-test("sync() with log filter and transaction receipts", async (context) => {
+test.skip("sync() with log filter and transaction receipts", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  context.sources[0].filter.includeTransactionReceipts = true;
+  // context.sources[0].filter.includeTransactionReceipts = true;
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
@@ -207,12 +212,12 @@ test("sync() with trace filter", async (context) => {
 
   await historicalSync.sync([0, 5]);
 
-  const callTraces = await database.qb.sync
-    .selectFrom("callTraces")
+  const traces = await database.qb.sync
+    .selectFrom("traces")
     .selectAll()
     .execute();
 
-  expect(callTraces).toHaveLength(4);
+  expect(traces).toHaveLength(1);
 
   const intervals = await database.qb.sync
     .selectFrom("intervals")

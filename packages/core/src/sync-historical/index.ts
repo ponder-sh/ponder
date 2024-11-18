@@ -387,38 +387,36 @@ export const createHistoricalSync = async (
       const _traces = _debug_traceBlockByNumber(args.requestQueue, {
         blockNumber: toHex(blockNumber),
       });
-
       traceCache.set(blockNumber, _traces);
-
-      // TODO(kyle) handle factory
-      traces = await _traces.then((_traces) =>
-        _traces.filter((trace) => {
-          if (
-            filter.type === "transfer" &&
-            isTransferFilterMatched({
-              filter,
-              block: { number: toHex(blockNumber) },
-              trace: trace.trace,
-            })
-          ) {
-            return true;
-          }
-
-          if (
-            filter.type === "trace" &&
-            isTraceFilterMatched({
-              filter,
-              block: { number: toHex(blockNumber) },
-              trace: trace.trace,
-            })
-          ) {
-            return true;
-          }
-
-          return false;
-        }),
-      );
+      traces = await _traces;
     }
+
+    // TODO(kyle) handle factory
+    traces = traces.filter((trace) => {
+      if (
+        filter.type === "transfer" &&
+        isTransferFilterMatched({
+          filter,
+          block: { number: toHex(blockNumber) },
+          trace: trace.trace,
+        })
+      ) {
+        return true;
+      }
+
+      if (
+        filter.type === "trace" &&
+        isTraceFilterMatched({
+          filter,
+          block: { number: toHex(blockNumber) },
+          trace: trace.trace,
+        })
+      ) {
+        return true;
+      }
+
+      return false;
+    });
 
     if (traces.length > 0) {
       const block = await syncBlock(BigInt(blockNumber));

@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { EVENT_TYPES } from "@/utils/checkpoint.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 
@@ -1111,9 +1112,111 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .addColumn("value", "numeric(78, 0)")
         .execute();
 
-      // TODO(kyle) indexes
+      // `getEvents` benefits from an index on
+      // "blockNumber", "input", "error", "blockHash"
+      // "transactionHash", "checkpoint", "chainId", "from", "to",
+      // "value", and "type"
 
-      // TODO(kyle): add `checkpoint` to `transactions` table
+      await db.schema
+        .createIndex("trace_block_number_index")
+        .on("traces")
+        .column("blockNumber")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_input_index")
+        .on("traces")
+        .column("input")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_error_index")
+        .on("traces")
+        .column("error")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_block_hash_index")
+        .on("traces")
+        .column("blockHash")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_transaction_hash_index")
+        .on("traces")
+        .column("transactionHash")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_checkpoint_index")
+        .on("traces")
+        .column("checkpoint")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_chain_id_index")
+        .on("traces")
+        .column("chainId")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_value_index")
+        .on("traces")
+        .column("value")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_from_index")
+        .on("traces")
+        .column("from")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_to_index")
+        .on("traces")
+        .column("to")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_type_index")
+        .on("traces")
+        .column("type")
+        .execute();
+
+      // add `checkpoint` to `transactions`
+      await db.schema
+        .alterTable("transactions")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+
+      await db.executeQuery(
+        sql
+          .raw(`
+UPDATE ponder_sync.transactions
+SET checkpoint = (
+  lpad(blocks.timestamp::text, 10, '0') ||
+  lpad(transactions."chainId"::text, 16, '0') ||
+  lpad(transactions."blockNumber"::text, 16, '0') ||
+  lpad(transactions."transactionIndex"::text, 16, '0') ||
+  '${EVENT_TYPES.transactions}' ||
+  '0000000000000000'
+)
+FROM ponder_sync.blocks
+WHERE transactions."blockHash" = blocks.hash
+          `)
+          .compile(db),
+      );
+
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("checkpoint", (col) => col.setNotNull())
+        .execute();
+
+      await db.schema
+        .createIndex("transactions_checkpoint_index")
+        .on("transactions")
+        .column("checkpoint")
+        .execute();
     },
   },
 };

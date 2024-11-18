@@ -461,7 +461,7 @@ export const createSyncStore = ({
                 }),
               ),
           )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .onConflict((oc) => oc.column("id").doNothing())
           .execute();
       }
     });
