@@ -8,15 +8,17 @@ import type { NonStrictPick } from "./utilityTypes.js";
 export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
+  accounts: { [accountName: string]: AccountConfig<unknown, unknown> };
   database?: DatabaseConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
   };
 };
 
-export type CreateConfigReturnType<networks, contracts, blocks> = {
+export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
   networks: networks;
   contracts: contracts;
+  accounts: accounts;
   database?: DatabaseConfig;
   blocks: blocks;
 };
@@ -33,8 +35,10 @@ export const createConfig = <
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
   accounts?: AccountsConfig<networks, Narrow<accounts>>;
   blocks?: BlockFiltersConfig<networks, blocks>;
-}): CreateConfigReturnType<networks, contracts, blocks> =>
-  config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
+}): CreateConfigReturnType<networks, contracts, accounts, blocks> =>
+  config as Prettify<
+    CreateConfigReturnType<networks, contracts, accounts, blocks>
+  >;
 
 // database
 

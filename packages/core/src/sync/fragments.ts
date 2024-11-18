@@ -158,20 +158,6 @@ export const getLogFilterFragmentIds = ({
   return fragments;
 };
 
-function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
-  return {
-    topic0: topics?.[0] ?? null,
-    topic1: topics?.[1] ?? null,
-    topic2: topics?.[2] ?? null,
-    topic3: topics?.[3] ?? null,
-  } as {
-    topic0: Hex | Hex[] | null;
-    topic1: Hex | Hex[] | null;
-    topic2: Hex | Hex[] | null;
-    topic3: Hex | Hex[] | null;
-  };
-}
-
 export const getBlockFilterFragmentId = ({
   chainId,
   interval,
