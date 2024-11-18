@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.7.6
+
+### Patch Changes
+
+- [#1251](https://github.com/ponder-sh/ponder/pull/1251) [`2806076d48803d3dd39789eeb71d1ec75ef70f86`](https://github.com/ponder-sh/ponder/commit/2806076d48803d3dd39789eeb71d1ec75ef70f86) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved memory usage during historical indexing.
+
+- [#1250](https://github.com/ponder-sh/ponder/pull/1250) [`a142bbd005af561187d48588c4ce50fb59e25de1`](https://github.com/ponder-sh/ponder/commit/a142bbd005af561187d48588c4ce50fb59e25de1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug in reorg reconciliation logic.
+
 ## 0.7.5
 
 ### Patch Changes
