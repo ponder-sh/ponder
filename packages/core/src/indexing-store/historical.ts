@@ -806,50 +806,25 @@ export const createHistoricalIndexingStore = ({
         const promises: Promise<void>[] = [];
 
         for (const [table, tableCache] of cache) {
-          const removableInsertValues = Array.from(tableCache.values())
-            .filter(
-              (e) =>
-                e.type === EntryType.INSERT &&
-                shouldDelete &&
-                e.operationIndex < flushIndex,
-            )
-            .map((e) => e.row) as InsertEntry["row"][];
+          const insertValues: InsertEntry["row"][] = [];
+          const updateValues: UpdateEntry["row"][] = [];
 
-          const removableUpdateValues = Array.from(tableCache.values())
-            .filter(
-              (e) =>
-                e.type === EntryType.UPDATE &&
-                shouldDelete &&
-                e.operationIndex < flushIndex,
-            )
-            .map((e) => e.row) as UpdateEntry["row"][];
-
-          // remove outdated entries, making them eligible for garbage collection
           for (const [key, entry] of tableCache) {
+            if (entry.type === EntryType.INSERT) {
+              insertValues.push(entry.row);
+            }
+
+            if (entry.type === EntryType.UPDATE) {
+              updateValues.push(entry.row);
+            }
+
             if (shouldDelete && entry.operationIndex < flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
             }
-          }
 
-          const nonRemovableInsertValues = Array.from(tableCache.values())
-            .filter((e) => e.type === EntryType.INSERT)
-            .map((e) => e.row) as UpdateEntry["row"][];
-
-          const nonRemovableUpdateValues = Array.from(tableCache.values())
-            .filter((e) => e.type === EntryType.UPDATE)
-            .map((e) => e.row) as InsertEntry["row"][];
-
-          for (const [, entry] of tableCache) {
             entry.type = EntryType.FIND;
           }
-
-          const insertValues = removableInsertValues.concat(
-            nonRemovableInsertValues,
-          );
-          const updateValues = removableUpdateValues.concat(
-            nonRemovableUpdateValues,
-          );
 
           const insertSize = insertValues.length;
           const updateSize = updateValues.length;
