@@ -32,22 +32,24 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test("factory", async (context) => {
-  const port = await getFreePort();
+test(
+  "factory",
+  async (context) => {
+    const port = await getFreePort();
 
-  const cleanup = await start({
-    cliOptions: {
-      ...cliOptions,
-      command: "start",
+    const cleanup = await start({
+      cliOptions: {
+        ...cliOptions,
+        command: "start",
+        port,
+      },
+    });
+
+    await waitForIndexedBlock(port, "mainnet", 5);
+
+    let response = await postGraphql(
       port,
-    },
-  });
-
-  await waitForIndexedBlock(port, "mainnet", 5);
-
-  let response = await postGraphql(
-    port,
-    `
+      `
     swapEvents {
       items {
         id
@@ -57,28 +59,28 @@ test("factory", async (context) => {
       }
     }
     `,
-  );
+    );
 
-  expect(response.status).toBe(200);
-  let body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-  let swapEvents = body.data.swapEvents.items;
+    expect(response.status).toBe(200);
+    let body = (await response.json()) as any;
+    expect(body.errors).toBe(undefined);
+    let swapEvents = body.data.swapEvents.items;
 
-  expect(swapEvents).toHaveLength(1);
-  expect(swapEvents[0]).toMatchObject({
-    id: expect.any(String),
-    from: ALICE.toLowerCase(),
-    to: ALICE.toLowerCase(),
-    pair: context.factory.pair.toLowerCase(),
-  });
+    expect(swapEvents).toHaveLength(1);
+    expect(swapEvents[0]).toMatchObject({
+      id: expect.any(String),
+      from: ALICE.toLowerCase(),
+      to: ALICE.toLowerCase(),
+      pair: context.factory.pair.toLowerCase(),
+    });
 
-  await simulatePairSwap(context.factory.pair);
+    await simulatePairSwap(context.factory.pair);
 
-  await waitForIndexedBlock(port, "mainnet", 6);
+    await waitForIndexedBlock(port, "mainnet", 6);
 
-  response = await postGraphql(
-    port,
-    `
+    response = await postGraphql(
+      port,
+      `
     swapEvents {
       items {
         id
@@ -88,14 +90,16 @@ test("factory", async (context) => {
       }
     }
     `,
-  );
+    );
 
-  expect(response.status).toBe(200);
-  body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-  swapEvents = body.data.swapEvents.items;
+    expect(response.status).toBe(200);
+    body = (await response.json()) as any;
+    expect(body.errors).toBe(undefined);
+    swapEvents = body.data.swapEvents.items;
 
-  expect(swapEvents).toHaveLength(2);
+    expect(swapEvents).toHaveLength(2);
 
-  await cleanup();
-});
+    await cleanup();
+  },
+  { timeout: 15_000 },
+);

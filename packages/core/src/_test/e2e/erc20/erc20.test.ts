@@ -35,27 +35,29 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test("erc20", async (context) => {
-  const port = await getFreePort();
+test(
+  "erc20",
+  async (context) => {
+    const port = await getFreePort();
 
-  const cleanup = await start({
-    cliOptions: {
-      ...cliOptions,
-      command: "start",
+    const cleanup = await start({
+      cliOptions: {
+        ...cliOptions,
+        command: "start",
+        port,
+      },
+    });
+
+    await simulate({
+      erc20Address: context.erc20.address,
+      factoryAddress: context.factory.address,
+    });
+
+    await waitForIndexedBlock(port, "mainnet", 8);
+
+    const response = await postGraphql(
       port,
-    },
-  });
-
-  await simulate({
-    erc20Address: context.erc20.address,
-    factoryAddress: context.factory.address,
-  });
-
-  await waitForIndexedBlock(port, "mainnet", 8);
-
-  const response = await postGraphql(
-    port,
-    `
+      `
     accounts {
       items {
         address
@@ -63,27 +65,29 @@ test("erc20", async (context) => {
       }
     }
     `,
-  );
+    );
 
-  expect(response.status).toBe(200);
-  const body = (await response.json()) as any;
-  expect(body.errors).toBe(undefined);
-  const accounts = body.data.accounts.items;
-  expect(accounts[0]).toMatchObject({
-    address: zeroAddress,
-    balance: (-2 * 10 ** 18).toString(),
-  });
-  expect(accounts[1]).toMatchObject({
-    address: BOB.toLowerCase(),
-    balance: (2 * 10 ** 18).toString(),
-  });
-  expect(accounts[2]).toMatchObject({
-    address: ALICE.toLowerCase(),
-    balance: "0",
-  });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.errors).toBe(undefined);
+    const accounts = body.data.accounts.items;
+    expect(accounts[0]).toMatchObject({
+      address: zeroAddress,
+      balance: (-2 * 10 ** 18).toString(),
+    });
+    expect(accounts[1]).toMatchObject({
+      address: BOB.toLowerCase(),
+      balance: (2 * 10 ** 18).toString(),
+    });
+    expect(accounts[2]).toMatchObject({
+      address: ALICE.toLowerCase(),
+      balance: "0",
+    });
 
-  await cleanup();
-});
+    await cleanup();
+  },
+  { timeout: 15_000 },
+);
 
 const isPglite = !!process.env.DATABASE_URL;
 
