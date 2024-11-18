@@ -289,35 +289,33 @@ export const createHistoricalIndexingStore = ({
     entries: (InsertEntry | UpdateEntry)["row"][],
   ) => {
     const columns = Object.entries(getTableColumns(table));
-    const results: string[] = [];
+    let result = "";
 
     while (entries.length > 0) {
       const entry = entries.pop()!;
-      results.push(
-        columns
-          .map(([columnName, column]) => {
-            const value = entry[columnName];
+      for (let j = 0; j < columns.length; j++) {
+        const [columnName, column] = columns[j]!;
+        const value = entry[columnName];
 
-            if (value === null || value === undefined) {
-              return "\\N"; // PostgreSQL's NULL representation in COPY
-            }
+        if (value === null || value === undefined) {
+          result += "\\N";
+        } else if (column.mapToDriverValue === undefined) {
+          result += `"${String(value).replace(/"/g, '""')}"`;
+        } else {
+          const mappedValue = column.mapToDriverValue(value);
+          if (mappedValue === null || mappedValue === undefined) {
+            result += "\\N";
+          } else {
+            result += `"${String(mappedValue).replace(/"/g, '""')}"`;
+          }
+        }
+        // Add comma if not last column
+        if (j < columns.length - 1) result += ",";
+      }
 
-            if (column.mapToDriverValue === undefined) {
-              // Escape special characters and quote the value
-              return `"${String(value).replace(/"/g, '""')}"`;
-            }
-
-            const mappedValue = column.mapToDriverValue(value);
-            if (mappedValue === null || mappedValue === undefined) {
-              return "\\N";
-            }
-            // Escape special characters and quote the value
-            return `"${String(mappedValue).replace(/"/g, '""')}"`;
-          })
-          .join(","),
-      );
+      result += "\n";
     }
-    return `${results.join("\n")}\n`;
+    return result;
   };
 
   const getBytes = (value: unknown) => {
@@ -832,6 +830,8 @@ export const createHistoricalIndexingStore = ({
           const insertCSV = getCopyCSV(table, insertValues);
           const updateCSV = getCopyCSV(table, updateValues);
 
+          // Steps for flushing "insert" entries:
+          // 1. Copy into target table
           if (insertSize > 0) {
             common.logger.debug({
               service: "indexing",
@@ -973,6 +973,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       );
 
                       await client.query(updateQuery);
+                      // temp table is not dropped automatically when using pg.Pool
                       await client.query(dropTempTableQuery);
                     } catch (_error) {
                       const error = _error as Error;
