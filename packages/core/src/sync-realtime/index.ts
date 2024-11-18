@@ -292,7 +292,6 @@ export const createRealtimeSync = (
       return isMatched;
     });
 
-    transactions = transactions.filter((t) => transactionHashes.has(t.hash));
     transactionReceipts = transactionReceipts.filter((t) =>
       transactionHashes.has(t.transactionHash),
     );
