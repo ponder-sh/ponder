@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.7.7
+
+### Patch Changes
+
+- [#1257](https://github.com/ponder-sh/ponder/pull/1257) [`dc768bdd06077915e7b37bf84bc0a0d23fc1c8b8`](https://github.com/ponder-sh/ponder/commit/dc768bdd06077915e7b37bf84bc0a0d23fc1c8b8) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the `codegen` command did not generate `generated/schema.graphql`.
+
+- [#1259](https://github.com/ponder-sh/ponder/pull/1259) [`1e5119ddeb9494f9c420ee2e11bf55bbdfc387ee`](https://github.com/ponder-sh/ponder/commit/1e5119ddeb9494f9c420ee2e11bf55bbdfc387ee) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `totalCount` field to the plural GraphQL connection type, which returns the total number of records in the database that match the specified `where` clause. [Read more](https://ponder.sh/docs/query/graphql#total-count).
+
 ## 0.7.6
 
 ### Patch Changes
