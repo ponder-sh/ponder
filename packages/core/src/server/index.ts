@@ -1,7 +1,6 @@
 import http from "node:http";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
-import type { Schema } from "@/drizzle/index.js";
 import { graphql } from "@/graphql/middleware.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/indexing-store/metadata.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
+import type { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -26,14 +26,14 @@ export async function createServer({
   app: userApp,
   routes: userRoutes,
   common,
-  schema,
+  graphqlSchema,
   database,
   instanceId,
 }: {
   app: Hono;
   routes: PonderRoutes;
   common: Common;
-  schema: Schema;
+  graphqlSchema: GraphQLSchema;
   database: Database;
   instanceId?: string;
 }): Promise<Server> {
@@ -93,10 +93,9 @@ export async function createServer({
 
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", common);
     c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
-    c.set("schema", schema);
+    c.set("graphqlSchema", graphqlSchema);
     await next();
   });
 

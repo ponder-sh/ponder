@@ -15,13 +15,13 @@ export async function runServer({
   build: ApiBuild;
   database: Database;
 }) {
-  const { schema, instanceId } = build;
+  const { instanceId, graphqlSchema } = build;
 
   const server = await createServer({
     app: build.app,
     routes: build.routes,
     common,
-    schema,
+    graphqlSchema,
     database,
     instanceId,
   });

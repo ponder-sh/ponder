@@ -13,6 +13,7 @@ import type { PonderRoutes } from "@/hono/index.js";
 import type { Source } from "@/sync/source.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
+import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
 import { type ViteDevServer, createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
@@ -57,6 +58,7 @@ type BaseBuild = {
   schema: Schema;
   statements: SqlStatements;
   namespace: string;
+  graphqlSchema: GraphQLSchema;
 };
 
 export type IndexingBuild = BaseBuild & {
@@ -748,6 +750,7 @@ const validateAndBuild = async (
       schema: schema.schema,
       statements: buildSchemaResult.statements,
       namespace: buildSchemaResult.namespace,
+      graphqlSchema: buildSchemaResult.graphqlSchema,
     },
   };
 };

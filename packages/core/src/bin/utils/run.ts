@@ -32,7 +32,14 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const { instanceId, networks, sources, schema, indexingFunctions } = build;
+  const {
+    instanceId,
+    networks,
+    sources,
+    schema,
+    indexingFunctions,
+    graphqlSchema,
+  } = build;
 
   let isKilled = false;
 
@@ -52,7 +59,7 @@ export async function run({
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  runCodegen({ common });
+  runCodegen({ common, graphqlSchema });
 
   // Note: can throw
   const sync = await createSync({

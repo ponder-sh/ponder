@@ -12,8 +12,10 @@ import {
   arrayContained,
   arrayContains,
   asc,
+  createTableRelationsHelpers,
   desc,
   eq,
+  extractTablesRelationalConfig,
   getTableColumns,
   gt,
   gte,
@@ -59,6 +61,7 @@ type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
   metadataStore: MetadataStore;
+  drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
 type PluralArgs = {
@@ -73,10 +76,15 @@ type PluralArgs = {
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1000 as const;
 
-export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
-  const tables = Object.values(db._.schema ?? {}) as TableRelationalConfig[];
+export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
+  const tablesConfig = extractTablesRelationalConfig(
+    schema,
+    createTableRelationsHelpers,
+  );
 
-  const enums = Object.entries(db._.fullSchema ?? {}).filter(
+  const tables = Object.values(tablesConfig.tables) as TableRelationalConfig[];
+
+  const enums = Object.entries(schema).filter(
     (el): el is [string, PgEnum<[string, ...string[]]>] => isPgEnum(el[1]),
   );
   const enumTypes: Record<string, GraphQLEnumType> = {};
@@ -208,13 +216,6 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
               `Internal error: Referenced entity type not found for table "${referencedTable.tsName}" `,
             );
 
-          const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>)
-            .query[referencedTable.tsName];
-          if (!baseQuery)
-            throw new Error(
-              `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
-            );
-
           if (is(relation, One)) {
             const fields = relation.config?.fields ?? [];
             const references = relation.config?.references ?? [];
@@ -279,13 +280,19 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                 after: { type: GraphQLString },
                 limit: { type: GraphQLInt },
               },
-              resolve: async (parent, args: PluralArgs, _context) => {
+              resolve: async (parent, args: PluralArgs, context) => {
                 const relationalConditions = [];
                 for (let i = 0; i < references.length; i++) {
                   const column = fields[i]!;
                   const value = parent[references[i]!.name];
                   relationalConditions.push(eq(column, value));
                 }
+
+                const baseQuery = context.drizzle.query[referencedTable.tsName];
+                if (!baseQuery)
+                  throw new Error(
+                    `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
+                  );
 
                 return executePluralQuery(
                   table,
@@ -329,14 +336,6 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
       table.tsName.charAt(0).toLowerCase() + table.tsName.slice(1);
     const pluralFieldName = `${singularFieldName}s`;
 
-    const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>).query[
-      table.tsName
-    ];
-    if (!baseQuery)
-      throw new Error(
-        `Internal error: Table "${table.tsName}" not found in RQB`,
-      );
-
     queryFields[singularFieldName] = {
       type: entityType,
       // Find the primary key columns and GraphQL core types and include them
@@ -351,7 +350,13 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           },
         ]),
       ),
-      resolve: async (_parent, args, _context) => {
+      resolve: async (_parent, args, context) => {
+        const baseQuery = context.drizzle.query[table.tsName];
+        if (!baseQuery)
+          throw new Error(
+            `Internal error: Table "${table.tsName}" not found in RQB`,
+          );
+
         // The `args` object here should be a valid `where` argument that
         // uses the `eq` shorthand for each primary key column.
         const whereConditions = buildWhereConditions(args, table.columns);
@@ -373,7 +378,13 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
       },
-      resolve: async (_parent, args: PluralArgs, _context) => {
+      resolve: async (_parent, args: PluralArgs, context) => {
+        const baseQuery = context.drizzle.query[table.tsName];
+        if (!baseQuery)
+          throw new Error(
+            `Internal error: Table "${table.tsName}" not found in RQB`,
+          );
+
         return executePluralQuery(table, baseQuery, args);
       },
     };
