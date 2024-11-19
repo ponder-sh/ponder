@@ -322,8 +322,8 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
             new GraphQLList(new GraphQLNonNull(entityTypes[table.tsName]!)),
           ),
         },
-        totalCount: { type: GraphQLInt },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
+        totalCount: { type: new GraphQLNonNull(GraphQLInt) },
       }),
     });
   }
