@@ -309,6 +309,14 @@ export const createHistoricalSync = async (
     filter: TransactionFilter,
     interval: Interval,
   ) => {
+    const fromAddress = isAddressFactory(filter.fromAddress)
+      ? await syncAddress(filter.fromAddress, interval)
+      : filter.fromAddress;
+
+    const toAddress = isAddressFactory(filter.toAddress)
+      ? await syncAddress(filter.toAddress, interval)
+      : filter.toAddress;
+
     const requiredBlocks: number[] = [];
     for (let b = interval[0]; b <= interval[1]; b += 1) {
       requiredBlocks.push(b);
@@ -324,7 +332,17 @@ export const createHistoricalSync = async (
 
     for (const block of blocks) {
       block.transactions.map((transaction) => {
-        if (isTransactionFilterMatched({ filter, block, transaction })) {
+        if (
+          isTransactionFilterMatched({
+            filter: {
+              ...filter,
+              fromAddress: fromAddress,
+              toAddress: toAddress,
+            },
+            block,
+            transaction,
+          })
+        ) {
           transactionHashes.add(transaction.hash);
         }
       });
@@ -381,6 +399,20 @@ export const createHistoricalSync = async (
   ) => {
     let traces: SyncTrace[] = [];
 
+    const fromAddress = isAddressFactory(filter.fromAddress)
+      ? await syncAddress(filter.fromAddress, [
+          Number(blockNumber),
+          Number(blockNumber),
+        ])
+      : filter.fromAddress;
+
+    const toAddress = isAddressFactory(filter.toAddress)
+      ? await syncAddress(filter.toAddress, [
+          Number(blockNumber),
+          Number(blockNumber),
+        ])
+      : filter.toAddress;
+
     if (traceCache.has(blockNumber)) {
       traces = await traceCache.get(blockNumber)!;
     } else {
@@ -396,7 +428,11 @@ export const createHistoricalSync = async (
       if (
         filter.type === "transfer" &&
         isTransferFilterMatched({
-          filter,
+          filter: {
+            ...filter,
+            fromAddress: fromAddress,
+            toAddress: toAddress,
+          },
           block: { number: toHex(blockNumber) },
           trace: trace.trace,
         })
@@ -407,7 +443,11 @@ export const createHistoricalSync = async (
       if (
         filter.type === "trace" &&
         isTraceFilterMatched({
-          filter,
+          filter: {
+            ...filter,
+            fromAddress,
+            toAddress,
+          },
           block: { number: toHex(blockNumber) },
           trace: trace.trace,
         })

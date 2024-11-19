@@ -208,6 +208,36 @@ export const createRealtimeSync = (
       }
     }
 
+    const isFactoryAddressMatched = ({
+      filter,
+      event,
+    }: {
+      filter: TraceFilter | TransferFilter | TransactionFilter;
+      event: SyncTrace["trace"] | SyncTransaction;
+    }): boolean => {
+      const fromAddressMatched = isAddressFactory(filter.fromAddress)
+        ? finalizedChildAddresses
+            .get(filter.fromAddress)!
+            .has(event.from.toLowerCase() as Address) ||
+          unfinalizedChildAddresses
+            .get(filter.fromAddress)!
+            .has(event.from.toLowerCase() as Address)
+        : true;
+
+      const toAdressMatched = isAddressFactory(filter.toAddress)
+        ? event.to !== undefined &&
+          event.to !== null &&
+          (finalizedChildAddresses
+            .get(filter.toAddress)!
+            .has(event.to.toLowerCase() as Address) ||
+            unfinalizedChildAddresses
+              .get(filter.toAddress)!
+              .has(event.to.toLowerCase() as Address))
+        : true;
+
+      return fromAddressMatched && toAdressMatched;
+    };
+
     /**
      * `logs` and `callTraces` must be filtered again (already filtered in `extract`)
      *  because `extract` doesn't have factory address information.
@@ -248,6 +278,10 @@ export const createRealtimeSync = (
             filter,
             block: { number: block.number },
             trace: trace.trace,
+          }) &&
+          isFactoryAddressMatched({
+            filter,
+            event: trace.trace,
           })
         ) {
           matchedFilters.add(filter);
@@ -261,6 +295,10 @@ export const createRealtimeSync = (
             filter,
             block: { number: block.number },
             trace: trace.trace,
+          }) &&
+          isFactoryAddressMatched({
+            filter,
+            event: trace.trace,
           })
         ) {
           matchedFilters.add(filter);
@@ -284,7 +322,10 @@ export const createRealtimeSync = (
     transactions = transactions.filter((transaction) => {
       let isMatched = transactionHashes.has(transaction.hash);
       for (const filter of transactionFilters) {
-        if (isTransactionFilterMatched({ filter, block, transaction })) {
+        if (
+          isTransactionFilterMatched({ filter, block, transaction }) &&
+          isFactoryAddressMatched({ filter, event: transaction })
+        ) {
           matchedFilters.add(filter);
           isMatched = true;
         }

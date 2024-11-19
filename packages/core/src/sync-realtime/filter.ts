@@ -189,13 +189,6 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  if (
-    filter.includeReverted === false &&
-    (trace.revertReason !== undefined || trace.error !== undefined)
-  ) {
-    return false;
-  }
-
   return true;
 };
 
@@ -238,10 +231,6 @@ export const isTransferFilterMatched = ({
       trace.to,
     ) === false
   ) {
-    return false;
-  }
-
-  if (trace.revertReason !== undefined && trace.error !== undefined) {
     return false;
   }
 

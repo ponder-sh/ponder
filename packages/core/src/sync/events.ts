@@ -48,6 +48,9 @@ import {
   type BlockFilter,
   type Factory,
   type Source,
+  type TraceFilter,
+  type TransactionFilter,
+  type TransferFilter,
   isAddressFactory,
 } from "./source.js";
 
@@ -197,6 +200,36 @@ export const buildEvents = ({
     );
   }
 
+  const isFactoryAddressMatched = ({
+    filter,
+    event,
+  }: {
+    filter: TraceFilter | TransferFilter | TransactionFilter;
+    event: SyncTrace["trace"] | SyncTransaction;
+  }): boolean => {
+    const fromAddressMatched = isAddressFactory(filter.fromAddress)
+      ? finalizedChildAddresses
+          .get(filter.fromAddress)!
+          .has(event.from.toLowerCase() as Address) ||
+        unfinalizedChildAddresses
+          .get(filter.fromAddress)!
+          .has(event.from.toLowerCase() as Address)
+      : true;
+
+    const toAdressMatched = isAddressFactory(filter.toAddress)
+      ? event.to !== undefined &&
+        event.to !== null &&
+        (finalizedChildAddresses
+          .get(filter.toAddress)!
+          .has(event.to.toLowerCase() as Address) ||
+          unfinalizedChildAddresses
+            .get(filter.toAddress)!
+            .has(event.to.toLowerCase() as Address))
+      : true;
+
+    return fromAddressMatched && toAdressMatched;
+  };
+
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i]!;
     const filter = source.filter;
@@ -248,6 +281,10 @@ export const buildEvents = ({
                   filter,
                   block,
                   trace: trace.trace,
+                }) &&
+                isFactoryAddressMatched({
+                  filter,
+                  event: trace.trace,
                 })
               ) {
                 // TODO: filter on factory
@@ -289,6 +326,10 @@ export const buildEvents = ({
                   filter,
                   block,
                   transaction,
+                }) &&
+                isFactoryAddressMatched({
+                  filter,
+                  event: transaction,
                 })
               ) {
                 // TODO: filter on factory
@@ -318,7 +359,15 @@ export const buildEvents = ({
           case "transfer": {
             for (const trace of traces) {
               if (
-                isTransferFilterMatched({ filter, block, trace: trace.trace })
+                isTransferFilterMatched({
+                  filter,
+                  block,
+                  trace: trace.trace,
+                }) &&
+                isFactoryAddressMatched({
+                  filter,
+                  event: trace.trace,
+                })
               ) {
                 // TODO: filter on factory
 
