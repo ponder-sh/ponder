@@ -577,6 +577,7 @@ test("singular with many relation using filter", async (context) => {
           items {
             id
           }
+          totalCount
         }
       }
     }
@@ -587,6 +588,66 @@ test("singular with many relation using filter", async (context) => {
     person: {
       pets: {
         items: [{ id: "dog2" }],
+        totalCount: 1,
+      },
+    },
+  });
+
+  await cleanup();
+});
+
+test("singular with many relation using order by", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+  const personRelations = relations(person, ({ many }) => ({
+    pets: many(pet),
+  }));
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+    ownerId: t.text(),
+  }));
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, { fields: [pet.ownerId], references: [person.id] }),
+  }));
+  const schema = { person, personRelations, pet, petRelations };
+
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const contextValue = buildContextValue(database, metadataStore);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
+    { id: "dog1", age: 1, ownerId: "jake" },
+    { id: "dog2", age: 2, ownerId: "jake" },
+    { id: "dog3", age: 3, ownerId: "jake" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema(schema);
+
+  const result = await query(`
+    query {
+      person(id: "jake") {
+        pets(orderBy: "age", orderDirection: "desc") {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    person: {
+      pets: {
+        items: [{ id: "dog3" }, { id: "dog2" }, { id: "dog1" }],
       },
     },
   });
@@ -1488,6 +1549,7 @@ test("cursor pagination ascending", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1508,6 +1570,7 @@ test("cursor pagination ascending", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 9,
     },
   });
 
@@ -1527,6 +1590,7 @@ test("cursor pagination ascending", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1546,6 +1610,7 @@ test("cursor pagination ascending", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 9,
     },
   });
 
@@ -1565,6 +1630,7 @@ test("cursor pagination ascending", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1582,6 +1648,7 @@ test("cursor pagination ascending", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 9,
     },
   });
 
@@ -1626,6 +1693,7 @@ test("cursor pagination descending", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1643,6 +1711,7 @@ test("cursor pagination descending", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 5,
     },
   });
 
@@ -1662,6 +1731,7 @@ test("cursor pagination descending", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1680,6 +1750,7 @@ test("cursor pagination descending", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 5,
     },
   });
 
@@ -1699,6 +1770,7 @@ test("cursor pagination descending", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1713,6 +1785,7 @@ test("cursor pagination descending", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 5,
     },
   });
 
@@ -1757,6 +1830,7 @@ test("cursor pagination start and end cursors", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1778,6 +1852,7 @@ test("cursor pagination start and end cursors", async (context) => {
         hasPreviousPage: false,
         hasNextPage: false,
       },
+      totalCount: 5,
     },
   });
 
@@ -1822,6 +1897,7 @@ test("cursor pagination has previous page", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1844,20 +1920,24 @@ test("cursor pagination has previous page", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  // @ts-ignore
-  expect(result.data.pets.items).toHaveLength(0);
-  // @ts-ignore
-  expect(result.data.pets.pageInfo).toMatchObject({
-    startCursor: null,
-    endCursor: null,
-    // Should return true even if the current page is empty
-    hasPreviousPage: true,
-    hasNextPage: false,
+  expect(result.data).toMatchObject({
+    pets: {
+      items: [],
+      pageInfo: {
+        startCursor: null,
+        endCursor: null,
+        // Should return true even if the current page is empty
+        hasPreviousPage: true,
+        hasNextPage: false,
+      },
+      totalCount: 5,
+    },
   });
 
   await cleanup();
@@ -1909,6 +1989,7 @@ test("cursor pagination composite primary key", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1928,6 +2009,7 @@ test("cursor pagination composite primary key", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 6,
     },
   });
 
@@ -1948,6 +2030,7 @@ test("cursor pagination composite primary key", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -1965,6 +2048,7 @@ test("cursor pagination composite primary key", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 6,
     },
   });
 
@@ -1985,6 +2069,7 @@ test("cursor pagination composite primary key", async (context) => {
           startCursor
           endCursor
         }
+        totalCount
       }
     }
   `);
@@ -2002,6 +2087,7 @@ test("cursor pagination composite primary key", async (context) => {
         startCursor: expect.any(String),
         endCursor: expect.any(String),
       },
+      totalCount: 6,
     },
   });
 

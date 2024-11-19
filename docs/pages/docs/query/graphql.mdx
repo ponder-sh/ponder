@@ -60,8 +60,8 @@ type person {
 type personPage {
   items: [person!]!
   pageInfo: PageInfo!
+  totalCount: Int!
 }
-
 ```
 
 </div>
@@ -235,15 +235,9 @@ query {
 
 ## Pagination
 
-The GraphQL API supports cursor pagination using an API that's inspired by the [Relay GraphQL Cursor Connection](https://relay.dev/graphql/connections.htm#sec-undefined.PageInfo) specification.
+The GraphQL API supports cursor pagination with an API that's inspired by the [Relay GraphQL Cursor Connection](https://relay.dev/graphql/connections.htm#sec-undefined.PageInfo) specification.
 
-- Cursor values are opaque strings that encode the position of a record in the result set. They should not be decoded or manipulated by the client.
-- Cursors are exclusive, meaning that the record at the specified cursor is not included in the result.
-- Cursor pagination works with any valid filter and sort criteria. However, do not change the filter or sort criteria between paginated requests. This will cause validation errors or incorrect results.
-
-### Page type
-
-Top-level plural query fields and `p.many()` relationship fields return a `Page` type containing a list of items and a `PageInfo` object.
+Plural fields and `p.many()` relationship fields each return a `Page` type. This object contains a list of items, a `PageInfo` object, and the total count of records that match the query.
 
 <div className="code-columns">
 ```ts filename="ponder.schema.ts"
@@ -256,12 +250,11 @@ export const pet = onchainTable("pet", (t) => ({
 ```
 
 {/* prettier-ignore */}
-```graphql filename="Generated schema" {13-16}
-type PageInfo {
-  startCursor: String
-  endCursor: String
-  hasPreviousPage: Boolean!
-  hasNextPage: Boolean!
+```graphql filename="Generated schema" {1-5}
+type petPage {
+  items: [pet!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
 }
 
 type pet {
@@ -269,15 +262,19 @@ type pet {
   name: String!
 }
 
-type petPage {
-  items: [pet!]!
-  pageInfo: PageInfo!
+type PageInfo {
+  startCursor: String
+  endCursor: String
+  hasPreviousPage: Boolean!
+  hasNextPage: Boolean!
 }
 ```
 
 </div>
 
-Here is a detailed view of the `PageInfo` object:
+### Page info
+
+The `PageInfo` object contains information about the position of the current page within the result set.
 
 | name                | type                 |                                                 |
 | :------------------ | :------------------- | :---------------------------------------------- |
@@ -285,6 +282,24 @@ Here is a detailed view of the `PageInfo` object:
 | **endCursor**       | `String{:graphql}`   | Cursor of the last record in `items`            |
 | **hasPreviousPage** | `Boolean!{:graphql}` | Whether there are more records before this page |
 | **hasNextPage**     | `Boolean!{:graphql}` | Whether there are more records after this page  |
+
+### Total count
+
+The `totalCount` field returns the number of records present in the database that match the specified query. The value the same value regardless of the current pagination position and the `limit` argument. Only the `where` argument can change the value of `totalCount`.
+
+<Callout type="warning">
+  The SQL query that backs `totalCount` can be slow. To avoid performance
+  issues, include `totalCount` in the query for the first page, then exclude it
+  for subsequent pages. Unless the underlying data has changed, the value will
+  be the same regardless of the pagination position.
+</Callout>
+
+### Cursor values
+
+A cursor value is an opaque string that encodes the position of a record in the result set.
+
+- Cursor values should not be decoded or manipulated by the client. The only valid use of a cursor value is an argument, e.g. `after: previousPage.endCursor{:ts}`.
+- Cursor pagination works with any filter and sort criteria. However, do not change the filter or sort criteria between paginated requests. This will cause validation errors or incorrect results.
 
 ### Examples
 
@@ -318,6 +333,7 @@ query {
       hasPreviousPage
       hasNextPage
     }
+    totalCount
   }
 }
 ```
@@ -335,7 +351,8 @@ query {
       "endCursor": "Mxhc3NDb3JlLTA=",
       "hasPreviousPage": false,
       "hasNextPage": true,
-    }
+    },
+    "totalCount": 4,
   }
 }
 ```
@@ -363,6 +380,7 @@ query {
       hasPreviousPage
       hasNextPage
     }
+    totalCount
   }
 }
 ```
@@ -380,7 +398,8 @@ query {
       "endCursor": "McSDfVIiLka==",
       "hasPreviousPage": true,
       "hasNextPage": false,
-    }
+    },
+    "totalCount": 4,
   }
 }
 ```
@@ -408,6 +427,7 @@ query {
       hasPreviousPage
       hasNextPage
     }
+    totalCount
   }
 }
 ```
@@ -424,7 +444,8 @@ query {
       "endCursor": "Mxhc3NDb3JlLTA=",
       "hasPreviousPage": true,
       "hasNextPage": true,
-    }
+    },
+    "totalCount": 4,
   }
 }
 ```
