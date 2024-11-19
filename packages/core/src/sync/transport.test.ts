@@ -1,12 +1,14 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import type { Transport } from "viem";
+import { type Transport, parseEther } from "viem";
 import { toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
@@ -97,8 +99,17 @@ test("request() non-block dependent method", async (context) => {
     common: context.common,
   });
 
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const block = await publicClient.getBlock({ blockNumber: 2n });
+  const blockNumber = await publicClient.getBlockNumber();
+  const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
   const transport = cachedTransport({
     requestQueue,
