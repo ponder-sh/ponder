@@ -792,6 +792,7 @@ const convertTransaction = (transaction: SyncTransaction): Transaction => ({
             }),
 });
 
+// @ts-ignore
 const convertTransactionReceipt = (
   transactionReceipt: SyncTransactionReceipt,
 ): TransactionReceipt => ({
