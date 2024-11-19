@@ -233,6 +233,7 @@ export const buildEvents = ({
                   transaction: convertTransaction(
                     transactionCache.get(log.transactionHash)!,
                   ),
+                  transactionReceipt: undefined,
                   trace: undefined,
                 });
               }

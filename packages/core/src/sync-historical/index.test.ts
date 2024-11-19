@@ -1,13 +1,30 @@
+import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
-import { getRawRPCData } from "@/_test/utils.js";
-import type { SyncTrace } from "@/types/sync.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
+import {
+  createPair,
+  deployErc20,
+  deployFactory,
+  mintErc20,
+  swapPair,
+  transferErc20,
+} from "@/_test/simulate.js";
+import {
+  getBlocksConfigAndIndexingFunctions,
+  getErc20ConfigAndIndexingFunctions,
+  getNetwork,
+  getPairWithFactoryConfigAndIndexingFunctions,
+  testClient,
+} from "@/_test/utils.js";
+import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
+import { encodeFunctionData, encodeFunctionResult } from "viem";
+import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
 
@@ -15,57 +32,33 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
-// Helper function used to spoof "trace_filter" requests
-// because they aren't supported b y foundry.
-const getRequestQueue = async (requestQueue: RequestQueue) => {
-  const rpcData = await getRawRPCData();
-
-  const convertTrace = (trace: SyncTrace) => {
-    return { txHash: trace.transactionHash, result: trace.trace };
-  };
-
-  return {
-    ...requestQueue,
-    request: (request: any) => {
-      if (request.method === "debug_traceBlockByNumber") {
-        if (request.params[0] === "0x0") {
-          return Promise.resolve([]);
-        }
-
-        if (request.params[0] === "0x1") {
-          return Promise.resolve(rpcData.block1.traces.map(convertTrace));
-        }
-
-        if (request.params[0] === "0x2") {
-          return Promise.resolve(rpcData.block2.traces.map(convertTrace));
-        }
-
-        if (request.params[0] === "0x3") {
-          return Promise.resolve(rpcData.block3.traces.map(convertTrace));
-        }
-
-        if (request.params[0] === "0x4") {
-          return Promise.resolve(rpcData.block4.traces.map(convertTrace));
-        }
-
-        if (request.params[0] === "0x5") {
-          return Promise.resolve(rpcData.block5.traces.map(convertTrace));
-        }
-      }
-      return requestQueue.request(request);
-    },
-  } as RequestQueue;
-};
-
 test("createHistoricalSync()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
@@ -77,20 +70,46 @@ test("createHistoricalSync()", async (context) => {
 test("sync() with log filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 5]);
+  await historicalSync.sync([1, 2]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
 
-  expect(logs).toHaveLength(2);
+  expect(logs).toHaveLength(1);
 
   const intervals = await database.qb.sync
     .selectFrom("intervals")
@@ -105,22 +124,43 @@ test("sync() with log filter", async (context) => {
 test.skip("sync() with log filter and transaction receipts", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  // context.sources[0].filter.includeTransactionReceipts = true;
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+    includeTransactionReceipts: true,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 5]);
-
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-
-  expect(logs).toHaveLength(2);
+  await historicalSync.sync([1, 3]);
 
   const transactionReceipts = await database.qb.sync
     .selectFrom("transactionReceipts")
@@ -142,16 +182,36 @@ test.skip("sync() with log filter and transaction receipts", async (context) => 
 test("sync() with block filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  await testClient.mine({ blocks: 3 });
+
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[4]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 5]);
+  await historicalSync.sync([1, 3]);
 
   const blocks = await database.qb.sync
     .selectFrom("blocks")
@@ -173,16 +233,45 @@ test("sync() with block filter", async (context) => {
 test("sync() with log factory", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { result } = await createPair({ factory: address, sender: ALICE });
+  await swapPair({
+    pair: result,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getPairWithFactoryConfigAndIndexingFunctions({
+      address,
+    });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[1]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 5]);
+  await historicalSync.sync([1, 3]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
 
@@ -201,16 +290,87 @@ test("sync() with log factory", async (context) => {
 test("sync() with trace filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const { hash } = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+    includeCallTraces: true,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const request = async (request: any) => {
+    if (request.method === "debug_traceBlockByNumber") {
+      if (request.params[0] === "0x1") return Promise.resolve([]);
+      if (request.params[0] === "0x2") return Promise.resolve([]);
+      if (request.params[0] === "0x3") {
+        return Promise.resolve([
+          {
+            txHash: hash,
+            result: {
+              type: "CALL",
+              from: ALICE,
+              to: address,
+              gas: "0x0",
+              gasUsed: "0x0",
+              input: encodeFunctionData({
+                abi: erc20ABI,
+                functionName: "transfer",
+                args: [BOB, parseEther("1")],
+              }),
+              output: encodeFunctionResult({
+                abi: erc20ABI,
+                functionName: "transfer",
+                result: true,
+              }),
+              value: "0x0",
+            },
+          },
+        ]);
+      }
+    }
+
+    return requestQueue.request(request);
+  };
+
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[3]],
+    network,
+    sources: sources.filter(({ filter }) => filter.type === "trace"),
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue: {
+      ...requestQueue,
+      // @ts-ignore
+      request,
+    },
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 5]);
+  await historicalSync.sync([1, 3]);
 
   const traces = await database.qb.sync
     .selectFrom("traces")
@@ -232,25 +392,65 @@ test("sync() with trace filter", async (context) => {
 test("sync() with many filters", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    ...getErc20ConfigAndIndexingFunctions({
+      address,
+    }),
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    ...getBlocksConfigAndIndexingFunctions({
+      interval: 1,
+    }),
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: context.sources,
+    network,
+    sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 5]);
+  await historicalSync.sync([1, 2]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs).toHaveLength(4);
+  expect(logs).toHaveLength(1);
 
   const blocks = await database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
-  expect(blocks).toHaveLength(5);
+  expect(blocks).toHaveLength(2);
+
+  const intervals = await database.qb.sync
+    .selectFrom("intervals")
+    .selectAll()
+    .execute();
+
+  expect(intervals).toHaveLength(2);
 
   await cleanup();
 });
@@ -258,30 +458,57 @@ test("sync() with many filters", async (context) => {
 test("sync() with cache hit", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   let historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
-  await historicalSync.sync([0, 5]);
+
+  await historicalSync.sync([1, 2]);
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(context.requestQueues[0], "request");
+  const spy = vi.spyOn(requestQueue, "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[0]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
-  await historicalSync.sync([0, 5]);
 
+  await historicalSync.sync([1, 2]);
   expect(spy).toHaveBeenCalledTimes(0);
 
   await cleanup();
@@ -290,29 +517,55 @@ test("sync() with cache hit", async (context) => {
 test("syncBlock() with cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  // block 2 and 4 will be requested
-  const blockFilter = context.sources[4].filter;
-  blockFilter.offset = 0;
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    ...getErc20ConfigAndIndexingFunctions({
+      address,
+    }),
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    ...getBlocksConfigAndIndexingFunctions({
+      interval: 1,
+    }),
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [
-      context.sources[0],
-      { ...context.sources[4], filter: blockFilter },
-    ],
+    network,
+    sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  const spy = vi.spyOn(context.requestQueues[0], "request");
+  const spy = vi.spyOn(requestQueue, "request");
 
-  await historicalSync.sync([0, 5]);
+  await historicalSync.sync([1, 2]);
 
-  // 1 call to `syncBlock()` will be cached because
-  // each source in `sources` matches block 2
-  expect(spy).toHaveBeenCalledTimes(4);
+  // 1 "eth_getLogs" request and only 2 "eth_getBlockByNumber" requests
+  // because the erc20 and block sources share the block 2
+  expect(spy).toHaveBeenCalledTimes(3);
 
   await cleanup();
 });
@@ -320,28 +573,56 @@ test("syncBlock() with cache", async (context) => {
 test("syncAddress() handles many addresses", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
   context.common.options.factoryAddressCountThreshold = 10;
 
+  const { address } = await deployFactory({ sender: ALICE });
+
   for (let i = 0; i < 10; i++) {
-    await simulateFactoryDeploy(context.factory.address);
+    await createPair({ factory: address, sender: ALICE });
   }
 
-  const pair = await simulateFactoryDeploy(context.factory.address);
-  await simulatePairSwap(pair);
+  const { result } = await createPair({ factory: address, sender: ALICE });
+  await swapPair({
+    pair: result,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getPairWithFactoryConfigAndIndexingFunctions({
+      address,
+    });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network: context.networks[0],
-    sources: [context.sources[1]],
+    network,
+    sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    requestQueue,
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([0, 10 + 5 + 2]);
+  await historicalSync.sync([1, 13]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs).toHaveLength(14);
+  // 11 pair creations and 1 swap
+  expect(logs).toHaveLength(12);
 
   await cleanup();
 });

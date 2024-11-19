@@ -4,7 +4,8 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { anvil, publicClient } from "@/_test/utils.js";
+import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 import type { Transport } from "viem";
 import { toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
@@ -15,11 +16,16 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 test("default", async (context) => {
-  const { requestQueues } = context;
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    requestQueue,
     syncStore,
   });
 
@@ -45,12 +51,17 @@ test("default", async (context) => {
 });
 
 test("request() block dependent method", async (context) => {
-  const { requestQueues } = context;
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    requestQueue,
     syncStore,
   })({
     chain: anvil,
@@ -80,12 +91,17 @@ test("request() block dependent method", async (context) => {
 });
 
 test("request() non-block dependent method", async (context) => {
-  const { requestQueues } = context;
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const block = await publicClient.getBlock({ blockNumber: 2n });
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    requestQueue,
     syncStore,
   })({
     chain: anvil,
@@ -115,10 +131,15 @@ test("request() non-block dependent method", async (context) => {
 });
 
 test("request() non-cached method", async (context) => {
-  const { requestQueues } = context;
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    requestQueue,
     syncStore,
   })({
     chain: anvil,

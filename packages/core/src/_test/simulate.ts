@@ -1,115 +1,155 @@
-import { type Address, type Hex, parseEther } from "viem";
-
-import { ALICE, BOB } from "./constants.js";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { http, type Address, type Hex, createWalletClient } from "viem";
 import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json";
 import FactoryBytecode from "./contracts/out/Factory.sol/Factory.json";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
-import { publicClient, testClient, walletClient } from "./utils.js";
+import { anvil, publicClient, testClient } from "./utils.js";
 
-/**
- * Deploy Two ERC20 tokens and a Factory contract. All happens in one block.
- */
-export const deploy = async () => {
-  const deployHashErc20 = await walletClient.deployContract({
+/** Deploy Erc20 contract and mine block. */
+export const deployErc20 = async (params: { sender: Address }) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.deployContract({
     abi: erc20ABI,
     bytecode: Erc20Bytecode.bytecode.object as Hex,
     args: ["name", "symbol", 18],
   });
 
-  const deployHashFactory = await walletClient.deployContract({
+  await testClient.mine({ blocks: 1 });
+  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+    hash,
+  });
+
+  return { address: contractAddress!, hash };
+};
+
+/** Deploy Factory contract and mine block. */
+export const deployFactory = async (params: { sender: Address }) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.deployContract({
     abi: factoryABI,
     bytecode: FactoryBytecode.bytecode.object as Hex,
   });
 
   await testClient.mine({ blocks: 1 });
-
-  const { contractAddress: erc20Address } =
-    await publicClient.waitForTransactionReceipt({
-      hash: deployHashErc20,
-    });
-  const { contractAddress: factoryAddress } =
-    await publicClient.waitForTransactionReceipt({
-      hash: deployHashFactory,
-    });
-  return {
-    erc20Address: erc20Address!,
-    factoryAddress: factoryAddress!,
-  };
-};
-
-/**
- * Simulate network activity
- *
- * 1) Mint one tokens to Alice
- * 2) Transfer one token from Alice to Bob
- * 3) Create a pair
- * 4) Swap on created pair
- *
- * Blocks are created after 2, 3, and 4.
- *
- * @returns The pair address
- */
-export const simulate = async (
-  addresses: Awaited<ReturnType<typeof deploy>>,
-): Promise<Address> => {
-  await simulateErc20(addresses.erc20Address);
-  const pairAddress = await simulateFactoryDeploy(addresses.factoryAddress);
-  await simulatePairSwap(pairAddress);
-
-  return pairAddress;
-};
-
-export const simulateErc20 = async (erc20Address: Address) => {
-  // Mint 1 token to ALICE
-  const mintHash = await walletClient.writeContract({
-    abi: erc20ABI,
-    functionName: "mint",
-    address: erc20Address,
-    args: [ALICE, parseEther("1")],
+  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+    hash,
   });
 
-  // Transfer 1 token from ALICE to BOB
-  const transferHash = await walletClient.writeContract({
+  return { address: contractAddress!, hash };
+};
+
+/** Mint Erc20 tokens and mine block. */
+export const mintErc20 = async (params: {
+  erc20: Address;
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
     abi: erc20ABI,
-    functionName: "transfer",
-    address: erc20Address,
-    args: [BOB, parseEther("1")],
+    functionName: "mint",
+    address: params.erc20,
+    args: [params.to, params.amount],
   });
 
   await testClient.mine({ blocks: 1 });
+  await publicClient.waitForTransactionReceipt({ hash });
 
-  await publicClient.waitForTransactionReceipt({ hash: mintHash });
-  await publicClient.waitForTransactionReceipt({ hash: transferHash });
+  return { hash };
 };
 
-export const simulateFactoryDeploy = async (
-  factoryAddress: Address,
-): Promise<Address> => {
+/** Transfer Erc20 tokens and mine block. */
+export const transferErc20 = async (params: {
+  erc20: Address;
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "transfer",
+    address: params.erc20,
+    args: [params.to, params.amount],
+  });
+
+  await testClient.mine({ blocks: 1 });
+  await publicClient.waitForTransactionReceipt({ hash });
+
+  return { hash };
+};
+
+/** Create pair and mine block. */
+export const createPair = async (params: {
+  factory: Address;
+  sender: Address;
+}) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
   const { result, request } = await publicClient.simulateContract({
     abi: factoryABI,
     functionName: "createPair",
-    address: factoryAddress,
+    address: params.factory,
   });
-  const createPairHash = await walletClient.writeContract(request);
+
+  const hash = await walletClient.writeContract(request);
 
   await testClient.mine({ blocks: 1 });
-
   await publicClient.waitForTransactionReceipt({
-    hash: createPairHash,
+    hash,
   });
 
-  return result;
+  return { result: toLowerCase(result), hash };
 };
 
-export const simulatePairSwap = async (pairAddress: Address) => {
-  const swapHash = await walletClient.writeContract({
+/** Swap tokens in pair and mine block. */
+export const swapPair = async (params: {
+  pair: Address;
+  amount0Out: bigint;
+  amount1Out: bigint;
+  to: Address;
+  sender: Address;
+}) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
     abi: pairABI,
     functionName: "swap",
-    address: pairAddress,
-    args: [1n, 2n, ALICE],
+    address: params.pair,
+    args: [params.amount0Out, params.amount1Out, params.to],
   });
 
   await testClient.mine({ blocks: 1 });
+  await publicClient.waitForTransactionReceipt({ hash });
 
-  await publicClient.waitForTransactionReceipt({ hash: swapHash });
+  return { hash };
 };

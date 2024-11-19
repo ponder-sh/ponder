@@ -998,7 +998,9 @@ export const getCachedBlock = ({
     if (completedIntervals.length === 0) return undefined;
 
     const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
+    if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
+      return undefined;
+    }
     return earliestCompletedInterval[1];
   });
 
