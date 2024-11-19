@@ -12,6 +12,7 @@ import {
   arrayContained,
   arrayContains,
   asc,
+  count,
   createTableRelationsHelpers,
   desc,
   eq,
@@ -36,7 +37,6 @@ import {
   PgSerial,
   isPgEnum,
 } from "drizzle-orm/pg-core";
-import type { RelationalQueryBuilder } from "drizzle-orm/pg-core/query-builders/query";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -51,6 +51,7 @@ import {
   GraphQLNonNull,
   GraphQLObjectType,
   type GraphQLOutputType,
+  type GraphQLResolveInfo,
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
@@ -213,7 +214,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
             referencedEntityFilterType === undefined
           )
             throw new Error(
-              `Internal error: Referenced entity type not found for table "${referencedTable.tsName}" `,
+              `Internal error: Referenced entity types not found for table "${referencedTable.tsName}" `,
             );
 
           if (is(relation, One)) {
@@ -231,7 +232,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
               type: relation.isNullable
                 ? new GraphQLNonNull(referencedEntityType)
                 : referencedEntityType,
-              resolve: async (parent, _args, context) => {
+              resolve: (parent, _args, context) => {
                 const loader = context.getDataLoader({
                   table: referencedTable,
                 });
@@ -250,7 +251,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
                 }
                 const encodedId = encodeRowFragment(rowFragment);
 
-                return await loader.load(encodedId);
+                return loader.load(encodedId);
               },
             };
           } else if (is(relation, Many)) {
@@ -280,7 +281,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
                 after: { type: GraphQLString },
                 limit: { type: GraphQLInt },
               },
-              resolve: async (parent, args: PluralArgs, context) => {
+              resolve: (parent, args: PluralArgs, context, info) => {
                 const relationalConditions = [];
                 for (let i = 0; i < references.length; i++) {
                   const column = fields[i]!;
@@ -288,16 +289,16 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
                   relationalConditions.push(eq(column, value));
                 }
 
-                const baseQuery = context.drizzle.query[referencedTable.tsName];
-                if (!baseQuery)
-                  throw new Error(
-                    `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
-                  );
+                const includeTotalCount = selectionIncludesField(
+                  info,
+                  "totalCount",
+                );
 
                 return executePluralQuery(
-                  table,
-                  baseQuery,
+                  referencedTable,
+                  context.drizzle,
                   args,
+                  includeTotalCount,
                   relationalConditions,
                 );
               },
@@ -321,6 +322,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
             new GraphQLList(new GraphQLNonNull(entityTypes[table.tsName]!)),
           ),
         },
+        totalCount: { type: GraphQLInt },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
       }),
     });
@@ -351,20 +353,13 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
         ]),
       ),
       resolve: async (_parent, args, context) => {
-        const baseQuery = context.drizzle.query[table.tsName];
-        if (!baseQuery)
-          throw new Error(
-            `Internal error: Table "${table.tsName}" not found in RQB`,
-          );
+        const loader = context.getDataLoader({ table });
 
         // The `args` object here should be a valid `where` argument that
         // uses the `eq` shorthand for each primary key column.
-        const whereConditions = buildWhereConditions(args, table.columns);
+        const encodedId = encodeRowFragment(args);
 
-        const row = await baseQuery.findFirst({
-          where: and(...whereConditions),
-        });
-        return row ?? null;
+        return loader.load(encodedId);
       },
     };
 
@@ -378,14 +373,15 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
       },
-      resolve: async (_parent, args: PluralArgs, context) => {
-        const baseQuery = context.drizzle.query[table.tsName];
-        if (!baseQuery)
-          throw new Error(
-            `Internal error: Table "${table.tsName}" not found in RQB`,
-          );
+      resolve: async (_parent, args: PluralArgs, context, info) => {
+        const includeTotalCount = selectionIncludesField(info, "totalCount");
 
-        return executePluralQuery(table, baseQuery, args);
+        return executePluralQuery(
+          table,
+          context.drizzle,
+          args,
+          includeTotalCount,
+        );
       },
     };
   }
@@ -530,10 +526,16 @@ const filterOperators = {
 
 async function executePluralQuery(
   table: TableRelationalConfig,
-  baseQuery: RelationalQueryBuilder<any, any>,
+  drizzle: Drizzle<{ [key: string]: OnchainTable }>,
   args: PluralArgs,
+  includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
 ) {
+  const rawTable = drizzle._.fullSchema[table.tsName];
+  const baseQuery = drizzle.query[table.tsName];
+  if (rawTable === undefined || baseQuery === undefined)
+    throw new Error(`Internal error: Table "${table.tsName}" not found in RQB`);
+
   const limit = args.limit ?? DEFAULT_LIMIT;
   if (limit > MAX_LIMIT) {
     throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
@@ -564,22 +566,33 @@ async function executePluralQuery(
   const after = args.after ?? null;
   const before = args.before ?? null;
 
+  if (after !== null && before !== null) {
+    throw new Error("Cannot specify both before and after cursors.");
+  }
+
   let startCursor = null;
   let endCursor = null;
   let hasPreviousPage = false;
   let hasNextPage = false;
 
-  if (after !== null && before !== null) {
-    throw new Error("Cannot specify both before and after cursors.");
-  }
+  const totalCountPromise = includeTotalCount
+    ? drizzle
+        .select({ count: count() })
+        .from(rawTable)
+        .where(and(...whereConditions, ...extraConditions))
+        .then((rows) => rows[0]?.count ?? null)
+    : Promise.resolve(null);
 
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
-    const rows = await baseQuery.findMany({
-      where: and(...whereConditions, ...extraConditions),
-      orderBy,
-      limit: limit + 1,
-    });
+    const [rows, totalCount] = await Promise.all([
+      baseQuery.findMany({
+        where: and(...whereConditions, ...extraConditions),
+        orderBy,
+        limit: limit + 1,
+      }),
+      totalCountPromise,
+    ]);
 
     if (rows.length === limit + 1) {
       rows.pop();
@@ -595,6 +608,7 @@ async function executePluralQuery(
 
     return {
       items: rows,
+      totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
   }
@@ -609,21 +623,20 @@ async function executePluralQuery(
       cursorObject,
     );
 
-    const rows = await baseQuery.findMany({
-      where: and(...whereConditions, cursorCondition, ...extraConditions),
-      orderBy,
-      limit: limit + 2,
-    });
+    const [rows, totalCount] = await Promise.all([
+      baseQuery.findMany({
+        where: and(...whereConditions, cursorCondition, ...extraConditions),
+        orderBy,
+        limit: limit + 2,
+      }),
+      totalCountPromise,
+    ]);
 
     if (rows.length === 0) {
       return {
         items: rows,
-        pageInfo: {
-          hasNextPage,
-          hasPreviousPage,
-          startCursor,
-          endCursor,
-        },
+        totalCount,
+        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
       };
     }
 
@@ -654,6 +667,7 @@ async function executePluralQuery(
 
     return {
       items: rows,
+      totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
   }
@@ -669,17 +683,21 @@ async function executePluralQuery(
 
   // Reverse the order by conditions to get the previous page,
   // then reverse the results back to the original order.
-  const rows = await baseQuery
-    .findMany({
-      where: and(...whereConditions, cursorCondition, ...extraConditions),
-      orderBy: orderByReversed,
-      limit: limit + 2,
-    })
-    .then((rows) => rows.reverse());
+  const [rows, totalCount] = await Promise.all([
+    baseQuery
+      .findMany({
+        where: and(...whereConditions, cursorCondition, ...extraConditions),
+        orderBy: orderByReversed,
+        limit: limit + 2,
+      })
+      .then((rows) => rows.reverse()),
+    totalCountPromise,
+  ]);
 
   if (rows.length === 0) {
     return {
       items: rows,
+      totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
   }
@@ -710,6 +728,7 @@ async function executePluralQuery(
 
   return {
     items: rows,
+    totalCount,
     pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
   };
 }
@@ -940,12 +959,10 @@ export function buildDataLoaderCache({
         async (encodedIds) => {
           const decodedRowFragments = encodedIds.map(decodeRowFragment);
 
+          // The decoded row fragments should be valid `where` objects
+          // which use the `eq` object shorthand for each primary key column.
           const idConditions = decodedRowFragments.map((decodedRowFragment) =>
-            and(
-              ...Object.entries(decodedRowFragment).map(([col, val]) =>
-                eq(table.columns[col]!, val),
-              ),
-            ),
+            and(...buildWhereConditions(decodedRowFragment, table.columns)),
           );
 
           const rows = await baseQuery.findMany({
@@ -975,4 +992,22 @@ function getColumnTsName(column: Column) {
   return Object.entries(tableColumns).find(
     ([_, c]) => c.name === column.name,
   )![0];
+}
+
+/**
+ * Returns `true` if the query includes a specific field.
+ * Does not consider nested selections; only works one "layer" deep.
+ */
+function selectionIncludesField(
+  info: GraphQLResolveInfo,
+  fieldName: string,
+): boolean {
+  for (const fieldNode of info.fieldNodes) {
+    for (const selection of fieldNode.selectionSet?.selections ?? []) {
+      if (selection.kind === "Field" && selection.name.value === fieldName) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
