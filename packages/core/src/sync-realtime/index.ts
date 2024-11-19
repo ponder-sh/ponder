@@ -837,6 +837,7 @@ export const createRealtimeSync = (
                   hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
                 ),
               );
+
               const pendingBlocks = await Promise.all(
                 missingBlockRange.map((blockNumber) =>
                   _eth_getBlockByNumber(args.requestQueue, {
