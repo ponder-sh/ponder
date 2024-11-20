@@ -938,7 +938,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       await client.query(createTempTableQuery);
 
                       await client.query(
-                        `COPY "${tableNameCache.get(table)}" FROM '/dev/blob' WITH (FORMAT csv)`,
+                        `COPY "${tableNameCache.get(table)}" FROM '/dev/blob' with delimiter ',' NULL AS 'null' csv`,
                         [],
                         {
                           blob: new Blob([updateCSV]),
@@ -967,7 +967,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                         Readable.from(updateCSV),
                         client.query(
                           copy.from(
-                            `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
+                            `COPY "${tableNameCache.get(table)}" FROM STDIN with delimiter ',' NULL AS 'null' csv`,
                           ),
                         ),
                       );
