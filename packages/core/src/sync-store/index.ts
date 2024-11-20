@@ -579,10 +579,10 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
+          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const transferSQL = (
@@ -606,10 +606,10 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .where("value", ">", "0")
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
+          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const traceSQL = (
