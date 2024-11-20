@@ -677,8 +677,13 @@ export const createHistoricalSync = async (
       await Promise.all([
         args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
         args.syncStore.insertTransactions({
-          transactions: blocks.flatMap(({ transactions }) =>
-            transactions.filter(({ hash }) => transactionsCache.has(hash)),
+          transactions: blocks.flatMap((block) =>
+            block.transactions
+              .filter(({ hash }) => transactionsCache.has(hash))
+              .map((transaction) => ({
+                transaction,
+                block,
+              })),
           ),
           chainId: args.network.chainId,
         }),

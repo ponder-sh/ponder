@@ -167,15 +167,17 @@ type TransactionsTable = {
 
 export const encodeTransaction = ({
   transaction,
+  block,
   chainId,
 }: {
   transaction: SyncTransaction;
+  block: Pick<SyncBlock, "timestamp">;
   chainId: number;
 }): Insertable<TransactionsTable> => {
   return {
     hash: transaction.hash,
     checkpoint: encodeCheckpoint({
-      blockTimestamp: hexToNumber(transaction.blockNumber),
+      blockTimestamp: hexToNumber(block.timestamp),
       chainId: BigInt(chainId),
       blockNumber: hexToBigInt(transaction.blockNumber),
       transactionIndex: hexToBigInt(transaction.transactionIndex),

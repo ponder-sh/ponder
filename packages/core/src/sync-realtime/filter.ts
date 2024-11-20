@@ -179,13 +179,13 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  if (
-    isValueMatched(filter.functionSelector, trace.input.slice(0, 10)) === false
-  ) {
+  if (filter.callType !== trace.type) {
     return false;
   }
 
-  if (filter.callType !== trace.type) {
+  if (
+    isValueMatched(filter.functionSelector, trace.input.slice(0, 10)) === false
+  ) {
     return false;
   }
 

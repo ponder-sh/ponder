@@ -750,7 +750,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
           args.syncStore.insertTransactions({
             transactions: finalizedEventData.flatMap(
-              ({ transactions }) => transactions,
+              ({ transactions, block }) =>
+                transactions.map((transaction) => ({
+                  transaction,
+                  block,
+                })),
             ),
             chainId: network.chainId,
           }),

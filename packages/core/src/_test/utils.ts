@@ -143,6 +143,34 @@ export const getBlocksConfigAndIndexingFunctions = (params: {
   return { config, rawIndexingFunctions };
 };
 
+export const getAccountsConfigAndIndexingFunctions = (params: {
+  address: Address;
+}) => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
+    },
+    accounts: {
+      Accounts: {
+        network: "mainnet",
+        address: params.address,
+      },
+    },
+  });
+
+  const rawIndexingFunctions = [
+    { name: "Accounts:transaction:from", fn: () => {} },
+    { name: "Accounts:transaction:to", fn: () => {} },
+    { name: "Accounts:transfer:from", fn: () => {} },
+    { name: "Accounts:transfer:to", fn: () => {} },
+  ];
+
+  return { config, rawIndexingFunctions };
+};
+
 export const getNetwork = (params?: {
   finalityBlockCount?: number;
 }) => {

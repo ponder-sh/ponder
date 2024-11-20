@@ -69,7 +69,7 @@ export type SyncStore = {
   /** Return true if the block receipt is present in the database. */
   hasBlock(args: { hash: Hash }): Promise<boolean>;
   insertTransactions(args: {
-    transactions: SyncTransaction[];
+    transactions: { transaction: SyncTransaction; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
@@ -355,7 +355,8 @@ export const createSyncStore = ({
         common.options.databaseMaxQueryParameters /
           Object.keys(
             encodeTransaction({
-              transaction: transactions[0]!,
+              transaction: transactions[0]!.transaction,
+              block: transactions[0]!.block,
               chainId,
             }),
           ).length,
@@ -367,8 +368,8 @@ export const createSyncStore = ({
           .values(
             transactions
               .slice(i, i + batchSize)
-              .map((transaction) =>
-                encodeTransaction({ transaction, chainId }),
+              .map(({ transaction, block }) =>
+                encodeTransaction({ transaction, block, chainId }),
               ),
           )
           .onConflict((oc) => oc.column("hash").doNothing())

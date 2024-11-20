@@ -13,8 +13,10 @@ import {
   mintErc20,
   swapPair,
   transferErc20,
+  transferEth,
 } from "@/_test/simulate.js";
 import {
+  getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
   getErc20ConfigAndIndexingFunctions,
   getNetwork,
@@ -23,7 +25,7 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { encodeFunctionData, encodeFunctionResult } from "viem";
+import { encodeFunctionData, encodeFunctionResult, toHex } from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
@@ -385,6 +387,150 @@ test("sync() with trace filter", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
+
+  await cleanup();
+});
+
+test("sync() with transaction filter", async (context) => {
+  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources: sources.filter(({ filter }) => filter.type === "transaction"),
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 1]);
+
+  const transactions = await database.qb.sync
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+
+  expect(transactions).toHaveLength(1);
+
+  const intervals = await database.qb.sync
+    .selectFrom("intervals")
+    .selectAll()
+    .execute();
+
+  // transaction:from and transaction:to
+  expect(intervals).toHaveLength(2);
+
+  await cleanup();
+});
+
+test("sync() with transfer filter", async (context) => {
+  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { hash } = await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const request = async (request: any) => {
+    if (request.method === "debug_traceBlockByNumber") {
+      if (request.params[0] === "0x1") {
+        return Promise.resolve([
+          {
+            txHash: hash,
+            result: {
+              type: "CALL",
+              from: ALICE,
+              to: BOB,
+              gas: "0x0",
+              gasUsed: "0x0",
+              input: "0x0",
+              output: "0x0",
+              value: toHex(parseEther("1")),
+            },
+          },
+        ]);
+      }
+    }
+
+    return requestQueue.request(request);
+  };
+
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources: sources.filter(({ filter }) => filter.type === "transfer"),
+    syncStore,
+    requestQueue: {
+      ...requestQueue,
+      // @ts-ignore
+      request,
+    },
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 1]);
+
+  const transactions = await database.qb.sync
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+
+  expect(transactions).toHaveLength(1);
+
+  const intervals = await database.qb.sync
+    .selectFrom("intervals")
+    .selectAll()
+    .execute();
+
+  // transfer:from and transfer:to
+  expect(intervals).toHaveLength(2);
 
   await cleanup();
 });

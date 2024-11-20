@@ -12,15 +12,17 @@ import {
   deployFactory,
   mintErc20,
   swapPair,
+  transferEth,
 } from "@/_test/simulate.js";
 import {
+  getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
   getErc20ConfigAndIndexingFunctions,
   getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type { SyncTransaction } from "@/types/sync.js";
+import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
   encodeCheckpoint,
   maxCheckpoint,
@@ -43,6 +45,7 @@ import {
   type LogEvent,
   type RawEvent,
   type TraceEvent,
+  type TransferEvent,
   buildEvents,
   decodeEvents,
 } from "./events.js";
@@ -181,9 +184,87 @@ test("decodeEvents() block", async (context) => {
   });
 });
 
-test.todo("decodeEvents() transfer");
+test("decodeEvents() transfer", async (context) => {
+  const { common } = context;
 
-test.todo("decodeEvents() transaction");
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const rawEvent = {
+    chainId: 1,
+    sourceIndex: 3,
+    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    block: {} as RawEvent["block"],
+    transaction: {} as RawEvent["transaction"],
+    log: undefined,
+    trace: {
+      id: "test",
+      type: "CALL",
+      from: ALICE,
+      to: BOB,
+      gas: 0n,
+      gasUsed: 0n,
+      input: "0x0",
+      output: "0x0",
+      value: parseEther("1"),
+    },
+  } as RawEvent;
+
+  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+
+  expect(events).toHaveLength(1);
+  expect(events[0].event.transfer).toMatchObject({
+    from: ALICE,
+    to: BOB,
+    value: parseEther("1"),
+  });
+  expect(events[0].name).toBe("Accounts:transfer:from");
+});
+
+test("decodeEvents() transaction", async (context) => {
+  const { common } = context;
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const rawEvent = {
+    chainId: 1,
+    sourceIndex: 0,
+    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    block: {} as RawEvent["block"],
+    transaction: {} as RawEvent["transaction"],
+    log: undefined,
+    trace: undefined,
+  } as RawEvent;
+
+  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+
+  expect(events).toHaveLength(1);
+
+  expect(events[0].name).toBe("Accounts:transaction:to");
+});
 
 test("decodeEvents() trace", async (context) => {
   const { common } = context;
@@ -319,7 +400,7 @@ test("buildEvents() matches getEvents() log", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [rpcBlock.transactions[0] as SyncTransaction],
+    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
     chainId: 1,
   });
 
@@ -416,7 +497,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [rpcBlock.transactions[0] as SyncTransaction],
+    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
     chainId: 1,
   });
 
@@ -516,8 +597,264 @@ test("buildEvents() matches getEvents() block", async (context) => {
   await cleanup();
 });
 
-test.todo("buildEvents() matches getEvents() transfer");
+test("buildEvents() matches getEvents() transfer", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-test.todo("buildEvents() matches getEvents() transaction");
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
-test.todo("buildEvents() matches getEvents() trace");
+  const { hash } = await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    chainId: 1,
+  });
+
+  const rpcTrace = {
+    trace: {
+      type: "CALL",
+      from: ALICE,
+      to: BOB,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: "0x0",
+      output: "0x0",
+      value: rpcBlock.transactions[0]!.value,
+    },
+    position: 0,
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  await syncStore.insertTraces({
+    traces: [
+      {
+        trace: rpcTrace,
+        block: rpcBlock,
+        transaction: rpcBlock.transactions[0] as SyncTransaction,
+      },
+    ],
+    chainId: 1,
+  });
+
+  const { events: events1 } = await syncStore.getEvents({
+    filters: sources.map((s) => s.filter),
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  const events2 = buildEvents({
+    sources,
+    chainId: 1,
+    blockWithEventData: {
+      block: rpcBlock,
+      logs: [],
+      transactions: rpcBlock.transactions,
+      traces: [rpcTrace],
+      transactionReceipts: [],
+    },
+    finalizedChildAddresses: new Map(),
+    unfinalizedChildAddresses: new Map(),
+  });
+
+  // transaction:from and transfer:from
+  expect(events1).toHaveLength(2);
+
+  expect(events2).toStrictEqual(events1);
+
+  await cleanup();
+});
+
+test("buildEvents() matches getEvents() transaction", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    chainId: 1,
+  });
+
+  const { events: events1 } = await syncStore.getEvents({
+    filters: sources.map((s) => s.filter),
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  const events2 = buildEvents({
+    sources,
+    chainId: 1,
+    blockWithEventData: {
+      block: rpcBlock,
+      logs: [],
+      transactions: rpcBlock.transactions,
+      traces: [],
+      transactionReceipts: [],
+    },
+    finalizedChildAddresses: new Map(),
+    unfinalizedChildAddresses: new Map(),
+  });
+
+  expect(events1).toHaveLength(1);
+
+  expect(events2).toStrictEqual(events1);
+
+  await cleanup();
+});
+
+test("buildEvents() matches getEvents() trace", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { hash } = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+    includeCallTraces: true,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 2,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    chainId: 1,
+  });
+
+  const rpcTrace = {
+    trace: {
+      type: "CALL",
+      from: ALICE,
+      to: address,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: encodeFunctionData({
+        abi: erc20ABI,
+        functionName: "transfer",
+        args: [BOB, parseEther("1")],
+      }),
+      output: encodeFunctionResult({
+        abi: erc20ABI,
+        functionName: "transfer",
+        result: true,
+      }),
+      value: "0x0",
+    },
+    position: 0,
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  await syncStore.insertTraces({
+    traces: [
+      {
+        trace: rpcTrace,
+        block: rpcBlock,
+        transaction: rpcBlock.transactions[0] as SyncTransaction,
+      },
+    ],
+    chainId: 1,
+  });
+
+  const { events: events1 } = await syncStore.getEvents({
+    filters: sources.map((s) => s.filter),
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
+    limit: 10,
+  });
+
+  const events2 = buildEvents({
+    sources,
+    chainId: 1,
+    blockWithEventData: {
+      block: rpcBlock,
+      logs: [],
+      transactions: rpcBlock.transactions,
+      traces: [rpcTrace],
+      transactionReceipts: [],
+    },
+    finalizedChildAddresses: new Map(),
+    unfinalizedChildAddresses: new Map(),
+  });
+
+  expect(events1).toHaveLength(1);
+
+  expect(events2).toStrictEqual(events1);
+
+  await cleanup();
+});

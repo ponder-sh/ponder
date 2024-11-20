@@ -153,3 +153,26 @@ export const swapPair = async (params: {
 
   return { hash };
 };
+
+/** Transfer native tokens and mine block. */
+export const transferEth = async (params: {
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.sendTransaction({
+    to: params.to,
+    value: params.amount,
+  });
+
+  await testClient.mine({ blocks: 1 });
+  await publicClient.waitForTransactionReceipt({ hash });
+
+  return { hash };
+};

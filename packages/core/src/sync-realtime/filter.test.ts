@@ -1,27 +1,49 @@
-import { ALICE } from "@/_test/constants.js";
+import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   createPair,
   deployErc20,
   deployFactory,
   mintErc20,
+  transferErc20,
+  transferEth,
 } from "@/_test/simulate.js";
 import {
+  getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
   getErc20ConfigAndIndexingFunctions,
   getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type { BlockFilter, LogFactory, LogFilter } from "@/sync/source.js";
+import type {
+  BlockFilter,
+  LogFactory,
+  LogFilter,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/sync/source.js";
+import type { SyncTrace } from "@/types/sync.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
-import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
+import {
+  type Address,
+  encodeFunctionData,
+  encodeFunctionResult,
+  parseEther,
+  zeroAddress,
+  zeroHash,
+} from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   isBlockFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
+  isTraceFilterMatched,
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
 } from "./filter.js";
 
 beforeEach(setupCommon);
@@ -191,8 +213,209 @@ test("isBlockFilterMatched", async (context) => {
   expect(isMatched).toBe(false);
 });
 
-test.todo("isTransactionFilterMatched()");
+test("isTransactionFilterMatched()", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
-test.todo("isTransferFilterMatched()");
+  await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
 
-test.todo("isTraceFilterMatched()");
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  // transaction:from
+  const filter = sources[1]!.filter as TransactionFilter<undefined, undefined>;
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+
+  let isMatched = isTransactionFilterMatched({
+    filter,
+    block: rpcBlock,
+    transaction: rpcBlock.transactions[0]!,
+  });
+  expect(isMatched).toBe(true);
+
+  rpcBlock.transactions[0]!.from = zeroAddress;
+
+  isMatched = isTransactionFilterMatched({
+    filter,
+    block: rpcBlock,
+    transaction: rpcBlock.transactions[0]!,
+  });
+  expect(isMatched).toBe(false);
+});
+
+test("isTransferFilterMatched()", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { hash } = await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  // transfer:from
+  const filter = sources[3]!.filter as TransferFilter<undefined, undefined>;
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+
+  const rpcTrace = {
+    trace: {
+      type: "CALL",
+      from: ALICE,
+      to: BOB,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: "0x0",
+      output: "0x0",
+      value: rpcBlock.transactions[0]!.value,
+    },
+    position: 0,
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  let isMatched = isTransferFilterMatched({
+    filter,
+    block: rpcBlock,
+    trace: rpcTrace.trace,
+  });
+  expect(isMatched).toBe(true);
+
+  rpcTrace.trace.value = "0x0";
+
+  isMatched = isTransferFilterMatched({
+    filter,
+    block: rpcBlock,
+    trace: rpcTrace.trace,
+  });
+  expect(isMatched).toBe(false);
+});
+
+test("isTraceFilterMatched()", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const { hash } = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+    includeCallTraces: true,
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
+  const filter = sources[1]!.filter as TraceFilter<undefined, undefined>;
+
+  const rpcTrace = {
+    trace: {
+      type: "CALL",
+      from: ALICE,
+      to: address,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: encodeFunctionData({
+        abi: erc20ABI,
+        functionName: "transfer",
+        args: [BOB, parseEther("1")],
+      }),
+      output: encodeFunctionResult({
+        abi: erc20ABI,
+        functionName: "transfer",
+        result: true,
+      }),
+      value: "0x0",
+    },
+    position: 0,
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 3,
+  });
+
+  let isMatched = isTraceFilterMatched({
+    filter,
+    block: rpcBlock,
+    trace: rpcTrace.trace,
+  });
+  expect(isMatched).toBe(true);
+
+  filter.functionSelector = undefined;
+
+  isMatched = isTraceFilterMatched({
+    filter,
+    block: rpcBlock,
+    trace: rpcTrace.trace,
+  });
+  expect(isMatched).toBe(true);
+
+  rpcTrace.trace.to = zeroAddress;
+
+  isMatched = isTraceFilterMatched({
+    filter,
+    block: rpcBlock,
+    trace: rpcTrace.trace,
+  });
+  expect(isMatched).toBe(false);
+});
