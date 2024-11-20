@@ -113,21 +113,25 @@ export namespace Virtual {
     contractName extends ExtractSourceName<name> = ExtractSourceName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = name extends `${string}:block`
-    ? { block: Prettify<Block> }
+    ? // 1. block event
+      { block: Prettify<Block> }
     : name extends `${string}:transaction:${"from" | "to"}`
-      ? {
+      ? // 2. transaction event
+        {
           block: Prettify<Block>;
           transaction: Prettify<Transaction>;
         }
       : name extends `${string}:transfer:${"from" | "to"}`
-        ? {
+        ? // 3. transfer event
+          {
             transfer: Prettify<Transfer>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
             trace: Prettify<Trace>;
           }
         : name extends `${string}.${string}`
-          ? Prettify<
+          ? // 4. call trace event
+            Prettify<
               {
                 args: FormatFunctionArgs<
                   config["contracts"][contractName]["abi"],
@@ -143,8 +147,10 @@ export namespace Virtual {
               } & FormatTransactionReceipts<config["contracts"][contractName]>
             >
           : eventName extends Setup
-            ? never
-            : Prettify<
+            ? // 5. setup event
+              never
+            : // 6. log event
+              Prettify<
                 {
                   name: eventName;
                   args: FormatEventArgs<
