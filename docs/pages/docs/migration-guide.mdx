@@ -114,7 +114,7 @@ export const allowance = onchainTable(
 
 export const approvalEvent = onchainTable("approval_event", (t) => ({
   id: t.text().primaryKey(),
-  amount: t.evmBigint().notNull(),
+  amount: t.bigint().notNull(),
   timestamp: t.integer().notNull(),
   owner: t.hex().notNull(),
   spender: t.hex().notNull(),
