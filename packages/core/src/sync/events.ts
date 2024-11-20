@@ -523,7 +523,7 @@ export const decodeEvents = (
                 chainId: event.chainId,
                 checkpoint: event.checkpoint,
 
-                // TODO(kyle) "()"
+                // NOTE: `safename` includes ()
                 name: `${source.name}.${safeName}`,
 
                 event: {
