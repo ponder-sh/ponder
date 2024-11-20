@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.8
+
+### Patch Changes
+
+- [#1263](https://github.com/ponder-sh/ponder/pull/1263) [`08e6fd2dea41f083ebdf4c2759819803c8619171`](https://github.com/ponder-sh/ponder/commit/08e6fd2dea41f083ebdf4c2759819803c8619171) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed "Failed '[table].flush()' database method" bug introduced in v0.7.6.
+
 ## 0.7.7
 
 ### Patch Changes
