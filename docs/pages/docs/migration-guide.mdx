@@ -64,7 +64,7 @@ export const accounts = onchainTable("account", (t) => ({
   address: t.hex().primaryKey(),
   daiBalance: t.bigint().notNull(),
   isAdmin: t.boolean().notNull(),
-  graffiti: t.string(),
+  graffiti: t.text(),
 }));
 ```
 
@@ -114,7 +114,7 @@ export const allowance = onchainTable(
 
 export const approvalEvent = onchainTable("approval_event", (t) => ({
   id: t.text().primaryKey(),
-  amount: t.evmBigint().notNull(),
+  amount: t.bigint().notNull(),
   timestamp: t.integer().notNull(),
   owner: t.hex().notNull(),
   spender: t.hex().notNull(),
