@@ -578,6 +578,20 @@ export const createSyncStore = ({
         .where("chainId", "=", filter.chainId)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
+        .$if(filter.includeReverted === false, (qb) =>
+          qb.where(
+            db
+              .selectFrom("transactionReceipts")
+              .select("status")
+              .where(
+                "transactionReceipts.transactionHash",
+                "=",
+                sql.ref("transactions.hash"),
+              ),
+            "=",
+            "0x1",
+          ),
+        )
         .$if(filter.fromBlock !== undefined, (qb) =>
           qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )
@@ -605,6 +619,9 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .where("value", ">", "0")
+        .$if(filter.includeReverted === false, (qb) =>
+          qb.where("error", "is", null),
+        )
         .$if(filter.fromBlock !== undefined, (qb) =>
           qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )

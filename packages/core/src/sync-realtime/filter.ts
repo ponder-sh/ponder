@@ -137,6 +137,8 @@ export const isTransactionFilterMatched = ({
     return false;
   }
 
+  // NOTE: `filter.includeReverted` is intentionally ignored
+
   return true;
 };
 
@@ -189,6 +191,8 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
+  // NOTE: `filter.includeReverted` is intentionally ignored
+
   return true;
 };
 
@@ -233,6 +237,8 @@ export const isTransferFilterMatched = ({
   ) {
     return false;
   }
+
+  // NOTE: `filter.includeReverted` is intentionally ignored
 
   return true;
 };

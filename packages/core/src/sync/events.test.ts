@@ -29,7 +29,11 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
+import {
+  _eth_getBlockByNumber,
+  _eth_getLogs,
+  _eth_getTransactionReceipt,
+} from "@/utils/rpc.js";
 import {
   type Hex,
   encodeEventTopics,
@@ -635,6 +639,13 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
     chainId: 1,
   });
 
+  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
+
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: [rpcReceipt],
+    chainId: 1,
+  });
+
   const rpcTrace = {
     trace: {
       type: "CALL",
@@ -676,7 +687,7 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
       logs: [],
       transactions: rpcBlock.transactions,
       traces: [rpcTrace],
-      transactionReceipts: [],
+      transactionReceipts: [rpcReceipt],
     },
     finalizedChildAddresses: new Map(),
     unfinalizedChildAddresses: new Map(),
@@ -699,7 +710,7 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
     common: context.common,
   });
 
-  await transferEth({
+  const { hash } = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
@@ -729,6 +740,13 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
     chainId: 1,
   });
 
+  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
+
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: [rpcReceipt],
+    chainId: 1,
+  });
+
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
     from: encodeCheckpoint(zeroCheckpoint),
@@ -744,7 +762,7 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
       logs: [],
       transactions: rpcBlock.transactions,
       traces: [],
-      transactionReceipts: [],
+      transactionReceipts: [rpcReceipt],
     },
     finalizedChildAddresses: new Map(),
     unfinalizedChildAddresses: new Map(),

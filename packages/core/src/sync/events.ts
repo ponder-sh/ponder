@@ -285,10 +285,11 @@ export const buildEvents = ({
                 isFactoryAddressMatched({
                   filter,
                   event: trace.trace,
-                })
+                }) &&
+                (filter.includeReverted
+                  ? true
+                  : trace.trace.error === undefined)
               ) {
-                // TODO: filter on factory
-
                 const transaction = transactionCache.get(
                   trace.transactionHash,
                 )!;
@@ -330,10 +331,12 @@ export const buildEvents = ({
                 isFactoryAddressMatched({
                   filter,
                   event: transaction,
-                })
+                }) &&
+                (filter.includeReverted
+                  ? true
+                  : transactionReceiptCache.get(transaction.hash)!.status ===
+                    "0x1")
               ) {
-                // TODO: filter on factory
-
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
@@ -367,10 +370,11 @@ export const buildEvents = ({
                 isFactoryAddressMatched({
                   filter,
                   event: trace.trace,
-                })
+                }) &&
+                (filter.includeReverted
+                  ? true
+                  : trace.trace.error === undefined)
               ) {
-                // TODO: filter on factory
-
                 const transaction = transactionCache.get(
                   trace.transactionHash,
                 )!;

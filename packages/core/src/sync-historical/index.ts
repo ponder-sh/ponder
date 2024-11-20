@@ -242,7 +242,6 @@ export const createHistoricalSync = async (
    * the same block twice. Also, update `latestBlock`.
    *
    * @param number Block to be extracted
-   * @param transactionHashes Hashes to be inserted into the sync-store
    *
    * Note: This function could more accurately skip network requests by taking
    * advantage of `syncStore.hasBlock` and `syncStore.hasTransaction`.
@@ -455,28 +454,24 @@ export const createHistoricalSync = async (
       });
     }
 
+    for (const hash of transactionHashes) {
+      transactionsCache.add(hash);
+    }
+
     if (isKilled) return;
 
-    if (filter.includeReverted) {
-      // add transactions to cache
-      for (const hash of transactionHashes) {
-        transactionsCache.add(hash);
-      }
-    } else {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map((hash) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
-        ),
-      );
+    const transactionReceipts = await Promise.all(
+      Array.from(transactionHashes).map((hash) =>
+        _eth_getTransactionReceipt(args.requestQueue, { hash }),
+      ),
+    );
 
-      if (isKilled) return;
+    if (isKilled) return;
 
-      for (const receipt of transactionReceipts) {
-        if (receipt.status === "0x1") {
-          transactionsCache.add(receipt.transactionHash);
-        }
-      }
-    }
+    await args.syncStore.insertTransactionReceipts({
+      transactionReceipts,
+      chainId: args.network.chainId,
+    });
   };
 
   const syncTraceOrTransferFilter = async (
@@ -669,8 +664,8 @@ export const createHistoricalSync = async (
       }
 
       blockCache.clear();
-      transactionsCache.clear();
       traceCache.clear();
+      transactionsCache.clear();
 
       return latestBlock;
     },

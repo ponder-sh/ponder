@@ -659,6 +659,8 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(1);
+  expect(data[0]?.transactionReceipts).toHaveLength(1);
+
   await realtimeSync.kill();
 
   await cleanup();
@@ -762,6 +764,8 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(1);
   expect(data[0]?.transactions).toHaveLength(1);
+  expect(data[0]?.transactionReceipts).toHaveLength(1);
+
   await realtimeSync.kill();
 
   await cleanup();
@@ -916,6 +920,10 @@ test("handleBlock() block event with trace", async (context) => {
 
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[1]?.transactions).toHaveLength(1);
+
+  expect(data[0]?.transactionReceipts).toHaveLength(0);
+  expect(data[1]?.transactionReceipts).toHaveLength(0);
+
   await realtimeSync.kill();
 
   await cleanup();

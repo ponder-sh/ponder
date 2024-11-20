@@ -438,6 +438,13 @@ test("sync() with transaction filter", async (context) => {
 
   expect(transactions).toHaveLength(1);
 
+  const transactionReceipts = await database.qb.sync
+    .selectFrom("transactionReceipts")
+    .selectAll()
+    .execute();
+
+  expect(transactionReceipts).toHaveLength(1);
+
   const intervals = await database.qb.sync
     .selectFrom("intervals")
     .selectAll()

@@ -89,6 +89,7 @@ export type TransferFilter<
   toAddress: toFactory extends Factory
     ? fromFactory
     : Address | Address[] | undefined;
+  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
 };

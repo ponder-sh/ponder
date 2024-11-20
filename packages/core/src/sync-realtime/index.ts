@@ -304,6 +304,7 @@ export const createRealtimeSync = (
     });
 
     // Remove transactions and transaction receipts that may have been filtered out
+
     const transactionHashes = new Set<Hash>();
     for (const log of logs) {
       transactionHashes.add(log.transactionHash);
@@ -325,6 +326,10 @@ export const createRealtimeSync = (
       }
       return isMatched;
     });
+
+    for (const transaction of transactions) {
+      transactionHashes.add(transaction.hash);
+    }
 
     transactionReceipts = transactionReceipts.filter((t) =>
       transactionHashes.has(t.transactionHash),
@@ -723,11 +728,7 @@ export const createRealtimeSync = (
       let isMatched = requiredTransactions.has(transaction.hash);
       for (const filter of transactionFilters) {
         if (isTransactionFilterMatched({ filter, block, transaction })) {
-          if (filter.includeReverted === false) {
-            // or TODO: includeTransactionReceipt
-            requiredTransactionReceipts.add(transaction.hash);
-            return true;
-          }
+          requiredTransactionReceipts.add(transaction.hash);
           isMatched = true;
         }
       }

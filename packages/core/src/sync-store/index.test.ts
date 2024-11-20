@@ -1515,7 +1515,7 @@ test("getEvents() handles transaction filter logic", async (context) => {
     common: context.common,
   });
 
-  await transferEth({
+  const { hash } = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
@@ -1542,6 +1542,13 @@ test("getEvents() handles transaction filter logic", async (context) => {
 
   await syncStore.insertTransactions({
     transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    chainId: 1,
+  });
+
+  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
+
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: [rpcReceipt],
     chainId: 1,
   });
 
@@ -1593,6 +1600,13 @@ test("getEvents() handles transfer filter logic", async (context) => {
 
   await syncStore.insertTransactions({
     transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    chainId: 1,
+  });
+
+  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
+
+  await syncStore.insertTransactionReceipts({
+    transactionReceipts: [rpcReceipt],
     chainId: 1,
   });
 
