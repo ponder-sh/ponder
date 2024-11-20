@@ -284,7 +284,7 @@ export const createHistoricalIndexingStore = ({
     }
   };
 
-  const getCopyCSV = (
+  const getCopyText = (
     table: Table,
     entries: (InsertEntry | UpdateEntry)["row"][],
   ) => {
@@ -293,24 +293,28 @@ export const createHistoricalIndexingStore = ({
 
     while (entries.length > 0) {
       const entry = entries.pop()!;
-      for (let j = 0; j < columns.length; j++) {
-        const [columnName, column] = columns[j]!;
-        const value = entry[columnName];
+
+      for (let i = 0; i < columns.length; i++) {
+        const [columnName, column] = columns[i]!;
+        const isLast = i === columns.length - 1;
+
+        let value = entry[columnName];
 
         if (value === null || value === undefined) {
           result += "\\N";
-        } else if (column.mapToDriverValue === undefined) {
-          result += `"${String(value).replace(/"/g, '""')}"`;
         } else {
-          const mappedValue = column.mapToDriverValue(value);
-          if (mappedValue === null || mappedValue === undefined) {
+          if (column.mapToDriverValue !== undefined) {
+            value = column.mapToDriverValue(value);
+          }
+
+          if (value === null || value === undefined) {
             result += "\\N";
           } else {
-            result += `"${String(mappedValue).replace(/"/g, '""')}"`;
+            result += String(value);
           }
         }
-        // Add comma if not last column
-        if (j < columns.length - 1) result += ",";
+
+        if (isLast === false) result += "\t";
       }
 
       result += "\n";
@@ -827,8 +831,8 @@ export const createHistoricalIndexingStore = ({
           const insertSize = insertValues.length;
           const updateSize = updateValues.length;
           // `insertValues` and `updateValues` are mutated, so that the entries may be garbage collected
-          const insertCSV = getCopyCSV(table, insertValues);
-          const updateCSV = getCopyCSV(table, updateValues);
+          const insertText = getCopyText(table, insertValues);
+          const updateText = getCopyText(table, updateValues);
 
           // Steps for flushing "insert" entries:
           // 1. Copy into target table
@@ -848,10 +852,10 @@ export const createHistoricalIndexingStore = ({
                         .instance;
 
                       await client.query(
-                        `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob' WITH (FORMAT csv)`,
+                        `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob'`,
                         [],
                         {
-                          blob: new Blob([insertCSV]),
+                          blob: new Blob([insertText]),
                         },
                       );
                     } catch (_error) {
@@ -869,10 +873,10 @@ export const createHistoricalIndexingStore = ({
 
                     try {
                       await pipeline(
-                        Readable.from(insertCSV),
+                        Readable.from(insertText),
                         client.query(
                           copy.from(
-                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
+                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN`,
                           ),
                         ),
                       );
@@ -938,10 +942,10 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       await client.query(createTempTableQuery);
 
                       await client.query(
-                        `COPY "${tableNameCache.get(table)}" FROM '/dev/blob' WITH (FORMAT csv)`,
+                        `COPY "${tableNameCache.get(table)}" FROM '/dev/blob'`,
                         [],
                         {
-                          blob: new Blob([updateCSV]),
+                          blob: new Blob([updateText]),
                         },
                       );
 
@@ -964,10 +968,10 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       await client.query(createTempTableQuery);
 
                       await pipeline(
-                        Readable.from(updateCSV),
+                        Readable.from(updateText),
                         client.query(
                           copy.from(
-                            `COPY "${tableNameCache.get(table)}" FROM STDIN WITH (FORMAT csv)`,
+                            `COPY "${tableNameCache.get(table)}" FROM STDIN`,
                           ),
                         ),
                       );
