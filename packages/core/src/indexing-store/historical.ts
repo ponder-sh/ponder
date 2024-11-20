@@ -831,8 +831,8 @@ export const createHistoricalIndexingStore = ({
           const insertSize = insertValues.length;
           const updateSize = updateValues.length;
           // `insertValues` and `updateValues` are mutated, so that the entries may be garbage collected
-          const insertCSV = getCopyText(table, insertValues);
-          const updateCSV = getCopyText(table, updateValues);
+          const insertText = getCopyText(table, insertValues);
+          const updateText = getCopyText(table, updateValues);
 
           // Steps for flushing "insert" entries:
           // 1. Copy into target table
@@ -855,7 +855,7 @@ export const createHistoricalIndexingStore = ({
                         `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob'`,
                         [],
                         {
-                          blob: new Blob([insertCSV]),
+                          blob: new Blob([insertText]),
                         },
                       );
                     } catch (_error) {
@@ -873,7 +873,7 @@ export const createHistoricalIndexingStore = ({
 
                     try {
                       await pipeline(
-                        Readable.from(insertCSV),
+                        Readable.from(insertText),
                         client.query(
                           copy.from(
                             `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"`,
@@ -945,7 +945,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                         `COPY "${tableNameCache.get(table)}" FROM '/dev/blob'`,
                         [],
                         {
-                          blob: new Blob([updateCSV]),
+                          blob: new Blob([updateText]),
                         },
                       );
 
@@ -968,7 +968,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       await client.query(createTempTableQuery);
 
                       await pipeline(
-                        Readable.from(updateCSV),
+                        Readable.from(updateText),
                         client.query(
                           copy.from(
                             `COPY "${tableNameCache.get(table)}" FROM STDIN`,
