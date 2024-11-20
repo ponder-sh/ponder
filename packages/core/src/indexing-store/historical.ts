@@ -876,7 +876,7 @@ export const createHistoricalIndexingStore = ({
                         Readable.from(insertText),
                         client.query(
                           copy.from(
-                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"`,
+                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN`,
                           ),
                         ),
                       );
