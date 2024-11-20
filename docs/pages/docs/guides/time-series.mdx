@@ -17,13 +17,13 @@ To power a [candlestick](https://en.wikipedia.org/wiki/Candlestick_chart) or ope
 import { onchainTable } from "@ponder/core";
 
 export const hourBuckets = onchainTable("hour_buckets", (t) => ({
-  id: t.int().primaryKey(),
+  id: t.integer().primaryKey(),
   open: t.real().notNull(),
   close: t.real().notNull(),
   low: t.real().notNull(),
   high: t.real().notNull(),
   average: t.real().notNull(),
-  count: t.int().notNull(),
+  count: t.integer().notNull(),
 }));
 ```
 

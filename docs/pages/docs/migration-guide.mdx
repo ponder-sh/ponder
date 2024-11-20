@@ -64,7 +64,7 @@ export const accounts = onchainTable("account", (t) => ({
   address: t.hex().primaryKey(),
   daiBalance: t.bigint().notNull(),
   isAdmin: t.boolean().notNull(),
-  graffiti: t.string(),
+  graffiti: t.text(),
 }));
 ```
 
