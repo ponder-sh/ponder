@@ -298,13 +298,13 @@ export const createHistoricalIndexingStore = ({
         const value = entry[columnName];
 
         if (value === null || value === undefined) {
-          result += "\\N";
+          result += "null";
         } else if (column.mapToDriverValue === undefined) {
           result += `"${String(value).replace(/"/g, '""')}"`;
         } else {
           const mappedValue = column.mapToDriverValue(value);
           if (mappedValue === null || mappedValue === undefined) {
-            result += "\\N";
+            result += "null";
           } else {
             result += `"${String(mappedValue).replace(/"/g, '""')}"`;
           }
@@ -848,7 +848,7 @@ export const createHistoricalIndexingStore = ({
                         .instance;
 
                       await client.query(
-                        `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob' WITH (FORMAT csv)`,
+                        `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob' with delimiter ',' NULL AS 'null' csv`,
                         [],
                         {
                           blob: new Blob([insertCSV]),
@@ -872,7 +872,7 @@ export const createHistoricalIndexingStore = ({
                         Readable.from(insertCSV),
                         client.query(
                           copy.from(
-                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN WITH (FORMAT csv)`,
+                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN with delimiter ',' NULL AS 'null' csv`,
                           ),
                         ),
                       );
