@@ -47,9 +47,7 @@ export type RealtimeSync = {
   start(args: {
     syncProgress: Pick<SyncProgress, "finalized">;
     initialChildAddresses: Map<Factory, Set<Address>>;
-  }): Promise<
-    Queue<void, Omit<BlockWithEventData, "traces"> & { traces: SyncTrace[] }>
-  >;
+  }): Promise<Queue<void, BlockWithEventData>>;
   kill(): Promise<void>;
   unfinalizedBlocks: LightBlock[];
   finalizedChildAddresses: Map<Factory, Set<Address>>;
@@ -112,10 +110,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<
-    void,
-    Omit<BlockWithEventData, "filters" | "traces"> & { traces: SyncTrace[] }
-  >;
+  let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -269,7 +264,6 @@ export const createRealtimeSync = (
       return isMatched;
     });
 
-    // TODO: handle factory address
     traces = traces.filter((trace) => {
       let isMatched = false;
       for (const filter of transferFilters) {
@@ -318,7 +312,6 @@ export const createRealtimeSync = (
       transactionHashes.add(trace.transactionHash);
     }
 
-    // TODO: handle factory address
     transactions = transactions.filter((transaction) => {
       let isMatched = transactionHashes.has(transaction.hash);
       for (const filter of transactionFilters) {
@@ -569,9 +562,7 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<
-    Omit<BlockWithEventData, "filters" | "traces"> & { traces: SyncTrace[] }
-  > => {
+  ): Promise<Omit<BlockWithEventData, "filters">> => {
     ////////
     // Logs
     ////////
