@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.7.9
+
+### Patch Changes
+
+- [#1268](https://github.com/ponder-sh/ponder/pull/1268) [`68f786197ae0d44a7aa19852e17ac792549188f7`](https://github.com/ponder-sh/ponder/commit/68f786197ae0d44a7aa19852e17ac792549188f7) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `one` relations were sometimes incorrectly marked as non-null in the GraphQL schema, which caused "Cannot return null for non-nullable field" errors when the related entity was not found.
+
+- [#1269](https://github.com/ponder-sh/ponder/pull/1269) [`700e060791a5575ba684fac49c3a32edfac16726`](https://github.com/ponder-sh/ponder/commit/700e060791a5575ba684fac49c3a32edfac16726) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed tables not being cleaned up.
+
+- [#1273](https://github.com/ponder-sh/ponder/pull/1273) [`a0e1613c47a0ebcaaf2a4cabc5d8bf62ce8489bf`](https://github.com/ponder-sh/ponder/commit/a0e1613c47a0ebcaaf2a4cabc5d8bf62ce8489bf) Thanks [@0xOlias](https://github.com/0xOlias)! - Improve logging for flush errors.
+
 ## 0.7.8
 
 ### Patch Changes
