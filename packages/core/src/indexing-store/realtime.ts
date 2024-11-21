@@ -137,8 +137,7 @@ export const createRealtimeIndexingStore = ({
                         .onConflictDoNothing()
                         .returning();
                     } catch (e) {
-                      parseSqlError(e);
-                      throw e;
+                      throw parseSqlError(e);
                     }
                   },
                 ),
@@ -166,8 +165,7 @@ export const createRealtimeIndexingStore = ({
                           })
                           .returning();
                       } catch (e) {
-                        parseSqlError(e);
-                        throw e;
+                        throw parseSqlError(e);
                       }
                     }
 
@@ -185,8 +183,7 @@ export const createRealtimeIndexingStore = ({
                                 .returning(),
                             );
                           } catch (e) {
-                            parseSqlError(e);
-                            throw e;
+                            throw parseSqlError(e);
                           }
                         } else {
                           try {
@@ -198,8 +195,7 @@ export const createRealtimeIndexingStore = ({
                                 .returning(),
                             );
                           } catch (e) {
-                            parseSqlError(e);
-                            throw e;
+                            throw parseSqlError(e);
                           }
                         }
                       }
@@ -214,8 +210,7 @@ export const createRealtimeIndexingStore = ({
                             .values(values)
                             .returning();
                         } catch (e) {
-                          parseSqlError(e);
-                          throw e;
+                          throw parseSqlError(e);
                         }
                       } else {
                         try {
@@ -225,8 +220,7 @@ export const createRealtimeIndexingStore = ({
                             .where(getWhereCondition(table, values))
                             .returning();
                         } catch (e) {
-                          parseSqlError(e);
-                          throw e;
+                          throw parseSqlError(e);
                         }
                       }
                     }
@@ -250,8 +244,7 @@ export const createRealtimeIndexingStore = ({
                           .values(values)
                           .returning();
                       } catch (e) {
-                        parseSqlError(e);
-                        throw e;
+                        throw parseSqlError(e);
                       }
                     },
                   ),
@@ -308,8 +301,7 @@ export const createRealtimeIndexingStore = ({
                       .where(getWhereCondition(table, key))
                       .returning();
                   } catch (e) {
-                    parseSqlError(e);
-                    throw e;
+                    throw parseSqlError(e);
                   }
                 } else {
                   try {
@@ -319,8 +311,7 @@ export const createRealtimeIndexingStore = ({
                       .where(getWhereCondition(table, key))
                       .returning();
                   } catch (e) {
-                    parseSqlError(e);
-                    throw e;
+                    throw parseSqlError(e);
                   }
                 }
               },
@@ -360,8 +351,7 @@ export const createRealtimeIndexingStore = ({
                   .prepareQuery(query, undefined, undefined, method === "all")
                   .execute();
               } catch (e) {
-                parseSqlError(e);
-                throw e;
+                throw parseSqlError(e);
               }
             },
           );

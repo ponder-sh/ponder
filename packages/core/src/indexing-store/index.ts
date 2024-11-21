@@ -18,7 +18,7 @@ export type IndexingStore<policy extends "historical" | "realtime"> =
         isCacheFull: () => boolean;
       };
 
-export const parseSqlError = (e: any) => {
+export const parseSqlError = (e: any): Error => {
   let error = getBaseError(e);
 
   if (error?.message?.includes("violates not-null constraint")) {
@@ -36,5 +36,5 @@ export const parseSqlError = (e: any) => {
     );
   }
 
-  throw error;
+  return error;
 };
