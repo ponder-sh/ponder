@@ -2,7 +2,7 @@
 import { ponder } from "@/generated";
 
 // biome-ignore lint/suspicious/noRedeclare: :)
-declare const ponder: import("@ponder/core").PonderApp<
+declare const ponder: import("ponder").PonderApp<
   typeof import("../ponder.config.js").default,
   typeof import("../ponder.schema.js").default
 >;

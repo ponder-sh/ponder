@@ -121,8 +121,7 @@ export function createTelemetry({
 
     // Attempt to find and read the users package.json file.
     const packageJson = getPackageJson(options.rootDir);
-    const ponderCoreVersion =
-      packageJson?.dependencies?.["@ponder/core"] ?? "unknown";
+    const ponderCoreVersion = packageJson?.dependencies?.ponder ?? "unknown";
     const viemVersion = packageJson?.dependencies?.viem ?? "unknown";
 
     // Make a guess as to whether the project is internal (within the monorepo) or not.

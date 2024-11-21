@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http, getAbiItem } from "viem";
 
 import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi";

@@ -1,4 +1,4 @@
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const liquidationEvent = onchainTable("liquidation_event", (t) => ({
   id: t.text().primaryKey(),

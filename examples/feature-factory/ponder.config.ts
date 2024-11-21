@@ -1,5 +1,5 @@
-import { createConfig } from "@ponder/core";
 import { parseAbiItem } from "abitype";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { LlamaCoreAbi } from "./abis/LlamaCoreAbi";

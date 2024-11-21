@@ -9,7 +9,7 @@ declare module "@/generated" {
     PonderEvent,
     PonderEventNames,
     PonderApp,
-  } from "@ponder/core";
+  } from "ponder";
 
   type Config = typeof import("./ponder.config.ts").default;
   type Schema = typeof import("./ponder.schema.ts").default;

@@ -1,4 +1,4 @@
-import { onchainEnum, onchainTable, primaryKey } from "@ponder/core";
+import { onchainEnum, onchainTable, primaryKey } from "ponder";
 
 export const tradeType = onchainEnum("trade_type", ["BUY", "SELL"]);
 

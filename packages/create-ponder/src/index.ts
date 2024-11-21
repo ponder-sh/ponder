@@ -344,7 +344,7 @@ export async function run({
         Object.values(config.contracts).some((c) => Array.isArray(c.abi))
           ? ", mergeAbis"
           : ""
-      } } from "@ponder/core";
+      } } from "ponder";
       import { http } from "viem";
 
       ${Object.values(config.contracts)
@@ -428,7 +428,7 @@ export async function run({
   // Create package.json for project
   const packageJson = await fs.readJSON(path.join(projectPath, "package.json"));
   packageJson.name = projectName;
-  packageJson.dependencies["@ponder/core"] = `^${rootPackageJson.version}`;
+  packageJson.dependencies.ponder = `^${rootPackageJson.version}`;
   packageJson.devDependencies["eslint-config-ponder"] =
     `^${rootPackageJson.version}`;
   await fs.writeFile(
