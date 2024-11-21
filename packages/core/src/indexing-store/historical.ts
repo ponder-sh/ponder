@@ -784,8 +784,7 @@ export const createHistoricalIndexingStore = ({
               .prepareQuery(query, undefined, undefined, method === "all")
               .execute();
           } catch (e) {
-            parseSqlError(e);
-            throw e;
+            throw parseSqlError(e);
           }
         });
 
@@ -854,15 +853,14 @@ export const createHistoricalIndexingStore = ({
                       await client.query(
                         `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob'`,
                         [],
-                        {
-                          blob: new Blob([insertText]),
-                        },
+                        { blob: new Blob([insertText]) },
                       );
                     } catch (_error) {
                       const error = _error as Error;
                       common.logger.error({
                         service: "indexing",
                         msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        error,
                       });
                       throw new FlushError(error.message);
                     }
@@ -885,6 +883,7 @@ export const createHistoricalIndexingStore = ({
                       common.logger.error({
                         service: "indexing",
                         msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        error,
                       });
                       throw new FlushError(error.message);
                     } finally {
@@ -916,17 +915,17 @@ export const createHistoricalIndexingStore = ({
               .join(",\n");
 
             const createTempTableQuery = `
-CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
-SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"
-WITH NO DATA;
-`;
+              CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
+              SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"
+              WITH NO DATA;
+            `;
 
             const updateQuery = `
-UPDATE "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" as target
-SET ${set}
-FROM "${tableNameCache.get(table)}" as source
-WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
-`;
+              UPDATE "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" as target
+              SET ${set}
+              FROM "${tableNameCache.get(table)}" as source
+              WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
+            `;
 
             const dropTempTableQuery = `DROP TABLE IF EXISTS "${tableNameCache.get(table)}"`;
 
@@ -944,9 +943,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       await client.query(
                         `COPY "${tableNameCache.get(table)}" FROM '/dev/blob'`,
                         [],
-                        {
-                          blob: new Blob([updateText]),
-                        },
+                        { blob: new Blob([updateText]) },
                       );
 
                       await client.query(updateQuery);
@@ -956,6 +953,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       common.logger.error({
                         service: "indexing",
                         msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        error,
                       });
                       throw new FlushError(error.message);
                     }
@@ -984,6 +982,7 @@ WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join("
                       common.logger.error({
                         service: "indexing",
                         msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        error,
                       });
                       throw new FlushError(error.message);
                     } finally {
