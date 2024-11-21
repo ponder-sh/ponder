@@ -662,8 +662,6 @@ export const createDatabase = (args: {
               .execute()
               .then((rows) => rows.map(({ value }) => value as PonderApp));
 
-            console.log(previousApps);
-
             const previousAppsWithBuildId = previousApps.filter(
               (app) => app.build_id === args.buildId && app.is_dev === 0,
             );
@@ -1276,7 +1274,6 @@ $$ LANGUAGE plpgsql
       clearInterval(heartbeatInterval);
 
       await qb.internal.wrap({ method: "unlock" }, async () => {
-        console.log("Unlock!");
         await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", `app_${args.instanceId}`)
