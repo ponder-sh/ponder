@@ -228,10 +228,10 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
             }
 
             fieldConfigMap[relationName] = {
-              // Note: This naming is backwards (Drizzle bug).
-              type: relation.isNullable
-                ? new GraphQLNonNull(referencedEntityType)
-                : referencedEntityType,
+              // Note: There is a `relation.isNullable` field here but it appears
+              // to be internal / incorrect. Until we have support for foriegn
+              // key constraints, all `one` relations must be nullable.
+              type: referencedEntityType,
               resolve: (parent, _args, context) => {
                 const loader = context.getDataLoader({
                   table: referencedTable,

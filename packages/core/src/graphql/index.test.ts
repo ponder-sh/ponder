@@ -417,14 +417,16 @@ test("singular with one relation", async (context) => {
 
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
-    ownerId: t.text("ownooor_id"),
-    ownerIdNotNull: t.text().notNull(),
+    ownerId: t.text().notNull(),
+    ownerIdNullable: t.text(),
   }));
 
+  // Note that regardless of whether the `fields` column(s) are nullable,
+  // the field type corresponding to the `one` relation must be nullable.
   const petRelations = relations(pet, ({ one }) => ({
     owner: one(person, { fields: [pet.ownerId], references: [person.id] }),
-    ownerNotNull: one(person, {
-      fields: [pet.ownerIdNotNull],
+    ownerNullable: one(person, {
+      fields: [pet.ownerIdNullable],
       references: [person.id],
     }),
   }));
@@ -443,7 +445,7 @@ test("singular with one relation", async (context) => {
   ]);
   await indexingStore
     .insert(schema.pet)
-    .values({ id: "dog1", ownerIdNotNull: "jake" });
+    .values({ id: "dog1", ownerId: "jake" });
 
   const graphqlSchema = buildGraphQLSchema(schema);
 
@@ -452,10 +454,10 @@ test("singular with one relation", async (context) => {
       pet(id: "dog1") {
         owner {
           id
-        }
-        ownerNotNull {
-          id
           name
+        }
+        ownerNullable {
+          id
         }
       }
     }
@@ -464,11 +466,11 @@ test("singular with one relation", async (context) => {
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
     pet: {
-      owner: null,
-      ownerNotNull: {
+      owner: {
         id: "jake",
         name: "jake",
       },
+      ownerNullable: null,
     },
   });
 
