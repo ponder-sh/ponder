@@ -1009,17 +1009,27 @@ export const createDatabase = (args: {
           .execute()
           .then((rows) => rows.map(({ value }) => value as PonderApp));
 
-        const removedApps = apps
-          .filter((app) =>
-            app.is_dev === 1
-              ? app.is_locked === 0
-              : app.is_locked === 0 ||
+        const removedDevApps = apps.filter(
+          (app) =>
+            app.is_dev === 1 &&
+            (app.is_locked === 0 ||
+              app.heartbeat_at + args.common.options.databaseHeartbeatTimeout <
+                Date.now()),
+        );
+
+        const removedStartApps = apps
+          .filter(
+            (app) =>
+              app.is_dev === 0 &&
+              (app.is_locked === 0 ||
                 app.heartbeat_at +
                   args.common.options.databaseHeartbeatTimeout <
-                  Date.now(),
+                  Date.now()),
           )
           .sort((a, b) => (a.heartbeat_at > b.heartbeat_at ? -1 : 1))
           .slice(2);
+
+        const removedApps = [...removedDevApps, ...removedStartApps];
 
         for (const app of removedApps) {
           for (const table of app.table_names) {
