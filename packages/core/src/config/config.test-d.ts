@@ -1,5 +1,6 @@
 import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
+import { factory } from "./address.js";
 import { createConfig } from "./config.js";
 
 const event0 = parseAbiItem(
@@ -94,39 +95,11 @@ test("createConfig factory", () => {
       c2: {
         abi: [event1],
         network: "mainnet",
-        factory: {
+        address: factory({
           address: "0x",
           event: event0,
           parameter: "arg",
-        },
-      },
-    },
-  });
-});
-
-test("createConfig address and factory", () => {
-  createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
-    },
-    contracts: {
-      c2: {
-        abi: [event1],
-        network: "mainnet",
-        factory: {
-          address: "0x",
-          event: event0,
-          parameter: "arg",
-        },
-        // @ts-expect-error
-        address: "0x",
+        }),
       },
     },
   });

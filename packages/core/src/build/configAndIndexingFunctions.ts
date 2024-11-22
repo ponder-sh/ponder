@@ -1,6 +1,7 @@
 import path from "node:path";
 import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
+import type { Factory } from "@/config/address.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import {
@@ -20,7 +21,7 @@ import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
 import parse from "pg-connection-string";
-import type { Hex, LogTopic } from "viem";
+import type { Address, Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
 
 export type RawIndexingFunctions = {
@@ -504,20 +505,13 @@ export async function buildConfigAndIndexingFunctions({
         networkName: source.network,
       } as const;
 
-      const resolvedFactory = source?.factory;
       const resolvedAddress = source?.address;
 
-      if (resolvedFactory !== undefined && resolvedAddress !== undefined) {
-        throw new Error(
-          `Validation failed: Contract '${contractMetadata.name}' cannot specify both 'factory' and 'address' options.`,
-        );
-      }
-
-      if (resolvedFactory) {
+      if (typeof resolvedAddress === "object") {
         // Note that this can throw.
         const logFactory = buildLogFactory({
           chainId: network.chainId,
-          ...resolvedFactory,
+          ...(resolvedAddress as Factory),
         });
 
         const logSource = {
@@ -578,9 +572,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? resolvedAddress.map((r) => toLowerCase(r))
+        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
         : resolvedAddress !== undefined
-          ? toLowerCase(resolvedAddress)
+          ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
       const logSource = {
@@ -656,20 +650,13 @@ export async function buildConfigAndIndexingFunctions({
         ? undefined
         : endBlockMaybeNan;
 
-      const resolvedFactory = source?.factory;
       const resolvedAddress = source?.address;
 
-      if (resolvedFactory !== undefined && resolvedAddress !== undefined) {
-        throw new Error(
-          `Validation failed: Account '${source.name}' cannot specify both 'factory' and 'address' options.`,
-        );
-      }
-
-      if (resolvedFactory) {
+      if (typeof resolvedAddress === "object") {
         // Note that this can throw.
         const logFactory = buildLogFactory({
           chainId: network.chainId,
-          ...resolvedFactory,
+          ...(resolvedAddress as Factory),
         });
 
         return [
@@ -749,9 +736,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? resolvedAddress.map((r) => toLowerCase(r))
+        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
         : resolvedAddress !== undefined
-          ? toLowerCase(resolvedAddress)
+          ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
       return [

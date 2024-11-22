@@ -1,7 +1,7 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
-import type { GetAddress } from "./address.js";
+import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 import type { NonStrictPick } from "./utilityTypes.js";
 
@@ -120,43 +120,24 @@ type GetNetwork<
   allNetworkNames extends string = [keyof networks] extends [never]
     ? string
     : keyof networks & string,
-> = contract extends { network: infer network }
-  ? {
-      /**
-       * Network that this contract is deployed to. Must match a network name in `networks`.
-       * Any filter information overrides the values in the higher level "contracts" property.
-       * Factories cannot override an address and vice versa.
-       */
-      network:
-        | allNetworkNames
-        | {
-            [name in allNetworkNames]?: Prettify<
-              GetAddress<NonStrictPick<network, "factory" | "address">> &
-                GetEventFilter<abi, NonStrictPick<contract, "filter">> &
-                TransactionReceiptConfig &
-                FunctionCallConfig &
-                BlockConfig
-            >;
-          };
-    }
-  : {
-      /**
-       * Network that this contract is deployed to. Must match a network name in `networks`.
-       * Any filter information overrides the values in the higher level "contracts" property.
-       * Factories cannot override an address and vice versa.
-       */
-      network:
-        | allNetworkNames
-        | {
-            [name in allNetworkNames]?: Prettify<
-              GetAddress<unknown> &
-                GetEventFilter<abi, unknown> &
-                TransactionReceiptConfig &
-                FunctionCallConfig &
-                BlockConfig
-            >;
-          };
-    };
+> = {
+  /**
+   * Network that this contract is deployed to. Must match a network name in `networks`.
+   * Any filter information overrides the values in the higher level "contracts" property.
+   * Factories cannot override an address and vice versa.
+   */
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: Prettify<
+          AddressConfig &
+            GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+            TransactionReceiptConfig &
+            FunctionCallConfig &
+            BlockConfig
+        >;
+      };
+};
 
 type NetworksConfig<networks> = {} extends networks
   ? {}
@@ -174,7 +155,7 @@ type AbiConfig<abi extends Abi | readonly unknown[]> = {
 type ContractConfig<networks, contract, abi extends Abi> = Prettify<
   AbiConfig<abi> &
     GetNetwork<networks, NonStrictPick<contract, "network">, abi> &
-    GetAddress<NonStrictPick<contract, "factory" | "address">> &
+    AddressConfig &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     TransactionReceiptConfig &
     FunctionCallConfig &
@@ -200,7 +181,7 @@ type ContractsConfig<networks, contracts> = {} extends contracts
 
 type AccountConfig<networks, account> = Prettify<
   GetNetwork<networks, NonStrictPick<account, "network">, Abi> &
-    GetAddress<NonStrictPick<account, "address" | "factory">> &
+    AddressConfig &
     TransactionReceiptConfig &
     BlockConfig
 >;

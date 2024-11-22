@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { Options } from "@/common/options.js";
+import { factory } from "@/config/address.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/sync/source.js";
 import {
   http,
@@ -364,38 +365,6 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates against specifying both factory and address", async () => {
-  const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
-    },
-    contracts: {
-      a: {
-        network: "mainnet",
-        abi: [event0],
-        // @ts-expect-error
-        address: address1,
-        factory: {
-          address: address2,
-          event: eventFactory,
-          parameter: "child",
-        },
-      },
-    },
-  });
-
-  const result = await safeBuildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Contract 'a' cannot specify both 'factory' and 'address' options.",
-  );
-});
-
 test("buildConfigAndIndexingFunctions() validates address empty string", async () => {
   const config = createConfig({
     networks: {
@@ -580,11 +549,11 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
           mainnet: {},
           optimism: { includeCallTraces: false },
         },
-        factory: {
+        address: factory({
           address: address2,
           event: eventFactory,
           parameter: "child",
-        },
+        }),
         abi: [func0],
       },
     },
