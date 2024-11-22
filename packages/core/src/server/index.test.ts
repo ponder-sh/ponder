@@ -3,7 +3,6 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { Context } from "@/hono/context.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -17,16 +16,14 @@ test("port", async (context) => {
 
   const server1 = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
 
   const server2 = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -43,8 +40,7 @@ test("listens on ipv4", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -61,8 +57,7 @@ test("listens on ipv6", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -79,8 +74,7 @@ test("not ready", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -98,8 +92,7 @@ test("ready", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -122,8 +115,7 @@ test("health", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -141,8 +133,7 @@ test("healthy PUT", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -162,8 +153,7 @@ test("metrics", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -181,8 +171,7 @@ test("metrics error", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -203,8 +192,7 @@ test("metrics PUT", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -224,8 +212,7 @@ test("metrics unmatched route", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -249,8 +236,7 @@ test("missing route", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });
@@ -266,34 +252,11 @@ test("missing route", async (context) => {
 test("custom api route", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
-  const server = await createServer({
-    common: context.common,
-    app: new Hono(),
-    routes: [
-      { method: "GET", pathOrHandlers: ["/hi", (c: Context) => c.text("hi")] },
-    ],
-    schema: {},
-    database,
-  });
-
-  const response = await server.hono.request("/hi");
-
-  expect(response.status).toBe(200);
-  expect(await response.text()).toBe("hi");
-
-  await server.kill();
-  await cleanup();
-});
-
-test("custom hono route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
-
   const app = new Hono().get("/hi", (c) => c.text("hi"));
 
   const server = await createServer({
     common: context.common,
     app,
-    routes: [],
     schema: {},
     database,
   });
@@ -314,8 +277,7 @@ test.skip("kill", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    app: new Hono(),
-    routes: [],
+    app: undefined,
     schema: {},
     database,
   });

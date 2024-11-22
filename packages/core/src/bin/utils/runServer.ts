@@ -19,7 +19,6 @@ export async function runServer({
 
   const server = await createServer({
     app: build.app,
-    routes: build.routes,
     common,
     schema,
     database,

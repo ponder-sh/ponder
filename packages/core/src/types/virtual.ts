@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
+import type { Schema, Drizzle as _Drizzle } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type {
   Block,
@@ -15,7 +15,6 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
-import type { ApiRegistry } from "./api.js";
 import type { Db } from "./db.js";
 import type { Prettify } from "./utils.js";
 
@@ -224,9 +223,7 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-  } & ApiRegistry<schema>;
-
-  export type ApiContext<schema extends Schema> = {
-    db: Drizzle<schema>;
   };
+
+  export type Drizzle<schema extends Schema> = _Drizzle<schema>;
 }

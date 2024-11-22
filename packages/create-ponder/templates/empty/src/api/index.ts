@@ -1,5 +1,4 @@
-import { ponder } from "@/generated";
+import { Hono } from "hono";
 import { graphql } from "ponder";
 
-ponder.use("/graphql", graphql());
-ponder.use("/", graphql());
+export default new Hono().use("/", graphql()).use("/graphql", graphql());

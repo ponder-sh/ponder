@@ -3,7 +3,6 @@ import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import { graphql } from "@/graphql/middleware.js";
-import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
 import {
   getLiveMetadataStore,
   getMetadataStore,
@@ -14,7 +13,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
-import { onError } from "./error.js";
 
 type Server = {
   hono: Hono;
@@ -24,14 +22,12 @@ type Server = {
 
 export async function createServer({
   app: userApp,
-  routes: userRoutes,
   common,
   schema,
   database,
   instanceId,
 }: {
-  app: Hono;
-  routes: PonderRoutes;
+  app: Hono | undefined;
   common: Common;
   schema: Schema;
   database: Database;
@@ -133,25 +129,18 @@ export async function createServer({
     })
     .use(contextMiddleware);
 
-  if (userRoutes.length === 0 && userApp.routes.length === 0) {
-    // apply graphql middleware if no custom api exists
-    hono.use("/graphql", graphql());
-    hono.use("/", graphql());
-  } else {
-    // apply user routes to hono instance, registering a custom error handler
-    applyHonoRoutes(hono, userRoutes, { db: database.drizzle }).onError(
-      (error, c) => onError(error, c, common),
-    );
+  if (userApp) {
+    hono.route("/", userApp);
 
     common.logger.debug({
       service: "server",
-      msg: `Detected a custom server with routes: [${userRoutes
-        .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
-        .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
+      msg: `Detected a custom server with routes: [${hono.routes
+        .map((route) => route.path)
         .join(", ")}]`,
     });
-
-    hono.route("/", userApp);
+  } else {
+    hono.use("/graphql", graphql());
+    hono.use("/", graphql());
   }
 
   // Create nodejs server

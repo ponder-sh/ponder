@@ -22,5 +22,13 @@ declare module "@/generated" {
 
 declare module "ponder:schema" {
   const schema: typeof import("ponda").schema;
+
   export { schema as default };
+}
+
+declare module "ponder:api" {
+  import type { Virtual } from "ponder";
+  type schema = typeof import("ponda").schema;
+
+  export const db: Virtual.Drizzle<typeof schema>;
 }

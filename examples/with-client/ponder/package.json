@@ -10,12 +10,9 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@hono/trpc-server": "^0.3.2",
-    "ponder": "workspace:*",
-    "@trpc/server": "^10.45.2",
     "hono": "^4.5.0",
-    "viem": "^2.21.3",
-    "zod": "^3.23.8"
+    "ponder": "workspace:*",
+    "viem": "^2.21.3"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

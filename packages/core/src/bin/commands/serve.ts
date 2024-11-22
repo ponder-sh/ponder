@@ -90,7 +90,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const server = await createServer({
     app: buildResult.apiBuild.app,
-    routes: buildResult.apiBuild.routes,
     common,
     schema,
     database,

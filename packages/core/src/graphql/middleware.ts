@@ -15,10 +15,10 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
  *
  * @example
- * import { ponder } from "@/generated";
+ * import { Hono } from "hono";
  * import { graphql } from "ponder";
  *
- * ponder.use("/graphql", graphql());
+ * new Hono().use("/graphql", graphql());
  *
  */
 export const graphql = (

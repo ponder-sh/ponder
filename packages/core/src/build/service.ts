@@ -9,7 +9,6 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { SqlStatements } from "@/drizzle/kit/index.js";
-import type { PonderRoutes } from "@/hono/index.js";
 import type { Source } from "@/sync/source.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
@@ -35,9 +34,7 @@ export type Service = {
   // static
   common: Common;
   indexingRegex: RegExp;
-  apiRegex: RegExp;
   indexingPattern: string;
-  apiPattern: string;
 
   // vite
   viteDevServer: ViteDevServer;
@@ -64,8 +61,7 @@ export type IndexingBuild = BaseBuild & {
 };
 
 export type ApiBuild = BaseBuild & {
-  app: Hono;
-  routes: PonderRoutes;
+  app: Hono | undefined;
 };
 
 export type BuildResult =
@@ -113,19 +109,8 @@ export const create = async ({
     .replace(escapeRegex, "\\$&");
   const indexingRegex = new RegExp(`^${escapedIndexingDir}/.*\\.(ts|js)$`);
 
-  const escapedApiDir = common.options.apiDir
-    // If on Windows, use a POSIX path for this regex.
-    .replace(/\\/g, "/")
-    // Escape special characters in the path.
-    .replace(escapeRegex, "\\$&");
-  const apiRegex = new RegExp(`^${escapedApiDir}/.*\\.(ts|js)$`);
-
   const indexingPattern = path
     .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
-
-  const apiPattern = path
-    .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
   const viteLogger = {
@@ -179,9 +164,7 @@ export const create = async ({
   return {
     common,
     indexingRegex,
-    apiRegex,
     indexingPattern,
-    apiPattern,
     viteDevServer,
     viteNodeServer,
     viteNodeRunner,
@@ -291,10 +274,10 @@ export const start = async (
       const hasIndexingUpdate = invalidated.some(
         (file) =>
           buildService.indexingRegex.test(file) &&
-          !buildService.apiRegex.test(file),
+          file !== common.options.apiFile,
       );
-      const hasApiUpdate = invalidated.some((file) =>
-        buildService.apiRegex.test(file),
+      const hasApiUpdate = invalidated.some(
+        (file) => file === common.options.apiFile,
       );
 
       // This branch could trigger if you change a `note.txt` file within `src/`.
@@ -330,7 +313,7 @@ export const start = async (
         ]);
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(
           glob.sync(buildService.indexingPattern, {
-            ignore: buildService.apiPattern,
+            ignore: common.options.apiFile,
           }),
         );
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
@@ -370,8 +353,9 @@ export const start = async (
       }
 
       if (hasApiUpdate) {
-        const files = glob.sync(buildService.apiPattern);
-        buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
+        buildService.viteNodeRunner.moduleCache.invalidateDepTree([
+          common.options.apiFile,
+        ]);
         buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
 
         const result = await executeApiRoutes(buildService);
@@ -570,7 +554,7 @@ const executeIndexingFunctions = async (
   | { status: "error"; error: Error }
 > => {
   const files = glob.sync(buildService.indexingPattern, {
-    ignore: buildService.apiPattern,
+    ignore: buildService.common.options.apiFile,
   });
   const executeResults = await Promise.all(
     files.map(async (file) => ({
@@ -625,40 +609,36 @@ const executeApiRoutes = async (
 ): Promise<
   | {
       status: "success";
-      app: Hono;
-      routes: PonderRoutes;
+      app: Hono | undefined;
     }
   | { status: "error"; error: Error }
 > => {
-  const files = glob.sync(buildService.apiPattern);
-  const executeResults = await Promise.all(
-    files.map(async (file) => ({
-      ...(await executeFile(buildService, { file })),
-      file,
-    })),
-  );
-
-  for (const executeResult of executeResults) {
-    if (executeResult.status === "error") {
-      buildService.common.logger.error({
-        service: "build",
-        msg: `Error while executing '${path.relative(
-          buildService.common.options.rootDir,
-          executeResult.file,
-        )}':`,
-        error: executeResult.error,
-      });
-
-      return executeResult;
-    }
+  if (fs.existsSync(buildService.common.options.apiFile) === false) {
+    return { status: "success", app: undefined };
   }
 
-  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+  const executeResult = await executeFile(buildService, {
+    file: buildService.common.options.apiFile,
+  });
+
+  if (executeResult.status === "error") {
+    buildService.common.logger.error({
+      service: "build",
+      msg: `Error while executing '${path.relative(
+        buildService.common.options.rootDir,
+        buildService.common.options.apiFile,
+      )}':`,
+      error: executeResult.error,
+    });
+
+    return executeResult;
+  }
+
+  const app = executeResult.exports.default;
 
   return {
     status: "success",
-    app: exports.ponder.hono,
-    routes: exports.ponder.routes,
+    app,
   };
 };
 
@@ -750,19 +730,18 @@ const validateAndBuild = async (
 const validateAndBuildApi = (
   { common }: Pick<Service, "common">,
   baseBuild: BaseBuild,
-  api: { app: Hono; routes: PonderRoutes },
+  api: { app: Hono | undefined },
 ): ApiBuildResult => {
-  for (const {
-    pathOrHandlers: [maybePathOrHandler],
-  } of api.routes) {
-    if (typeof maybePathOrHandler === "string") {
+  if (api.app) {
+    for (const route of api.app.routes) {
       if (
-        maybePathOrHandler === "/status" ||
-        maybePathOrHandler === "/metrics" ||
-        maybePathOrHandler === "/health"
+        route.path === "/status" ||
+        route.path === "/metrics" ||
+        route.path === "/health" ||
+        route.path === "/ready"
       ) {
         const error = new BuildError(
-          `Validation failed: API route "${maybePathOrHandler}" is reserved for internal use.`,
+          `Validation failed: API route "${route.path}" is reserved for internal use.`,
         );
         error.stack = undefined;
         common.logger.error({ service: "build", msg: "Failed build", error });
@@ -776,7 +755,6 @@ const validateAndBuildApi = (
     build: {
       ...baseBuild,
       app: api.app,
-      routes: api.routes,
     },
   };
 };
