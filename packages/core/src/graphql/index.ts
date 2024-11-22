@@ -1,5 +1,6 @@
 import type { Drizzle, OnchainTable, Schema } from "@/drizzle/index.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
+import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
 import {
@@ -119,13 +120,13 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
-            filterOperators.universal.forEach((suffix) => {
+            conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            filterOperators.plural.forEach((suffix) => {
+            conditionSuffixes.plural.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = { type: baseType };
             });
           }
@@ -139,20 +140,20 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
           ) {
             if (type.name === "JSON") continue;
 
-            filterOperators.universal.forEach((suffix) => {
+            conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type,
               };
             });
 
-            filterOperators.singular.forEach((suffix) => {
+            conditionSuffixes.singular.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(type),
               };
             });
 
             if (["String", "ID"].includes(type.name)) {
-              filterOperators.string.forEach((suffix) => {
+              conditionSuffixes.string.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -160,7 +161,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
             }
 
             if (["Int", "Float", "BigInt"].includes(type.name)) {
-              filterOperators.numeric.forEach((suffix) => {
+              conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -509,21 +510,6 @@ const innerType = (
   throw new Error(`Type ${type.toString()} is not implemented`);
 };
 
-const filterOperators = {
-  universal: ["", "_not"],
-  singular: ["_in", "_not_in"],
-  plural: ["_has", "_not_has"],
-  numeric: ["_gt", "_lt", "_gte", "_lte"],
-  string: [
-    "_contains",
-    "_not_contains",
-    "_starts_with",
-    "_ends_with",
-    "_not_starts_with",
-    "_not_ends_with",
-  ],
-} as const;
-
 async function executePluralQuery(
   table: TableRelationalConfig,
   drizzle: Drizzle<{ [key: string]: OnchainTable }>,
@@ -733,6 +719,25 @@ async function executePluralQuery(
   };
 }
 
+const conditionSuffixes = {
+  universal: ["", "_not"],
+  singular: ["_in", "_not_in"],
+  plural: ["_has", "_not_has"],
+  numeric: ["_gt", "_lt", "_gte", "_lte"],
+  string: [
+    "_contains",
+    "_not_contains",
+    "_starts_with",
+    "_ends_with",
+    "_not_starts_with",
+    "_not_ends_with",
+  ],
+} as const;
+
+const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
+  .flat()
+  .sort((a, b) => b.length - a.length);
+
 function buildWhereConditions(
   where: Record<string, any> | undefined,
   columns: Record<string, Column>,
@@ -764,16 +769,32 @@ function buildWhereConditions(
       continue;
     }
 
-    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
-    const condition = condition_ === undefined ? "" : condition_;
-
-    if (!fieldName || !(fieldName in columns)) {
-      throw new Error(`Invalid query: Unknown field ${fieldName}`);
+    // Search for a valid filter suffix, traversing the list from longest to shortest
+    // to avoid ambiguity between cases like `_not_in` and `_in`.
+    const conditionSuffix = conditionSuffixesByLengthDesc.find((s) =>
+      whereKey.endsWith(s),
+    );
+    if (conditionSuffix === undefined) {
+      throw new Error(
+        `Invariant violation: Condition suffix not found for where key ${whereKey}`,
+      );
     }
 
-    const column = columns[fieldName]!;
+    // Remove the condition suffix and use the remaining string as the column name.
+    const columnName = whereKey.slice(
+      0,
+      whereKey.length - conditionSuffix.length,
+    );
 
-    switch (condition) {
+    // Validate that the column name is present in the table.
+    const column = columns[columnName];
+    if (column === undefined) {
+      throw new Error(
+        `Invalid query: Where clause contains unknown column ${columnName}`,
+      );
+    }
+
+    switch (conditionSuffix) {
       case "":
         if (column.columnType === "PgArray") {
           conditions.push(
@@ -786,7 +807,7 @@ function buildWhereConditions(
           conditions.push(eq(column, rawValue));
         }
         break;
-      case "not":
+      case "_not":
         if (column.columnType === "PgArray") {
           conditions.push(
             not(
@@ -800,52 +821,50 @@ function buildWhereConditions(
           conditions.push(ne(column, rawValue));
         }
         break;
-      case "in":
+      case "_in":
         conditions.push(inArray(column, rawValue));
         break;
-      case "not_in":
+      case "_not_in":
         conditions.push(notInArray(column, rawValue));
         break;
-      case "has":
+      case "_has":
         conditions.push(arrayContains(column, [rawValue]));
         break;
-      case "not_has":
+      case "_not_has":
         conditions.push(not(arrayContains(column, [rawValue])));
         break;
-      case "gt":
+      case "_gt":
         conditions.push(gt(column, rawValue));
         break;
-      case "lt":
+      case "_lt":
         conditions.push(lt(column, rawValue));
         break;
-      case "gte":
+      case "_gte":
         conditions.push(gte(column, rawValue));
         break;
-      case "lte":
+      case "_lte":
         conditions.push(lte(column, rawValue));
         break;
-      case "contains":
+      case "_contains":
         conditions.push(like(column, `%${rawValue}%`));
         break;
-      case "not_contains":
+      case "_not_contains":
         conditions.push(notLike(column, `%${rawValue}%`));
         break;
-      case "starts_with":
+      case "_starts_with":
         conditions.push(like(column, `${rawValue}%`));
         break;
-      case "ends_with":
+      case "_ends_with":
         conditions.push(like(column, `%${rawValue}`));
         break;
-      case "not_starts_with":
+      case "_not_starts_with":
         conditions.push(notLike(column, `${rawValue}%`));
         break;
-      case "not_ends_with":
+      case "_not_ends_with":
         conditions.push(notLike(column, `%${rawValue}`));
         break;
       default:
-        throw new Error(
-          `Invalid query: Unknown condition ${condition} for field ${fieldName}`,
-        );
+        never(conditionSuffix);
     }
   }
 
