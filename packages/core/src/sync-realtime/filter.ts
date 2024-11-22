@@ -67,10 +67,12 @@ export const isLogFilterMatched = ({
   filter,
   block,
   log,
+  childAddresses,
 }: {
   filter: LogFilter;
   block: SyncBlock;
   log: SyncLog;
+  childAddresses?: Address[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -84,14 +86,15 @@ export const isLogFilterMatched = ({
   if (isValueMatched(filter.topic1, log.topics[1]) === false) return false;
   if (isValueMatched(filter.topic2, log.topics[2]) === false) return false;
   if (isValueMatched(filter.topic3, log.topics[3]) === false) return false;
-  if (
-    isAddressFactory(filter.address) === false &&
-    isValueMatched(
-      filter.address as Address | Address[] | undefined,
-      log.address,
-    ) === false
-  ) {
-    return false;
+
+  if (isAddressFactory(filter.address)) {
+    if (isValueMatched(childAddresses, log.address) === false) {
+      return false;
+    }
+  } else {
+    if (isValueMatched(filter.address, log.address) === false) {
+      return false;
+    }
   }
 
   return true;
@@ -104,10 +107,14 @@ export const isTransactionFilterMatched = ({
   filter,
   block,
   transaction,
+  fromChildAddresses,
+  toChildAddresses,
 }: {
   filter: TransactionFilter;
   block: Pick<SyncBlock, "number">;
   transaction: SyncTransaction;
+  fromChildAddresses?: Address[];
+  toChildAddresses?: Address[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -117,24 +124,38 @@ export const isTransactionFilterMatched = ({
     return false;
   }
 
-  if (
-    isAddressFactory(filter.fromAddress) === false &&
-    isValueMatched(
-      filter.fromAddress as Address | Address[] | undefined,
-      transaction.from,
-    ) === false
-  ) {
-    return false;
+  if (isAddressFactory(filter.fromAddress)) {
+    if (isValueMatched(fromChildAddresses, transaction.from) === false) {
+      return false;
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.fromAddress as Address | Address[] | undefined,
+        transaction.from,
+      ) === false
+    ) {
+      return false;
+    }
   }
-  if (
-    isAddressFactory(filter.toAddress) === false &&
-    transaction.to &&
-    isValueMatched(
-      filter.toAddress as Address | Address[] | undefined,
-      transaction.to,
-    ) === false
-  ) {
-    return false;
+
+  if (isAddressFactory(filter.toAddress)) {
+    if (
+      transaction.to &&
+      isValueMatched(toChildAddresses, transaction.to) === false
+    ) {
+      return false;
+    }
+  } else {
+    if (
+      transaction.to &&
+      isValueMatched(
+        filter.toAddress as Address | Address[] | undefined,
+        transaction.to,
+      ) === false
+    ) {
+      return false;
+    }
   }
 
   // NOTE: `filter.includeReverted` is intentionally ignored
@@ -149,10 +170,14 @@ export const isTraceFilterMatched = ({
   filter,
   block,
   trace,
+  fromChildAddresses,
+  toChildAddresses,
 }: {
   filter: TraceFilter;
   block: Pick<SyncBlock, "number">;
   trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  fromChildAddresses?: Address[];
+  toChildAddresses?: Address[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -162,23 +187,34 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  if (
-    isAddressFactory(filter.fromAddress) === false &&
-    isValueMatched(
-      filter.fromAddress as Address | Address[] | undefined,
-      trace.from,
-    ) === false
-  ) {
-    return false;
+  if (isAddressFactory(filter.fromAddress)) {
+    if (isValueMatched(fromChildAddresses, trace.from) === false) {
+      return false;
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.fromAddress as Address | Address[] | undefined,
+        trace.from,
+      ) === false
+    ) {
+      return false;
+    }
   }
-  if (
-    isAddressFactory(filter.toAddress) === false &&
-    isValueMatched(
-      filter.toAddress as Address | Address[] | undefined,
-      trace.to,
-    ) === false
-  ) {
-    return false;
+
+  if (isAddressFactory(filter.toAddress)) {
+    if (isValueMatched(toChildAddresses, trace.to) === false) {
+      return false;
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.toAddress as Address | Address[] | undefined,
+        trace.to,
+      ) === false
+    ) {
+      return false;
+    }
   }
 
   if (filter.callType !== trace.type) {
@@ -203,10 +239,14 @@ export const isTransferFilterMatched = ({
   filter,
   block,
   trace,
+  fromChildAddresses,
+  toChildAddresses,
 }: {
   filter: TransferFilter;
   block: Pick<SyncBlock, "number">;
   trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  fromChildAddresses?: Address[];
+  toChildAddresses?: Address[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -219,23 +259,35 @@ export const isTransferFilterMatched = ({
   if (trace.value === undefined || hexToBigInt(trace.value) === 0n) {
     return false;
   }
-  if (
-    isAddressFactory(filter.fromAddress) === false &&
-    isValueMatched(
-      filter.fromAddress as Address | Address[] | undefined,
-      trace.from,
-    ) === false
-  ) {
-    return false;
+
+  if (isAddressFactory(filter.fromAddress)) {
+    if (isValueMatched(fromChildAddresses, trace.from) === false) {
+      return false;
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.fromAddress as Address | Address[] | undefined,
+        trace.from,
+      ) === false
+    ) {
+      return false;
+    }
   }
-  if (
-    isAddressFactory(filter.toAddress) === false &&
-    isValueMatched(
-      filter.toAddress as Address | Address[] | undefined,
-      trace.to,
-    ) === false
-  ) {
-    return false;
+
+  if (isAddressFactory(filter.toAddress)) {
+    if (isValueMatched(toChildAddresses, trace.to) === false) {
+      return false;
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.toAddress as Address | Address[] | undefined,
+        trace.to,
+      ) === false
+    ) {
+      return false;
+    }
   }
 
   // NOTE: `filter.includeReverted` is intentionally ignored

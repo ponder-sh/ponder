@@ -203,36 +203,6 @@ export const createRealtimeSync = (
       }
     }
 
-    const isFactoryAddressMatched = ({
-      filter,
-      event,
-    }: {
-      filter: TraceFilter | TransferFilter | TransactionFilter;
-      event: SyncTrace["trace"] | SyncTransaction;
-    }): boolean => {
-      const fromAddressMatched = isAddressFactory(filter.fromAddress)
-        ? finalizedChildAddresses
-            .get(filter.fromAddress)!
-            .has(event.from.toLowerCase() as Address) ||
-          unfinalizedChildAddresses
-            .get(filter.fromAddress)!
-            .has(event.from.toLowerCase() as Address)
-        : true;
-
-      const toAdressMatched = isAddressFactory(filter.toAddress)
-        ? event.to !== undefined &&
-          event.to !== null &&
-          (finalizedChildAddresses
-            .get(filter.toAddress)!
-            .has(event.to.toLowerCase() as Address) ||
-            unfinalizedChildAddresses
-              .get(filter.toAddress)!
-              .has(event.to.toLowerCase() as Address))
-        : true;
-
-      return fromAddressMatched && toAdressMatched;
-    };
-
     /**
      * `logs` and `callTraces` must be filtered again (already filtered in `extract`)
      *  because `extract` doesn't have factory address information.
@@ -245,16 +215,20 @@ export const createRealtimeSync = (
       let isMatched = false;
 
       for (const filter of logFilters) {
+        const childAddresses = isAddressFactory(filter.address)
+          ? [
+              ...finalizedChildAddresses.get(filter.address)!,
+              ...unfinalizedChildAddresses.get(filter.address)!,
+            ]
+          : undefined;
+
         if (
-          isLogFilterMatched({ filter, block, log }) &&
-          (isAddressFactory(filter.address)
-            ? finalizedChildAddresses
-                .get(filter.address)!
-                .has(log.address.toLowerCase() as Address) ||
-              unfinalizedChildAddresses
-                .get(filter.address)!
-                .has(log.address.toLowerCase() as Address)
-            : true)
+          isLogFilterMatched({
+            filter,
+            block,
+            log,
+            childAddresses,
+          })
         ) {
           matchedFilters.add(filter);
           isMatched = true;
@@ -267,15 +241,27 @@ export const createRealtimeSync = (
     traces = traces.filter((trace) => {
       let isMatched = false;
       for (const filter of transferFilters) {
+        const fromChildAddresses = isAddressFactory(filter.fromAddress)
+          ? [
+              ...finalizedChildAddresses.get(filter.fromAddress)!,
+              ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
+          : undefined;
+
+        const toChildAddresses = isAddressFactory(filter.toAddress)
+          ? [
+              ...finalizedChildAddresses.get(filter.toAddress)!,
+              ...unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
+          : undefined;
+
         if (
           isTransferFilterMatched({
             filter,
             block: { number: block.number },
             trace: trace.trace,
-          }) &&
-          isFactoryAddressMatched({
-            filter,
-            event: trace.trace,
+            fromChildAddresses,
+            toChildAddresses,
           })
         ) {
           matchedFilters.add(filter);
@@ -284,15 +270,27 @@ export const createRealtimeSync = (
       }
 
       for (const filter of traceFilters) {
+        const fromChildAddresses = isAddressFactory(filter.fromAddress)
+          ? [
+              ...finalizedChildAddresses.get(filter.fromAddress)!,
+              ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
+          : undefined;
+
+        const toChildAddresses = isAddressFactory(filter.toAddress)
+          ? [
+              ...finalizedChildAddresses.get(filter.toAddress)!,
+              ...unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
+          : undefined;
+
         if (
           isTraceFilterMatched({
             filter,
             block: { number: block.number },
             trace: trace.trace,
-          }) &&
-          isFactoryAddressMatched({
-            filter,
-            event: trace.trace,
+            fromChildAddresses,
+            toChildAddresses,
           })
         ) {
           matchedFilters.add(filter);
@@ -316,9 +314,28 @@ export const createRealtimeSync = (
     transactions = transactions.filter((transaction) => {
       let isMatched = transactionHashes.has(transaction.hash);
       for (const filter of transactionFilters) {
+        const fromChildAddresses = isAddressFactory(filter.fromAddress)
+          ? [
+              ...finalizedChildAddresses.get(filter.fromAddress)!,
+              ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
+          : undefined;
+
+        const toChildAddresses = isAddressFactory(filter.toAddress)
+          ? [
+              ...finalizedChildAddresses.get(filter.toAddress)!,
+              ...unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
+          : undefined;
+
         if (
-          isTransactionFilterMatched({ filter, block, transaction }) &&
-          isFactoryAddressMatched({ filter, event: transaction })
+          isTransactionFilterMatched({
+            filter,
+            block,
+            transaction,
+            fromChildAddresses,
+            toChildAddresses,
+          })
         ) {
           matchedFilters.add(filter);
           isMatched = true;
