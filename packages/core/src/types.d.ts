@@ -1,7 +1,7 @@
-declare module "@/generated" {
+declare module "ponder:virtual" {
   import type { Virtual } from "ponder";
-  type config = typeof import("ponda").config;
-  type schema = typeof import("ponda").schema;
+  type config = typeof import("ponder:register").config;
+  type schema = typeof import("ponder:register").schema;
 
   export const ponder: Virtual.Registry<config["default"], schema>;
 
@@ -21,6 +21,6 @@ declare module "@/generated" {
 }
 
 declare module "ponder:schema" {
-  const schema: typeof import("ponda").schema;
+  const schema: typeof import("ponder:register").schema;
   export { schema as default };
 }

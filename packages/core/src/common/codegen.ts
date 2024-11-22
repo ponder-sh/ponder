@@ -4,7 +4,7 @@ import type { Common } from "@/common/common.js";
 
 export const ponderEnv = `/// <reference types="ponder/virtual" />
 
-declare module "ponder" {
+declare module "ponder:register" {
   const config: typeof import("./ponder.config.ts");
   const schema: typeof import("./ponder.schema.ts");
 }
