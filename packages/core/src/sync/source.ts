@@ -1,4 +1,11 @@
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
+import type {
+  Block,
+  Log,
+  Transaction,
+  TransactionReceipt,
+  Trace as UserTrace,
+} from "@/types/eth.js";
 import type { SyncLog } from "@/types/sync.js";
 import type { Trace } from "@/utils/debug.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
@@ -66,6 +73,14 @@ export type LogFilter<
   topic3: LogTopic | undefined;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `log.${keyof Log}`
+      )[]
+    | undefined;
 };
 
 export type BlockFilter = {
@@ -75,6 +90,7 @@ export type BlockFilter = {
   offset: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include: `block.${keyof Block}`[] | undefined;
 };
 
 export type TransferFilter<
@@ -92,6 +108,14 @@ export type TransferFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `trace.${keyof UserTrace}`
+      )[]
+    | undefined;
 };
 
 export type TransactionFilter<
@@ -128,6 +152,14 @@ export type TraceFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `trace.${keyof UserTrace}`
+      )[]
+    | undefined;
 };
 
 export type LogFactory = {
