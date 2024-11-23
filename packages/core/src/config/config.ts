@@ -136,7 +136,6 @@ type GetContractNetwork<
   /**
    * Network that this contract is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "contracts" property.
-   * Factories cannot override an address and vice versa.
    */
   network:
     | allNetworkNames
@@ -188,7 +187,6 @@ type GetAccountNetwork<
   /**
    * Network that this account is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "accounts" property.
-   * Factories cannot override an address and vice versa.
    */
   network:
     | allNetworkNames
