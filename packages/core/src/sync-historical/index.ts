@@ -443,8 +443,12 @@ export const createHistoricalSync = async (
             filter,
             block,
             transaction,
-            fromChildAddresses,
-            toChildAddresses,
+            fromChildAddresses: fromChildAddresses
+              ? new Set(fromChildAddresses)
+              : undefined,
+            toChildAddresses: toChildAddresses
+              ? new Set(toChildAddresses)
+              : undefined,
           })
         ) {
           transactionHashes.add(transaction.hash);
@@ -495,15 +499,23 @@ export const createHistoricalSync = async (
                 filter,
                 block: { number: toHex(number) },
                 trace: trace.trace,
-                fromChildAddresses,
-                toChildAddresses,
+                fromChildAddresses: fromChildAddresses
+                  ? new Set(fromChildAddresses)
+                  : undefined,
+                toChildAddresses: toChildAddresses
+                  ? new Set(toChildAddresses)
+                  : undefined,
               })
             : isTransferFilterMatched({
                 filter,
                 block: { number: toHex(number) },
                 trace: trace.trace,
-                fromChildAddresses,
-                toChildAddresses,
+                fromChildAddresses: fromChildAddresses
+                  ? new Set(fromChildAddresses)
+                  : undefined,
+                toChildAddresses: toChildAddresses
+                  ? new Set(toChildAddresses)
+                  : undefined,
               }),
         );
 

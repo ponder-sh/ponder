@@ -17,7 +17,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import { type Address, hexToBigInt, hexToNumber } from "viem";
 
 const isValueMatched = <T extends string>(
-  filterValue: T | T[] | null | undefined,
+  filterValue: T | T[] | Set<T> | null | undefined,
   eventValue: T | undefined,
 ): boolean => {
   // match all
@@ -30,6 +30,14 @@ const isValueMatched = <T extends string>(
   if (
     Array.isArray(filterValue) &&
     filterValue.some((v) => v === toLowerCase(eventValue))
+  ) {
+    return true;
+  }
+
+  // set
+  if (
+    filterValue instanceof Set &&
+    filterValue.has(toLowerCase(eventValue) as T)
   ) {
     return true;
   }
@@ -72,7 +80,7 @@ export const isLogFilterMatched = ({
   filter: LogFilter;
   block: SyncBlock;
   log: SyncLog;
-  childAddresses?: Address[];
+  childAddresses?: Set<Address>;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -113,8 +121,8 @@ export const isTransactionFilterMatched = ({
   filter: TransactionFilter;
   block: Pick<SyncBlock, "number">;
   transaction: SyncTransaction;
-  fromChildAddresses?: Address[];
-  toChildAddresses?: Address[];
+  fromChildAddresses?: Set<Address>;
+  toChildAddresses?: Set<Address>;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -176,8 +184,8 @@ export const isTraceFilterMatched = ({
   filter: TraceFilter;
   block: Pick<SyncBlock, "number">;
   trace: Omit<SyncTrace["trace"], "calls" | "logs">;
-  fromChildAddresses?: Address[];
-  toChildAddresses?: Address[];
+  fromChildAddresses?: Set<Address>;
+  toChildAddresses?: Set<Address>;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -245,8 +253,8 @@ export const isTransferFilterMatched = ({
   filter: TransferFilter;
   block: Pick<SyncBlock, "number">;
   trace: Omit<SyncTrace["trace"], "calls" | "logs">;
-  fromChildAddresses?: Address[];
-  toChildAddresses?: Address[];
+  fromChildAddresses?: Set<Address>;
+  toChildAddresses?: Set<Address>;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
