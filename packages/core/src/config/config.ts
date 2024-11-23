@@ -78,7 +78,6 @@ type FunctionCallConfig = {
    *
    * - Docs: https://ponder.sh/docs/indexing/call-traces
    */
-
   includeCallTraces?: boolean;
 };
 
@@ -112,7 +111,20 @@ type NetworkConfig<network> = {
   disableCache?: boolean;
 };
 
-type GetNetwork<
+type NetworksConfig<networks> = {} extends networks
+  ? {}
+  : {
+      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
+    };
+
+// contracts
+
+type AbiConfig<abi extends Abi | readonly unknown[]> = {
+  /** Contract application byte interface. */
+  abi: abi;
+};
+
+type GetContractNetwork<
   networks,
   contract,
   abi extends Abi,
@@ -139,22 +151,9 @@ type GetNetwork<
       };
 };
 
-type NetworksConfig<networks> = {} extends networks
-  ? {}
-  : {
-      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
-    };
-
-// contracts
-
-type AbiConfig<abi extends Abi | readonly unknown[]> = {
-  /** Contract application byte interface. */
-  abi: abi;
-};
-
 type ContractConfig<networks, contract, abi extends Abi> = Prettify<
   AbiConfig<abi> &
-    GetNetwork<networks, NonStrictPick<contract, "network">, abi> &
+    GetContractNetwork<networks, NonStrictPick<contract, "network">, abi> &
     AddressConfig &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     TransactionReceiptConfig &
@@ -179,8 +178,30 @@ type ContractsConfig<networks, contracts> = {} extends contracts
 
 // accounts
 
+type GetAccountNetwork<
+  networks,
+  account,
+  ///
+  allNetworkNames extends string = [keyof networks] extends [never]
+    ? string
+    : keyof networks & string,
+> = {
+  /**
+   * Network that this account is deployed to. Must match a network name in `networks`.
+   * Any filter information overrides the values in the higher level "accounts" property.
+   * Factories cannot override an address and vice versa.
+   */
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: Prettify<
+          AddressConfig & TransactionReceiptConfig & BlockConfig
+        >;
+      };
+};
+
 type AccountConfig<networks, account> = Prettify<
-  GetNetwork<networks, NonStrictPick<account, "network">, Abi> &
+  GetAccountNetwork<networks, NonStrictPick<account, "network">> &
     AddressConfig &
     TransactionReceiptConfig &
     BlockConfig

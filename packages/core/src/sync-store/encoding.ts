@@ -268,7 +268,6 @@ type TracesTable = {
   from: Address;
   to: Address | null;
   gas: ColumnType<string, string | bigint, string | bigint>;
-  // TODO(kyle) should be not null?
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
   output: Hex | null;
