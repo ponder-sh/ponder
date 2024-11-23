@@ -133,6 +133,13 @@ export type TransactionFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+      )[]
+    | undefined;
 };
 
 export type TraceFilter<
@@ -202,4 +209,103 @@ export const getChildAddress = ({
           : 3;
     return `0x${log.topics[topicIndex]!.substring(start, start + length)}`;
   }
+};
+
+export const defaultBlockFilterInclude: BlockFilter["include"] = [
+  "block.baseFeePerGas",
+  "block.difficulty",
+  "block.extraData",
+  "block.gasLimit",
+  "block.gasUsed",
+  "block.hash",
+  "block.logsBloom",
+  "block.miner",
+  "block.nonce",
+  "block.number",
+  "block.parentHash",
+  "block.receiptsRoot",
+  "block.sha3Uncles",
+  "block.size",
+  "block.stateRoot",
+  "block.timestamp",
+  "block.transactionsRoot",
+];
+
+const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
+  "transaction.blockHash",
+  "transaction.blockNumber",
+  "transaction.from",
+  "transaction.gas",
+  "transaction.hash",
+  "transaction.input",
+  "transaction.nonce",
+  "transaction.r",
+  "transaction.s",
+  "transaction.to",
+  "transaction.transactionIndex",
+  "transaction.v",
+  "transaction.value",
+  // NOTE: type specific properties are not included
+];
+
+const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
+  "trace.id",
+  "trace.type",
+  "trace.from",
+  "trace.to",
+  "trace.gas",
+  "trace.gasUsed",
+  "trace.input",
+  "trace.output",
+  "trace.error",
+  "trace.revertReason",
+  "trace.value",
+];
+
+export const defaultLogFilterInclude: LogFilter["include"] = [
+  "log.id",
+  "log.address",
+  "log.blockHash",
+  "log.blockNumber",
+  "log.data",
+  "log.logIndex",
+  "log.removed",
+  "log.topics",
+  "log.transactionHash",
+  "log.transactionIndex",
+  ...defaultTransactionInclude,
+  ...defaultBlockFilterInclude,
+];
+
+export const defaultTransactionFilterInclude: TransactionFilter["include"] = [
+  ...defaultTransactionInclude,
+  ...defaultBlockFilterInclude,
+];
+
+export const defaultTraceFilterInclude: TraceFilter["include"] = [
+  ...defaultBlockFilterInclude,
+  ...defaultTransactionInclude,
+  ...defaultTraceInclude,
+];
+
+export const defaultTransferFilterInclude: TransferFilter["include"] = [
+  ...defaultBlockFilterInclude,
+  ...defaultTransactionInclude,
+  ...defaultTraceInclude,
+];
+
+export const shouldGetTransactionReceipt = (
+  filter: Exclude<Filter, BlockFilter>,
+) => {
+  // transactions must request receipts for "reverted" information
+  if (filter.type === "transaction") return true;
+
+  // ??
+  if (filter.include === undefined) return true;
+
+  if (filter.include.some((prop) => prop.startsWith("transactionReceipt."))) {
+    return true;
+  }
+
+  return false;
 };
