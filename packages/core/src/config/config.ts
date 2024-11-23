@@ -78,7 +78,6 @@ type FunctionCallConfig = {
    *
    * - Docs: https://ponder.sh/docs/indexing/call-traces
    */
-
   includeCallTraces?: boolean;
 };
 
