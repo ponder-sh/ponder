@@ -8,7 +8,7 @@ import type { NonStrictPick } from "./utilityTypes.js";
 export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
-  accounts: { [accountName: string]: AccountConfig<unknown, unknown> };
+  accounts: { [accountName: string]: AccountConfig<unknown> };
   database?: DatabaseConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
@@ -180,7 +180,6 @@ type ContractsConfig<networks, contracts> = {} extends contracts
 
 type GetAccountNetwork<
   networks,
-  account,
   ///
   allNetworkNames extends string = [keyof networks] extends [never]
     ? string
@@ -200,8 +199,8 @@ type GetAccountNetwork<
       };
 };
 
-type AccountConfig<networks, account> = Prettify<
-  GetAccountNetwork<networks, NonStrictPick<account, "network">> &
+type AccountConfig<networks> = Prettify<
+  GetAccountNetwork<networks> &
     AddressConfig &
     TransactionReceiptConfig &
     BlockConfig
@@ -210,7 +209,7 @@ type AccountConfig<networks, account> = Prettify<
 type AccountsConfig<networks, accounts> = {} extends accounts
   ? {}
   : {
-      [name in keyof accounts]: AccountConfig<networks, accounts[name]>;
+      [name in keyof accounts]: AccountConfig<networks>;
     };
 
 // blocks
