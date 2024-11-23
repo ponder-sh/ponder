@@ -248,6 +248,24 @@ const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
   // NOTE: type specific properties are not included
 ];
 
+export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof TransactionReceipt}`[] =
+  [
+    "transactionReceipt.blockHash",
+    "transactionReceipt.blockNumber",
+    "transactionReceipt.contractAddress",
+    "transactionReceipt.cumulativeGasUsed",
+    "transactionReceipt.effectiveGasPrice",
+    "transactionReceipt.from",
+    "transactionReceipt.gasUsed",
+    "transactionReceipt.logs",
+    "transactionReceipt.logsBloom",
+    "transactionReceipt.status",
+    "transactionReceipt.to",
+    "transactionReceipt.transactionHash",
+    "transactionReceipt.transactionIndex",
+    "transactionReceipt.type",
+  ];
+
 const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
   "trace.id",
   "trace.type",
@@ -279,6 +297,7 @@ export const defaultLogFilterInclude: LogFilter["include"] = [
 
 export const defaultTransactionFilterInclude: TransactionFilter["include"] = [
   ...defaultTransactionInclude,
+  ...defaultTransactionReceiptInclude,
   ...defaultBlockFilterInclude,
 ];
 
@@ -300,7 +319,7 @@ export const shouldGetTransactionReceipt = (
   // transactions must request receipts for "reverted" information
   if (filter.type === "transaction") return true;
 
-  // ??
+  // TODO(kyle) should include be a required property?
   if (filter.include === undefined) return true;
 
   if (filter.include.some((prop) => prop.startsWith("transactionReceipt."))) {

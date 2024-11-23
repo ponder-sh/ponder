@@ -10,11 +10,17 @@ import {
   isRpcUrlPublic,
 } from "@/config/networks.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
-import type {
-  AccountSource,
-  BlockSource,
-  ContractSource,
-  Source,
+import {
+  type AccountSource,
+  type BlockSource,
+  type ContractSource,
+  type Source,
+  defaultBlockFilterInclude,
+  defaultLogFilterInclude,
+  defaultTraceFilterInclude,
+  defaultTransactionFilterInclude,
+  defaultTransactionReceiptInclude,
+  defaultTransferFilterInclude,
 } from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -530,9 +536,13 @@ export async function buildConfigAndIndexingFunctions({
             topic1,
             topic2,
             topic3,
-            // includeTransactionReceipts: source.includeTransactionReceipts,
             fromBlock,
             toBlock,
+            include: defaultLogFilterInclude!.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
           },
         } satisfies ContractSource;
 
@@ -549,10 +559,13 @@ export async function buildConfigAndIndexingFunctions({
                 callType: "CALL",
                 functionSelector: registeredFunctionSelectors,
                 includeReverted: false,
-                // includeTransactionReceipts:
-                //   rawContract.includeTransactionReceipts,
                 fromBlock,
                 toBlock,
+                include: defaultTraceFilterInclude!.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
               },
             } satisfies ContractSource,
           ];
@@ -593,9 +606,13 @@ export async function buildConfigAndIndexingFunctions({
           topic1,
           topic2,
           topic3,
-          // includeTransactionReceipts: rawContract.includeTransactionReceipts,
           fromBlock,
           toBlock,
+          include: defaultLogFilterInclude!.concat(
+            source.includeTransactionReceipts
+              ? defaultTransactionReceiptInclude
+              : [],
+          ),
         },
       } satisfies ContractSource;
 
@@ -616,10 +633,13 @@ export async function buildConfigAndIndexingFunctions({
               callType: "CALL",
               functionSelector: registeredFunctionSelectors,
               includeReverted: false,
-              // includeTransactionReceipts:
-              //   rawContract.includeTransactionReceipts,
               fromBlock,
               toBlock,
+              include: defaultTraceFilterInclude!.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
             },
           } satisfies ContractSource,
         ];
@@ -685,6 +705,7 @@ export async function buildConfigAndIndexingFunctions({
               includeReverted: false,
               fromBlock,
               toBlock,
+              include: defaultTransactionFilterInclude,
             },
           } satisfies AccountSource,
           {
@@ -699,6 +720,7 @@ export async function buildConfigAndIndexingFunctions({
               includeReverted: false,
               fromBlock,
               toBlock,
+              include: defaultTransactionFilterInclude,
             },
           } satisfies AccountSource,
           {
@@ -713,6 +735,11 @@ export async function buildConfigAndIndexingFunctions({
               includeReverted: false,
               fromBlock,
               toBlock,
+              include: defaultTransferFilterInclude!.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
             },
           } satisfies AccountSource,
           {
@@ -727,6 +754,11 @@ export async function buildConfigAndIndexingFunctions({
               includeReverted: false,
               fromBlock,
               toBlock,
+              include: defaultTransferFilterInclude!.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
             },
           } satisfies AccountSource,
         ];
@@ -768,6 +800,7 @@ export async function buildConfigAndIndexingFunctions({
             includeReverted: false,
             fromBlock,
             toBlock,
+            include: defaultTransactionFilterInclude,
           },
         } satisfies AccountSource,
         {
@@ -782,6 +815,7 @@ export async function buildConfigAndIndexingFunctions({
             includeReverted: false,
             fromBlock,
             toBlock,
+            include: defaultTransactionFilterInclude,
           },
         } satisfies AccountSource,
         {
@@ -796,6 +830,11 @@ export async function buildConfigAndIndexingFunctions({
             includeReverted: false,
             fromBlock,
             toBlock,
+            include: defaultTransferFilterInclude!.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
           },
         } satisfies AccountSource,
         {
@@ -810,6 +849,11 @@ export async function buildConfigAndIndexingFunctions({
             includeReverted: false,
             fromBlock,
             toBlock,
+            include: defaultTransferFilterInclude!.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
           },
         } satisfies AccountSource,
       ];
@@ -868,6 +912,7 @@ export async function buildConfigAndIndexingFunctions({
           offset: (fromBlock ?? 0) % interval,
           fromBlock,
           toBlock,
+          include: defaultBlockFilterInclude,
         },
       } satisfies BlockSource;
     })
