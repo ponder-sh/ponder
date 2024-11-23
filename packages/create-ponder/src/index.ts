@@ -80,6 +80,11 @@ const templates = [
     description: "A Ponder app using a factory contract",
   },
   {
+    id: "feature-accounts",
+    title: "Feature - Accounts",
+    description: "A Ponder app using accounts",
+  },
+  {
     id: "feature-filter",
     title: "Feature - Custom event filter",
     description: "A Ponder app using an event filter",
