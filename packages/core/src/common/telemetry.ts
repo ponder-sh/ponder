@@ -121,11 +121,11 @@ export function createTelemetry({
 
     // Attempt to find and read the users package.json file.
     const packageJson = getPackageJson(options.rootDir);
-    const ponderCoreVersion = packageJson?.dependencies?.ponder ?? "unknown";
+    const ponderVersion = packageJson?.dependencies?.ponder ?? "unknown";
     const viemVersion = packageJson?.dependencies?.viem ?? "unknown";
 
     // Make a guess as to whether the project is internal (within the monorepo) or not.
-    const isInternal = ponderCoreVersion === "workspace:*";
+    const isInternal = ponderVersion === "workspace:*";
 
     const cpus = os.cpus();
 
@@ -136,7 +136,7 @@ export function createTelemetry({
         is_internal: isInternal,
       } satisfies CommonProperties,
       session: {
-        ponder_core_version: ponderCoreVersion,
+        ponder_core_version: ponderVersion,
         viem_version: viemVersion,
         package_manager: packageManager,
         package_manager_version: packageManagerVersion,
