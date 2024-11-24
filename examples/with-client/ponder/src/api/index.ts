@@ -1,10 +1,10 @@
+import schema from "ponder:schema";
 import { type ApiContext, ponder } from "@/generated";
 import { trpcServer } from "@hono/trpc-server";
 import { initTRPC } from "@trpc/server";
 import { eq } from "ponder";
 import type { Address } from "viem";
 import { z } from "zod";
-import * as schema from "../../ponder.schema";
 
 const t = initTRPC.context<ApiContext>().create();
 

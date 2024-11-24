@@ -109,7 +109,7 @@ Files in the `src/` directory contain **indexing functions**, which are TypeScri
 // src/BaseRegistrar.ts
 
 import { ponder } from "@/generated";
-import * as schema from "../ponder.schema";
+import schema from "ponder:schema";
 
 ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
   const { name, owner } = event.params;
