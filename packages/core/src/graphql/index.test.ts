@@ -2140,3 +2140,52 @@ test("column casing", async (context) => {
 
   await cleanup();
 });
+
+test("snake case table and column names with where clause", async (context) => {
+  const schema = {
+    deposited_token: onchainTable(
+      "deposited_token",
+      (t) => ({
+        chain_id: t.bigint().notNull(),
+        token_address: t.hex().notNull(),
+        first_seen_at: t.bigint().notNull(),
+        total_supply: t.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.token_address, table.chain_id] }),
+      }),
+    ),
+  };
+
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const contextValue = buildContextValue(database, metadataStore);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.deposited_token).values({
+    chain_id: 1n,
+    token_address: "0x0000000000000000000000000000000000000000",
+    first_seen_at: 0n,
+    total_supply: 0n,
+  });
+
+  const graphqlSchema = buildGraphQLSchema(schema);
+
+  const result = await query(`
+    query {
+      deposited_token(token_address: "0x0000000000000000000000000000000000000000", chain_id: "1") {
+        chain_id
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    deposited_token: {
+      chain_id: "1",
+    },
+  });
+
+  await cleanup();
+});
