@@ -52,6 +52,7 @@ import {
   type TransactionFilter,
   type TransferFilter,
   isAddressFactory,
+  shouldGetTransactionReceipt,
 } from "./source.js";
 
 export type RawEvent = {
@@ -266,7 +267,11 @@ export const buildEvents = ({
                   transaction: convertTransaction(
                     transactionCache.get(log.transactionHash)!,
                   ),
-                  transactionReceipt: undefined,
+                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                    ? convertTransactionReceipt(
+                        transactionReceiptCache.get(log.transactionHash)!,
+                      )
+                    : undefined,
                   trace: undefined,
                 });
               }
@@ -293,6 +298,9 @@ export const buildEvents = ({
                 const transaction = transactionCache.get(
                   trace.transactionHash,
                 )!;
+                const transactionReceipt = transactionReceiptCache.get(
+                  trace.transactionHash,
+                )!;
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
@@ -308,7 +316,9 @@ export const buildEvents = ({
                   trace: convertTrace(trace),
                   block: convertBlock(block),
                   transaction: convertTransaction(transaction),
-                  transactionReceipt: undefined,
+                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                    ? convertTransactionReceipt(transactionReceipt)
+                    : undefined,
                 });
               }
             }
@@ -352,7 +362,9 @@ export const buildEvents = ({
                   trace: undefined,
                   block: convertBlock(block),
                   transaction: convertTransaction(transaction),
-                  transactionReceipt: undefined,
+                  transactionReceipt: convertTransactionReceipt(
+                    transactionReceiptCache.get(transaction.hash)!,
+                  ),
                 });
               }
             }
@@ -378,6 +390,9 @@ export const buildEvents = ({
                 const transaction = transactionCache.get(
                   trace.transactionHash,
                 )!;
+                const transactionReceipt = transactionReceiptCache.get(
+                  trace.transactionHash,
+                )!;
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
@@ -393,7 +408,9 @@ export const buildEvents = ({
                   trace: convertTrace(trace),
                   block: convertBlock(block),
                   transaction: convertTransaction(transaction),
-                  transactionReceipt: undefined,
+                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                    ? convertTransactionReceipt(transactionReceipt)
+                    : undefined,
                 });
               }
             }
@@ -796,7 +813,6 @@ const convertTransaction = (transaction: SyncTransaction): Transaction => ({
             }),
 });
 
-// @ts-ignore
 const convertTransactionReceipt = (
   transactionReceipt: SyncTransactionReceipt,
 ): TransactionReceipt => ({

@@ -15,6 +15,7 @@ import {
   type TraceFilter,
   type TransferFilter,
   isAddressFactory,
+  shouldGetTransactionReceipt,
 } from "@/sync/source.js";
 import type { Source, TransactionFilter } from "@/sync/source.js";
 import type { SyncBlock, SyncLog, SyncTrace } from "@/types/sync.js";
@@ -385,20 +386,20 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    // if (filter.includeTransactionReceipts) {
-    //   const transactionReceipts = await Promise.all(
-    //     Array.from(transactionHashes).map((hash) =>
-    //       _eth_getTransactionReceipt(args.requestQueue, { hash }),
-    //     ),
-    //   );
+    if (shouldGetTransactionReceipt(filter)) {
+      const transactionReceipts = await Promise.all(
+        Array.from(transactionHashes).map((hash) =>
+          _eth_getTransactionReceipt(args.requestQueue, { hash }),
+        ),
+      );
 
-    //   if (isKilled) return;
+      if (isKilled) return;
 
-    //   await args.syncStore.insertTransactionReceipts({
-    //     transactionReceipts,
-    //     chainId: args.network.chainId,
-    //   });
-    // }
+      await args.syncStore.insertTransactionReceipts({
+        transactionReceipts,
+        chainId: args.network.chainId,
+      });
+    }
   };
 
   const syncBlockFilter = async (filter: BlockFilter, interval: Interval) => {
@@ -535,13 +536,32 @@ export const createHistoricalSync = async (
       }),
     ).then((traces) => traces.flat());
 
-    if (traces.length > 0) {
-      await args.syncStore.insertTraces({
-        traces,
+    if (isKilled) return;
+
+    await args.syncStore.insertTraces({
+      traces,
+      chainId: args.network.chainId,
+    });
+
+    if (isKilled) return;
+
+    if (shouldGetTransactionReceipt(filter)) {
+      const transactionHashes = new Set(
+        traces.map(({ transaction }) => transaction.hash),
+      );
+
+      const transactionReceipts = await Promise.all(
+        Array.from(transactionHashes).map((hash) =>
+          _eth_getTransactionReceipt(args.requestQueue, { hash }),
+        ),
+      );
+
+      if (isKilled) return;
+
+      await args.syncStore.insertTransactionReceipts({
+        transactionReceipts,
         chainId: args.network.chainId,
       });
-
-      // TODO(kyle) includeTransactionReceipt
     }
   };
 

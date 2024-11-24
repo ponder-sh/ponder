@@ -123,7 +123,7 @@ test("sync() with log filter", async (context) => {
   await cleanup();
 });
 
-test.skip("sync() with log filter and transaction receipts", async (context) => {
+test("sync() with log filter and transaction receipts", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -162,14 +162,14 @@ test.skip("sync() with log filter and transaction receipts", async (context) => 
     onFatalError: () => {},
   });
 
-  await historicalSync.sync([1, 3]);
+  await historicalSync.sync([1, 2]);
 
   const transactionReceipts = await database.qb.sync
     .selectFrom("transactionReceipts")
     .selectAll()
     .execute();
 
-  expect(transactionReceipts).toHaveLength(2);
+  expect(transactionReceipts).toHaveLength(1);
 
   const intervals = await database.qb.sync
     .selectFrom("intervals")

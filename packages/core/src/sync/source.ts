@@ -314,10 +314,12 @@ export const defaultTransferFilterInclude: TransferFilter["include"] = [
 ];
 
 export const shouldGetTransactionReceipt = (
-  filter: Pick<Exclude<Filter, BlockFilter>, "include" | "type">,
+  filter: Pick<Filter, "include" | "type">,
 ): boolean => {
   // transactions must request receipts for "reverted" information
   if (filter.type === "transaction") return true;
+
+  if (filter.type === "block") return false;
 
   // TODO(kyle) should include be a required property?
   if (filter.include === undefined) return true;
