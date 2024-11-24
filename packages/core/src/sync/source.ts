@@ -314,8 +314,8 @@ export const defaultTransferFilterInclude: TransferFilter["include"] = [
 ];
 
 export const shouldGetTransactionReceipt = (
-  filter: Exclude<Filter, BlockFilter>,
-) => {
+  filter: Pick<Exclude<Filter, BlockFilter>, "include" | "type">,
+): boolean => {
   // transactions must request receipts for "reverted" information
   if (filter.type === "transaction") return true;
 
