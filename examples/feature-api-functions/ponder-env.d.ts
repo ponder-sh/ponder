@@ -1,6 +1,6 @@
 /// <reference types="ponder/virtual" />
 
-declare module "ponda" {
+declare module "ponder:register" {
   const config: typeof import("./ponder.config.ts");
   const schema: typeof import("./ponder.schema.ts");
 }

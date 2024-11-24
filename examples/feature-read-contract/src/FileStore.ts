@@ -1,8 +1,8 @@
+import schema from "ponder:schema";
 import { ponder } from "@/generated";
 import type { Hex } from "viem";
 import { fromHex } from "viem";
 import { FileStoreFrontendAbi } from "../abis/FileStoreFrontendAbi";
-import * as schema from "../ponder.schema";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
