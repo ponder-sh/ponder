@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.10
+
+### Patch Changes
+
+- [#1274](https://github.com/ponder-sh/ponder/pull/1274) [`faf616adf82c0f8dd8482414efdf8723b06f6f8a`](https://github.com/ponder-sh/ponder/commit/faf616adf82c0f8dd8482414efdf8723b06f6f8a) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed several GraphQL bugs introduced in `0.7.0` that affected tables and columns using snake_case.
+
 ## 0.7.9
 
 ### Patch Changes
