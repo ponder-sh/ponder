@@ -16,7 +16,7 @@ This guide explains how each contract configuration field works, and suggests pa
 Every contract must have a unique name, provided as a key to the `contracts` object.
 
 ```ts filename="ponder.config.ts" {11}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";
@@ -59,7 +59,7 @@ export const BlitmapAbi = [
 ```
 
 ```ts filename="ponder.config.ts" {3, 9}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 import { BlitmapAbi } from "./abis/Blitmap";
 
@@ -83,7 +83,7 @@ export default createConfig({
 It's occasionally useful to provide multiple ABIs for one contract, like when defining a proxy/upgradable contract that has gone through multiple implementation contracts. The [`mergeAbis`](/docs/utilities/abi) utility function safely removes duplicate ABI items and maintains strict types.
 
 ```ts filename="ponder.config.ts" {1,14}
-import { createConfig, mergeAbis } from "@ponder/core";
+import { createConfig, mergeAbis } from "ponder";
 import { http } from "viem";
 
 import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";
@@ -112,7 +112,7 @@ export default createConfig({
 If the contract is only deployed to one network, just pass the network name as a string to the `network` field.
 
 ```ts filename="ponder.config.ts" {8,16}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";
@@ -140,7 +140,7 @@ export default createConfig({
 If you'd like to index the same contract (having the same ABI) across multiple networks, pass an object to the `network` field containing network-specific options.
 
 ```ts filename="ponder.config.ts" {14-23}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { UniswapV3FactoryAbi } from "./abis/UniswapV3Factory";
@@ -195,7 +195,7 @@ Network-specific configuration uses an override pattern. Any options defined at 
 For example, the Uniswap V3 factory contract is deployed to the same address on most chains, but has a different address on Base.
 
 ```ts filename="ponder.config.ts"
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { UniswapV3FactoryAbi } from "./abis/EntryPoint";
@@ -229,7 +229,7 @@ export default createConfig({
 On the other hand, the ERC-4337 Entry Point contract is deployed to the same address on all networks, so you could define the `address` field at the top level.
 
 ```ts filename="ponder.config.ts"
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { EntryPointAbi } from "./abis/EntryPoint";
@@ -259,7 +259,7 @@ export default createConfig({
 The simplest (and most common) option is to pass a single static address.
 
 ```ts filename="ponder.config.ts" {14}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";
@@ -291,7 +291,7 @@ This option can be used to index multiple contracts with known addresses that ha
 </Callout>
 
 ```ts filename="ponder.config.ts" {14-19}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { ERC721Abi } from "./abis/ERC721";
@@ -321,7 +321,7 @@ export default createConfig({
 The `factory` field specifies a set of contracts that are created by a factory. The `factory` and `address` fields are mutually exclusive.
 
 ```ts filename="ponder.config.ts" {12-19}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { parseAbiItem } from "viem";
 
 export default createConfig({
@@ -363,7 +363,7 @@ To run an indexing function whenever a child contract is created (but before any
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts" {9-14}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { parseAbiItem } from "viem";
 
 export default createConfig({
@@ -415,7 +415,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 The factory `address` field also accepts a list of factory contract addresses. Use this option if there are multiple factory contracts on the same network that have the same ABI, factory event signature, and create the same kind of child contract.
 
 ```ts filename="ponder.config.ts" {12-15}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { parseAbiItem } from "viem";
 
 export default createConfig({
@@ -428,7 +428,7 @@ export default createConfig({
         // A list of factory contract addresses that all create SudoswapPool contracts.
         address: [
           "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
-          "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4"
+          "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
         ],
         event: parseAbiItem("event NewPair(address poolAddress)"),
         parameter: "poolAddress",
@@ -484,7 +484,7 @@ The `filter` option filters for events by signature and indexed argument values.
 The `filter.event` option accepts an event name (or list of event names) present in the provided ABI.
 
 ```ts filename="ponder.config.ts" {14}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { ERC20Abi } from "./abis/ERC20";
@@ -526,7 +526,7 @@ You can use the `filter.event` and `filter.args` options together to filter for 
 This example filters for all ERC20 `Transfer` events where the `from` argument matches a specific address, and the `to` argument matches one of two addresses.
 
 ```ts filename="ponder.config.ts" {14-23}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { ERC20Abi } from "./abis/ERC20";
@@ -578,7 +578,7 @@ After enabling this option, each function in the contract ABI will become availa
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts" {11}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
@@ -617,7 +617,7 @@ After enabling this option, the `event.transactionReceipt{:ts}` property will be
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts" {11}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
@@ -647,8 +647,6 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 
 </div>
 
-
-
 ## Block range
 
 The optional `startBlock` and `endBlock` options specify the block range to index.
@@ -661,7 +659,7 @@ The optional `startBlock` and `endBlock` options specify the block range to inde
 If `endBlock` is `undefined{:ts}`, the contract will be indexed in realtime. If `endBlock` is defined, no events will be indexed after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
 
 ```ts filename="ponder.config.ts" {15-16}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";

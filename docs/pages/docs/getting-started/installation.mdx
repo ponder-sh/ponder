@@ -25,7 +25,7 @@ Ponder uses advanced TypeScript features to offer end-to-end type safety without
 
 ### Requirements
 
-- TypeScript `>=5.0.4` and viem `>=1.16.0`
+- TypeScript `>=5.0.4`, viem `>=2`, and hono `>=4.5
 - ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage)
 - The `ponder-env.d.ts` file must be present and up to date
 
@@ -33,7 +33,7 @@ Ponder uses advanced TypeScript features to offer end-to-end type safety without
 
 This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
 
-After upgrading to a new version of `@ponder/core`, the dev server might make changes to `ponder-env.d.ts`. When this happens, please accept and commit the changes.
+After upgrading to a new version of `ponder`, the dev server might make changes to `ponder-env.d.ts`. When this happens, please accept and commit the changes.
 
 ### VSCode
 

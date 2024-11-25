@@ -211,8 +211,8 @@ type Context = {
 The `context.db` object is a live database connection. [Read more](/docs/indexing/write-to-the-database) about writing to the database.
 
 ```ts filename="src/index.ts" {5-7}
+import { persons, dogs } from "ponder:schema";
 import { ponder } from "@/generated";
-import { persons, dogs } from "../ponder.schema";
 
 ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
   await context.db.insert(persons).values({ name: "bob", age: 30 });
@@ -260,8 +260,8 @@ You can also define a setup function for each contract that runs before indexing
 For example, you might have a singleton `World` record that occasionally gets updated in indexing functions.
 
 ```ts filename="src/index.ts"
+import { world } from "ponder:schema";
 import { ponder } from "@/generated";
-import { world } from "../ponder.schema";
 
 ponder.on("FunGame:NewPlayer", async ({ context }) => {
   await context.db
@@ -277,8 +277,8 @@ Without the `"setup"` event, you need to upsert the record in each indexing func
 
 {/* prettier-ignore */}
 ```ts filename="src/index.ts"
+import { world } from "ponder:schema";
 import { ponder } from "@/generated";
-import { world } from "../ponder.schema";
 
 ponder.on("FunGame:setup", async ({ context }) => {
   await context.db.insert(world).values({

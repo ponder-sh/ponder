@@ -24,7 +24,7 @@ After enabling this option, each function in the contract ABI will become availa
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts" {11}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
@@ -53,7 +53,6 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 ```
 
 </div>
-
 
 ## What is a call trace?
 

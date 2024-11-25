@@ -15,7 +15,7 @@ The `ponder.config.ts` file must **default export** the object returned by `crea
 
 {/* prettier-ignore */}
 ```ts filename="ponder.config.ts" {1,4}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
@@ -44,7 +44,7 @@ The `networks` field is an object where each key is a network name containing th
 | **disableCache**         | `boolean \| undefined` | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/advanced/foundry) like Anvil. |
 
 ```ts filename="ponder.config.ts" {7-12,16}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";
@@ -88,7 +88,7 @@ The `contracts` field is an object where each key is a contract name containing 
 | **endBlock**   |    `number \| undefined`     | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range.  |
 
 ```ts filename="ponder.config.ts" {14-19}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";
@@ -150,7 +150,7 @@ Here is the logic Ponder uses to determine which database to use:
   <p />
 
 ```ts filename="ponder.config.ts" {4-7}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 export default createConfig({
   database: {
@@ -176,7 +176,7 @@ export default createConfig({
   <p />
 
 ```ts filename="ponder.config.ts" {4-10}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 export default createConfig({
   database: {
@@ -197,7 +197,7 @@ export default createConfig({
 ### Basic example
 
 ```ts filename="ponder.config.ts"
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
@@ -222,7 +222,7 @@ export default createConfig({
 
 {/* prettier-ignore */}
 ```ts filename="ponder.config.ts" {3,17}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 const startBlock = await fetch("http://...");
 

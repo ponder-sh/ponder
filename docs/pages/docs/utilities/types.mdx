@@ -101,7 +101,7 @@ Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all inde
 Use the [Drizzle type helpers](https://orm.drizzle.team/docs/goodies#type-api) to create custom types for database records.
 
 ```ts filename="src/helpers.ts" {3}
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 function helper(account: typeof accounts.$inferSelect) {
   account;
@@ -116,14 +116,14 @@ function helper(account: typeof accounts.$inferSelect) {
 
 ## Config types
 
-The `@ponder/core` package exports a utility type for each option passed to `createConfig(){:ts}`.
+The `ponder` package exports a utility type for each option passed to `createConfig(){:ts}`.
 
 ### ContractConfig
 
 The type of a contract in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createConfig, type ContractConfig } from "@ponder/core";
+import { createConfig, type ContractConfig } from "ponder";
 import { Erc20Abi } from "./abis/Erc20Abi.ts";
 
 const Erc20 = {
@@ -145,7 +145,7 @@ export default createConfig({
 The type of a network in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createConfig, type NetworkConfig } from "@ponder/core";
+import { createConfig, type NetworkConfig } from "ponder";
 import { http } from "viem";
 
 const mainnet = {
@@ -166,7 +166,7 @@ export default createConfig({
 The type of a block source in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createconfig, type blockconfig } from "@ponder/core";
+import { createconfig, type blockconfig } from "ponder";
 
 const ChainlinkPriceOracle = {
   network: "mainnet",
@@ -187,7 +187,7 @@ export default createConfig({
 The type of a database in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1,6}
-import { createConfig, type DatabaseConfig } from "@ponder/core";
+import { createConfig, type DatabaseConfig } from "ponder";
 
 const database = {
   kind: "postgres",

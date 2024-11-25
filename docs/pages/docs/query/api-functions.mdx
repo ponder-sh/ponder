@@ -53,11 +53,11 @@ Hello, world!
   your app **will not** serve the standard GraphQL API by default.
 </Callout>
 
-To continue using the standard GraphQL API, register the `graphql` middleware exported from `@ponder/core`.
+To continue using the standard GraphQL API, register the `graphql` middleware exported from `ponder`.
 
 ```ts filename="src/api/index.ts" {2,4-5}
 import { ponder } from "@/generated";
-import { graphql } from "@ponder/core";
+import { graphql } from "ponder";
 
 ponder.use("/", graphql());
 ponder.use("/graphql", graphql());
@@ -76,8 +76,8 @@ The API function context includes a ready-to-use Drizzle database client at `c.d
 Here's a simple query using the Drizzle `select` query builder.
 
 ```ts filename="src/api/index.ts"
+import { accounts } from "ponder:schema";
 import { ponder } from "@/generated";
-import { accounts } from "../../ponder.schema";
 
 ponder.get("/account/:address", async (c) => {
   const address = c.req.param("address");
@@ -92,7 +92,7 @@ ponder.get("/account/:address", async (c) => {
 });
 ```
 
-To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `@ponder/core`. Visit the Drizzle [documentation](https://orm.drizzle.team/docs/select) for more details.
+To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `ponder`. Visit the Drizzle [documentation](https://orm.drizzle.team/docs/select) for more details.
 
 ### Relational queries
 
@@ -101,7 +101,7 @@ Drizzle's relational query builder (AKA Drizzle Queries) offers a great develope
 Here's an example that uses the relational query builder in an API function to find the 10 largest trades in the past hour joined with the account that made the trade. Visit the Drizzle Queries [documentation](https://orm.drizzle.team/docs/rqb) for more details.
 
 ```ts filename="src/api/index.ts"
-import { accounts, tradeEvents } from "../ponder.schema";
+import { accounts, tradeEvents } from "ponder:schema";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
 ponder.get("/hot-trades", async (c) => {
@@ -126,9 +126,9 @@ ponder.get("/hot-trades", async (c) => {
 Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
 
 ```ts filename="src/api/index.ts" {5}
+import { accounts } from "ponder:schema";
 import { ponder } from "@/generated";
-import { eq } from "@ponder/core";
-import { accounts } from "../../ponder.schema";
+import { eq } from "ponder";
 
 ponder.get("/account/:address", async (c) => {
   const address = c.req.param("address");
@@ -159,9 +159,9 @@ Use `ponder.post()` to handle HTTP `POST` requests.
 In this example, we calculate the volume of transfers for each recipient within a given time range. The `fromTimestamp` and `toTimestamp` parameters are passed in the request body.
 
 ```ts filename="src/api/index.ts" {5}
+import { and, gte, sum } from "ponder";
 import { ponder } from "@/generated";
-import { and, gte, sum } from "@ponder/core";
-import { transferEvents } from "../../ponder.schema";
+import { transferEvents } from "ponder:schema";
 
 ponder.post("/volume", async (c) => {
   const body = await c.req.json();
