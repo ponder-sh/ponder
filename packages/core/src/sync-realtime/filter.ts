@@ -181,17 +181,13 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  if (filter.callType !== trace.type) {
-    return false;
-  }
-
   if (
     isValueMatched(filter.functionSelector, trace.input.slice(0, 10)) === false
   ) {
     return false;
   }
 
-  // NOTE: `filter.includeReverted` is intentionally ignored
+  // NOTE: `filter.callType` and `filter.includeReverted` is intentionally ignored
 
   return true;
 };

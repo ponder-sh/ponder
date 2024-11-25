@@ -291,6 +291,9 @@ export const buildEvents = ({
                   filter,
                   event: trace.trace,
                 }) &&
+                (filter.callType === undefined
+                  ? true
+                  : filter.callType === trace.trace.type) &&
                 (filter.includeReverted
                   ? true
                   : trace.trace.error === undefined)

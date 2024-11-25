@@ -538,6 +538,10 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
+    const transactionHashes = new Set(
+      traces.map(({ transaction }) => transaction.hash),
+    );
+
     await args.syncStore.insertTraces({
       traces,
       chainId: args.network.chainId,
@@ -546,10 +550,6 @@ export const createHistoricalSync = async (
     if (isKilled) return;
 
     if (shouldGetTransactionReceipt(filter)) {
-      const transactionHashes = new Set(
-        traces.map(({ transaction }) => transaction.hash),
-      );
-
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map((hash) =>
           _eth_getTransactionReceipt(args.requestQueue, { hash }),
