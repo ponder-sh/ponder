@@ -211,7 +211,10 @@ export const getChildAddress = ({
   }
 };
 
-export const defaultBlockFilterInclude: BlockFilter["include"] = [
+export const defaultBlockFilterInclude: Exclude<
+  BlockFilter["include"],
+  undefined
+> = [
   "block.baseFeePerGas",
   "block.difficulty",
   "block.extraData",
@@ -280,34 +283,44 @@ const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
   "trace.value",
 ];
 
-export const defaultLogFilterInclude: LogFilter["include"] = [
-  "log.id",
-  "log.address",
-  "log.blockHash",
-  "log.blockNumber",
-  "log.data",
-  "log.logIndex",
-  "log.removed",
-  "log.topics",
-  "log.transactionHash",
-  "log.transactionIndex",
-  ...defaultTransactionInclude,
-  ...defaultBlockFilterInclude,
-];
+export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
+  [
+    "log.id",
+    "log.address",
+    "log.blockHash",
+    "log.blockNumber",
+    "log.data",
+    "log.logIndex",
+    "log.removed",
+    "log.topics",
+    "log.transactionHash",
+    "log.transactionIndex",
+    ...defaultTransactionInclude,
+    ...defaultBlockFilterInclude,
+  ];
 
-export const defaultTransactionFilterInclude: TransactionFilter["include"] = [
+export const defaultTransactionFilterInclude: Exclude<
+  TransactionFilter["include"],
+  undefined
+> = [
   ...defaultTransactionInclude,
   ...defaultTransactionReceiptInclude,
   ...defaultBlockFilterInclude,
 ];
 
-export const defaultTraceFilterInclude: TraceFilter["include"] = [
+export const defaultTraceFilterInclude: Exclude<
+  TraceFilter["include"],
+  undefined
+> = [
   ...defaultBlockFilterInclude,
   ...defaultTransactionInclude,
   ...defaultTraceInclude,
 ];
 
-export const defaultTransferFilterInclude: TransferFilter["include"] = [
+export const defaultTransferFilterInclude: Exclude<
+  TransferFilter["include"],
+  undefined
+> = [
   ...defaultBlockFilterInclude,
   ...defaultTransactionInclude,
   ...defaultTraceInclude,
