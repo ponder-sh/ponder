@@ -308,8 +308,9 @@ test("isTransferFilterMatched()", async (context) => {
       input: "0x0",
       output: "0x0",
       value: rpcBlock.transactions[0]!.value,
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -385,8 +386,9 @@ test("isTraceFilterMatched()", async (context) => {
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 

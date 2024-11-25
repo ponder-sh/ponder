@@ -48,9 +48,6 @@ import {
   type BlockFilter,
   type Factory,
   type Source,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
   isAddressFactory,
   shouldGetTransactionReceipt,
 } from "./source.js";
@@ -201,36 +198,6 @@ export const buildEvents = ({
     );
   }
 
-  const isFactoryAddressMatched = ({
-    filter,
-    event,
-  }: {
-    filter: TraceFilter | TransferFilter | TransactionFilter;
-    event: SyncTrace["trace"] | SyncTransaction;
-  }): boolean => {
-    const fromAddressMatched = isAddressFactory(filter.fromAddress)
-      ? finalizedChildAddresses
-          .get(filter.fromAddress)!
-          .has(event.from.toLowerCase() as Address) ||
-        unfinalizedChildAddresses
-          .get(filter.fromAddress)!
-          .has(event.from.toLowerCase() as Address)
-      : true;
-
-    const toAdressMatched = isAddressFactory(filter.toAddress)
-      ? event.to !== undefined &&
-        event.to !== null &&
-        (finalizedChildAddresses
-          .get(filter.toAddress)!
-          .has(event.to.toLowerCase() as Address) ||
-          unfinalizedChildAddresses
-            .get(filter.toAddress)!
-            .has(event.to.toLowerCase() as Address))
-      : true;
-
-    return fromAddressMatched && toAdressMatched;
-  };
-
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i]!;
     const filter = source.filter;
@@ -281,15 +248,27 @@ export const buildEvents = ({
 
           case "trace": {
             for (const trace of traces) {
+              const fromChildAddresses = isAddressFactory(filter.fromAddress)
+                ? new Set([
+                    ...finalizedChildAddresses.get(filter.fromAddress)!,
+                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ])
+                : undefined;
+
+              const toChildAddresses = isAddressFactory(filter.toAddress)
+                ? new Set([
+                    ...finalizedChildAddresses.get(filter.toAddress)!,
+                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ])
+                : undefined;
+
               if (
                 isTraceFilterMatched({
                   filter,
                   block,
                   trace: trace.trace,
-                }) &&
-                isFactoryAddressMatched({
-                  filter,
-                  event: trace.trace,
+                  fromChildAddresses,
+                  toChildAddresses,
                 }) &&
                 (filter.callType === undefined
                   ? true
@@ -313,7 +292,7 @@ export const buildEvents = ({
                     blockNumber: hexToBigInt(block.number),
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.position),
+                    eventIndex: BigInt(trace.trace.index),
                   }),
                   log: undefined,
                   trace: convertTrace(trace),
@@ -335,15 +314,27 @@ export const buildEvents = ({
         switch (filter.type) {
           case "transaction": {
             for (const transaction of transactions) {
+              const fromChildAddresses = isAddressFactory(filter.fromAddress)
+                ? new Set([
+                    ...finalizedChildAddresses.get(filter.fromAddress)!,
+                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ])
+                : undefined;
+
+              const toChildAddresses = isAddressFactory(filter.toAddress)
+                ? new Set([
+                    ...finalizedChildAddresses.get(filter.toAddress)!,
+                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ])
+                : undefined;
+
               if (
                 isTransactionFilterMatched({
                   filter,
                   block,
                   transaction,
-                }) &&
-                isFactoryAddressMatched({
-                  filter,
-                  event: transaction,
+                  fromChildAddresses,
+                  toChildAddresses,
                 }) &&
                 (filter.includeReverted
                   ? true
@@ -376,15 +367,27 @@ export const buildEvents = ({
 
           case "transfer": {
             for (const trace of traces) {
+              const fromChildAddresses = isAddressFactory(filter.fromAddress)
+                ? new Set([
+                    ...finalizedChildAddresses.get(filter.fromAddress)!,
+                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ])
+                : undefined;
+
+              const toChildAddresses = isAddressFactory(filter.toAddress)
+                ? new Set([
+                    ...finalizedChildAddresses.get(filter.toAddress)!,
+                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ])
+                : undefined;
+
               if (
                 isTransferFilterMatched({
                   filter,
                   block,
                   trace: trace.trace,
-                }) &&
-                isFactoryAddressMatched({
-                  filter,
-                  event: trace.trace,
+                  fromChildAddresses,
+                  toChildAddresses,
                 }) &&
                 (filter.includeReverted
                   ? true
@@ -405,7 +408,7 @@ export const buildEvents = ({
                     blockNumber: hexToBigInt(block.number),
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.position),
+                    eventIndex: BigInt(trace.trace.index),
                   }),
                   log: undefined,
                   trace: convertTrace(trace),
@@ -868,7 +871,7 @@ const convertTransactionReceipt = (
 });
 
 const convertTrace = (trace: SyncTrace): Trace => ({
-  id: `${trace.transactionHash}-${trace.position}`,
+  id: `${trace.transactionHash}-${trace.trace.index}`,
   type: trace.trace.type,
   from: checksumAddress(trace.trace.from),
   to: trace.trace.to ? checksumAddress(trace.trace.to) : null,
@@ -877,4 +880,6 @@ const convertTrace = (trace: SyncTrace): Trace => ({
   gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
   value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
+  traceIndex: trace.trace.index,
+  subcalls: trace.trace.subcalls,
 });

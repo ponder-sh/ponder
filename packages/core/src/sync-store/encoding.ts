@@ -268,7 +268,6 @@ type TracesTable = {
   from: Address;
   to: Address | null;
   gas: ColumnType<string, string | bigint, string | bigint>;
-  // TODO(kyle) should be not null?
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
   output: Hex | null;
@@ -279,23 +278,23 @@ type TracesTable = {
     string | bigint | null,
     string | bigint | null
   >;
+  index: number;
+  subcalls: number;
 };
 
 export function encodeTrace({
   trace,
   block,
   transaction,
-  position,
   chainId,
 }: {
   trace: Omit<SyncTrace["trace"], "calls" | "logs">;
   block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
   transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
-  position: number;
   chainId: number;
 }): Insertable<TracesTable> {
   return {
-    id: `${transaction.hash}-${position}`,
+    id: `${transaction.hash}-${trace.index}`,
     chainId,
     checkpoint: encodeCheckpoint({
       blockTimestamp: hexToNumber(block.timestamp),
@@ -303,7 +302,7 @@ export function encodeTrace({
       blockNumber: hexToBigInt(block.number),
       transactionIndex: hexToBigInt(transaction.transactionIndex),
       eventType: EVENT_TYPES.traces,
-      eventIndex: BigInt(position),
+      eventIndex: BigInt(trace.index),
     }),
     type: trace.type,
     transactionHash: transaction.hash,
@@ -318,6 +317,8 @@ export function encodeTrace({
     revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
     value: trace.value ? hexToBigInt(trace.value) : null,
+    index: trace.index,
+    subcalls: trace.subcalls,
   };
 }
 

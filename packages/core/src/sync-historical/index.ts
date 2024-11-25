@@ -419,13 +419,13 @@ export const createHistoricalSync = async (
     filter: TransactionFilter,
     interval: Interval,
   ) => {
-    const fromAddress = isAddressFactory(filter.fromAddress)
+    const fromChildAddresses = isAddressFactory(filter.fromAddress)
       ? await syncAddress(filter.fromAddress, interval)
-      : filter.fromAddress;
+      : undefined;
 
-    const toAddress = isAddressFactory(filter.toAddress)
+    const toChildAddresses = isAddressFactory(filter.toAddress)
       ? await syncAddress(filter.toAddress, interval)
-      : filter.toAddress;
+      : undefined;
 
     if (isKilled) return;
 
@@ -441,13 +441,15 @@ export const createHistoricalSync = async (
       block.transactions.map((transaction) => {
         if (
           isTransactionFilterMatched({
-            filter: {
-              ...filter,
-              fromAddress: fromAddress,
-              toAddress: toAddress,
-            },
+            filter,
             block,
             transaction,
+            fromChildAddresses: fromChildAddresses
+              ? new Set(fromChildAddresses)
+              : undefined,
+            toChildAddresses: toChildAddresses
+              ? new Set(toChildAddresses)
+              : undefined,
           })
         ) {
           transactionHashes.add(transaction.hash);
@@ -479,13 +481,13 @@ export const createHistoricalSync = async (
     filter: TraceFilter | TransferFilter,
     interval: Interval,
   ) => {
-    const fromAddress = isAddressFactory(filter.fromAddress)
+    const fromChildAddresses = isAddressFactory(filter.fromAddress)
       ? await syncAddress(filter.fromAddress, interval)
-      : filter.fromAddress;
+      : undefined;
 
-    const toAddress = isAddressFactory(filter.toAddress)
+    const toChildAddresses = isAddressFactory(filter.toAddress)
       ? await syncAddress(filter.toAddress, interval)
-      : filter.toAddress;
+      : undefined;
 
     const traces = await Promise.all(
       intervalRange(interval).map(async (number) => {
@@ -495,22 +497,26 @@ export const createHistoricalSync = async (
         traces = traces.filter((trace) =>
           filter.type === "trace"
             ? isTraceFilterMatched({
-                filter: {
-                  ...filter,
-                  fromAddress,
-                  toAddress,
-                },
+                filter,
                 block: { number: toHex(number) },
                 trace: trace.trace,
+                fromChildAddresses: fromChildAddresses
+                  ? new Set(fromChildAddresses)
+                  : undefined,
+                toChildAddresses: toChildAddresses
+                  ? new Set(toChildAddresses)
+                  : undefined,
               })
             : isTransferFilterMatched({
-                filter: {
-                  ...filter,
-                  fromAddress,
-                  toAddress,
-                },
+                filter,
                 block: { number: toHex(number) },
                 trace: trace.trace,
+                fromChildAddresses: fromChildAddresses
+                  ? new Set(fromChildAddresses)
+                  : undefined,
+                toChildAddresses: toChildAddresses
+                  ? new Set(toChildAddresses)
+                  : undefined,
               }),
         );
 

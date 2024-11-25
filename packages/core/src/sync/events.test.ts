@@ -222,6 +222,8 @@ test("decodeEvents() transfer", async (context) => {
       input: "0x0",
       output: "0x0",
       value: parseEther("1"),
+      traceIndex: 0,
+      subcalls: 0,
     },
   } as RawEvent;
 
@@ -311,6 +313,8 @@ test("decodeEvents() trace", async (context) => {
       gas: 0n,
       gasUsed: 0n,
       value: 0n,
+      traceIndex: 0,
+      subcalls: 0,
     },
   } as RawEvent;
 
@@ -359,6 +363,8 @@ test("decodeEvents() trace error", async (context) => {
       gas: 0n,
       gasUsed: 0n,
       value: 0n,
+      traceIndex: 0,
+      subcalls: 0,
     },
   } as RawEvent;
 
@@ -656,8 +662,9 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
       input: "0x0",
       output: "0x0",
       value: rpcBlock.transactions[0]!.value,
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -833,8 +840,9 @@ test("buildEvents() matches getEvents() trace", async (context) => {
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
