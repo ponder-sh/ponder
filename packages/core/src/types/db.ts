@@ -184,7 +184,7 @@ export type Insert = <
    */
   values: <values extends insertModel | insertModel[]>(
     values: values,
-  ) => Promise<selectModel> & {
+  ) => Promise<values extends unknown[] ? selectModel[] : selectModel> & {
     /**
      * Create new rows, cancelling the insert if there is a conflict
      *
@@ -195,7 +195,9 @@ export type Insert = <
      * ```
      * @param table - The table to insert into.
      */
-    onConflictDoNothing: () => Promise<selectModel>;
+    onConflictDoNothing: () => Promise<
+      values extends unknown[] ? (selectModel | null)[] : selectModel | null
+    >;
     /**
      * Create new rows, updating the row if there is a conflict
      *
@@ -221,7 +223,7 @@ export type Insert = <
      */
     onConflictDoUpdate: (
       values: Partial<updateModel> | updateFn,
-    ) => Promise<selectModel>;
+    ) => Promise<values extends unknown[] ? selectModel[] : selectModel>;
   };
 };
 
