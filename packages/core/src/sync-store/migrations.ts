@@ -1110,6 +1110,8 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .addColumn("error", "text")
         .addColumn("revertReason", "text")
         .addColumn("value", "numeric(78, 0)")
+        .addColumn("index", "integer", (col) => col.notNull())
+        .addColumn("subcalls", "integer", (col) => col.notNull())
         .execute();
 
       // `getEvents` benefits from an index on

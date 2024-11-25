@@ -221,6 +221,10 @@ export type Trace = {
   revertReason?: string;
   /** Value transferred. */
   value: bigint | null;
+  /** Index of this trace in the transaction. */
+  traceIndex: number;
+  /** Number of subcalls. */
+  subcalls: number;
 };
 
 /** A native token transfer. */

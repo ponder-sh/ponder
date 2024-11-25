@@ -281,7 +281,7 @@ export const buildEvents = ({
                     blockNumber: hexToBigInt(block.number),
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.position),
+                    eventIndex: BigInt(trace.trace.index),
                   }),
                   log: undefined,
                   trace: convertTrace(trace),
@@ -390,7 +390,7 @@ export const buildEvents = ({
                     blockNumber: hexToBigInt(block.number),
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.position),
+                    eventIndex: BigInt(trace.trace.index),
                   }),
                   log: undefined,
                   trace: convertTrace(trace),
@@ -852,7 +852,7 @@ const convertTransactionReceipt = (
 });
 
 const convertTrace = (trace: SyncTrace): Trace => ({
-  id: `${trace.transactionHash}-${trace.position}`,
+  id: `${trace.transactionHash}-${trace.trace.index}`,
   type: trace.trace.type,
   from: checksumAddress(trace.trace.from),
   to: trace.trace.to ? checksumAddress(trace.trace.to) : null,
@@ -861,4 +861,6 @@ const convertTrace = (trace: SyncTrace): Trace => ({
   gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
   value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
+  traceIndex: trace.trace.index,
+  subcalls: trace.trace.subcalls,
 });
