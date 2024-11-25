@@ -260,7 +260,6 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Trans
     "transactionReceipt.effectiveGasPrice",
     "transactionReceipt.from",
     "transactionReceipt.gasUsed",
-    "transactionReceipt.logs",
     "transactionReceipt.logsBloom",
     "transactionReceipt.status",
     "transactionReceipt.to",

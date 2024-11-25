@@ -221,7 +221,6 @@ type TransactionReceiptsTable = {
   effectiveGasPrice: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
-  logs: string;
   logsBloom: Hex;
   status: Hex;
   to: Address | null;
@@ -248,7 +247,6 @@ export const encodeTransactionReceipt = ({
     effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
     from: toLowerCase(transactionReceipt.from),
     gasUsed: hexToBigInt(transactionReceipt.gasUsed),
-    logs: JSON.stringify(transactionReceipt.logs),
     logsBloom: transactionReceipt.logsBloom,
     status: transactionReceipt.status,
     to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,

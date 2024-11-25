@@ -831,23 +831,6 @@ const convertTransactionReceipt = (
   effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
   from: checksumAddress(transactionReceipt.from),
   gasUsed: hexToBigInt(transactionReceipt.gasUsed),
-  logs: transactionReceipt.logs.map((log) => ({
-    id: `${log.blockHash}-${log.logIndex}`,
-    address: checksumAddress(log.address),
-    blockHash: log.blockHash!,
-    blockNumber: hexToBigInt(log.blockNumber!),
-    data: log.data,
-    logIndex: hexToNumber(log.logIndex!),
-    removed: false,
-    topics: [
-      log.topics[0] ?? null,
-      log.topics[1] ?? null,
-      log.topics[2] ?? null,
-      log.topics[3] ?? null,
-    ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-    transactionHash: log.transactionHash!,
-    transactionIndex: hexToNumber(log.transactionIndex!),
-  })),
   logsBloom: transactionReceipt.logsBloom,
   status:
     transactionReceipt.status === "0x1"
