@@ -618,7 +618,7 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .where("value", ">", "0")
         .$if(filter.includeReverted === false, (qb) =>
-          qb.where("error", "is", null),
+          qb.where("isReverted", "=", 0),
         )
         .$if(filter.fromBlock !== undefined, (qb) =>
           qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
@@ -647,26 +647,16 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .$if(filter.includeReverted === false, (qb) =>
-          qb.where("error", "is", null),
+          qb.where("isReverted", "=", 0),
         )
         .$if(filter.callType !== undefined, (qb) =>
           qb.where("type", "=", filter.callType!),
         )
         .$if(filter.functionSelector !== undefined, (qb) => {
           if (Array.isArray(filter.functionSelector)) {
-            return qb.where((eb) =>
-              eb.or(
-                (filter.functionSelector as Hex[]).map((fs) =>
-                  eb("input", "like", `${fs}%`),
-                ),
-              ),
-            );
+            return qb.where("functionSelector", "in", filter.functionSelector!);
           } else {
-            return qb.where(
-              "input",
-              "like",
-              `${filter.functionSelector as Hex}%`,
-            );
+            return qb.where("functionSelector", "=", filter.functionSelector!);
           }
         })
         .$if(filter.fromBlock !== undefined, (qb) =>

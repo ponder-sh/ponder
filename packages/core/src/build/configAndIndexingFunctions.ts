@@ -18,7 +18,6 @@ import type {
 } from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { dedupe } from "@ponder/common";
 import parse from "pg-connection-string";
 import type { Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
@@ -32,7 +31,7 @@ export type IndexingFunctions = {
   [eventName: string]: (...args: any) => any;
 };
 
-const flattenSource = <
+const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
 >(
   config: T,
@@ -234,7 +233,7 @@ export async function buildConfigAndIndexingFunctions({
 
     if (!sourceName) {
       throw new Error(
-        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{eventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
       );
     }
 
@@ -254,12 +253,12 @@ export async function buildConfigAndIndexingFunctions({
 
       if (!sourceEventName) {
         throw new Error(
-          `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{eventName}'.`,
+          `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
         );
       }
     } else {
       throw new Error(
-        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{eventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
       );
     }
 
@@ -277,16 +276,10 @@ export async function buildConfigAndIndexingFunctions({
     }).find((_sourceName) => _sourceName === sourceName);
 
     if (!matchedSourceName) {
-      // Multi-network has N sources, but the hint here should not have duplicates.
-      const uniqueSourceNames = dedupe(
-        Object.keys({
-          ...(config.contracts ?? {}),
-          ...(config.accounts ?? {}),
-          ...(config.blocks ?? {}),
-        }),
-      );
       throw new Error(
-        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueSourceNames
+        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${Array.from(
+          sourceNames,
+        )
           .map((n) => `'${n}'`)
           .join(", ")}].`,
       );
@@ -302,9 +295,9 @@ export async function buildConfigAndIndexingFunctions({
 
   // common validation for all sources
   for (const source of [
-    ...flattenSource(config.contracts ?? {}),
-    ...flattenSource(config.accounts ?? {}),
-    ...flattenSource(config.blocks ?? {}),
+    ...flattenSources(config.contracts ?? {}),
+    ...flattenSources(config.accounts ?? {}),
+    ...flattenSources(config.blocks ?? {}),
   ]) {
     if (source.network === null || source.network === undefined) {
       throw new Error(
@@ -345,7 +338,7 @@ export async function buildConfigAndIndexingFunctions({
     }
   }
 
-  const contractSources: ContractSource[] = flattenSource(
+  const contractSources: ContractSource[] = flattenSources(
     config.contracts ?? {},
   )
     .flatMap((source): ContractSource[] => {
@@ -643,7 +636,7 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunctions;
     });
 
-  const accountSources: AccountSource[] = flattenSource(config.accounts ?? {})
+  const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
     .flatMap((source): AccountSource[] => {
       const network = networks.find((n) => n.name === source.network)!;
 
@@ -835,7 +828,7 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunction;
     });
 
-  const blockSources: BlockSource[] = flattenSource(config.blocks ?? {})
+  const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
     .map((source) => {
       const network = networks.find((n) => n.name === source.network)!;
 
