@@ -244,17 +244,17 @@ export const buildEvents = ({
           case "trace": {
             for (const trace of traces) {
               const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.fromAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.fromAddress)!,
+                    unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ]
                 : undefined;
 
               const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.toAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.toAddress)!,
+                    unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ]
                 : undefined;
 
               if (
@@ -302,17 +302,17 @@ export const buildEvents = ({
           case "transaction": {
             for (const transaction of transactions) {
               const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.fromAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.fromAddress)!,
+                    unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ]
                 : undefined;
 
               const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.toAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.toAddress)!,
+                    unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ]
                 : undefined;
 
               if (
@@ -353,17 +353,17 @@ export const buildEvents = ({
           case "transfer": {
             for (const trace of traces) {
               const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.fromAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.fromAddress)!,
+                    unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ]
                 : undefined;
 
               const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.toAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.toAddress)!,
+                    unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ]
                 : undefined;
 
               if (
@@ -567,7 +567,6 @@ export const decodeEvents = (
       case "account": {
         switch (source.filter.type) {
           case "transaction": {
-            // TODO(kyle) what if toAddress and fromAddress are both undefined?
             const isFrom = source.filter.toAddress === undefined;
 
             events.push({

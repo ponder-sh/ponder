@@ -227,34 +227,6 @@ export const processSetupEvents = async (
   return { status: "success" };
 };
 
-const toErrorMeta = (event: Event) => {
-  switch (event.type) {
-    case "log":
-    case "trace": {
-      return `Event arguments:\n${prettyPrint(event.event.args)}`;
-    }
-
-    case "transfer": {
-      return `Event arguments:\n${prettyPrint(event.event.transfer)}`;
-    }
-
-    case "block": {
-      return `Block:\n${prettyPrint({
-        hash: event.event.block.hash,
-        number: event.event.block.number,
-        timestamp: event.event.block.timestamp,
-      })}`;
-    }
-
-    case "transaction": {
-      return `Transaction:\n${prettyPrint({
-        hash: event.event.transaction.hash,
-        block: event.event.block.number,
-      })}`;
-    }
-  }
-};
-
 export const processEvents = async (
   indexingService: Service,
   { events }: { events: Event[] },
@@ -275,10 +247,7 @@ export const processEvents = async (
       msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
     });
 
-    const result = await executeEvent(indexingService, {
-      event,
-      toErrorMeta,
-    });
+    const result = await executeEvent(indexingService, { event });
     if (result.status !== "success") {
       return result;
     }
@@ -428,12 +397,37 @@ const executeSetup = async (
   return { status: "success" };
 };
 
+const toErrorMeta = (event: Event) => {
+  switch (event.type) {
+    case "log":
+    case "trace": {
+      return `Event arguments:\n${prettyPrint(event.event.args)}`;
+    }
+
+    case "transfer": {
+      return `Event arguments:\n${prettyPrint(event.event.transfer)}`;
+    }
+
+    case "block": {
+      return `Block:\n${prettyPrint({
+        hash: event.event.block.hash,
+        number: event.event.block.number,
+        timestamp: event.event.block.timestamp,
+      })}`;
+    }
+
+    case "transaction": {
+      return `Transaction:\n${prettyPrint({
+        hash: event.event.transaction.hash,
+        block: event.event.block.number,
+      })}`;
+    }
+  }
+};
+
 const executeEvent = async (
   indexingService: Service,
-  {
-    event,
-    toErrorMeta,
-  }: { event: Event; toErrorMeta: (event: Event) => string },
+  { event }: { event: Event },
 ): Promise<
   | { status: "error"; error: Error }
   | { status: "success" }

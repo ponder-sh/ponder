@@ -658,6 +658,12 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
+      if (resolvedFactory === undefined && resolvedAddress === undefined) {
+        throw new Error(
+          `Validation failed: Account '${source.name}' must specify either 'factory' or 'address' options.`,
+        );
+      }
+
       if (resolvedFactory) {
         // Note that this can throw.
         const logFactory = buildLogFactory({
