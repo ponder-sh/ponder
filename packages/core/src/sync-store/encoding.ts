@@ -315,14 +315,14 @@ export function encodeTrace({
     gas: hexToBigInt(trace.gas),
     gasUsed: hexToBigInt(trace.gasUsed),
     input: trace.input,
-    functionSelector: trace.input.slice(10) as Hex,
+    functionSelector: trace.input.slice(0, 10) as Hex,
     output: trace.output ?? null,
     revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
     value: trace.value ? hexToBigInt(trace.value) : null,
     index: trace.index,
     subcalls: trace.subcalls,
-    isReverted: trace.error === null ? 0 : 1,
+    isReverted: trace.error === undefined ? 0 : 1,
   };
 }
 
