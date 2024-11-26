@@ -244,17 +244,17 @@ export const buildEvents = ({
           case "trace": {
             for (const trace of traces) {
               const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.fromAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.fromAddress)!,
+                    unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ]
                 : undefined;
 
               const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.toAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.toAddress)!,
+                    unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ]
                 : undefined;
 
               if (
@@ -281,7 +281,7 @@ export const buildEvents = ({
                     blockNumber: hexToBigInt(block.number),
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.position),
+                    eventIndex: BigInt(trace.trace.index),
                   }),
                   log: undefined,
                   trace: convertTrace(trace),
@@ -302,17 +302,17 @@ export const buildEvents = ({
           case "transaction": {
             for (const transaction of transactions) {
               const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.fromAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.fromAddress)!,
+                    unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ]
                 : undefined;
 
               const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.toAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.toAddress)!,
+                    unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ]
                 : undefined;
 
               if (
@@ -353,17 +353,17 @@ export const buildEvents = ({
           case "transfer": {
             for (const trace of traces) {
               const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.fromAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.fromAddress)!,
+                    unfinalizedChildAddresses.get(filter.fromAddress)!,
+                  ]
                 : undefined;
 
               const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? new Set([
-                    ...finalizedChildAddresses.get(filter.toAddress)!,
-                    ...unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ])
+                ? [
+                    finalizedChildAddresses.get(filter.toAddress)!,
+                    unfinalizedChildAddresses.get(filter.toAddress)!,
+                  ]
                 : undefined;
 
               if (
@@ -390,7 +390,7 @@ export const buildEvents = ({
                     blockNumber: hexToBigInt(block.number),
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.position),
+                    eventIndex: BigInt(trace.trace.index),
                   }),
                   log: undefined,
                   trace: convertTrace(trace),
@@ -567,7 +567,6 @@ export const decodeEvents = (
       case "account": {
         switch (source.filter.type) {
           case "transaction": {
-            // TODO(kyle) what if toAddress and fromAddress are both undefined?
             const isFrom = source.filter.toAddress === undefined;
 
             events.push({
@@ -852,7 +851,7 @@ const convertTransactionReceipt = (
 });
 
 const convertTrace = (trace: SyncTrace): Trace => ({
-  id: `${trace.transactionHash}-${trace.position}`,
+  id: `${trace.transactionHash}-${trace.trace.index}`,
   type: trace.trace.type,
   from: checksumAddress(trace.trace.from),
   to: trace.trace.to ? checksumAddress(trace.trace.to) : null,
@@ -861,4 +860,6 @@ const convertTrace = (trace: SyncTrace): Trace => ({
   gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
   value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
+  traceIndex: trace.trace.index,
+  subcalls: trace.trace.subcalls,
 });

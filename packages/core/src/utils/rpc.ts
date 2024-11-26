@@ -169,7 +169,7 @@ export const _debug_traceBlockByNumber = (
     })
     .then((traces) => {
       const result: SyncTrace[] = [];
-      let position = 0;
+      let index = 0;
       // all traces that weren't included because the trace has an error
       // or the trace's parent has an error, mapped to the error string
       const failedTraces = new Map<
@@ -197,9 +197,14 @@ export const _debug_traceBlockByNumber = (
             failedTraces.set(frame, error);
           }
 
-          result.push({ trace: frame, transactionHash, position });
+          // @ts-ignore
+          frame.index = index;
+          // @ts-ignore
+          frame.subcalls = frame.calls?.length ?? 0;
 
-          position++;
+          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+
+          index++;
 
           if (frame.calls) {
             dfs(frame.calls, transactionHash, frame);
@@ -208,7 +213,7 @@ export const _debug_traceBlockByNumber = (
       };
 
       for (const trace of traces) {
-        position = 0;
+        index = 0;
         dfs([trace.result], trace.txHash, undefined);
       }
 
@@ -233,7 +238,7 @@ export const _debug_traceBlockByHash = (
     })
     .then((traces) => {
       const result: SyncTrace[] = [];
-      let position = 0;
+      let index = 0;
       // all traces that weren't included because the trace has an error
       // or the trace's parent has an error, mapped to the error string
       const failedTraces = new Map<
@@ -261,9 +266,14 @@ export const _debug_traceBlockByHash = (
             failedTraces.set(frame, error);
           }
 
-          result.push({ trace: frame, transactionHash, position });
+          // @ts-ignore
+          frame.index = index;
+          // @ts-ignore
+          frame.subcalls = frame.calls?.length ?? 0;
 
-          position++;
+          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+
+          index++;
 
           if (frame.calls) {
             dfs(frame.calls, transactionHash, frame);
@@ -272,7 +282,7 @@ export const _debug_traceBlockByHash = (
       };
 
       for (const trace of traces) {
-        position = 0;
+        index = 0;
         dfs([trace.result], trace.txHash, undefined);
       }
 

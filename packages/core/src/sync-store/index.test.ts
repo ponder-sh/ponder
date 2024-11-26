@@ -869,8 +869,9 @@ test("insertTraces()", async (context) => {
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -933,8 +934,9 @@ test("insertTraces() creates checkpoint", async (context) => {
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -1004,8 +1006,9 @@ test("insertTraces() with duplicates", async (context) => {
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -1478,8 +1481,9 @@ test("getEvents() handles trace filter logic", async (context) => {
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -1620,8 +1624,9 @@ test("getEvents() handles transfer filter logic", async (context) => {
       input: "0x0",
       output: "0x0",
       value: rpcBlock.transactions[0]!.value,
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash,
   } satisfies SyncTrace;
 
@@ -1882,8 +1887,9 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
         result: true,
       }),
       value: "0x0",
+      index: 0,
+      subcalls: 0,
     },
-    position: 0,
     transactionHash: hash1,
   } satisfies SyncTrace;
 

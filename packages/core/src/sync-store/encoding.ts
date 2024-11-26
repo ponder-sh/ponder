@@ -270,6 +270,7 @@ type TracesTable = {
   gas: ColumnType<string, string | bigint, string | bigint>;
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
+  functionSelector: Hex;
   output: Hex | null;
   error: string | null;
   revertReason: string | null;
@@ -278,23 +279,24 @@ type TracesTable = {
     string | bigint | null,
     string | bigint | null
   >;
+  index: number;
+  subcalls: number;
+  isReverted: number;
 };
 
 export function encodeTrace({
   trace,
   block,
   transaction,
-  position,
   chainId,
 }: {
   trace: Omit<SyncTrace["trace"], "calls" | "logs">;
   block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
   transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
-  position: number;
   chainId: number;
 }): Insertable<TracesTable> {
   return {
-    id: `${transaction.hash}-${position}`,
+    id: `${transaction.hash}-${trace.index}`,
     chainId,
     checkpoint: encodeCheckpoint({
       blockTimestamp: hexToNumber(block.timestamp),
@@ -302,7 +304,7 @@ export function encodeTrace({
       blockNumber: hexToBigInt(block.number),
       transactionIndex: hexToBigInt(transaction.transactionIndex),
       eventType: EVENT_TYPES.traces,
-      eventIndex: BigInt(position),
+      eventIndex: BigInt(trace.index),
     }),
     type: trace.type,
     transactionHash: transaction.hash,
@@ -313,10 +315,14 @@ export function encodeTrace({
     gas: hexToBigInt(trace.gas),
     gasUsed: hexToBigInt(trace.gasUsed),
     input: trace.input,
+    functionSelector: trace.input.slice(0, 10) as Hex,
     output: trace.output ?? null,
     revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
     value: trace.value ? hexToBigInt(trace.value) : null,
+    index: trace.index,
+    subcalls: trace.subcalls,
+    isReverted: trace.error === undefined ? 0 : 1,
   };
 }
 

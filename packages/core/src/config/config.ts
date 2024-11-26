@@ -153,7 +153,7 @@ type GetContractNetwork<
 type ContractConfig<networks, contract, abi extends Abi> = Prettify<
   AbiConfig<abi> &
     GetContractNetwork<networks, NonStrictPick<contract, "network">, abi> &
-    AddressConfig &
+    Required<AddressConfig> &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     TransactionReceiptConfig &
     FunctionCallConfig &
