@@ -301,3 +301,24 @@ test("createConfig strict return type", () => {
     };
   }>(config.contracts);
 });
+
+test("createConfig accounts", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http(),
+      },
+    },
+    accounts: {
+      me: {
+        network: "mainnet",
+        address: ["0x"],
+      },
+    },
+  });
+});

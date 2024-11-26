@@ -10,10 +10,11 @@ import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type {
   Block,
-  CallTrace,
   Log,
+  Trace,
   Transaction,
   TransactionReceipt,
+  Transfer,
 } from "@/types/eth.js";
 import type { ApiRegistry } from "./api.js";
 import type { Db } from "./db.js";
@@ -44,14 +45,18 @@ export namespace Virtual {
     safeFunctionNames = SafeFunctionNames<contract["abi"]>,
   > = string extends safeFunctionNames ? never : safeFunctionNames;
 
-  /** "{ContractName}:{EventName}" | "{ContractName}.{FunctionName}()" | "{SourceName}:block" . */
+  /** "{ContractName}:{EventName}" | "{ContractName}.{FunctionName}()" | "{SourceName}:block" | "{SourceName}:transaction:from" . */
   export type FormatEventNames<
     contracts extends Config["contracts"],
+    accounts extends Config["accounts"],
     blocks extends Config["blocks"],
   > =
     | {
         [name in keyof contracts]: `${name & string}:${_FormatEventNames<contracts[name]> | Setup}`;
       }[keyof contracts]
+    | {
+        [name in keyof accounts]: `${name & string}:${"transaction" | "transfer"}:${"from" | "to"}`;
+      }[keyof accounts]
     | {
         [name in keyof blocks]: `${name & string}:block`;
       }[keyof blocks]
@@ -97,6 +102,7 @@ export namespace Virtual {
 
   export type EventNames<config extends Config> = FormatEventNames<
     config["contracts"],
+    config["accounts"],
     config["blocks"]
   >;
 
@@ -107,37 +113,56 @@ export namespace Virtual {
     contractName extends ExtractSourceName<name> = ExtractSourceName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = name extends `${string}:block`
-    ? { block: Prettify<Block> }
-    : name extends `${string}.${string}`
-      ? Prettify<
+    ? // 1. block event
+      { block: Prettify<Block> }
+    : name extends `${string}:transaction:${"from" | "to"}`
+      ? // 2. transaction event
+        {
+          block: Prettify<Block>;
+          // TODO(kyle) annotate with `status`
+          transaction: Prettify<Transaction>;
+        }
+      : name extends `${string}:transfer:${"from" | "to"}`
+        ? // 3. transfer event
           {
-            args: FormatFunctionArgs<
-              config["contracts"][contractName]["abi"],
-              eventName
-            >;
-            result: FormatFunctionResult<
-              config["contracts"][contractName]["abi"],
-              eventName
-            >;
-            trace: Prettify<CallTrace>;
+            transfer: Prettify<Transfer>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
-          } & FormatTransactionReceipts<config["contracts"][contractName]>
-        >
-      : eventName extends Setup
-        ? never
-        : Prettify<
-            {
-              name: eventName;
-              args: FormatEventArgs<
-                config["contracts"][contractName]["abi"],
-                eventName
+            trace: Prettify<Trace>;
+          }
+        : name extends `${string}.${string}`
+          ? // 4. call trace event
+            Prettify<
+              {
+                args: FormatFunctionArgs<
+                  config["contracts"][contractName]["abi"],
+                  eventName
+                >;
+                result: FormatFunctionResult<
+                  config["contracts"][contractName]["abi"],
+                  eventName
+                >;
+                trace: Prettify<Trace>;
+                block: Prettify<Block>;
+                transaction: Prettify<Transaction>;
+              } & FormatTransactionReceipts<config["contracts"][contractName]>
+            >
+          : eventName extends Setup
+            ? // 5. setup event
+              never
+            : // 6. log event
+              Prettify<
+                {
+                  name: eventName;
+                  args: FormatEventArgs<
+                    config["contracts"][contractName]["abi"],
+                    eventName
+                  >;
+                  log: Prettify<Log>;
+                  block: Prettify<Block>;
+                  transaction: Prettify<Transaction>;
+                } & FormatTransactionReceipts<config["contracts"][contractName]>
               >;
-              log: Prettify<Log>;
-              block: Prettify<Block>;
-              transaction: Prettify<Transaction>;
-            } & FormatTransactionReceipts<config["contracts"][contractName]>
-          >;
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],

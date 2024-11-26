@@ -5,8 +5,8 @@ import { assertType, test } from "vitest";
 import type { Db } from "./db.js";
 import type {
   Block,
-  CallTrace,
   Log,
+  Trace,
   Transaction,
   TransactionReceipt,
 } from "./eth.js";
@@ -72,6 +72,12 @@ const config = createConfig({
       },
     },
   },
+  accounts: {
+    a1: {
+      address: "0x",
+      network: "mainnet",
+    },
+  },
   blocks: {
     b1: {
       interval: 2,
@@ -94,6 +100,7 @@ test("FormatEventNames without filter", () => {
     {
       contract: { abi: abi; network: "" };
     },
+    {},
     {}
   >;
 
@@ -113,6 +120,7 @@ test("FormatEvent names with filter", () => {
     {
       contract: { abi: abi; network: ""; filter: { event: "Event1()" } };
     },
+    {},
     {}
   >;
 
@@ -132,6 +140,7 @@ test("FormatEvent names with filter array", () => {
         filter: { event: readonly ["Event1()"] };
       };
     },
+    {},
     {}
   >;
 
@@ -147,6 +156,7 @@ test("FormatEventNames with semi-weak abi", () => {
     {
       contract: { abi: abi[number][]; network: "" };
     },
+    {},
     {}
   >;
 
@@ -166,6 +176,7 @@ test("FormatEventNames with weak abi", () => {
     {
       contract: { abi: Abi; network: "" };
     },
+    {},
     {}
   >;
 
@@ -179,6 +190,7 @@ test("FormatEventNames with functions", () => {
     {
       contract: { abi: abi; network: ""; includeCallTraces: true };
     },
+    {},
     {}
   >;
 
@@ -195,9 +207,33 @@ test("FormatEventNames with functions", () => {
   assertType<eventNames>({} as any as a);
 });
 
+test("FormatEventName with accounts", () => {
+  type a = Virtual.FormatEventNames<
+    // ^?
+    {},
+    { account: { address: "0x"; network: "mainnet" } },
+    {}
+  >;
+
+  assertType<a>(
+    {} as any as
+      | "account:transfer:from"
+      | "account:transfer:to"
+      | "account:transaction:from"
+      | "account:transaction:to",
+  );
+  assertType<
+    | "account:transfer:from"
+    | "account:transfer:to"
+    | "account:transaction:from"
+    | "account:transaction:to"
+  >({} as any as a);
+});
+
 test("FormatEventName with blocks", () => {
   type a = Virtual.FormatEventNames<
     // ^?
+    {},
     {},
     { block: { interval: 2; startBlock: 1; network: "mainnet" } }
   >;
@@ -381,7 +417,7 @@ test("Event with functions", () => {
   type expectedEvent = {
     args: readonly [Address];
     result: bigint;
-    trace: CallTrace;
+    trace: Trace;
     block: Block;
     transaction: Transaction;
   };
@@ -397,9 +433,41 @@ test("Event with functions and no inputs or outputs", () => {
   type expectedEvent = {
     args: never;
     result: never;
-    trace: CallTrace;
+    trace: Trace;
     block: Block;
     transaction: Transaction;
+  };
+
+  assertType<a>({} as any as expectedEvent);
+  assertType<expectedEvent>({} as any as a);
+});
+
+test("Event with account transaction", () => {
+  type a = Virtual.Event<typeof config, "a1:transaction:from">;
+  //   ^?
+
+  type expectedEvent = {
+    block: Block;
+    transaction: Transaction;
+  };
+
+  assertType<a>({} as any as expectedEvent);
+  assertType<expectedEvent>({} as any as a);
+});
+
+test("Event with account transfer", () => {
+  type a = Virtual.Event<typeof config, "a1:transfer:from">;
+  //   ^?
+
+  type expectedEvent = {
+    transfer: {
+      from: Address;
+      to: Address;
+      value: bigint;
+    };
+    block: Block;
+    transaction: Transaction;
+    trace: Trace;
   };
 
   assertType<a>({} as any as expectedEvent);

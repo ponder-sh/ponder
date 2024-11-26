@@ -1,3 +1,5 @@
+import { range } from "./range.js";
+
 export type Interval = [number, number];
 
 /**
@@ -190,4 +192,8 @@ export function getChunks({
   }
 
   return _chunks;
+}
+
+export function intervalRange(interval: Interval) {
+  return range(interval[0], interval[1] + 1);
 }

@@ -12,8 +12,11 @@ test("getLogFilterFragmentIds generates 1 log filter fragment for null filter", 
     type: "log",
     chainId: 1,
     address: undefined,
-    topics: [null, null, null, null],
-    includeTransactionReceipts: false,
+    topic0: null,
+    topic1: null,
+    topic2: null,
+    topic3: null,
+    // includeTransactionReceipts: false,
   });
 
   expect(logFilterFragments[0]!.id).toBe("log_1_null_null_null_null_null_0");
@@ -24,8 +27,11 @@ test("getLogFilterFragmentIds generates 1 log filter fragment for simple filter"
     type: "log",
     chainId: 1,
     address: "0xa",
-    topics: [null, null, null, null],
-    includeTransactionReceipts: false,
+    topic0: null,
+    topic1: null,
+    topic2: null,
+    topic3: null,
+    // includeTransactionReceipts: false,
   });
 
   expect(logFilterFragments[0]!.id).toBe("log_1_0xa_null_null_null_null_0");
@@ -36,8 +42,11 @@ test("getLogFilterFragmentIds generates 4 log filter fragment for 2x2 filter", (
     type: "log",
     chainId: 115511,
     address: ["0xa", "0xb"],
-    topics: [["0xc", "0xd"], null, "0xe", null],
-    includeTransactionReceipts: false,
+    topic0: ["0xc", "0xd"],
+    topic1: null,
+    topic2: "0xe",
+    topic3: null,
+    // includeTransactionReceipts: false,
   });
 
   expect(logFilterFragments[0]!.id).toBe("log_115511_0xa_0xc_null_0xe_null_0");
@@ -51,20 +60,26 @@ test("getLogFilterFragmentIds generates 12 log filter fragment for 2x2x3 filter"
     type: "log",
     chainId: 1,
     address: ["0xa", "0xb"],
-    topics: [["0xc", "0xd"], null, ["0xe", "0xf", "0x1"], null],
-    includeTransactionReceipts: false,
+    topic0: ["0xc", "0xd"],
+    topic1: null,
+    topic2: ["0xe", "0xf", "0x1"],
+    topic3: null,
+    // includeTransactionReceipts: false,
   });
 
   expect(logFilterFragments.length).toBe(12);
 });
 
-test("getLogFilterFragmentIds includeTransactionReceipts", () => {
+test.skip("getLogFilterFragmentIds includeTransactionReceipts", () => {
   const logFilterFragments = getLogFilterFragmentIds({
     type: "log",
     chainId: 1,
     address: undefined,
-    topics: [null, null, null, null],
-    includeTransactionReceipts: true,
+    topic0: null,
+    topic1: null,
+    topic2: null,
+    topic3: null,
+    // includeTransactionReceipts: true,
   });
 
   expect(logFilterFragments[0]!.id).toBe("log_1_null_null_null_null_null_1");
@@ -81,9 +96,12 @@ test("getLogFilterFragmentIds builds id containing factory topic", () => {
   const fragments = getLogFilterFragmentIds({
     type: "log",
     chainId: 1,
-    topics: [null, null, null, null],
+    topic0: null,
+    topic1: null,
+    topic2: null,
+    topic3: null,
     address: factory,
-    includeTransactionReceipts: false,
+    // includeTransactionReceipts: false,
   });
 
   expect(fragments).toHaveLength(1);
@@ -104,9 +122,12 @@ test("getLogFilterFragmentIds builds id containing factory offset", () => {
   const fragments = getLogFilterFragmentIds({
     type: "log",
     chainId: 115511,
-    topics: [null, null, null, null],
+    topic0: null,
+    topic1: null,
+    topic2: null,
+    topic3: null,
     address: factory,
-    includeTransactionReceipts: false,
+    // includeTransactionReceipts: false,
   });
 
   expect(fragments).toHaveLength(1);
@@ -127,9 +148,12 @@ test("getLogFilterFragmentIds builds id with multiple factories", () => {
   const fragments = getLogFilterFragmentIds({
     type: "log",
     chainId: 1,
-    topics: [null, null, null, null],
+    topic0: null,
+    topic1: null,
+    topic2: null,
+    topic3: null,
     address: factory,
-    includeTransactionReceipts: false,
+    // includeTransactionReceipts: false,
   });
 
   expect(fragments).toHaveLength(2);

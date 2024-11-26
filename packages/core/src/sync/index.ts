@@ -635,7 +635,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           filters: event.filters,
           logs: event.logs,
           factoryLogs: event.factoryLogs,
-          callTraces: event.callTraces,
+          traces: event.traces,
           transactions: event.transactions,
           transactionReceipts: event.transactionReceipts,
         };
@@ -750,7 +750,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           }),
           args.syncStore.insertTransactions({
             transactions: finalizedEventData.flatMap(
-              ({ transactions }) => transactions,
+              ({ transactions, block }) =>
+                transactions.map((transaction) => ({
+                  transaction,
+                  block,
+                })),
             ),
             chainId: network.chainId,
           }),
@@ -760,9 +764,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ),
             chainId: network.chainId,
           }),
-          args.syncStore.insertCallTraces({
-            callTraces: finalizedEventData.flatMap(({ callTraces, block }) =>
-              callTraces.map((callTrace) => ({ callTrace, block })),
+          args.syncStore.insertTraces({
+            traces: finalizedEventData.flatMap(
+              ({ traces, block, transactions }) =>
+                traces.map((trace) => ({
+                  trace,
+                  block,
+                  transaction: transactions.find(
+                    (t) => t.hash === trace.transactionHash,
+                  )!,
+                })),
             ),
             chainId: network.chainId,
           }),
@@ -979,7 +990,7 @@ export const getCachedBlock = ({
 }): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
-      filter.fromBlock,
+      filter.fromBlock ?? 0,
       filter.toBlock ?? Number.POSITIVE_INFINITY,
     ] satisfies Interval;
     const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
@@ -991,7 +1002,9 @@ export const getCachedBlock = ({
     if (completedIntervals.length === 0) return undefined;
 
     const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
+    if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
+      return undefined;
+    }
     return earliestCompletedInterval[1];
   });
 
@@ -1008,7 +1021,8 @@ export const getCachedBlock = ({
   if (
     latestCompletedBlocks.every(
       (block, i) =>
-        block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
+        block !== undefined ||
+        (sources[i]!.filter.fromBlock ?? 0) > minCompletedBlock,
     )
   ) {
     return _eth_getBlockByNumber(requestQueue, {
@@ -1077,7 +1091,7 @@ export async function* localHistoricalSyncGenerator({
     intervalDifference(
       [
         [
-          filter.fromBlock,
+          filter.fromBlock ?? 0,
           Math.min(
             filter.toBlock ?? Number.POSITIVE_INFINITY,
             totalInterval[1],
