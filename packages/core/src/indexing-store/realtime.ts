@@ -23,6 +23,7 @@ import {
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { createQueue } from "../../../common/src/queue.js";
+import { normalizeColumn } from "./historical.js";
 import { type IndexingStore, parseSqlError } from "./index.js";
 
 /** Throw an error if `table` is not an `onchainTable`. */
@@ -78,6 +79,20 @@ export const createRealtimeIndexingStore = ({
   // Helper functions
   ////////
 
+  const getCacheKey = (
+    table: Table,
+    row: { [key: string]: unknown },
+  ): string => {
+    const primaryKeys = primaryKeysCache.get(table)!;
+
+    return (
+      primaryKeys
+        // @ts-ignore
+        .map((pk) => normalizeColumn(table[pk.js], row[pk.js]))
+        .join("_")
+    );
+  };
+
   /** Returns an sql where condition for `table` with `key`. */
   const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
     primaryKeysCache.get(table)!;
@@ -130,12 +145,35 @@ export const createRealtimeIndexingStore = ({
                   async () => {
                     checkOnchainTable(table, "insert");
 
+                    const parseResult = (result: { [x: string]: any }[]) => {
+                      if (Array.isArray(values) === false) {
+                        return result.length === 1 ? result[0] : null;
+                      }
+
+                      const rows = [];
+                      let resultIndex = 0;
+
+                      for (let i = 0; i < values.length; i++) {
+                        if (
+                          getCacheKey(table, values[i]) ===
+                          getCacheKey(table, result[resultIndex]!)
+                        ) {
+                          rows.push(result[resultIndex++]!);
+                        } else {
+                          rows.push(null);
+                        }
+                      }
+
+                      return rows;
+                    };
+
                     try {
                       return await database.drizzle
                         .insert(table)
                         .values(values)
                         .onConflictDoNothing()
-                        .returning();
+                        .returning()
+                        .then(parseResult);
                     } catch (e) {
                       throw parseSqlError(e);
                     }
@@ -163,7 +201,10 @@ export const createRealtimeIndexingStore = ({
                               .map(({ js }) => table[js]),
                             set: valuesU,
                           })
-                          .returning();
+                          .returning()
+                          .then((res) =>
+                            Array.isArray(values) ? res : res[0],
+                          );
                       } catch (e) {
                         throw parseSqlError(e);
                       }
@@ -180,7 +221,8 @@ export const createRealtimeIndexingStore = ({
                               await database.drizzle
                                 .insert(table)
                                 .values(value)
-                                .returning(),
+                                .returning()
+                                .then((res) => res[0]),
                             );
                           } catch (e) {
                             throw parseSqlError(e);
@@ -192,7 +234,8 @@ export const createRealtimeIndexingStore = ({
                                 .update(table)
                                 .set(valuesU(row))
                                 .where(getWhereCondition(table, value))
-                                .returning(),
+                                .returning()
+                                .then((res) => res[0]),
                             );
                           } catch (e) {
                             throw parseSqlError(e);
@@ -208,7 +251,8 @@ export const createRealtimeIndexingStore = ({
                           return await database.drizzle
                             .insert(table)
                             .values(values)
-                            .returning();
+                            .returning()
+                            .then((res) => res[0]);
                         } catch (e) {
                           throw parseSqlError(e);
                         }
@@ -218,7 +262,8 @@ export const createRealtimeIndexingStore = ({
                             .update(table)
                             .set(valuesU(row))
                             .where(getWhereCondition(table, values))
-                            .returning();
+                            .returning()
+                            .then((res) => res[0]);
                         } catch (e) {
                           throw parseSqlError(e);
                         }
@@ -242,7 +287,10 @@ export const createRealtimeIndexingStore = ({
                         return await database.drizzle
                           .insert(table)
                           .values(values)
-                          .returning();
+                          .returning()
+                          .then((res) =>
+                            Array.isArray(values) ? res : res[0],
+                          );
                       } catch (e) {
                         throw parseSqlError(e);
                       }
@@ -299,7 +347,8 @@ export const createRealtimeIndexingStore = ({
                       .update(table)
                       .set(values(row))
                       .where(getWhereCondition(table, key))
-                      .returning();
+                      .returning()
+                      .then((res) => res[0]);
                   } catch (e) {
                     throw parseSqlError(e);
                   }
@@ -309,7 +358,8 @@ export const createRealtimeIndexingStore = ({
                       .update(table)
                       .set(values)
                       .where(getWhereCondition(table, key))
-                      .returning();
+                      .returning()
+                      .then((res) => res[0]);
                   } catch (e) {
                     throw parseSqlError(e);
                   }

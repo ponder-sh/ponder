@@ -99,6 +99,56 @@ const checkOnchainTable = (
   );
 };
 
+/**
+ * Returns true if the column has a "default" value that is used when no value is passed.
+ * Handles `.default`, `.$defaultFn()`, `.$onUpdateFn()`.
+ */
+const hasEmptyValue = (column: Column) => {
+  return column.hasDefault;
+};
+
+/**
+ * Returns the "default" value for `column`.
+ */
+const getEmptyValue = (column: Column, type: EntryType) => {
+  if (type === EntryType.UPDATE && column.onUpdateFn) {
+    return column.onUpdateFn();
+  }
+  if (column.default !== undefined) return column.default;
+  if (column.defaultFn !== undefined) return column.defaultFn();
+  if (column.onUpdateFn !== undefined) return column.onUpdateFn();
+
+  // TODO(kyle) is it an invariant that it doesn't get here
+
+  return undefined;
+};
+
+export const normalizeColumn = (
+  column: Column,
+  value: unknown,
+  type: EntryType,
+  // @ts-ignore
+): unknown => {
+  if (value === undefined) {
+    if (hasEmptyValue(column)) return getEmptyValue(column, type);
+    return null;
+  }
+  if (column.mapToDriverValue === undefined) return value;
+  try {
+    return column.mapFromDriverValue(column.mapToDriverValue(value));
+  } catch (e) {
+    if (
+      (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
+    ) {
+      const error = new BigIntSerializationError((e as Error).message);
+      error.meta.push(
+        "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+      );
+      throw error;
+    }
+  }
+};
+
 export const createHistoricalIndexingStore = ({
   common,
   database,
@@ -206,30 +256,6 @@ export const createHistoricalIndexingStore = ({
     return cache.get(table)!.delete(getCacheKey(table, row));
   };
 
-  /**
-   * Returns true if the column has a "default" value that is used when no value is passed.
-   * Handles `.default`, `.$defaultFn()`, `.$onUpdateFn()`.
-   */
-  const hasEmptyValue = (column: Column) => {
-    return column.hasDefault;
-  };
-
-  /**
-   * Returns the "default" value for `column`.
-   */
-  const getEmptyValue = (column: Column, type: EntryType) => {
-    if (type === EntryType.UPDATE && column.onUpdateFn) {
-      return column.onUpdateFn();
-    }
-    if (column.default !== undefined) return column.default;
-    if (column.defaultFn !== undefined) return column.defaultFn();
-    if (column.onUpdateFn !== undefined) return column.onUpdateFn();
-
-    // TODO(kyle) is it an invariant that it doesn't get here
-
-    return undefined;
-  };
-
   const normalizeRow = (
     table: Table,
     row: { [key: string]: unknown },
@@ -256,32 +282,6 @@ export const createHistoricalIndexingStore = ({
     }
 
     return row;
-  };
-
-  const normalizeColumn = (
-    column: Column,
-    value: unknown,
-    type: EntryType,
-    // @ts-ignore
-  ): unknown => {
-    if (value === undefined) {
-      if (hasEmptyValue(column)) return getEmptyValue(column, type);
-      return null;
-    }
-    if (column.mapToDriverValue === undefined) return value;
-    try {
-      return column.mapFromDriverValue(column.mapToDriverValue(value));
-    } catch (e) {
-      if (
-        (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
-      ) {
-        const error = new BigIntSerializationError((e as Error).message);
-        error.meta.push(
-          "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
-        );
-        throw error;
-      }
-    }
   };
 
   const getCopyText = (
@@ -454,9 +454,9 @@ export const createHistoricalIndexingStore = ({
                           rows.push(
                             setCacheEntry(table, value, EntryType.INSERT),
                           );
+                        } else {
+                          rows.push(null);
                         }
-
-                        rows.push(structuredClone(row));
                       }
                       return rows;
                     } else {
@@ -475,7 +475,7 @@ export const createHistoricalIndexingStore = ({
                         return setCacheEntry(table, values, EntryType.INSERT);
                       }
 
-                      return structuredClone(row);
+                      return null;
                     }
                   },
                 ),
