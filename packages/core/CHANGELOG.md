@@ -1,5 +1,16 @@
 # @ponder/core
 
+## 0.7.11
+
+### Patch Changes
+
+- [#1280](https://github.com/ponder-sh/ponder/pull/1280) [`38ffc034b80ac0e5259efaebd2e170e95b75fa9c`](https://github.com/ponder-sh/ponder/commit/38ffc034b80ac0e5259efaebd2e170e95b75fa9c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed values returned by indexing store in realtime.
+
+- [#1280](https://github.com/ponder-sh/ponder/pull/1280) [`38ffc034b80ac0e5259efaebd2e170e95b75fa9c`](https://github.com/ponder-sh/ponder/commit/38ffc034b80ac0e5259efaebd2e170e95b75fa9c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed return type for `db.insert()` with multiple values.
+
+- Updated dependencies [[`0bb76fdc10bdf4f88980ed99d06c0e672094dce7`](https://github.com/ponder-sh/ponder/commit/0bb76fdc10bdf4f88980ed99d06c0e672094dce7)]:
+  - @ponder/utils@0.2.3
+
 ## 0.7.10
 
 ### Patch Changes

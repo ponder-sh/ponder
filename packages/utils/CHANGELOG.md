@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.3
+
+### Patch Changes
+
+- [#1284](https://github.com/ponder-sh/ponder/pull/1284) [`0bb76fdc10bdf4f88980ed99d06c0e672094dce7`](https://github.com/ponder-sh/ponder/commit/0bb76fdc10bdf4f88980ed99d06c0e672094dce7) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved eth_getLogs retry behavior for `https://mainnet.optimism.io`.
+
 ## 0.2.2
 
 ### Patch Changes
