@@ -1,11 +1,11 @@
 import path from "node:path";
-import { ALICE, BOB } from "@/_test/constants.js";
+import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { simulate } from "@/_test/simulate.js";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
   getFreePort,
   postGraphql,
@@ -13,9 +13,8 @@ import {
 } from "@/_test/utils.js";
 import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
-import { range } from "@/utils/range.js";
 import { rimrafSync } from "rimraf";
-import { zeroAddress } from "viem";
+import { parseEther, zeroAddress } from "viem";
 import { beforeEach, describe, expect, test } from "vitest";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
@@ -35,7 +34,7 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test("erc20", async (context) => {
+test("erc20", async () => {
   const port = await getFreePort();
 
   const cleanup = await start({
@@ -46,12 +45,16 @@ test("erc20", async (context) => {
     },
   });
 
-  await simulate({
-    erc20Address: context.erc20.address,
-    factoryAddress: context.factory.address,
+  const { address } = await deployErc20({ sender: ALICE });
+
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
   });
 
-  await waitForIndexedBlock(port, "mainnet", 8);
+  await waitForIndexedBlock(port, "mainnet", 2);
 
   const response = await postGraphql(
     port,
@@ -67,19 +70,16 @@ test("erc20", async (context) => {
 
   expect(response.status).toBe(200);
   const body = (await response.json()) as any;
+
   expect(body.errors).toBe(undefined);
   const accounts = body.data.accounts.items;
   expect(accounts[0]).toMatchObject({
     address: zeroAddress,
-    balance: (-2 * 10 ** 18).toString(),
+    balance: (-1 * 10 ** 18).toString(),
   });
   expect(accounts[1]).toMatchObject({
-    address: BOB.toLowerCase(),
-    balance: (2 * 10 ** 18).toString(),
-  });
-  expect(accounts[2]).toMatchObject({
     address: ALICE.toLowerCase(),
-    balance: "0",
+    balance: (10 ** 18).toString(),
   });
 
   await cleanup();
@@ -89,7 +89,7 @@ const isPglite = !!process.env.DATABASE_URL;
 
 // Fix this once it's easier to have per-command kill functions in Ponder.ts.
 describe.skipIf(isPglite)("postgres database", () => {
-  test.todo("ponder serve", async (context) => {
+  test.todo("ponder serve", async () => {
     const startPort = await getFreePort();
 
     const cleanupStart = await start({
@@ -100,13 +100,14 @@ describe.skipIf(isPglite)("postgres database", () => {
       },
     });
 
-    for (const _ in range(0, 3)) {
-      await simulate({
-        erc20Address: context.erc20.address,
-        factoryAddress: context.factory.address,
-      });
-    }
+    const { address } = await deployErc20({ sender: ALICE });
 
+    await mintErc20({
+      erc20: address,
+      to: ALICE,
+      amount: parseEther("1"),
+      sender: ALICE,
+    });
     const servePort = await getFreePort();
 
     const cleanupServe = await serve({
@@ -137,15 +138,11 @@ describe.skipIf(isPglite)("postgres database", () => {
     expect(accounts).toHaveLength(3);
     expect(accounts[0]).toMatchObject({
       address: zeroAddress,
-      balance: (-4 * 10 ** 18).toString(),
+      balance: (-1 * 10 ** 18).toString(),
     });
     expect(accounts[1]).toMatchObject({
-      address: BOB.toLowerCase(),
-      balance: (4 * 10 ** 18).toString(),
-    });
-    expect(accounts[2]).toMatchObject({
       address: ALICE.toLowerCase(),
-      balance: "0",
+      balance: (10 ** 18).toString(),
     });
 
     await cleanupServe();

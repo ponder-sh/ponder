@@ -3,30 +3,32 @@ import type { Network } from "@/config/networks.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
-  type CallTraceFilter,
   type Factory,
   type Filter,
   type LogFilter,
   type Source,
+  type TraceFilter,
+  type TransactionFilter,
+  type TransferFilter,
   getChildAddress,
   isAddressFactory,
 } from "@/sync/source.js";
 import type {
   LightBlock,
   SyncBlock,
-  SyncCallTrace,
   SyncLog,
+  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
+  _debug_traceBlockByHash,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
-  _trace_block,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
@@ -34,9 +36,11 @@ import { type Address, type Hash, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 import {
   isBlockFilterMatched,
-  isCallTraceFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
+  isTraceFilterMatched,
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
 } from "./filter.js";
 
 export type RealtimeSync = {
@@ -64,7 +68,7 @@ export type BlockWithEventData = {
   filters: Set<Filter>;
   logs: SyncLog[];
   factoryLogs: SyncLog[];
-  callTraces: SyncCallTrace[];
+  traces: SyncTrace[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
 };
@@ -112,26 +116,51 @@ export const createRealtimeSync = (
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
-  const callTraceFilters: CallTraceFilter[] = [];
+  const traceFilters: TraceFilter[] = [];
+  const transactionFilters: TransactionFilter[] = [];
+  const transferFilters: TransferFilter[] = [];
   const blockFilters: BlockFilter[] = [];
 
   for (const source of args.sources) {
+    // Collect filters from sources
     if (source.type === "contract") {
       if (source.filter.type === "log") {
         logFilters.push(source.filter);
-      } else if (source.filter.type === "callTrace") {
-        callTraceFilters.push(source.filter);
+      } else if (source.filter.type === "trace") {
+        traceFilters.push(source.filter);
       }
-
-      const _address =
-        source.filter.type === "log"
-          ? source.filter.address
-          : source.filter.toAddress;
-      if (isAddressFactory(_address)) {
-        factories.push(_address);
+    } else if (source.type === "account") {
+      if (source.filter.type === "transaction") {
+        transactionFilters.push(source.filter);
+      } else if (source.filter.type === "transfer") {
+        transferFilters.push(source.filter);
       }
     } else if (source.type === "block") {
       blockFilters.push(source.filter);
+    }
+
+    // Collect factories from sources
+    switch (source.filter.type) {
+      case "trace":
+      case "transaction":
+      case "transfer": {
+        const { fromAddress, toAddress } = source.filter;
+
+        if (isAddressFactory(fromAddress)) {
+          factories.push(fromAddress);
+        }
+        if (isAddressFactory(toAddress)) {
+          factories.push(toAddress);
+        }
+        break;
+      }
+      case "log": {
+        const { address } = source.filter;
+        if (isAddressFactory(address)) {
+          factories.push(address);
+        }
+        break;
+      }
     }
   }
 
@@ -153,7 +182,7 @@ export const createRealtimeSync = (
     block,
     logs,
     factoryLogs,
-    callTraces,
+    traces,
     transactions,
     transactionReceipts,
   }: Omit<BlockWithEventData, "filters">) => {
@@ -185,16 +214,20 @@ export const createRealtimeSync = (
       let isMatched = false;
 
       for (const filter of logFilters) {
+        const childAddresses = isAddressFactory(filter.address)
+          ? [
+              finalizedChildAddresses.get(filter.address)!,
+              unfinalizedChildAddresses.get(filter.address)!,
+            ]
+          : undefined;
+
         if (
-          isLogFilterMatched({ filter, block, log }) &&
-          (isAddressFactory(filter.address)
-            ? finalizedChildAddresses
-                .get(filter.address)!
-                .has(log.address.toLowerCase() as Address) ||
-              unfinalizedChildAddresses
-                .get(filter.address)!
-                .has(log.address.toLowerCase() as Address)
-            : true)
+          isLogFilterMatched({
+            filter,
+            block,
+            log,
+            childAddresses,
+          })
         ) {
           matchedFilters.add(filter);
           isMatched = true;
@@ -204,21 +237,60 @@ export const createRealtimeSync = (
       return isMatched;
     });
 
-    // Remove call traces that don't match a filter, accounting for factory addresses
-    callTraces = callTraces.filter((callTrace) => {
+    traces = traces.filter((trace) => {
       let isMatched = false;
+      for (const filter of transferFilters) {
+        const fromChildAddresses = isAddressFactory(filter.fromAddress)
+          ? [
+              finalizedChildAddresses.get(filter.fromAddress)!,
+              unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
+          : undefined;
 
-      for (const filter of callTraceFilters) {
+        const toChildAddresses = isAddressFactory(filter.toAddress)
+          ? [
+              finalizedChildAddresses.get(filter.toAddress)!,
+              unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
+          : undefined;
+
         if (
-          isCallTraceFilterMatched({ filter, block, callTrace }) &&
-          (isAddressFactory(filter.toAddress)
-            ? finalizedChildAddresses
-                .get(filter.toAddress)!
-                .has(callTrace.action.to.toLowerCase() as Address) ||
-              unfinalizedChildAddresses
-                .get(filter.toAddress)!
-                .has(callTrace.action.to.toLowerCase() as Address)
-            : true)
+          isTransferFilterMatched({
+            filter,
+            block: { number: block.number },
+            trace: trace.trace,
+            fromChildAddresses,
+            toChildAddresses,
+          })
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
+        }
+      }
+
+      for (const filter of traceFilters) {
+        const fromChildAddresses = isAddressFactory(filter.fromAddress)
+          ? [
+              finalizedChildAddresses.get(filter.fromAddress)!,
+              unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
+          : undefined;
+
+        const toChildAddresses = isAddressFactory(filter.toAddress)
+          ? [
+              finalizedChildAddresses.get(filter.toAddress)!,
+              unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
+          : undefined;
+
+        if (
+          isTraceFilterMatched({
+            filter,
+            block: { number: block.number },
+            trace: trace.trace,
+            fromChildAddresses,
+            toChildAddresses,
+          })
         ) {
           matchedFilters.add(filter);
           isMatched = true;
@@ -229,15 +301,52 @@ export const createRealtimeSync = (
     });
 
     // Remove transactions and transaction receipts that may have been filtered out
+
     const transactionHashes = new Set<Hash>();
     for (const log of logs) {
       transactionHashes.add(log.transactionHash);
     }
-    for (const trace of callTraces) {
+    for (const trace of traces) {
       transactionHashes.add(trace.transactionHash);
     }
 
-    transactions = transactions.filter((t) => transactionHashes.has(t.hash));
+    transactions = transactions.filter((transaction) => {
+      let isMatched = transactionHashes.has(transaction.hash);
+      for (const filter of transactionFilters) {
+        const fromChildAddresses = isAddressFactory(filter.fromAddress)
+          ? [
+              finalizedChildAddresses.get(filter.fromAddress)!,
+              unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
+          : undefined;
+
+        const toChildAddresses = isAddressFactory(filter.toAddress)
+          ? [
+              finalizedChildAddresses.get(filter.toAddress)!,
+              unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
+          : undefined;
+
+        if (
+          isTransactionFilterMatched({
+            filter,
+            block,
+            transaction,
+            fromChildAddresses,
+            toChildAddresses,
+          })
+        ) {
+          matchedFilters.add(filter);
+          isMatched = true;
+        }
+      }
+      return isMatched;
+    });
+
+    for (const transaction of transactions) {
+      transactionHashes.add(transaction.hash);
+    }
+
     transactionReceipts = transactionReceipts.filter((t) =>
       transactionHashes.has(t.transactionHash),
     );
@@ -249,7 +358,7 @@ export const createRealtimeSync = (
       }
     }
 
-    if (logs.length > 0 || callTraces.length > 0) {
+    if (logs.length > 0 || traces.length > 0 || transactions.length > 0) {
       const _text: string[] = [];
 
       if (logs.length === 1) {
@@ -258,10 +367,16 @@ export const createRealtimeSync = (
         _text.push(`${logs.length} logs`);
       }
 
-      if (callTraces.length === 1) {
-        _text.push("1 call trace");
-      } else if (callTraces.length > 1) {
-        _text.push(`${callTraces.length} call traces`);
+      if (traces.length === 1) {
+        _text.push("1 trace");
+      } else if (traces.length > 1) {
+        _text.push(`${traces.length} traces`);
+      }
+
+      if (transactions.length === 1) {
+        _text.push("1 transaction");
+      } else if (transactions.length > 1) {
+        _text.push(`${transactions.length} transactions`);
       }
 
       const text = _text.filter((t) => t !== undefined).join(" and ");
@@ -288,7 +403,7 @@ export const createRealtimeSync = (
       block,
       factoryLogs,
       logs,
-      callTraces,
+      traces,
       transactions,
       transactionReceipts,
     });
@@ -513,32 +628,32 @@ export const createRealtimeSync = (
     // Traces
     ////////
 
-    const shouldRequestTraces = callTraceFilters.length > 0;
+    const shouldRequestTraces =
+      traceFilters.length > 0 || transferFilters.length > 0;
 
-    let callTraces: SyncCallTrace[] = [];
+    let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      const traces = await _trace_block(args.requestQueue, {
-        blockNumber: hexToNumber(block.number),
+      traces = await _debug_traceBlockByHash(args.requestQueue, {
+        hash: block.hash,
       });
 
       // Protect against RPCs returning empty traces. Known to happen near chain tip.
       // Use the fact that any transaction produces a trace.
       if (block.transactions.length !== 0 && traces.length === 0) {
         throw new Error(
-          "Detected invalid trace_block response. `block.transactions` is not empty but zero traces were returned.",
+          "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
         );
       }
-
-      callTraces = traces.filter(
-        (trace) => trace.type === "call",
-      ) as SyncCallTrace[];
     }
 
-    // Check that traces refer to the correct block
-    for (const trace of callTraces) {
-      if (trace.blockHash !== block.hash) {
+    // Validate that each trace point to valid transaction in the block
+    for (const trace of traces) {
+      if (
+        block.transactions.find((t) => t.hash === trace.transactionHash) ===
+        undefined
+      ) {
         throw new Error(
-          `Detected inconsistent RPC responses. 'trace.blockHash' ${trace.blockHash} does not match 'block.hash' ${block.hash}`,
+          `Detected inconsistent RPC responses. 'trace.txHash' ${trace.transactionHash} not found in 'block' ${block.hash}`,
         );
       }
     }
@@ -571,44 +686,71 @@ export const createRealtimeSync = (
 
     // Remove logs that don't match a filter, recording required transactions
     logs = logs.filter((log) => {
-      let isLogMatched = false;
+      let isMatched = false;
 
       for (const filter of logFilters) {
         if (isLogFilterMatched({ filter, block, log })) {
-          isLogMatched = true;
+          // TODO: includeTransactionReceipt
+          // return early if includeTransactionReceipt, otherwise continue checking filters
           requiredTransactions.add(log.transactionHash);
-          if (filter.includeTransactionReceipts) {
-            requiredTransactionReceipts.add(log.transactionHash);
-          }
+          isMatched = true;
         }
       }
 
-      return isLogMatched;
+      return isMatched;
     });
 
-    // Remove call traces that don't match a filter, recording required transactions
-    callTraces = callTraces.filter((callTrace) => {
-      let isCallTraceMatched = false;
-      for (const filter of callTraceFilters) {
-        if (isCallTraceFilterMatched({ filter, block, callTrace })) {
-          isCallTraceMatched = true;
-          requiredTransactions.add(callTrace.transactionHash);
-          if (filter.includeTransactionReceipts) {
-            requiredTransactionReceipts.add(callTrace.transactionHash);
-          }
+    // Initial weak trace filtering before full filtering with factory addresses in handleBlock
+    traces = traces.filter((trace) => {
+      let isMatched = false;
+      for (const filter of transferFilters) {
+        if (
+          isTransferFilterMatched({
+            filter,
+            block: { number: block.number },
+            trace: trace.trace,
+          })
+        ) {
+          // TODO: includeTransactionReceipt
+          // return early if includeTransactionReceipt, otherwise continue checking filters
+          requiredTransactions.add(trace.transactionHash);
+          isMatched = true;
         }
       }
 
-      return isCallTraceMatched;
+      for (const filter of traceFilters) {
+        if (
+          isTraceFilterMatched({
+            filter,
+            block: { number: block.number },
+            trace: trace.trace,
+          })
+        ) {
+          // TODO: includeTransactionReceipt
+          // return early if includeTransactionReceipt, otherwise continue checking filters
+          requiredTransactions.add(trace.transactionHash);
+          isMatched = true;
+        }
+      }
+
+      return isMatched;
     });
 
     ////////
     // Transactions
     ////////
 
-    const transactions = block.transactions.filter(({ hash }) =>
-      requiredTransactions.has(hash),
-    );
+    const transactions = block.transactions.filter((transaction) => {
+      let isMatched = requiredTransactions.has(transaction.hash);
+      for (const filter of transactionFilters) {
+        if (isTransactionFilterMatched({ filter, block, transaction })) {
+          requiredTransactions.add(transaction.hash);
+          requiredTransactionReceipts.add(transaction.hash);
+          isMatched = true;
+        }
+      }
+      return isMatched;
+    });
 
     // Validate that filtered logs/callTraces point to valid transaction in the block
     const blockTransactionsHashes = new Set(
@@ -634,24 +776,11 @@ export const createRealtimeSync = (
         ),
     );
 
-    // Filter out call traces from reverted transactions
-
-    const revertedTransactions = new Set<Hash>();
-    for (const receipt of transactionReceipts) {
-      if (receipt.status === "0x0") {
-        revertedTransactions.add(receipt.transactionHash);
-      }
-    }
-
-    callTraces = callTraces.filter(
-      (trace) => revertedTransactions.has(trace.transactionHash) === false,
-    );
-
     return {
       block,
       logs,
       factoryLogs,
-      callTraces,
+      traces,
       transactions,
       transactionReceipts,
     };
@@ -717,6 +846,7 @@ export const createRealtimeSync = (
                   hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
                 ),
               );
+
               const pendingBlocks = await Promise.all(
                 missingBlockRange.map((blockNumber) =>
                   _eth_getBlockByNumber(args.requestQueue, {

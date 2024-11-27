@@ -5,6 +5,7 @@
   "fixed": [["ponder", "create-ponder", "eslint-config-ponder"]],
   "ignore": [
     "@ponder/common",
+    "ponder-examples-accounts",
     "ponder-examples-feature-blocks",
     "ponder-examples-feature-factory",
     "ponder-examples-feature-filter",

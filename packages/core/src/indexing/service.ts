@@ -16,18 +16,11 @@ import {
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { never } from "@/utils/never.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import type {
-  BlockEvent,
-  CallTraceEvent,
-  Event,
-  LogEvent,
-  SetupEvent,
-} from "../sync/events.js";
+import type { Event, SetupEvent } from "../sync/events.js";
 import { addStackTrace } from "./addStackTrace.js";
 import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
 
@@ -40,7 +33,7 @@ export type Context = {
     {
       abi: Abi;
       address?: Address | readonly Address[];
-      startBlock: number;
+      startBlock?: number;
       endBlock?: number;
     }
   >;
@@ -105,7 +98,7 @@ export const create = ({
 
   // build contractsByChainId
   for (const source of sources) {
-    if (source.type === "block") continue;
+    if (source.type === "block" || source.type === "account") continue;
 
     let address: Address | undefined;
 
@@ -216,12 +209,12 @@ export const processSetupEvents = async (
           checkpoint: encodeCheckpoint({
             ...zeroCheckpoint,
             chainId: BigInt(network.chainId),
-            blockNumber: BigInt(source.filter.fromBlock),
+            blockNumber: BigInt(source.filter.fromBlock ?? 0),
           }),
 
           name: eventName,
 
-          block: BigInt(source.filter.fromBlock),
+          block: BigInt(source.filter.fromBlock ?? 0),
         },
       });
 
@@ -247,73 +240,22 @@ export const processEvents = async (
 
     const event = events[i]!;
 
-    switch (event.type) {
-      case "log": {
-        indexingService.eventCount[event.name]!++;
+    indexingService.eventCount[event.name]!++;
 
-        indexingService.common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
+    indexingService.common.logger.trace({
+      service: "indexing",
+      msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+    });
 
-        const result = await executeLog(indexingService, { event });
-        if (result.status !== "success") {
-          return result;
-        }
-
-        indexingService.common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
-        break;
-      }
-
-      case "block": {
-        indexingService.eventCount[event.name]!++;
-
-        indexingService.common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
-        const result = await executeBlock(indexingService, { event });
-        if (result.status !== "success") {
-          return result;
-        }
-
-        indexingService.common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
-        break;
-      }
-
-      case "callTrace": {
-        indexingService.eventCount[event.name]!++;
-
-        indexingService.common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
-        const result = await executeCallTrace(indexingService, { event });
-        if (result.status !== "success") {
-          return result;
-        }
-
-        indexingService.common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
-        break;
-      }
-
-      default:
-        never(event);
+    const result = await executeEvent(indexingService, { event });
+    if (result.status !== "success") {
+      return result;
     }
+
+    indexingService.common.logger.trace({
+      service: "indexing",
+      msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+    });
 
     // periodically update metrics
     if (i % 93 === 0) {
@@ -455,9 +397,37 @@ const executeSetup = async (
   return { status: "success" };
 };
 
-const executeLog = async (
+const toErrorMeta = (event: Event) => {
+  switch (event.type) {
+    case "log":
+    case "trace": {
+      return `Event arguments:\n${prettyPrint(event.event.args)}`;
+    }
+
+    case "transfer": {
+      return `Event arguments:\n${prettyPrint(event.event.transfer)}`;
+    }
+
+    case "block": {
+      return `Block:\n${prettyPrint({
+        hash: event.event.block.hash,
+        number: event.event.block.number,
+        timestamp: event.event.block.timestamp,
+      })}`;
+    }
+
+    case "transaction": {
+      return `Transaction:\n${prettyPrint({
+        hash: event.event.transaction.hash,
+        block: event.event.block.number,
+      })}`;
+    }
+  }
+};
+
+const executeEvent = async (
   indexingService: Service,
-  { event }: { event: LogEvent },
+  { event }: { event: Event },
 ): Promise<
   | { status: "error"; error: Error }
   | { status: "success" }
@@ -503,7 +473,7 @@ const executeLog = async (
 
     error.meta = Array.isArray(error.meta) ? error.meta : [];
     if (error.meta.length === 0) {
-      error.meta.push(`Event arguments:\n${prettyPrint(event.event.args)}`);
+      error.meta.push(toErrorMeta(event));
     }
 
     common.logger.error({
@@ -515,138 +485,6 @@ const executeLog = async (
     common.metrics.ponder_indexing_has_error.set(1);
 
     return { status: "error", error };
-  }
-
-  return { status: "success" };
-};
-
-const executeBlock = async (
-  indexingService: Service,
-  { event }: { event: BlockEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
-  const {
-    common,
-    indexingFunctions,
-    currentEvent,
-    networkByChainId,
-    contractsByChainId,
-    clientByChainId,
-  } = indexingService;
-  const indexingFunction = indexingFunctions[event.name];
-  const metricLabel = { event: event.name };
-
-  try {
-    // set currentEvent
-    currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
-    currentEvent.context.client = clientByChainId[event.chainId]!;
-    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.contextState.blockNumber = event.event.block.number;
-
-    const endClock = startClock();
-
-    await indexingFunction!({
-      event: event.event,
-      context: currentEvent.context,
-    });
-
-    common.metrics.ponder_indexing_function_duration.observe(
-      metricLabel,
-      endClock(),
-    );
-  } catch (_error) {
-    if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error & { meta?: string[] };
-
-    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
-
-    addStackTrace(error, common.options);
-
-    error.meta = Array.isArray(error.meta) ? error.meta : [];
-    error.meta.push(
-      `Block:\n${prettyPrint({
-        hash: event.event.block.hash,
-        number: event.event.block.number,
-        timestamp: event.event.block.timestamp,
-      })}`,
-    );
-
-    common.logger.error({
-      service: "indexing",
-      msg: `Error while processing ${event.name} event at chainId=${decodedCheckpoint.chainId}, block=${decodedCheckpoint.blockNumber}`,
-      error,
-    });
-
-    common.metrics.ponder_indexing_has_error.set(1);
-
-    return { status: "error", error: error };
-  }
-
-  return { status: "success" };
-};
-
-const executeCallTrace = async (
-  indexingService: Service,
-  { event }: { event: CallTraceEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
-  const {
-    common,
-    indexingFunctions,
-    currentEvent,
-    networkByChainId,
-    contractsByChainId,
-    clientByChainId,
-  } = indexingService;
-  const indexingFunction = indexingFunctions[event.name];
-  const metricLabel = { event: event.name };
-
-  try {
-    // set currentEvent
-    currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
-    currentEvent.context.client = clientByChainId[event.chainId]!;
-    currentEvent.context.contracts = contractsByChainId[event.chainId]!;
-    currentEvent.contextState.blockNumber = event.event.block.number;
-
-    const endClock = startClock();
-
-    await indexingFunction!({
-      event: event.event,
-      context: currentEvent.context,
-    });
-
-    common.metrics.ponder_indexing_function_duration.observe(
-      metricLabel,
-      endClock(),
-    );
-  } catch (_error) {
-    if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error & { meta?: string[] };
-
-    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
-
-    addStackTrace(error, common.options);
-
-    error.meta = Array.isArray(error.meta) ? error.meta : [];
-    error.meta.push(`Call trace arguments:\n${prettyPrint(event.event.args)}`);
-
-    common.logger.error({
-      service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
-      error,
-    });
-
-    common.metrics.ponder_indexing_has_error.set(1);
-
-    return { status: "error", error: error };
   }
 
   return { status: "success" };

@@ -318,10 +318,10 @@ export default createConfig({
 
 ### Factory contracts
 
-The `factory` field specifies a set of contracts that are created by a factory. The `factory` and `address` fields are mutually exclusive.
+The `factory()` function is used to specify a set of contracts that are created by a factory.
 
 ```ts filename="ponder.config.ts" {12-19}
-import { createConfig } from "ponder";
+import { createConfig, factory } from "ponder";
 import { parseAbiItem } from "viem";
 
 export default createConfig({
@@ -332,14 +332,14 @@ export default createConfig({
     SudoswapPool: {
       abi: SudoswapPoolAbi,
       network: "mainnet",
-      factory: {
+      address: factory({
         // The address of the factory contract that creates instances of this child contract.
         address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
         // The event emitted by the factory that announces a new instance of this child contract.
         event: parseAbiItem("event NewPair(address poolAddress)"),
         // The name of the parameter that contains the address of the new child contract.
         parameter: "poolAddress",
-      },
+      }),
       startBlock: 14645816,
     },
   },
@@ -363,7 +363,7 @@ To run an indexing function whenever a child contract is created (but before any
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts" {9-14}
-import { createConfig } from "ponder";
+import { createConfig, factory } from "ponder";
 import { parseAbiItem } from "viem";
 
 export default createConfig({
@@ -380,11 +380,11 @@ export default createConfig({
     SudoswapPool: {
       abi: SudoswapPoolAbi,
       network: "mainnet",
-      factory: {
+      address: factory({
         address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
         event: parseAbiItem("event NewPair(address poolAddress)"),
         parameter: "poolAddress",
-      },
+      }),
       startBlock: 14645816,
     },
   },
@@ -424,7 +424,7 @@ export default createConfig({
     SudoswapPool: {
       abi: SudoswapPoolAbi,
       network: "mainnet",
-      factory: {
+      address: factory({
         // A list of factory contract addresses that all create SudoswapPool contracts.
         address: [
           "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
@@ -432,7 +432,7 @@ export default createConfig({
         ],
         event: parseAbiItem("event NewPair(address poolAddress)"),
         parameter: "poolAddress",
-      },
+      }),
     },
   },
 });

@@ -42,28 +42,28 @@ export function isFilterInBloom({
 }): boolean {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
-  let isTopicsInBloom: boolean;
-  let isAddressInBloom: boolean;
+  const isTopicsInBloom = [
+    filter.topic0,
+    filter.topic1,
+    filter.topic2,
+    filter.topic3,
+  ].every((topic) => {
+    if (topic === null || topic === undefined) {
+      return true;
+    } else if (Array.isArray(topic)) {
+      return topic.some((t) => isInBloom(block.logsBloom, t));
+    } else {
+      return isInBloom(block.logsBloom, topic);
+    }
+  });
 
-  if (filter.topics === undefined || filter.topics.length === 0) {
-    isTopicsInBloom = true;
-  } else {
-    isTopicsInBloom = filter.topics.some((topic) => {
-      if (topic === null || topic === undefined) {
-        return true;
-      } else if (Array.isArray(topic)) {
-        return topic.some((t) => isInBloom(block.logsBloom, t));
-      } else {
-        return isInBloom(block.logsBloom, topic);
-      }
-    });
-  }
+  let isAddressInBloom: boolean;
 
   if (filter.address === undefined) isAddressInBloom = true;
   else if (isAddressFactory(filter.address)) {

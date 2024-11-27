@@ -1,8 +1,8 @@
 import type { FragmentId } from "@/sync/fragments.js";
 import type {
   SyncBlock,
-  SyncCallTrace,
   SyncLog,
+  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -140,6 +140,8 @@ export const encodeLog = ({
 
 type TransactionsTable = {
   hash: Hash;
+  chainId: number;
+  checkpoint: string;
   blockHash: Hash;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
@@ -161,19 +163,27 @@ type TransactionsTable = {
     string | bigint
   > | null;
   accessList: string | null;
-
-  chainId: number;
 };
 
 export const encodeTransaction = ({
   transaction,
+  block,
   chainId,
 }: {
   transaction: SyncTransaction;
+  block: Pick<SyncBlock, "timestamp">;
   chainId: number;
 }): Insertable<TransactionsTable> => {
   return {
     hash: transaction.hash,
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(transaction.blockNumber),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.transactions,
+      eventIndex: zeroCheckpoint.eventIndex,
+    }),
     chainId,
     blockHash: transaction.blockHash,
     blockNumber: hexToBigInt(transaction.blockNumber),
@@ -247,54 +257,72 @@ export const encodeTransactionReceipt = ({
   };
 };
 
-type CallTracesTable = {
+type TracesTable = {
   id: string;
   chainId: number;
   checkpoint: string;
-  callType: string;
-  from: Address;
-  gas: ColumnType<string, string | bigint, string | bigint>;
-  input: Hex;
-  to: Address;
-  value: ColumnType<string, string | bigint, string | bigint>;
+  type: string;
+  transactionHash: Hex;
   blockHash: Hex;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
-  error: string | null;
-  gasUsed: ColumnType<string, string | bigint, string | bigint> | null;
-  output: Hex | null;
-  subtraces: number;
-  traceAddress: string;
-  transactionHash: Hex;
-  transactionPosition: number;
+  from: Address;
+  to: Address | null;
+  gas: ColumnType<string, string | bigint, string | bigint>;
+  gasUsed: ColumnType<string, string | bigint, string | bigint>;
+  input: Hex;
   functionSelector: Hex;
+  output: Hex | null;
+  error: string | null;
+  revertReason: string | null;
+  value: ColumnType<
+    string | null,
+    string | bigint | null,
+    string | bigint | null
+  >;
+  index: number;
+  subcalls: number;
+  isReverted: number;
 };
 
-export function encodeCallTrace({
+export function encodeTrace({
   trace,
+  block,
+  transaction,
   chainId,
 }: {
-  trace: SyncCallTrace;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
+  transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
   chainId: number;
-}): Insertable<Omit<CallTracesTable, "checkpoint">> {
+}): Insertable<TracesTable> {
   return {
-    id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
+    id: `${transaction.hash}-${trace.index}`,
     chainId,
-    callType: trace.action.callType,
-    from: toLowerCase(trace.action.from),
-    gas: hexToBigInt(trace.action.gas),
-    input: trace.action.input,
-    to: toLowerCase(trace.action.to),
-    value: hexToBigInt(trace.action.value),
-    blockHash: trace.blockHash,
-    blockNumber: hexToBigInt(trace.blockNumber),
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.traces,
+      eventIndex: BigInt(trace.index),
+    }),
+    type: trace.type,
+    transactionHash: transaction.hash,
+    blockHash: block.hash,
+    blockNumber: hexToBigInt(block.number),
+    from: toLowerCase(trace.from),
+    to: trace.to ? toLowerCase(trace.to) : null,
+    gas: hexToBigInt(trace.gas),
+    gasUsed: hexToBigInt(trace.gasUsed),
+    input: trace.input,
+    functionSelector: trace.input.slice(0, 10) as Hex,
+    output: trace.output ?? null,
+    revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
-    gasUsed: trace.result ? hexToBigInt(trace.result.gasUsed) : null,
-    output: trace.result ? trace.result.output : null,
-    subtraces: trace.subtraces,
-    traceAddress: JSON.stringify(trace.traceAddress),
-    transactionHash: trace.transactionHash,
-    transactionPosition: trace.transactionPosition,
-    functionSelector: trace.action.input.slice(0, 10).toLowerCase() as Hex,
+    value: trace.value ? hexToBigInt(trace.value) : null,
+    index: trace.index,
+    subcalls: trace.subcalls,
+    isReverted: trace.error === undefined ? 0 : 1,
   };
 }
 
@@ -320,7 +348,7 @@ export type PonderSyncSchema = {
   logs: LogsTable;
   transactions: TransactionsTable;
   transactionReceipts: TransactionReceiptsTable;
-  callTraces: CallTracesTable;
+  traces: TracesTable;
 
   rpc_request_results: RpcRequestResultsTable;
 

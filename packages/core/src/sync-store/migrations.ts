@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { EVENT_TYPES } from "@/utils/checkpoint.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 
@@ -1079,6 +1080,146 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .dropTable("blockFilterIntervals")
         .ifExists()
         .cascade()
+        .execute();
+    },
+  },
+  "2024_11_12_0_debug": {
+    async up(db) {
+      await db.schema.dropTable("callTraces").ifExists().cascade().execute();
+
+      await db
+        .deleteFrom("intervals")
+        .where("fragment_id", "like", "trace_%")
+        .execute();
+
+      await db.schema
+        .createTable("traces")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("checkpoint", "varchar(75)", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("functionSelector", "text", (col) => col.notNull())
+        .addColumn("output", "text")
+        .addColumn("error", "text")
+        .addColumn("revertReason", "text")
+        .addColumn("value", "numeric(78, 0)")
+        .addColumn("index", "integer", (col) => col.notNull())
+        .addColumn("subcalls", "integer", (col) => col.notNull())
+        .addColumn("isReverted", "integer", (col) => col.notNull())
+        .execute();
+
+      // `getEvents` benefits from an index on
+      // "blockNumber", "functionSelector", "blockHash"
+      // "transactionHash", "checkpoint", "chainId", "from", "to",
+      // "value", "type", and "isReverted"
+
+      await db.schema
+        .createIndex("trace_block_number_index")
+        .on("traces")
+        .column("blockNumber")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_function_selector_index")
+        .on("traces")
+        .column("functionSelector")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_is_reverted_index")
+        .on("traces")
+        .column("isReverted")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_block_hash_index")
+        .on("traces")
+        .column("blockHash")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_transaction_hash_index")
+        .on("traces")
+        .column("transactionHash")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_checkpoint_index")
+        .on("traces")
+        .column("checkpoint")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_chain_id_index")
+        .on("traces")
+        .column("chainId")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_value_index")
+        .on("traces")
+        .column("value")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_from_index")
+        .on("traces")
+        .column("from")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_to_index")
+        .on("traces")
+        .column("to")
+        .execute();
+
+      await db.schema
+        .createIndex("trace_type_index")
+        .on("traces")
+        .column("type")
+        .execute();
+
+      // add `checkpoint` to `transactions`
+      await db.schema
+        .alterTable("transactions")
+        .addColumn("checkpoint", "varchar(75)")
+        .execute();
+
+      await db.executeQuery(
+        sql
+          .raw(`
+UPDATE ponder_sync.transactions
+SET checkpoint = (
+  lpad(blocks.timestamp::text, 10, '0') ||
+  lpad(transactions."chainId"::text, 16, '0') ||
+  lpad(transactions."blockNumber"::text, 16, '0') ||
+  lpad(transactions."transactionIndex"::text, 16, '0') ||
+  '${EVENT_TYPES.transactions}' ||
+  '0000000000000000'
+)
+FROM ponder_sync.blocks
+WHERE transactions."blockHash" = blocks.hash
+          `)
+          .compile(db),
+      );
+
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("checkpoint", (col) => col.setNotNull())
+        .execute();
+
+      await db.schema
+        .createIndex("transactions_checkpoint_index")
+        .on("transactions")
+        .column("checkpoint")
         .execute();
     },
   },
