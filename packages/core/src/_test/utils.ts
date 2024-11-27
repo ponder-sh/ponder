@@ -1,4 +1,5 @@
 import { type AddressInfo, createServer } from "node:net";
+import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/config.js";
 import type { Network } from "@/config/networks.js";
 import type { Status } from "@/sync/index.js";
@@ -99,11 +100,11 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
       Pair: {
         abi: pairABI,
         network: "mainnet",
-        factory: {
+        address: factory({
           address: params.address,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
           parameter: "pair",
-        },
+        }),
         includeCallTraces: params.includeCallTraces,
         includeTransactionReceipts: params.includeTransactionReceipts,
       },
