@@ -1,3 +1,4 @@
+import { factory } from "@/config/address.js";
 import { http, getAbiItem } from "viem";
 import { createConfig } from "../../../config/config.js";
 import { factoryABI, pairABI } from "../../generated.js";
@@ -27,11 +28,11 @@ export default createConfig({
     Pair: {
       network: "mainnet",
       abi: pairABI,
-      factory: {
+      address: factory({
         address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
         event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
         parameter: "pair",
-      },
+      }),
     },
   },
 });
