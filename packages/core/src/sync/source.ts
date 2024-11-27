@@ -1,4 +1,11 @@
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
+import type {
+  Block,
+  Log,
+  Transaction,
+  TransactionReceipt,
+  Trace as UserTrace,
+} from "@/types/eth.js";
 import type { SyncLog } from "@/types/sync.js";
 import type { Trace } from "@/utils/debug.js";
 import type { Abi, Address, Hex, LogTopic } from "viem";
@@ -66,6 +73,14 @@ export type LogFilter<
   topic3: LogTopic | undefined;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `log.${keyof Log}`
+      )[]
+    | undefined;
 };
 
 export type BlockFilter = {
@@ -75,6 +90,7 @@ export type BlockFilter = {
   offset: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include: `block.${keyof Block}`[] | undefined;
 };
 
 export type TransferFilter<
@@ -92,6 +108,14 @@ export type TransferFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `trace.${keyof UserTrace}`
+      )[]
+    | undefined;
 };
 
 export type TransactionFilter<
@@ -109,6 +133,13 @@ export type TransactionFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+      )[]
+    | undefined;
 };
 
 export type TraceFilter<
@@ -128,6 +159,14 @@ export type TraceFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  include:
+    | (
+        | `block.${keyof Block}`
+        | `transaction.${keyof Transaction}`
+        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `trace.${keyof UserTrace}`
+      )[]
+    | undefined;
 };
 
 export type LogFactory = {
@@ -170,4 +209,137 @@ export const getChildAddress = ({
           : 3;
     return `0x${log.topics[topicIndex]!.substring(start, start + length)}`;
   }
+};
+
+export const defaultBlockFilterInclude: Exclude<
+  BlockFilter["include"],
+  undefined
+> = [
+  "block.baseFeePerGas",
+  "block.difficulty",
+  "block.extraData",
+  "block.gasLimit",
+  "block.gasUsed",
+  "block.hash",
+  "block.logsBloom",
+  "block.miner",
+  "block.nonce",
+  "block.number",
+  "block.parentHash",
+  "block.receiptsRoot",
+  "block.sha3Uncles",
+  "block.size",
+  "block.stateRoot",
+  "block.timestamp",
+  "block.transactionsRoot",
+];
+
+const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
+  "transaction.blockHash",
+  "transaction.blockNumber",
+  "transaction.from",
+  "transaction.gas",
+  "transaction.hash",
+  "transaction.input",
+  "transaction.nonce",
+  "transaction.r",
+  "transaction.s",
+  "transaction.to",
+  "transaction.transactionIndex",
+  "transaction.v",
+  "transaction.value",
+  // NOTE: type specific properties are not included
+];
+
+export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof TransactionReceipt}`[] =
+  [
+    "transactionReceipt.blockHash",
+    "transactionReceipt.blockNumber",
+    "transactionReceipt.contractAddress",
+    "transactionReceipt.cumulativeGasUsed",
+    "transactionReceipt.effectiveGasPrice",
+    "transactionReceipt.from",
+    "transactionReceipt.gasUsed",
+    "transactionReceipt.logs",
+    "transactionReceipt.logsBloom",
+    "transactionReceipt.status",
+    "transactionReceipt.to",
+    "transactionReceipt.transactionHash",
+    "transactionReceipt.transactionIndex",
+    "transactionReceipt.type",
+  ];
+
+const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
+  "trace.id",
+  "trace.type",
+  "trace.from",
+  "trace.to",
+  "trace.gas",
+  "trace.gasUsed",
+  "trace.input",
+  "trace.output",
+  "trace.error",
+  "trace.revertReason",
+  "trace.value",
+];
+
+export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
+  [
+    "log.id",
+    "log.address",
+    "log.blockHash",
+    "log.blockNumber",
+    "log.data",
+    "log.logIndex",
+    "log.removed",
+    "log.topics",
+    "log.transactionHash",
+    "log.transactionIndex",
+    ...defaultTransactionInclude,
+    ...defaultBlockFilterInclude,
+  ];
+
+export const defaultTransactionFilterInclude: Exclude<
+  TransactionFilter["include"],
+  undefined
+> = [
+  ...defaultTransactionInclude,
+  ...defaultTransactionReceiptInclude,
+  ...defaultBlockFilterInclude,
+];
+
+export const defaultTraceFilterInclude: Exclude<
+  TraceFilter["include"],
+  undefined
+> = [
+  ...defaultBlockFilterInclude,
+  ...defaultTransactionInclude,
+  ...defaultTraceInclude,
+];
+
+export const defaultTransferFilterInclude: Exclude<
+  TransferFilter["include"],
+  undefined
+> = [
+  ...defaultBlockFilterInclude,
+  ...defaultTransactionInclude,
+  ...defaultTraceInclude,
+];
+
+export const shouldGetTransactionReceipt = (
+  filter: Pick<Filter, "include" | "type">,
+): boolean => {
+  // transactions must request receipts for "reverted" information
+  if (filter.type === "transaction") return true;
+
+  if (filter.type === "block") return false;
+
+  // TODO(kyle) should include be a required property?
+  if (filter.include === undefined) return true;
+
+  if (filter.include.some((prop) => prop.startsWith("transactionReceipt."))) {
+    return true;
+  }
+
+  return false;
 };
