@@ -33,6 +33,7 @@ import { type ReadOnlyClient, buildCachedActions } from "./ponderActions.js";
 
 export type Context = {
   network: { chainId: number; name: string };
+  store: Pick<IndexingStore<"historical" | "realtime">, "mode">;
   client: ReadOnlyClient;
   db: Db<Schema>;
   contracts: Record<
@@ -171,6 +172,7 @@ export const create = ({
       contextState,
       context: {
         network: { name: undefined!, chainId: undefined! },
+        store: { mode: undefined! },
         contracts: undefined!,
         client: undefined!,
         db: undefined!,
@@ -367,6 +369,8 @@ export const setIndexingStore = (
     delete: indexingStore.delete,
     sql: indexingStore.sql,
   };
+
+  indexingService.currentEvent.context.store.mode = indexingStore.mode;
 };
 
 export const kill = (indexingService: Service) => {

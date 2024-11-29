@@ -411,6 +411,9 @@ export const createRealtimeIndexingStore = ({
         }),
       { schema, casing: "snake_case" },
     ),
+    get mode() {
+      return "realtime" as const;
+    },
   } satisfies IndexingStore<"realtime">;
 
   // @ts-ignore

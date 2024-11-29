@@ -1001,6 +1001,9 @@ export const createHistoricalIndexingStore = ({
     isCacheFull() {
       return cacheBytes > maxBytes;
     },
+    get mode() {
+      return "historical" as const;
+    },
   } satisfies IndexingStore<"historical">;
 
   // @ts-ignore

@@ -9,14 +9,14 @@ import type { Schema } from "@/drizzle/index.js";
 import type { Db } from "@/types/db.js";
 
 export type IndexingStore<policy extends "historical" | "realtime"> =
-  policy extends "realtime"
-    ? Db<Schema>
-    : Db<Schema> & {
+  policy extends "historical"
+    ? Db<Schema> & { mode: policy } & {
         /** Persist the cache to the database. */
         flush: () => Promise<void>;
         /** Return `true` if the cache size in bytes is above the limit specified by `option.indexingCacheMaxBytes`. */
         isCacheFull: () => boolean;
-      };
+      }
+    : Db<Schema> & { mode: policy };
 
 export const parseSqlError = (e: any): Error => {
   let error = getBaseError(e);

@@ -152,6 +152,7 @@ test("processSetupEvents()", async (context) => {
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
     context: {
       network: { chainId: 1, name: "mainnet" },
+      store: { mode: "realtime" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),
@@ -242,6 +243,7 @@ test("processEvent() log events", async (context) => {
     },
     context: {
       network: { chainId: 1, name: "mainnet" },
+      store: { mode: "realtime" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),
@@ -317,6 +319,7 @@ test("processEvents() block events", async (context) => {
     },
     context: {
       network: { chainId: 1, name: "mainnet" },
+      store: { mode: "realtime" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),
@@ -397,6 +400,7 @@ test("processEvents() call trace events", async (context) => {
     },
     context: {
       network: { chainId: 1, name: "mainnet" },
+      store: { mode: "realtime" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),

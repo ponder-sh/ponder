@@ -36,6 +36,8 @@ test("find", async (context) => {
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
+  expect(indexingStore.mode).toBe("historical");
+
   // empty
 
   let result = await indexingStore.find(schema.account, {

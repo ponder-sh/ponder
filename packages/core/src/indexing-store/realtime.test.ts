@@ -36,6 +36,8 @@ test("find", async (context) => {
     schema,
   });
 
+  expect(indexingStore.mode).toBe("realtime");
+
   // empty
 
   let result = await indexingStore.find(schema.account, {
