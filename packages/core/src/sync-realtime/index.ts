@@ -849,7 +849,7 @@ export const createRealtimeSync = (
               error,
             });
 
-            // After a certain number of attempts, emit a fatal warning and fall back to polling.
+            // After a certain number of attempts, emit a fatal error.
             if (++consecutiveErrors === ERROR_TIMEOUT.length) {
               args.common.logger.error({
                 service: "realtime",
