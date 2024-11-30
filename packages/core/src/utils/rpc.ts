@@ -5,7 +5,11 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
+import type {
+  RequestQueue,
+  SubscribeParameters,
+  SubscribeReturnType,
+} from "@/utils/requestQueue.js";
 import {
   type Address,
   BlockNotFoundError,
@@ -34,7 +38,7 @@ export const _eth_getBlockByNumber = (
       params: [
         typeof blockNumber === "number"
           ? numberToHex(blockNumber)
-          : blockNumber ?? blockTag,
+          : (blockNumber ?? blockTag),
         true,
       ],
     })
@@ -203,3 +207,19 @@ export const _trace_block = (
       ],
     } as any)
     .then((traces) => traces as unknown as SyncTrace[]);
+
+/**
+ * Helper function for "eth_subscribe" request.
+ */
+export const _eth_subscribe_newHeads = (
+  requestQueue: RequestQueue,
+  handlers: {
+    onData: SubscribeParameters["onData"];
+    onError: SubscribeParameters["onError"];
+  },
+): Promise<SubscribeReturnType> =>
+  requestQueue.subscribe({
+    method: "eth_subscribe",
+    params: ["newHeads"],
+    ...handlers,
+  });
