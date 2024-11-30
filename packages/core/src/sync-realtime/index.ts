@@ -20,12 +20,17 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { range } from "@/utils/range.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
+import {
+  type RequestQueue,
+  type SubscribeReturnType,
+  resolveWebsocketTransport,
+} from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
+  _eth_subscribe_newHeads,
   _trace_block,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
@@ -109,6 +114,10 @@ export const createRealtimeSync = (
   let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
+  let wsSubscriptionId: Hash | undefined = undefined;
+  let wsUnsubscribe: SubscribeReturnType["unsubscribe"] | undefined = undefined;
+  const isPolling =
+    resolveWebsocketTransport(args.network.transport) === undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -807,11 +816,63 @@ export const createRealtimeSync = (
         },
       });
 
-      const enqueue = async () => {
+      const watchWebsocket = async () => {
+        if (wsSubscriptionId === undefined) {
+          // Subscribe only if there is no active websocket connection
+          try {
+            const { subscriptionId, unsubscribe } =
+              await _eth_subscribe_newHeads(args.requestQueue, {
+                onData: async (data) => {
+                  await enqueue(data.result.hash);
+                },
+                onError: async (error) => {
+                  // TODO: handle this error
+                  wsSubscriptionId = undefined;
+                  if (unsubscribe) {
+                    await unsubscribe();
+                  }
+                  throw new Error(error);
+                },
+              });
+
+            consecutiveErrors = 0;
+            wsSubscriptionId = subscriptionId;
+            wsUnsubscribe = unsubscribe;
+          } catch (_error) {
+            if (isKilled) return;
+
+            const error = _error as Error;
+
+            args.common.logger.warn({
+              service: "realtime",
+              msg: `Failed to subscribe to the latest '${args.network.name}' block`,
+              error,
+            });
+
+            // After a certain number of attempts, emit a fatal warning and fall back to polling.
+            if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+              args.common.logger.error({
+                service: "realtime",
+                msg: `Fatal warning: Failed to subscribe to the latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+                error,
+              });
+
+              args.onFatalError(error);
+            }
+          }
+        }
+      };
+
+      const enqueue = async (blockHash?: Hash) => {
         try {
-          const block = await _eth_getBlockByNumber(args.requestQueue, {
-            blockTag: "latest",
-          });
+          const block =
+            blockHash === undefined
+              ? await _eth_getBlockByNumber(args.requestQueue, {
+                  blockTag: "latest",
+                })
+              : await _eth_getBlockByHash(args.requestQueue, {
+                  hash: blockHash,
+                });
 
           const latestBlock = getLatestUnfinalizedBlock();
 
@@ -854,7 +915,12 @@ export const createRealtimeSync = (
         }
       };
 
-      interval = setInterval(enqueue, args.network.pollingInterval);
+      if (isPolling) {
+        interval = setInterval(enqueue, args.network.pollingInterval);
+      } else {
+        // Check on the connection every second
+        interval = setInterval(watchWebsocket, 1000);
+      }
 
       // Note: this is done just for testing.
       return enqueue().then(() => queue);
@@ -865,6 +931,9 @@ export const createRealtimeSync = (
       queue?.pause();
       queue?.clear();
       await queue?.onIdle();
+      if (wsUnsubscribe !== undefined) {
+        await wsUnsubscribe();
+      }
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;

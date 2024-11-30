@@ -7,9 +7,8 @@ import {
 } from "@ponder/utils";
 import {
   BlockNotFoundError,
-  type Client,
   type EIP1193Parameters,
-  type Hash,
+  type FallbackTransport,
   HttpRequestError,
   InternalRpcError,
   InvalidInputRpcError,
@@ -17,6 +16,7 @@ import {
   type PublicRpcSchema,
   type RpcError,
   type Transport,
+  type WebSocketTransport,
   isHex,
 } from "viem";
 import { startClock } from "./timer.js";
@@ -39,16 +39,21 @@ export type RequestQueue = Omit<
   subscribe: (params: SubscribeParameters) => Promise<SubscribeReturnType>;
 };
 
-export type SubscribeParameters = {
+export type SubscribeParameters = Parameters<
+  ResolvedWebSocketTransport["value"]["subscribe"]
+>[0] & {
   method: "eth_subscribe";
-  params: ["newHeads"];
-  onData: (data: any) => void;
-  onError?: ((error: any) => void) | undefined;
 };
 
-export type SubscribeReturnType = {
-  subscriptionId: Hash;
-  unsubscribe: () => Promise<any>;
+export type SubscribeReturnType = Awaited<
+  ReturnType<ResolvedWebSocketTransport["value"]["subscribe"]>
+>;
+
+type ResolvedWebSocketTransport = Omit<
+  ReturnType<WebSocketTransport>,
+  "value"
+> & {
+  value: NonNullable<ReturnType<WebSocketTransport>["value"]>;
 };
 
 const RETRY_COUNT = 9;
@@ -124,27 +129,16 @@ export const createRequestQueue = ({
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
         const stopClock = startClock();
-        const { config, value } = network.transport;
-        let transport = { ...config, ...value } as Client["transport"];
 
-        if (config.type === "fallback") {
-          transport = transport.transports
-            .find((t: ReturnType<Transport>) => t.config.type === "webSocket")
-            .then((t: ReturnType<Transport> | undefined) => {
-              if (t === undefined) {
-                throw new Error("No websocket transport found in fallback");
-              }
+        const wsTransport = resolveWebsocketTransport(network.transport);
 
-              return {
-                ...t.config,
-                ...t.value,
-              };
-            });
-        } else if (config.type !== "webSocket") {
-          throw new Error(`Unsupported transport type: ${config.type}`);
+        if (wsTransport === undefined) {
+          throw new Error(
+            `No websocket transport found for ${network.transport.config.type} transport.`,
+          );
         }
 
-        const response = await transport.subscribe(request);
+        const response = await wsTransport.value.subscribe(request);
 
         common.metrics.ponder_rpc_request_duration.observe(
           { method: "eth_subscribe", network: network.name },
@@ -181,6 +175,7 @@ export const createRequestQueue = ({
         await wait(duration);
       }
     }
+    throw new Error("unreachable");
   };
 
   const requestQueue: Queue<
@@ -261,4 +256,29 @@ function shouldRetry(error: Error) {
     return false;
   }
   return true;
+}
+
+export function resolveWebsocketTransport(
+  transport: ReturnType<Transport>,
+): ResolvedWebSocketTransport | undefined {
+  if (transport.config.type === "http") {
+    return undefined;
+  }
+
+  if (transport.config.type === "fallback") {
+    const fallbackTransport: ReturnType<FallbackTransport> =
+      transport as ReturnType<FallbackTransport>;
+
+    const wsTransport = fallbackTransport.value!.transports.find(
+      (t: ReturnType<Transport>) => t.config.type === "webSocket",
+    ) as ResolvedWebSocketTransport | undefined;
+
+    return wsTransport;
+  }
+
+  if (transport.config.type === "webSocket") {
+    return transport as ResolvedWebSocketTransport;
+  }
+
+  return undefined;
 }
