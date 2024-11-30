@@ -125,39 +125,33 @@ export const createRequestQueue = ({
       try {
         const stopClock = startClock();
         const { config, value } = network.transport;
-        const transport = { ...config, ...value } as Client["transport"];
+        let transport = { ...config, ...value } as Client["transport"];
 
-        if (config.type === "webSocket") {
-          const response = await transport.subscribe(request);
-
-          common.metrics.ponder_rpc_request_duration.observe(
-            { method: "eth_subscribe", network: network.name },
-            stopClock(),
-          );
-
-          return response;
-        } else if (config.type === "fallback") {
-          const wsTransport = transport.transports
+        if (config.type === "fallback") {
+          transport = transport.transports
             .find((t: ReturnType<Transport>) => t.config.type === "webSocket")
-            .then(
-              (t: ReturnType<Transport>) =>
-                ({
-                  ...t.config,
-                  ...t.value,
-                }) as Client["transport"],
-            );
+            .then((t: ReturnType<Transport> | undefined) => {
+              if (t === undefined) {
+                throw new Error("No websocket transport found in fallback");
+              }
 
-          const response = await wsTransport.subscribe(request);
-
-          common.metrics.ponder_rpc_request_duration.observe(
-            { method: "eth_subscribe", network: network.name },
-            stopClock(),
-          );
-
-          return response;
-        } else {
-          throw new Error("unreachable");
+              return {
+                ...t.config,
+                ...t.value,
+              };
+            });
+        } else if (config.type !== "webSocket") {
+          throw new Error(`Unsupported transport type: ${config.type}`);
         }
+
+        const response = await transport.subscribe(request);
+
+        common.metrics.ponder_rpc_request_duration.observe(
+          { method: "eth_subscribe", network: network.name },
+          stopClock(),
+        );
+
+        return response;
       } catch (_error) {
         const error = _error as Error;
 
