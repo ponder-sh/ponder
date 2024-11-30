@@ -663,10 +663,10 @@ export const createSyncStore = ({
           }
         })
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
+          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const rows = await db.wrap(
