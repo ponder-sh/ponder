@@ -54,10 +54,6 @@ export type Block = {
  */
 export type Transaction = Prettify<
   {
-    /** Hash of block containing this transaction */
-    blockHash: Hash;
-    /** Number of block containing this transaction */
-    blockNumber: bigint;
     /** Transaction sender */
     from: Address;
     /** Gas provided for transaction execution */
@@ -141,10 +137,6 @@ export type Log = {
   id: string;
   /** The address from which this log originated */
   address: Address;
-  /** Hash of block containing this log */
-  blockHash: Hash;
-  /** Number of block containing this log */
-  blockNumber: bigint;
   /** Contains the non-indexed arguments of the log */
   data: Hex;
   /** Index of this log within its block */
@@ -153,18 +145,10 @@ export type Log = {
   removed: boolean;
   /** List of order-dependent topics */
   topics: [Hex, ...Hex[]] | [];
-  /** Hash of the transaction that created this log */
-  transactionHash: Hash;
-  /** Index of the transaction that created this log */
-  transactionIndex: number;
 };
 
 /** A confirmed Ethereum transaction receipt. */
 export type TransactionReceipt = {
-  /** Hash of block containing this transaction */
-  blockHash: Hash;
-  /** Number of block containing this transaction */
-  blockNumber: bigint;
   /** Address of new contract or `null` if no contract was created */
   contractAddress: Address | null;
   /** Gas used by this and all preceding transactions in this block */
@@ -183,10 +167,6 @@ export type TransactionReceipt = {
   status: "success" | "reverted";
   /** Transaction recipient or `null` if deploying a contract */
   to: Address | null;
-  /** Hash of this transaction */
-  transactionHash: Hash;
-  /** Index of this transaction in the block */
-  transactionIndex: number;
   /** Transaction type */
   type: TransactionType;
 };
