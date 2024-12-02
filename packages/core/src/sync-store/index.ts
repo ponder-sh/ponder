@@ -810,7 +810,6 @@ export const createSyncStore = ({
             "transactionReceipts.from as txr_from",
             "transactionReceipts.gasUsed as txr_gasUsed",
             "transactionReceipts.logsBloom as txr_logsBloom",
-            "transactionReceipts.logs as txr_logs",
             "transactionReceipts.status as txr_status",
             "transactionReceipts.to as txr_to",
             "transactionReceipts.transactionHash as txr_transactionHash",
