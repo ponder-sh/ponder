@@ -914,9 +914,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("logFilters as lf")
             .innerJoin("logFilterIntervals as lfi", "lf.id", "lfi.logFilterId")
@@ -928,10 +926,17 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
               ),
             ]),
         )
-        .onConflict((oc) =>
-          oc.column("fragment_id").doUpdateSet({
-            blocks: sql`intervals.blocks + excluded.blocks`,
-          }),
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+SELECT
+  fragment_id,
+  chain_id,
+  range_agg(range.blocks) as blocks
+FROM range
+GROUP BY fragment_id, chain_id
+`),
         )
         .execute();
 
@@ -943,9 +948,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("factoryLogFilters as flf")
             .innerJoin(
@@ -960,6 +963,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -980,9 +995,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("traceFilters as tf")
             .innerJoin(
@@ -997,6 +1010,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -1013,9 +1038,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("factoryTraceFilters as ftf")
             .innerJoin(
@@ -1030,6 +1053,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -1050,9 +1085,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("blockFilters as bf")
             .innerJoin(
@@ -1067,6 +1100,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -1106,18 +1151,20 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("functionSelector", "text", (col) => col.notNull())
         .addColumn("output", "text")
         .addColumn("error", "text")
         .addColumn("revertReason", "text")
         .addColumn("value", "numeric(78, 0)")
         .addColumn("index", "integer", (col) => col.notNull())
         .addColumn("subcalls", "integer", (col) => col.notNull())
+        .addColumn("isReverted", "integer", (col) => col.notNull())
         .execute();
 
       // `getEvents` benefits from an index on
-      // "blockNumber", "input", "error", "blockHash"
+      // "blockNumber", "functionSelector", "blockHash"
       // "transactionHash", "checkpoint", "chainId", "from", "to",
-      // "value", and "type"
+      // "value", "type", and "isReverted"
 
       await db.schema
         .createIndex("trace_block_number_index")
@@ -1126,15 +1173,15 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db.schema
-        .createIndex("trace_input_index")
+        .createIndex("trace_function_selector_index")
         .on("traces")
-        .column("input")
+        .column("functionSelector")
         .execute();
 
       await db.schema
-        .createIndex("trace_error_index")
+        .createIndex("trace_is_reverted_index")
         .on("traces")
-        .column("error")
+        .column("isReverted")
         .execute();
 
       await db.schema

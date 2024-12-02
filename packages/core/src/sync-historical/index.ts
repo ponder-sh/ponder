@@ -311,7 +311,7 @@ export const createHistoricalSync = async (
    * that match `filter` and `interval`. Returns `undefined` if the number of
    * child addresses is above the limit.
    */
-  const syncAddress = async (
+  const syncAddressFactory = async (
     filter: Factory,
     interval: Interval,
   ): Promise<Address[] | undefined> => {
@@ -337,7 +337,7 @@ export const createHistoricalSync = async (
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
     // Resolve `filter.address`
     const address = isAddressFactory(filter.address)
-      ? await syncAddress(filter.address, interval)
+      ? await syncAddressFactory(filter.address, interval)
       : filter.address;
 
     if (isKilled) return;
@@ -420,11 +420,17 @@ export const createHistoricalSync = async (
     interval: Interval,
   ) => {
     const fromChildAddresses = isAddressFactory(filter.fromAddress)
-      ? await syncAddress(filter.fromAddress, interval)
+      ? await syncAddressFactory(filter.fromAddress, interval).then(
+          (addresses) =>
+            addresses === undefined ? undefined : new Set(addresses),
+        )
       : undefined;
 
     const toChildAddresses = isAddressFactory(filter.toAddress)
-      ? await syncAddress(filter.toAddress, interval)
+      ? await syncAddressFactory(filter.toAddress, interval).then(
+          (addresses) =>
+            addresses === undefined ? undefined : new Set(addresses),
+        )
       : undefined;
 
     if (isKilled) return;
@@ -444,12 +450,8 @@ export const createHistoricalSync = async (
             filter,
             block,
             transaction,
-            fromChildAddresses: fromChildAddresses
-              ? new Set(fromChildAddresses)
-              : undefined,
-            toChildAddresses: toChildAddresses
-              ? new Set(toChildAddresses)
-              : undefined,
+            fromChildAddresses,
+            toChildAddresses,
           })
         ) {
           transactionHashes.add(transaction.hash);
@@ -482,11 +484,11 @@ export const createHistoricalSync = async (
     interval: Interval,
   ) => {
     const fromChildAddresses = isAddressFactory(filter.fromAddress)
-      ? await syncAddress(filter.fromAddress, interval)
+      ? await syncAddressFactory(filter.fromAddress, interval)
       : undefined;
 
     const toChildAddresses = isAddressFactory(filter.toAddress)
-      ? await syncAddress(filter.toAddress, interval)
+      ? await syncAddressFactory(filter.toAddress, interval)
       : undefined;
 
     const traces = await Promise.all(
@@ -578,27 +580,25 @@ export const createHistoricalSync = async (
 
       await Promise.all(
         args.sources.map(async (source) => {
+          const filter = source.filter;
+
           // Compute the required interval to sync, accounting for cached
           // intervals and start + end block.
 
           // Skip sync if the interval is after the `toBlock` or before
           // the `fromBlock`.
           if (
-            (source.filter.fromBlock !== undefined &&
-              source.filter.fromBlock > _interval[1]) ||
-            (source.filter.toBlock !== undefined &&
-              source.filter.toBlock < _interval[0])
+            (filter.fromBlock !== undefined &&
+              filter.fromBlock > _interval[1]) ||
+            (filter.toBlock !== undefined && filter.toBlock < _interval[0])
           ) {
             return;
           }
           const interval: Interval = [
-            Math.max(source.filter.fromBlock ?? 0, _interval[0]),
-            Math.min(
-              source.filter.toBlock ?? Number.POSITIVE_INFINITY,
-              _interval[1],
-            ),
+            Math.max(filter.fromBlock ?? 0, _interval[0]),
+            Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
           ];
-          const completedIntervals = intervalsCache.get(source.filter)!;
+          const completedIntervals = intervalsCache.get(filter)!;
           const requiredIntervals = intervalDifference(
             [interval],
             completedIntervals,
@@ -614,7 +614,6 @@ export const createHistoricalSync = async (
             // sync required intervals, account for chunk sizes
             await Promise.all(
               requiredIntervals.map(async (interval) => {
-                const filter = source.filter;
                 switch (filter.type) {
                   case "log": {
                     await syncLogFilter(filter, interval);
@@ -660,7 +659,7 @@ export const createHistoricalSync = async (
 
           await blockPromise;
 
-          syncedIntervals.push({ filter: source.filter, interval });
+          syncedIntervals.push({ filter, interval });
         }),
       );
 

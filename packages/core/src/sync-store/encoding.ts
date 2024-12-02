@@ -268,6 +268,7 @@ type TracesTable = {
   gas: ColumnType<string, string | bigint, string | bigint>;
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
+  functionSelector: Hex;
   output: Hex | null;
   error: string | null;
   revertReason: string | null;
@@ -278,6 +279,7 @@ type TracesTable = {
   >;
   index: number;
   subcalls: number;
+  isReverted: number;
 };
 
 export function encodeTrace({
@@ -311,12 +313,14 @@ export function encodeTrace({
     gas: hexToBigInt(trace.gas),
     gasUsed: hexToBigInt(trace.gasUsed),
     input: trace.input,
+    functionSelector: trace.input.slice(0, 10) as Hex,
     output: trace.output ?? null,
     revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
     value: trace.value ? hexToBigInt(trace.value) : null,
     index: trace.index,
     subcalls: trace.subcalls,
+    isReverted: trace.error === undefined ? 0 : 1,
   };
 }
 

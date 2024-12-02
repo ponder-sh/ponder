@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig, factory } from "@ponder/core";
 import { parseAbiItem } from "abitype";
 import { http } from "viem";
 
@@ -20,21 +20,21 @@ export default createConfig({
     LlamaCore: {
       network: "sepolia",
       abi: LlamaCoreAbi,
-      factory: {
+      address: factory({
         address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
         event: llamaFactoryEvent,
         parameter: "llamaCore",
-      },
+      }),
       startBlock: 4121269,
     },
     LlamaPolicy: {
       network: "sepolia",
       abi: LlamaPolicyAbi,
-      factory: {
+      address: factory({
         address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
         event: llamaFactoryEvent,
         parameter: "llamaPolicy",
-      },
+      }),
       startBlock: 4121269,
     },
   },

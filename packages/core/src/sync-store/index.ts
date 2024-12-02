@@ -620,7 +620,7 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .where("value", ">", "0")
         .$if(filter.includeReverted === false, (qb) =>
-          qb.where("error", "is", null),
+          qb.where("isReverted", "=", 0),
         )
         .$if(filter.fromBlock !== undefined, (qb) =>
           qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
@@ -649,33 +649,23 @@ export const createSyncStore = ({
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .$if(filter.includeReverted === false, (qb) =>
-          qb.where("error", "is", null),
+          qb.where("isReverted", "=", 0),
         )
         .$if(filter.callType !== undefined, (qb) =>
           qb.where("type", "=", filter.callType!),
         )
         .$if(filter.functionSelector !== undefined, (qb) => {
           if (Array.isArray(filter.functionSelector)) {
-            return qb.where((eb) =>
-              eb.or(
-                (filter.functionSelector as Hex[]).map((fs) =>
-                  eb("input", "like", `${fs}%`),
-                ),
-              ),
-            );
+            return qb.where("functionSelector", "in", filter.functionSelector!);
           } else {
-            return qb.where(
-              "input",
-              "like",
-              `${filter.functionSelector as Hex}%`,
-            );
+            return qb.where("functionSelector", "=", filter.functionSelector!);
           }
         })
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
+          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const rows = await db.wrap(
@@ -820,6 +810,7 @@ export const createSyncStore = ({
             "transactionReceipts.from as txr_from",
             "transactionReceipts.gasUsed as txr_gasUsed",
             "transactionReceipts.logsBloom as txr_logsBloom",
+            "transactionReceipts.logs as txr_logs",
             "transactionReceipts.status as txr_status",
             "transactionReceipts.to as txr_to",
             "transactionReceipts.transactionHash as txr_transactionHash",

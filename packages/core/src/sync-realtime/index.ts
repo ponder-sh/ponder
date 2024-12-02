@@ -160,7 +160,6 @@ export const createRealtimeSync = (
         if (isAddressFactory(address)) {
           factories.push(address);
         }
-        logFilters.push(source.filter);
         break;
       }
     }
@@ -217,10 +216,10 @@ export const createRealtimeSync = (
 
       for (const filter of logFilters) {
         const childAddresses = isAddressFactory(filter.address)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.address)!,
-              ...unfinalizedChildAddresses.get(filter.address)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.address)!,
+              unfinalizedChildAddresses.get(filter.address)!,
+            ]
           : undefined;
 
         if (
@@ -243,17 +242,17 @@ export const createRealtimeSync = (
       let isMatched = false;
       for (const filter of transferFilters) {
         const fromChildAddresses = isAddressFactory(filter.fromAddress)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.fromAddress)!,
-              ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.fromAddress)!,
+              unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
           : undefined;
 
         const toChildAddresses = isAddressFactory(filter.toAddress)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.toAddress)!,
-              ...unfinalizedChildAddresses.get(filter.toAddress)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.toAddress)!,
+              unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
           : undefined;
 
         if (
@@ -272,17 +271,17 @@ export const createRealtimeSync = (
 
       for (const filter of traceFilters) {
         const fromChildAddresses = isAddressFactory(filter.fromAddress)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.fromAddress)!,
-              ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.fromAddress)!,
+              unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
           : undefined;
 
         const toChildAddresses = isAddressFactory(filter.toAddress)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.toAddress)!,
-              ...unfinalizedChildAddresses.get(filter.toAddress)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.toAddress)!,
+              unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
           : undefined;
 
         if (
@@ -316,17 +315,17 @@ export const createRealtimeSync = (
       let isMatched = transactionHashes.has(transaction.hash);
       for (const filter of transactionFilters) {
         const fromChildAddresses = isAddressFactory(filter.fromAddress)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.fromAddress)!,
-              ...unfinalizedChildAddresses.get(filter.fromAddress)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.fromAddress)!,
+              unfinalizedChildAddresses.get(filter.fromAddress)!,
+            ]
           : undefined;
 
         const toChildAddresses = isAddressFactory(filter.toAddress)
-          ? new Set([
-              ...finalizedChildAddresses.get(filter.toAddress)!,
-              ...unfinalizedChildAddresses.get(filter.toAddress)!,
-            ])
+          ? [
+              finalizedChildAddresses.get(filter.toAddress)!,
+              unfinalizedChildAddresses.get(filter.toAddress)!,
+            ]
           : undefined;
 
         if (
@@ -755,6 +754,7 @@ export const createRealtimeSync = (
       let isMatched = requiredTransactions.has(transaction.hash);
       for (const filter of transactionFilters) {
         if (isTransactionFilterMatched({ filter, block, transaction })) {
+          requiredTransactions.add(transaction.hash);
           requiredTransactionReceipts.add(transaction.hash);
           isMatched = true;
         }
