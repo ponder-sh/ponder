@@ -310,7 +310,7 @@ export const createHistoricalIndexingStore = ({
           if (value === null || value === undefined) {
             result += "\\N";
           } else {
-            result += String(value);
+            result += String(value).replaceAll('\\"', '\\\\"');
           }
         }
 

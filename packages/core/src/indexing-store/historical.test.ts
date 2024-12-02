@@ -375,6 +375,120 @@ test("flush", async (context) => {
   await cleanup();
 });
 
+test("flush json", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      metadata: p.json().$type<{ balance: string }>(),
+    })),
+  };
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    database,
+    schema,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    metadata: { balance: "HI" },
+  });
+
+  await indexingStore.flush();
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    metadata: { balance: "HI" },
+  });
+
+  await cleanup();
+});
+
+test("flush array", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balances: p.bigint().array().notNull(),
+    })),
+  };
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    database,
+    schema,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    balances: [1n, 2n, 3n],
+  });
+
+  await indexingStore.flush();
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balances: [1n, 2n, 3n],
+  });
+
+  await cleanup();
+});
+
+test("flush json array", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      metadata: p.json().array().notNull(),
+    })),
+  };
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    database,
+    schema,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    metadata: [{ balance: "HI" }, { balance: "HI" }, { balance: "HI" }],
+  });
+
+  await indexingStore.flush();
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    metadata: [{ balance: "HI" }, { balance: "HI" }, { balance: "HI" }],
+  });
+
+  await cleanup();
+});
+
 test("sql", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
