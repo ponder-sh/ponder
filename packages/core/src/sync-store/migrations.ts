@@ -914,9 +914,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("logFilters as lf")
             .innerJoin("logFilterIntervals as lfi", "lf.id", "lfi.logFilterId")
@@ -928,10 +926,17 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
               ),
             ]),
         )
-        .onConflict((oc) =>
-          oc.column("fragment_id").doUpdateSet({
-            blocks: sql`intervals.blocks + excluded.blocks`,
-          }),
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+SELECT
+  fragment_id,
+  chain_id,
+  range_agg(range.blocks) as blocks
+FROM range
+GROUP BY fragment_id, chain_id
+`),
         )
         .execute();
 
@@ -943,9 +948,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("factoryLogFilters as flf")
             .innerJoin(
@@ -960,6 +963,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -980,9 +995,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("traceFilters as tf")
             .innerJoin(
@@ -997,6 +1010,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -1013,9 +1038,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("factoryTraceFilters as ftf")
             .innerJoin(
@@ -1030,6 +1053,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
@@ -1050,9 +1085,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .execute();
 
       await db
-        .insertInto("intervals")
-        .columns(["fragment_id", "chain_id", "blocks"])
-        .expression(
+        .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
             .selectFrom("blockFilters as bf")
             .innerJoin(
@@ -1067,6 +1100,18 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
                 "blocks",
               ),
             ]),
+        )
+        .insertInto("intervals")
+        .columns(["fragment_id", "chain_id", "blocks"])
+        .expression(
+          sql.raw(`
+  SELECT
+    fragment_id,
+    chain_id,
+    range_agg(range.blocks) as blocks
+  FROM range
+  GROUP BY fragment_id, chain_id
+  `),
         )
         .onConflict((oc) =>
           oc.column("fragment_id").doUpdateSet({
