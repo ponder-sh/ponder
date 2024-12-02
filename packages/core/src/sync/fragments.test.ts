@@ -79,7 +79,7 @@ test("getLogFilterFragmentIds includeTransactionReceipts", () => {
     topic1: null,
     topic2: null,
     topic3: null,
-    include: ["transactionReceipt.transactionHash"],
+    include: ["transactionReceipt.status"],
   });
 
   expect(logFilterFragments[0]!.id).toBe("log_1_null_null_null_null_null_1");
