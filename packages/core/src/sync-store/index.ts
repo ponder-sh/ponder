@@ -34,7 +34,6 @@ import {
   type TransactionReceipt,
   checksumAddress,
   hexToBigInt,
-  hexToNumber,
 } from "viem";
 import {
   type PonderSyncSchema,
@@ -803,7 +802,6 @@ export const createSyncStore = ({
             "transactionReceipts.from as txr_from",
             "transactionReceipts.gasUsed as txr_gasUsed",
             "transactionReceipts.logsBloom as txr_logsBloom",
-            "transactionReceipts.logs as txr_logs",
             "transactionReceipts.status as txr_status",
             "transactionReceipts.to as txr_to",
             "transactionReceipts.type as txr_type",
@@ -949,23 +947,6 @@ export const createSyncStore = ({
               effectiveGasPrice: BigInt(row.txr_effectiveGasPrice),
               from: checksumAddress(row.txr_from),
               gasUsed: BigInt(row.txr_gasUsed),
-              logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
-                id: `${log.blockHash}-${log.logIndex}`,
-                address: checksumAddress(log.address),
-                blockHash: log.blockHash,
-                blockNumber: hexToBigInt(log.blockNumber),
-                data: log.data,
-                logIndex: hexToNumber(log.logIndex),
-                removed: false,
-                topics: [
-                  log.topics[0] ?? null,
-                  log.topics[1] ?? null,
-                  log.topics[2] ?? null,
-                  log.topics[3] ?? null,
-                ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-                transactionHash: log.transactionHash,
-                transactionIndex: hexToNumber(log.transactionIndex),
-              })),
               logsBloom: row.txr_logsBloom,
               status:
                 row.txr_status === "0x1"

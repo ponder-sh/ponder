@@ -1266,6 +1266,11 @@ WHERE transactions."blockHash" = blocks.hash
         .on("transactions")
         .column("checkpoint")
         .execute();
+
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropColumn("logs")
+        .execute();
     },
   },
 };
