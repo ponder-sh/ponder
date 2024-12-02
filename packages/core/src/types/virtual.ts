@@ -119,8 +119,8 @@ export namespace Virtual {
       ? // 2. transaction event
         {
           block: Prettify<Block>;
-          // TODO(kyle) annotate with `status`
           transaction: Prettify<Transaction>;
+          transactionReceipt: Prettify<TransactionReceipt>;
         }
       : name extends `${string}:transfer:${"from" | "to"}`
         ? // 3. transfer event
