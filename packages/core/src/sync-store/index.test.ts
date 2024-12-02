@@ -82,6 +82,7 @@ test("getIntervals() empty", async (context) => {
     offset: 0,
     fromBlock: undefined,
     toBlock: undefined,
+    include: [],
   } satisfies BlockFilter;
 
   const intervals = await syncStore.getIntervals({
@@ -103,6 +104,7 @@ test("getIntervals() returns intervals", async (context) => {
     offset: 0,
     fromBlock: undefined,
     toBlock: undefined,
+    include: [],
   } satisfies BlockFilter;
 
   await syncStore.insertIntervals({
@@ -134,6 +136,7 @@ test("getIntervals() merges intervals", async (context) => {
     offset: 0,
     fromBlock: undefined,
     toBlock: undefined,
+    include: [],
   } satisfies BlockFilter;
 
   await syncStore.insertIntervals({
@@ -176,6 +179,7 @@ test("getIntervals() adjacent intervals", async (context) => {
     address: [zeroAddress],
     fromBlock: undefined,
     toBlock: undefined,
+    include: [],
   } satisfies LogFilter;
 
   await syncStore.insertIntervals({
@@ -1092,7 +1096,7 @@ test("getEvents() returns events", async (context) => {
     topic3: null,
     fromBlock: undefined,
     toBlock: undefined,
-    // includeTransactionReceipts: false,
+    include: [],
   } satisfies LogFilter;
 
   const { events } = await syncStore.getEvents({

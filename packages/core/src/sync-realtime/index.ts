@@ -12,6 +12,7 @@ import {
   type TransferFilter,
   getChildAddress,
   isAddressFactory,
+  shouldGetTransactionReceipt,
 } from "@/sync/source.js";
 import type {
   LightBlock,
@@ -690,10 +691,13 @@ export const createRealtimeSync = (
 
       for (const filter of logFilters) {
         if (isLogFilterMatched({ filter, block, log })) {
-          // TODO: includeTransactionReceipt
-          // return early if includeTransactionReceipt, otherwise continue checking filters
           requiredTransactions.add(log.transactionHash);
           isMatched = true;
+          if (shouldGetTransactionReceipt(filter)) {
+            requiredTransactionReceipts.add(log.transactionHash);
+            // skip to next log
+            break;
+          }
         }
       }
 
@@ -711,10 +715,13 @@ export const createRealtimeSync = (
             trace: trace.trace,
           })
         ) {
-          // TODO: includeTransactionReceipt
-          // return early if includeTransactionReceipt, otherwise continue checking filters
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
+          if (shouldGetTransactionReceipt(filter)) {
+            requiredTransactionReceipts.add(trace.transactionHash);
+            // skip to next trace
+            break;
+          }
         }
       }
 
@@ -726,10 +733,13 @@ export const createRealtimeSync = (
             trace: trace.trace,
           })
         ) {
-          // TODO: includeTransactionReceipt
-          // return early if includeTransactionReceipt, otherwise continue checking filters
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
+          if (shouldGetTransactionReceipt(filter)) {
+            requiredTransactionReceipts.add(trace.transactionHash);
+            // skip to next trace
+            break;
+          }
         }
       }
 

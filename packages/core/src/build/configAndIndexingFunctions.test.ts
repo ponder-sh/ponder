@@ -1,7 +1,12 @@
 import path from "node:path";
 import type { Options } from "@/common/options.js";
 import { factory } from "@/config/address.js";
-import type { LogFactory, LogFilter, TraceFilter } from "@/sync/source.js";
+import {
+  type LogFactory,
+  type LogFilter,
+  type TraceFilter,
+  shouldGetTransactionReceipt,
+} from "@/sync/source.js";
 import {
   http,
   type Address,
@@ -467,34 +472,31 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   expect(sources[0]?.filter.fromBlock).toBe(undefined);
 });
 
-test.skip("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
-  // const config = createConfig({
-  //   networks: {
-  //     mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-  //     optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
-  //   },
-  //   contracts: {
-  //     a: {
-  //       includeTransactionReceipts: true,
-  //       network: {
-  //         mainnet: {},
-  //         optimism: { includeTransactionReceipts: false },
-  //       },
-  //       abi: [event0],
-  //     },
-  //   },
-  // });
-  // const { sources } = await buildConfigAndIndexingFunctions({
-  //   config,
-  //   rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  //   options,
-  // });
-  // expect((sources[0]!.filter as LogFilter).includeTransactionReceipts).toBe(
-  //   true,
-  // );
-  // expect((sources[1]!.filter as LogFilter).includeTransactionReceipts).toBe(
-  //   false,
-  // );
+test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        includeTransactionReceipts: true,
+        network: {
+          mainnet: {},
+          optimism: { includeTransactionReceipts: false },
+        },
+        abi: [event0],
+      },
+    },
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    options,
+  });
+
+  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(true);
+  expect(shouldGetTransactionReceipt(sources[1]!.filter)).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
@@ -531,9 +533,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
     toFunctionSelector(func0),
   ]);
-  // expect((sources[0]!.filter as TraceFilter).includeTransactionReceipts).toBe(
-  //   false,
-  // );
+  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
@@ -574,9 +574,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
     toFunctionSelector(func0),
   ]);
-  // expect(
-  //   (sources[0]!.filter as TraceFilter).includeTransactionReceipts,
-  // ).toBe(false);
+  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {

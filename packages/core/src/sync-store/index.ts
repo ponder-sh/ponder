@@ -12,6 +12,7 @@ import {
   type TransactionFilter,
   type TransferFilter,
   isAddressFactory,
+  shouldGetTransactionReceipt,
 } from "@/sync/source.js";
 import type { Log, Trace } from "@/types/eth.js";
 import type {
@@ -30,8 +31,10 @@ import {
   type Address,
   type Hash,
   type Hex,
+  type TransactionReceipt,
   checksumAddress,
   hexToBigInt,
+  hexToNumber,
 } from "viem";
 import {
   type PonderSyncSchema,
@@ -660,10 +663,10 @@ export const createSyncStore = ({
           }
         })
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
+          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
+          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
         );
 
     const rows = await db.wrap(
@@ -800,6 +803,7 @@ export const createSyncStore = ({
             "transactionReceipts.from as txr_from",
             "transactionReceipts.gasUsed as txr_gasUsed",
             "transactionReceipts.logsBloom as txr_logsBloom",
+            "transactionReceipts.logs as txr_logs",
             "transactionReceipts.status as txr_status",
             "transactionReceipts.to as txr_to",
             "transactionReceipts.type as txr_type",
@@ -824,6 +828,7 @@ export const createSyncStore = ({
       const hasLog = row.log_id !== null;
       const hasTransaction = row.tx_hash !== null;
       const hasTrace = row.trace_id !== null;
+      const hasTransactionReceipt = shouldGetTransactionReceipt(filter);
 
       return {
         chainId: filter.chainId,
@@ -935,53 +940,52 @@ export const createSyncStore = ({
               subcalls: Number(row.trace_subcalls),
             }
           : undefined,
-        transactionReceipt: undefined,
-        // hasTransactionReceipt
-        //   ? {
-        //       contractAddress: row.txr_contractAddress
-        //         ? checksumAddress(row.txr_contractAddress)
-        //         : null,
-        //       cumulativeGasUsed: BigInt(row.txr_cumulativeGasUsed),
-        //       effectiveGasPrice: BigInt(row.txr_effectiveGasPrice),
-        //       from: checksumAddress(row.txr_from),
-        //       gasUsed: BigInt(row.txr_gasUsed),
-        //       logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
-        //         id: `${log.blockHash}-${log.logIndex}`,
-        //         address: checksumAddress(log.address),
-        //         blockHash: log.blockHash,
-        //         blockNumber: hexToBigInt(log.blockNumber),
-        //         data: log.data,
-        //         logIndex: hexToNumber(log.logIndex),
-        //         removed: false,
-        //         topics: [
-        //           log.topics[0] ?? null,
-        //           log.topics[1] ?? null,
-        //           log.topics[2] ?? null,
-        //           log.topics[3] ?? null,
-        //         ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-        //         transactionHash: log.transactionHash,
-        //         transactionIndex: hexToNumber(log.transactionIndex),
-        //       })),
-        //       logsBloom: row.txr_logsBloom,
-        //       status:
-        //         row.txr_status === "0x1"
-        //           ? "success"
-        //           : row.txr_status === "0x0"
-        //             ? "reverted"
-        //             : (row.txr_status as TransactionReceipt["status"]),
-        //       to: row.txr_to ? checksumAddress(row.txr_to) : null,
-        //       type:
-        //         row.txr_type === "0x0"
-        //           ? "legacy"
-        //           : row.txr_type === "0x1"
-        //             ? "eip2930"
-        //             : row.tx_type === "0x2"
-        //               ? "eip1559"
-        //               : row.tx_type === "0x7e"
-        //                 ? "deposit"
-        //                 : row.tx_type,
-        //     }
-        //   : undefined,
+        transactionReceipt: hasTransactionReceipt
+          ? {
+              contractAddress: row.txr_contractAddress
+                ? checksumAddress(row.txr_contractAddress)
+                : null,
+              cumulativeGasUsed: BigInt(row.txr_cumulativeGasUsed),
+              effectiveGasPrice: BigInt(row.txr_effectiveGasPrice),
+              from: checksumAddress(row.txr_from),
+              gasUsed: BigInt(row.txr_gasUsed),
+              logs: JSON.parse(row.txr_logs).map((log: SyncLog) => ({
+                id: `${log.blockHash}-${log.logIndex}`,
+                address: checksumAddress(log.address),
+                blockHash: log.blockHash,
+                blockNumber: hexToBigInt(log.blockNumber),
+                data: log.data,
+                logIndex: hexToNumber(log.logIndex),
+                removed: false,
+                topics: [
+                  log.topics[0] ?? null,
+                  log.topics[1] ?? null,
+                  log.topics[2] ?? null,
+                  log.topics[3] ?? null,
+                ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+                transactionHash: log.transactionHash,
+                transactionIndex: hexToNumber(log.transactionIndex),
+              })),
+              logsBloom: row.txr_logsBloom,
+              status:
+                row.txr_status === "0x1"
+                  ? "success"
+                  : row.txr_status === "0x0"
+                    ? "reverted"
+                    : (row.txr_status as TransactionReceipt["status"]),
+              to: row.txr_to ? checksumAddress(row.txr_to) : null,
+              type:
+                row.txr_type === "0x0"
+                  ? "legacy"
+                  : row.txr_type === "0x1"
+                    ? "eip2930"
+                    : row.tx_type === "0x2"
+                      ? "eip1559"
+                      : row.tx_type === "0x7e"
+                        ? "deposit"
+                        : row.tx_type,
+            }
+          : undefined,
       } satisfies RawEvent;
     });
 
