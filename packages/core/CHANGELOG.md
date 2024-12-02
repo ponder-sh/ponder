@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.12
+
+### Patch Changes
+
+- [#1300](https://github.com/ponder-sh/ponder/pull/1300) [`31fa94b34bc4fd9f7c64f3934b2a92f709e17bc8`](https://github.com/ponder-sh/ponder/commit/31fa94b34bc4fd9f7c64f3934b2a92f709e17bc8) Thanks [@kyscott18](https://github.com/kyscott18)! - Update drizzle-orm to v0.36.
+
 ## 0.7.11
 
 ### Patch Changes
