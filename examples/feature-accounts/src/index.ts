@@ -1,5 +1,5 @@
 import { ponder } from "ponder:registry";
-import * as schema from "../ponder.schema";
+import schema from "ponder:schema";
 
 ponder.on("BeaverBuilder:transaction:from", async ({ event, context }) => {
   if (event.transaction.to === null) return;

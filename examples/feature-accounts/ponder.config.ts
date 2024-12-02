@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http, createPublicClient } from "viem";
 
 const latestBlockMainnet = await createPublicClient({
