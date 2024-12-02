@@ -913,8 +913,6 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .addColumn("blocks", sql`nummultirange`, (col) => col.notNull())
         .execute();
 
-      console.log(1);
-
       await db
         .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
@@ -948,8 +946,6 @@ GROUP BY fragment_id, chain_id
         .ifExists()
         .cascade()
         .execute();
-
-      console.log(2);
 
       await db
         .with("range(fragment_id, chain_id, blocks)", (db) =>
@@ -998,8 +994,6 @@ GROUP BY fragment_id, chain_id
         .cascade()
         .execute();
 
-      console.log(3);
-
       await db
         .with("range(fragment_id, chain_id, blocks)", (db) =>
           db
@@ -1042,8 +1036,6 @@ GROUP BY fragment_id, chain_id
         .ifExists()
         .cascade()
         .execute();
-
-      console.log(4);
 
       await db
         .with("range(fragment_id, chain_id, blocks)", (db) =>
@@ -1091,8 +1083,6 @@ GROUP BY fragment_id, chain_id
         .ifExists()
         .cascade()
         .execute();
-
-      console.log(5);
 
       await db
         .with("range(fragment_id, chain_id, blocks)", (db) =>
