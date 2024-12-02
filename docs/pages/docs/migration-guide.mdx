@@ -8,6 +8,215 @@ import Architecture from "../../public/architecture.svg";
 
 # Migration guide
 
+## 0.8
+
+### `ponder` package name
+
+New versions will not be published to `@ponder/core`.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm add ponder@0.8
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn add ponder@0.8
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm add ponder@0.8
+```
+</Tabs.Tab>
+</Tabs>
+
+### Accounts indexing
+
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address.
+
+<Steps>
+
+### Specify an account to index
+
+The `accounts` field in `ponder.config.ts` is used to specify an account to index.
+
+```ts filename="ponder.config.ts"
+import { createConfig } from "ponder";
+
+export default createConfig({
+  accounts: {
+    BeaverBuilder: {
+      network: "mainnet",
+      address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
+    },
+  },
+});
+```
+
+### Register an indexing function
+
+Indexing function can be registered for `transaction` and `transfer` events. `from` or `to` refer to the account specified in `ponder.config.ts`.
+
+For more information, see the [accounts](/docs/docs/accounts) page.
+
+```ts filename="src/index.ts"
+import { ponder } from "ponder:registry";
+
+ponder.on("BeaverBuilder:transaction:from", async ({ event, context }) => {
+  event;
+  // ^? {
+  //      block: Block;
+  //      transaction: Transaction;
+  //    }
+});
+
+ponder.on("BeaverBuilder:transfer:to", async ({ event, context }) => {
+  event;
+  // ^? {
+  //      transfer: { from: Address; to: Address; value: bigint };
+  //      block: Block;
+  //      transaction: Transaction;
+  //      trace: Trace;
+  //    }
+});
+```
+
+</Steps>
+
+<Callout type="warning">
+  Ponder now uses the debug namespace to request trace-level data. Because of
+  this, contracts with `includeCallTraces` will be re-synced.
+</Callout>
+
+### `factory()` config
+
+The `factory()` function is used to designate a factory contract. The result should be passed to the `address` property.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts (<=0.7)"
+import { createConfig } from "@ponder/core";
+
+export default createConfig({
+  contracts: {
+    uniswap: {
+      factory: {
+        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
+        parameter: "pool",
+      },
+    },
+  },
+});
+```
+
+{/* prettier-ignore */}
+```ts filename="ponder.config.ts (0.8)"
+import { createConfig, factory } from "ponder";
+
+export default createConfig({
+  contracts: {
+    uniswap: {
+      address: factory({
+        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
+        parameter: "pool",
+      }),
+    },
+  },
+});
+```
+
+</div>
+
+### `@/generated` -> `ponder:registry`
+
+The virtual module `@/generated` was replaced with `ponder:registry`.
+
+### `ponder-env.d.ts`
+
+A new `ponder-env.d.ts` is required. The new file uses [triple slash directives](https://www.typescriptlang.org/docs/handbook/triple-slash-directives.html#-reference-types-) for (hopefully) less frequent updates.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm codegen
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn codegen
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm run codegen
+```
+</Tabs.Tab>
+</Tabs>
+
+### `ponder:schema`
+
+The `ponder:schema` virtual module was added. It is an alias for `ponder.schema.ts`.
+
+<div className="code-columns">
+
+```ts filename="src/index.ts (<=0.7)"
+import { accounts } from "../ponder.schema";
+
+const row = await db.insert(accounts).values({
+  address: "0x7Df1",
+  balance: 0n,
+});
+```
+
+{/* prettier-ignore */}
+```ts filename="src/index.ts (0.8)"
+import { accounts } from "ponder:schema";
+ 
+const row = await db.insert(accounts).values({
+  address: "0x7Df1", balance: 0n
+});
+```
+
+</div>
+
+It also contains a default export of all the exported table objects from `ponder.schema.ts`.
+
+{/* prettier-ignore */}
+```ts filename="src/index.ts"
+import schema from "ponder:schema";
+ 
+const row = await db.insert(schema.accounts).values({
+  address: "0x7Df1", balance: 0n
+});
+```
+
+### `transactionReceipt.logs` removed
+
+The `transactionReceipt.logs` property was removed from the `event` object.
+
+### Redudant properties removed from `event`
+
+The following properties were removed from `event`.
+
+```diff
+- event.log.blockNumber;
+- event.log.blockHash;
+- event.log.transactionHash;
+- event.log.transactionIndex;
+- event.transaction.blockNumber;
+- event.transaction.blockHash;
+- event.transactionReceipt.transactionHash;
+- event.transactionReceipt.transactionIndex;
+```
+
+All of the data is still available on other properties of the `event` object, such as `event.transaction.hash` or `event.block.number`.
+
 ## 0.7
 
 The `0.7` release includes several breaking changes.
