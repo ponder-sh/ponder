@@ -1228,7 +1228,7 @@
 
 ### Patch Changes
 
-- [#270](https://github.com/0xOlias/ponder/pull/270) [`9919db8`](https://github.com/0xOlias/ponder/commit/9919db807e546d220d92706f00910afaa4424ea2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the server would crash if no event handlers were registered in a file that had `import { ponder } from "@/generated"`
+- [#270](https://github.com/0xOlias/ponder/pull/270) [`9919db8`](https://github.com/0xOlias/ponder/commit/9919db807e546d220d92706f00910afaa4424ea2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the server would crash if no event handlers were registered in a file that had `import { ponder } from "ponder:registry"`
 
 ## 0.0.75
 
@@ -1456,7 +1456,7 @@
 - [#151](https://github.com/0xOlias/ponder/pull/151) [`ace6a36`](https://github.com/0xOlias/ponder/commit/ace6a3664c2e1354701e2225d0f5c92c3eae9a28) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a "setup" event which is processed before all log events. The "setup" event handler argument only includes `context` (no `event` property). Example:
 
   ```ts
-  import { ponder } from "@/generated";
+  import { ponder } from "ponder:registry";
 
   ponder.on("setup", async ({ context }) => {
     const { MyEntity } = context.entities;
@@ -1564,18 +1564,18 @@
 
 - [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated package exports to include cjs and esm
 
-- [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a path alias `@/generated` in Ponder project `src` files.
+- [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a path alias `ponder:registry` in Ponder project `src` files.
 
   ```ts
   // src/SomeContract.ts
-  import { ponder } from "@/generated";
+  import { ponder } from "ponder:registry";
 
   ponder.on(...)
   ```
 
   ```ts
   // src/nested/AnotherContract.ts
-  import { ponder } from "@/generated";
+  import { ponder } from "ponder:registry";
 
   ponder.on(...)
 

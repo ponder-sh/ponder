@@ -43,7 +43,7 @@ export default createConfig({
 
 ```ts filename="src/index.ts"
 import { tokens } from "ponder:schema";
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
   const { client } = context;
@@ -153,7 +153,7 @@ The custom client uses the transport you specify in `ponder.config.ts`.
 By default, the `blockNumber` option is set to the block number of the current event (`event.block.number`).
 
 ```ts filename="src/index.ts" {8-9}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
   const totalSupply = await context.client.readContract({
@@ -169,7 +169,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 You can also specify a `blockNumber` to read data at a specific block height. It will still be cached.
 
 ```ts filename="src/index.ts" {8}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
   const totalSupply = await context.client.readContract({
@@ -235,7 +235,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("UniswapV3Factory:FeeAmountEnabled", async ({ event, context }) => {
   const tickSpacing = await context.client.readContract({
@@ -254,7 +254,7 @@ ponder.on("UniswapV3Factory:FeeAmountEnabled", async ({ event, context }) => {
 Contracts that are created by a factory have a dynamic address, so the `context.contracts` object does not have an `address` property. To read data from the contract that emitted the current event, use `event.log.address`.
 
 ```ts filename="src/index.ts" {9}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("SudoswapPool:Transfer", async ({ event, context }) => {
   const { SudoswapPool } = context.contracts;
@@ -271,7 +271,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event, context }) => {
 To call a factory contract child from an indexing function for a _different_ contract, use your application logic to determine the correct address to enter. For example, the address might come from `event.args`.
 
 ```ts filename="src/index.ts" {6}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("FancyLendingProtocol:RegisterPool", async ({ event, context }) => {
   const totalSupply = await context.client.readContract({
@@ -308,7 +308,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 import { ChainlinkPriceFeedAbi } from "../abis/ChainlinkPriceFeed";
 
@@ -349,7 +349,7 @@ Every Zorb has a gradient, but the contract doesn't emit gradient data in any ev
 
 ```ts filename="src/index.ts" {6-11}
 import { zorbs } from "ponder:schema";
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
   if (event.args.from === ZERO_ADDRESS) {

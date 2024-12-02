@@ -409,7 +409,7 @@ export async function run({
         .slice(0, 4);
 
       const indexingFunctionFileContents = `
-      import { ponder } from '@/generated'
+      import { ponder } from 'ponder:registry'
 
       ${eventNamesToWrite
         .map(

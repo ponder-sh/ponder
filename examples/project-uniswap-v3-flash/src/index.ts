@@ -1,5 +1,5 @@
+import { ponder } from "ponder:registry";
 import schema from "ponder:schema";
-import { ponder } from "@/generated";
 
 ponder.on("UniswapV3Pool:Flash", async ({ event, context }) => {
   const poolAddress = event.log.address;

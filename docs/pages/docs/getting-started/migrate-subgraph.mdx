@@ -120,8 +120,8 @@ export function handleTransfer(event) {
 With Ponder, these objects are injected as properties of `context`.
 
 ```ts filename="src/MyNftContract.ts"
+import { ponder } from "ponder:registry";
 import { tokens } from "ponder:schema";
-import { ponder } from "@/generated";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   // Get a database record

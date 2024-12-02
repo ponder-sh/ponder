@@ -96,7 +96,7 @@ Files in the `src/` directory contain **indexing functions**, which are TypeScri
 
 ```ts filename="src/index.ts"
 import { blitmapTokens } from "ponder:schema";
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   await context.db.insert(blitmapTokens).values({

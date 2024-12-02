@@ -32,7 +32,7 @@ The [`json` column type](/docs/schema#json-type) does not support `BigInt` value
 
 ```ts filename="src/index.ts" {2,9}
 import { userOperations } from "ponder:schema";
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 import { replaceBigInts } from "@ponder/utils";
 import { toHex } from "viem";
 
@@ -63,7 +63,7 @@ The GraphQL API automatically serializes `BigInt` values to strings before retur
 
 ```ts filename="src/api/index.ts" {2,16}
 import { accounts } from "ponder:schema";
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 import { replaceBigInts } from "@ponder/utils";
 import { numberToHex } from "viem";
 

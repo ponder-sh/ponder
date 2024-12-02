@@ -913,6 +913,8 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .addColumn("blocks", sql`nummultirange`, (col) => col.notNull())
         .execute();
 
+      console.log(1);
+
       await db
         .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
@@ -941,6 +943,8 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .ifExists()
         .cascade()
         .execute();
+
+      console.log(2);
 
       await db
         .insertInto("intervals")
@@ -979,6 +983,8 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .cascade()
         .execute();
 
+      console.log(3);
+
       await db
         .insertInto("intervals")
         .columns(["fragment_id", "chain_id", "blocks"])
@@ -1011,6 +1017,8 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .ifExists()
         .cascade()
         .execute();
+
+      console.log(4);
 
       await db
         .insertInto("intervals")
@@ -1048,6 +1056,8 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
         .ifExists()
         .cascade()
         .execute();
+
+      console.log(5);
 
       await db
         .insertInto("intervals")

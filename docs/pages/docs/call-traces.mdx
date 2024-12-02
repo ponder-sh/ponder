@@ -42,7 +42,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts" {15}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
   event.args;

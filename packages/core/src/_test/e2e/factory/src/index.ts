@@ -7,10 +7,10 @@ declare const schema: typeof import("../ponder.schema.js");
 
 // @ts-ignore
 // biome-ignore lint/suspicious/noRedeclare: <explanation>
-import schema from "ponder:schema";
+import { ponder } from "ponder:registry";
 // @ts-ignore
 // biome-ignore lint/suspicious/noRedeclare: <explanation>
-import { ponder } from "@/generated";
+import schema from "ponder:schema";
 
 ponder.on("Pair:Swap", async ({ event, context }) => {
   await context.db.insert(schema.swapEvent).values({

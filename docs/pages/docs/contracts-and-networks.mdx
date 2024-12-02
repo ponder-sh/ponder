@@ -173,7 +173,7 @@ Now, the indexing functions you write for `UniswapV3Factory` will process events
 The `event` and `context` objects are still strictly typed according to the configuration you provide. The `context.network` object contains information about which network the current event is from.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
   context.network;
@@ -349,7 +349,7 @@ export default createConfig({
 Now, the indexing functions you write for `SudoswapPool` will process events emitted by all child contracts that are created by the specified factory. The `event.log.address` field contains the address of the child contract that emitted the current event.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("SudoswapPool:Transfer", async ({ event }) => {
   // This is the address of the child contract that emitted the event.
@@ -392,7 +392,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts" {3-8}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 // This function will run whenever a new child contract is created.
 ponder.on("SudoswapFactory:NewPair", async ({ event }) => {
@@ -509,7 +509,7 @@ export default createConfig({
 The indexing functions you write will run for all events matching the filter, regardless of which contract emitted them.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("ERC20:Transfer", async ({ event }) => {
   // This is the address of the contract that emitted the event.
@@ -559,7 +559,7 @@ export default createConfig({
 The indexing function will run for all events matching the filter.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("ERC20:Transfer", async ({ event }) => {
   // This will always be "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
@@ -596,7 +596,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts" {15}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
   event.args;
@@ -635,7 +635,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts" {15}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
   event.transactionReceipt.cumulativeGasUsed;

@@ -1,5 +1,5 @@
+import { ponder } from "ponder:registry";
 import schema from "ponder:schema";
-import { ponder } from "@/generated";
 import type { Hex } from "viem";
 import { fromHex } from "viem";
 import { FileStoreFrontendAbi } from "../abis/FileStoreFrontendAbi";

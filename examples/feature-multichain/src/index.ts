@@ -1,5 +1,5 @@
+import { ponder } from "ponder:registry";
 import { account } from "ponder:schema";
-import { ponder } from "@/generated";
 
 ponder.on("weth9:Deposit", async ({ event, context }) => {
   await context.db

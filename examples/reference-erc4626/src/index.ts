@@ -1,5 +1,5 @@
+import { ponder } from "ponder:registry";
 import schema from "ponder:schema";
-import { ponder } from "@/generated";
 
 ponder.on("ERC4626:Transfer", async ({ event, context }) => {
   // Create an Account for the sender, or update the balance if it already exists.

@@ -1,4 +1,4 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 import * as schema from "../ponder.schema";
 
 ponder.on("BeaverBuilder:transaction:from", async ({ event, context }) => {

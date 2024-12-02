@@ -42,7 +42,7 @@ export const vitePluginPonder = (options: Common["options"]): Plugin => {
   return {
     name: "ponder",
     load: (id) => {
-      if (id === "@/generated") return virtualModule();
+      if (id === "ponder:registry") return virtualModule();
       if (id === "ponder:schema") return schemaModule(options.schemaFile);
       return null;
     },

@@ -1,4 +1,4 @@
-declare module "@/generated" {
+declare module "ponder:registry" {
   import type { Virtual } from "ponder";
   type config = typeof import("ponder:internal").config;
   type schema = typeof import("ponder:internal").schema;

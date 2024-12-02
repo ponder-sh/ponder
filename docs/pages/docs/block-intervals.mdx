@@ -41,7 +41,7 @@ This indexing function uses block events to index price chart data by reading th
 
 ```ts filename="src/index.ts"
 import { prices } from "ponder:schema";
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 import { ChainlinkOracleAbi } from "../abis/ChainlinkOracle.ts";
 
 ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {
@@ -144,7 +144,7 @@ Now, the indexing functions you write for `ChainlinkOracleUpdate:block` will pro
 The `context.network` object contains information about which network the current block is from.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {
   context.network;

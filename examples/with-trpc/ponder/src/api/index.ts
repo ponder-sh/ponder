@@ -1,5 +1,5 @@
+import { type ApiContext, ponder } from "ponder:registry";
 import schema from "ponder:schema";
-import { type ApiContext, ponder } from "@/generated";
 import { trpcServer } from "@hono/trpc-server";
 import { initTRPC } from "@trpc/server";
 import { eq } from "ponder";

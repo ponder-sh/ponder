@@ -3,7 +3,7 @@
 // If this happens, please commit the changes. Do not manually edit this file.
 // See https://ponder.sh/docs/getting-started/installation#typescript for more information.
 
-declare module "@/generated" {
+declare module "ponder:registry" {
   import type { Virtual } from "@ponder/core";
 
   type config = typeof import("./ponder.config.ts").default;

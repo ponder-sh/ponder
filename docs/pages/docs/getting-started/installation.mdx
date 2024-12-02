@@ -31,7 +31,7 @@ Ponder uses advanced TypeScript features to offer end-to-end type safety without
 
 ### `ponder-env.d.ts`
 
-This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
+This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"ponder:registry"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
 
 After upgrading to a new version of `ponder`, the dev server might make changes to `ponder-env.d.ts`. When this happens, please accept and commit the changes.
 

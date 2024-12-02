@@ -1,5 +1,5 @@
+import { ponder } from "ponder:registry";
 import { account, transferEvent } from "ponder:schema";
-import { ponder } from "@/generated";
 import { count, desc, eq, graphql, or, replaceBigInts } from "ponder";
 import { formatEther, getAddress } from "viem";
 
