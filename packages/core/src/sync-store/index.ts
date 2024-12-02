@@ -743,8 +743,6 @@ export const createSyncStore = ({
           .leftJoin("logs", "logs.id", "event.logId")
           .select([
             "logs.address as log_address",
-            "logs.blockHash as log_blockHash",
-            "logs.blockNumber as log_blockNumber",
             "logs.chainId as log_chainId",
             "logs.data as log_data",
             "logs.id as log_id",
@@ -753,8 +751,6 @@ export const createSyncStore = ({
             "logs.topic1 as log_topic1",
             "logs.topic2 as log_topic2",
             "logs.topic3 as log_topic3",
-            "logs.transactionHash as log_transactionHash",
-            "logs.transactionIndex as log_transactionIndex",
           ])
           .leftJoin(
             "transactions",
@@ -763,8 +759,6 @@ export const createSyncStore = ({
           )
           .select([
             "transactions.accessList as tx_accessList",
-            "transactions.blockHash as tx_blockHash",
-            "transactions.blockNumber as tx_blockNumber",
             "transactions.from as tx_from",
             "transactions.gas as tx_gas",
             "transactions.gasPrice as tx_gasPrice",
@@ -803,8 +797,6 @@ export const createSyncStore = ({
             "event.transactionHash",
           )
           .select([
-            "transactionReceipts.blockHash as txr_blockHash",
-            "transactionReceipts.blockNumber as txr_blockNumber",
             "transactionReceipts.contractAddress as txr_contractAddress",
             "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
             "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
@@ -814,8 +806,6 @@ export const createSyncStore = ({
             "transactionReceipts.logs as txr_logs",
             "transactionReceipts.status as txr_status",
             "transactionReceipts.to as txr_to",
-            "transactionReceipts.transactionHash as txr_transactionHash",
-            "transactionReceipts.transactionIndex as txr_transactionIndex",
             "transactionReceipts.type as txr_type",
           ])
           .where("event.checkpoint", ">", from)
@@ -874,8 +864,6 @@ export const createSyncStore = ({
         log: hasLog
           ? {
               address: checksumAddress(row.log_address!),
-              blockHash: row.log_blockHash,
-              blockNumber: BigInt(row.log_blockNumber),
               data: row.log_data,
               id: row.log_id as Log["id"],
               logIndex: Number(row.log_logIndex),
@@ -886,14 +874,10 @@ export const createSyncStore = ({
                 row.log_topic2,
                 row.log_topic3,
               ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-              transactionHash: row.log_transactionHash,
-              transactionIndex: Number(row.log_transactionIndex),
             }
           : undefined,
         transaction: hasTransaction
           ? {
-              blockHash: row.tx_blockHash,
-              blockNumber: BigInt(row.tx_blockNumber),
               from: checksumAddress(row.tx_from),
               gas: BigInt(row.tx_gas),
               hash: row.tx_hash,
@@ -958,8 +942,6 @@ export const createSyncStore = ({
           : undefined,
         transactionReceipt: hasTransactionReceipt
           ? {
-              blockHash: row.txr_blockHash,
-              blockNumber: BigInt(row.txr_blockNumber),
               contractAddress: row.txr_contractAddress
                 ? checksumAddress(row.txr_contractAddress)
                 : null,
@@ -992,8 +974,6 @@ export const createSyncStore = ({
                     ? "reverted"
                     : (row.txr_status as TransactionReceipt["status"]),
               to: row.txr_to ? checksumAddress(row.txr_to) : null,
-              transactionHash: row.txr_transactionHash,
-              transactionIndex: Number(row.txr_transactionIndex),
               type:
                 row.txr_type === "0x0"
                   ? "legacy"

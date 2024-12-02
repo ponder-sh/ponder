@@ -15,8 +15,8 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
  *
  * @example
- * import { ponder } from "@/generated";
- * import { graphql } from "@ponder/core";
+ * import { ponder } from "ponder:registry";
+ * import { graphql } from "ponder";
  *
  * ponder.use("/graphql", graphql());
  *

@@ -235,8 +235,6 @@ export const defaultBlockFilterInclude: Exclude<
 ];
 
 const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
-  "transaction.blockHash",
-  "transaction.blockNumber",
   "transaction.from",
   "transaction.gas",
   "transaction.hash",
@@ -253,8 +251,6 @@ const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
 
 export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof TransactionReceipt}`[] =
   [
-    "transactionReceipt.blockHash",
-    "transactionReceipt.blockNumber",
     "transactionReceipt.contractAddress",
     "transactionReceipt.cumulativeGasUsed",
     "transactionReceipt.effectiveGasPrice",
@@ -264,8 +260,6 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Trans
     "transactionReceipt.logsBloom",
     "transactionReceipt.status",
     "transactionReceipt.to",
-    "transactionReceipt.transactionHash",
-    "transactionReceipt.transactionIndex",
     "transactionReceipt.type",
   ];
 
@@ -287,14 +281,10 @@ export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
   [
     "log.id",
     "log.address",
-    "log.blockHash",
-    "log.blockNumber",
     "log.data",
     "log.logIndex",
     "log.removed",
     "log.topics",
-    "log.transactionHash",
-    "log.transactionIndex",
     ...defaultTransactionInclude,
     ...defaultBlockFilterInclude,
   ];

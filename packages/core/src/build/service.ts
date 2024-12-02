@@ -159,7 +159,7 @@ export const create = async ({
     publicDir: false,
     customLogger: viteLogger,
     server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder()],
+    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common.options)],
   });
 
   // This is Vite boilerplate (initializes the Rollup container).
@@ -333,7 +333,9 @@ export const start = async (
             ignore: buildService.apiPattern,
           }),
         );
-        buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+        buildService.viteNodeRunner.moduleCache.deleteByModuleId(
+          "ponder:registry",
+        );
 
         const configResult = await executeConfig(buildService);
         const schemaResult = await executeSchema(buildService);
@@ -372,7 +374,9 @@ export const start = async (
       if (hasApiUpdate) {
         const files = glob.sync(buildService.apiPattern);
         buildService.viteNodeRunner.moduleCache.invalidateDepTree(files);
-        buildService.viteNodeRunner.moduleCache.deleteByModuleId("@/generated");
+        buildService.viteNodeRunner.moduleCache.deleteByModuleId(
+          "ponder:registry",
+        );
 
         const result = await executeApiRoutes(buildService);
         if (result.status === "error") {
@@ -611,7 +615,8 @@ const executeIndexingFunctions = async (
   }
   const contentHash = hash.digest("hex");
 
-  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+  const exports =
+    await buildService.viteNodeRunner.executeId("ponder:registry");
 
   return {
     status: "success",
@@ -653,7 +658,8 @@ const executeApiRoutes = async (
     }
   }
 
-  const exports = await buildService.viteNodeRunner.executeId("@/generated");
+  const exports =
+    await buildService.viteNodeRunner.executeId("ponder:registry");
 
   return {
     status: "success",

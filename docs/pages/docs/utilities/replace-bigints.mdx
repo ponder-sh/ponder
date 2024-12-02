@@ -31,10 +31,10 @@ Here are a few common scenarios where you might want to replace `BigInt` values 
 The [`json` column type](/docs/schema#json-type) does not support `BigInt` values. Use `replaceBigInts` to prepare objects containing `BigInt` values for insertion.
 
 ```ts filename="src/index.ts" {2,9}
-import { ponder } from "@/generated";
+import { userOperations } from "ponder:schema";
+import { ponder } from "ponder:registry";
 import { replaceBigInts } from "@ponder/utils";
 import { toHex } from "viem";
-import { userOperations } from "../ponder.schema";
 
 ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
   await context.db.insert(userOperations).values({
@@ -46,8 +46,8 @@ ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
 
 To maintain type safety for column values, use the `ReplaceBigInts{:ts}` helper type in the column `$type` annotation.
 
-```ts filename="ponder.schema.ts" {2,7}
-import { onchainTable } from "@ponder/core";
+```ts filename="ponder.schema.ts" {1,7}
+import { onchainTable } from "ponder";
 import type { ReplaceBigInts } from "@ponder/utils";
 import type { TransactionReceipt, Hex } from "viem";
 
@@ -62,10 +62,10 @@ export const userOperations = onchainTable("user_operations", (t) => ({
 The GraphQL API automatically serializes `BigInt` values to strings before returning them in HTTP responses. In API functions, you need to handle this serialization process manually.
 
 ```ts filename="src/api/index.ts" {2,16}
-import { ponder } from "@/generated";
+import { accounts } from "ponder:schema";
+import { ponder } from "ponder:registry";
 import { replaceBigInts } from "@ponder/utils";
 import { numberToHex } from "viem";
-import { accounts } from "../../ponder.schema";
 
 ponder.get("/whale-balances", async (c) => {
   const rows = await c.db

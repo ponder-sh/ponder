@@ -756,19 +756,13 @@ const convertBlock = (block: SyncBlock): Block => ({
 const convertLog = (log: SyncLog): Log => ({
   id: `${log.blockHash}-${log.logIndex}`,
   address: checksumAddress(log.address!),
-  blockHash: log.blockHash,
-  blockNumber: hexToBigInt(log.blockNumber),
   data: log.data,
   logIndex: Number(log.logIndex),
   removed: false,
   topics: log.topics,
-  transactionHash: log.transactionHash,
-  transactionIndex: Number(log.transactionIndex),
 });
 
 const convertTransaction = (transaction: SyncTransaction): Transaction => ({
-  blockHash: transaction.blockHash,
-  blockNumber: hexToBigInt(transaction.blockNumber),
   from: checksumAddress(transaction.from),
   gas: hexToBigInt(transaction.gas),
   hash: transaction.hash,
@@ -821,8 +815,6 @@ const convertTransaction = (transaction: SyncTransaction): Transaction => ({
 const convertTransactionReceipt = (
   transactionReceipt: SyncTransactionReceipt,
 ): TransactionReceipt => ({
-  blockHash: transactionReceipt.blockHash,
-  blockNumber: hexToBigInt(transactionReceipt.blockNumber),
   contractAddress: transactionReceipt.contractAddress
     ? checksumAddress(transactionReceipt.contractAddress)
     : null,
@@ -855,8 +847,6 @@ const convertTransactionReceipt = (
         ? "reverted"
         : (transactionReceipt.status as TransactionReceipt["status"]),
   to: transactionReceipt.to ? checksumAddress(transactionReceipt.to) : null,
-  transactionHash: transactionReceipt.transactionHash,
-  transactionIndex: Number(transactionReceipt.transactionIndex),
   type:
     transactionReceipt.type === "0x0"
       ? "legacy"
