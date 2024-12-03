@@ -182,7 +182,6 @@ export async function run({
           lastFlush + 5_000 < Date.now() &&
           events.length > 0)
       ) {
-        lastFlush = Date.now();
         await database.finalize({
           checkpoint: encodeCheckpoint(zeroCheckpoint),
         });
@@ -193,6 +192,7 @@ export async function run({
         await database.finalize({
           checkpoint: events[events.length - 1]!.checkpoint,
         });
+        lastFlush = Date.now();
       }
 
       await metadataStore.setStatus(sync.getStatus());
