@@ -162,6 +162,7 @@ export async function run({
 
     // Track the last processed checkpoint, used to set metrics
     let end: string | undefined;
+    let lastFlush = Date.now();
 
     // Run historical indexing until complete.
     for await (const { events, checkpoint } of sync.getEvents()) {
@@ -175,7 +176,12 @@ export async function run({
       // Persist the indexing store to the db if it is too full. The `finalized`
       // checkpoint is used as a mutex. Any rows in the reorg table that may
       // have been written because of raw sql access are deleted.
-      if (historicalIndexingStore.isCacheFull() && events.length > 0) {
+      if (
+        (historicalIndexingStore.isCacheFull() && events.length > 0) ||
+        (common.options.command === "dev" &&
+          lastFlush + 5_000 < Date.now() &&
+          events.length > 0)
+      ) {
         await database.finalize({
           checkpoint: encodeCheckpoint(zeroCheckpoint),
         });
@@ -186,6 +192,7 @@ export async function run({
         await database.finalize({
           checkpoint: events[events.length - 1]!.checkpoint,
         });
+        lastFlush = Date.now();
       }
 
       await metadataStore.setStatus(sync.getStatus());
