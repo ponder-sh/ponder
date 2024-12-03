@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.14
+
+### Patch Changes
+
+- [#1305](https://github.com/ponder-sh/ponder/pull/1305) [`6ebb19dc51d97f311455b4091183c52bba716081`](https://github.com/ponder-sh/ponder/commit/6ebb19dc51d97f311455b4091183c52bba716081) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.7.6 that caused errors with `flush()`.
+
 ## 0.7.13
 
 ### Patch Changes
