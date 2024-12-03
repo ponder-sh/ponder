@@ -67,7 +67,6 @@
     "kysely-pglite": "^0.6.0",
     "pg": "^8.11.3",
     "pg-connection-string": "^2.6.2",
-    "pg-copy-streams": "^6.0.6",
     "picocolors": "^1.0.0",
     "pino": "^8.16.2",
     "prom-client": "^15.0.0",
