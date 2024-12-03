@@ -990,7 +990,7 @@ export const createSyncStore = ({
           result,
         })
         .onConflict((oc) =>
-          oc.columns(["request", "chain_id"]).doUpdateSet({ result }),
+          oc.columns(["request_hash", "chain_id"]).doUpdateSet({ result }),
         )
         .execute();
     }),
@@ -999,7 +999,8 @@ export const createSyncStore = ({
       const result = await db
         .selectFrom("rpc_request_results")
         .select("result")
-        .where("request", "=", request)
+
+        .where("request_hash", "=", sql`MD5(${request})`)
         .where("chain_id", "=", chainId)
         .executeTakeFirst();
 

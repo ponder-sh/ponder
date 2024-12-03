@@ -1273,6 +1273,31 @@ WHERE transactions."blockHash" = blocks.hash
         .execute();
     },
   },
+  "2024_12_02_0_request_cache": {
+    async up(db) {
+      await db.schema
+        .alterTable("rpc_request_results")
+        .addColumn("request_hash", "text", (col) =>
+          col.generatedAlwaysAs(sql`MD5(request)`).stored().notNull(),
+        )
+        .execute();
+
+      // Drop previous primary key constraint, on columns "request" and "chain_id"
+
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropConstraint("rpc_request_result_primary_key")
+        .execute();
+
+      await db.schema
+        .alterTable("rpc_request_results")
+        .addPrimaryKeyConstraint("rpc_request_result_primary_key", [
+          "request_hash",
+          "chain_id",
+        ])
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
