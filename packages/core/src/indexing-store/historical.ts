@@ -1,5 +1,3 @@
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import type { Common } from "@/common/common.js";
 import {
   BigIntSerializationError,
@@ -20,7 +18,6 @@ import {
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
-import type { PGlite } from "@electric-sql/pglite";
 import { createQueue } from "@ponder/common";
 import {
   type Column,
@@ -31,12 +28,10 @@ import {
   and,
   eq,
   getTableColumns,
-  getTableName,
+  sql,
 } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { Pool } from "pg";
-import copy from "pg-copy-streams";
 import { type IndexingStore, parseSqlError } from "./index.js";
 
 enum EntryType {
@@ -282,44 +277,6 @@ export const createHistoricalIndexingStore = ({
     }
 
     return row;
-  };
-
-  const getCopyText = (
-    table: Table,
-    entries: (InsertEntry | UpdateEntry)["row"][],
-  ) => {
-    const columns = Object.entries(getTableColumns(table));
-    let result = "";
-
-    while (entries.length > 0) {
-      const entry = entries.pop()!;
-
-      for (let i = 0; i < columns.length; i++) {
-        const [columnName, column] = columns[i]!;
-        const isLast = i === columns.length - 1;
-
-        let value = entry[columnName];
-
-        if (value === null || value === undefined) {
-          result += "\\N";
-        } else {
-          if (column.mapToDriverValue !== undefined) {
-            value = column.mapToDriverValue(value);
-          }
-
-          if (value === null || value === undefined) {
-            result += "\\N";
-          } else {
-            result += String(value);
-          }
-        }
-
-        if (isLast === false) result += "\t";
-      }
-
-      result += "\n";
-    }
-    return result;
   };
 
   const getBytes = (value: unknown) => {
@@ -807,6 +764,11 @@ export const createHistoricalIndexingStore = ({
         const promises: Promise<void>[] = [];
 
         for (const [table, tableCache] of cache) {
+          const batchSize = Math.round(
+            common.options.databaseMaxQueryParameters /
+              Object.keys(getTableColumns(table)).length,
+          );
+
           const insertValues: InsertEntry["row"][] = [];
           const updateValues: UpdateEntry["row"][] = [];
 
@@ -827,171 +789,84 @@ export const createHistoricalIndexingStore = ({
             entry.type = EntryType.FIND;
           }
 
-          const insertSize = insertValues.length;
-          const updateSize = updateValues.length;
-          // `insertValues` and `updateValues` are mutated, so that the entries may be garbage collected
-          const insertText = getCopyText(table, insertValues);
-          const updateText = getCopyText(table, updateValues);
+          // TODO(kyle) drop constraints
 
-          // Steps for flushing "insert" entries:
-          // 1. Copy into target table
-          if (insertSize > 0) {
+          if (insertValues.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Inserting ${insertSize} cached '${tableNameCache.get(table)}' rows into the database`,
+              msg: `Inserting ${insertValues.length} cached '${tableNameCache.get(table)}' rows into the database`,
             });
 
-            promises.push(
-              database.qb.user.wrap(
-                { method: `${tableNameCache.get(table)}.flush()` },
-                async () => {
-                  if (database.dialect === "pglite") {
-                    try {
-                      const client = (database.driver as { instance: PGlite })
-                        .instance;
+            while (insertValues.length > 0) {
+              promises.push(
+                database.qb.user.wrap(
+                  { method: `${tableNameCache.get(table)}.flush()` },
+                  async () => {
+                    const values = insertValues.splice(0, batchSize);
 
-                      await client.query(
-                        `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM '/dev/blob'`,
-                        [],
-                        { blob: new Blob([insertText]) },
-                      );
-                    } catch (_error) {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        error,
+                    await database.drizzle
+                      .insert(table)
+                      .values(values)
+                      .catch((_error) => {
+                        const error = _error as Error;
+                        common.logger.error({
+                          service: "indexing",
+                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        });
+                        throw new FlushError(error.message);
                       });
-                      throw new FlushError(error.message);
-                    }
-                  } else {
-                    const client = await (
-                      database.driver as { internal: Pool }
-                    ).internal.connect();
-
-                    try {
-                      await pipeline(
-                        Readable.from(insertText),
-                        client.query(
-                          copy.from(
-                            `COPY "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" FROM STDIN`,
-                          ),
-                        ),
-                      );
-                    } catch (_error) {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        error,
-                      });
-                      throw new FlushError(error.message);
-                    } finally {
-                      client.release();
-                    }
-                  }
-                },
-              ),
-            );
+                  },
+                ),
+              );
+            }
           }
 
-          // Steps for flushing "update" entries:
-          // 1. Create temp table
-          // 2. Copy into temp table
-          // 3. Update target table with data from temp table
-          // 4. Drop temp table
-          if (updateSize > 0) {
+          if (updateValues.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Updating ${updateSize} cached '${tableNameCache.get(table)}' rows in the database`,
+              msg: `Updating ${updateValues.length} cached '${tableNameCache.get(table)}' rows in the database`,
             });
 
             const primaryKeys = primaryKeysCache.get(table)!;
-            const set = Object.values(getTableColumns(table))
-              .map(
-                (column) =>
-                  `"${getColumnCasing(column, "snake_case")}" = source."${getColumnCasing(column, "snake_case")}"`,
-              )
-              .join(",\n");
+            const set: { [column: string]: SQL } = {};
 
-            const createTempTableQuery = `
-              CREATE TEMP TABLE "${tableNameCache.get(table)}" AS
-              SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"
-              WITH NO DATA;
-            `;
+            for (const [columnName, column] of Object.entries(
+              getTableColumns(table),
+            )) {
+              set[columnName] = sql.raw(
+                `excluded."${getColumnCasing(column, "snake_case")}"`,
+              );
+            }
 
-            const updateQuery = `
-              UPDATE "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" as target
-              SET ${set}
-              FROM "${tableNameCache.get(table)}" as source
-              WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
-            `;
+            while (updateValues.length > 0) {
+              promises.push(
+                database.qb.user.wrap(
+                  {
+                    method: `${tableNameCache.get(table)}.flush()`,
+                  },
+                  async () => {
+                    const values = updateValues.splice(0, batchSize);
 
-            const dropTempTableQuery = `DROP TABLE IF EXISTS "${tableNameCache.get(table)}"`;
-
-            promises.push(
-              database.qb.user.wrap(
-                { method: `${tableNameCache.get(table)}.flush()` },
-                async () => {
-                  if (database.dialect === "pglite") {
-                    try {
-                      const client = (database.driver as { instance: PGlite })
-                        .instance;
-
-                      await client.query(createTempTableQuery);
-
-                      await client.query(
-                        `COPY "${tableNameCache.get(table)}" FROM '/dev/blob'`,
-                        [],
-                        { blob: new Blob([updateText]) },
-                      );
-
-                      await client.query(updateQuery);
-                      await client.query(dropTempTableQuery);
-                    } catch (_error) {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        error,
+                    await database.drizzle
+                      .insert(table)
+                      .values(values)
+                      .onConflictDoUpdate({
+                        // @ts-ignore
+                        target: primaryKeys.map(({ js }) => table[js]),
+                        set,
+                      })
+                      .catch((_error) => {
+                        const error = _error as Error;
+                        common.logger.error({
+                          service: "indexing",
+                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                        });
+                        throw new FlushError(error.message);
                       });
-                      throw new FlushError(error.message);
-                    }
-                  } else {
-                    const client = await (
-                      database.driver as { internal: Pool }
-                    ).internal.connect();
-
-                    try {
-                      await client.query(createTempTableQuery);
-
-                      await pipeline(
-                        Readable.from(updateText),
-                        client.query(
-                          copy.from(
-                            `COPY "${tableNameCache.get(table)}" FROM STDIN`,
-                          ),
-                        ),
-                      );
-
-                      await client.query(updateQuery);
-                      // temp table is not dropped automatically when using pg.Pool
-                      await client.query(dropTempTableQuery);
-                    } catch (_error) {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        error,
-                      });
-                      throw new FlushError(error.message);
-                    } finally {
-                      client.release();
-                    }
-                  }
-                },
-              ),
-            );
+                  },
+                ),
+              );
+            }
           }
         }
 
