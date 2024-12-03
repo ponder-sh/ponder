@@ -789,8 +789,6 @@ export const createHistoricalIndexingStore = ({
             entry.type = EntryType.FIND;
           }
 
-          // TODO(kyle) drop constraints
-
           if (insertValues.length > 0) {
             common.logger.debug({
               service: "indexing",
