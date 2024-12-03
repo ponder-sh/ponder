@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.13
+
+### Patch Changes
+
+- [#1293](https://github.com/ponder-sh/ponder/pull/1293) [`f7190e313ab6aa7b0180e8dc0f96c9195799bd74`](https://github.com/ponder-sh/ponder/commit/f7190e313ab6aa7b0180e8dc0f96c9195799bd74) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where the database did not contain recent records when running `ponder dev`. Now, the indexing store flushes to the database every 5 seconds regardless of the size of the in-memory cache.
+
 ## 0.7.12
 
 ### Patch Changes
