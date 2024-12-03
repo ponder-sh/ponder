@@ -797,9 +797,6 @@ importers:
       pg-connection-string:
         specifier: ^2.6.2
         version: 2.6.2
-      pg-copy-streams:
-        specifier: ^6.0.6
-        version: 6.0.6
       picocolors:
         specifier: ^1.0.0
         version: 1.0.0
@@ -7086,9 +7083,6 @@ packages:
 
   pg-connection-string@2.6.2:
     resolution: {integrity: sha512-ch6OwaeaPYcova4kKZ15sbJ2hKb/VP48ZD2gE7i1J+L4MspCtBMAx8nMgz7bksc7IojCIIWuEhHibSMFH8m8oA==}
-
-  pg-copy-streams@6.0.6:
-    resolution: {integrity: sha512-Z+Dd2C2NIDTsjyFKmc6a9QLlpM8tjpERx+43RSx0WmL7j3uNChERi3xSvZUL0hWJ1oRUn4S3fhyt3apdSrTyKQ==}
 
   pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -16027,10 +16021,6 @@ snapshots:
     optional: true
 
   pg-connection-string@2.6.2: {}
-
-  pg-copy-streams@6.0.6:
-    dependencies:
-      obuf: 1.1.2
 
   pg-int8@1.0.1: {}
 
