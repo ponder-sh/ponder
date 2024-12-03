@@ -12,6 +12,7 @@ import type { IndexingBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
 import { onchainTable } from "@/drizzle/index.js";
+import { buildGraphQLSchema } from "@/graphql/index.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -25,7 +26,8 @@ const account = onchainTable("account", (p) => ({
   balance: p.bigint().notNull(),
 }));
 
-// const graphqlSchema = buildGraphQLSchema({ schema: { account } });
+const schema = { account };
+const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() setup", async (context) => {
   const network = getNetwork();
@@ -50,14 +52,15 @@ test("run() setup", async (context) => {
   };
 
   const { statements, namespace } = buildSchema({
-    schema: { account },
+    schema,
     instanceId: "1234",
   });
 
   const build: IndexingBuild = {
     buildId: "buildId",
     instanceId: "1234",
-    schema: { account },
+    schema,
+    graphqlSchema,
     databaseConfig: context.databaseConfig,
     networks: [network],
     sources,
@@ -68,7 +71,7 @@ test("run() setup", async (context) => {
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
+    schema,
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "buildId",
@@ -115,14 +118,15 @@ test("run() setup error", async (context) => {
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
   const { statements, namespace } = buildSchema({
-    schema: { account },
+    schema,
     instanceId: "1234",
   });
 
   const build: IndexingBuild = {
     buildId: "buildId",
     instanceId: "1234",
-    schema: { account },
+    schema,
+    graphqlSchema,
     databaseConfig: context.databaseConfig,
     networks: [network],
     sources,
@@ -133,7 +137,7 @@ test("run() setup error", async (context) => {
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
+    schema,
     databaseConfig: context.databaseConfig,
     instanceId: "1234",
     buildId: "buildId",

@@ -238,6 +238,27 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // optimism (new as of 11/25/24)
+  match = sError.match(/Block range is too large/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: false,
+    } as const;
+  }
+
   // base
   match = sError.match(/block range too large/);
   if (match !== null) {

@@ -3,6 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { buildGraphQLSchema } from "@/graphql/index.js";
 import type { Context } from "@/hono/context.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { Hono } from "hono";
@@ -19,7 +20,7 @@ test("port", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -27,7 +28,7 @@ test("port", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -45,7 +46,7 @@ test("listens on ipv4", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -63,7 +64,7 @@ test("listens on ipv6", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -81,7 +82,7 @@ test("not ready", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -100,7 +101,7 @@ test("ready", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -124,7 +125,7 @@ test("health", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -143,7 +144,7 @@ test("healthy PUT", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -164,7 +165,7 @@ test("metrics", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -183,7 +184,7 @@ test("metrics error", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -205,7 +206,7 @@ test("metrics PUT", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -226,7 +227,7 @@ test("metrics unmatched route", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -251,7 +252,7 @@ test("missing route", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -272,7 +273,7 @@ test("custom api route", async (context) => {
     routes: [
       { method: "GET", pathOrHandlers: ["/hi", (c: Context) => c.text("hi")] },
     ],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -294,7 +295,7 @@ test("custom hono route", async (context) => {
     common: context.common,
     app,
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 
@@ -316,7 +317,7 @@ test.skip("kill", async (context) => {
     common: context.common,
     app: new Hono(),
     routes: [],
-    schema: {},
+    graphqlSchema: buildGraphQLSchema({}),
     database,
   });
 

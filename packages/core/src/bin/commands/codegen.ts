@@ -57,7 +57,8 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     properties: { cli_command: "codegen" },
   });
 
-  runCodegen({ common });
+  const graphqlSchema = buildResult.indexingBuild.graphqlSchema;
+  runCodegen({ common, graphqlSchema });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
   logger.info({ service: "codegen", msg: "Wrote schema.graphql" });

@@ -66,4 +66,13 @@ export default {
     title: "Guides 🚧",
   },
   guides: { display: "children", title: "Guides" },
+
+  "-- Older versions": {
+    type: "separator",
+    title: "Older versions",
+  },
+  "0_6": { 
+    title: '0.1 – 0.6',
+    href: '/0_6/docs/getting-started/new-project'
+  },
 };

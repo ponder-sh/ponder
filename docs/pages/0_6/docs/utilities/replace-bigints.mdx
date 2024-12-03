@@ -1,0 +1,103 @@
+---
+title: "replaceBigInts"
+description: "API reference for the replaceBigInts utility function."
+---
+
+import { Callout } from "nextra/components";
+
+<Callout type="warning">
+  This documentation is for versions `0.1 – 0.6`. You may want to view the
+  [latest version](/docs/getting-started/new-project).
+</Callout>
+
+# replaceBigInts
+
+Replaces all `BigInt{:ts}` values in an object using the provided [replacer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#replacer) function. The target can be a scalar, array, or object.
+
+The `ReplaceBigInt{:ts}` generic type implements the same funtionality at the type level.
+
+## Usage
+
+This example simply converts `BigInt` values to a string.
+
+```ts filename="index.ts"
+import { replaceBigInts } from "@ponder/utils";
+
+const obj = { a: 100n, b: [-12n, 3_000_000_000n] };
+
+const result = replaceBigInts(obj, (v) => String(v));
+//    ?^ { a: '100', b: [ '-12', '3000000000' ] }
+```
+
+## Usage in Ponder
+
+The [`p.json(){:ts}` column type](/docs/schema#json-type) uses the `JSONB{:sql}` data type in SQLite and Postgres, which [does not support](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json) `BigInt` values.
+
+Use `replaceBigInts` to prepare objects containing `BigInt` values for insertion into `p.json(){:ts}` columns. In your schema, use the `ReplaceBigInts{:ts}` generic in the `p.json(){:ts}` type annotation.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts" {2,8}
+import { createSchema } from "@ponder/core";
+import type { ReplaceBigInts } from "@ponder/utils";
+import type { TransactionReceipt, Hex } from "viem";
+
+export default createSchema((p) => ({
+  UserOperation: p.createTable({
+    id: p.string(),
+    receipt: p.json<ReplaceBigInts<TransactionReceipt, Hex>>(),
+    // ...
+  }),
+}));
+```
+
+```ts filename="src/index.ts" {2,11}
+import { ponder } from "@/generated";
+import { replaceBigInts } from "@ponder/utils";
+import { toHex } from "viem";
+
+ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
+  const { UserOperation } = context.db;
+
+  await UserOperation.create({
+    id: event.log.id,
+    data: {
+      receipt: replaceBigInts(event.transactionReceipt, toHex),
+    },
+  });
+});
+```
+
+</div>
+
+## Replacer functions
+
+Here are three common ways to replace `BigInt` values.
+
+| Encoding            | Replacer type                  | Replacer function                                                 |
+| :------------------ | :----------------------------- | :---------------------------------------------------------------- |
+| **Hex**             | `` `0x${string}` {:ts}``       | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex) |
+| **String**          | `string`                       | `String`                                                          |
+| **Lossless string** | `` `#bigint.${string}` {:ts}`` | `` (x) => `#bigint.${String(x)}` {:ts}``                          |
+
+See the [Wagmi FAQ](https://wagmi.sh/react/guides/faq#bigint-serialization) for more information on `BigInt` serialization.
+
+## Parameters
+
+### value
+
+- Type: `any{:ts}`
+
+The scalar, array, or object containing `BigInt{:ts}` values to be replaced.
+
+### replacer
+
+- Type: `(value: bigint) => JSONSerializable{:ts}`
+
+A custom replacer function that will be called for each `BigInt` value.
+
+## Returns
+
+### value
+
+The scalar, array, or object with all `BigInt{:ts}` values replaced.

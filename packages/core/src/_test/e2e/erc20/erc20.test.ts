@@ -34,31 +34,33 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test("erc20", async () => {
-  const port = await getFreePort();
+test(
+  "erc20",
+  async () => {
+    const port = await getFreePort();
 
-  const cleanup = await start({
-    cliOptions: {
-      ...cliOptions,
-      command: "start",
+    const cleanup = await start({
+      cliOptions: {
+        ...cliOptions,
+        command: "start",
+        port,
+      },
+    });
+
+    const { address } = await deployErc20({ sender: ALICE });
+
+    await mintErc20({
+      erc20: address,
+      to: ALICE,
+      amount: parseEther("1"),
+      sender: ALICE,
+    });
+
+    await waitForIndexedBlock(port, "mainnet", 2);
+
+    const response = await postGraphql(
       port,
-    },
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  await waitForIndexedBlock(port, "mainnet", 2);
-
-  const response = await postGraphql(
-    port,
-    `
+      `
     accounts {
       items {
         address
@@ -66,24 +68,25 @@ test("erc20", async () => {
       }
     }
     `,
-  );
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
 
-  expect(response.status).toBe(200);
-  const body = (await response.json()) as any;
+    expect(body.errors).toBe(undefined);
+    const accounts = body.data.accounts.items;
+    expect(accounts[0]).toMatchObject({
+      address: zeroAddress,
+      balance: (-1 * 10 ** 18).toString(),
+    });
+    expect(accounts[1]).toMatchObject({
+      address: ALICE.toLowerCase(),
+      balance: (10 ** 18).toString(),
+    });
 
-  expect(body.errors).toBe(undefined);
-  const accounts = body.data.accounts.items;
-  expect(accounts[0]).toMatchObject({
-    address: zeroAddress,
-    balance: (-1 * 10 ** 18).toString(),
-  });
-  expect(accounts[1]).toMatchObject({
-    address: ALICE.toLowerCase(),
-    balance: (10 ** 18).toString(),
-  });
-
-  await cleanup();
-});
+    await cleanup();
+  },
+  { timeout: 15_000 },
+);
 
 const isPglite = !!process.env.DATABASE_URL;
 

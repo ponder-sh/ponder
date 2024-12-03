@@ -492,8 +492,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ),
           });
 
-          console.log("query", args.sources);
-
           try {
             const { events, cursor } = await args.syncStore.getEvents({
               filters: args.sources.map(({ filter }) => filter),
@@ -502,8 +500,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               limit: getEventsMaxBatchSize,
             });
             consecutiveErrors = 0;
-
-            console.log("events", events.length);
 
             for (const network of args.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });

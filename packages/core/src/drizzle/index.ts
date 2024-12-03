@@ -144,7 +144,9 @@ export type OnchainTable<
   } = TableConfig & { extra: PgTableExtraConfig | undefined },
 > = PgTable<T> & {
   [Key in keyof T["columns"]]: T["columns"][Key];
-} & { [onchain]: true };
+} & { [onchain]: true } & {
+  enableRLS: () => Omit<OnchainTable<T>, "enableRLS">;
+};
 
 type BuildExtraConfigColumns<
   columns extends Record<string, ColumnBuilderBase>,
@@ -478,7 +480,18 @@ function pgTableWithSchema<
     table[PgTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
   }
 
-  return table;
+  return Object.assign(table, {
+    enableRLS: () => {
+      // @ts-ignore
+      table[PgTable.Symbol.EnableRLS] = true;
+      return table as PgTableWithColumns<{
+        name: name;
+        schema: schema;
+        columns: BuildColumns<name, columns, "pg">;
+        dialect: "pg";
+      }>;
+    },
+  });
 }
 
 function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(

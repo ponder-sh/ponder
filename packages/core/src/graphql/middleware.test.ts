@@ -7,6 +7,7 @@ import { onchainTable } from "@/drizzle/index.js";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { beforeEach, expect, test } from "vitest";
+import { buildGraphQLSchema } from "./index.js";
 import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);
@@ -25,13 +26,15 @@ test("middleware serves request", async (context) => {
     })),
   };
 
+  const graphqlSchema = buildGraphQLSchema(schema);
+
   const { database, indexingStore, metadataStore, cleanup } =
     await setupDatabaseServices(context, { schema });
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", context.common);
-    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
+    c.set("graphqlSchema", graphqlSchema);
+    c.set("db", database.drizzle);
     await next();
   });
 
@@ -101,15 +104,17 @@ test("middleware throws error when extra filter is applied", async (context) => 
     })),
   };
 
+  const graphqlSchema = buildGraphQLSchema(schema);
+
   const { database, metadataStore, cleanup } = await setupDatabaseServices(
     context,
     { schema },
   );
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", context.common);
-    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
+    c.set("graphqlSchema", graphqlSchema);
+    c.set("db", database.drizzle);
     await next();
   });
 
@@ -151,15 +156,17 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
     })),
   };
 
+  const graphqlSchema = buildGraphQLSchema(schema);
+
   const { database, metadataStore, cleanup } = await setupDatabaseServices(
     context,
     { schema },
   );
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", context.common);
-    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
+    c.set("graphqlSchema", graphqlSchema);
+    c.set("db", database.drizzle);
     await next();
   });
 
@@ -207,15 +214,17 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
     })),
   };
 
+  const graphqlSchema = buildGraphQLSchema(schema);
+
   const { database, metadataStore, cleanup } = await setupDatabaseServices(
     context,
     { schema },
   );
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", context.common);
-    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
+    c.set("graphqlSchema", graphqlSchema);
+    c.set("db", database.drizzle);
     await next();
   });
 
@@ -263,15 +272,17 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
     })),
   };
 
+  const graphqlSchema = buildGraphQLSchema(schema);
+
   const { database, metadataStore, cleanup } = await setupDatabaseServices(
     context,
     { schema },
   );
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", context.common);
-    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
+    c.set("graphqlSchema", graphqlSchema);
+    c.set("db", database.drizzle);
     await next();
   });
 
@@ -323,15 +334,18 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
 });
 
 test("graphQLMiddleware interactive", async (context) => {
+  const schema = {};
+  const graphqlSchema = buildGraphQLSchema(schema);
+
   const { database, metadataStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema: {} },
+    { schema },
   );
 
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("common", context.common);
-    c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
+    c.set("graphqlSchema", graphqlSchema);
+    c.set("db", database.drizzle);
     await next();
   });
 

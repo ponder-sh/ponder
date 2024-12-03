@@ -1,6 +1,7 @@
 import { BuildError } from "@/common/errors.js";
 import { type Schema, isPgEnumSym } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
+import { buildGraphQLSchema } from "@/graphql/index.js";
 import { SQL, getTableColumns, is } from "drizzle-orm";
 import {
   PgBigSerial53,
@@ -192,10 +193,12 @@ export const safeBuildSchema = ({
 }: { schema: Schema; instanceId: string }) => {
   try {
     const result = buildSchema({ schema, instanceId });
+    const graphqlSchema = buildGraphQLSchema(schema);
 
     return {
       status: "success",
       ...result,
+      graphqlSchema,
     } as const;
   } catch (_error) {
     const buildError = new BuildError((_error as Error).message);

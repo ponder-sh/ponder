@@ -1,4 +1,4 @@
-import { index, onchainTable, primaryKey } from "ponder";
+import { index, onchainTable, primaryKey, relations } from "ponder";
 
 export const account = onchainTable("account", (t) => ({
   address: t.hex().primaryKey(),
@@ -31,6 +31,13 @@ export const transferEvent = onchainTable(
     fromIdx: index("from_index").on(table.from),
   }),
 );
+
+export const transferEventRelations = relations(transferEvent, ({ one }) => ({
+  fromAccount: one(account, {
+    fields: [transferEvent.from],
+    references: [account.address],
+  }),
+}));
 
 export const approvalEvent = onchainTable("approval_event", (t) => ({
   id: t.text().primaryKey(),

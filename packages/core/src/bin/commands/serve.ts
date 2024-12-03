@@ -89,10 +89,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const server = await createServer({
+    common,
     app: buildResult.apiBuild.app,
     routes: buildResult.apiBuild.routes,
-    common,
-    schema,
+    graphqlSchema: buildResult.indexingBuild.graphqlSchema,
     database,
     instanceId:
       process.env.PONDER_EXPERIMENTAL_INSTANCE_ID === undefined

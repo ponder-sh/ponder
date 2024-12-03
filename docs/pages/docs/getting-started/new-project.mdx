@@ -83,7 +83,7 @@ The `ponder.schema.ts` file contains the database schema, and defines the shape 
 import { onchainTable } from "ponder";
 
 export const blitmapTokens = onchainTable("blitmap_tokens", (t) => ({
-  id: t.int().primaryKey(),
+  id: t.integer().primaryKey(),
   owner: t.hex(),
 }));
 ```

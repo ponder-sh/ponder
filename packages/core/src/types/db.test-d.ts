@@ -65,6 +65,12 @@ test("insert", () => {
       .onConflictDoUpdate((row) => ({
         other: row.other ?? 8,
       }));
+
+    // @ts-ignore
+    const t5 = insert(table)
+      //  ^?
+      .values([{ id: "kevin" }])
+      .onConflictDoNothing();
   };
 });
 

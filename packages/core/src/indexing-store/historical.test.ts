@@ -78,11 +78,13 @@ test("insert", async (context) => {
 
   // single
 
-  await indexingStore
+  let result: any = await indexingStore
     .insert(schema.account)
     .values({ address: zeroAddress, balance: 10n });
 
-  let result = await indexingStore.find(schema.account, {
+  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+  result = await indexingStore.find(schema.account, {
     address: zeroAddress,
   });
 
@@ -90,7 +92,12 @@ test("insert", async (context) => {
 
   // multiple
 
-  await indexingStore.insert(schema.account).values([
+  result = await indexingStore.insert(schema.account).values([
+    { address: "0x0000000000000000000000000000000000000001", balance: 12n },
+    { address: "0x0000000000000000000000000000000000000002", balance: 52n },
+  ]);
+
+  expect(result).toStrictEqual([
     { address: "0x0000000000000000000000000000000000000001", balance: 12n },
     { address: "0x0000000000000000000000000000000000000002", balance: 52n },
   ]);
@@ -115,13 +122,15 @@ test("insert", async (context) => {
 
   // on conflict do nothing
 
-  await indexingStore
+  result = await indexingStore
     .insert(schema.account)
     .values({
       address: "0x0000000000000000000000000000000000000001",
       balance: 44n,
     })
     .onConflictDoNothing();
+
+  expect(result).toBe(null);
 
   result = await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
@@ -132,13 +141,18 @@ test("insert", async (context) => {
     balance: 12n,
   });
 
-  await indexingStore
+  result = await indexingStore
     .insert(schema.account)
     .values([
       { address: "0x0000000000000000000000000000000000000001", balance: 44n },
-      { address: "0x0000000000000000000000000000000000000002", balance: 0n },
+      { address: "0x0000000000000000000000000000000000000003", balance: 0n },
     ])
     .onConflictDoNothing();
+
+  expect(result).toStrictEqual([
+    null,
+    { address: "0x0000000000000000000000000000000000000003", balance: 0n },
+  ]);
 
   result = await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
@@ -217,11 +231,16 @@ test("update", async (context) => {
 
   // no function
 
-  await indexingStore
+  let result: any = await indexingStore
     .update(schema.account, { address: zeroAddress })
     .set({ balance: 12n });
 
-  let result = await indexingStore.find(schema.account, {
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balance: 12n,
+  });
+
+  result = await indexingStore.find(schema.account, {
     address: zeroAddress,
   });
 
@@ -232,9 +251,14 @@ test("update", async (context) => {
 
   // function
 
-  await indexingStore
+  result = await indexingStore
     .update(schema.account, { address: zeroAddress })
     .set((row) => ({ balance: row.balance + 10n }));
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balance: 22n,
+  });
 
   result = await indexingStore.find(schema.account, {
     address: zeroAddress,
@@ -556,7 +580,7 @@ test("default", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
-      balance: p.bigint().default(10n),
+      balance: p.integer().default(0),
     })),
   };
 
@@ -573,7 +597,7 @@ test("default", async (context) => {
     address: zeroAddress,
   });
 
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+  expect(result).toStrictEqual({ address: zeroAddress, balance: 0 });
 
   await cleanup();
 });

@@ -1,5 +1,6 @@
 import type { Drizzle, OnchainTable, Schema } from "@/drizzle/index.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
+import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
 import {
@@ -12,8 +13,11 @@ import {
   arrayContained,
   arrayContains,
   asc,
+  count,
+  createTableRelationsHelpers,
   desc,
   eq,
+  extractTablesRelationalConfig,
   getTableColumns,
   gt,
   gte,
@@ -34,7 +38,6 @@ import {
   PgSerial,
   isPgEnum,
 } from "drizzle-orm/pg-core";
-import type { RelationalQueryBuilder } from "drizzle-orm/pg-core/query-builders/query";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -49,6 +52,7 @@ import {
   GraphQLNonNull,
   GraphQLObjectType,
   type GraphQLOutputType,
+  type GraphQLResolveInfo,
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
@@ -59,6 +63,7 @@ type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
   metadataStore: MetadataStore;
+  drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
 type PluralArgs = {
@@ -73,10 +78,15 @@ type PluralArgs = {
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1000 as const;
 
-export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
-  const tables = Object.values(db._.schema ?? {}) as TableRelationalConfig[];
+export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
+  const tablesConfig = extractTablesRelationalConfig(
+    schema,
+    createTableRelationsHelpers,
+  );
 
-  const enums = Object.entries(db._.fullSchema ?? {}).filter(
+  const tables = Object.values(tablesConfig.tables) as TableRelationalConfig[];
+
+  const enums = Object.entries(schema).filter(
     (el): el is [string, PgEnum<[string, ...string[]]>] => isPgEnum(el[1]),
   );
   const enumTypes: Record<string, GraphQLEnumType> = {};
@@ -110,13 +120,13 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
-            filterOperators.universal.forEach((suffix) => {
+            conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            filterOperators.plural.forEach((suffix) => {
+            conditionSuffixes.plural.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = { type: baseType };
             });
           }
@@ -130,20 +140,20 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           ) {
             if (type.name === "JSON") continue;
 
-            filterOperators.universal.forEach((suffix) => {
+            conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type,
               };
             });
 
-            filterOperators.singular.forEach((suffix) => {
+            conditionSuffixes.singular.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(type),
               };
             });
 
             if (["String", "ID"].includes(type.name)) {
-              filterOperators.string.forEach((suffix) => {
+              conditionSuffixes.string.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -151,7 +161,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
             }
 
             if (["Int", "Float", "BigInt"].includes(type.name)) {
-              filterOperators.numeric.forEach((suffix) => {
+              conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -205,14 +215,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
             referencedEntityFilterType === undefined
           )
             throw new Error(
-              `Internal error: Referenced entity type not found for table "${referencedTable.tsName}" `,
-            );
-
-          const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>)
-            .query[referencedTable.tsName];
-          if (!baseQuery)
-            throw new Error(
-              `Internal error: Referenced table "${referencedTable.tsName}" not found in RQB`,
+              `Internal error: Referenced entity types not found for table "${referencedTable.tsName}" `,
             );
 
           if (is(relation, One)) {
@@ -226,11 +229,11 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
             }
 
             fieldConfigMap[relationName] = {
-              // Note: This naming is backwards (Drizzle bug).
-              type: relation.isNullable
-                ? new GraphQLNonNull(referencedEntityType)
-                : referencedEntityType,
-              resolve: async (parent, _args, context) => {
+              // Note: There is a `relation.isNullable` field here but it appears
+              // to be internal / incorrect. Until we have support for foriegn
+              // key constraints, all `one` relations must be nullable.
+              type: referencedEntityType,
+              resolve: (parent, _args, context) => {
                 const loader = context.getDataLoader({
                   table: referencedTable,
                 });
@@ -249,7 +252,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                 }
                 const encodedId = encodeRowFragment(rowFragment);
 
-                return await loader.load(encodedId);
+                return loader.load(encodedId);
               },
             };
           } else if (is(relation, Many)) {
@@ -279,7 +282,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                 after: { type: GraphQLString },
                 limit: { type: GraphQLInt },
               },
-              resolve: async (parent, args: PluralArgs, _context) => {
+              resolve: (parent, args: PluralArgs, context, info) => {
                 const relationalConditions = [];
                 for (let i = 0; i < references.length; i++) {
                   const column = fields[i]!;
@@ -287,10 +290,16 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
                   relationalConditions.push(eq(column, value));
                 }
 
+                const includeTotalCount = selectionIncludesField(
+                  info,
+                  "totalCount",
+                );
+
                 return executePluralQuery(
-                  table,
-                  baseQuery,
+                  referencedTable,
+                  context.drizzle,
                   args,
+                  includeTotalCount,
                   relationalConditions,
                 );
               },
@@ -315,6 +324,7 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           ),
         },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
+        totalCount: { type: new GraphQLNonNull(GraphQLInt) },
       }),
     });
   }
@@ -328,14 +338,6 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
     const singularFieldName =
       table.tsName.charAt(0).toLowerCase() + table.tsName.slice(1);
     const pluralFieldName = `${singularFieldName}s`;
-
-    const baseQuery = (db as Drizzle<{ [key: string]: OnchainTable }>).query[
-      table.tsName
-    ];
-    if (!baseQuery)
-      throw new Error(
-        `Internal error: Table "${table.tsName}" not found in RQB`,
-      );
 
     queryFields[singularFieldName] = {
       type: entityType,
@@ -351,15 +353,14 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
           },
         ]),
       ),
-      resolve: async (_parent, args, _context) => {
+      resolve: async (_parent, args, context) => {
+        const loader = context.getDataLoader({ table });
+
         // The `args` object here should be a valid `where` argument that
         // uses the `eq` shorthand for each primary key column.
-        const whereConditions = buildWhereConditions(args, table.columns);
+        const encodedId = encodeRowFragment(args);
 
-        const row = await baseQuery.findFirst({
-          where: and(...whereConditions),
-        });
-        return row ?? null;
+        return loader.load(encodedId);
       },
     };
 
@@ -373,8 +374,15 @@ export function buildGraphQLSchema(db: Drizzle<Schema>): GraphQLSchema {
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
       },
-      resolve: async (_parent, args: PluralArgs, _context) => {
-        return executePluralQuery(table, baseQuery, args);
+      resolve: async (_parent, args: PluralArgs, context, info) => {
+        const includeTotalCount = selectionIncludesField(info, "totalCount");
+
+        return executePluralQuery(
+          table,
+          context.drizzle,
+          args,
+          includeTotalCount,
+        );
       },
     };
   }
@@ -502,27 +510,18 @@ const innerType = (
   throw new Error(`Type ${type.toString()} is not implemented`);
 };
 
-const filterOperators = {
-  universal: ["", "_not"],
-  singular: ["_in", "_not_in"],
-  plural: ["_has", "_not_has"],
-  numeric: ["_gt", "_lt", "_gte", "_lte"],
-  string: [
-    "_contains",
-    "_not_contains",
-    "_starts_with",
-    "_ends_with",
-    "_not_starts_with",
-    "_not_ends_with",
-  ],
-} as const;
-
 async function executePluralQuery(
   table: TableRelationalConfig,
-  baseQuery: RelationalQueryBuilder<any, any>,
+  drizzle: Drizzle<{ [key: string]: OnchainTable }>,
   args: PluralArgs,
+  includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
 ) {
+  const rawTable = drizzle._.fullSchema[table.tsName];
+  const baseQuery = drizzle.query[table.tsName];
+  if (rawTable === undefined || baseQuery === undefined)
+    throw new Error(`Internal error: Table "${table.tsName}" not found in RQB`);
+
   const limit = args.limit ?? DEFAULT_LIMIT;
   if (limit > MAX_LIMIT) {
     throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
@@ -553,22 +552,33 @@ async function executePluralQuery(
   const after = args.after ?? null;
   const before = args.before ?? null;
 
+  if (after !== null && before !== null) {
+    throw new Error("Cannot specify both before and after cursors.");
+  }
+
   let startCursor = null;
   let endCursor = null;
   let hasPreviousPage = false;
   let hasNextPage = false;
 
-  if (after !== null && before !== null) {
-    throw new Error("Cannot specify both before and after cursors.");
-  }
+  const totalCountPromise = includeTotalCount
+    ? drizzle
+        .select({ count: count() })
+        .from(rawTable)
+        .where(and(...whereConditions, ...extraConditions))
+        .then((rows) => rows[0]?.count ?? null)
+    : Promise.resolve(null);
 
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
-    const rows = await baseQuery.findMany({
-      where: and(...whereConditions, ...extraConditions),
-      orderBy,
-      limit: limit + 1,
-    });
+    const [rows, totalCount] = await Promise.all([
+      baseQuery.findMany({
+        where: and(...whereConditions, ...extraConditions),
+        orderBy,
+        limit: limit + 1,
+      }),
+      totalCountPromise,
+    ]);
 
     if (rows.length === limit + 1) {
       rows.pop();
@@ -584,6 +594,7 @@ async function executePluralQuery(
 
     return {
       items: rows,
+      totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
   }
@@ -598,21 +609,20 @@ async function executePluralQuery(
       cursorObject,
     );
 
-    const rows = await baseQuery.findMany({
-      where: and(...whereConditions, cursorCondition, ...extraConditions),
-      orderBy,
-      limit: limit + 2,
-    });
+    const [rows, totalCount] = await Promise.all([
+      baseQuery.findMany({
+        where: and(...whereConditions, cursorCondition, ...extraConditions),
+        orderBy,
+        limit: limit + 2,
+      }),
+      totalCountPromise,
+    ]);
 
     if (rows.length === 0) {
       return {
         items: rows,
-        pageInfo: {
-          hasNextPage,
-          hasPreviousPage,
-          startCursor,
-          endCursor,
-        },
+        totalCount,
+        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
       };
     }
 
@@ -643,6 +653,7 @@ async function executePluralQuery(
 
     return {
       items: rows,
+      totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
   }
@@ -658,17 +669,21 @@ async function executePluralQuery(
 
   // Reverse the order by conditions to get the previous page,
   // then reverse the results back to the original order.
-  const rows = await baseQuery
-    .findMany({
-      where: and(...whereConditions, cursorCondition, ...extraConditions),
-      orderBy: orderByReversed,
-      limit: limit + 2,
-    })
-    .then((rows) => rows.reverse());
+  const [rows, totalCount] = await Promise.all([
+    baseQuery
+      .findMany({
+        where: and(...whereConditions, cursorCondition, ...extraConditions),
+        orderBy: orderByReversed,
+        limit: limit + 2,
+      })
+      .then((rows) => rows.reverse()),
+    totalCountPromise,
+  ]);
 
   if (rows.length === 0) {
     return {
       items: rows,
+      totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
   }
@@ -699,9 +714,29 @@ async function executePluralQuery(
 
   return {
     items: rows,
+    totalCount,
     pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
   };
 }
+
+const conditionSuffixes = {
+  universal: ["", "_not"],
+  singular: ["_in", "_not_in"],
+  plural: ["_has", "_not_has"],
+  numeric: ["_gt", "_lt", "_gte", "_lte"],
+  string: [
+    "_contains",
+    "_not_contains",
+    "_starts_with",
+    "_ends_with",
+    "_not_starts_with",
+    "_not_ends_with",
+  ],
+} as const;
+
+const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
+  .flat()
+  .sort((a, b) => b.length - a.length);
 
 function buildWhereConditions(
   where: Record<string, any> | undefined,
@@ -734,16 +769,32 @@ function buildWhereConditions(
       continue;
     }
 
-    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
-    const condition = condition_ === undefined ? "" : condition_;
-
-    if (!fieldName || !(fieldName in columns)) {
-      throw new Error(`Invalid query: Unknown field ${fieldName}`);
+    // Search for a valid filter suffix, traversing the list from longest to shortest
+    // to avoid ambiguity between cases like `_not_in` and `_in`.
+    const conditionSuffix = conditionSuffixesByLengthDesc.find((s) =>
+      whereKey.endsWith(s),
+    );
+    if (conditionSuffix === undefined) {
+      throw new Error(
+        `Invariant violation: Condition suffix not found for where key ${whereKey}`,
+      );
     }
 
-    const column = columns[fieldName]!;
+    // Remove the condition suffix and use the remaining string as the column name.
+    const columnName = whereKey.slice(
+      0,
+      whereKey.length - conditionSuffix.length,
+    );
 
-    switch (condition) {
+    // Validate that the column name is present in the table.
+    const column = columns[columnName];
+    if (column === undefined) {
+      throw new Error(
+        `Invalid query: Where clause contains unknown column ${columnName}`,
+      );
+    }
+
+    switch (conditionSuffix) {
       case "":
         if (column.columnType === "PgArray") {
           conditions.push(
@@ -756,7 +807,7 @@ function buildWhereConditions(
           conditions.push(eq(column, rawValue));
         }
         break;
-      case "not":
+      case "_not":
         if (column.columnType === "PgArray") {
           conditions.push(
             not(
@@ -770,52 +821,50 @@ function buildWhereConditions(
           conditions.push(ne(column, rawValue));
         }
         break;
-      case "in":
+      case "_in":
         conditions.push(inArray(column, rawValue));
         break;
-      case "not_in":
+      case "_not_in":
         conditions.push(notInArray(column, rawValue));
         break;
-      case "has":
+      case "_has":
         conditions.push(arrayContains(column, [rawValue]));
         break;
-      case "not_has":
+      case "_not_has":
         conditions.push(not(arrayContains(column, [rawValue])));
         break;
-      case "gt":
+      case "_gt":
         conditions.push(gt(column, rawValue));
         break;
-      case "lt":
+      case "_lt":
         conditions.push(lt(column, rawValue));
         break;
-      case "gte":
+      case "_gte":
         conditions.push(gte(column, rawValue));
         break;
-      case "lte":
+      case "_lte":
         conditions.push(lte(column, rawValue));
         break;
-      case "contains":
+      case "_contains":
         conditions.push(like(column, `%${rawValue}%`));
         break;
-      case "not_contains":
+      case "_not_contains":
         conditions.push(notLike(column, `%${rawValue}%`));
         break;
-      case "starts_with":
+      case "_starts_with":
         conditions.push(like(column, `${rawValue}%`));
         break;
-      case "ends_with":
+      case "_ends_with":
         conditions.push(like(column, `%${rawValue}`));
         break;
-      case "not_starts_with":
+      case "_not_starts_with":
         conditions.push(notLike(column, `${rawValue}%`));
         break;
-      case "not_ends_with":
+      case "_not_ends_with":
         conditions.push(notLike(column, `%${rawValue}`));
         break;
       default:
-        throw new Error(
-          `Invalid query: Unknown condition ${condition} for field ${fieldName}`,
-        );
+        never(conditionSuffix);
     }
   }
 
@@ -929,12 +978,10 @@ export function buildDataLoaderCache({
         async (encodedIds) => {
           const decodedRowFragments = encodedIds.map(decodeRowFragment);
 
+          // The decoded row fragments should be valid `where` objects
+          // which use the `eq` object shorthand for each primary key column.
           const idConditions = decodedRowFragments.map((decodedRowFragment) =>
-            and(
-              ...Object.entries(decodedRowFragment).map(([col, val]) =>
-                eq(table.columns[col]!, val),
-              ),
-            ),
+            and(...buildWhereConditions(decodedRowFragment, table.columns)),
           );
 
           const rows = await baseQuery.findMany({
@@ -964,4 +1011,22 @@ function getColumnTsName(column: Column) {
   return Object.entries(tableColumns).find(
     ([_, c]) => c.name === column.name,
   )![0];
+}
+
+/**
+ * Returns `true` if the query includes a specific field.
+ * Does not consider nested selections; only works one "layer" deep.
+ */
+function selectionIncludesField(
+  info: GraphQLResolveInfo,
+  fieldName: string,
+): boolean {
+  for (const fieldNode of info.fieldNodes) {
+    for (const selection of fieldNode.selectionSet?.selections ?? []) {
+      if (selection.kind === "Field" && selection.name.value === fieldName) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

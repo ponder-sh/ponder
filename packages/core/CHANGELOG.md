@@ -1,5 +1,94 @@
 # @ponder/core
 
+## 0.7.12
+
+### Patch Changes
+
+- [#1300](https://github.com/ponder-sh/ponder/pull/1300) [`31fa94b34bc4fd9f7c64f3934b2a92f709e17bc8`](https://github.com/ponder-sh/ponder/commit/31fa94b34bc4fd9f7c64f3934b2a92f709e17bc8) Thanks [@kyscott18](https://github.com/kyscott18)! - Update drizzle-orm to v0.36.
+
+## 0.7.11
+
+### Patch Changes
+
+- [#1280](https://github.com/ponder-sh/ponder/pull/1280) [`38ffc034b80ac0e5259efaebd2e170e95b75fa9c`](https://github.com/ponder-sh/ponder/commit/38ffc034b80ac0e5259efaebd2e170e95b75fa9c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed values returned by indexing store in realtime.
+
+- [#1280](https://github.com/ponder-sh/ponder/pull/1280) [`38ffc034b80ac0e5259efaebd2e170e95b75fa9c`](https://github.com/ponder-sh/ponder/commit/38ffc034b80ac0e5259efaebd2e170e95b75fa9c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed return type for `db.insert()` with multiple values.
+
+- Updated dependencies [[`0bb76fdc10bdf4f88980ed99d06c0e672094dce7`](https://github.com/ponder-sh/ponder/commit/0bb76fdc10bdf4f88980ed99d06c0e672094dce7)]:
+  - @ponder/utils@0.2.3
+
+## 0.7.10
+
+### Patch Changes
+
+- [#1274](https://github.com/ponder-sh/ponder/pull/1274) [`faf616adf82c0f8dd8482414efdf8723b06f6f8a`](https://github.com/ponder-sh/ponder/commit/faf616adf82c0f8dd8482414efdf8723b06f6f8a) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed several GraphQL bugs introduced in `0.7.0` that affected tables and columns using snake_case.
+
+## 0.7.9
+
+### Patch Changes
+
+- [#1268](https://github.com/ponder-sh/ponder/pull/1268) [`68f786197ae0d44a7aa19852e17ac792549188f7`](https://github.com/ponder-sh/ponder/commit/68f786197ae0d44a7aa19852e17ac792549188f7) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `one` relations were sometimes incorrectly marked as non-null in the GraphQL schema, which caused "Cannot return null for non-nullable field" errors when the related entity was not found.
+
+- [#1269](https://github.com/ponder-sh/ponder/pull/1269) [`700e060791a5575ba684fac49c3a32edfac16726`](https://github.com/ponder-sh/ponder/commit/700e060791a5575ba684fac49c3a32edfac16726) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed tables not being cleaned up.
+
+- [#1273](https://github.com/ponder-sh/ponder/pull/1273) [`a0e1613c47a0ebcaaf2a4cabc5d8bf62ce8489bf`](https://github.com/ponder-sh/ponder/commit/a0e1613c47a0ebcaaf2a4cabc5d8bf62ce8489bf) Thanks [@0xOlias](https://github.com/0xOlias)! - Improve logging for flush errors.
+
+## 0.7.8
+
+### Patch Changes
+
+- [#1263](https://github.com/ponder-sh/ponder/pull/1263) [`08e6fd2dea41f083ebdf4c2759819803c8619171`](https://github.com/ponder-sh/ponder/commit/08e6fd2dea41f083ebdf4c2759819803c8619171) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed "Failed '[table].flush()' database method" bug introduced in v0.7.6.
+
+## 0.7.7
+
+### Patch Changes
+
+- [#1257](https://github.com/ponder-sh/ponder/pull/1257) [`dc768bdd06077915e7b37bf84bc0a0d23fc1c8b8`](https://github.com/ponder-sh/ponder/commit/dc768bdd06077915e7b37bf84bc0a0d23fc1c8b8) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the `codegen` command did not generate `generated/schema.graphql`.
+
+- [#1259](https://github.com/ponder-sh/ponder/pull/1259) [`1e5119ddeb9494f9c420ee2e11bf55bbdfc387ee`](https://github.com/ponder-sh/ponder/commit/1e5119ddeb9494f9c420ee2e11bf55bbdfc387ee) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `totalCount` field to the plural GraphQL connection type, which returns the total number of records in the database that match the specified `where` clause. [Read more](https://ponder.sh/docs/query/graphql#total-count).
+
+## 0.7.6
+
+### Patch Changes
+
+- [#1251](https://github.com/ponder-sh/ponder/pull/1251) [`2806076d48803d3dd39789eeb71d1ec75ef70f86`](https://github.com/ponder-sh/ponder/commit/2806076d48803d3dd39789eeb71d1ec75ef70f86) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved memory usage during historical indexing.
+
+- [#1250](https://github.com/ponder-sh/ponder/pull/1250) [`a142bbd005af561187d48588c4ce50fb59e25de1`](https://github.com/ponder-sh/ponder/commit/a142bbd005af561187d48588c4ce50fb59e25de1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug in reorg reconciliation logic.
+
+## 0.7.5
+
+### Patch Changes
+
+- [#1252](https://github.com/ponder-sh/ponder/pull/1252) [`8b211d652dce3c0449d20e39a2d88c0463f44891`](https://github.com/ponder-sh/ponder/commit/8b211d652dce3c0449d20e39a2d88c0463f44891) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error log for `context.db.update()`.
+
+## 0.7.4
+
+### Patch Changes
+
+- [#1247](https://github.com/ponder-sh/ponder/pull/1247) [`214b7fad6272a402a57e0e11d5e9d7680c0f1ea7`](https://github.com/ponder-sh/ponder/commit/214b7fad6272a402a57e0e11d5e9d7680c0f1ea7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `onchainSchema()` with pglite.
+
+- [#1247](https://github.com/ponder-sh/ponder/pull/1247) [`214b7fad6272a402a57e0e11d5e9d7680c0f1ea7`](https://github.com/ponder-sh/ponder/commit/214b7fad6272a402a57e0e11d5e9d7680c0f1ea7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed crash recovery, specifically build ID generation.
+
+## 0.7.3
+
+### Patch Changes
+
+- [#1245](https://github.com/ponder-sh/ponder/pull/1245) [`7f4f456ab574a5017c7e45e3667eb16ab8a719a9`](https://github.com/ponder-sh/ponder/commit/7f4f456ab574a5017c7e45e3667eb16ab8a719a9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the `.default()` column modifier causing the value to be undefined.
+
+## 0.7.2
+
+### Patch Changes
+
+- [#1243](https://github.com/ponder-sh/ponder/pull/1243) [`2cf9d8d45a688039c186884ff5dd97aa3fd5c7ae`](https://github.com/ponder-sh/ponder/commit/2cf9d8d45a688039c186884ff5dd97aa3fd5c7ae) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `onchainSchema`.
+
+- [#1242](https://github.com/ponder-sh/ponder/pull/1242) [`26edcd1c66741288fcce9600769bc27268c50e9e`](https://github.com/ponder-sh/ponder/commit/26edcd1c66741288fcce9600769bc27268c50e9e) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed a bug with database instance id.
+
+## 0.7.1
+
+### Patch Changes
+
+- [#1237](https://github.com/ponder-sh/ponder/pull/1237) [`ea872481f6eaf61fbc7a94fe60a21bdabd7a0352`](https://github.com/ponder-sh/ponder/commit/ea872481f6eaf61fbc7a94fe60a21bdabd7a0352) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with database instance id.
+
 ## 0.7.0
 
 ### Minor Changes
