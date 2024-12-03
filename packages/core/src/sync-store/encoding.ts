@@ -326,6 +326,7 @@ export function encodeTrace({
 
 type RpcRequestResultsTable = {
   request: string;
+  request_hash: ColumnType<string, undefined>;
   chain_id: number;
   block_number: ColumnType<
     string | undefined,
