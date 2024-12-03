@@ -449,6 +449,7 @@ test("Event with account transaction", () => {
   type expectedEvent = {
     block: Block;
     transaction: Transaction;
+    transactionReceipt: TransactionReceipt;
   };
 
   assertType<a>({} as any as expectedEvent);
