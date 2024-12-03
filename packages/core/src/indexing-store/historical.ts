@@ -796,12 +796,11 @@ export const createHistoricalIndexingStore = ({
             });
 
             while (insertValues.length > 0) {
+              const values = insertValues.splice(0, batchSize);
               promises.push(
                 database.qb.user.wrap(
                   { method: `${tableNameCache.get(table)}.flush()` },
                   async () => {
-                    const values = insertValues.splice(0, batchSize);
-
                     await database.drizzle
                       .insert(table)
                       .values(values)
@@ -837,14 +836,13 @@ export const createHistoricalIndexingStore = ({
             }
 
             while (updateValues.length > 0) {
+              const values = updateValues.splice(0, batchSize);
               promises.push(
                 database.qb.user.wrap(
                   {
                     method: `${tableNameCache.get(table)}.flush()`,
                   },
                   async () => {
-                    const values = updateValues.splice(0, batchSize);
-
                     await database.drizzle
                       .insert(table)
                       .values(values)
