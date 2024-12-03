@@ -745,13 +745,13 @@ importers:
         version: 2.4.0
       '@hono/node-server':
         specifier: 1.13.3
-        version: 1.13.3
+        version: 1.13.3(hono@4.5.0)
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
       abitype:
         specifier: ^0.10.2
-        version: 0.10.3(zod@3.23.8)
+        version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -820,7 +820,7 @@ importers:
         version: 1.0.2(@types/node@20.11.24)
       vite-tsconfig-paths:
         specifier: 4.3.1
-        version: 4.3.1(vite@5.0.7(@types/node@20.11.24))
+        version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
     devDependencies:
       '@types/babel__code-frame':
         specifier: ^7.0.6
@@ -845,7 +845,7 @@ importers:
         version: 0.0.6
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2
+        version: 1.5.2(typescript@5.3.3)
       execa:
         specifier: ^8.0.1
         version: 8.0.1
@@ -854,7 +854,7 @@ importers:
         version: 5.0.5
       tsup:
         specifier: ^8.0.1
-        version: 8.0.1(postcss@8.4.32)
+        version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
       vitest:
         specifier: ^1.0.2
         version: 1.0.2(@types/node@20.11.24)
@@ -10386,7 +10386,9 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  '@hono/node-server@1.13.3': {}
+  '@hono/node-server@1.13.3(hono@4.5.0)':
+    dependencies:
+      hono: 4.5.0
 
   '@hono/trpc-server@0.3.2(@trpc/server@10.45.2)(hono@4.5.0)':
     dependencies:
@@ -11264,34 +11266,6 @@ snapshots:
       loupe: 2.3.7
       pretty-format: 29.7.0
 
-  '@wagmi/cli@1.5.2':
-    dependencies:
-      abitype: 0.8.7(zod@3.23.8)
-      abort-controller: 3.0.0
-      bundle-require: 3.1.2(esbuild@0.16.17)
-      cac: 6.7.14
-      change-case: 4.1.2
-      chokidar: 3.6.0
-      dedent: 0.7.0
-      detect-package-manager: 2.0.1
-      dotenv: 16.4.5
-      dotenv-expand: 10.0.0
-      esbuild: 0.16.17
-      execa: 6.1.0
-      find-up: 6.3.0
-      fs-extra: 10.1.0
-      globby: 13.2.2
-      node-fetch: 3.3.2
-      ora: 6.3.1
-      pathe: 1.1.1
-      picocolors: 1.0.0
-      prettier: 2.8.8
-      viem: 1.21.4(zod@3.23.8)
-      zod: 3.23.8
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
   '@wagmi/cli@1.5.2(typescript@5.3.3)':
     dependencies:
       abitype: 0.8.7(typescript@5.3.3)(zod@3.23.8)
@@ -11375,27 +11349,15 @@ snapshots:
       typescript: 5.3.3
       zod: 3.23.8
 
-  abitype@0.10.3(zod@3.23.8):
-    optionalDependencies:
-      zod: 3.23.8
-
   abitype@0.8.7(typescript@5.3.3)(zod@3.23.8):
     dependencies:
       typescript: 5.3.3
     optionalDependencies:
       zod: 3.23.8
 
-  abitype@0.8.7(zod@3.23.8):
-    optionalDependencies:
-      zod: 3.23.8
-
   abitype@0.9.8(typescript@5.3.3)(zod@3.23.8):
     optionalDependencies:
       typescript: 5.3.3
-      zod: 3.23.8
-
-  abitype@0.9.8(zod@3.23.8):
-    optionalDependencies:
       zod: 3.23.8
 
   abitype@1.0.5(typescript@5.0.4)(zod@3.23.8):
@@ -13405,8 +13367,6 @@ snapshots:
 
   focus-visible@5.2.0: {}
 
-  follow-redirects@1.15.6: {}
-
   follow-redirects@1.15.6(debug@4.3.4):
     optionalDependencies:
       debug: 4.3.4
@@ -13946,7 +13906,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.15.6
+      follow-redirects: 1.15.6(debug@4.3.4)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -16163,13 +16123,6 @@ snapshots:
       camelcase-css: 2.0.1
       postcss: 8.4.32
 
-  postcss-load-config@4.0.2(postcss@8.4.32):
-    dependencies:
-      lilconfig: 3.1.2
-      yaml: 2.3.4
-    optionalDependencies:
-      postcss: 8.4.32
-
   postcss-load-config@4.0.2(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3)):
     dependencies:
       lilconfig: 3.1.2
@@ -17323,7 +17276,9 @@ snapshots:
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
-  tsconfck@3.0.1: {}
+  tsconfck@3.0.1(typescript@5.3.3):
+    optionalDependencies:
+      typescript: 5.3.3
 
   tsconfig-paths@3.15.0:
     dependencies:
@@ -17333,28 +17288,6 @@ snapshots:
       strip-bom: 3.0.0
 
   tslib@2.6.2: {}
-
-  tsup@8.0.1(postcss@8.4.32):
-    dependencies:
-      bundle-require: 4.0.2(esbuild@0.19.11)
-      cac: 6.7.14
-      chokidar: 3.6.0
-      debug: 4.3.7(supports-color@8.1.1)
-      esbuild: 0.19.11
-      execa: 5.1.1
-      globby: 11.1.0
-      joycon: 3.1.1
-      postcss-load-config: 4.0.2(postcss@8.4.32)
-      resolve-from: 5.0.0
-      rollup: 4.9.2
-      source-map: 0.8.0-beta.0
-      sucrase: 3.35.0
-      tree-kill: 1.2.2
-    optionalDependencies:
-      postcss: 8.4.32
-    transitivePeerDependencies:
-      - supports-color
-      - ts-node
 
   tsup@8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3):
     dependencies:
@@ -17708,21 +17641,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  viem@1.21.4(zod@3.23.8):
-    dependencies:
-      '@adraffy/ens-normalize': 1.10.0
-      '@noble/curves': 1.2.0
-      '@noble/hashes': 1.3.2
-      '@scure/bip32': 1.3.2
-      '@scure/bip39': 1.2.1
-      abitype: 0.9.8(zod@3.23.8)
-      isows: 1.0.3(ws@8.13.0)
-      ws: 8.13.0
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-
   viem@2.21.3(typescript@5.0.4)(zod@3.23.8):
     dependencies:
       '@adraffy/ens-normalize': 1.10.0
@@ -17776,11 +17694,11 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@4.3.1(vite@5.0.7(@types/node@20.11.24)):
+  vite-tsconfig-paths@4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)):
     dependencies:
       debug: 4.3.7(supports-color@8.1.1)
       globrex: 0.1.2
-      tsconfck: 3.0.1
+      tsconfck: 3.0.1(typescript@5.3.3)
     optionalDependencies:
       vite: 5.0.7(@types/node@20.11.24)
     transitivePeerDependencies:
