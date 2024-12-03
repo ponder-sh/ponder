@@ -196,7 +196,9 @@ const rows = await db
 
 ### How it works
 
-EVM indexing workloads often involve a high number of small inserts and updates. To mitigate the performance penalty of frequent (blocking) database queries, the store API runs most operations **in-memory**.
+EVM indexing workloads often involve a large number of small inserts and updates. To mitigate the performance penalty of many (blocking) database queries, the store API runs **in-memory** during historical indexing.
+
+When the in-memory cache exceeds a certain size, the store flushes all pending data to the database using one `COPY{:sql}` statement per table. During development, the store also flushes every 5 seconds regardless of size to ensure that the database state is reasonably up-to-date to support ad-hoc queries.
 
 ## Raw SQL
 
