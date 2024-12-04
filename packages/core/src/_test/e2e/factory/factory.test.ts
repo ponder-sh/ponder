@@ -5,7 +5,9 @@ import {
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { simulatePairSwap } from "@/_test/simulate.js";
+import { deployFactory } from "@/_test/simulate.js";
+import { createPair } from "@/_test/simulate.js";
+import { swapPair } from "@/_test/simulate.js";
 import {
   getFreePort,
   postGraphql,
@@ -34,7 +36,7 @@ const cliOptions = {
 
 test(
   "factory",
-  async (context) => {
+  async () => {
     const port = await getFreePort();
 
     const cleanup = await start({
@@ -45,20 +47,33 @@ test(
       },
     });
 
-    await waitForIndexedBlock(port, "mainnet", 5);
+    const { address } = await deployFactory({ sender: ALICE });
+    const { result: pair } = await createPair({
+      factory: address,
+      sender: ALICE,
+    });
+    await swapPair({
+      pair,
+      amount0Out: 1n,
+      amount1Out: 1n,
+      to: ALICE,
+      sender: ALICE,
+    });
+
+    await waitForIndexedBlock(port, "mainnet", 3);
 
     let response = await postGraphql(
       port,
       `
-    swapEvents {
-      items {
-        id
-        pair
-        from
-        to
+      swapEvents {
+        items {
+          id
+          pair
+          from
+          to
+        }
       }
-    }
-    `,
+      `,
     );
 
     expect(response.status).toBe(200);
@@ -71,25 +86,31 @@ test(
       id: expect.any(String),
       from: ALICE.toLowerCase(),
       to: ALICE.toLowerCase(),
-      pair: context.factory.pair.toLowerCase(),
+      pair,
     });
 
-    await simulatePairSwap(context.factory.pair);
+    await swapPair({
+      pair,
+      amount0Out: 1n,
+      amount1Out: 1n,
+      to: ALICE,
+      sender: ALICE,
+    });
 
-    await waitForIndexedBlock(port, "mainnet", 6);
+    await waitForIndexedBlock(port, "mainnet", 4);
 
     response = await postGraphql(
       port,
       `
-    swapEvents {
-      items {
-        id
-        pair
-        from
-        to
+      swapEvents {
+        items {
+          id
+          pair
+          from
+          to
+        }
       }
-    }
-    `,
+      `,
     );
 
     expect(response.status).toBe(200);

@@ -2,7 +2,7 @@ import { execa } from "execa";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  name: "@ponder/core",
+  name: "ponder",
   entry: ["src/index.ts", "src/bin/ponder.ts"],
   outDir: "dist",
   format: ["esm"],

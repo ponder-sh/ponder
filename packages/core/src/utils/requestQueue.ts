@@ -16,21 +16,23 @@ import {
   type RpcError,
   isHex,
 } from "viem";
+import type { DebugRpcSchema } from "./debug.js";
 import { startClock } from "./timer.js";
 import { wait } from "./wait.js";
 
-type RequestReturnType<
-  method extends EIP1193Parameters<PublicRpcSchema>["method"],
-> = Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"];
+type Schema = [...PublicRpcSchema, ...DebugRpcSchema];
+
+type RequestReturnType<method extends EIP1193Parameters<Schema>["method"]> =
+  Extract<Schema[number], { Method: method }>["ReturnType"];
 
 export type RequestQueue = Omit<
   Queue<
-    RequestReturnType<EIP1193Parameters<PublicRpcSchema>["method"]>,
-    EIP1193Parameters<PublicRpcSchema>
+    RequestReturnType<EIP1193Parameters<Schema>["method"]>,
+    EIP1193Parameters<Schema>
   >,
   "add"
 > & {
-  request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
+  request: <TParameters extends EIP1193Parameters<Schema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
 };

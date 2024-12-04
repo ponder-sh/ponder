@@ -1,7 +1,6 @@
+import { factory } from "@/config/address.js";
 import { http, getAbiItem } from "viem";
-
 import { createConfig } from "../../../config/config.js";
-import { CONTRACTS } from "../../constants.js";
 import { factoryABI, pairABI } from "../../generated.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
@@ -29,11 +28,11 @@ export default createConfig({
     Pair: {
       network: "mainnet",
       abi: pairABI,
-      factory: {
-        address: CONTRACTS.factoryAddress,
+      address: factory({
+        address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
         event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
         parameter: "pair",
-      },
+      }),
     },
   },
 });

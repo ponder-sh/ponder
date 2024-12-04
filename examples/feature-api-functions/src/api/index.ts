@@ -1,7 +1,7 @@
-import { ponder } from "@/generated";
-import { count, desc, eq, graphql, or, replaceBigInts } from "@ponder/core";
+import { ponder } from "ponder:registry";
+import { account, transferEvent } from "ponder:schema";
+import { count, desc, eq, graphql, or, replaceBigInts } from "ponder";
 import { formatEther, getAddress } from "viem";
-import { account, transferEvent } from "../../ponder.schema";
 
 ponder.use("/graphql", graphql());
 

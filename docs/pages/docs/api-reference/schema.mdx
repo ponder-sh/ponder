@@ -11,10 +11,10 @@ The `ponder.schema.ts` file defines your database tables and their relationships
 
 ## File requirements
 
-The `ponder.schema.ts` must use **named exports** for tables, enums, and relations, and these objects must be created using the corresponding functions exported by `@ponder/core`.
+The `ponder.schema.ts` must use **named exports** for tables, enums, and relations, and these objects must be created using the corresponding functions exported by `ponder`.
 
 ```ts filename="ponder.schema.ts" {1,3}
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const pets = onchainTable("pets", (t) => ({
   name: t.text().primaryKey(),
@@ -34,7 +34,7 @@ The `onchainTable` function accepts three positional arguments.
 
 {/* prettier-ignore */}
 ```ts filename="ponder.schema.ts"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const transferEvents = onchainTable(
   "transfer_event", // SQL table name
@@ -85,7 +85,7 @@ Column modifiers can be chained after column type definitions.
 Every table must have exactly one primary key defined using either the `.primaryKey()` column modifier or the `primaryKey()` function in the table constraints argument.
 
 ```ts filename="ponder.schema.ts" {1, 5, 16}
-import { onchainTable, primaryKey } from "@ponder/core";
+import { onchainTable, primaryKey } from "ponder";
 
 // Single column primary key
 export const tokens = onchainTable("tokens", (t) => ({
@@ -111,7 +111,7 @@ Create indexes using the `index()` function in the constraints & indexes argumen
 the app becomes healthy.
 
 ```ts filename="ponder.schema.ts" {1,10}
-import { onchainTable, index } from "@ponder/core";
+import { onchainTable, index } from "ponder";
 
 export const persons = onchainTable(
   "persons",
@@ -135,7 +135,7 @@ The `onchainEnum` function accepts two positional arguments. It returns a functi
 | `values` | `string[]` | An array of strings representing the allowed values for the enum. |
 
 ```ts filename="ponder.schema.ts" {3}
-import { onchainEnum, onchainTable } from "@ponder/core";
+import { onchainEnum, onchainTable } from "ponder";
 
 export const color = onchainEnum("color", ["ORANGE", "BLACK"]);
 
@@ -161,7 +161,7 @@ export const dogs = onchainTable("cats", (t) => ({
 Use the `relations` function to define relationships between tables.
 
 ```ts filename="ponder.schema.ts" {1,7}
-import { onchainTable, relations } from "@ponder/core";
+import { onchainTable, relations } from "ponder";
 
 export const users = onchainTable("users", (t) => ({
   id: t.text().primaryKey(),

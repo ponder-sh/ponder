@@ -64,15 +64,15 @@ Use the `/health` and `/ready` endpoints to configure health checks or [probes](
 ### Database connection
 
 <Callout type="warning">
-  Your app will have performance issues if the roundtrip database latency exceeds
-  ~20 milliseconds. This is common when using a database in different private
-  network or region.
+  Your app will have performance issues if the roundtrip database latency
+  exceeds ~20 milliseconds. This is common when using a database in different
+  private network or region.
 </Callout>
 
 In production, Ponder works best with a Postgres database in the same private network. Set the `DATABASE_URL` environment variable to the connection string of your Postgres database, or manually override the `database.connectionString` option in `ponder.config.ts`.
 
 ```ts filename="ponder.config.ts" {6}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 export default createConfig({
   database: {

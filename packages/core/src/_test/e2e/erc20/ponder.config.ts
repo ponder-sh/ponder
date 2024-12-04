@@ -1,7 +1,5 @@
 import { http } from "viem";
-
 import { createConfig } from "../../../config/config.js";
-import { CONTRACTS } from "../../constants.js";
 import { erc20ABI } from "../../generated.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
@@ -29,11 +27,7 @@ export default createConfig({
     Erc20: {
       network: "mainnet",
       abi: erc20ABI,
-      address: CONTRACTS.erc20Address,
-      filter: {
-        event:
-          "Transfer(address indexed from, address indexed to, uint256 amount)",
-      },
+      address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
     },
   },
 });

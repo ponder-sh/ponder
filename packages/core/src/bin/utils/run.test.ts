@@ -1,8 +1,13 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { deployErc20 } from "@/_test/simulate.js";
+import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
+import { getNetwork } from "@/_test/utils.js";
+import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { IndexingBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
@@ -25,6 +30,23 @@ const schema = { account };
 const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() setup", async (context) => {
+  const network = getNetwork();
+
+  const { address } = await deployErc20({ sender: ALICE });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
@@ -40,8 +62,8 @@ test("run() setup", async (context) => {
     schema,
     graphqlSchema,
     databaseConfig: context.databaseConfig,
-    networks: context.networks,
-    sources: context.sources,
+    networks: [network],
+    sources,
     indexingFunctions,
     statements,
     namespace,
@@ -73,6 +95,23 @@ test("run() setup", async (context) => {
 });
 
 test("run() setup error", async (context) => {
+  const network = getNetwork();
+
+  const { address } = await deployErc20({ sender: ALICE });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+    options: {
+      ponderDir: "",
+      rootDir: "",
+    },
+  });
+
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
@@ -89,8 +128,8 @@ test("run() setup error", async (context) => {
     schema,
     graphqlSchema,
     databaseConfig: context.databaseConfig,
-    networks: context.networks,
-    sources: context.sources,
+    networks: [network],
+    sources,
     indexingFunctions,
     statements,
     namespace,

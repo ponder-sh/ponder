@@ -16,6 +16,7 @@ export default {
     title: "Config",
   },
   "contracts-and-networks": "Contracts & networks",
+  "accounts": "Accounts",
   "block-intervals": "Block intervals",
   "call-traces": "Call traces",
 

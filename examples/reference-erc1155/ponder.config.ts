@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 import { erc1155ABI } from "./abis/erc1155Abi";
 

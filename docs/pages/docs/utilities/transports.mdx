@@ -33,10 +33,10 @@ const client = createPublicClient({
 
 ### Usage in Ponder
 
-For convenience, `@ponder/core` re-exports `loadBalance` from `@ponder/utils`.
+For convenience, `ponder` re-exports `loadBalance` from `@ponder/utils`.
 
 ```ts filename="ponder.config.ts" {8-13}
-import { createConfig, loadBalance } from "@ponder/core";
+import { createConfig, loadBalance } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
@@ -86,10 +86,10 @@ const client = createPublicClient({
 
 ### Usage in Ponder
 
-For convenience, `@ponder/core` re-exports `rateLimit` from `@ponder/utils`.
+For convenience, `ponder` re-exports `rateLimit` from `@ponder/utils`.
 
 ```ts filename="ponder.config.ts" {8-10}
-import { createConfig, rateLimit } from "@ponder/core";
+import { createConfig, rateLimit } from "ponder";
 import { http } from "viem";
 
 export default createConfig({

@@ -93,7 +93,7 @@ In the root directory, run the build command:
 pnpm build
 ```
 
-After the build completes, pnpm links packages across the project for development. This means that if you run any of the projects in the `examples/` directory, they will use the local version of `@ponder/core`.
+After the build completes, pnpm links packages across the project for development. This means that if you run any of the projects in the `examples/` directory, they will use the local version of `ponder`.
 
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>
@@ -169,7 +169,7 @@ Ponder is still in alpha, so all changes should be marked as a patch.
 ### Changesets workflow
 
 1. Write a PR that includes a public API change or bug fix.
-2. Create a changeset using `pnpm changeset`. The changesets CLI will ask you which package is affected (`@ponder/core` or `create-ponder`) and if the change is a patch, minor, or major release.
+2. Create a changeset using `pnpm changeset`. The changesets CLI will ask you which package is affected (`ponder` or `create-ponder`) and if the change is a patch, minor, or major release.
 3. The changesets CLI will generate a Markdown file in `.changeset/` that includes the details you provided. Commit this file to your PR branch (e.g. `git commit -m "chore: changeset"`).
 4. When you push this commit to remote, a GitHub bot will detect the changeset and add a comment to your PR with a preview of the changelog.
 5. Merge your PR. The changesets Github Action workflow will open (or update) a PR with the title `"chore: version packages"`. The changes in your PR **will not be released** until this PR is merged.

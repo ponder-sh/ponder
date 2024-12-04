@@ -27,7 +27,7 @@ If your schema contains a `person` table, the GraphQL schema will include a `per
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const person = onchainTable("person", (t) => ({
   id: t.integer().primaryKey(),
@@ -241,7 +241,7 @@ Plural fields and `p.many()` relationship fields each return a `Page` type. This
 
 <div className="code-columns">
 ```ts filename="ponder.schema.ts"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const pet = onchainTable("pet", (t) => ({
   id: t.text().primaryKey(),
@@ -463,7 +463,7 @@ The GraphQL schema includes a relationship field for each `one` or `many` relati
 
 <div className="code-columns">
 ```ts filename="ponder.schema.ts"
-import { onchainTable, relations } from "@ponder/core";
+import { onchainTable, relations } from "ponder";
 
 export const pet = onchainTable("pet", (t) => ({
   id: t.text().primaryKey(),

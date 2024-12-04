@@ -1,4 +1,4 @@
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const counter = onchainTable("counter", (t) => ({
   value: t.integer().primaryKey(),

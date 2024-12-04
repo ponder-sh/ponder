@@ -1,1 +1,1 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";

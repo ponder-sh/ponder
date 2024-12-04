@@ -1,18 +1,52 @@
 import {
-  type TraceFilterFragment,
-  buildLogFilterFragments,
-  buildTraceFilterFragments,
-} from "@/sync/fragments.js";
-import {
   type BlockFilter,
-  type CallTraceFilter,
   type LogFactory,
   type LogFilter,
+  type TraceFilter,
+  type TransactionFilter,
+  type TransferFilter,
   isAddressFactory,
 } from "@/sync/source.js";
-import type { SyncBlock, SyncCallTrace, SyncLog } from "@/types/sync.js";
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+} from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { hexToNumber } from "viem";
+import { type Address, hexToBigInt, hexToNumber } from "viem";
+
+const isValueMatched = <T extends string>(
+  filterValue: T | T[] | Set<T> | null | undefined,
+  eventValue: T | undefined,
+): boolean => {
+  // match all
+  if (filterValue === null || filterValue === undefined) return true;
+
+  // missing value
+  if (eventValue === undefined) return false;
+
+  // array
+  if (
+    Array.isArray(filterValue) &&
+    filterValue.some((v) => v === toLowerCase(eventValue))
+  ) {
+    return true;
+  }
+
+  // set
+  if (
+    filterValue instanceof Set &&
+    filterValue.has(toLowerCase(eventValue) as T)
+  ) {
+    return true;
+  }
+
+  // single
+  if (filterValue === toLowerCase(eventValue)) return true;
+
+  return false;
+};
 
 /**
  * Returns `true` if `log` matches `filter`
@@ -41,91 +75,299 @@ export const isLogFilterMatched = ({
   filter,
   block,
   log,
+  childAddresses,
 }: {
   filter: LogFilter;
   block: SyncBlock;
   log: SyncLog;
+  childAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
-  return buildLogFilterFragments(filter).some((fragment) => {
-    if (
-      fragment.topic0 !== null &&
-      fragment.topic0 !== log.topics[0]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic1 !== null &&
-      fragment.topic1 !== log.topics[1]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic2 !== null &&
-      fragment.topic2 !== log.topics[2]?.toLowerCase()
-    )
-      return false;
-    if (
-      fragment.topic3 !== null &&
-      fragment.topic3 !== log.topics[3]?.toLowerCase()
-    )
-      return false;
+  if (isValueMatched(filter.topic0, log.topics[0]) === false) return false;
+  if (isValueMatched(filter.topic1, log.topics[1]) === false) return false;
+  if (isValueMatched(filter.topic2, log.topics[2]) === false) return false;
+  if (isValueMatched(filter.topic3, log.topics[3]) === false) return false;
 
-    if (
-      isAddressFactory(filter.address) === false &&
-      fragment.address !== null &&
-      fragment.address !== log.address.toLowerCase()
-    )
+  if (isAddressFactory(filter.address)) {
+    if (Array.isArray(childAddresses)) {
+      if (
+        childAddresses.every(
+          (address) => isValueMatched(address, log.address) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (isValueMatched(childAddresses, log.address) === false) {
+        return false;
+      }
+    }
+  } else {
+    if (isValueMatched(filter.address, log.address) === false) {
       return false;
+    }
+  }
 
-    return true;
-  });
+  return true;
 };
 
 /**
- * Returns `true` if `callTrace` matches `filter`
+ * Returns `true` if `transaction` matches `filter`
  */
-export const isCallTraceFilterMatched = ({
+export const isTransactionFilterMatched = ({
   filter,
   block,
-  callTrace,
+  transaction,
+  fromChildAddresses,
+  toChildAddresses,
 }: {
-  filter: CallTraceFilter;
-  block: SyncBlock;
-  callTrace: SyncCallTrace;
+  filter: TransactionFilter;
+  block: Pick<SyncBlock, "number">;
+  transaction: SyncTransaction;
+  fromChildAddresses?: Set<Address> | Set<Address>[];
+  toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
-  return buildTraceFilterFragments(filter).some((fragment) => {
+  if (isAddressFactory(filter.fromAddress)) {
+    if (Array.isArray(fromChildAddresses)) {
+      if (
+        fromChildAddresses.every(
+          (address) => isValueMatched(address, transaction.from) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (isValueMatched(fromChildAddresses, transaction.from) === false) {
+        return false;
+      }
+    }
+  } else {
     if (
-      fragment.fromAddress !== null &&
-      fragment.fromAddress !== callTrace.action.from.toLowerCase()
+      isValueMatched(
+        filter.fromAddress as Address | Address[] | undefined,
+        transaction.from,
+      ) === false
     ) {
       return false;
     }
+  }
 
+  if (isAddressFactory(filter.toAddress)) {
+    if (Array.isArray(toChildAddresses)) {
+      if (
+        transaction.to !== null &&
+        toChildAddresses.every(
+          (address) => isValueMatched(address, transaction.to!) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (
+        transaction.to !== null &&
+        isValueMatched(toChildAddresses, transaction.to) === false
+      ) {
+        return false;
+      }
+    }
+  } else {
     if (
-      isAddressFactory(filter.toAddress) === false &&
-      (fragment as TraceFilterFragment<undefined>).toAddress !== null &&
-      (fragment as TraceFilterFragment<undefined>).toAddress !==
-        callTrace.action.to.toLowerCase()
+      transaction.to !== null &&
+      isValueMatched(
+        filter.toAddress as Address | Address[] | undefined,
+        transaction.to,
+      ) === false
     ) {
       return false;
     }
+  }
 
-    return true;
-  });
+  // NOTE: `filter.includeReverted` is intentionally ignored
+
+  return true;
+};
+
+/**
+ * Returns `true` if `trace` matches `filter`
+ */
+export const isTraceFilterMatched = ({
+  filter,
+  block,
+  trace,
+  fromChildAddresses,
+  toChildAddresses,
+}: {
+  filter: TraceFilter;
+  block: Pick<SyncBlock, "number">;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  fromChildAddresses?: Set<Address> | Set<Address>[];
+  toChildAddresses?: Set<Address> | Set<Address>[];
+}): boolean => {
+  // Return `false` for out of range blocks
+  if (
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
+  }
+
+  if (isAddressFactory(filter.fromAddress)) {
+    if (Array.isArray(fromChildAddresses)) {
+      if (
+        fromChildAddresses.every(
+          (address) => isValueMatched(address, trace.from) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (isValueMatched(fromChildAddresses, trace.from) === false) {
+        return false;
+      }
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.fromAddress as Address | Address[] | undefined,
+        trace.from,
+      ) === false
+    ) {
+      return false;
+    }
+  }
+
+  if (isAddressFactory(filter.toAddress)) {
+    if (Array.isArray(toChildAddresses)) {
+      if (
+        toChildAddresses.every(
+          (address) => isValueMatched(address, trace.to) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (isValueMatched(toChildAddresses, trace.to) === false) {
+        return false;
+      }
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.toAddress as Address | Address[] | undefined,
+        trace.to,
+      ) === false
+    ) {
+      return false;
+    }
+  }
+
+  if (
+    isValueMatched(filter.functionSelector, trace.input.slice(0, 10)) === false
+  ) {
+    return false;
+  }
+
+  // NOTE: `filter.callType` and `filter.includeReverted` is intentionally ignored
+
+  return true;
+};
+
+/**
+ * Returns `true` if `trace` matches `filter`
+ */
+export const isTransferFilterMatched = ({
+  filter,
+  block,
+  trace,
+  fromChildAddresses,
+  toChildAddresses,
+}: {
+  filter: TransferFilter;
+  block: Pick<SyncBlock, "number">;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  fromChildAddresses?: Set<Address> | Set<Address>[];
+  toChildAddresses?: Set<Address> | Set<Address>[];
+}): boolean => {
+  // Return `false` for out of range blocks
+  if (
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
+    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
+  }
+
+  if (trace.value === undefined || hexToBigInt(trace.value) === 0n) {
+    return false;
+  }
+
+  if (isAddressFactory(filter.fromAddress)) {
+    if (Array.isArray(fromChildAddresses)) {
+      if (
+        fromChildAddresses.every(
+          (address) => isValueMatched(address, trace.from) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (isValueMatched(fromChildAddresses, trace.from) === false) {
+        return false;
+      }
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.fromAddress as Address | Address[] | undefined,
+        trace.from,
+      ) === false
+    ) {
+      return false;
+    }
+  }
+
+  if (isAddressFactory(filter.toAddress)) {
+    if (Array.isArray(toChildAddresses)) {
+      if (
+        toChildAddresses.every(
+          (address) => isValueMatched(address, trace.to) === false,
+        )
+      ) {
+        return false;
+      }
+    } else {
+      if (isValueMatched(toChildAddresses, trace.to) === false) {
+        return false;
+      }
+    }
+  } else {
+    if (
+      isValueMatched(
+        filter.toAddress as Address | Address[] | undefined,
+        trace.to,
+      ) === false
+    ) {
+      return false;
+    }
+  }
+
+  // NOTE: `filter.includeReverted` is intentionally ignored
+
+  return true;
 };
 
 /**
@@ -140,7 +382,7 @@ export const isBlockFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
     hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;

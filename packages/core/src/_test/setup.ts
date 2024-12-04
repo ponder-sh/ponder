@@ -4,9 +4,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { createTelemetry } from "@/common/telemetry.js";
-import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import type { Network } from "@/config/networks.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
@@ -16,37 +14,16 @@ import {
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
-import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import { createPglite } from "@/utils/pglite.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import type { Address } from "viem";
 import { type TestContext, afterAll } from "vitest";
-import { deploy, simulate } from "./simulate.js";
-import {
-  getConfig,
-  getNetworkAndSources,
-  poolId,
-  testClient,
-} from "./utils.js";
+import { poolId, testClient } from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
     common: Common;
     databaseConfig: DatabaseConfig;
-    sources: [
-      ContractSource<"log", undefined>,
-      ContractSource<"log", LogFactory>,
-      ContractSource<"trace", LogFactory>,
-      ContractSource<"trace", undefined>,
-      BlockSource,
-    ];
-    networks: [Network];
-    requestQueues: [RequestQueue];
-    config: Config;
-    erc20: { address: Address };
-    factory: { address: Address; pair: Address };
   }
 }
 
@@ -244,41 +221,16 @@ export async function setupDatabaseServices(
 }
 
 /**
- * Sets up an isolated Ethereum client on the test context, with the appropriate Erc20 + Factory state.
+ * Sets up an isolated Ethereum client.
  *
+ * @example
  * ```ts
  * // Add this to any test suite that uses the Ethereum client.
- * beforeEach((context) => setupAnvil(context))
+ * beforeEach(setupAnvil)
  * ```
  */
-export async function setupAnvil(context: TestContext) {
+export async function setupAnvil() {
   const emptySnapshotId = await testClient.snapshot();
-
-  // Chain state setup shared across all tests.
-  const addresses = await deploy();
-  const pair = await simulate(addresses);
-  await testClient.mine({ blocks: 1 });
-
-  context.config = getConfig(addresses);
-
-  const { networks, sources, requestQueues } = await getNetworkAndSources(
-    addresses,
-    context.common,
-  );
-  context.networks = networks as [Network];
-  context.requestQueues = requestQueues as [RequestQueue];
-  context.sources = sources as [
-    ContractSource<"log", undefined>,
-    ContractSource<"log", LogFactory>,
-    ContractSource<"trace", LogFactory>,
-    ContractSource<"trace", undefined>,
-    BlockSource,
-  ];
-  context.erc20 = { address: addresses.erc20Address };
-  context.factory = {
-    address: addresses.factoryAddress,
-    pair: pair.toLowerCase() as Address,
-  };
 
   return async () => {
     await testClient.revert({ id: emptySnapshotId });

@@ -1,7 +1,8 @@
+import type { FragmentId } from "@/sync/fragments.js";
 import type {
   SyncBlock,
-  SyncCallTrace,
   SyncLog,
+  SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
@@ -12,7 +13,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { ColumnType, Generated, Insertable } from "kysely";
+import type { ColumnType, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
@@ -139,6 +140,9 @@ export const encodeLog = ({
 
 type TransactionsTable = {
   hash: Hash;
+  chainId: number;
+  /** `checkpoint` will be null for transactions inserted before 0.8. This is to avoid a very slow migration. */
+  checkpoint: string | null;
   blockHash: Hash;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
@@ -160,19 +164,27 @@ type TransactionsTable = {
     string | bigint
   > | null;
   accessList: string | null;
-
-  chainId: number;
 };
 
 export const encodeTransaction = ({
   transaction,
+  block,
   chainId,
 }: {
   transaction: SyncTransaction;
+  block: Pick<SyncBlock, "timestamp">;
   chainId: number;
 }): Insertable<TransactionsTable> => {
   return {
     hash: transaction.hash,
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(transaction.blockNumber),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.transactions,
+      eventIndex: zeroCheckpoint.eventIndex,
+    }),
     chainId,
     blockHash: transaction.blockHash,
     blockNumber: hexToBigInt(transaction.blockNumber),
@@ -210,7 +222,6 @@ type TransactionReceiptsTable = {
   effectiveGasPrice: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
   gasUsed: ColumnType<string, string | bigint, string | bigint>;
-  logs: string;
   logsBloom: Hex;
   status: Hex;
   to: Address | null;
@@ -237,7 +248,6 @@ export const encodeTransactionReceipt = ({
     effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
     from: toLowerCase(transactionReceipt.from),
     gasUsed: hexToBigInt(transactionReceipt.gasUsed),
-    logs: JSON.stringify(transactionReceipt.logs),
     logsBloom: transactionReceipt.logsBloom,
     status: transactionReceipt.status,
     to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,
@@ -246,144 +256,91 @@ export const encodeTransactionReceipt = ({
   };
 };
 
-type CallTracesTable = {
+type TracesTable = {
   id: string;
   chainId: number;
   checkpoint: string;
-  callType: string;
-  from: Address;
-  gas: ColumnType<string, string | bigint, string | bigint>;
-  input: Hex;
-  to: Address;
-  value: ColumnType<string, string | bigint, string | bigint>;
+  type: string;
+  transactionHash: Hex;
   blockHash: Hex;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
-  error: string | null;
-  gasUsed: ColumnType<string, string | bigint, string | bigint> | null;
-  output: Hex | null;
-  subtraces: number;
-  traceAddress: string;
-  transactionHash: Hex;
-  transactionPosition: number;
+  from: Address;
+  to: Address | null;
+  gas: ColumnType<string, string | bigint, string | bigint>;
+  gasUsed: ColumnType<string, string | bigint, string | bigint>;
+  input: Hex;
   functionSelector: Hex;
+  output: Hex | null;
+  error: string | null;
+  revertReason: string | null;
+  value: ColumnType<
+    string | null,
+    string | bigint | null,
+    string | bigint | null
+  >;
+  index: number;
+  subcalls: number;
+  isReverted: number;
 };
 
-export function encodeCallTrace({
+export function encodeTrace({
   trace,
+  block,
+  transaction,
   chainId,
 }: {
-  trace: SyncCallTrace;
+  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
+  transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
   chainId: number;
-}): Insertable<Omit<CallTracesTable, "checkpoint">> {
+}): Insertable<TracesTable> {
   return {
-    id: `${trace.transactionHash}-${JSON.stringify(trace.traceAddress)}`,
+    id: `${transaction.hash}-${trace.index}`,
     chainId,
-    callType: trace.action.callType,
-    from: toLowerCase(trace.action.from),
-    gas: hexToBigInt(trace.action.gas),
-    input: trace.action.input,
-    to: toLowerCase(trace.action.to),
-    value: hexToBigInt(trace.action.value),
-    blockHash: trace.blockHash,
-    blockNumber: hexToBigInt(trace.blockNumber),
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(block.number),
+      transactionIndex: hexToBigInt(transaction.transactionIndex),
+      eventType: EVENT_TYPES.traces,
+      eventIndex: BigInt(trace.index),
+    }),
+    type: trace.type,
+    transactionHash: transaction.hash,
+    blockHash: block.hash,
+    blockNumber: hexToBigInt(block.number),
+    from: toLowerCase(trace.from),
+    to: trace.to ? toLowerCase(trace.to) : null,
+    gas: hexToBigInt(trace.gas),
+    gasUsed: hexToBigInt(trace.gasUsed),
+    input: trace.input,
+    functionSelector: trace.input.slice(0, 10) as Hex,
+    output: trace.output ?? null,
+    revertReason: trace.revertReason ?? null,
     error: trace.error ?? null,
-    gasUsed: trace.result ? hexToBigInt(trace.result.gasUsed) : null,
-    output: trace.result ? trace.result.output : null,
-    subtraces: trace.subtraces,
-    traceAddress: JSON.stringify(trace.traceAddress),
-    transactionHash: trace.transactionHash,
-    transactionPosition: trace.transactionPosition,
-    functionSelector: trace.action.input.slice(0, 10).toLowerCase() as Hex,
+    value: trace.value ? hexToBigInt(trace.value) : null,
+    index: trace.index,
+    subcalls: trace.subcalls,
+    isReverted: trace.error === undefined ? 0 : 1,
   };
 }
 
 type RpcRequestResultsTable = {
   request: string;
-  chainId: number;
-  blockNumber: ColumnType<string, string | bigint, string | bigint>;
+  request_hash: ColumnType<string, undefined>;
+  chain_id: number;
+  block_number: ColumnType<
+    string | undefined,
+    string | bigint | undefined,
+    string | bigint | undefined
+  >;
   result: string;
 };
 
-type LogFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex | null;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
-
-type LogFilterIntervalsTable = {
-  id: Generated<number>;
-  logFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type FactoryLogFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex;
-  eventSelector: Hex;
-  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
-  topic0: Hex | null;
-  topic1: Hex | null;
-  topic2: Hex | null;
-  topic3: Hex | null;
-  includeTransactionReceipts: 0 | 1;
-};
-
-type FactoryLogFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type TraceFiltersTable = {
-  id: string;
-  chainId: number;
-  fromAddress: Address | null;
-  toAddress: Address | null;
-};
-
-type TraceFilterIntervalsTable = {
-  id: Generated<number>;
-  traceFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type FactoryTraceFiltersTable = {
-  id: string;
-  chainId: number;
-  address: Hex;
-  eventSelector: Hex;
-  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
-  fromAddress: Address | null;
-};
-
-type FactoryTraceFilterIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
-};
-
-type BlockFiltersTable = {
-  id: string;
-  chainId: number;
-  interval: number;
-  offset: number;
-};
-
-type BlockFilterIntervalsTable = {
-  id: Generated<number>;
-  blockFilterId: string;
-  startBlock: ColumnType<string, string | bigint, string | bigint>;
-  endBlock: ColumnType<string, string | bigint, string | bigint>;
+type IntervalTable = {
+  fragment_id: FragmentId;
+  chain_id: number;
+  blocks: string;
 };
 
 export type PonderSyncSchema = {
@@ -391,18 +348,9 @@ export type PonderSyncSchema = {
   logs: LogsTable;
   transactions: TransactionsTable;
   transactionReceipts: TransactionReceiptsTable;
-  callTraces: CallTracesTable;
+  traces: TracesTable;
 
-  rpcRequestResults: RpcRequestResultsTable;
+  rpc_request_results: RpcRequestResultsTable;
 
-  logFilters: LogFiltersTable;
-  logFilterIntervals: LogFilterIntervalsTable;
-  factoryLogFilters: FactoryLogFiltersTable;
-  factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
-  traceFilters: TraceFiltersTable;
-  traceFilterIntervals: TraceFilterIntervalsTable;
-  factoryTraceFilters: FactoryTraceFiltersTable;
-  factoryTraceFilterIntervals: FactoryTraceFilterIntervalsTable;
-  blockFilters: BlockFiltersTable;
-  blockFilterIntervals: BlockFilterIntervalsTable;
+  intervals: IntervalTable;
 };

@@ -60,7 +60,7 @@ jobs:
 
       - name: Setup Postgres
         if: ${{ matrix.database == 'Postgres' }}
-        uses: ikalnytskyi/action-setup-postgres@v4
+        uses: ikalnytskyi/action-setup-postgres@v7
         id: postgres
 
       - name: Setup

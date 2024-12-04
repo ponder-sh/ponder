@@ -8,12 +8,11 @@ import {
 import {
   type GetEventArgs,
   type Hex,
-  type LogTopic,
   encodeEventTopics,
   getAbiItem,
-  getEventSelector,
-  getFunctionSelector,
   parseAbiItem,
+  toEventSelector,
+  toFunctionSelector,
 } from "viem";
 import type { Config } from "../config/config.js";
 
@@ -76,7 +75,7 @@ export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
       const safeName = overloadedEventNames.has(item.name)
         ? signature.split("event ")[1]!
         : item.name;
-      const selector = getEventSelector(item);
+      const selector = toEventSelector(item);
 
       const abiEventMeta = { safeName, signature, selector, item };
 
@@ -92,18 +91,35 @@ export const buildAbiEvents = ({ abi }: { abi: Abi }) => {
 export function buildTopics(
   abi: Abi,
   filter: NonNullable<Config["contracts"][string]["filter"]>,
-): LogTopic[] {
+): {
+  topic0: Hex | Hex[];
+  topic1: Hex | Hex[] | null;
+  topic2: Hex | Hex[] | null;
+  topic3: Hex | Hex[] | null;
+} {
   if (Array.isArray(filter.event)) {
     // List of event signatures
-    return [
-      filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
-    ];
+    return {
+      topic0: filter.event.map((event) =>
+        toEventSelector(findAbiEvent(abi, event)),
+      ),
+      topic1: null,
+      topic2: null,
+      topic3: null,
+    };
   } else {
     // Single event with args
-    return encodeEventTopics({
+    const topics = encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
       args: filter.args as GetEventArgs<Abi, string>,
     });
+
+    return {
+      topic0: topics[0],
+      topic1: topics[1] ?? null,
+      topic2: topics[2] ?? null,
+      topic3: topics[3] ?? null,
+    };
   }
 }
 
@@ -136,7 +152,7 @@ export const buildAbiFunctions = ({ abi }: { abi: Abi }) => {
       const safeName = overloadedFunctionNames.has(item.name)
         ? signature.split("function ")[1]!
         : `${item.name}()`;
-      const selector = getFunctionSelector(item);
+      const selector = toFunctionSelector(item);
 
       const abiEventMeta = { safeName, signature, selector, item };
 

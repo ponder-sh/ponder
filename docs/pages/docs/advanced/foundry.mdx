@@ -20,12 +20,12 @@ Ponder's RPC request cache works well for live networks where the chain is gener
 Use the `disableCache` option to **disable RPC request caching** for the Anvil network. With this option set to true, Ponder will clear the cache on start up and between hot reloads.
 
 ```ts filename="ponder.config.ts" {9}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
   networks: {
-    anvil: { 
+    anvil: {
       chainId: 31337,
       transport: http("http://127.0.0.1:8545"),
       disableCache: true,
@@ -43,7 +43,11 @@ We recommend using `31337` (the default Anvil chain ID) even when forking a live
 
 We recommend using [interval mining](https://book.getfoundry.sh/reference/anvil/#mining-modes) with a block time of ~2 seconds. This better simulates a live network.
 
-<Callout type="warning">Known issue: When indexing Anvil with auto mining enabled in an app with multiple networks, indexing progress will get "stuck" at the timestamp of the latest Anvil block. </Callout>
+<Callout type="warning">
+  Known issue: When indexing Anvil with auto mining enabled in an app with
+  multiple networks, indexing progress will get "stuck" at the timestamp of the
+  latest Anvil block.{" "}
+</Callout>
 
 ## Generate ABI files
 
@@ -74,7 +78,11 @@ export default defineConfig({
 
 Foundry scripts write transaction inputs and receipts to JSON files in the `broadcast` directory. You can import these files directly into `ponder.config.ts` to automate address management and enable hot reloading.
 
-<Callout type="info">Remember to enable [broadcast](https://book.getfoundry.sh/tutorials/solidity-scripting?highlight=deploy#deploying-locally) so that `forge script` submits transactions to Anvil.</Callout>
+<Callout type="info">
+  Remember to enable
+  [broadcast](https://book.getfoundry.sh/tutorials/solidity-scripting?highlight=deploy#deploying-locally)
+  so that `forge script` submits transactions to Anvil.
+</Callout>
 
 ### Automate address management
 
@@ -83,7 +91,7 @@ To read the contract address and deployment block number from a broadcast file, 
 The `ponder.config.ts` file from the Foundry [example project](https://github.com/ponder-sh/ponder/tree/main/examples/with-foundry) demonstrates this pattern. Here, the first transaction in the broadcast file deployed the `Counter.sol` contract. The location of the contract address and start block within the broadcast file depends on the order and number of transactions in your deployment script.
 
 ```ts filename="ponder.config.ts" {4, 6-7, 21-22}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http, getAddress, hexToNumber } from "viem";
 import { counterABI } from "../abis/CounterAbi";
 import CounterDeploy from "../foundry/broadcast/Deploy.s.sol/31337/run-latest.json";
@@ -115,7 +123,7 @@ export default createConfig({
 If you import a JSON broadcast file in `ponder.config.ts`, the dev server will reload each time that file changes. This is a simple way to ensure that Ponder reloads every time you run a Foundry deployment script.
 
 ```ts filename="ponder.config.ts" {3-4}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 import CounterDeploy from "../foundry/broadcast/Deploy.s.sol/31337/run-latest.json";
 // ^ The development server detects changes to this file and triggers a hot reload.

@@ -1,4 +1,4 @@
-import { createSchema } from "@ponder/core";
+import { createSchema } from "ponder";
 
 export default createSchema((p) => ({
   Account: p.createTable({

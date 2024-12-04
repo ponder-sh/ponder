@@ -1,10 +1,10 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 import {
   account,
   allowance,
   approvalEvent,
   transferEvent,
-} from "../ponder.schema";
+} from "ponder:schema";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db

@@ -1,16 +1,46 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
-import type { GetAddress } from "./address.js";
+import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 import type { NonStrictPick } from "./utilityTypes.js";
 
-export type BlockConfig = {
-  /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
-  startBlock?: number;
-  /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-  endBlock?: number;
+export type Config = {
+  networks: { [networkName: string]: NetworkConfig<unknown> };
+  contracts: { [contractName: string]: GetContract };
+  accounts: { [accountName: string]: AccountConfig<unknown> };
+  database?: DatabaseConfig;
+  blocks: {
+    [sourceName: string]: GetBlockFilter<unknown>;
+  };
 };
+
+export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
+  networks: networks;
+  contracts: contracts;
+  accounts: accounts;
+  database?: DatabaseConfig;
+  blocks: blocks;
+};
+
+export const createConfig = <
+  const networks,
+  const contracts = {},
+  const accounts = {},
+  const blocks = {},
+>(config: {
+  database?: DatabaseConfig;
+  // TODO: add jsdoc to these properties.
+  networks: NetworksConfig<Narrow<networks>>;
+  contracts?: ContractsConfig<networks, Narrow<contracts>>;
+  accounts?: AccountsConfig<networks, Narrow<accounts>>;
+  blocks?: BlockFiltersConfig<networks, blocks>;
+}): CreateConfigReturnType<networks, contracts, accounts, blocks> =>
+  config as Prettify<
+    CreateConfigReturnType<networks, contracts, accounts, blocks>
+  >;
+
+// database
 
 type DatabaseConfig =
   | {
@@ -29,7 +59,31 @@ type DatabaseConfig =
       };
     };
 
-export type NetworkConfig<network> = {
+// base
+
+type BlockConfig = {
+  /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
+  startBlock?: number;
+  /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+  endBlock?: number;
+};
+
+type TransactionReceiptConfig = {
+  includeTransactionReceipts?: boolean;
+};
+
+type FunctionCallConfig = {
+  /*
+   * Enable call trace indexing for this contract.
+   *
+   * - Docs: https://ponder.sh/docs/indexing/call-traces
+   */
+  includeCallTraces?: boolean;
+};
+
+// network
+
+type NetworkConfig<network> = {
   /** Chain ID of the network. */
   chainId: network extends { chainId: infer chainId extends number }
     ? chainId | number
@@ -57,48 +111,20 @@ export type NetworkConfig<network> = {
   disableCache?: boolean;
 };
 
-export type BlockFilterConfig = {
-  /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
-  startBlock?: number;
-  /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-  endBlock?: number;
-  interval?: number;
-};
+type NetworksConfig<networks> = {} extends networks
+  ? {}
+  : {
+      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
+    };
 
-type GetBlockFilter<
-  networks,
-  ///
-  allNetworkNames extends string = [keyof networks] extends [never]
-    ? string
-    : keyof networks & string,
-> = BlockFilterConfig & {
-  network:
-    | allNetworkNames
-    | {
-        [name in allNetworkNames]?: BlockFilterConfig;
-      };
-};
+// contracts
 
 type AbiConfig<abi extends Abi | readonly unknown[]> = {
   /** Contract application byte interface. */
   abi: abi;
 };
 
-type TransactionReceiptConfig = {
-  includeTransactionReceipts?: boolean;
-};
-
-type FunctionCallConfig = {
-  /*
-   * Enable call trace indexing for this contract.
-   *
-   * - Docs: https://ponder.sh/docs/indexing/call-traces
-   */
-
-  includeCallTraces?: boolean;
-};
-
-type GetNetwork<
+type GetContractNetwork<
   networks,
   contract,
   abi extends Abi,
@@ -106,48 +132,28 @@ type GetNetwork<
   allNetworkNames extends string = [keyof networks] extends [never]
     ? string
     : keyof networks & string,
-> = contract extends { network: infer network }
-  ? {
-      /**
-       * Network that this contract is deployed to. Must match a network name in `networks`.
-       * Any filter information overrides the values in the higher level "contracts" property.
-       * Factories cannot override an address and vice versa.
-       */
-      network:
-        | allNetworkNames
-        | {
-            [name in allNetworkNames]?: Prettify<
-              GetAddress<NonStrictPick<network, "factory" | "address">> &
-                GetEventFilter<abi, NonStrictPick<contract, "filter">> &
-                TransactionReceiptConfig &
-                FunctionCallConfig &
-                BlockConfig
-            >;
-          };
-    }
-  : {
-      /**
-       * Network that this contract is deployed to. Must match a network name in `networks`.
-       * Any filter information overrides the values in the higher level "contracts" property.
-       * Factories cannot override an address and vice versa.
-       */
-      network:
-        | allNetworkNames
-        | {
-            [name in allNetworkNames]?: Prettify<
-              GetAddress<unknown> &
-                GetEventFilter<abi, unknown> &
-                TransactionReceiptConfig &
-                FunctionCallConfig &
-                BlockConfig
-            >;
-          };
-    };
+> = {
+  /**
+   * Network that this contract is deployed to. Must match a network name in `networks`.
+   * Any filter information overrides the values in the higher level "contracts" property.
+   */
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: Prettify<
+          AddressConfig &
+            GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+            TransactionReceiptConfig &
+            FunctionCallConfig &
+            BlockConfig
+        >;
+      };
+};
 
 type ContractConfig<networks, contract, abi extends Abi> = Prettify<
   AbiConfig<abi> &
-    GetNetwork<networks, NonStrictPick<contract, "network">, abi> &
-    GetAddress<NonStrictPick<contract, "factory" | "address">> &
+    GetContractNetwork<networks, NonStrictPick<contract, "network">, abi> &
+    AddressConfig &
     GetEventFilter<abi, NonStrictPick<contract, "filter">> &
     TransactionReceiptConfig &
     FunctionCallConfig &
@@ -169,11 +175,64 @@ type ContractsConfig<networks, contracts> = {} extends contracts
       [name in keyof contracts]: GetContract<networks, contracts[name]>;
     };
 
-type NetworksConfig<networks> = {} extends networks
+// accounts
+
+type GetAccountNetwork<
+  networks,
+  ///
+  allNetworkNames extends string = [keyof networks] extends [never]
+    ? string
+    : keyof networks & string,
+> = {
+  /**
+   * Network that this account is deployed to. Must match a network name in `networks`.
+   * Any filter information overrides the values in the higher level "accounts" property.
+   */
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: Prettify<
+          AddressConfig & TransactionReceiptConfig & BlockConfig
+        >;
+      };
+};
+
+type AccountConfig<networks> = Prettify<
+  GetAccountNetwork<networks> &
+    Required<AddressConfig> &
+    TransactionReceiptConfig &
+    BlockConfig
+>;
+
+type AccountsConfig<networks, accounts> = {} extends accounts
   ? {}
   : {
-      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
+      [name in keyof accounts]: AccountConfig<networks>;
     };
+
+// blocks
+
+type BlockFilterConfig = {
+  /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
+  startBlock?: number;
+  /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+  endBlock?: number;
+  interval?: number;
+};
+
+type GetBlockFilter<
+  networks,
+  ///
+  allNetworkNames extends string = [keyof networks] extends [never]
+    ? string
+    : keyof networks & string,
+> = BlockFilterConfig & {
+  network:
+    | allNetworkNames
+    | {
+        [name in allNetworkNames]?: BlockFilterConfig;
+      };
+};
 
 type BlockFiltersConfig<
   networks = unknown,
@@ -183,32 +242,3 @@ type BlockFiltersConfig<
   : {
       [name in keyof blocks]: GetBlockFilter<networks>;
     };
-
-export const createConfig = <
-  const networks,
-  const contracts = {},
-  const blocks = {},
->(config: {
-  // TODO: add jsdoc to these properties.
-  networks: NetworksConfig<Narrow<networks>>;
-  contracts?: ContractsConfig<networks, Narrow<contracts>>;
-  database?: DatabaseConfig;
-  blocks?: BlockFiltersConfig<networks, blocks>;
-}): CreateConfigReturnType<networks, contracts, blocks> =>
-  config as Prettify<CreateConfigReturnType<networks, contracts, blocks>>;
-
-export type Config = {
-  networks: { [networkName: string]: NetworkConfig<unknown> };
-  contracts: { [contractName: string]: GetContract };
-  database?: DatabaseConfig;
-  blocks: {
-    [sourceName: string]: GetBlockFilter<unknown>;
-  };
-};
-
-export type CreateConfigReturnType<networks, contracts, blocks> = {
-  networks: networks;
-  contracts: contracts;
-  database?: DatabaseConfig;
-  blocks: blocks;
-};

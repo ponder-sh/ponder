@@ -7,6 +7,160 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 # Migration guide
 
+## 0.8
+
+<Callout type="warning">
+  This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.8` app against a database, you can no longer run `<=0.7` apps against the same database.
+</Callout>
+
+### New features
+
+#### Account indexing
+
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/accounts).
+
+#### `ponder:schema` alias
+
+The `ponder:schema` virtual module was added. It is an alias for `ponder.schema.ts`.
+
+```diff filename="src/index.ts"
+- import { accounts } from "../ponder.schema";
++ import { accounts } from "ponder:schema";
+```
+
+It also contains a default export of all the exported table objects from `ponder.schema.ts`.
+
+{/* prettier-ignore */}
+```ts filename="src/index.ts" {1,3}
+import schema from "ponder:schema";
+ 
+const row = await db.insert(schema.accounts).values({
+  address: "0x7Df1", balance: 0n
+});
+```
+
+### Breaking changes
+
+#### `@ponder/core` → `ponder`
+
+New versions will be published to `ponder` and not `@ponder/core`.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm remove @ponder/core
+pnpm add ponder@next
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn remove @ponder/core
+yarn add ponder@next
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm remove @ponder/core
+npm add ponder@next
+```
+</Tabs.Tab>
+</Tabs>
+
+#### `@/generated` → `ponder:registry`
+
+The virtual module `@/generated` was replaced with `ponder:registry`.
+
+```diff filename="src/index.ts"
+- import { ponder } from "@/generated";
++ import { ponder } from "ponder:registry";
+```
+
+#### `factory()` function
+
+The `factory()` function replaces the `factory` property in the contract config. The result should be passed to the `address` property.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts (<=0.7)" {6-10}
+import { createConfig } from "@ponder/core";
+
+export default createConfig({
+  contracts: {
+    uniswap: {
+      factory: {
+        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
+        parameter: "pool",
+      },
+    },
+  },
+});
+```
+
+{/* prettier-ignore */}
+```ts filename="ponder.config.ts (0.8)" {6-10}
+import { createConfig, factory } from "ponder";
+
+export default createConfig({
+  contracts: {
+    uniswap: {
+      address: factory({
+        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
+        parameter: "pool",
+      }),
+    },
+  },
+});
+```
+
+</div>
+
+#### `ponder-env.d.ts`
+
+A new `ponder-env.d.ts` is required. The new file uses [triple slash directives](https://www.typescriptlang.org/docs/handbook/triple-slash-directives.html#-reference-types-) for (hopefully) less frequent updates.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm codegen
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn codegen
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm run codegen
+```
+</Tabs.Tab>
+</Tabs>
+
+#### Removed `transactionReceipt.logs`
+
+The `transactionReceipt.logs` property was removed from the `event` object.
+
+#### Removed redundant properties from `event`
+
+The following properties were removed from the `event` object.
+
+```diff
+- event.log.blockNumber;
+- event.log.blockHash;
+- event.log.transactionHash;
+- event.log.transactionIndex;
+- event.transaction.blockNumber;
+- event.transaction.blockHash;
+- event.transactionReceipt.transactionHash;
+- event.transactionReceipt.transactionIndex;
+```
+
+All of the data is still available on other properties of the `event` object, such as `event.transaction.hash` or `event.block.number`.
+
 ## 0.7
 
 The `0.7` release includes several breaking changes.

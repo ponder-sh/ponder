@@ -80,6 +80,11 @@ const templates = [
     description: "A Ponder app using a factory contract",
   },
   {
+    id: "feature-accounts",
+    title: "Feature - Accounts",
+    description: "A Ponder app using accounts",
+  },
+  {
     id: "feature-filter",
     title: "Feature - Custom event filter",
     description: "A Ponder app using an event filter",
@@ -344,7 +349,7 @@ export async function run({
         Object.values(config.contracts).some((c) => Array.isArray(c.abi))
           ? ", mergeAbis"
           : ""
-      } } from "@ponder/core";
+      } } from "ponder";
       import { http } from "viem";
 
       ${Object.values(config.contracts)
@@ -404,7 +409,7 @@ export async function run({
         .slice(0, 4);
 
       const indexingFunctionFileContents = `
-      import { ponder } from '@/generated'
+      import { ponder } from 'ponder:registry'
 
       ${eventNamesToWrite
         .map(
@@ -428,7 +433,7 @@ export async function run({
   // Create package.json for project
   const packageJson = await fs.readJSON(path.join(projectPath, "package.json"));
   packageJson.name = projectName;
-  packageJson.dependencies["@ponder/core"] = `^${rootPackageJson.version}`;
+  packageJson.dependencies.ponder = `^${rootPackageJson.version}`;
   packageJson.devDependencies["eslint-config-ponder"] =
     `^${rootPackageJson.version}`;
   await fs.writeFile(

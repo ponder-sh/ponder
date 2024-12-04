@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { PrimitiveManagerAbi } from "./abis/PrimitiveManagerAbi";

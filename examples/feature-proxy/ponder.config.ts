@@ -1,4 +1,4 @@
-import { createConfig, mergeAbis } from "@ponder/core";
+import { createConfig, mergeAbis } from "ponder";
 import { http } from "viem";
 
 import { RouterImplAbi } from "./abis/RouterImplAbi";

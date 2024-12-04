@@ -170,7 +170,7 @@ type PgColumnsBuilders = Omit<
    * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
    *
    * @example
-   * import { hex, onchainTable } from "@ponder/core";
+   * import { hex, onchainTable } from "ponder";
    *
    * export const account = onchainTable("account", (p) => ({
    *   address: p.hex(),
@@ -183,7 +183,7 @@ type PgColumnsBuilders = Omit<
    * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
    *
    * @example
-   * import { hex, onchainTable } from "@ponder/core";
+   * import { hex, onchainTable } from "ponder";
    *
    * export const account = onchainTable("account", (p) => ({
    *   balance: p.bigint(),
@@ -197,7 +197,7 @@ type PgColumnsBuilders = Omit<
  * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
  *
  * @example
- * import { onchainTable } from "@ponder/core";
+ * import { onchainTable } from "ponder";
  *
  * export const account = onchainTable("account", (p) => ({
  *   address: p.hex().primaryKey(),
@@ -343,7 +343,7 @@ class OnchainSchema<schema extends string> extends PgSchema<schema> {
  * Define the database schema for onchain tables.
  *
  * @example
- * import { onchainSchema } from "@ponder/core";
+ * import { onchainSchema } from "ponder";
  *
  * export const schema = onchainSchema("ponder");
  *

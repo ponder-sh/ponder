@@ -1,4 +1,5 @@
 export { createConfig } from "@/config/config.js";
+export { factory } from "@/config/address.js";
 export type {
   Block,
   Log,

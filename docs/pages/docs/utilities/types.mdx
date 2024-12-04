@@ -11,14 +11,14 @@ To enable code reuse and maintain type safety for advanced use cases, Ponder off
 
 ## Indexing function types
 
-The `"@/generated"{:ts}` module exports utility types that are useful for creating reusable helper functions in your indexing files.
+The `"ponder:registry"{:ts}` module exports utility types that are useful for creating reusable helper functions in your indexing files.
 
 ### EventNames
 
 A union of all event names that are available from the contracts defined in `ponder.config.ts`.
 
 ```ts filename="src/helpers.ts" {1}
-import { ponder, type EventNames } from "@/generated";
+import { ponder, type EventNames } from "ponder:registry";
 
 function helper(eventName: EventNames) {
   eventName;
@@ -31,7 +31,7 @@ function helper(eventName: EventNames) {
 A generic type that optionally accepts an event name and returns the `event` object type for that event.
 
 ```ts filename="src/helpers.ts" {1}
-import { ponder, type Event } from "@/generated";
+import { ponder, type Event } from "ponder:registry";
 
 function helper(event: Event<"Weth:Deposit">) {
   event;
@@ -48,7 +48,7 @@ function helper(event: Event<"Weth:Deposit">) {
 If no event name is provided, `Event` is the union of all event types. This can be useful if all you need is the `block`, `transaction`, and `log` types which are the same for all events.
 
 ```ts filename="src/helpers.ts" {1}
-import { ponder, type Event } from "@/generated";
+import { ponder, type Event } from "ponder:registry";
 
 function helper(event: Event) {
   event;
@@ -63,7 +63,7 @@ function helper(event: Event) {
 A generic type that optionally accepts an event name and returns the `context` object type.
 
 ```ts filename="src/helpers.ts" {1}
-import { ponder, type Context } from "@/generated";
+import { ponder, type Context } from "ponder:registry";
 
 function helper(context: Context<"Weth:Deposit">) {
   event;
@@ -83,7 +83,7 @@ If no event name is provided, `Context` returns the union of all context types. 
 A generic type that optionally accepts an event name and returns the indexing function argument type.
 
 ```ts filename="src/helpers.ts" {1}
-import { ponder, type IndexingFunctionArgs } from "@/generated";
+import { ponder, type IndexingFunctionArgs } from "ponder:registry";
 
 function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
   args;
@@ -101,7 +101,7 @@ Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all inde
 Use the [Drizzle type helpers](https://orm.drizzle.team/docs/goodies#type-api) to create custom types for database records.
 
 ```ts filename="src/helpers.ts" {3}
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 function helper(account: typeof accounts.$inferSelect) {
   account;
@@ -116,14 +116,14 @@ function helper(account: typeof accounts.$inferSelect) {
 
 ## Config types
 
-The `@ponder/core` package exports a utility type for each option passed to `createConfig(){:ts}`.
+The `ponder` package exports a utility type for each option passed to `createConfig(){:ts}`.
 
 ### ContractConfig
 
 The type of a contract in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createConfig, type ContractConfig } from "@ponder/core";
+import { createConfig, type ContractConfig } from "ponder";
 import { Erc20Abi } from "./abis/Erc20Abi.ts";
 
 const Erc20 = {
@@ -145,7 +145,7 @@ export default createConfig({
 The type of a network in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createConfig, type NetworkConfig } from "@ponder/core";
+import { createConfig, type NetworkConfig } from "ponder";
 import { http } from "viem";
 
 const mainnet = {
@@ -166,7 +166,7 @@ export default createConfig({
 The type of a block source in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createconfig, type blockconfig } from "@ponder/core";
+import { createconfig, type blockconfig } from "ponder";
 
 const ChainlinkPriceOracle = {
   network: "mainnet",
@@ -187,7 +187,7 @@ export default createConfig({
 The type of a database in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1,6}
-import { createConfig, type DatabaseConfig } from "@ponder/core";
+import { createConfig, type DatabaseConfig } from "ponder";
 
 const database = {
   kind: "postgres",
