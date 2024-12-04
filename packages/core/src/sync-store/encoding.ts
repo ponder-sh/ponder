@@ -141,7 +141,8 @@ export const encodeLog = ({
 type TransactionsTable = {
   hash: Hash;
   chainId: number;
-  checkpoint: string;
+  /** `checkpoint` will be null for transactions inserted before 0.8. This is to avoid a very slow migration. */
+  checkpoint: string | null;
   blockHash: Hash;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;

@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { EVENT_TYPES } from "@/utils/checkpoint.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 
@@ -1236,29 +1235,6 @@ GROUP BY fragment_id, chain_id
       await db.schema
         .alterTable("transactions")
         .addColumn("checkpoint", "varchar(75)")
-        .execute();
-
-      await db.executeQuery(
-        sql
-          .raw(`
-UPDATE ponder_sync.transactions
-SET checkpoint = (
-  lpad(blocks.timestamp::text, 10, '0') ||
-  lpad(transactions."chainId"::text, 16, '0') ||
-  lpad(transactions."blockNumber"::text, 16, '0') ||
-  lpad(transactions."transactionIndex"::text, 16, '0') ||
-  '${EVENT_TYPES.transactions}' ||
-  '0000000000000000'
-)
-FROM ponder_sync.blocks
-WHERE transactions."blockHash" = blocks.hash
-          `)
-          .compile(db),
-      );
-
-      await db.schema
-        .alterTable("transactions")
-        .alterColumn("checkpoint", (col) => col.setNotNull())
         .execute();
 
       await db.schema

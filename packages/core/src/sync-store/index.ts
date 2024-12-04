@@ -287,13 +287,11 @@ export const createSyncStore = ({
           Object.keys(encodeLog({ log: logs[0]!.log, chainId })).length,
       );
 
-      /**
-       * As an optimization, logs that are matched by a factory do
-       * not contain a checkpoint, because not corresponding block is
-       * fetched (no block.timestamp). However, when a log is matched by
-       * both a log filter and a factory, the checkpoint must be included
-       * in the db.
-       */
+      // As an optimization, logs that are matched by a factory do
+      // not contain a checkpoint, because not corresponding block is
+      // fetched (no block.timestamp). However, when a log is matched by
+      // both a log filter and a factory, the checkpoint must be included
+      // in the db.
 
       for (let i = 0; i < logs.length; i += batchSize) {
         await db
@@ -364,6 +362,10 @@ export const createSyncStore = ({
           ).length,
       );
 
+      // As an optimization for the migration, transactions inserted before 0.8 do not
+      // contain a checkpoint. However, for correctness the checkpoint must be inserted
+      // for new transactions (using onConflictDoUpdate).
+
       for (let i = 0; i < transactions.length; i += batchSize) {
         await db
           .insertInto("transactions")
@@ -374,7 +376,11 @@ export const createSyncStore = ({
                 encodeTransaction({ transaction, block, chainId }),
               ),
           )
-          .onConflict((oc) => oc.column("hash").doNothing())
+          .onConflict((oc) =>
+            oc.column("hash").doUpdateSet((eb) => ({
+              checkpoint: eb.ref("excluded.checkpoint"),
+            })),
+          )
           .execute();
       }
     });
