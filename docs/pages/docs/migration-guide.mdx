@@ -9,7 +9,39 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 ## 0.8
 
-### Package name: `ponder`
+<Callout type="warning">
+  This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.8` app against a database, you can no longer run `<=0.7` apps against the same database.
+</Callout>
+
+### New features
+
+#### Account indexing
+
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/accounts).
+
+#### `ponder:schema` alias
+
+The `ponder:schema` virtual module was added. It is an alias for `ponder.schema.ts`.
+
+```diff filename="src/index.ts"
+- import { accounts } from "../ponder.schema";
++ import { accounts } from "ponder:schema";
+```
+
+It also contains a default export of all the exported table objects from `ponder.schema.ts`.
+
+{/* prettier-ignore */}
+```ts filename="src/index.ts" {1,3}
+import schema from "ponder:schema";
+ 
+const row = await db.insert(schema.accounts).values({
+  address: "0x7Df1", balance: 0n
+});
+```
+
+### Breaking changes
+
+#### `@ponder/core` → `ponder`
 
 New versions will be published to `ponder` and not `@ponder/core`.
 
@@ -17,83 +49,36 @@ New versions will be published to `ponder` and not `@ponder/core`.
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tabs.Tab>
 ```bash filename="shell"
-pnpm add ponder@0.8
+pnpm remove @ponder/core
+pnpm add ponder@next
 ```
 </Tabs.Tab>
   <Tabs.Tab>
 ```bash filename="shell"
-yarn add ponder@0.8
+yarn remove @ponder/core
+yarn add ponder@next
 ```
 </Tabs.Tab>
   <Tabs.Tab>
 ```bash filename="shell"
-npm add ponder@0.8
+npm remove @ponder/core
+npm add ponder@next
 ```
 </Tabs.Tab>
 </Tabs>
 
-### Accounts indexing
+#### `@/generated` → `ponder:registry`
 
-A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address.
+The virtual module `@/generated` was replaced with `ponder:registry`.
 
-<Steps>
-
-### Specify an account to index
-
-The `accounts` field in `ponder.config.ts` is used to specify an account to index.
-
-```ts filename="ponder.config.ts"
-import { createConfig } from "ponder";
-
-export default createConfig({
-  accounts: {
-    BeaverBuilder: {
-      network: "mainnet",
-      address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
-    },
-  },
-});
+```diff filename="src/index.ts"
+- import { ponder } from "@/generated";
++ import { ponder } from "ponder:registry";
 ```
 
-### Register an indexing function
+#### `factory()` function
 
-Indexing functions can be registered for `transaction` and `transfer` events. `from` or `to` refer to the account specified in `ponder.config.ts`.
-
-For more information, see the [accounts](/docs/docs/accounts) page.
-
-```ts filename="src/index.ts"
-import { ponder } from "ponder:registry";
-
-ponder.on("BeaverBuilder:transaction:from", async ({ event, context }) => {
-  event;
-  // ^? {
-  //      block: Block;
-  //      transaction: Transaction;
-  //      transactionReceipt: TransactionReceipt;
-  //    }
-});
-
-ponder.on("BeaverBuilder:transfer:to", async ({ event, context }) => {
-  event;
-  // ^? {
-  //      transfer: { from: Address; to: Address; value: bigint };
-  //      block: Block;
-  //      transaction: Transaction;
-  //      trace: Trace;
-  //    }
-});
-```
-
-</Steps>
-
-<Callout type="warning">
-  Ponder now uses the debug namespace to request trace-level data. Because of
-  this, contracts with `includeCallTraces` will be re-synced.
-</Callout>
-
-### `factory()` config
-
-The `factory()` function is now used to designate a factory contract. The result should be passed to the `address` property.
+The `factory()` function replaces the `factory` property in the contract config. The result should be passed to the `address` property.
 
 <div className="code-columns">
 
@@ -132,16 +117,7 @@ export default createConfig({
 
 </div>
 
-### `@/generated` -> `ponder:registry`
-
-The virtual module `@/generated` was replaced with `ponder:registry`.
-
-```diff filename="src/index.ts" {1}
-- import { ponder } from "@/generated";
-+ import { ponder } from "ponder:registry";
-```
-
-### `ponder-env.d.ts`
+#### `ponder-env.d.ts`
 
 A new `ponder-env.d.ts` is required. The new file uses [triple slash directives](https://www.typescriptlang.org/docs/handbook/triple-slash-directives.html#-reference-types-) for (hopefully) less frequent updates.
 
@@ -164,33 +140,13 @@ npm run codegen
 </Tabs.Tab>
 </Tabs>
 
-### `ponder:schema`
-
-The `ponder:schema` virtual module was added. It is an alias for `ponder.schema.ts`.
-
-```diff filename="src/index.ts" {1}
-- import { accounts } from "../ponder.schema";
-+ import { accounts } from "ponder:schema";
-```
-
-It also contains a default export of all the exported table objects from `ponder.schema.ts`.
-
-{/* prettier-ignore */}
-```ts filename="src/index.ts" {1,3}
-import schema from "ponder:schema";
- 
-const row = await db.insert(schema.accounts).values({
-  address: "0x7Df1", balance: 0n
-});
-```
-
-### `transactionReceipt.logs` removed
+#### Removed `transactionReceipt.logs`
 
 The `transactionReceipt.logs` property was removed from the `event` object.
 
-### Redundant properties removed from `event`
+#### Removed redundant properties from `event`
 
-The following properties were removed from `event`.
+The following properties were removed from the `event` object.
 
 ```diff
 - event.log.blockNumber;

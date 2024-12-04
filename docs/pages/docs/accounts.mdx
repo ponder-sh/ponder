@@ -1,0 +1,64 @@
+---
+title: "Accounts"
+description: "Learn how to index accounts in a Ponder app"
+---
+
+import { Callout, Steps } from "nextra/components";
+
+# Accounts
+
+<Steps>
+
+### Specify an account to index
+
+The `accounts` field in `ponder.config.ts` is used to specify an account to index.
+
+```ts filename="ponder.config.ts"
+import { createConfig } from "ponder";
+
+export default createConfig({
+  // ... more config
+  accounts: {
+    BeaverBuilder: {
+      network: "mainnet",
+      address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
+    },
+  },
+});
+```
+
+### Register an indexing function
+
+Indexing functions can be registered for `transaction` and `transfer` events. `from` or `to` refer to the account specified in `ponder.config.ts`.
+
+For more information, see the [accounts](/docs/api-reference/config#accounts) page.
+
+```ts filename="src/index.ts"
+import { ponder } from "ponder:registry";
+
+ponder.on("BeaverBuilder:transaction:from", async ({ event, context }) => {
+  event;
+  // ^? {
+  //      block: Block;
+  //      transaction: Transaction;
+  //      transactionReceipt: TransactionReceipt;
+  //    }
+});
+
+ponder.on("BeaverBuilder:transfer:to", async ({ event, context }) => {
+  event;
+  // ^? {
+  //      transfer: { from: Address; to: Address; value: bigint };
+  //      block: Block;
+  //      transaction: Transaction;
+  //      trace: Trace;
+  //    }
+});
+```
+
+</Steps>
+
+<Callout type="warning">
+  Ponder now uses the debug namespace to request trace-level data. Because of
+  this, contracts that used `includeCallTraces` in `<=0.7` will need to refetch traces.
+</Callout>
