@@ -7,7 +7,7 @@ import { Callout } from "nextra/components";
 
 # Indexing function API
 
-Indexing functions are user-defined functions that receive blockchain data (a log, block, or trace) and insert data into the database. You can register indexing functions within any `.ts` file inside the `src/` directory.
+Indexing functions are user-defined functions that receive blockchain data (a log, block, transaction, trace, or transfer) and insert data into the database. You can register indexing functions within any `.ts` file inside the `src/` directory.
 
 ## Registration
 
@@ -66,10 +66,6 @@ type Log = {
   id: string;
   /** The address from which this log originated */
   address: `0x${string}`;
-  /** Hash of block containing this log */
-  blockHash: `0x${string}`;
-  /** Number of block containing this log */
-  blockNumber: bigint;
   /** Contains the non-indexed arguments of the log */
   data: `0x${string}`;
   /** Index of this log within its block */
@@ -78,10 +74,6 @@ type Log = {
   removed: boolean;
   /** List of order-dependent topics */
   topics: [`0x${string}`, ...`0x${string}`[]] | [];
-  /** Hash of the transaction that created this log */
-  transactionHash: `0x${string}`;
-  /** Index of the transaction that created this log */
-  transactionIndex: number;
 };
 
 /** The block containing the transaction that emitted the log being processed. */
@@ -120,10 +112,6 @@ type Block = {
 
 /** The transaction that emitted the log being processed. */
 type Transaction = {
-  /** Hash of block containing this transaction */
-  blockHash: `0x${string}`;
-  /** Number of block containing this transaction */
-  blockNumber: bigint;
   /** Transaction sender */
   from: `0x${string}`;
   /** Gas provided for transaction execution */
@@ -156,10 +144,6 @@ The `event.transactionReceipt{:ts}` object contains details about the transactio
 ```ts filename="Block, transaction, and log types"
 /** A confirmed Ethereum transaction receipt. */
 export type TransactionReceipt = {
-  /** Hash of block containing this transaction */
-  blockHash: Hash;
-  /** Number of block containing this transaction */
-  blockNumber: bigint;
   /** Address of new contract or `null` if no contract was created */
   contractAddress: Address | null;
   /** Gas used by this and all preceding transactions in this block */
@@ -178,10 +162,6 @@ export type TransactionReceipt = {
   status: "success" | "reverted";
   /** Transaction recipient or `null` if deploying a contract */
   to: Address | null;
-  /** Hash of this transaction */
-  transactionHash: Hash;
-  /** Index of this transaction in the block */
-  transactionIndex: number;
   /** Transaction type */
   type: TransactionType;
 };
