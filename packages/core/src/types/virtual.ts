@@ -70,12 +70,9 @@ export namespace Virtual {
       }[keyof contracts];
 
   type FormatTransactionReceipts<
-    contract extends Config["contracts"][string],
+    source extends Config["contracts" | "accounts"][string],
     ///
-    includeTxr = ExtractOverridenProperty<
-      contract,
-      "includeTransactionReceipts"
-    >,
+    includeTxr = ExtractOverridenProperty<source, "includeTransactionReceipts">,
   > = includeTxr extends includeTxr
     ? includeTxr extends true
       ? {
@@ -110,7 +107,7 @@ export namespace Virtual {
     config extends Config,
     name extends EventNames<config>,
     ///
-    contractName extends ExtractSourceName<name> = ExtractSourceName<name>,
+    sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = name extends `${string}:block`
     ? // 1. block event
@@ -129,23 +126,23 @@ export namespace Virtual {
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
             trace: Prettify<Trace>;
-          }
+          } & FormatTransactionReceipts<config["accounts"][sourceName]>
         : name extends `${string}.${string}`
           ? // 4. call trace event
             Prettify<
               {
                 args: FormatFunctionArgs<
-                  config["contracts"][contractName]["abi"],
+                  config["contracts"][sourceName]["abi"],
                   eventName
                 >;
                 result: FormatFunctionResult<
-                  config["contracts"][contractName]["abi"],
+                  config["contracts"][sourceName]["abi"],
                   eventName
                 >;
                 trace: Prettify<Trace>;
                 block: Prettify<Block>;
                 transaction: Prettify<Transaction>;
-              } & FormatTransactionReceipts<config["contracts"][contractName]>
+              } & FormatTransactionReceipts<config["contracts"][sourceName]>
             >
           : eventName extends Setup
             ? // 5. setup event
@@ -155,13 +152,13 @@ export namespace Virtual {
                 {
                   name: eventName;
                   args: FormatEventArgs<
-                    config["contracts"][contractName]["abi"],
+                    config["contracts"][sourceName]["abi"],
                     eventName
                   >;
                   log: Prettify<Log>;
                   block: Prettify<Block>;
                   transaction: Prettify<Transaction>;
-                } & FormatTransactionReceipts<config["contracts"][contractName]>
+                } & FormatTransactionReceipts<config["contracts"][sourceName]>
               >;
 
   type ContextContractProperty = Exclude<
@@ -170,7 +167,7 @@ export namespace Virtual {
   >;
 
   type ExtractOverridenProperty<
-    contract extends Config["contracts"][string],
+    contract extends Config["contracts" | "accounts"][string],
     property extends ContextContractProperty,
     ///
     base = Extract<contract, { [p in property]: unknown }>[property],
