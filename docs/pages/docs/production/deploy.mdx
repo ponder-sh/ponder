@@ -33,6 +33,11 @@ ponder start --schema my_schema
 
 </div>
 
+<Callout type="default">
+  To provide more visibility into which schemas are being used, Ponder provides
+  several [CLI entrypoints](/docs/...).
+</Callout>
+
 ### Schema rules
 
 Ponder follows a strict set of rules for every new deployment.
@@ -45,17 +50,14 @@ Ponder follows a strict set of rules for every new deployment.
 ```mermaid
 flowchart TD
   A[Is target schema empty?]
-  B[Is target schema currently used by a different instance?]
   C[Is a crash recovery possible?]
   D(Error)
   E[Create tables]
   F[Recover from existing tables]
-  G[Start]
+  G(Start)
 
   A -- yes --> E
-  A -- no --> B
-  B -- yes --> D
-  B -- no --> C
+  A -- no --> C
   C -- yes --> F
   C -- no --> D
   E --> G
@@ -63,10 +65,6 @@ flowchart TD
   style D fill:#f00
   style G fill:#0f0
 ```
-
-### CLI
-
-To provide more visibility, Ponder ...
 
 ## Railway
 
@@ -102,6 +100,14 @@ From the new project dashboard:
 2. Open the **Variables** tab for the Ponder app service, click **New Variable** → **Add Reference** → select `DATABASE_URL` and click **Add**
 
 ### Configure deployment behavior
+
+At this point, you need to configure your [database schema](#database-schemas) with the `DATABASE_SCHEMA` environment variable.
+
+1. **Git based auto-deployments:** A new deployment is created every time a commit is pushed to the default branch.
+   - Set `DATABASE_SCHEMA` to `${{RAILWAY_DEPLOYMENT_ID}}`
+2. **Manual deployments:** A new deployment is created manually via the Railway ui.
+   - Set `DATABASE_SCHEMA` to a custom value
+   - In **Settings** → **Source**, disconnect the git branch
 
 After a moment, the Ponder app service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
