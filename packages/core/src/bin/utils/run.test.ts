@@ -53,12 +53,10 @@ test("run() setup", async (context) => {
 
   const { statements, namespace } = buildSchema({
     schema,
-    instanceId: "1234",
   });
 
   const build: IndexingBuild = {
     buildId: "buildId",
-    instanceId: "1234",
     schema,
     graphqlSchema,
     databaseConfig: context.databaseConfig,
@@ -73,7 +71,6 @@ test("run() setup", async (context) => {
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
-    instanceId: "1234",
     buildId: "buildId",
     statements,
     namespace,
@@ -119,12 +116,10 @@ test("run() setup error", async (context) => {
 
   const { statements, namespace } = buildSchema({
     schema,
-    instanceId: "1234",
   });
 
   const build: IndexingBuild = {
     buildId: "buildId",
-    instanceId: "1234",
     schema,
     graphqlSchema,
     databaseConfig: context.databaseConfig,
@@ -139,7 +134,6 @@ test("run() setup error", async (context) => {
     common: context.common,
     schema,
     databaseConfig: context.databaseConfig,
-    instanceId: "1234",
     buildId: "buildId",
     statements,
     namespace,

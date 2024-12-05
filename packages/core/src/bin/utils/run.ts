@@ -32,14 +32,7 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const {
-    instanceId,
-    networks,
-    sources,
-    schema,
-    indexingFunctions,
-    graphqlSchema,
-  } = build;
+  const { networks, sources, schema, indexingFunctions, graphqlSchema } = build;
 
   let isKilled = false;
 
@@ -52,7 +45,6 @@ export async function run({
 
   const metadataStore = getMetadataStore({
     db: database.qb.user,
-    instanceId,
   });
 
   // This can be a long-running operation, so it's best to do it after
@@ -233,7 +225,6 @@ export async function run({
     });
 
     await database.createIndexes();
-    await database.createLiveViews();
     await database.createTriggers();
 
     indexingService.setIndexingStore(

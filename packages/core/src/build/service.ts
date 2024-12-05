@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
@@ -49,7 +48,6 @@ export type Service = {
 type BaseBuild = {
   // Build ID for caching
   buildId: string;
-  instanceId: string;
   // Config
   databaseConfig: DatabaseConfig;
   sources: Source[];
@@ -210,13 +208,6 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
-  if (common.options.command !== "serve") {
-    // @ts-ignore
-    globalThis.__PONDER_INSTANCE_ID =
-      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-      crypto.randomBytes(2).toString("hex");
-  }
-
   // Note: Don't run these in parallel. If there are circular imports in user code,
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
   const configResult = await executeConfig(buildService);
@@ -319,11 +310,6 @@ export const start = async (
 
       // re-execute anything that would cause the instance id to change
       if (hasIndexingUpdate || hasSchemaUpdate || hasConfigUpdate) {
-        // @ts-ignore
-        globalThis.__PONDER_INSTANCE_ID =
-          process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-          crypto.randomBytes(2).toString("hex");
-
         buildService.viteNodeRunner.moduleCache.invalidateDepTree([
           buildService.common.options.configFile,
         ]);
@@ -691,10 +677,6 @@ const validateAndBuild = async (
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
     schema: schema.schema,
-    instanceId:
-      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-      // @ts-ignore
-      globalThis.__PONDER_INSTANCE_ID,
   });
   if (buildSchemaResult.status === "error") {
     common.logger.error({
@@ -744,10 +726,6 @@ const validateAndBuild = async (
     status: "success",
     build: {
       buildId,
-      instanceId:
-        process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-        // @ts-ignore
-        globalThis.__PONDER_INSTANCE_ID,
       databaseConfig: buildConfigAndIndexingFunctionsResult.databaseConfig,
       networks: buildConfigAndIndexingFunctionsResult.networks,
       sources: buildConfigAndIndexingFunctionsResult.sources,

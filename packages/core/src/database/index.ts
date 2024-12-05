@@ -7,8 +7,6 @@ import {
   type Schema,
   getPrimaryKeyColumns,
   getTableNames,
-  userToReorgTableName,
-  userToSqlTableName,
 } from "@/drizzle/index.js";
 import { type SqlStatements, getColumnCasing } from "@/drizzle/kit/index.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
@@ -69,7 +67,6 @@ export type Database = {
   setup(): Promise<{
     checkpoint: string;
   }>;
-  createLiveViews(): Promise<void>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
@@ -84,7 +81,6 @@ export type PonderApp = {
   is_locked: 0 | 1;
   is_dev: 0 | 1;
   heartbeat_at: number;
-  instance_id: string;
   build_id: string;
   checkpoint: string;
   table_names: string[];
@@ -92,9 +88,8 @@ export type PonderApp = {
 
 type PonderInternalSchema = {
   _ponder_meta:
-    | { key: `app_${string}`; value: PonderApp }
-    | { key: `status_${string}`; value: Status | null }
-    | { key: `live`; value: { instance_id: string } };
+    | { key: `app`; value: PonderApp }
+    | { key: `status`; value: Status | null };
 } & {
   [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
 } & {
@@ -133,7 +128,6 @@ export const createDatabase = (args: {
   statements: SqlStatements;
   namespace: string;
   databaseConfig: DatabaseConfig;
-  instanceId: string;
   buildId: string;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
@@ -372,7 +366,6 @@ export const createDatabase = (args: {
     tableName: ReturnType<typeof getTableNames>[number];
     checkpoint: string;
     tx: Transaction<PonderInternalSchema>;
-    instanceId: string;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
       args.schema[tableName.js] as PgTable,
@@ -447,7 +440,7 @@ export const createDatabase = (args: {
 
     args.common.logger.info({
       service: "database",
-      msg: `Reverted ${rows.length} unfinalized operations from '${tableName.user}' table`,
+      msg: `Reverted ${rows.length} unfinalized operations from '${tableName.sql}' table`,
     });
   };
 
@@ -620,7 +613,7 @@ export const createDatabase = (args: {
               await tx
                 .insertInto("_ponder_meta")
                 .values({
-                  key: `app_${instanceId}`,
+                  key: "app",
                   value: { ...previousApp, instance_id: instanceId },
                 })
                 .execute();
@@ -633,6 +626,8 @@ export const createDatabase = (args: {
           }),
         );
       }
+
+      // TODO(kyle) v0.9 migration
 
       await qb.internal.wrap({ method: "setup" }, async () => {
         for (const statement of args.statements.schema.sql) {
@@ -648,39 +643,32 @@ export const createDatabase = (args: {
           .execute();
       });
 
-      const attempt = async ({ isFirstAttempt }: { isFirstAttempt: boolean }) =>
+      const attempt = async () =>
         qb.internal.wrap({ method: "setup" }, () =>
           qb.internal.transaction().execute(async (tx) => {
-            const previousApps: PonderApp[] = await tx
+            const previousApp = await tx
               .selectFrom("_ponder_meta")
-              .where("key", "like", "app_%")
+              .where("key", "=", "app")
               .select("value")
-              .execute()
-              .then((rows) => rows.map(({ value }) => value as PonderApp));
-
-            const previousAppsWithBuildId = previousApps.filter(
-              (app) => app.build_id === args.buildId && app.is_dev === 0,
-            );
+              .executeTakeFirst()
+              .then((row) => row?.value as PonderApp | undefined);
 
             const newApp = {
               is_locked: 1,
               is_dev: args.common.options.command === "dev" ? 1 : 0,
               heartbeat_at: Date.now(),
-              instance_id: args.instanceId,
               build_id: args.buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: getTableNames(args.schema, args.instanceId).map(
-                (tableName) => tableName.user,
+              table_names: getTableNames(args.schema).map(
+                (tableName) => tableName.sql,
               ),
             } satisfies PonderApp;
 
-            /**
-             * If schema is empty, start
-             */
-            if (previousAppsWithBuildId.length === 0) {
+            // If schema is empty, create tables
+            if (previousApp === undefined) {
               await tx
                 .insertInto("_ponder_meta")
-                .values({ key: `status_${args.instanceId}`, value: null })
+                .values({ key: "status", value: null })
                 .onConflict((oc) =>
                   oc
                     .column("key")
@@ -691,7 +679,7 @@ export const createDatabase = (args: {
               await tx
                 .insertInto("_ponder_meta")
                 .values({
-                  key: `app_${args.instanceId}`,
+                  key: "app",
                   value: newApp,
                 })
                 .onConflict((oc) =>
@@ -701,22 +689,6 @@ export const createDatabase = (args: {
                     .doUpdateSet({ value: newApp }),
                 )
                 .execute();
-
-              for (const tableName of getTableNames(
-                args.schema,
-                newApp.instance_id,
-              )) {
-                await tx.schema
-                  .dropTable(tableName.sql)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-                await tx.schema
-                  .dropTable(tableName.reorg)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-              }
 
               for (let i = 0; i < args.statements.enums.sql.length; i++) {
                 await sql
@@ -753,229 +725,107 @@ export const createDatabase = (args: {
               } as const;
             }
 
-            // Find the newest, unlocked, non-dev app to recover from
-            const crashRecoveryApp =
-              previousAppsWithBuildId
-                .filter(
-                  (app) =>
-                    app.is_locked === 0 ||
-                    app.heartbeat_at +
-                      args.common.options.databaseHeartbeatTimeout <=
-                      Date.now(),
-                )
-                .sort((a, b) => (a.checkpoint > b.checkpoint ? -1 : 1))[0] ??
-              undefined;
-
+            // If crash recovery is not possible, error
             if (
-              crashRecoveryApp &&
-              crashRecoveryApp.checkpoint > encodeCheckpoint(zeroCheckpoint) &&
-              args.common.options.command !== "dev"
+              previousApp.build_id !== newApp.build_id ||
+              previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
             ) {
-              await tx
-                .insertInto("_ponder_meta")
-                .values({ key: `status_${args.instanceId}`, value: null })
-                .execute();
-              await tx
-                .insertInto("_ponder_meta")
-                .values({
-                  key: `app_${args.instanceId}`,
-                  value: {
-                    ...newApp,
-                    checkpoint: crashRecoveryApp.checkpoint,
-                  },
-                })
-                .execute();
-
-              args.common.logger.info({
-                service: "database",
-                msg: `Detected cache hit for build '${args.buildId}' in schema '${args.namespace}' last active ${formatEta(Date.now() - crashRecoveryApp.heartbeat_at)} ago`,
-              });
-
-              // Remove triggers
-
-              for (const tableName of getTableNames(
-                args.schema,
-                crashRecoveryApp.instance_id,
-              )) {
-                await sql
-                  .raw(
-                    `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
-                  )
-                  .execute(tx);
-              }
-
-              // Remove indexes
-
-              for (const indexStatement of args.statements.indexes.json) {
-                await tx.schema
-                  .dropIndex(indexStatement.data.name)
-                  .ifExists()
-                  .execute();
-
-                args.common.logger.info({
-                  service: "database",
-                  msg: `Dropped index '${indexStatement.data.name}' in schema '${args.namespace}'`,
-                });
-              }
-
-              // Rename tables + reorg tables
-              for (const tableName of crashRecoveryApp.table_names) {
-                await tx.schema
-                  .alterTable(
-                    userToSqlTableName(tableName, crashRecoveryApp.instance_id),
-                  )
-                  .renameTo(userToSqlTableName(tableName, args.instanceId))
-                  .execute();
-
-                await tx.schema
-                  .alterTable(
-                    userToReorgTableName(
-                      tableName,
-                      crashRecoveryApp.instance_id,
-                    ),
-                  )
-                  .renameTo(userToReorgTableName(tableName, args.instanceId))
-                  .execute();
-              }
-
-              await tx
-                .deleteFrom("_ponder_meta")
-                .where("key", "=", `status_${crashRecoveryApp.instance_id}`)
-                .execute();
-
-              // Drop app
-              await tx
-                .deleteFrom("_ponder_meta")
-                .where("key", "=", `app_${crashRecoveryApp.instance_id}`)
-                .execute();
-
-              // Revert unfinalized data
-
-              const { blockTimestamp, chainId, blockNumber } = decodeCheckpoint(
-                crashRecoveryApp.checkpoint,
+              throw new NonRetryableError(
+                `Schema '${args.namespace}' is used by a different deployment`,
               );
-
-              args.common.logger.info({
-                service: "database",
-                msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
-              });
-
-              for (const tableName of getTableNames(
-                args.schema,
-                args.instanceId,
-              )) {
-                await revert({
-                  tableName,
-                  checkpoint: crashRecoveryApp.checkpoint,
-                  tx,
-                  instanceId: args.instanceId,
-                });
-              }
-
-              return {
-                status: "success",
-                checkpoint: crashRecoveryApp.checkpoint,
-              } as const;
             }
 
-            const nextAvailableApp = previousAppsWithBuildId.sort((a, b) =>
-              a.heartbeat_at < b.heartbeat_at ? -1 : 1,
-            )[0]!;
+            const isAppUnlocked =
+              previousApp.is_locked === 0 ||
+              previousApp.heartbeat_at +
+                args.common.options.databaseHeartbeatTimeout <=
+                Date.now();
 
-            if (
-              isFirstAttempt &&
-              args.common.options.command !== "dev" &&
-              (crashRecoveryApp === undefined ||
-                crashRecoveryApp.is_locked === 1)
-            ) {
+            // If app is locked, wait
+            if (isAppUnlocked === false) {
               return {
                 status: "locked",
                 expiry:
-                  nextAvailableApp.heartbeat_at +
+                  previousApp.heartbeat_at +
                   args.common.options.databaseHeartbeatTimeout,
               } as const;
             }
 
-            /**
-             * At this point in the control flow, there is an app with the same build_id,
-             * but it can't be used as a crash recovery. The new app should startup.
-             */
+            // Crash recovery is possible, recover
+
+            const checkpoint = previousApp.checkpoint;
 
             await tx
-              .insertInto("_ponder_meta")
-              .values({ key: `status_${args.instanceId}`, value: null })
-              // @ts-ignore
-              .onConflict((oc) => oc.column("key").doUpdateSet({ value: null }))
+              .updateTable("_ponder_meta")
+              .set({ value: null })
+              .where("key", "=", "status")
               .execute();
             await tx
-              .insertInto("_ponder_meta")
-              .values({
-                key: `app_${args.instanceId}`,
-                value: newApp,
+              .updateTable("_ponder_meta")
+              .set({
+                value: {
+                  ...newApp,
+                  checkpoint,
+                },
               })
-              .onConflict((oc) =>
-                oc
-                  .column("key")
-                  // @ts-ignore
-                  .doUpdateSet({ value: newApp }),
-              )
+              .where("key", "=", "app")
               .execute();
 
-            // drop tables in case of non-unique instance_id
-
-            for (const tableName of getTableNames(
-              args.schema,
-              newApp.instance_id,
-            )) {
-              await tx.schema
-                .dropTable(tableName.sql)
-                .cascade()
-                .ifExists()
-                .execute();
-              await tx.schema
-                .dropTable(tableName.reorg)
-                .cascade()
-                .ifExists()
-                .execute();
-            }
-
-            for (let i = 0; i < args.statements.enums.sql.length; i++) {
-              await sql
-                .raw(args.statements.enums.sql[i]!)
-                .execute(tx)
-                .catch((_error) => {
-                  const error = _error as Error;
-                  if (!error.message.includes("already exists")) throw error;
-                  throw new NonRetryableError(
-                    `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
-                  );
-                });
-            }
-            for (let i = 0; i < args.statements.tables.sql.length; i++) {
-              await sql
-                .raw(args.statements.tables.sql[i]!)
-                .execute(tx)
-                .catch((_error) => {
-                  const error = _error as Error;
-                  if (!error.message.includes("already exists")) throw error;
-                  throw new NonRetryableError(
-                    `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
-                  );
-                });
-            }
             args.common.logger.info({
               service: "database",
-              msg: `Created tables [${newApp.table_names.join(", ")}]`,
+              msg: `Detected cache hit for build '${args.buildId}' in schema '${args.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
             });
+
+            // Remove triggers
+
+            for (const tableName of getTableNames(args.schema)) {
+              await sql
+                .raw(
+                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
+                )
+                .execute(tx);
+            }
+
+            // Remove indexes
+
+            for (const indexStatement of args.statements.indexes.json) {
+              await tx.schema
+                .dropIndex(indexStatement.data.name)
+                .ifExists()
+                .execute();
+
+              args.common.logger.info({
+                service: "database",
+                msg: `Dropped index '${indexStatement.data.name}' in schema '${args.namespace}'`,
+              });
+            }
+
+            // Revert unfinalized data
+
+            const { blockTimestamp, chainId, blockNumber } =
+              decodeCheckpoint(checkpoint);
+
+            args.common.logger.info({
+              service: "database",
+              msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
+            });
+
+            for (const tableName of getTableNames(args.schema)) {
+              await revert({
+                tableName,
+                checkpoint,
+                tx,
+              });
+            }
 
             return {
               status: "success",
-              checkpoint: encodeCheckpoint(zeroCheckpoint),
+              checkpoint,
             } as const;
           }),
         );
 
-      let result = await attempt({ isFirstAttempt: true });
+      let result = await attempt();
       if (result.status === "locked") {
         const duration = result.expiry - Date.now();
         args.common.logger.warn({
@@ -989,76 +839,11 @@ export const createDatabase = (args: {
 
         await wait(duration);
 
-        result = await attempt({ isFirstAttempt: false });
+        result = await attempt();
         if (result.status === "locked") {
           throw new NonRetryableError(
             `Failed to acquire lock on schema '${args.namespace}'. A different Ponder app is actively using this database.`,
           );
-        }
-      }
-
-      if (process.env.PONDER_EXPERIMENTAL_DB !== "platform") {
-        const apps: PonderApp[] = await qb.internal
-          .selectFrom("_ponder_meta")
-          .where("key", "like", "app_%")
-          .select("value")
-          .execute()
-          .then((rows) => rows.map(({ value }) => value as PonderApp));
-
-        const removedDevApps = apps.filter(
-          (app) =>
-            app.is_dev === 1 &&
-            (app.is_locked === 0 ||
-              app.heartbeat_at + args.common.options.databaseHeartbeatTimeout <
-                Date.now()),
-        );
-
-        const removedStartApps = apps
-          .filter(
-            (app) =>
-              app.is_dev === 0 &&
-              (app.is_locked === 0 ||
-                app.heartbeat_at +
-                  args.common.options.databaseHeartbeatTimeout <
-                  Date.now()),
-          )
-          .sort((a, b) => (a.heartbeat_at > b.heartbeat_at ? -1 : 1))
-          .slice(2);
-
-        const removedApps = [...removedDevApps, ...removedStartApps];
-
-        for (const app of removedApps) {
-          for (const table of app.table_names) {
-            await qb.internal.schema
-              .dropTable(userToSqlTableName(table, app.instance_id))
-              .cascade()
-              .ifExists()
-              .execute();
-            await qb.internal.schema
-              .dropTable(userToReorgTableName(table, app.instance_id))
-              .cascade()
-              .ifExists()
-              .execute();
-          }
-          await qb.internal
-            .deleteFrom("_ponder_meta")
-            .where("key", "=", `status_${app.instance_id}`)
-            .execute();
-          await qb.internal
-            .deleteFrom("_ponder_meta")
-            .where("key", "=", `app_${app.instance_id}`)
-            .execute();
-        }
-
-        if (removedApps.length > 0) {
-          args.common.logger.debug({
-            service: "database",
-            msg: `Removed tables corresponding to apps [${removedApps.map((app) => app.instance_id)}]`,
-          });
-        }
-
-        if (apps.length === 1 || args.common.options.command === "dev") {
-          await this.createLiveViews();
         }
       }
 
@@ -1068,7 +853,7 @@ export const createDatabase = (args: {
 
           await qb.internal
             .updateTable("_ponder_meta")
-            .where("key", "=", `app_${args.instanceId}`)
+            .where("key", "=", "app")
             .set({
               value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
             })
@@ -1097,69 +882,9 @@ export const createDatabase = (args: {
         await sql.raw(statement).execute(qb.internal);
       }
     },
-    async createLiveViews() {
-      if (process.env.PONDER_EXPERIMENTAL_DB === "platform") return;
-
-      await qb.internal.wrap({ method: "createLiveViews" }, async () => {
-        // drop old views
-
-        const previousLiveInstanceId: string | undefined = await qb.internal
-          .selectFrom("_ponder_meta")
-          .select("value")
-          .where("key", "=", "live")
-          .executeTakeFirst()
-          .then((row) => (row?.value?.instance_id as string) ?? undefined);
-
-        if (previousLiveInstanceId) {
-          const previousTableNames = await qb.internal
-            .selectFrom("_ponder_meta")
-            .select("value")
-            .where("key", "=", `app_${previousLiveInstanceId}`)
-            .executeTakeFirst()
-            .then((row) => (row ? (row.value as PonderApp).table_names : []));
-
-          await Promise.all(
-            previousTableNames.map((name) =>
-              qb.internal.schema.dropView(name).ifExists().execute(),
-            ),
-          );
-        }
-
-        // update live app
-
-        await qb.internal
-          .insertInto("_ponder_meta")
-          .values({
-            key: "live",
-            value: { instance_id: args.instanceId },
-          })
-          .onConflict((oc) =>
-            oc
-              .column("key")
-              // @ts-ignore
-              .doUpdateSet({ value: { instance_id: args.instanceId } }),
-          )
-          .execute();
-
-        // create new views
-
-        for (const tableName of getTableNames(args.schema, args.instanceId)) {
-          await qb.internal.schema
-            .createView(tableName.user)
-            .orReplace()
-            .as(qb.internal.selectFrom(tableName.sql).selectAll())
-            .execute();
-
-          args.common.logger.info({
-            service: "database",
-            msg: `Created view '${args.namespace}'.'${tableName.user}'`,
-          });
-        }
-      });
-    },
     async createTriggers() {
       await qb.internal.wrap({ method: "createTriggers" }, async () => {
-        for (const tableName of getTableNames(args.schema, args.instanceId)) {
+        for (const tableName of getTableNames(args.schema)) {
           const columns = getTableColumns(
             args.schema[tableName.js]! as PgTable,
           );
@@ -1201,7 +926,7 @@ $$ LANGUAGE plpgsql
     },
     async removeTriggers() {
       await qb.internal.wrap({ method: "removeTriggers" }, async () => {
-        for (const tableName of getTableNames(args.schema, args.instanceId)) {
+        for (const tableName of getTableNames(args.schema)) {
           await sql
             .raw(
               `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
@@ -1213,13 +938,12 @@ $$ LANGUAGE plpgsql
     async revert({ checkpoint }) {
       await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
-          getTableNames(args.schema, args.instanceId).map((tableName) =>
+          getTableNames(args.schema).map((tableName) =>
             qb.internal.transaction().execute((tx) =>
               revert({
                 tableName,
                 checkpoint,
                 tx,
-                instanceId: args.instanceId,
               }),
             ),
           ),
@@ -1230,14 +954,14 @@ $$ LANGUAGE plpgsql
       await qb.internal.wrap({ method: "finalize" }, async () => {
         await qb.internal
           .updateTable("_ponder_meta")
-          .where("key", "=", `app_${args.instanceId}`)
+          .where("key", "=", "app")
           .set({
             value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
           })
           .execute();
 
         await Promise.all(
-          getTableNames(args.schema, args.instanceId).map((tableName) =>
+          getTableNames(args.schema).map((tableName) =>
             qb.internal
               .deleteFrom(tableName.reorg)
               .where("checkpoint", "<=", checkpoint)
@@ -1255,7 +979,7 @@ $$ LANGUAGE plpgsql
     },
     async complete({ checkpoint }) {
       await Promise.all(
-        getTableNames(args.schema, args.instanceId).map((tableName) =>
+        getTableNames(args.schema).map((tableName) =>
           qb.internal.wrap({ method: "complete" }, async () => {
             await qb.internal
               .updateTable(tableName.reorg)
@@ -1272,7 +996,7 @@ $$ LANGUAGE plpgsql
       await qb.internal.wrap({ method: "unlock" }, async () => {
         await qb.internal
           .updateTable("_ponder_meta")
-          .where("key", "=", `app_${args.instanceId}`)
+          .where("key", "=", "app")
           .set({
             value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
           })

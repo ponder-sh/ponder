@@ -17,7 +17,6 @@ import {
   type PgColumnBuilderBase,
   PgEnumColumnBuilder,
   type PgEnumColumnBuilderInitial,
-  PgSchema,
   PgTable,
   type PgTableExtraConfig,
   type PgTableWithColumns,
@@ -60,27 +59,20 @@ export type Drizzle<TSchema extends Schema = { [name: string]: never }> =
 
 export type Schema = { [name: string]: unknown };
 
-export const userToSqlTableName = (tableName: string, instanceId: string) =>
-  `${instanceId}__${tableName}`;
+export const sqlToReorgTableName = (tableName: string) =>
+  `_reorg__${tableName}`;
 
-export const sqlToUserTableName = (tableName: string) => tableName.slice(6);
-
-export const userToReorgTableName = (tableName: string, instanceId: string) =>
-  `${instanceId}_reorg__${tableName}`;
-
-export const getTableNames = (schema: Schema, instanceId: string) => {
+export const getTableNames = (schema: Schema) => {
   const tableNames = Object.entries(schema)
     .filter(([, table]) => is(table, PgTable))
     .map(([js, table]) => {
-      const tableName = getTableName(table as PgTable);
-      const user = sqlToUserTableName(tableName);
+      const sql = getTableName(table as PgTable);
 
       return {
-        user,
-        sql: userToSqlTableName(user, instanceId),
-        reorg: userToReorgTableName(user, instanceId),
-        trigger: userToReorgTableName(user, instanceId),
-        triggerFn: `operation_${instanceId}_reorg__${user}()`,
+        sql,
+        reorg: sqlToReorgTableName(sql),
+        trigger: sqlToReorgTableName(sql),
+        triggerFn: `operation_reorg__${sql}()`,
         js,
       } as const;
     });
@@ -224,31 +216,7 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  const instanceId: string | undefined =
-    process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-    // @ts-ignore
-    globalThis.__PONDER_INSTANCE_ID;
-  if (instanceId === undefined) {
-    const table = pgTableWithSchema(
-      name,
-      columns,
-      extraConfig as any,
-      undefined,
-    );
-
-    // @ts-ignore
-    table[onchain] = true;
-
-    // @ts-ignore
-    return table;
-  }
-
-  const table = pgTableWithSchema(
-    userToSqlTableName(name, instanceId),
-    columns,
-    extraConfig as any,
-    undefined,
-  );
+  const table = pgTableWithSchema(name, columns, extraConfig as any, undefined);
 
   // @ts-ignore
   table[onchain] = true;
@@ -256,107 +224,6 @@ export const onchainTable = <
   // @ts-ignore
   return table;
 };
-
-class OnchainSchema<schema extends string> extends PgSchema<schema> {
-  override table = <
-    name extends string,
-    columns extends Record<string, PgColumnBuilderBase>,
-    extra extends PgTableExtraConfig | undefined = undefined,
-  >(
-    name: name,
-    columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
-    extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
-  ): OnchainTable<{
-    name: name;
-    schema: schema;
-    columns: BuildColumns<name, columns, "pg">;
-    extra: extra;
-    dialect: "pg";
-  }> => {
-    const instanceId: string | undefined =
-      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-      // @ts-ignore
-      globalThis.__PONDER_INSTANCE_ID;
-    if (instanceId === undefined) {
-      const table = pgTableWithSchema(
-        name,
-        columns,
-        extraConfig as any,
-        this.schemaName,
-      );
-
-      // @ts-ignore
-      table[onchain] = true;
-
-      // @ts-ignore
-      return table;
-    }
-
-    const table = pgTableWithSchema(
-      // @ts-ignore
-      userToSqlTableName(name, instanceId),
-      columns,
-      extraConfig as any,
-      this.schemaName,
-    );
-
-    // @ts-ignore
-    table[onchain] = true;
-
-    // @ts-ignore
-    return table;
-  };
-
-  override enum = <U extends string, T extends Readonly<[U, ...U[]]>>(
-    enumName: string,
-    values: T | Writable<T>,
-  ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-    const instanceId: string | undefined =
-      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID ??
-      // @ts-ignore
-      globalThis.__PONDER_INSTANCE_ID;
-    if (instanceId === undefined) {
-      const e = pgEnumWithSchema(enumName, values, this.schemaName);
-
-      // @ts-ignore
-      e[onchain] = true;
-
-      // @ts-ignore
-      return e;
-    }
-
-    const e = pgEnumWithSchema(
-      userToSqlTableName(enumName, instanceId),
-      values,
-      this.schemaName,
-    );
-
-    // @ts-ignore
-    e[onchain] = true;
-
-    // @ts-ignore
-    return e;
-  };
-}
-
-/**
- * Define the database schema for onchain tables.
- *
- * @example
- * import { onchainSchema } from "ponder";
- *
- * export const schema = onchainSchema("ponder");
- *
- * export const account = schema.table("account", (p) => ({
- *   address: p.hex().primaryKey(),
- *   balance: p.bigint().notNull(),
- * }));
- *
- * @param name - The schema for onchain tables.
- * @returns The onchain schema.
- */
-export const onchainSchema = <T extends string>(name: T) =>
-  new OnchainSchema(name);
 
 export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 
@@ -380,24 +247,7 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-  // @ts-ignore
-  const instanceId: string | undefined = globalThis.__PONDER_INSTANCE_ID;
-  if (instanceId === undefined) {
-    const e = pgEnumWithSchema(enumName, values, undefined);
-
-    // @ts-ignore
-    e[onchain] = true;
-
-    // @ts-ignore
-    return e;
-  }
-
-  const e = pgEnumWithSchema(
-    // @ts-ignore
-    userToSqlTableName(enumName, instanceId),
-    values,
-    undefined,
-  );
+  const e = pgEnumWithSchema(enumName, values, undefined);
 
   // @ts-ignore
   e[onchain] = true;

@@ -93,7 +93,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             schema: result.indexingBuild.schema,
             databaseConfig: result.indexingBuild.databaseConfig,
             buildId: result.indexingBuild.buildId,
-            instanceId: result.indexingBuild.instanceId,
             namespace: result.indexingBuild.namespace,
             statements: result.indexingBuild.statements,
           });

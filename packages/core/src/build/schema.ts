@@ -16,11 +16,8 @@ import {
   getTableConfig,
 } from "drizzle-orm/pg-core";
 
-export const buildSchema = ({
-  schema,
-  instanceId,
-}: { schema: Schema; instanceId: string }) => {
-  const statements = getSql(schema, instanceId);
+export const buildSchema = ({ schema }: { schema: Schema }) => {
+  const statements = getSql(schema);
 
   // find and validate namespace
 
@@ -187,12 +184,9 @@ export const buildSchema = ({
   return { statements, namespace };
 };
 
-export const safeBuildSchema = ({
-  schema,
-  instanceId,
-}: { schema: Schema; instanceId: string }) => {
+export const safeBuildSchema = ({ schema }: { schema: Schema }) => {
   try {
-    const result = buildSchema({ schema, instanceId });
+    const result = buildSchema({ schema });
     const graphqlSchema = buildGraphQLSchema(schema);
 
     return {

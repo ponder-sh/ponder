@@ -3,10 +3,7 @@ import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import { graphql } from "@/graphql/middleware.js";
 import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
-import {
-  getLiveMetadataStore,
-  getMetadataStore,
-} from "@/indexing-store/metadata.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import type { GraphQLSchema } from "graphql";
@@ -28,24 +25,18 @@ export async function createServer({
   common,
   graphqlSchema,
   database,
-  instanceId,
 }: {
   app: Hono;
   routes: PonderRoutes;
   common: Common;
   graphqlSchema: GraphQLSchema;
   database: Database;
-  instanceId?: string;
 }): Promise<Server> {
   // Create hono app
 
-  const metadataStore =
-    instanceId === undefined
-      ? getLiveMetadataStore({ db: database.qb.readonly })
-      : getMetadataStore({
-          db: database.qb.readonly,
-          instanceId,
-        });
+  const metadataStore = getMetadataStore({
+    db: database.qb.readonly,
+  });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes

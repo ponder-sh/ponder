@@ -67,7 +67,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const { databaseConfig, schema, instanceId, buildId, statements, namespace } =
+  const { databaseConfig, schema, buildId, statements, namespace } =
     buildResult.apiBuild;
 
   if (databaseConfig.kind === "pglite") {
@@ -82,7 +82,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     schema,
     databaseConfig,
-    instanceId,
     buildId,
     statements,
     namespace,
@@ -94,10 +93,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     routes: buildResult.apiBuild.routes,
     graphqlSchema: buildResult.indexingBuild.graphqlSchema,
     database,
-    instanceId:
-      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID === undefined
-        ? undefined
-        : instanceId,
   });
 
   cleanupReloadable = async () => {

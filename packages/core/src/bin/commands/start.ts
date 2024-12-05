@@ -78,7 +78,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     schema: buildResult.indexingBuild.schema,
     databaseConfig: buildResult.indexingBuild.databaseConfig,
     buildId: buildResult.indexingBuild.buildId,
-    instanceId: buildResult.indexingBuild.instanceId,
     namespace: buildResult.indexingBuild.namespace,
     statements: buildResult.indexingBuild.statements,
   });

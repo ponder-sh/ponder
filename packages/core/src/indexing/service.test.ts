@@ -698,7 +698,7 @@ test("processEvents() context.db", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema, instanceId: "1234" },
+    { schema },
   );
 
   const sync = await createSync({
