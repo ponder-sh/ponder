@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.15
+
+### Patch Changes
+
+- [#1311](https://github.com/ponder-sh/ponder/pull/1311) [`0a02afa0512b30150935bf424a742bbb04a2915b`](https://github.com/ponder-sh/ponder/commit/0a02afa0512b30150935bf424a742bbb04a2915b) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where the GraphiQL explorer displayed "Loading..." as soon as React 19 was released. The fix pins the `react` and `react-dom` versions in the GraphiQL HTML to `18.3.1`.
+
 ## 0.7.14
 
 ### Patch Changes
