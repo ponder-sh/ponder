@@ -13,6 +13,61 @@ You can deploy your Ponder app to any cloud environment that supports Node.js.
 - [Railway](#railway)
 - [Self-hosting](#self-hosting)
 
+## Database schemas
+
+The first thing you should consider when deploying your Ponder app is where your data will be stored. Ponder uses [database schemas](https://www.postgresql.org/docs/current/ddl-schemas.html) to isolate data between deployments.
+
+### Configure your schema
+
+The database schema must be configured using either an environment variable or a CLI flag.
+
+<div className="code-columns">
+
+```sh filename=".env.local"
+DATABASE_SCHEMA=my_schema
+```
+
+```sh
+ponder start --schema my_schema
+```
+
+</div>
+
+### Schema rules
+
+Ponder follows a strict set of rules for every new deployment.
+
+<Callout type="info">
+  In summary, a new deployment should use a new schema, or else the deployment
+  will fail. There is a special case for [crash recovery](#crash-recovery).
+</Callout>
+
+```mermaid
+flowchart TD
+  A[Is target schema empty?]
+  B[Is target schema currently used by a different instance?]
+  C[Is a crash recovery possible?]
+  D(Error)
+  E[Create tables]
+  F[Recover from existing tables]
+  G[Start]
+
+  A -- yes --> E
+  A -- no --> B
+  B -- yes --> D
+  B -- no --> C
+  C -- yes --> F
+  C -- no --> D
+  E --> G
+  F --> G
+  style D fill:#f00
+  style G fill:#0f0
+```
+
+### CLI
+
+To provide more visibility, Ponder ...
+
 ## Railway
 
 [Railway](https://railway.app)'s general-purpose cloud platform is a great starting point for most Ponder apps.
@@ -45,6 +100,8 @@ From the new project dashboard:
 
 1. Click **Create** → **Database** → **Add PostgreSQL**
 2. Open the **Variables** tab for the Ponder app service, click **New Variable** → **Add Reference** → select `DATABASE_URL` and click **Add**
+
+### Configure deployment behavior
 
 After a moment, the Ponder app service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
@@ -83,29 +140,6 @@ export default createConfig({
 });
 ```
 
-### Table names and live views
-
-When a Ponder app starts up, it creates a table in the database for each table exported from `ponder.schema.ts`. To avoid naming conflicts with prior instances of the same app, the tables are prefixed with a random four-character `instance_id`.
-
-When the app finishes the historical backfill (or immediately after startup when using `ponder dev`) it creates a view for each table in `ponder.schema.ts` using this command.
-
-```sql
-CREATE VIEW {table_name} AS ( SELECT * FROM {instance_id}__{table_name} );
-```
-
-The **live view** mechanism is essential for zero-downtime deployments, horizontal scaling, and direct SQL queries.
-
-#### Example
-
-Here's a zero-downtime redeployment scenario, where views continously serve data from the most recent instance to go live.
-
-1. App `1234` starts up. It creates and begins writing to a table named `1234__account`.
-2. App `1234` completes the historical backfill. It creates a view named `account` that points at `1234__account`.
-3. App `5678` starts up. It creates and begins writing to a table named `5678__account`.
-4. App `5678` completes the historical backfill. It updates the `account` view to point at `5678__account`.
-5. App `1234` shuts down.
-6. App `5678` continues to serve live data via the `account` view.
-
 ### Crash recovery
 
-If a Ponder app running `ponder start` crashes and restarts, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/database) about the instance lifecycle and crash recovery mechanism.
+If a Ponder app running `ponder start` crashes and restarts, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/database#build-id-and-crash-recovery) about the instance lifecycle and crash recovery mechanism.
