@@ -26,6 +26,7 @@ Commands:
   dev [options]          Start the development server with hot reloading
   start [options]        Start the production server
   serve [options]        Start the production HTTP server without the indexer
+  db list                List all deployments
   codegen                Generate the schema.graphql file, then exit
 ```
 
@@ -83,6 +84,20 @@ Options:
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
+```
+
+## db list
+
+List all deployments.
+
+```bash
+Usage: ponder db list
+
+| schema         | is_live | deployed_at    | table_count |
+| -------------- | ------- | -------------- | ----------- |
+| indexer_prod   | yes     | 45 seconds ago | 10          |
+| test           | no      | 2 hours ago    | 10          |
+| prod_3         | no      | 1 day ago      | 5           |
 ```
 
 ## codegen
