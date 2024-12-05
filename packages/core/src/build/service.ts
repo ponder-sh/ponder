@@ -722,6 +722,19 @@ const validateAndBuild = async (
     msg: `Completed build with ID '${buildId}' (hash of project file contents)`,
   });
 
+  let namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
+
+  if (namespace === undefined) {
+    if (common.options.command === "dev") {
+      namespace = "public";
+    } else {
+      const error = new BuildError(
+        "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag.",
+      );
+      return { status: "error", error } as const;
+    }
+  }
+
   return {
     status: "success",
     build: {
@@ -733,7 +746,7 @@ const validateAndBuild = async (
         buildConfigAndIndexingFunctionsResult.indexingFunctions,
       schema: schema.schema,
       statements: buildSchemaResult.statements,
-      namespace: buildSchemaResult.namespace,
+      namespace,
       graphqlSchema: buildSchemaResult.graphqlSchema,
     },
   };

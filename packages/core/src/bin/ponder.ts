@@ -60,6 +60,7 @@ type GlobalOptions = {
 
 const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
+  .option("--schema <SCHEMA>", "Database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   // NOTE: Do not set a default for hostname. We currently rely on the Node.js
   // default behavior when passing undefined to http.Server.listen(), which
@@ -80,6 +81,7 @@ const devCommand = new Command("dev")
 
 const startCommand = new Command("start")
   .description("Start the production server")
+  .option("--schema <SCHEMA>", "Database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
@@ -96,6 +98,7 @@ const startCommand = new Command("start")
 
 const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
+  .option("--schema <SCHEMA>", "Database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",

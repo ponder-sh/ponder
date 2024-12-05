@@ -6,6 +6,8 @@ import type { LevelWithSilent } from "pino";
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen";
 
+  schema?: string;
+
   configFile: string;
   schemaFile: string;
   rootDir: string;
@@ -75,6 +77,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   return {
     command: cliOptions.command,
+
+    schema: cliOptions.schema,
 
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),

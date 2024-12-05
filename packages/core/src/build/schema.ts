@@ -7,7 +7,6 @@ import {
   PgBigSerial53,
   PgBigSerial64,
   type PgEnum,
-  PgSchema,
   PgSequence,
   PgSerial,
   PgSmallSerial,
@@ -19,31 +18,11 @@ import {
 export const buildSchema = ({ schema }: { schema: Schema }) => {
   const statements = getSql(schema);
 
-  // find and validate namespace
-
-  let namespace: string;
-
-  for (const maybeSchema of Object.values(schema)) {
-    if (is(maybeSchema, PgSchema)) {
-      namespace = maybeSchema.schemaName;
-      break;
-    }
-  }
-
-  if (namespace! === undefined) {
-    namespace = "public";
-  }
-
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
-      if (namespace === "public" && getTableConfig(s).schema !== undefined) {
+      if (getTableConfig(s).schema !== undefined) {
         throw new Error(
-          `Schema validation failed: All tables must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema}' than '${namespace}'.`,
-        );
-      }
-      if (namespace !== "public" && getTableConfig(s).schema !== namespace) {
-        throw new Error(
-          `Schema validation failed: All tables  must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema ?? "public"}' than '${namespace}'.`,
+          `Schema validation failed: '${name}' has schema set to '${getTableConfig(s).schema}' and schema configuration is not supported in "ponder.schema.ts".`,
         );
       }
 
@@ -165,23 +144,16 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
     // @ts-ignore
     if (isPgEnumSym in s) {
       // @ts-ignore
-      if (namespace === "public" && (s as PgEnum<any>).schema !== undefined) {
+      if ((s as PgEnum<any>).schema !== undefined) {
         throw new Error(
           // @ts-ignore
-          `Schema validation failed: All enums must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema}' than '${namespace}'.`,
-        );
-      }
-      // @ts-ignore
-      if (namespace !== "public" && (s as PgEnum<any>).schema !== namespace) {
-        throw new Error(
-          // @ts-ignore
-          `Schema validation failed: All enums must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema ?? "public"}' than '${namespace}'.`,
+          `Schema validation failed: '${name}' has schema set to '${(s as PgEnum<any>).schema}' and schema configuration is not supported in "ponder.schema.ts".`,
         );
       }
     }
   }
 
-  return { statements, namespace };
+  return { statements };
 };
 
 export const safeBuildSchema = ({ schema }: { schema: Schema }) => {

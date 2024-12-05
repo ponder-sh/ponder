@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { DatabaseConfig } from "@/config/database.js";
@@ -554,77 +553,6 @@ export const createDatabase = (args: {
             }
           });
         }
-      }
-
-      // v0.7 migration
-
-      const hasPonderMetaTable = await qb.internal
-        // @ts-ignore
-        .selectFrom("information_schema.tables")
-        // @ts-ignore
-        .select(["table_name", "table_schema"])
-        // @ts-ignore
-        .where("table_name", "=", "_ponder_meta")
-        // @ts-ignore
-        .where("table_schema", "=", args.namespace)
-        .executeTakeFirst()
-        .then((table) => table !== undefined);
-
-      if (hasPonderMetaTable) {
-        await qb.internal.wrap({ method: "migrate" }, () =>
-          qb.internal.transaction().execute(async (tx) => {
-            const previousApp: PonderApp | undefined = await tx
-              .selectFrom("_ponder_meta")
-              // @ts-ignore
-              .where("key", "=", "app")
-              .select("value")
-              .executeTakeFirst()
-              .then((row) =>
-                row === undefined ? undefined : (row.value as PonderApp),
-              );
-
-            if (previousApp) {
-              const instanceId = crypto.randomBytes(2).toString("hex");
-
-              await tx
-                .deleteFrom("_ponder_meta")
-                // @ts-ignore
-                .where("key", "=", "app")
-                .execute();
-
-              await tx
-                .deleteFrom("_ponder_meta")
-                // @ts-ignore
-                .where("key", "=", "status")
-                .execute();
-
-              for (const tableName of previousApp.table_names) {
-                await tx.schema
-                  .alterTable(tableName)
-                  .renameTo(userToSqlTableName(tableName, instanceId))
-                  .execute();
-
-                await tx.schema
-                  .alterTable(`_ponder_reorg__${tableName}`)
-                  .renameTo(userToReorgTableName(tableName, instanceId))
-                  .execute();
-              }
-
-              await tx
-                .insertInto("_ponder_meta")
-                .values({
-                  key: "app",
-                  value: { ...previousApp, instance_id: instanceId },
-                })
-                .execute();
-
-              args.common.logger.debug({
-                service: "database",
-                msg: "Migrated previous app to v0.7",
-              });
-            }
-          }),
-        );
       }
 
       // TODO(kyle) v0.9 migration
