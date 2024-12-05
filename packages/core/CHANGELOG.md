@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.16
+
+### Patch Changes
+
+- [`df699d14b75bf65fd4be9d9587f8192f3b3c9271`](https://github.com/ponder-sh/ponder/commit/df699d14b75bf65fd4be9d9587f8192f3b3c9271) Thanks [@typedarray](https://github.com/typedarray)! - Reset latest tag.
+
 ## 0.7.15
 
 ### Patch Changes
