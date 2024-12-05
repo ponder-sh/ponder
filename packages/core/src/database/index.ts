@@ -597,12 +597,6 @@ export const createDatabase = (args: {
               await tx
                 .insertInto("_ponder_meta")
                 .values({ key: "status", value: null })
-                .onConflict((oc) =>
-                  oc
-                    .column("key")
-                    // @ts-ignore
-                    .doUpdateSet({ value: null }),
-                )
                 .execute();
               await tx
                 .insertInto("_ponder_meta")
@@ -610,13 +604,74 @@ export const createDatabase = (args: {
                   key: "app",
                   value: newApp,
                 })
-                .onConflict((oc) =>
-                  oc
-                    .column("key")
-                    // @ts-ignore
-                    .doUpdateSet({ value: newApp }),
-                )
                 .execute();
+
+              for (let i = 0; i < args.statements.enums.sql.length; i++) {
+                await sql
+                  .raw(args.statements.enums.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    throw new NonRetryableError(
+                      `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                    );
+                  });
+              }
+              for (let i = 0; i < args.statements.tables.sql.length; i++) {
+                await sql
+                  .raw(args.statements.tables.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    throw new NonRetryableError(
+                      `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                    );
+                  });
+              }
+              args.common.logger.info({
+                service: "database",
+                msg: `Created tables [${newApp.table_names.join(", ")}]`,
+              });
+
+              return {
+                status: "success",
+                checkpoint: encodeCheckpoint(zeroCheckpoint),
+              } as const;
+            }
+
+            // dev fast path
+            if (
+              args.common.options.command === "dev" &&
+              previousApp.is_locked === 0 &&
+              previousApp.is_dev === 1
+            ) {
+              await tx
+                .updateTable("_ponder_meta")
+                .set({ value: null })
+                .where("key", "=", "status")
+                .execute();
+              await tx
+                .updateTable("_ponder_meta")
+                .set({
+                  value: newApp,
+                })
+                .where("key", "=", "app")
+                .execute();
+
+              for (const tableName of getTableNames(args.schema)) {
+                await tx.schema
+                  .dropTable(tableName.sql)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+                await tx.schema
+                  .dropTable(tableName.reorg)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+              }
 
               for (let i = 0; i < args.statements.enums.sql.length; i++) {
                 await sql
@@ -655,6 +710,7 @@ export const createDatabase = (args: {
 
             // If crash recovery is not possible, error
             if (
+              args.common.options.command === "dev" ||
               previousApp.build_id !== newApp.build_id ||
               previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
             ) {
@@ -682,6 +738,7 @@ export const createDatabase = (args: {
             // Crash recovery is possible, recover
 
             const checkpoint = previousApp.checkpoint;
+            newApp.checkpoint = checkpoint;
 
             await tx
               .updateTable("_ponder_meta")
@@ -691,10 +748,7 @@ export const createDatabase = (args: {
             await tx
               .updateTable("_ponder_meta")
               .set({
-                value: {
-                  ...newApp,
-                  checkpoint,
-                },
+                value: newApp,
               })
               .where("key", "=", "app")
               .execute();

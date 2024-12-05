@@ -51,7 +51,7 @@ test("run() setup", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema,
   });
 
@@ -64,7 +64,7 @@ test("run() setup", async (context) => {
     sources,
     indexingFunctions,
     statements,
-    namespace,
+    namespace: "public",
   };
 
   const database = createDatabase({
@@ -73,7 +73,7 @@ test("run() setup", async (context) => {
     databaseConfig: context.databaseConfig,
     buildId: "buildId",
     statements,
-    namespace,
+    namespace: "public",
   });
 
   const kill = await run({
@@ -114,7 +114,7 @@ test("run() setup error", async (context) => {
   };
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema,
   });
 
@@ -127,7 +127,7 @@ test("run() setup error", async (context) => {
     sources,
     indexingFunctions,
     statements,
-    namespace,
+    namespace: "public",
   };
 
   const database = createDatabase({
@@ -136,7 +136,7 @@ test("run() setup error", async (context) => {
     databaseConfig: context.databaseConfig,
     buildId: "buildId",
     statements,
-    namespace,
+    namespace: "public",
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());

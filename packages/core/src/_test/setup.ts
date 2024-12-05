@@ -166,7 +166,7 @@ export async function setupDatabaseServices(
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema: config.schema,
   });
 
@@ -176,7 +176,7 @@ export async function setupDatabaseServices(
     schema: config.schema,
     buildId: config.buildId,
     statements,
-    namespace,
+    namespace: "public",
   });
 
   await database.setup();
