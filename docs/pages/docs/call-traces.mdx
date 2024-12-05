@@ -12,7 +12,7 @@ As of `0.4.26`, Ponder supports call trace indexing. Call traces are similar to 
 <Callout type="warning">
   Call traces are slower, more expensive, and less widely supported than logs.
   For new chains, you might struggle to find an RPC provider that supports the
-  `trace_filter` and `trace_block` methods.
+  `debug_traceBlockByNumber` and `debug_traceBlockByHash` methods.
 </Callout>
 
 ## Register an indexing function
@@ -80,12 +80,3 @@ ponder.on("ERC20.transfer()", async ({ event }) => {
 The `eth_call` RPC method **does not** produce a call trace. These calls do not occur during the execution of a transaction, so they are not recorded as call traces.
 
 However, calls made to `view` or `pure` functions **do** produce call traces if they are made during the execution of a transaction. These call traces are rarely useful for indexing, but they do happen.
-
-## RPC methods
-
-|            | RPC methods                                    |
-| :--------- | :--------------------------------------------- |
-| Historical | `trace_filter` and `eth_getTransactionReceipt` |
-| Realtime   | `trace_block` and `eth_getTransactionReceipt`  |
-
-The sync engine fetches call traces using the `trace_filter` and `trace_block` RPC methods, and uses `eth_getTransactionReceipt` to confirm that a specific call trace did not occur within a reverted transaction.
