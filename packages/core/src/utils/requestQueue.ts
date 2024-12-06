@@ -70,18 +70,18 @@ export const createRequestQueue = ({
   network: Network;
   common: Common;
 }): RequestQueue => {
-  // @ts-ignore
-  const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
+  const withRetry = async <
+    T extends EIP1193Parameters<PublicRpcSchema> | SubscribeParameters,
+  >({
+    fn,
+    request,
+  }: {
+    fn: (request: T) => Promise<unknown>;
+    request: T;
+  }) => {
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
-        const stopClock = startClock();
-        const response = await network.transport.request(request);
-        common.metrics.ponder_rpc_request_duration.observe(
-          { method: request.method, network: network.name },
-          stopClock(),
-        );
-
-        return response;
+        return await fn(request);
       } catch (_error) {
         const error = _error as Error;
 
@@ -98,7 +98,10 @@ export const createRequestQueue = ({
           if (getLogsErrorResponse.shouldRetry === true) throw error;
         }
 
-        if (shouldRetry(error) === false) {
+        if (
+          error instanceof NonRetryableError ||
+          shouldRetry(error) === false
+        ) {
           common.logger.warn({
             service: "sync",
             msg: `Failed '${request.method}' RPC request`,
@@ -124,62 +127,41 @@ export const createRequestQueue = ({
         await wait(duration);
       }
     }
+    throw "unreachable";
   };
 
-  const subscribe = async (request: Omit<SubscribeParameters, "method">) => {
-    for (let i = 0; i <= RETRY_COUNT; i++) {
-      try {
-        const stopClock = startClock();
+  const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
+    const stopClock = startClock();
+    const response = await network.transport.request(request);
+    common.metrics.ponder_rpc_request_duration.observe(
+      { method: request.method, network: network.name },
+      stopClock(),
+    );
 
-        const wsTransport = resolveWebsocketTransport(network.transport);
+    return response;
+  };
 
-        if (wsTransport === undefined) {
-          throw new NonRetryableError(
-            `No websocket transport found for ${network.transport.config.type} transport.`,
-          );
-        }
+  const subscribe = async (request: SubscribeParameters) => {
+    const stopClock = startClock();
 
-        const response = await wsTransport.value.subscribe(request);
+    const wsTransport = resolveWebsocketTransport(network.transport);
 
-        common.metrics.ponder_rpc_request_duration.observe(
-          { method: "eth_subscribe", network: network.name },
-          stopClock(),
-        );
-
-        return response;
-      } catch (_error) {
-        const error = _error as Error;
-
-        if (
-          error instanceof NonRetryableError ||
-          shouldRetry(error) === false
-        ) {
-          common.logger.warn({
-            service: "sync",
-            msg: "Failed eth_subscribe RPC request",
-          });
-          throw error;
-        }
-
-        if (i === RETRY_COUNT) {
-          common.logger.warn({
-            service: "sync",
-            msg: `Failed eth_subscribe RPC request after ${i + 1} attempts`,
-            error,
-          });
-          throw error;
-        }
-
-        const duration = BASE_DURATION * 2 ** i;
-        common.logger.debug({
-          service: "sync",
-          msg: `Failed eth_subscribe RPC request, retrying after ${duration} milliseconds`,
-          error,
-        });
-        await wait(duration);
-      }
+    if (wsTransport === undefined) {
+      throw new NonRetryableError(
+        `No webSocket transport found for ${network.transport.config.type} transport.`,
+      );
     }
-    throw new Error("unreachable");
+
+    const { method, ...req } = request;
+
+    const response = await wsTransport.value.subscribe(req);
+
+    common.metrics.ponder_rpc_request_duration.observe(
+      { method: method, network: network.name },
+      stopClock(),
+    );
+
+    return response;
   };
 
   const requestQueue: Queue<
@@ -203,17 +185,26 @@ export const createRequestQueue = ({
       );
 
       if (task.request.method === "eth_subscribe") {
-        const { method, ...request } = task.request;
-        return await subscribe(request);
+        return await withRetry({
+          fn: subscribe,
+          request: task.request,
+        });
       } else {
-        return await fetchRequest(task.request);
+        return await withRetry({
+          fn: fetchRequest,
+          request: task.request,
+        });
       }
     },
   });
 
   return {
     ...requestQueue,
-    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
+    request: <
+      TParameters extends
+        | EIP1193Parameters<PublicRpcSchema>
+        | SubscribeParameters,
+    >(
       params: TParameters,
     ) => {
       const stopClockLag = startClock();
