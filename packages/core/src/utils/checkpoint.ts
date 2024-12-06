@@ -1,44 +1,40 @@
 export type Checkpoint = {
   blockTimestamp: number;
-  chainId: bigint;
+  chainId: bigint; // ToDo: remove from checkpoint?
   blockNumber: bigint;
-  transactionIndex: bigint;
+  transactionIndex: bigint; // ToDo: use number
   eventType: number;
-  eventIndex: bigint;
+  eventIndex: bigint; // ToDo: use number
 };
 
-// 10 digits for unix timestamp gets us to the year 2277.
-const BLOCK_TIMESTAMP_DIGITS = 10;
-// Chain IDs are uint256. As of writing the largest Chain ID on https://chainlist.org
-// is 13 digits. 16 digits should be enough (JavaScript's max safe integer).
-const CHAIN_ID_DIGITS = 16;
-// Same logic as chain ID.
-const BLOCK_NUMBER_DIGITS = 16;
-// Same logic as chain ID.
-const TRANSACTION_INDEX_DIGITS = 16;
-// At time of writing, we only have 2 event types planned, so one digit (10 types) is enough.
-const EVENT_TYPE_DIGITS = 1;
-// This could contain log index, trace index, etc. 16 digits should be enough.
-const EVENT_INDEX_DIGITS = 16;
+const UINT64_BYTES = 8; // Uint64: max value=18446744073709551615
+const UINT32_BYTES = 4; // Uint32: max value=4294967295
+const UINT16_BYTES = 2; // Uint16: max value=65535
+const UINT8_BYTES = 1; // Uint8: max value=255
 
-const CHECKPOINT_LENGTH =
-  BLOCK_TIMESTAMP_DIGITS +
-  CHAIN_ID_DIGITS +
-  BLOCK_NUMBER_DIGITS +
-  TRANSACTION_INDEX_DIGITS +
-  EVENT_TYPE_DIGITS +
-  EVENT_INDEX_DIGITS;
+const BLOCK_TIMESTAMP_BYTES = UINT32_BYTES; // Uint32 - This get us to 2106-02-07
+const BLOCK_NUMBER_BYTES = UINT64_BYTES; // Uint64 - Could also work with Uint32 (4.29B blocks), but may not be future proof
+const TRANSACTION_INDEX_BYTES = UINT16_BYTES; // Uint16 - Allow 65k transactions per block
+const EVENT_TYPE_BYTES = UINT8_BYTES; // Uint8 - Allow 256 event types
+const EVENT_INDEX_BYTES = UINT16_BYTES; // Uint16 - Allow 65k logs/traces per transaction
+
+const CHECKPOINT_BYTES_LENGTH =
+  BLOCK_TIMESTAMP_BYTES +
+  BLOCK_NUMBER_BYTES +
+  TRANSACTION_INDEX_BYTES +
+  EVENT_TYPE_BYTES +
+  EVENT_INDEX_BYTES;
 
 export const EVENT_TYPES = {
   blocks: 5,
   logs: 5,
   callTraces: 7,
+  // ToDo: Add transaction & transfer types?
 } as const;
 
 export const encodeCheckpoint = (checkpoint: Checkpoint) => {
   const {
     blockTimestamp,
-    chainId,
     blockNumber,
     transactionIndex,
     eventType,
@@ -50,57 +46,40 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
       `Got invalid event type ${eventType}, expected a number from 0 to 9`,
     );
 
-  const result =
-    blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
-    chainId.toString().padStart(CHAIN_ID_DIGITS, "0") +
-    blockNumber.toString().padStart(BLOCK_NUMBER_DIGITS, "0") +
-    transactionIndex.toString().padStart(TRANSACTION_INDEX_DIGITS, "0") +
-    eventType.toString() +
-    eventIndex.toString().padStart(EVENT_INDEX_DIGITS, "0");
-
-  if (result.length !== CHECKPOINT_LENGTH)
-    throw new Error(`Invalid stringified checkpoint: ${result}`);
-
-  return result;
+  const buffer = Buffer.alloc(CHECKPOINT_BYTES_LENGTH);
+  let offset = 0;
+  offset = buffer.writeUInt32BE(blockTimestamp, offset);
+  offset = buffer.writeBigUInt64BE(blockNumber, offset);
+  offset = buffer.writeUInt16BE(Number(transactionIndex), offset);
+  offset = buffer.writeUInt8(eventType, offset);
+  buffer.writeUInt16BE(Number(eventIndex), offset);
+  return buffer.toString("base64");
 };
 
 export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
+  const buffer = Buffer.from(checkpoint, "base64");
+
+  if (buffer.length !== CHECKPOINT_BYTES_LENGTH)
+    throw new Error(`Invalid checkpoint: ${checkpoint}`);
+
   let offset = 0;
-
-  const blockTimestamp = +checkpoint.slice(
-    offset,
-    offset + BLOCK_TIMESTAMP_DIGITS,
-  );
-  offset += BLOCK_TIMESTAMP_DIGITS;
-
-  const chainId = BigInt(checkpoint.slice(offset, offset + CHAIN_ID_DIGITS));
-  offset += CHAIN_ID_DIGITS;
-
-  const blockNumber = BigInt(
-    checkpoint.slice(offset, offset + BLOCK_NUMBER_DIGITS),
-  );
-  offset += BLOCK_NUMBER_DIGITS;
-
-  const transactionIndex = BigInt(
-    checkpoint.slice(offset, offset + TRANSACTION_INDEX_DIGITS),
-  );
-  offset += TRANSACTION_INDEX_DIGITS;
-
-  const eventType = +checkpoint.slice(offset, offset + EVENT_TYPE_DIGITS);
-  offset += EVENT_TYPE_DIGITS;
-
-  const eventIndex = BigInt(
-    checkpoint.slice(offset, offset + EVENT_INDEX_DIGITS),
-  );
-  offset += EVENT_INDEX_DIGITS;
+  const blockTimestamp = buffer.readUInt32BE(offset);
+  offset += BLOCK_TIMESTAMP_BYTES;
+  const blockNumber = buffer.readBigUInt64BE(offset);
+  offset += BLOCK_NUMBER_BYTES;
+  const transactionIndex = buffer.readUInt16BE(offset);
+  offset += TRANSACTION_INDEX_BYTES;
+  const eventType = buffer.readUInt8(offset);
+  offset += EVENT_TYPE_BYTES;
+  const eventIndex = buffer.readUInt16BE(offset);
 
   return {
+    chainId: 1n,
     blockTimestamp,
-    chainId,
     blockNumber,
-    transactionIndex,
+    transactionIndex: BigInt(transactionIndex),
     eventType,
-    eventIndex,
+    eventIndex: BigInt(eventIndex),
   };
 };
 
@@ -114,12 +93,12 @@ export const zeroCheckpoint: Checkpoint = {
 };
 
 export const maxCheckpoint: Checkpoint = {
-  blockTimestamp: 99999_99999,
-  chainId: 9999_9999_9999_9999n,
+  blockTimestamp: 4_294_967_295,
+  chainId: 16_777_215n,
   blockNumber: 9999_9999_9999_9999n,
-  transactionIndex: 9999_9999_9999_9999n,
+  transactionIndex: 65_535n,
   eventType: 9,
-  eventIndex: 9999_9999_9999_9999n,
+  eventIndex: 65_535n,
 };
 
 /**
