@@ -40,6 +40,13 @@ export type RequestQueue = Omit<
   subscribe: (params: SubscribeParameters) => Promise<SubscribeReturnType>;
 };
 
+type ResolvedWebSocketTransport = Omit<
+  ReturnType<WebSocketTransport>,
+  "value"
+> & {
+  value: NonNullable<ReturnType<WebSocketTransport>["value"]>;
+};
+
 export type SubscribeParameters = Parameters<
   ResolvedWebSocketTransport["value"]["subscribe"]
 >[0] & {
@@ -49,13 +56,6 @@ export type SubscribeParameters = Parameters<
 export type SubscribeReturnType = Awaited<
   ReturnType<ResolvedWebSocketTransport["value"]["subscribe"]>
 >;
-
-type ResolvedWebSocketTransport = Omit<
-  ReturnType<WebSocketTransport>,
-  "value"
-> & {
-  value: NonNullable<ReturnType<WebSocketTransport>["value"]>;
-};
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;

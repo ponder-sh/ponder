@@ -115,8 +115,7 @@ export const createRealtimeSync = (
   let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
-  let wsSubscriptionId: Hash | undefined = undefined;
-  let wsUnsubscribe: SubscribeReturnType["unsubscribe"] | undefined = undefined;
+  let activeWebSocketConnection: SubscribeReturnType | undefined = undefined;
   const isPolling =
     resolveWebsocketTransport(args.network.transport) === undefined;
 
@@ -848,27 +847,30 @@ export const createRealtimeSync = (
       };
 
       const watchWebsocket = async () => {
-        if (wsSubscriptionId === undefined) {
+        if (activeWebSocketConnection === undefined) {
           // Subscribe only if there is no active websocket connection
           try {
-            const { subscriptionId, unsubscribe } =
-              await _eth_subscribe_newHeads(args.requestQueue, {
+            const connection = await _eth_subscribe_newHeads(
+              args.requestQueue,
+              {
                 onData: async (data) => {
                   await enqueue(data.result.hash);
                 },
                 onError: async (error) => {
-                  // TODO: handle this error
-                  wsSubscriptionId = undefined;
-                  if (unsubscribe) {
-                    await unsubscribe();
-                  }
-                  throw new Error(error);
+                  args.common.logger.warn({
+                    service: "realtime",
+                    msg: `Failed active webSocket connection for '${args.network.name}' network.`,
+                    error,
+                  });
+
+                  activeWebSocketConnection = undefined;
+                  await connection.unsubscribe();
                 },
-              });
+              },
+            );
 
             consecutiveErrors = 0;
-            wsSubscriptionId = subscriptionId;
-            wsUnsubscribe = unsubscribe;
+            activeWebSocketConnection = connection;
           } catch (_error) {
             if (isKilled) return;
 
@@ -928,9 +930,7 @@ export const createRealtimeSync = (
       queue?.pause();
       queue?.clear();
       await queue?.onIdle();
-      if (wsUnsubscribe !== undefined) {
-        await wsUnsubscribe();
-      }
+      await activeWebSocketConnection?.unsubscribe();
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;
