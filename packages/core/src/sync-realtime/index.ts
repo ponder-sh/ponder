@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
@@ -816,6 +817,36 @@ export const createRealtimeSync = (
         },
       });
 
+      const onError = (error: Error): void => {
+        if (error instanceof NonRetryableError) {
+          args.common.logger.error({
+            service: "realtime",
+            msg: `Fatal warning: Failed to fetch/subscribe the latest '${args.network.name}' block.`,
+            error,
+          });
+
+          args.onFatalError(error);
+          return;
+        }
+
+        args.common.logger.warn({
+          service: "realtime",
+          msg: `Failed to fetch/subscribe the latest '${args.network.name}' block`,
+          error,
+        });
+
+        // After a certain number of attempts, emit a fatal error.
+        if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+          args.common.logger.error({
+            service: "realtime",
+            msg: `Fatal warning: Failed to fetch/subscribe the latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+            error,
+          });
+
+          args.onFatalError(error);
+        }
+      };
+
       const watchWebsocket = async () => {
         if (wsSubscriptionId === undefined) {
           // Subscribe only if there is no active websocket connection
@@ -841,24 +872,7 @@ export const createRealtimeSync = (
           } catch (_error) {
             if (isKilled) return;
 
-            const error = _error as Error;
-
-            args.common.logger.warn({
-              service: "realtime",
-              msg: `Failed to subscribe to the latest '${args.network.name}' block`,
-              error,
-            });
-
-            // After a certain number of attempts, emit a fatal error.
-            if (++consecutiveErrors === ERROR_TIMEOUT.length) {
-              args.common.logger.error({
-                service: "realtime",
-                msg: `Fatal warning: Failed to subscribe to the latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-                error,
-              });
-
-              args.onFatalError(error);
-            }
+            onError(_error as Error);
           }
         }
       };
@@ -894,24 +908,7 @@ export const createRealtimeSync = (
         } catch (_error) {
           if (isKilled) return;
 
-          const error = _error as Error;
-
-          args.common.logger.warn({
-            service: "realtime",
-            msg: `Failed to fetch latest '${args.network.name}' block`,
-            error,
-          });
-
-          // After a certain number of attempts, emit a fatal error.
-          if (++consecutiveErrors === ERROR_TIMEOUT.length) {
-            args.common.logger.error({
-              service: "realtime",
-              msg: `Fatal error: Unable to fetch latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-              error,
-            });
-
-            args.onFatalError(error);
-          }
+          onError(_error as Error);
         }
       };
 

@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
@@ -133,7 +134,7 @@ export const createRequestQueue = ({
         const wsTransport = resolveWebsocketTransport(network.transport);
 
         if (wsTransport === undefined) {
-          throw new Error(
+          throw new NonRetryableError(
             `No websocket transport found for ${network.transport.config.type} transport.`,
           );
         }
@@ -149,7 +150,10 @@ export const createRequestQueue = ({
       } catch (_error) {
         const error = _error as Error;
 
-        if (shouldRetry(error) === false) {
+        if (
+          error instanceof NonRetryableError ||
+          shouldRetry(error) === false
+        ) {
           common.logger.warn({
             service: "sync",
             msg: "Failed eth_subscribe RPC request",
