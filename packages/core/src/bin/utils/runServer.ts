@@ -1,4 +1,4 @@
-import type { ApiBuild } from "@/build/index.js";
+import type { ApiBuild, SchemaBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import { createServer } from "@/server/index.js";
@@ -6,24 +6,13 @@ import { createServer } from "@/server/index.js";
 /**
  * Starts the server for the specified build.
  */
-export async function runServer({
-  common,
-  build,
-  database,
-}: {
+export async function runServer(params: {
   common: Common;
-  build: ApiBuild;
+  schemaBuild: SchemaBuild;
+  apiBuild: ApiBuild;
   database: Database;
 }) {
-  const { graphqlSchema } = build;
-
-  const server = await createServer({
-    app: build.app,
-    routes: build.routes,
-    common,
-    graphqlSchema,
-    database,
-  });
+  const server = await createServer(params);
 
   return async () => {
     await server.kill();

@@ -43,10 +43,6 @@ const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
 const { sources, networks } = await buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
-  options: {
-    ponderDir: "",
-    rootDir: "",
-  },
 });
 
 test("createIndexing()", async (context) => {

@@ -172,14 +172,17 @@ export async function setupDatabaseServices(
 
   const database = createDatabase({
     common: context.common,
-    databaseConfig: context.databaseConfig,
-    schema: config.schema,
-    buildId: config.buildId,
-    statements,
-    namespace: "public",
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: config.schema,
+      statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);

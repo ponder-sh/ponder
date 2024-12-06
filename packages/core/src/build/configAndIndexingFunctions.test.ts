@@ -1,5 +1,3 @@
-import path from "node:path";
-import type { Options } from "@/common/options.js";
 import { factory } from "@/config/address.js";
 import {
   type LogFactory,
@@ -15,7 +13,7 @@ import {
   toFunctionSelector,
   zeroAddress,
 } from "viem";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { type Config, createConfig } from "../config/config.js";
 import {
   buildConfigAndIndexingFunctions,
@@ -36,10 +34,6 @@ const bytes1 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
-const options = {
-  ponderDir: ".ponder",
-  rootDir: "rootDir",
-} as const satisfies Pick<Options, "rootDir" | "ponderDir">;
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
@@ -64,7 +58,6 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
       { name: "a:Event0", fn: () => {} },
       { name: "a:Event1", fn: () => {} },
     ],
-    options,
   });
 
   expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
@@ -98,7 +91,6 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
       { name: "a:Event1()", fn: () => {} },
       { name: "a:Event1(bytes32 indexed)", fn: () => {} },
     ],
-    options,
   });
 
   expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
@@ -124,7 +116,6 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(sources.length).toBe(2);
@@ -155,7 +146,6 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
@@ -187,7 +177,6 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event1", fn: () => {} }],
-    options,
   });
 
   expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
@@ -223,7 +212,6 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect((sources[0]!.filter as LogFilter).address).toBe(address2);
@@ -249,7 +237,6 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(sources[0]!.networkName).toBe("mainnet");
@@ -273,7 +260,6 @@ test("buildConfigAndIndexingFunctions() validates network name", async () => {
   const result = await safeBuildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("error");
@@ -299,7 +285,6 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   const result = await safeBuildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("success");
@@ -332,7 +317,6 @@ test("buildConfigAndIndexingFunctions() validates against multiple events and in
   const result = await safeBuildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("error");
@@ -361,7 +345,6 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
   const result = await safeBuildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("error");
@@ -387,7 +370,6 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
   const result = await safeBuildConfigAndIndexingFunctions({
     config: config as unknown as Config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("error");
@@ -414,7 +396,6 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   const result = await safeBuildConfigAndIndexingFunctions({
     config: config as unknown as Config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("error");
@@ -440,7 +421,6 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
   const result = await safeBuildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(result.status).toBe("error");
@@ -466,7 +446,6 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(sources[0]?.filter.fromBlock).toBe(undefined);
@@ -492,7 +471,6 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(true);
@@ -521,7 +499,6 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-    options,
   });
 
   expect(sources).toHaveLength(1);
@@ -562,7 +539,6 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-    options,
   });
 
   expect(sources).toHaveLength(1);
@@ -594,179 +570,9 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
   });
 
   expect(sources[0]!.filter.toBlock).toBe(undefined);
-});
-
-test("buildConfigAndIndexingFunctions() database uses pglite by default", async () => {
-  const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  const prev = process.env.DATABASE_URL;
-  // biome-ignore lint/performance/noDelete: Required to test default behavior.
-  delete process.env.DATABASE_URL;
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
-    },
-  });
-
-  process.env.DATABASE_URL = prev;
-});
-
-test("buildConfigAndIndexingFunctions() database respects custom pglite path", async () => {
-  const config = createConfig({
-    database: { kind: "pglite", directory: "custom-pglite/directory" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-
-  expect(databaseConfig).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join("custom-pglite", "directory")),
-    },
-  });
-});
-
-test("buildConfigAndIndexingFunctions() database uses pglite if specified even if DATABASE_URL env var present", async () => {
-  const config = createConfig({
-    database: { kind: "pglite" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
-    },
-  });
-
-  vi.unstubAllEnvs();
-});
-
-test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_URL env var present", async () => {
-  const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
-    },
-  });
-
-  vi.unstubAllEnvs();
-});
-
-test("buildConfigAndIndexingFunctions() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
-  const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-  vi.stubEnv(
-    "DATABASE_PRIVATE_URL",
-    "postgres://username@localhost:5432/better_database",
-  );
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/better_database",
-    },
-  });
-
-  vi.unstubAllEnvs();
-});
-
-test("buildConfigAndIndexingFunctions() throws for postgres database with no connection string", async () => {
-  const config = createConfig({
-    database: { kind: "postgres" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  const prev = process.env.DATABASE_URL;
-  // biome-ignore lint/performance/noDelete: Required to test default behavior.
-  delete process.env.DATABASE_URL;
-
-  await expect(() =>
-    buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-      options,
-    }),
-  ).rejects.toThrow(
-    "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
-  );
-
-  process.env.DATABASE_URL = prev;
-});
-
-test("buildConfigAndIndexingFunctions() database with postgres uses pool config", async () => {
-  const config = createConfig({
-    database: {
-      kind: "postgres",
-      connectionString: "postgres://username@localhost:5432/database",
-      poolConfig: { max: 100 },
-    },
-    networks: { mainnet: { chainId: 1, transport: http() } },
-    contracts: { a: { network: "mainnet", abi: [event0] } },
-  });
-
-  const { databaseConfig } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
-      max: 100,
-    },
-  });
 });
 
 test("buildConfigAndIndexingFunctions() account source", async () => {
@@ -790,7 +596,6 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
       { name: "a:transfer:from", fn: () => {} },
       { name: "a:transaction:to", fn: () => {} },
     ],
-    options,
   });
 
   expect(sources).toHaveLength(2);
@@ -828,7 +633,6 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions: [{ name: "a:block", fn: () => {} }],
-    options,
   });
 
   expect(sources).toHaveLength(1);
