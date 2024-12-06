@@ -98,11 +98,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
           database = createDatabase({
             common,
-            databaseConfig: result.result.preBuild.databaseConfig,
-            namespace: result.result.preBuild.namespace,
-            schema: result.result.schemaBuild.schema,
-            statements: result.result.schemaBuild.statements,
-            buildId: result.result.indexingBuild.buildId,
+            preBuild: result.result.preBuild,
+            schemaBuild: result.result.schemaBuild,
           });
 
           indexingCleanupReloadable = await run({

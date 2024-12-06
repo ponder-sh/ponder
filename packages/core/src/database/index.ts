@@ -1,13 +1,13 @@
+import type { IndexingBuild, PreBuild, SchemaBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
-import type { DatabaseConfig } from "@/config/database.js";
 import {
   type Drizzle,
   type Schema,
   getPrimaryKeyColumns,
   getTableNames,
 } from "@/drizzle/index.js";
-import { type SqlStatements, getColumnCasing } from "@/drizzle/kit/index.js";
+import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
@@ -63,7 +63,7 @@ export type Database = {
    *
    * @returns The progress checkpoint that that app should start from.
    */
-  setup(): Promise<{
+  setup(args: Pick<IndexingBuild, "buildId">): Promise<{
     checkpoint: string;
   }>;
   createIndexes(): Promise<void>;
@@ -121,13 +121,14 @@ type QueryBuilder = {
   sync: HeadlessKysely<PonderSyncSchema>;
 };
 
-export const createDatabase = (args: {
+export const createDatabase = ({
+  common,
+  preBuild,
+  schemaBuild,
+}: {
   common: Common;
-  schema: Schema;
-  statements: SqlStatements;
-  namespace: string;
-  databaseConfig: DatabaseConfig;
-  buildId: string;
+  preBuild: PreBuild;
+  schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
@@ -138,14 +139,14 @@ export const createDatabase = (args: {
   let driver: PGliteDriver | PostgresDriver;
   let qb: Database["qb"];
 
-  const dialect = args.databaseConfig.kind;
+  const dialect = preBuild.databaseConfig.kind;
 
   if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
       instance:
         dialect === "pglite"
-          ? createPglite(args.databaseConfig.options)
-          : args.databaseConfig.instance,
+          ? createPglite(preBuild.databaseConfig.options)
+          : preBuild.databaseConfig.instance,
     };
 
     const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
@@ -153,50 +154,50 @@ export const createDatabase = (args: {
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
-        common: args.common,
+        common,
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "internal",
             });
           }
         },
-        plugins: [new WithSchemaPlugin(args.namespace)],
+        plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
       user: new HeadlessKysely({
         name: "user",
-        common: args.common,
+        common: common,
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "user",
             });
           }
         },
-        plugins: [new WithSchemaPlugin(args.namespace)],
+        plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
       readonly: new HeadlessKysely({
         name: "readonly",
-        common: args.common,
+        common: common,
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "readonly",
             });
           }
         },
-        plugins: [new WithSchemaPlugin(args.namespace)],
+        plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
-        common: args.common,
+        common: common,
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "sync",
             });
           }
@@ -207,32 +208,32 @@ export const createDatabase = (args: {
   } else {
     const internalMax = 2;
     const equalMax = Math.floor(
-      (args.databaseConfig.poolConfig.max - internalMax) / 3,
+      (preBuild.databaseConfig.poolConfig.max - internalMax) / 3,
     );
     const [readonlyMax, userMax, syncMax] =
-      args.common.options.command === "serve"
-        ? [args.databaseConfig.poolConfig.max - internalMax, 0, 0]
+      common.options.command === "serve"
+        ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
     driver = {
       internal: createPool({
-        ...args.databaseConfig.poolConfig,
-        application_name: `${args.namespace}_internal`,
+        ...preBuild.databaseConfig.poolConfig,
+        application_name: `${preBuild.namespace}_internal`,
         max: internalMax,
         statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
       }),
       user: createPool({
-        ...args.databaseConfig.poolConfig,
-        application_name: `${args.namespace}_user`,
+        ...preBuild.databaseConfig.poolConfig,
+        application_name: `${preBuild.namespace}_user`,
         max: userMax,
       }),
       readonly: createPool({
-        ...args.databaseConfig.poolConfig,
-        application_name: `${args.namespace}_readonly`,
+        ...preBuild.databaseConfig.poolConfig,
+        application_name: `${preBuild.namespace}_readonly`,
         max: readonlyMax,
       }),
       sync: createPool({
-        ...args.databaseConfig.poolConfig,
+        ...preBuild.databaseConfig.poolConfig,
         application_name: "ponder_sync",
         max: syncMax,
       }),
@@ -241,50 +242,50 @@ export const createDatabase = (args: {
     qb = {
       internal: new HeadlessKysely({
         name: "internal",
-        common: args.common,
+        common: common,
         dialect: new PostgresDialect({ pool: driver.internal }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "internal",
             });
           }
         },
-        plugins: [new WithSchemaPlugin(args.namespace)],
+        plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
       user: new HeadlessKysely({
         name: "user",
-        common: args.common,
+        common: common,
         dialect: new PostgresDialect({ pool: driver.user }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "user",
             });
           }
         },
-        plugins: [new WithSchemaPlugin(args.namespace)],
+        plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
       readonly: new HeadlessKysely({
         name: "readonly",
-        common: args.common,
+        common: common,
         dialect: new PostgresDialect({ pool: driver.readonly }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "readonly",
             });
           }
         },
-        plugins: [new WithSchemaPlugin(args.namespace)],
+        plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
-        common: args.common,
+        common: common,
         dialect: new PostgresDialect({ pool: driver.sync }),
         log(event) {
           if (event.level === "query") {
-            args.common.metrics.ponder_postgres_query_total.inc({
+            common.metrics.ponder_postgres_query_total.inc({
               pool: "sync",
             });
           }
@@ -295,56 +296,52 @@ export const createDatabase = (args: {
 
     // Register Postgres-only metrics
     const d = driver as PostgresDriver;
-    args.common.metrics.registry.removeSingleMetric(
+    common.metrics.registry.removeSingleMetric(
       "ponder_postgres_pool_connections",
     );
-    args.common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge(
-      {
-        name: "ponder_postgres_pool_connections",
-        help: "Number of connections in the pool",
-        labelNames: ["pool", "kind"] as const,
-        registers: [args.common.metrics.registry],
-        collect() {
-          this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
-          this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
-          this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
-          this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
-          this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
-          this.set({ pool: "user", kind: "total" }, d.user.totalCount);
-          this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
-          this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
-        },
+    common.metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
+      name: "ponder_postgres_pool_connections",
+      help: "Number of connections in the pool",
+      labelNames: ["pool", "kind"] as const,
+      registers: [common.metrics.registry],
+      collect() {
+        this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
+        this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
+        this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+        this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+        this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
+        this.set({ pool: "user", kind: "total" }, d.user.totalCount);
+        this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
+        this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
       },
-    );
+    });
 
-    args.common.metrics.registry.removeSingleMetric(
+    common.metrics.registry.removeSingleMetric(
       "ponder_postgres_query_queue_size",
     );
-    args.common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge(
-      {
-        name: "ponder_postgres_query_queue_size",
-        help: "Number of queries waiting for an available connection",
-        labelNames: ["pool"] as const,
-        registers: [args.common.metrics.registry],
-        collect() {
-          this.set({ pool: "internal" }, d.internal.waitingCount);
-          this.set({ pool: "sync" }, d.sync.waitingCount);
-          this.set({ pool: "user" }, d.user.waitingCount);
-          this.set({ pool: "readonly" }, d.readonly.waitingCount);
-        },
+    common.metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
+      name: "ponder_postgres_query_queue_size",
+      help: "Number of queries waiting for an available connection",
+      labelNames: ["pool"] as const,
+      registers: [common.metrics.registry],
+      collect() {
+        this.set({ pool: "internal" }, d.internal.waitingCount);
+        this.set({ pool: "sync" }, d.sync.waitingCount);
+        this.set({ pool: "user" }, d.user.waitingCount);
+        this.set({ pool: "readonly" }, d.readonly.waitingCount);
       },
-    );
+    });
   }
 
   const drizzle =
     dialect === "pglite" || dialect === "pglite_test"
       ? drizzlePglite((driver as PGliteDriver).instance, {
           casing: "snake_case",
-          schema: args.schema,
+          schema: schemaBuild.schema,
         })
       : drizzleNodePg((driver as PostgresDriver).user, {
           casing: "snake_case",
-          schema: args.schema,
+          schema: schemaBuild.schema,
         });
 
   ////////
@@ -367,7 +364,7 @@ export const createDatabase = (args: {
     tx: Transaction<PonderInternalSchema>;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
-      args.schema[tableName.js] as PgTable,
+      schemaBuild.schema[tableName.js] as PgTable,
     );
 
     const rows = await tx
@@ -437,7 +434,7 @@ export const createDatabase = (args: {
       }
     }
 
-    args.common.logger.info({
+    common.logger.info({
       service: "database",
       msg: `Reverted ${rows.length} unfinalized operations from '${tableName.sql}' table`,
     });
@@ -451,7 +448,7 @@ export const createDatabase = (args: {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
         await moveLegacyTables({
-          common: args.common,
+          common: common,
           // @ts-expect-error
           db: qb.internal,
           newSchemaName: "ponder_sync",
@@ -467,7 +464,7 @@ export const createDatabase = (args: {
         if (error) throw error;
       });
     },
-    async setup() {
+    async setup({ buildId }) {
       ////////
       // Migrate
       ////////
@@ -515,7 +512,7 @@ export const createDatabase = (args: {
               // @ts-ignore
               .select("schema")
               // @ts-ignore
-              .where("namespace", "=", args.namespace)
+              .where("namespace", "=", preBuild.namespace)
               .executeTakeFirst()
               .then((schema: any | undefined) =>
                 schema === undefined
@@ -536,7 +533,7 @@ export const createDatabase = (args: {
                 // @ts-ignore
                 .deleteFrom("namespace_lock")
                 // @ts-ignore
-                .where("namespace", "=", args.namespace)
+                .where("namespace", "=", preBuild.namespace)
                 .execute();
 
               if (namespaceCount!.count === 1) {
@@ -545,7 +542,7 @@ export const createDatabase = (args: {
                   .cascade()
                   .execute();
 
-                args.common.logger.debug({
+                common.logger.debug({
                   service: "database",
                   msg: `Removed 'ponder' schema`,
                 });
@@ -569,7 +566,7 @@ export const createDatabase = (args: {
         // @ts-ignore
         .where("table_name", "=", "_ponder_meta")
         // @ts-ignore
-        .where("table_schema", "=", args.namespace)
+        .where("table_schema", "=", preBuild.namespace)
         .executeTakeFirst()
         .then((table) => table !== undefined);
 
@@ -588,8 +585,7 @@ export const createDatabase = (args: {
               (app) =>
                 app.is_dev === 1 &&
                 (app.is_locked === 0 ||
-                  app.heartbeat_at +
-                    args.common.options.databaseHeartbeatTimeout <
+                  app.heartbeat_at + common.options.databaseHeartbeatTimeout <
                     Date.now()),
             );
 
@@ -633,7 +629,7 @@ export const createDatabase = (args: {
             }
 
             if (previousApps.length > 0) {
-              args.common.logger.debug({
+              common.logger.debug({
                 service: "database",
                 msg: "Migrated previous app to v0.8",
               });
@@ -644,7 +640,7 @@ export const createDatabase = (args: {
 
       await qb.internal.wrap({ method: "setup" }, async () => {
         await qb.internal.schema
-          .createSchema(args.namespace)
+          .createSchema(preBuild.namespace)
           .ifNotExists()
           .execute();
 
@@ -669,11 +665,11 @@ export const createDatabase = (args: {
 
             const newApp = {
               is_locked: 1,
-              is_dev: args.common.options.command === "dev" ? 1 : 0,
+              is_dev: common.options.command === "dev" ? 1 : 0,
               heartbeat_at: Date.now(),
-              build_id: args.buildId,
+              build_id: buildId,
               checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: getTableNames(args.schema).map(
+              table_names: getTableNames(schemaBuild.schema).map(
                 (tableName) => tableName.sql,
               ),
             } satisfies PonderApp;
@@ -692,31 +688,39 @@ export const createDatabase = (args: {
                 })
                 .execute();
 
-              for (let i = 0; i < args.statements.enums.sql.length; i++) {
+              for (
+                let i = 0;
+                i < schemaBuild.statements.enums.sql.length;
+                i++
+              ) {
                 await sql
-                  .raw(args.statements.enums.sql[i]!)
+                  .raw(schemaBuild.statements.enums.sql[i]!)
                   .execute(tx)
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                      `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
                   });
               }
-              for (let i = 0; i < args.statements.tables.sql.length; i++) {
+              for (
+                let i = 0;
+                i < schemaBuild.statements.tables.sql.length;
+                i++
+              ) {
                 await sql
-                  .raw(args.statements.tables.sql[i]!)
+                  .raw(schemaBuild.statements.tables.sql[i]!)
                   .execute(tx)
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                      `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                     );
                   });
               }
-              args.common.logger.info({
+              common.logger.info({
                 service: "database",
                 msg: `Created tables [${newApp.table_names.join(", ")}]`,
               });
@@ -729,7 +733,7 @@ export const createDatabase = (args: {
 
             // dev fast path
             if (
-              args.common.options.command === "dev" &&
+              common.options.command === "dev" &&
               previousApp.is_locked === 0 &&
               previousApp.is_dev === 1
             ) {
@@ -746,7 +750,7 @@ export const createDatabase = (args: {
                 .where("key", "=", "app")
                 .execute();
 
-              for (const tableName of getTableNames(args.schema)) {
+              for (const tableName of getTableNames(schemaBuild.schema)) {
                 await tx.schema
                   .dropTable(tableName.sql)
                   .cascade()
@@ -759,31 +763,39 @@ export const createDatabase = (args: {
                   .execute();
               }
 
-              for (let i = 0; i < args.statements.enums.sql.length; i++) {
+              for (
+                let i = 0;
+                i < schemaBuild.statements.enums.sql.length;
+                i++
+              ) {
                 await sql
-                  .raw(args.statements.enums.sql[i]!)
+                  .raw(schemaBuild.statements.enums.sql[i]!)
                   .execute(tx)
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create enum '${args.namespace}'.'${args.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                      `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
                   });
               }
-              for (let i = 0; i < args.statements.tables.sql.length; i++) {
+              for (
+                let i = 0;
+                i < schemaBuild.statements.tables.sql.length;
+                i++
+              ) {
                 await sql
-                  .raw(args.statements.tables.sql[i]!)
+                  .raw(schemaBuild.statements.tables.sql[i]!)
                   .execute(tx)
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     throw new NonRetryableError(
-                      `Unable to create table '${args.namespace}'.'${args.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                      `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                     );
                   });
               }
-              args.common.logger.info({
+              common.logger.info({
                 service: "database",
                 msg: `Created tables [${newApp.table_names.join(", ")}]`,
               });
@@ -796,19 +808,19 @@ export const createDatabase = (args: {
 
             // If crash recovery is not possible, error
             if (
-              args.common.options.command === "dev" ||
+              common.options.command === "dev" ||
               previousApp.build_id !== newApp.build_id ||
               previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
             ) {
               throw new NonRetryableError(
-                `Schema '${args.namespace}' is used by a different deployment`,
+                `Schema '${preBuild.namespace}' is used by a different deployment`,
               );
             }
 
             const isAppUnlocked =
               previousApp.is_locked === 0 ||
               previousApp.heartbeat_at +
-                args.common.options.databaseHeartbeatTimeout <=
+                common.options.databaseHeartbeatTimeout <=
                 Date.now();
 
             // If app is locked, wait
@@ -817,7 +829,7 @@ export const createDatabase = (args: {
                 status: "locked",
                 expiry:
                   previousApp.heartbeat_at +
-                  args.common.options.databaseHeartbeatTimeout,
+                  common.options.databaseHeartbeatTimeout,
               } as const;
             }
 
@@ -839,32 +851,32 @@ export const createDatabase = (args: {
               .where("key", "=", "app")
               .execute();
 
-            args.common.logger.info({
+            common.logger.info({
               service: "database",
-              msg: `Detected cache hit for build '${args.buildId}' in schema '${args.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+              msg: `Detected cache hit for build '${buildId}' in schema '${preBuild.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
             });
 
             // Remove triggers
 
-            for (const tableName of getTableNames(args.schema)) {
+            for (const tableName of getTableNames(schemaBuild.schema)) {
               await sql
                 .raw(
-                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
+                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
                 )
                 .execute(tx);
             }
 
             // Remove indexes
 
-            for (const indexStatement of args.statements.indexes.json) {
+            for (const indexStatement of schemaBuild.statements.indexes.json) {
               await tx.schema
                 .dropIndex(indexStatement.data.name)
                 .ifExists()
                 .execute();
 
-              args.common.logger.info({
+              common.logger.info({
                 service: "database",
-                msg: `Dropped index '${indexStatement.data.name}' in schema '${args.namespace}'`,
+                msg: `Dropped index '${indexStatement.data.name}' in schema '${preBuild.namespace}'`,
               });
             }
 
@@ -873,12 +885,12 @@ export const createDatabase = (args: {
             const { blockTimestamp, chainId, blockNumber } =
               decodeCheckpoint(checkpoint);
 
-            args.common.logger.info({
+            common.logger.info({
               service: "database",
               msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
             });
 
-            for (const tableName of getTableNames(args.schema)) {
+            for (const tableName of getTableNames(schemaBuild.schema)) {
               await revert({
                 tableName,
                 checkpoint,
@@ -896,13 +908,13 @@ export const createDatabase = (args: {
       let result = await attempt();
       if (result.status === "locked") {
         const duration = result.expiry - Date.now();
-        args.common.logger.warn({
+        common.logger.warn({
           service: "database",
-          msg: `Schema '${args.namespace}' is locked by a different Ponder app`,
+          msg: `Schema '${preBuild.namespace}' is locked by a different Ponder app`,
         });
-        args.common.logger.warn({
+        common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${args.namespace} to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${preBuild.namespace} to expire...`,
         });
 
         await wait(duration);
@@ -910,7 +922,7 @@ export const createDatabase = (args: {
         result = await attempt();
         if (result.status === "locked") {
           throw new NonRetryableError(
-            `Failed to acquire lock on schema '${args.namespace}'. A different Ponder app is actively using this database.`,
+            `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this database.`,
           );
         }
       }
@@ -927,34 +939,34 @@ export const createDatabase = (args: {
             })
             .execute();
 
-          args.common.logger.debug({
+          common.logger.debug({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${args.buildId})`,
+            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${buildId})`,
           });
         } catch (err) {
           const error = err as Error;
-          args.common.logger.error({
+          common.logger.error({
             service: "database",
             msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
-              args.common.options.databaseHeartbeatInterval,
+              common.options.databaseHeartbeatInterval,
             )}`,
             error,
           });
         }
-      }, args.common.options.databaseHeartbeatInterval);
+      }, common.options.databaseHeartbeatInterval);
 
       return { checkpoint: result.checkpoint };
     },
     async createIndexes() {
-      for (const statement of args.statements.indexes.sql) {
+      for (const statement of schemaBuild.statements.indexes.sql) {
         await sql.raw(statement).execute(qb.internal);
       }
     },
     async createTriggers() {
       await qb.internal.wrap({ method: "createTriggers" }, async () => {
-        for (const tableName of getTableNames(args.schema)) {
+        for (const tableName of getTableNames(schemaBuild.schema)) {
           const columns = getTableColumns(
-            args.schema[tableName.js]! as PgTable,
+            schemaBuild.schema[tableName.js]! as PgTable,
           );
 
           const columnNames = Object.values(columns).map(
@@ -967,13 +979,13 @@ CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${args.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${args.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${args.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
   END IF;
   RETURN NULL;
@@ -985,7 +997,7 @@ $$ LANGUAGE plpgsql
           await sql
             .raw(`
           CREATE TRIGGER "${tableName.trigger}"
-          AFTER INSERT OR UPDATE OR DELETE ON "${args.namespace}"."${tableName.sql}"
+          AFTER INSERT OR UPDATE OR DELETE ON "${preBuild.namespace}"."${tableName.sql}"
           FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
           `)
             .execute(qb.internal);
@@ -994,10 +1006,10 @@ $$ LANGUAGE plpgsql
     },
     async removeTriggers() {
       await qb.internal.wrap({ method: "removeTriggers" }, async () => {
-        for (const tableName of getTableNames(args.schema)) {
+        for (const tableName of getTableNames(schemaBuild.schema)) {
           await sql
             .raw(
-              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${args.namespace}"."${tableName.sql}"`,
+              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
         }
@@ -1006,7 +1018,7 @@ $$ LANGUAGE plpgsql
     async revert({ checkpoint }) {
       await qb.internal.wrap({ method: "revert" }, () =>
         Promise.all(
-          getTableNames(args.schema).map((tableName) =>
+          getTableNames(schemaBuild.schema).map((tableName) =>
             qb.internal.transaction().execute((tx) =>
               revert({
                 tableName,
@@ -1029,7 +1041,7 @@ $$ LANGUAGE plpgsql
           .execute();
 
         await Promise.all(
-          getTableNames(args.schema).map((tableName) =>
+          getTableNames(schemaBuild.schema).map((tableName) =>
             qb.internal
               .deleteFrom(tableName.reorg)
               .where("checkpoint", "<=", checkpoint)
@@ -1040,14 +1052,14 @@ $$ LANGUAGE plpgsql
 
       const decoded = decodeCheckpoint(checkpoint);
 
-      args.common.logger.debug({
+      common.logger.debug({
         service: "database",
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
     },
     async complete({ checkpoint }) {
       await Promise.all(
-        getTableNames(args.schema).map((tableName) =>
+        getTableNames(schemaBuild.schema).map((tableName) =>
           qb.internal.wrap({ method: "complete" }, async () => {
             await qb.internal
               .updateTable(tableName.reorg)
@@ -1094,7 +1106,7 @@ $$ LANGUAGE plpgsql
         await d.sync.end();
       }
 
-      args.common.logger.debug({
+      common.logger.debug({
         service: "database",
         msg: "Closed connection to database",
       });

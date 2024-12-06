@@ -101,11 +101,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const database = createDatabase({
     common,
-    databaseConfig: preBuild.databaseConfig,
-    namespace: preBuild.namespace,
-    schema: schemaBuild.schema,
-    statements: schemaBuild.statements,
-    buildId: indexingBuild.buildId,
+    preBuild,
+    schemaBuild,
   });
 
   const server = await createServer({

@@ -30,16 +30,17 @@ function createCheckpoint(index: number): string {
 test("setup() succeeds with empty schema", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  const { checkpoint } = await database.setup();
+  const { checkpoint } = await database.setup({ buildId: "abc" });
 
   expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
 
@@ -62,29 +63,31 @@ test("setup() succeeds with empty schema", async (context) => {
 test("setup() throws with schema used", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.kill();
 
   const databaseTwo = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  const error = await databaseTwo.setup().catch((err) => err);
+  const error = await databaseTwo.setup({ buildId: "abc" }).catch((err) => err);
 
   expect(error).toBeDefined();
 
@@ -94,16 +97,17 @@ test("setup() throws with schema used", async (context) => {
 test("setup() succeeds with crash recovery", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   await database.finalize({
     checkpoint: createCheckpoint(10),
@@ -114,16 +118,17 @@ test("setup() succeeds with crash recovery", async (context) => {
 
   const databaseTwo = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  const { checkpoint } = await databaseTwo.setup();
+  const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
 
   expect(checkpoint).toMatchObject(createCheckpoint(10));
 
@@ -148,29 +153,31 @@ test("setup() succeeds with crash recovery after waiting for lock", async (conte
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.finalize({ checkpoint: createCheckpoint(10) });
 
   const databaseTwo = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  const { checkpoint } = await databaseTwo.setup();
+  const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
 
   expect(checkpoint).toMatchObject(createCheckpoint(10));
 
@@ -189,29 +196,31 @@ test("setup() throws with schema used after waiting for lock", async (context) =
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.finalize({ checkpoint: createCheckpoint(10) });
 
   const databaseTwo = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  const error = await databaseTwo.setup().catch((err) => err);
+  const error = await databaseTwo.setup({ buildId: "abc" }).catch((err) => err);
 
   expect(error).toBeDefined();
 
@@ -242,16 +251,18 @@ test.skip("setup() with empty schema creates tables and enums", async (context) 
 
   const database = createDatabase({
     common: context.common,
-    schema: { account, kyle, mood, user },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account, kyle, mood, user },
-    }),
+      statements: buildSchema({ schema: { account, kyle, mood, user } })
+        .statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("account");
@@ -269,16 +280,17 @@ test.skip("setup() with empty schema creates tables and enums", async (context) 
 test("setup() with crash recovery reverts rows", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 
@@ -315,16 +327,17 @@ test("setup() with crash recovery reverts rows", async (context) => {
 
   const databaseTwo = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  const { checkpoint } = await databaseTwo.setup();
+  const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
 
   expect(checkpoint).toMatchObject(createCheckpoint(10));
 
@@ -359,16 +372,17 @@ test("setup() with crash recovery drops indexes and triggers", async (context) =
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   await database.finalize({
     checkpoint: createCheckpoint(10),
@@ -381,16 +395,17 @@ test("setup() with crash recovery drops indexes and triggers", async (context) =
 
   const databaseTwo = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await databaseTwo.setup();
+  await databaseTwo.setup({ buildId: "abc" });
 
   const indexNames = await getUserIndexNames(databaseTwo, "public", "account");
 
@@ -405,16 +420,17 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   const row = await database.qb.internal
     .selectFrom("_ponder_meta")
@@ -443,16 +459,17 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 test("finalize()", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 
@@ -514,28 +531,30 @@ test("finalize()", async (context) => {
 test("unlock()", async (context) => {
   let database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.unlock();
   await database.kill();
 
   database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
   const metadata = await database.qb.internal
@@ -564,16 +583,17 @@ test("createIndexes()", async (context) => {
 
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.createIndexes();
 
   const indexNames = await getUserIndexNames(database, "public", "account");
@@ -586,16 +606,17 @@ test("createIndexes()", async (context) => {
 test("createTriggers()", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.createTriggers();
 
   const indexingStore = createRealtimeIndexingStore({
@@ -630,16 +651,17 @@ test("createTriggers()", async (context) => {
 test("complete()", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
   await database.createTriggers();
 
   const indexingStore = createRealtimeIndexingStore({
@@ -677,16 +699,17 @@ test("complete()", async (context) => {
 test("revert()", async (context) => {
   const database = createDatabase({
     common: context.common,
-    schema: { account },
-    databaseConfig: context.databaseConfig,
-    buildId: "abc",
-    namespace: "public",
-    ...buildSchema({
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
       schema: { account },
-    }),
+      statements: buildSchema({ schema: { account } }).statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 

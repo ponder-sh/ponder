@@ -2,12 +2,13 @@ export type Result<T> =
   | { status: "success"; result: T }
   | { status: "error"; error: Error };
 
-type UnwrapResults<T extends readonly Result<any>[]> = T extends readonly [
-  infer Head extends Result<unknown>,
-  ...infer Tail extends Result<unknown>[],
-]
-  ? [Extract<Head, { status: "success" }>["result"], ...UnwrapResults<Tail>]
-  : [];
+export type UnwrapResults<T extends readonly Result<any>[]> =
+  T extends readonly [
+    infer Head extends Result<unknown>,
+    ...infer Tail extends Result<unknown>[],
+  ]
+    ? [Extract<Head, { status: "success" }>["result"], ...UnwrapResults<Tail>]
+    : [];
 
 export const unwrapResults = <const T extends readonly Result<unknown>[]>(
   results: T,
@@ -19,5 +20,5 @@ export const unwrapResults = <const T extends readonly Result<unknown>[]>(
   }
 
   // @ts-ignore
-  return results.map((result) => result.result);
+  return { status: "success", result: results.map((result) => result.result) };
 };
