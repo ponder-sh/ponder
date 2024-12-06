@@ -200,11 +200,7 @@ export const createRequestQueue = ({
 
   return {
     ...requestQueue,
-    request: <
-      TParameters extends
-        | EIP1193Parameters<PublicRpcSchema>
-        | SubscribeParameters,
-    >(
+    request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
     ) => {
       const stopClockLag = startClock();
