@@ -28,6 +28,7 @@ import {
   and,
   eq,
   getTableColumns,
+  getTableName,
   sql,
 } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
@@ -165,18 +166,16 @@ export const createHistoricalIndexingStore = ({
     },
   });
 
-  const tableNameCache: Map<Table, string> = new Map();
   const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
   const cache: Cache = new Map();
 
-  for (const tableName of getTableNames(schema, "")) {
+  for (const tableName of getTableNames(schema)) {
     primaryKeysCache.set(
       schema[tableName.js] as Table,
       getPrimaryKeyColumns(schema[tableName.js] as PgTable),
     );
 
     cache.set(schema[tableName.js] as Table, new Map());
-    tableNameCache.set(schema[tableName.js] as Table, tableName.user);
   }
 
   ////////
@@ -265,7 +264,7 @@ export const createHistoricalIndexingStore = ({
         hasEmptyValue(column) === false
       ) {
         const error = new NotNullConstraintError(
-          `Column '${tableNameCache.get(table)}.${columnName}' violates not-null constraint.`,
+          `Column '${getTableName(table)}.${columnName}' violates not-null constraint.`,
         );
         error.meta.push(
           `db.${type === EntryType.INSERT ? "insert" : "update"} arguments:\n${prettyPrint(row)}`,
@@ -346,7 +345,7 @@ export const createHistoricalIndexingStore = ({
     find: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${tableNameCache.get(table) ?? "unknown"}.find()` },
+          { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
 
@@ -388,7 +387,7 @@ export const createHistoricalIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                    method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
                   async () => {
                     checkOnchainTable(table, "insert");
@@ -441,7 +440,7 @@ export const createHistoricalIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                    method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
                   async () => {
                     checkOnchainTable(table, "insert");
@@ -538,7 +537,7 @@ export const createHistoricalIndexingStore = ({
                 .add(() =>
                   database.qb.user.wrap(
                     {
-                      method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                      method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
                     async () => {
                       checkOnchainTable(table, "insert");
@@ -548,7 +547,7 @@ export const createHistoricalIndexingStore = ({
                         for (const value of values) {
                           if (getCacheEntry(table, value)?.row) {
                             const error = new UniqueConstraintError(
-                              `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                              `Unique constraint failed for '${getTableName(table)}'.`,
                             );
                             error.meta.push(
                               `db.insert arguments:\n${prettyPrint(value)}`,
@@ -559,7 +558,7 @@ export const createHistoricalIndexingStore = ({
 
                             if (findResult) {
                               const error = new UniqueConstraintError(
-                                `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                                `Unique constraint failed for '${getTableName(table)}'.`,
                               );
                               error.meta.push(
                                 `db.insert arguments:\n${prettyPrint(value)}`,
@@ -576,7 +575,7 @@ export const createHistoricalIndexingStore = ({
                       } else {
                         if (getCacheEntry(table, values)?.row) {
                           const error = new UniqueConstraintError(
-                            `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                            `Unique constraint failed for '${getTableName(table)}'.`,
                           );
                           error.meta.push(
                             `db.insert arguments:\n${prettyPrint(values)}`,
@@ -587,7 +586,7 @@ export const createHistoricalIndexingStore = ({
 
                           if (findResult) {
                             const error = new UniqueConstraintError(
-                              `Unique constraint failed for '${tableNameCache.get(table)}'.`,
+                              `Unique constraint failed for '${getTableName(table)}'.`,
                             );
                             error.meta.push(
                               `db.insert arguments:\n${prettyPrint(values)}`,
@@ -629,7 +628,7 @@ export const createHistoricalIndexingStore = ({
         set: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              { method: `${tableNameCache.get(table) ?? "unknown"}.update()` },
+              { method: `${getTableName(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table, "update");
 
@@ -643,7 +642,7 @@ export const createHistoricalIndexingStore = ({
                 } else {
                   if (isDatabaseEmpty) {
                     const error = new RecordNotFoundError(
-                      `No existing record found in table '${tableNameCache.get(table)}'`,
+                      `No existing record found in table '${getTableName(table)}'`,
                     );
                     error.meta.push(
                       `db.update arguments:\n${prettyPrint(key)}`,
@@ -657,7 +656,7 @@ export const createHistoricalIndexingStore = ({
                     row = findResult;
                   } else {
                     const error = new RecordNotFoundError(
-                      `No existing record found in table '${tableNameCache.get(table)}'`,
+                      `No existing record found in table '${getTableName(table)}'`,
                     );
                     error.meta.push(
                       `db.update arguments:\n${prettyPrint(key)}`,
@@ -694,7 +693,7 @@ export const createHistoricalIndexingStore = ({
     delete: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${tableNameCache.get(table) ?? "unknown"}.delete()` },
+          { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
 
@@ -792,14 +791,14 @@ export const createHistoricalIndexingStore = ({
           if (insertValues.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Inserting ${insertValues.length} cached '${tableNameCache.get(table)}' rows into the database`,
+              msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
             });
 
             while (insertValues.length > 0) {
               const values = insertValues.splice(0, batchSize);
               promises.push(
                 database.qb.user.wrap(
-                  { method: `${tableNameCache.get(table)}.flush()` },
+                  { method: `${getTableName(table)}.flush()` },
                   async () => {
                     await database.drizzle
                       .insert(table)
@@ -821,7 +820,7 @@ export const createHistoricalIndexingStore = ({
           if (updateValues.length > 0) {
             common.logger.debug({
               service: "indexing",
-              msg: `Updating ${updateValues.length} cached '${tableNameCache.get(table)}' rows in the database`,
+              msg: `Updating ${updateValues.length} cached '${getTableName(table)}' rows in the database`,
             });
 
             const primaryKeys = primaryKeysCache.get(table)!;
@@ -840,7 +839,7 @@ export const createHistoricalIndexingStore = ({
               promises.push(
                 database.qb.user.wrap(
                   {
-                    method: `${tableNameCache.get(table)}.flush()`,
+                    method: `${getTableName(table)}.flush()`,
                   },
                   async () => {
                     await database.drizzle

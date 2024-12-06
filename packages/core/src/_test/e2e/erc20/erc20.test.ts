@@ -28,6 +28,7 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 const cliOptions = {
+  schema: "public",
   root: rootDir,
   config: "ponder.config.ts",
   logLevel: "error",

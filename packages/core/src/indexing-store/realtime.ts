@@ -19,6 +19,7 @@ import {
   type Table,
   and,
   eq,
+  getTableName,
 } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
@@ -63,16 +64,13 @@ export const createRealtimeIndexingStore = ({
     },
   });
 
-  const tableNameCache: Map<Table, string> = new Map();
   const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
 
-  for (const tableName of getTableNames(schema, "")) {
+  for (const tableName of getTableNames(schema)) {
     primaryKeysCache.set(
       schema[tableName.js] as Table,
       getPrimaryKeyColumns(schema[tableName.js] as PgTable),
     );
-
-    tableNameCache.set(schema[tableName.js] as Table, tableName.user);
   }
 
   ////////
@@ -121,7 +119,7 @@ export const createRealtimeIndexingStore = ({
     find: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${tableNameCache.get(table) ?? "unknown"}.find()` },
+          { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
 
@@ -140,7 +138,7 @@ export const createRealtimeIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                    method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
                   async () => {
                     checkOnchainTable(table, "insert");
@@ -184,7 +182,7 @@ export const createRealtimeIndexingStore = ({
               queue.add(() =>
                 database.qb.user.wrap(
                   {
-                    method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                    method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
                   async () => {
                     checkOnchainTable(table, "insert");
@@ -278,7 +276,7 @@ export const createRealtimeIndexingStore = ({
                 .add(() =>
                   database.qb.user.wrap(
                     {
-                      method: `${tableNameCache.get(table) ?? "unknown"}.insert()`,
+                      method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
                     async () => {
                       checkOnchainTable(table, "insert");
@@ -325,7 +323,7 @@ export const createRealtimeIndexingStore = ({
         set: (values: any) =>
           queue.add(() =>
             database.qb.user.wrap(
-              { method: `${tableNameCache.get(table) ?? "unknown"}.update()` },
+              { method: `${getTableName(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table, "update");
 
@@ -334,7 +332,7 @@ export const createRealtimeIndexingStore = ({
 
                   if (row === null) {
                     const error = new RecordNotFoundError(
-                      `No existing record found in table '${tableNameCache.get(table)}'`,
+                      `No existing record found in table '${getTableName(table)}'`,
                     );
                     error.meta.push(
                       `db.update arguments:\n${prettyPrint(key)}`,
@@ -373,7 +371,7 @@ export const createRealtimeIndexingStore = ({
     delete: (table: Table, key) =>
       queue.add(() =>
         database.qb.user.wrap(
-          { method: `${tableNameCache.get(table) ?? "unknown"}.delete()` },
+          { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
 

@@ -68,10 +68,6 @@ test("decodeEvents() log", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const topics = encodeEventTopics({
@@ -120,10 +116,6 @@ test("decodeEvents() log error", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const topics = encodeEventTopics({
@@ -163,10 +155,6 @@ test("decodeEvents() block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rawEvent = {
@@ -199,10 +187,6 @@ test("decodeEvents() transfer", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rawEvent = {
@@ -249,10 +233,6 @@ test("decodeEvents() transaction", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rawEvent = {
@@ -282,10 +262,6 @@ test("decodeEvents() trace", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rawEvent = {
@@ -336,10 +312,6 @@ test("decodeEvents() trace error", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rawEvent = {
@@ -396,10 +368,6 @@ test("buildEvents() matches getEvents() log", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // insert block 2
@@ -481,10 +449,6 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // insert block 2
@@ -566,10 +530,6 @@ test("buildEvents() matches getEvents() block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // insert block 0
@@ -629,10 +589,6 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -731,10 +687,6 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -806,10 +758,6 @@ test("buildEvents() matches getEvents() trace", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {

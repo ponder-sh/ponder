@@ -1,15 +1,13 @@
 import http from "node:http";
+import type { ApiBuild } from "@/build/index.js";
+import type { SchemaBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import { graphql } from "@/graphql/middleware.js";
-import { type PonderRoutes, applyHonoRoutes } from "@/hono/index.js";
-import {
-  getLiveMetadataStore,
-  getMetadataStore,
-} from "@/indexing-store/metadata.js";
+import { applyHonoRoutes } from "@/hono/index.js";
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
-import type { GraphQLSchema } from "graphql";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -23,29 +21,21 @@ type Server = {
 };
 
 export async function createServer({
-  app: userApp,
-  routes: userRoutes,
   common,
-  graphqlSchema,
   database,
-  instanceId,
+  schemaBuild,
+  apiBuild,
 }: {
-  app: Hono;
-  routes: PonderRoutes;
   common: Common;
-  graphqlSchema: GraphQLSchema;
   database: Database;
-  instanceId?: string;
+  schemaBuild: Pick<SchemaBuild, "graphqlSchema">;
+  apiBuild: ApiBuild;
 }): Promise<Server> {
   // Create hono app
 
-  const metadataStore =
-    instanceId === undefined
-      ? getLiveMetadataStore({ db: database.qb.readonly })
-      : getMetadataStore({
-          db: database.qb.readonly,
-          instanceId,
-        });
+  const metadataStore = getMetadataStore({
+    db: database.qb.readonly,
+  });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes
@@ -95,7 +85,7 @@ export async function createServer({
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("db", database.drizzle);
     c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
+    c.set("graphqlSchema", schemaBuild.graphqlSchema);
     await next();
   });
 
@@ -132,25 +122,25 @@ export async function createServer({
     })
     .use(contextMiddleware);
 
-  if (userRoutes.length === 0 && userApp.routes.length === 0) {
+  if (apiBuild.routes.length === 0 && apiBuild.app.routes.length === 0) {
     // apply graphql middleware if no custom api exists
     hono.use("/graphql", graphql());
     hono.use("/", graphql());
   } else {
     // apply user routes to hono instance, registering a custom error handler
-    applyHonoRoutes(hono, userRoutes, { db: database.drizzle }).onError(
-      (error, c) => onError(error, c, common),
-    );
+    applyHonoRoutes(hono, apiBuild.routes, {
+      db: database.drizzle,
+    }).onError((error, c) => onError(error, c, common));
 
     common.logger.debug({
       service: "server",
-      msg: `Detected a custom server with routes: [${userRoutes
+      msg: `Detected a custom server with routes: [${apiBuild.routes
         .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
         .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
         .join(", ")}]`,
     });
 
-    hono.route("/", userApp);
+    hono.route("/", apiBuild.app);
   }
 
   // Create nodejs server
