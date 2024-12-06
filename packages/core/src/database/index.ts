@@ -982,12 +982,14 @@ export const createDatabase = (args: {
           service: "database",
           msg: `Schema '${args.namespace}' is locked by a different Ponder app`,
         });
-        args.common.logger.warn({
-          service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${args.namespace} to expire...`,
-        });
+        if (duration >= 0) {
+          args.common.logger.warn({
+            service: "database",
+            msg: `Waiting ${formatEta(duration)} for lock on schema '${args.namespace} to expire...`,
+          });
 
-        await wait(duration);
+          await wait(duration);
+        }
 
         result = await attempt({ isFirstAttempt: false });
         if (result.status === "locked") {
