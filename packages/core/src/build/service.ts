@@ -209,7 +209,6 @@ export const start = async (
   const { common } = buildService;
 
   let namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
-  process.env.PONDER_DATABASE_SCHEMA = namespace;
 
   if (namespace === undefined) {
     if (common.options.command === "dev") {
@@ -221,6 +220,8 @@ export const start = async (
       return { status: "error", error } as const;
     }
   }
+
+  process.env.PONDER_DATABASE_SCHEMA = namespace;
 
   // Note: Don't run these in parallel. If there are circular imports in user code,
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).

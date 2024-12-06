@@ -555,7 +555,92 @@ export const createDatabase = (args: {
         }
       }
 
-      // TODO(kyle) v0.9 migration
+      // v0.8 migration
+
+      // If the schema previously ran with a 0.7 app, remove
+      // all unlocked "dev" apps. Then, copy a _ponder_meta entry
+      // to the new format if there is one remaining.
+
+      const hasPonderMetaTable = await qb.internal
+        // @ts-ignore
+        .selectFrom("information_schema.tables")
+        // @ts-ignore
+        .select(["table_name", "table_schema"])
+        // @ts-ignore
+        .where("table_name", "=", "_ponder_meta")
+        // @ts-ignore
+        .where("table_schema", "=", args.namespace)
+        .executeTakeFirst()
+        .then((table) => table !== undefined);
+
+      if (hasPonderMetaTable) {
+        await qb.internal.wrap({ method: "migrate" }, () =>
+          qb.internal.transaction().execute(async (tx) => {
+            const previousApps = await tx
+              .selectFrom("_ponder_meta")
+              // @ts-ignore
+              .where("key", "like", "app_%")
+              .select("value")
+              .execute()
+              .then((rows) => rows.map(({ value }) => value as PonderApp));
+
+            const removedDevApps = previousApps.filter(
+              (app) =>
+                app.is_dev === 1 &&
+                (app.is_locked === 0 ||
+                  app.heartbeat_at +
+                    args.common.options.databaseHeartbeatTimeout <
+                    Date.now()),
+            );
+
+            for (const app of removedDevApps) {
+              for (const table of app.table_names) {
+                await tx.schema
+                  // @ts-ignore
+                  .dropTable(`${app.instance_id}__${table}`)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+                await tx.schema
+                  // @ts-ignore
+                  .dropTable(`${app.instance_id}_reorg__${table}`)
+                  .cascade()
+                  .ifExists()
+                  .execute();
+              }
+              await tx
+                .deleteFrom("_ponder_meta")
+                // @ts-ignore
+                .where("key", "=", `status_${app.instance_id}`)
+                .execute();
+              await tx
+                .deleteFrom("_ponder_meta")
+                // @ts-ignore
+                .where("key", "=", `app_${app.instance_id}`)
+                .execute();
+            }
+
+            const previousApp = previousApps.find((app) => app.is_dev === 0);
+
+            if (previousApp) {
+              await tx
+                .insertInto("_ponder_meta")
+                .values({
+                  key: "app",
+                  value: previousApp,
+                })
+                .execute();
+            }
+
+            if (previousApps.length > 0) {
+              args.common.logger.debug({
+                service: "database",
+                msg: "Migrated previous app to v0.8",
+              });
+            }
+          }),
+        );
+      }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
         await qb.internal.schema
