@@ -10,7 +10,7 @@ import type { Schema } from "@/drizzle/index.js";
 import type { SqlStatements } from "@/drizzle/kit/index.js";
 import type { PonderRoutes } from "@/hono/index.js";
 import type { Source } from "@/sync/source.js";
-import { type Result, unwrapResults } from "@/utils/result.js";
+import { type Result, mergeResults } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
@@ -662,7 +662,7 @@ export const createBuild = async ({
             return;
           }
 
-          const compileResult = unwrapResults([
+          const compileResult = mergeResults([
             build.preCompile(configResult.result),
             build.compileSchema(schemaResult.result),
             await build.compileIndexing({

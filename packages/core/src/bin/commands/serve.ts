@@ -6,7 +6,7 @@ import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { createDatabase } from "@/database/index.js";
 import { createServer } from "@/server/index.js";
-import { unwrapResults } from "@/utils/result.js";
+import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -67,7 +67,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const buildResult = unwrapResults([
+  const buildResult = mergeResults([
     build.preCompile(executeResult.configResult.result),
     build.compileSchema(executeResult.schemaResult.result),
     build.compileApi({ apiResult: executeResult.apiResult.result }),

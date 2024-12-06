@@ -11,7 +11,7 @@ import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import { createUi } from "@/ui/service.js";
-import { unwrapResults } from "@/utils/result.js";
+import { mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
@@ -166,7 +166,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const initialBuildResult = unwrapResults([
+  const initialBuildResult = mergeResults([
     build.preCompile(executeResult.configResult.result),
     build.compileSchema(executeResult.schemaResult.result),
     await build.compileIndexing({
