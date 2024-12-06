@@ -465,6 +465,11 @@ export const createDatabase = ({
       });
     },
     async setup({ buildId }) {
+      common.logger.info({
+        service: "database",
+        msg: `Using database schema '${preBuild.namespace}'`,
+      });
+
       ////////
       // Migrate
       ////////
