@@ -208,6 +208,20 @@ export const start = async (
 ): Promise<BuildResult> => {
   const { common } = buildService;
 
+  let namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
+  process.env.PONDER_DATABASE_SCHEMA = namespace;
+
+  if (namespace === undefined) {
+    if (common.options.command === "dev") {
+      namespace = "public";
+    } else {
+      const error = new BuildError(
+        "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag.",
+      );
+      return { status: "error", error } as const;
+    }
+  }
+
   // Note: Don't run these in parallel. If there are circular imports in user code,
   // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
   const configResult = await executeConfig(buildService);
@@ -308,7 +322,7 @@ export const start = async (
           .join(", ")}`,
       });
 
-      // re-execute anything that would cause the instance id to change
+      // re-execute all files
       if (hasIndexingUpdate || hasSchemaUpdate || hasConfigUpdate) {
         buildService.viteNodeRunner.moduleCache.invalidateDepTree([
           buildService.common.options.configFile,
@@ -392,6 +406,7 @@ export const start = async (
         cachedConfigResult,
         cachedSchemaResult,
         cachedIndexingResult,
+        namespace!,
       );
       if (indexingBuildResult.status === "error") {
         onBuild({
@@ -461,6 +476,7 @@ export const start = async (
     configResult,
     schemaResult,
     indexingResult,
+    namespace,
   );
 
   if (initialBuildResult.status === "error") {
@@ -673,6 +689,7 @@ const validateAndBuild = async (
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   },
+  namespace: string,
 ): Promise<IndexingBuildResult> => {
   // Validate and build the schema
   const buildSchemaResult = safeBuildSchema({
@@ -721,19 +738,6 @@ const validateAndBuild = async (
     service: "build",
     msg: `Completed build with ID '${buildId}' (hash of project file contents)`,
   });
-
-  let namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
-
-  if (namespace === undefined) {
-    if (common.options.command === "dev") {
-      namespace = "public";
-    } else {
-      const error = new BuildError(
-        "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag.",
-      );
-      return { status: "error", error } as const;
-    }
-  }
 
   return {
     status: "success",

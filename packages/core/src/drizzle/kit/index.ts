@@ -24,10 +24,6 @@ type Dialect = "postgresql";
 type CasingType = "snake_case" | "camelCase";
 
 export type SqlStatements = {
-  schema: {
-    sql: string[];
-    json: JsonCreateSchema[];
-  };
   tables: {
     sql: string[];
     json: JsonCreateTableStatement[];
@@ -57,10 +53,6 @@ export const getSql = (schema: Schema): SqlStatements => {
       return prepareCreateEnumJson(it.name, it.schema, it.values);
     }) ?? [];
 
-  const jsonCreateSchemas = prepareCreateSchemasJson(
-    Object.values(squashed.schemas),
-  );
-
   const jsonCreateTables = Object.values(squashed.tables).map((it: any) => {
     return preparePgCreateTableJson(it, json);
   });
@@ -88,7 +80,6 @@ export const getSql = (schema: Schema): SqlStatements => {
   ]);
 
   return {
-    schema: { sql: fromJson(jsonCreateSchemas), json: jsonCreateSchemas },
     tables: {
       sql: fromJson(combinedTables),
       json: combinedTables,
@@ -622,15 +613,6 @@ const preparePgCreateIndexesJson = (
       data: PgSquasher.unsquashIdx(indexData),
       schema,
     };
-  });
-};
-
-const prepareCreateSchemasJson = (values: string[]): JsonCreateSchema[] => {
-  return values.map((it) => {
-    return {
-      type: "create_schema",
-      name: it,
-    } as JsonCreateSchema;
   });
 };
 

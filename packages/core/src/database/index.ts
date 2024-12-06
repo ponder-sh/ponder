@@ -558,9 +558,10 @@ export const createDatabase = (args: {
       // TODO(kyle) v0.9 migration
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        for (const statement of args.statements.schema.sql) {
-          await sql.raw(statement).execute(qb.internal);
-        }
+        await qb.internal.schema
+          .createSchema(args.namespace)
+          .ifNotExists()
+          .execute();
 
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema

@@ -216,7 +216,8 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  const table = pgTableWithSchema(name, columns, extraConfig as any, undefined);
+  const schema = process.env.PONDER_DATABASE_SCHEMA;
+  const table = pgTableWithSchema(name, columns, extraConfig as any, schema);
 
   // @ts-ignore
   table[onchain] = true;
@@ -247,7 +248,8 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-  const e = pgEnumWithSchema(enumName, values, undefined);
+  const schema = process.env.PONDER_DATABASE_SCHEMA;
+  const e = pgEnumWithSchema(enumName, values, schema);
 
   // @ts-ignore
   e[onchain] = true;

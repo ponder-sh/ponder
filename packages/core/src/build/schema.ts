@@ -1,12 +1,11 @@
 import { BuildError } from "@/common/errors.js";
-import { type Schema, isPgEnumSym } from "@/drizzle/index.js";
+import type { Schema } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { buildGraphQLSchema } from "@/graphql/index.js";
 import { SQL, getTableColumns, is } from "drizzle-orm";
 import {
   PgBigSerial53,
   PgBigSerial64,
-  type PgEnum,
   PgSequence,
   PgSerial,
   PgSmallSerial,
@@ -20,12 +19,6 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
 
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
-      if (getTableConfig(s).schema !== undefined) {
-        throw new Error(
-          `Schema validation failed: '${name}' has schema set to '${getTableConfig(s).schema}' and schema configuration is not supported in "ponder.schema.ts".`,
-        );
-      }
-
       let hasPrimaryKey = false;
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
@@ -139,17 +132,6 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
       throw new Error(
         `Schema validation failed: '${name}' is a view and views are unsupported.`,
       );
-    }
-
-    // @ts-ignore
-    if (isPgEnumSym in s) {
-      // @ts-ignore
-      if ((s as PgEnum<any>).schema !== undefined) {
-        throw new Error(
-          // @ts-ignore
-          `Schema validation failed: '${name}' has schema set to '${(s as PgEnum<any>).schema}' and schema configuration is not supported in "ponder.schema.ts".`,
-        );
-      }
     }
   }
 
