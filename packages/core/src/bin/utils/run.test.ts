@@ -8,7 +8,7 @@ import { deployErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { getNetwork } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type { IndexingBuild } from "@/build/index.js";
+import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
 import { onchainTable } from "@/drizzle/index.js";
@@ -41,10 +41,6 @@ test("run() setup", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const indexingFunctions = {
@@ -55,16 +51,17 @@ test("run() setup", async (context) => {
     schema,
   });
 
-  const build: IndexingBuild = {
-    buildId: "buildId",
+  const schemaBuild: SchemaBuild = {
     schema,
+    statements,
     graphqlSchema,
-    databaseConfig: context.databaseConfig,
+  };
+
+  const indexingBuild: IndexingBuild = {
+    buildId: "buildId",
     networks: [network],
     sources,
     indexingFunctions,
-    statements,
-    namespace: "public",
   };
 
   const database = createDatabase({
@@ -78,8 +75,9 @@ test("run() setup", async (context) => {
 
   const kill = await run({
     common: context.common,
-    build,
     database,
+    schemaBuild,
+    indexingBuild,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
@@ -103,10 +101,6 @@ test("run() setup error", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const indexingFunctions = {
@@ -118,16 +112,17 @@ test("run() setup error", async (context) => {
     schema,
   });
 
-  const build: IndexingBuild = {
-    buildId: "buildId",
+  const schemaBuild: SchemaBuild = {
     schema,
+    statements,
     graphqlSchema,
-    databaseConfig: context.databaseConfig,
+  };
+
+  const indexingBuild: IndexingBuild = {
+    buildId: "buildId",
     networks: [network],
     sources,
     indexingFunctions,
-    statements,
-    namespace: "public",
   };
 
   const database = createDatabase({
@@ -143,8 +138,9 @@ test("run() setup error", async (context) => {
 
   const kill = await run({
     common: context.common,
-    build,
     database,
+    schemaBuild,
+    indexingBuild,
     onFatalError: vi.fn(),
     onReloadableError: () => {
       onReloadableErrorPromiseResolver.resolve();

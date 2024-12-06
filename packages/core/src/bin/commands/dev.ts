@@ -1,13 +1,17 @@
-import { existsSync } from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
-import { createBuildService } from "@/build/index.js";
-import type { BuildResultDev } from "@/build/service.js";
+import {
+  type BuildResultDev,
+  type SchemaBuild,
+  createBuild,
+} from "@/build/index.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import { createUi } from "@/ui/service.js";
+import { unwrapResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
@@ -34,7 +38,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     process.exit(1);
   }
 
-  if (!existsSync(path.join(options.rootDir, ".env.local"))) {
+  if (!fs.existsSync(path.join(options.rootDir, ".env.local"))) {
     logger.warn({
       service: "app",
       msg: "Local environment file (.env.local) not found",
@@ -51,7 +55,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = await createBuildService({ common });
+  const build = await createBuild({ common });
 
   const ui = createUi({ common });
 
@@ -64,12 +68,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     if (database) {
       await database.kill();
     }
-    await buildService.kill();
+    await build.kill();
     await telemetry.kill();
     ui.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
+
+  let schemaBuild: SchemaBuild | undefined;
 
   const buildQueue = createQueue({
     initialStart: true,
@@ -88,19 +94,22 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             await database.kill();
           }
 
+          schemaBuild = result.result.schemaBuild;
+
           database = createDatabase({
             common,
-            schema: result.indexingBuild.schema,
-            databaseConfig: result.indexingBuild.databaseConfig,
-            buildId: result.indexingBuild.buildId,
-            namespace: result.indexingBuild.namespace,
-            statements: result.indexingBuild.statements,
+            databaseConfig: result.result.preBuild.databaseConfig,
+            namespace: result.result.preBuild.namespace,
+            schema: result.result.schemaBuild.schema,
+            statements: result.result.schemaBuild.statements,
+            buildId: result.result.indexingBuild.buildId,
           });
 
           indexingCleanupReloadable = await run({
             common,
-            build: result.indexingBuild,
             database,
+            schemaBuild: result.result.schemaBuild,
+            indexingBuild: result.result.indexingBuild,
             onFatalError: () => {
               shutdown({ reason: "Received fatal error", code: 1 });
             },
@@ -109,14 +118,25 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               buildQueue.add({ status: "error", kind: "indexing", error });
             },
           });
-        }
-        metrics.resetApiMetrics();
 
-        apiCleanupReloadable = await runServer({
-          common,
-          build: result.apiBuild,
-          database: database!,
-        });
+          metrics.resetApiMetrics();
+
+          apiCleanupReloadable = await runServer({
+            common,
+            database: database!,
+            schemaBuild: result.result.schemaBuild,
+            apiBuild: result.result.apiBuild,
+          });
+        } else {
+          metrics.resetApiMetrics();
+
+          apiCleanupReloadable = await runServer({
+            common,
+            database: database!,
+            schemaBuild: schemaBuild!,
+            apiBuild: result.result,
+          });
+        }
       } else {
         // This handles indexing function build failures on hot reload.
         metrics.ponder_indexing_has_error.set(1);
@@ -130,28 +150,70 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   let database: Database | undefined;
 
-  const buildResult = await buildService.start({
-    watch: true,
+  const executeResult = await build.execute();
+
+  if (executeResult.configResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.schemaResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.indexingResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const initialBuildResult = unwrapResults([
+    build.preCompile(executeResult.configResult.result),
+    build.compileSchema(executeResult.schemaResult.result),
+    await build.compileIndexing({
+      configResult: executeResult.configResult.result,
+      schemaResult: executeResult.schemaResult.result,
+      indexingResult: executeResult.indexingResult.result,
+    }),
+    build.compileApi({ apiResult: executeResult.apiResult.result }),
+  ]);
+
+  if (initialBuildResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  build.startDev({
     onBuild: (buildResult) => {
       buildQueue.clear();
       buildQueue.add(buildResult);
     },
   });
 
-  if (buildResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-
   telemetry.record({
     name: "lifecycle:session_start",
     properties: {
       cli_command: "dev",
-      ...buildPayload(buildResult.indexingBuild),
+      ...buildPayload({
+        preBuild: initialBuildResult.result[0],
+        schemaBuild: initialBuildResult.result[1],
+        indexingBuild: initialBuildResult.result[2],
+      }),
     },
   });
 
-  buildQueue.add({ ...buildResult, kind: "indexing" });
+  buildQueue.add({
+    status: "success",
+    kind: "indexing",
+    result: {
+      preBuild: initialBuildResult.result[0],
+      schemaBuild: initialBuildResult.result[1],
+      indexingBuild: initialBuildResult.result[2],
+      apiBuild: initialBuildResult.result[3],
+    },
+  });
 
   return async () => {
     buildQueue.pause();

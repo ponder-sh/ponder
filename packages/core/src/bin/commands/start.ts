@@ -1,10 +1,11 @@
 import path from "node:path";
-import { createBuildService } from "@/build/index.js";
+import { createBuild } from "@/build/index.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { createDatabase } from "@/database/index.js";
+import { unwrapResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
@@ -40,7 +41,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = await createBuildService({ common });
+  const build = await createBuild({ common });
 
   let cleanupReloadable = () => Promise.resolve();
   let cleanupReloadableServer = () => Promise.resolve();
@@ -56,36 +57,70 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const buildResult = await buildService.start({ watch: false });
-  // Once we have the initial build, we can kill the build service.
-  await buildService.kill();
+  const executeResult = await build.execute();
+  await build.kill();
+
+  if (executeResult.configResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.schemaResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.indexingResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const buildResult = unwrapResults([
+    build.preCompile(executeResult.configResult.result),
+    build.compileSchema(executeResult.schemaResult.result),
+    await build.compileIndexing({
+      configResult: executeResult.configResult.result,
+      schemaResult: executeResult.schemaResult.result,
+      indexingResult: executeResult.indexingResult.result,
+    }),
+    build.compileApi({ apiResult: executeResult.apiResult.result }),
+  ]);
 
   if (buildResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
+  const [preBuild, schemaBuild, indexingBuild, apiBuild] = buildResult.result;
+
   telemetry.record({
     name: "lifecycle:session_start",
     properties: {
       cli_command: "start",
-      ...buildPayload(buildResult.indexingBuild),
+      ...buildPayload({
+        preBuild,
+        schemaBuild,
+        indexingBuild,
+      }),
     },
   });
 
   const database = createDatabase({
     common,
-    schema: buildResult.indexingBuild.schema,
-    databaseConfig: buildResult.indexingBuild.databaseConfig,
-    buildId: buildResult.indexingBuild.buildId,
-    namespace: buildResult.indexingBuild.namespace,
-    statements: buildResult.indexingBuild.statements,
+    databaseConfig: preBuild.databaseConfig,
+    namespace: preBuild.namespace,
+    schema: schemaBuild.schema,
+    statements: schemaBuild.statements,
+    buildId: indexingBuild.buildId,
   });
 
   cleanupReloadable = await run({
     common,
-    build: buildResult.indexingBuild!,
     database,
+    schemaBuild,
+    indexingBuild,
     onFatalError: () => {
       shutdown({ reason: "Received fatal error", code: 1 });
     },
@@ -96,8 +131,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   cleanupReloadableServer = await runServer({
     common,
-    build: buildResult.apiBuild,
     database,
+    schemaBuild,
+    apiBuild,
   });
 
   return cleanup;
