@@ -27,8 +27,6 @@ export type Options = {
   logLevel: LevelWithSilent;
   logFormat: "json" | "pretty";
 
-  databaseHeartbeatInterval: number;
-  databaseHeartbeatTimeout: number;
   databaseMaxQueryParameters: number;
 
   factoryAddressCountThreshold: number;
@@ -99,8 +97,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     logLevel,
     logFormat: cliOptions.logFormat! as Options["logFormat"],
 
-    databaseHeartbeatInterval: 10 * 1000,
-    databaseHeartbeatTimeout: 25 * 1000,
     // Half of the max query parameters for PGlite
     databaseMaxQueryParameters: 16_000,
 
