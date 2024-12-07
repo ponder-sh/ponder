@@ -1,4 +1,4 @@
-import pg, { type PoolConfig } from "pg";
+import pg, { type ClientConfig, type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
@@ -62,6 +62,14 @@ class ReadonlyClient extends pg.Client {
 
 export function createPool(config: PoolConfig) {
   return new pg.Pool({
+    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
+    statement_timeout: 2 * 60 * 1000, // 2 minutes
+    ...config,
+  });
+}
+
+export function createClient(config: ClientConfig) {
+  return new pg.Client({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 2 * 60 * 1000, // 2 minutes
     ...config,

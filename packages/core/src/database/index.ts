@@ -20,10 +20,9 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { formatEta } from "@/utils/format.js";
-import { createPool } from "@/utils/pg.js";
+import { hash } from "@/utils/hash.js";
+import { createClient, createPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
-import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import { getTableColumns } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
@@ -37,8 +36,9 @@ import {
   sql,
 } from "kysely";
 import { KyselyPGlite } from "kysely-pglite";
-import type { Pool } from "pg";
+import type { Client, Pool } from "pg";
 import prometheus from "prom-client";
+import { hexToNumber } from "viem";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database = {
@@ -77,9 +77,7 @@ export type Database = {
 };
 
 export type PonderApp = {
-  is_locked: 0 | 1;
   is_dev: 0 | 1;
-  heartbeat_at: number;
   build_id: string;
   checkpoint: string;
   table_names: string[];
@@ -130,13 +128,12 @@ export const createDatabase = ({
   preBuild: PreBuild;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Database => {
-  let heartbeatInterval: NodeJS.Timeout | undefined;
-
   ////////
   // Create drivers and orms
   ////////
 
   let driver: PGliteDriver | PostgresDriver;
+  let advisory: Client | undefined;
   let qb: Database["qb"];
 
   const dialect = preBuild.databaseConfig.kind;
@@ -238,6 +235,11 @@ export const createDatabase = ({
         max: syncMax,
       }),
     };
+
+    advisory = createClient({
+      connectionString: preBuild.databaseConfig.poolConfig.connectionString,
+      application_name: `${preBuild.namespace}_readonly`,
+    });
 
     qb = {
       internal: new HeadlessKysely({
@@ -440,6 +442,8 @@ export const createDatabase = ({
     });
   };
 
+  const schemaToInt = (schema: string) => hexToNumber(`0x${hash(schema)}`);
+
   const database = {
     qb,
     drizzle,
@@ -589,7 +593,9 @@ export const createDatabase = ({
             const removedDevApps = previousApps.filter(
               (app) =>
                 app.is_dev === 1 &&
+                // @ts-ignore
                 (app.is_locked === 0 ||
+                  // @ts-ignore
                   app.heartbeat_at + common.options.databaseHeartbeatTimeout <
                     Date.now()),
             );
@@ -658,191 +664,94 @@ export const createDatabase = ({
           .execute();
       });
 
-      const attempt = async () =>
-        qb.internal.wrap({ method: "setup" }, () =>
-          qb.internal.transaction().execute(async (tx) => {
-            const previousApp = await tx
-              .selectFrom("_ponder_meta")
-              .where("key", "=", "app")
-              .select("value")
-              .executeTakeFirst()
-              .then((row) => row?.value as PonderApp | undefined);
+      if (advisory) {
+        await advisory.connect();
 
-            const newApp = {
-              is_locked: 1,
-              is_dev: common.options.command === "dev" ? 1 : 0,
-              heartbeat_at: Date.now(),
-              build_id: buildId,
-              checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: getTableNames(schemaBuild.schema).map(
-                (tableName) => tableName.sql,
-              ),
-            } satisfies PonderApp;
+        const obtainedLock = await qb.internal.wrap(
+          { method: "lock" },
+          async () => {
+            return await advisory!
+              .query<{ is_locked: boolean }>(
+                "SELECT pg_try_advisory_lock($1) as is_locked",
+                [schemaToInt(preBuild.namespace).toString()],
+              )
+              .then((row) => row.rows[0]!.is_locked === true);
+          },
+        );
 
-            // If schema is empty, create tables
-            if (previousApp === undefined) {
-              await tx
-                .insertInto("_ponder_meta")
-                .values({ key: "status", value: null })
-                .execute();
-              await tx
-                .insertInto("_ponder_meta")
-                .values({
-                  key: "app",
-                  value: newApp,
-                })
-                .execute();
+        if (obtainedLock === false) {
+          throw new NonRetryableError(
+            `Schema '${preBuild.namespace}' is used by a different deployment`,
+          );
+        }
+      }
 
-              for (
-                let i = 0;
-                i < schemaBuild.statements.enums.sql.length;
-                i++
-              ) {
-                await sql
-                  .raw(schemaBuild.statements.enums.sql[i]!)
-                  .execute(tx)
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
-                      `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
-                    );
-                  });
-              }
-              for (
-                let i = 0;
-                i < schemaBuild.statements.tables.sql.length;
-                i++
-              ) {
-                await sql
-                  .raw(schemaBuild.statements.tables.sql[i]!)
-                  .execute(tx)
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
-                      `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
-                    );
-                  });
-              }
-              common.logger.info({
-                service: "database",
-                msg: `Created tables [${newApp.table_names.join(", ")}]`,
-              });
+      return await qb.internal.wrap({ method: "setup" }, () =>
+        qb.internal.transaction().execute(async (tx) => {
+          const previousApp = await tx
+            .selectFrom("_ponder_meta")
+            .where("key", "=", "app")
+            .select("value")
+            .executeTakeFirst()
+            .then((row) => row?.value as PonderApp | undefined);
 
-              return {
-                status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
-              } as const;
+          const newApp = {
+            is_dev: common.options.command === "dev" ? 1 : 0,
+            build_id: buildId,
+            checkpoint: encodeCheckpoint(zeroCheckpoint),
+            table_names: getTableNames(schemaBuild.schema).map(
+              (tableName) => tableName.sql,
+            ),
+          } satisfies PonderApp;
+
+          // If schema is empty, create tables
+          if (previousApp === undefined) {
+            await tx
+              .insertInto("_ponder_meta")
+              .values({ key: "status", value: null })
+              .execute();
+            await tx
+              .insertInto("_ponder_meta")
+              .values({
+                key: "app",
+                value: newApp,
+              })
+              .execute();
+
+            for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
+              await sql
+                .raw(schemaBuild.statements.enums.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                  );
+                });
             }
-
-            // dev fast path
-            if (
-              common.options.command === "dev" &&
-              previousApp.is_locked === 0 &&
-              previousApp.is_dev === 1
-            ) {
-              await tx
-                .updateTable("_ponder_meta")
-                .set({ value: null })
-                .where("key", "=", "status")
-                .execute();
-              await tx
-                .updateTable("_ponder_meta")
-                .set({
-                  value: newApp,
-                })
-                .where("key", "=", "app")
-                .execute();
-
-              for (const tableName of getTableNames(schemaBuild.schema)) {
-                await tx.schema
-                  .dropTable(tableName.sql)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-                await tx.schema
-                  .dropTable(tableName.reorg)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-              }
-
-              for (
-                let i = 0;
-                i < schemaBuild.statements.enums.sql.length;
-                i++
-              ) {
-                await sql
-                  .raw(schemaBuild.statements.enums.sql[i]!)
-                  .execute(tx)
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
-                      `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
-                    );
-                  });
-              }
-              for (
-                let i = 0;
-                i < schemaBuild.statements.tables.sql.length;
-                i++
-              ) {
-                await sql
-                  .raw(schemaBuild.statements.tables.sql[i]!)
-                  .execute(tx)
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
-                      `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
-                    );
-                  });
-              }
-              common.logger.info({
-                service: "database",
-                msg: `Created tables [${newApp.table_names.join(", ")}]`,
-              });
-
-              return {
-                status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
-              } as const;
+            for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
+              await sql
+                .raw(schemaBuild.statements.tables.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                  );
+                });
             }
+            common.logger.info({
+              service: "database",
+              msg: `Created tables [${newApp.table_names.join(", ")}]`,
+            });
 
-            // If crash recovery is not possible, error
-            if (
-              common.options.command === "dev" ||
-              previousApp.build_id !== newApp.build_id ||
-              previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
-            ) {
-              throw new NonRetryableError(
-                `Schema '${preBuild.namespace}' is used by a different deployment`,
-              );
-            }
+            return { checkpoint: encodeCheckpoint(zeroCheckpoint) };
+          }
 
-            const isAppUnlocked =
-              previousApp.is_locked === 0 ||
-              previousApp.heartbeat_at +
-                common.options.databaseHeartbeatTimeout <=
-                Date.now();
-
-            // If app is locked, wait
-            if (isAppUnlocked === false) {
-              return {
-                status: "locked",
-                expiry:
-                  previousApp.heartbeat_at +
-                  common.options.databaseHeartbeatTimeout,
-              } as const;
-            }
-
-            // Crash recovery is possible, recover
-
-            const checkpoint = previousApp.checkpoint;
-            newApp.checkpoint = checkpoint;
-
+          // dev fast path
+          if (common.options.command === "dev" && previousApp.is_dev === 1) {
             await tx
               .updateTable("_ponder_meta")
               .set({ value: null })
@@ -856,111 +765,130 @@ export const createDatabase = ({
               .where("key", "=", "app")
               .execute();
 
-            common.logger.info({
-              service: "database",
-              msg: `Detected cache hit for build '${buildId}' in schema '${preBuild.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
-            });
-
-            // Remove triggers
-
             for (const tableName of getTableNames(schemaBuild.schema)) {
-              await sql
-                .raw(
-                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
-                )
-                .execute(tx);
-            }
-
-            // Remove indexes
-
-            for (const indexStatement of schemaBuild.statements.indexes.json) {
               await tx.schema
-                .dropIndex(indexStatement.data.name)
+                .dropTable(tableName.sql)
+                .cascade()
                 .ifExists()
                 .execute();
-
-              common.logger.info({
-                service: "database",
-                msg: `Dropped index '${indexStatement.data.name}' in schema '${preBuild.namespace}'`,
-              });
+              await tx.schema
+                .dropTable(tableName.reorg)
+                .cascade()
+                .ifExists()
+                .execute();
             }
 
-            // Revert unfinalized data
+            for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
+              await sql
+                .raw(schemaBuild.statements.enums.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                  );
+                });
+            }
+            for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
+              await sql
+                .raw(schemaBuild.statements.tables.sql[i]!)
+                .execute(tx)
+                .catch((_error) => {
+                  const error = _error as Error;
+                  if (!error.message.includes("already exists")) throw error;
+                  throw new NonRetryableError(
+                    `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                  );
+                });
+            }
+            common.logger.info({
+              service: "database",
+              msg: `Created tables [${newApp.table_names.join(", ")}]`,
+            });
 
-            const { blockTimestamp, chainId, blockNumber } =
-              decodeCheckpoint(checkpoint);
+            return { checkpoint: encodeCheckpoint(zeroCheckpoint) };
+          }
+
+          // If crash recovery is not possible, error
+          if (
+            common.options.command === "dev" ||
+            previousApp.build_id !== newApp.build_id ||
+            previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
+          ) {
+            throw new NonRetryableError(
+              `Schema '${preBuild.namespace}' is used by a different deployment`,
+            );
+          }
+
+          // Crash recovery is possible, recover
+
+          const checkpoint = previousApp.checkpoint;
+          newApp.checkpoint = checkpoint;
+
+          await tx
+            .updateTable("_ponder_meta")
+            .set({ value: null })
+            .where("key", "=", "status")
+            .execute();
+          await tx
+            .updateTable("_ponder_meta")
+            .set({
+              value: newApp,
+            })
+            .where("key", "=", "app")
+            .execute();
+
+          common.logger.info({
+            service: "database",
+            msg: `Detected cache hit for build '${buildId}' in schema '${preBuild.namespace}'`,
+          });
+
+          // Remove triggers
+
+          for (const tableName of getTableNames(schemaBuild.schema)) {
+            await sql
+              .raw(
+                `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
+              )
+              .execute(tx);
+          }
+
+          // Remove indexes
+
+          for (const indexStatement of schemaBuild.statements.indexes.json) {
+            await tx.schema
+              .dropIndex(indexStatement.data.name)
+              .ifExists()
+              .execute();
 
             common.logger.info({
               service: "database",
-              msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
+              msg: `Dropped index '${indexStatement.data.name}' in schema '${preBuild.namespace}'`,
             });
+          }
 
-            for (const tableName of getTableNames(schemaBuild.schema)) {
-              await revert({
-                tableName,
-                checkpoint,
-                tx,
-              });
-            }
+          // Revert unfinalized data
 
-            return {
-              status: "success",
+          const { blockTimestamp, chainId, blockNumber } =
+            decodeCheckpoint(checkpoint);
+
+          common.logger.info({
+            service: "database",
+            msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
+          });
+
+          for (const tableName of getTableNames(schemaBuild.schema)) {
+            await revert({
+              tableName,
               checkpoint,
-            } as const;
-          }),
-        );
+              tx,
+            });
+          }
 
-      let result = await attempt();
-      if (result.status === "locked") {
-        const duration = result.expiry - Date.now();
-        common.logger.warn({
-          service: "database",
-          msg: `Schema '${preBuild.namespace}' is locked by a different Ponder app`,
-        });
-        common.logger.warn({
-          service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${preBuild.namespace} to expire...`,
-        });
-
-        await wait(duration);
-
-        result = await attempt();
-        if (result.status === "locked") {
-          throw new NonRetryableError(
-            `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this database.`,
-          );
-        }
-      }
-
-      heartbeatInterval = setInterval(async () => {
-        try {
-          const heartbeat = Date.now();
-
-          await qb.internal
-            .updateTable("_ponder_meta")
-            .where("key", "=", "app")
-            .set({
-              value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
-            })
-            .execute();
-
-          common.logger.debug({
-            service: "database",
-            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${buildId})`,
-          });
-        } catch (err) {
-          const error = err as Error;
-          common.logger.error({
-            service: "database",
-            msg: `Failed to update heartbeat timestamp, retrying in ${formatEta(
-              common.options.databaseHeartbeatInterval,
-            )}`,
-            error,
-          });
-        }
-      }, common.options.databaseHeartbeatInterval);
-
-      return { checkpoint: result.checkpoint };
+          return { checkpoint };
+        }),
+      );
     },
     async createIndexes() {
       for (const statement of schemaBuild.statements.indexes.sql) {
@@ -1076,17 +1004,13 @@ $$ LANGUAGE plpgsql
       );
     },
     async unlock() {
-      clearInterval(heartbeatInterval);
-
-      await qb.internal.wrap({ method: "unlock" }, async () => {
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
-          })
-          .execute();
-      });
+      if (advisory) {
+        await qb.internal.wrap({ method: "unlock" }, async () => {
+          await advisory!.query("SELECT pg_advisory_unlock($1)", [
+            schemaToInt(preBuild.namespace),
+          ]);
+        });
+      }
     },
     async kill() {
       await qb.internal.destroy();
@@ -1109,6 +1033,7 @@ $$ LANGUAGE plpgsql
         await d.user.end();
         await d.readonly.end();
         await d.sync.end();
+        await advisory?.end();
       }
 
       common.logger.debug({

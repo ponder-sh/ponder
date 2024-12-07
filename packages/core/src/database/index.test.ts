@@ -7,13 +7,12 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { wait } from "@/utils/wait.js";
 import { sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { sql as ksql } from "kysely";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import { type Database, type PonderApp, createDatabase } from "./index.js";
+import { type Database, createDatabase } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -60,7 +59,11 @@ test("setup() succeeds with empty schema", async (context) => {
   await database.kill();
 });
 
+// PGlite not being able to concurrently connect to the same database from two different clients
+// makes this test impossible.
 test("setup() throws with schema used", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
   const database = createDatabase({
     common: context.common,
     preBuild: {
@@ -73,7 +76,6 @@ test("setup() throws with schema used", async (context) => {
     },
   });
   await database.setup({ buildId: "abc" });
-  await database.kill();
 
   const databaseTwo = createDatabase({
     common: context.common,
@@ -91,6 +93,7 @@ test("setup() throws with schema used", async (context) => {
 
   expect(error).toBeDefined();
 
+  await database.kill();
   await databaseTwo.kill();
 });
 
@@ -144,87 +147,6 @@ test("setup() succeeds with crash recovery", async (context) => {
   expect(tableNames).toContain("_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
-  await databaseTwo.kill();
-});
-
-test("setup() succeeds with crash recovery after waiting for lock", async (context) => {
-  context.common.options.databaseHeartbeatInterval = 750;
-  context.common.options.databaseHeartbeatTimeout = 500;
-
-  const database = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-  await database.setup({ buildId: "abc" });
-  await database.finalize({ checkpoint: createCheckpoint(10) });
-
-  const databaseTwo = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
-
-  expect(checkpoint).toMatchObject(createCheckpoint(10));
-
-  await database.unlock();
-  await database.kill();
-  await databaseTwo.kill();
-});
-
-// PGlite not being able to concurrently connect to the same database from two different clients
-// makes this test impossible.
-test("setup() throws with schema used after waiting for lock", async (context) => {
-  if (context.databaseConfig.kind !== "postgres") return;
-
-  context.common.options.databaseHeartbeatInterval = 250;
-  context.common.options.databaseHeartbeatTimeout = 1000;
-
-  const database = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-  await database.setup({ buildId: "abc" });
-  await database.finalize({ checkpoint: createCheckpoint(10) });
-
-  const databaseTwo = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  const error = await databaseTwo.setup({ buildId: "abc" }).catch((err) => err);
-
-  expect(error).toBeDefined();
-
-  await database.kill();
   await databaseTwo.kill();
 });
 
@@ -414,48 +336,6 @@ test("setup() with crash recovery drops indexes and triggers", async (context) =
   await databaseTwo.kill();
 });
 
-test("heartbeat updates the heartbeat_at value", async (context) => {
-  context.common.options.databaseHeartbeatInterval = 250;
-  context.common.options.databaseHeartbeatTimeout = 625;
-
-  const database = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.setup({ buildId: "abc" });
-
-  const row = await database.qb.internal
-    .selectFrom("_ponder_meta")
-    .where("key", "=", "app")
-    .select("value")
-    .executeTakeFirst();
-
-  await wait(500);
-
-  const rowAfterHeartbeat = await database.qb.internal
-    .selectFrom("_ponder_meta")
-    .where("key", "=", "app")
-    .select("value")
-    .executeTakeFirst();
-
-  expect(
-    // @ts-ignore
-    BigInt(rowAfterHeartbeat!.value!.heartbeat_at as number),
-    // @ts-ignore
-  ).toBeGreaterThan(row!.value!.heartbeat_at as number);
-
-  await database.unlock();
-  await database.kill();
-});
-
 test("finalize()", async (context) => {
   const database = createDatabase({
     common: context.common,
@@ -525,47 +405,6 @@ test("finalize()", async (context) => {
   // @ts-ignore
   expect(metadata?.value?.checkpoint).toBe(createCheckpoint(10));
 
-  await database.kill();
-});
-
-test("unlock()", async (context) => {
-  let database = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.setup({ buildId: "abc" });
-  await database.unlock();
-  await database.kill();
-
-  database = createDatabase({
-    common: context.common,
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      namespace: "public",
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  const metadata = await database.qb.internal
-    .selectFrom("_ponder_meta")
-    .selectAll()
-    .where("key", "=", "app")
-    .execute();
-
-  expect((metadata[0]!.value as PonderApp).is_locked).toBe(0);
-
-  await database.unlock();
   await database.kill();
 });
 
