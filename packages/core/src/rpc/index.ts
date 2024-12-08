@@ -27,13 +27,7 @@ type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],
 > = Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"];
 
-export type RequestQueue = Omit<
-  Queue<
-    RequestReturnType<EIP1193Parameters<PublicRpcSchema>["method"]>,
-    EIP1193Parameters<PublicRpcSchema>
-  >,
-  "add"
-> & {
+export type Rpc = {
   request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
@@ -60,16 +54,13 @@ export type SubscribeReturnType = Awaited<
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
 
-/**
- * Creates a queue built to manage rpc requests.
- */
-export const createRequestQueue = ({
+export const createRpc = ({
   network,
   common,
 }: {
   network: Network;
   common: Common;
-}): RequestQueue => {
+}): Rpc => {
   const withRetry = async <
     T extends EIP1193Parameters<PublicRpcSchema> | SubscribeParameters,
   >({
@@ -164,7 +155,7 @@ export const createRequestQueue = ({
     return response;
   };
 
-  const requestQueue: Queue<
+  const queue: Queue<
     unknown,
     {
       request: EIP1193Parameters<PublicRpcSchema> | SubscribeParameters;
@@ -199,20 +190,19 @@ export const createRequestQueue = ({
   });
 
   return {
-    ...requestQueue,
     request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
     ) => {
       const stopClockLag = startClock();
 
-      return requestQueue.add({ request: params, stopClockLag });
+      return queue.add({ request: params, stopClockLag });
     },
     subscribe: (params: SubscribeParameters) => {
       const stopClockLag = startClock();
 
-      return requestQueue.add({ request: params, stopClockLag });
+      return queue.add({ request: params, stopClockLag });
     },
-  } as RequestQueue;
+  } as Rpc;
 };
 
 /**

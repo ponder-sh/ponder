@@ -5,7 +5,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, testClient } from "@/_test/utils.js";
-import type { RequestQueue } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncTrace } from "@/types/sync.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -17,11 +17,11 @@ beforeEach(setupIsolatedDatabase);
 
 // Helper function used to spoof "trace_filter" requests
 // because they aren't supported by foundry.
-const getRequestQueue = async (requestQueue: RequestQueue) => {
+const getRpc = async (rpc: Rpc) => {
   const rpcData = await getRawRPCData();
 
   return {
-    ...requestQueue,
+    ...rpc,
     request: (request: any) => {
       if (request.method === "trace_block") {
         const blockNumber = request.params[0];
@@ -37,19 +37,19 @@ const getRequestQueue = async (requestQueue: RequestQueue) => {
                   : rpcData.block5.callTraces;
 
         return Promise.resolve(traces);
-      } else return requestQueue.request(request);
+      } else return rpc.request(request);
     },
-  } as RequestQueue;
+  } as Rpc;
 };
 
 test("createRealtimeSyncService()", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -61,17 +61,17 @@ test("createRealtimeSyncService()", async (context) => {
 });
 
 test("start() handles block", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 4,
   });
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -91,17 +91,17 @@ test("start() handles block", async (context) => {
 });
 
 test("start() no-op when receiving same block twice", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 4,
   });
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -113,7 +113,7 @@ test("start() no-op when receiving same block twice", async (context) => {
   });
   await queue.onIdle();
 
-  await _eth_getBlockByNumber(requestQueues[0], { blockNumber: 5 }).then(
+  await _eth_getBlockByNumber(rpcs[0], { blockNumber: 5 }).then(
     // @ts-ignore
     (block) => queue.add({ block }),
   );
@@ -128,17 +128,17 @@ test("start() no-op when receiving same block twice", async (context) => {
 });
 
 test("start() gets missing block", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 0,
   });
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -162,21 +162,21 @@ test("start() gets missing block", async (context) => {
 });
 
 test("start() retries on error", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 0,
   });
 
-  const requestQueue = await getRequestQueue(requestQueues[0]);
+  const rpc = await getRpc(rpcs[0]);
 
-  const requestSpy = vi.spyOn(requestQueue, "request");
+  const requestSpy = vi.spyOn(rpc, "request");
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue,
+    rpc,
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -202,17 +202,17 @@ test("start() retries on error", async (context) => {
 });
 
 test("kill()", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 3,
   });
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -234,7 +234,7 @@ test("kill()", async (context) => {
 });
 
 test("handleBlock() block event", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
   const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
@@ -243,14 +243,14 @@ test("handleBlock() block event", async (context) => {
     data.push(_data);
   });
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 0,
   });
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent,
     onFatalError: vi.fn(),
@@ -309,10 +309,10 @@ test("handleBlock() block event", async (context) => {
 });
 
 test("handleBlock() finalize event", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 0,
   });
 
@@ -325,7 +325,7 @@ test("handleBlock() finalize event", async (context) => {
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent,
     onFatalError: vi.fn(),
@@ -357,10 +357,10 @@ test("handleBlock() finalize event", async (context) => {
 });
 
 test("handleReorg() finds common ancestor", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 0,
   });
 
@@ -369,7 +369,7 @@ test("handleReorg() finds common ancestor", async (context) => {
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent,
     onFatalError: vi.fn(),
@@ -383,7 +383,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     ]),
   });
 
-  await _eth_getBlockByNumber(requestQueues[0], { blockNumber: 3 }).then(
+  await _eth_getBlockByNumber(rpcs[0], { blockNumber: 3 }).then(
     // @ts-ignore
     (block) => queue.add({ block }),
   );
@@ -403,17 +403,17 @@ test("handleReorg() finds common ancestor", async (context) => {
 });
 
 test("handleReorg() throws error for deep reorg", async (context) => {
-  const { common, networks, requestQueues, sources } = context;
+  const { common, networks, rpcs, sources } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueues[0], {
+  const finalizedBlock = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 0,
   });
 
   const realtimeSync = createRealtimeSync({
     common,
     network: networks[0],
-    requestQueue: await getRequestQueue(requestQueues[0]),
+    rpc: await getRpc(rpcs[0]),
     sources,
     onEvent: vi.fn(),
     onFatalError: vi.fn(),
@@ -428,7 +428,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   });
   await queue.onIdle();
 
-  const block = await _eth_getBlockByNumber(requestQueues[0], {
+  const block = await _eth_getBlockByNumber(rpcs[0], {
     blockNumber: 5,
   });
 

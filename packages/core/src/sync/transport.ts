@@ -1,4 +1,4 @@
-import type { RequestQueue } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Address, Hex, Transport } from "viem";
@@ -12,10 +12,10 @@ const cachedMethods = [
 ] as const;
 
 export const cachedTransport = ({
-  requestQueue,
+  rpc,
   syncStore,
 }: {
-  requestQueue: RequestQueue;
+  rpc: Rpc;
   syncStore: SyncStore;
 }): Transport => {
   return ({ chain }) => {
@@ -67,7 +67,7 @@ export const cachedTransport = ({
 
           if (cachedResult !== null) return cachedResult;
           else {
-            const response = await requestQueue.request(body);
+            const response = await rpc.request(body);
             await syncStore.insertRpcRequestResult({
               blockNumber: blockNumberBigInt,
               chainId: chain!.id,
@@ -77,7 +77,7 @@ export const cachedTransport = ({
             return response;
           }
         } else {
-          return requestQueue.request(body);
+          return rpc.request(body);
         }
       },
     });

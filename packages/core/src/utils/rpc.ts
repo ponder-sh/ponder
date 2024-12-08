@@ -1,5 +1,5 @@
 import type {
-  RequestQueue,
+  Rpc,
   SubscribeParameters,
   SubscribeReturnType,
 } from "@/rpc/index.js";
@@ -24,7 +24,7 @@ import {
  * Helper function for "eth_getBlockByNumber" request.
  */
 export const _eth_getBlockByNumber = (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   {
     blockNumber,
     blockTag,
@@ -32,7 +32,7 @@ export const _eth_getBlockByNumber = (
     | { blockNumber: Hex | number; blockTag?: never }
     | { blockNumber?: never; blockTag: "latest" },
 ): Promise<SyncBlock> =>
-  requestQueue
+  rpc
     .request({
       method: "eth_getBlockByNumber",
       params: [
@@ -54,10 +54,10 @@ export const _eth_getBlockByNumber = (
  * Helper function for "eth_getBlockByNumber" request.
  */
 export const _eth_getBlockByHash = (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   { hash }: { hash: Hex },
 ): Promise<SyncBlock> =>
-  requestQueue
+  rpc
     .request({
       method: "eth_getBlockByHash",
       params: [hash, true],
@@ -75,7 +75,7 @@ export const _eth_getBlockByHash = (
  * Handles different error types and retries the request if applicable.
  */
 export const _eth_getLogs = async (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   params: {
     address?: Address | Address[];
     topics?: LogTopic[];
@@ -85,7 +85,7 @@ export const _eth_getLogs = async (
   ),
 ): Promise<SyncLog[]> => {
   if ("blockHash" in params) {
-    return requestQueue
+    return rpc
       .request({
         method: "eth_getLogs",
         params: [
@@ -104,7 +104,7 @@ export const _eth_getLogs = async (
       .then((l) => l as SyncLog[]);
   }
 
-  return requestQueue
+  return rpc
     .request({
       method: "eth_getLogs",
       params: [
@@ -134,10 +134,10 @@ export const _eth_getLogs = async (
  * Helper function for "eth_getTransactionReceipt" request.
  */
 export const _eth_getTransactionReceipt = (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   { hash }: { hash: Hex },
 ): Promise<SyncTransactionReceipt> =>
-  requestQueue
+  rpc
     .request({
       method: "eth_getTransactionReceipt",
       params: [hash],
@@ -156,7 +156,7 @@ export const _eth_getTransactionReceipt = (
  * Note: No strict typing is available.
  */
 export const _trace_filter = (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   params: {
     fromBlock: Hex | number;
     toBlock: Hex | number;
@@ -164,7 +164,7 @@ export const _trace_filter = (
     toAddress?: Address[];
   },
 ): Promise<SyncTrace[]> =>
-  requestQueue
+  rpc
     .request({
       method: "trace_filter",
       params: [
@@ -192,12 +192,12 @@ export const _trace_filter = (
  * Helper function for "trace_block" request.
  */
 export const _trace_block = (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   params: {
     blockNumber: Hex | number;
   },
 ): Promise<SyncTrace[]> =>
-  requestQueue
+  rpc
     .request({
       method: "trace_block",
       params: [
@@ -212,13 +212,13 @@ export const _trace_block = (
  * Helper function for "eth_subscribe" request.
  */
 export const _eth_subscribe_newHeads = (
-  requestQueue: RequestQueue,
+  rpc: Rpc,
   handlers: {
     onData: SubscribeParameters["onData"];
     onError: SubscribeParameters["onError"];
   },
 ): Promise<SubscribeReturnType> =>
-  requestQueue.subscribe({
+  rpc.subscribe({
     method: "eth_subscribe",
     params: ["newHeads"],
     ...handlers,

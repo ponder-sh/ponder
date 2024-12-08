@@ -15,7 +15,7 @@ import {
   getMetadataStore,
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import type { RequestQueue } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import { createPglite } from "@/utils/pglite.js";
@@ -43,7 +43,7 @@ declare module "vitest" {
       BlockSource,
     ];
     networks: [Network];
-    requestQueues: [RequestQueue];
+    rpcs: [Rpc];
     config: Config;
     erc20: { address: Address };
     factory: { address: Address; pair: Address };
@@ -261,12 +261,12 @@ export async function setupAnvil(context: TestContext) {
 
   context.config = getConfig(addresses);
 
-  const { networks, sources, requestQueues } = await getNetworkAndSources(
+  const { networks, sources, rpcs } = await getNetworkAndSources(
     addresses,
     context.common,
   );
   context.networks = networks as [Network];
-  context.requestQueues = requestQueues as [RequestQueue];
+  context.rpcs = rpcs as [Rpc];
   context.sources = sources as [
     ContractSource<"log", undefined>,
     ContractSource<"log", LogFactory>,

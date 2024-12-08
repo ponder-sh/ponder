@@ -1,6 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
-import type { RequestQueue } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   type BlockFilter,
@@ -50,7 +50,7 @@ type CreateHistoricalSyncParameters = {
   sources: Source[];
   syncStore: SyncStore;
   network: Network;
-  requestQueue: RequestQueue;
+  rpc: Rpc;
   onFatalError: (error: Error) => void;
 };
 
@@ -149,7 +149,7 @@ export const createHistoricalSync = async (
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
-          _eth_getLogs(args.requestQueue, {
+          _eth_getLogs(args.rpc, {
             address,
             topics,
             fromBlock: interval[0],
@@ -265,7 +265,7 @@ export const createHistoricalSync = async (
     if (filter.includeTransactionReceipts) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map((hash) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
+          _eth_getTransactionReceipt(args.rpc, { hash }),
         ),
       );
 
@@ -312,7 +312,7 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    let callTraces = await _trace_filter(args.requestQueue, {
+    let callTraces = await _trace_filter(args.rpc, {
       fromAddress: filter.fromAddress,
       toAddress,
       fromBlock: interval[0],
@@ -354,7 +354,7 @@ export const createHistoricalSync = async (
     // Request transactionReceipts to check for reverted transactions.
     const transactionReceipts = await Promise.all(
       Array.from(transactionHashes).map((hash) =>
-        _eth_getTransactionReceipt(args.requestQueue, {
+        _eth_getTransactionReceipt(args.rpc, {
           hash,
         }),
       ),
@@ -430,7 +430,7 @@ export const createHistoricalSync = async (
     if (blockCache.has(number)) {
       block = await blockCache.get(number)!;
     } else {
-      const _block = _eth_getBlockByNumber(args.requestQueue, {
+      const _block = _eth_getBlockByNumber(args.rpc, {
         blockNumber: toHex(number),
       });
       blockCache.set(number, _block);

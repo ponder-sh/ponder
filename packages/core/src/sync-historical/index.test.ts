@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
 import { getRawRPCData } from "@/_test/utils.js";
-import type { RequestQueue } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import { hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
@@ -17,11 +17,11 @@ beforeEach(setupIsolatedDatabase);
 
 // Helper function used to spoof "trace_filter" requests
 // because they aren't supported by foundry.
-const getRequestQueue = async (requestQueue: RequestQueue) => {
+const getRpc = async (rpc: Rpc) => {
   const rpcData = await getRawRPCData();
 
   return {
-    ...requestQueue,
+    ...rpc,
     request: (request: any) => {
       if (request.method === "trace_filter") {
         let traces = [
@@ -47,9 +47,9 @@ const getRequestQueue = async (requestQueue: RequestQueue) => {
 
         return Promise.resolve(traces);
       }
-      return requestQueue.request(request);
+      return rpc.request(request);
     },
-  } as RequestQueue;
+  } as Rpc;
 };
 
 test("createHistoricalSync()", async (context) => {
@@ -60,7 +60,7 @@ test("createHistoricalSync()", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -77,7 +77,7 @@ test("sync() with log filter", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -107,7 +107,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -142,7 +142,7 @@ test("sync() with block filter", async (context) => {
     network: context.networks[0],
     sources: [context.sources[4]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -173,7 +173,7 @@ test("sync() with log factory", async (context) => {
     network: context.networks[0],
     sources: [context.sources[1]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -201,7 +201,7 @@ test("sync() with trace filter", async (context) => {
     network: context.networks[0],
     sources: [context.sources[3]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -232,7 +232,7 @@ test("sync() with many filters", async (context) => {
     network: context.networks[0],
     sources: context.sources,
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
@@ -258,21 +258,21 @@ test("sync() with cache hit", async (context) => {
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
   await historicalSync.sync([0, 5]);
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(context.requestQueues[0], "request");
+  const spy = vi.spyOn(context.rpcs[0], "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
     network: context.networks[0],
     sources: [context.sources[0]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
   await historicalSync.sync([0, 5]);
@@ -297,11 +297,11 @@ test("syncBlock() with cache", async (context) => {
       { ...context.sources[4], filter: blockFilter },
     ],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 
-  const spy = vi.spyOn(context.requestQueues[0], "request");
+  const spy = vi.spyOn(context.rpcs[0], "request");
 
   await historicalSync.sync([0, 5]);
 
@@ -329,7 +329,7 @@ test("syncAddress() handles many addresses", async (context) => {
     network: context.networks[0],
     sources: [context.sources[1]],
     syncStore,
-    requestQueue: await getRequestQueue(context.requestQueues[0]),
+    rpc: await getRpc(context.rpcs[0]),
     onFatalError: () => {},
   });
 

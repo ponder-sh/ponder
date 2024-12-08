@@ -2,7 +2,7 @@ import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import {
-  type RequestQueue,
+  type Rpc,
   type SubscribeReturnType,
   resolveWebsocketTransport,
 } from "@/rpc/index.js";
@@ -59,7 +59,7 @@ export type RealtimeSync = {
 type CreateRealtimeSyncParameters = {
   common: Common;
   network: Network;
-  requestQueue: RequestQueue;
+  rpc: Rpc;
   sources: Source[];
   onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
@@ -424,7 +424,7 @@ export const createRealtimeSync = (
 
         throw new Error(msg);
       } else {
-        remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
+        remoteBlock = await _eth_getBlockByHash(args.rpc, {
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
@@ -489,7 +489,7 @@ export const createRealtimeSync = (
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      logs = await _eth_getLogs(args.requestQueue, { blockHash: block.hash });
+      logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
 
       // Protect against RPCs returning empty logs. Known to happen near chain tip.
       if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
@@ -526,7 +526,7 @@ export const createRealtimeSync = (
 
     let callTraces: SyncCallTrace[] = [];
     if (shouldRequestTraces) {
-      const traces = await _trace_block(args.requestQueue, {
+      const traces = await _trace_block(args.rpc, {
         blockNumber: hexToNumber(block.number),
       });
 
@@ -638,9 +638,7 @@ export const createRealtimeSync = (
     const transactionReceipts = await Promise.all(
       block.transactions
         .filter(({ hash }) => requiredTransactionReceipts.has(hash))
-        .map(({ hash }) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
-        ),
+        .map(({ hash }) => _eth_getTransactionReceipt(args.rpc, { hash })),
     );
 
     // Filter out call traces from reverted transactions
@@ -728,7 +726,7 @@ export const createRealtimeSync = (
               );
               const pendingBlocks = await Promise.all(
                 missingBlockRange.map((blockNumber) =>
-                  _eth_getBlockByNumber(args.requestQueue, {
+                  _eth_getBlockByNumber(args.rpc, {
                     blockNumber,
                   }).then((block) => fetchBlockEventData(block)),
                 ),
@@ -850,24 +848,21 @@ export const createRealtimeSync = (
         if (activeWebSocketConnection === undefined) {
           // Subscribe only if there is no active websocket connection
           try {
-            const connection = await _eth_subscribe_newHeads(
-              args.requestQueue,
-              {
-                onData: async (data) => {
-                  await enqueue(data.result.hash);
-                },
-                onError: async (error) => {
-                  args.common.logger.warn({
-                    service: "realtime",
-                    msg: `Failed active webSocket connection for '${args.network.name}' network.`,
-                    error,
-                  });
-
-                  activeWebSocketConnection = undefined;
-                  await connection.unsubscribe();
-                },
+            const connection = await _eth_subscribe_newHeads(args.rpc, {
+              onData: async (data) => {
+                await enqueue(data.result.hash);
               },
-            );
+              onError: async (error) => {
+                args.common.logger.warn({
+                  service: "realtime",
+                  msg: `Failed active webSocket connection for '${args.network.name}' network.`,
+                  error,
+                });
+
+                activeWebSocketConnection = undefined;
+                await connection.unsubscribe();
+              },
+            });
 
             consecutiveErrors = 0;
             activeWebSocketConnection = connection;
@@ -883,10 +878,10 @@ export const createRealtimeSync = (
         try {
           const block =
             blockHash === undefined
-              ? await _eth_getBlockByNumber(args.requestQueue, {
+              ? await _eth_getBlockByNumber(args.rpc, {
                   blockTag: "latest",
                 })
-              : await _eth_getBlockByHash(args.requestQueue, {
+              : await _eth_getBlockByHash(args.rpc, {
                   hash: blockHash,
                 });
 

@@ -1,25 +1,16 @@
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
-import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
 import { beforeEach, expect, test } from "vitest";
-import { createRequestQueue } from "./index.js";
+import { createRpc } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 
-/** Creates a request queue with a `maxRequestsPerSecond` of 1. */
-const getQueue = (network: Network, common: Common) => {
-  return createRequestQueue({
-    network: { ...network, maxRequestsPerSecond: 1 },
-    common,
-  });
-};
-
 test("requests", async ({ networks, common }) => {
-  const queue = getQueue(networks[0], common);
-  queue.start();
+  networks[0].maxRequestsPerSecond = 1;
 
-  const chainId = await queue.request({ method: "eth_chainId" });
+  const rpc = createRpc({ common, network: networks[0] });
+
+  const chainId = await rpc.request({ method: "eth_chainId" });
 
   expect(chainId).toBe("0x1");
 });
