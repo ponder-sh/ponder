@@ -167,7 +167,7 @@ export const createRequestQueue = ({
   const requestQueue: Queue<
     unknown,
     {
-      request: EIP1193Parameters<PublicRpcSchema> | SubscribeParameters;
+      request: EIP1193Parameters<PublicRpcSchema>;
       stopClockLag: () => number;
     }
   > = createQueue({
@@ -176,7 +176,7 @@ export const createRequestQueue = ({
     initialStart: true,
     browser: false,
     worker: async (task: {
-      request: EIP1193Parameters<PublicRpcSchema> | SubscribeParameters;
+      request: EIP1193Parameters<PublicRpcSchema>;
       stopClockLag: () => number;
     }) => {
       common.metrics.ponder_rpc_request_lag.observe(
@@ -184,17 +184,10 @@ export const createRequestQueue = ({
         task.stopClockLag(),
       );
 
-      if (task.request.method === "eth_subscribe") {
-        return await withRetry({
-          fn: subscribe,
-          request: task.request,
-        });
-      } else {
-        return await withRetry({
-          fn: fetchRequest,
-          request: task.request,
-        });
-      }
+      return await withRetry({
+        fn: fetchRequest,
+        request: task.request,
+      });
     },
   });
 
@@ -208,9 +201,10 @@ export const createRequestQueue = ({
       return requestQueue.add({ request: params, stopClockLag });
     },
     subscribe: (params: SubscribeParameters) => {
-      const stopClockLag = startClock();
-
-      return requestQueue.add({ request: params, stopClockLag });
+      return withRetry({
+        fn: subscribe,
+        request: params,
+      });
     },
   } as RequestQueue;
 };
