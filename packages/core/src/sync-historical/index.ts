@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import type { RequestQueue } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   type BlockFilter,
@@ -18,7 +19,6 @@ import {
   intervalDifference,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
   _eth_getLogs,

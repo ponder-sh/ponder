@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
@@ -8,16 +9,19 @@ import {
 import {
   BlockNotFoundError,
   type EIP1193Parameters,
+  type FallbackTransport,
   HttpRequestError,
   InternalRpcError,
   InvalidInputRpcError,
   LimitExceededRpcError,
   type PublicRpcSchema,
   type RpcError,
+  type Transport,
+  type WebSocketTransport,
   isHex,
 } from "viem";
-import { startClock } from "./timer.js";
-import { wait } from "./wait.js";
+import { startClock } from "../utils/timer.js";
+import { wait } from "../utils/wait.js";
 
 type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],
@@ -33,7 +37,25 @@ export type RequestQueue = Omit<
   request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
+  subscribe: (params: SubscribeParameters) => Promise<SubscribeReturnType>;
 };
+
+type ResolvedWebSocketTransport = Omit<
+  ReturnType<WebSocketTransport>,
+  "value"
+> & {
+  value: NonNullable<ReturnType<WebSocketTransport>["value"]>;
+};
+
+export type SubscribeParameters = Parameters<
+  ResolvedWebSocketTransport["value"]["subscribe"]
+>[0] & {
+  method: "eth_subscribe";
+};
+
+export type SubscribeReturnType = Awaited<
+  ReturnType<ResolvedWebSocketTransport["value"]["subscribe"]>
+>;
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
@@ -48,18 +70,18 @@ export const createRequestQueue = ({
   network: Network;
   common: Common;
 }): RequestQueue => {
-  // @ts-ignore
-  const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
+  const withRetry = async <
+    T extends EIP1193Parameters<PublicRpcSchema> | SubscribeParameters,
+  >({
+    fn,
+    request,
+  }: {
+    fn: (request: T) => Promise<unknown>;
+    request: T;
+  }) => {
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
-        const stopClock = startClock();
-        const response = await network.transport.request(request);
-        common.metrics.ponder_rpc_request_duration.observe(
-          { method: request.method, network: network.name },
-          stopClock(),
-        );
-
-        return response;
+        return await fn(request);
       } catch (_error) {
         const error = _error as Error;
 
@@ -76,7 +98,10 @@ export const createRequestQueue = ({
           if (getLogsErrorResponse.shouldRetry === true) throw error;
         }
 
-        if (shouldRetry(error) === false) {
+        if (
+          error instanceof NonRetryableError ||
+          shouldRetry(error) === false
+        ) {
           common.logger.warn({
             service: "sync",
             msg: `Failed '${request.method}' RPC request`,
@@ -102,6 +127,41 @@ export const createRequestQueue = ({
         await wait(duration);
       }
     }
+    throw "unreachable";
+  };
+
+  const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
+    const stopClock = startClock();
+    const response = await network.transport.request(request);
+    common.metrics.ponder_rpc_request_duration.observe(
+      { method: request.method, network: network.name },
+      stopClock(),
+    );
+
+    return response;
+  };
+
+  const subscribe = async (request: SubscribeParameters) => {
+    const stopClock = startClock();
+
+    const wsTransport = resolveWebsocketTransport(network.transport);
+
+    if (wsTransport === undefined) {
+      throw new NonRetryableError(
+        `No webSocket transport found for ${network.transport.config.type} transport.`,
+      );
+    }
+
+    const { method, ...req } = request;
+
+    const response = await wsTransport.value.subscribe(req);
+
+    common.metrics.ponder_rpc_request_duration.observe(
+      { method: method, network: network.name },
+      stopClock(),
+    );
+
+    return response;
   };
 
   const requestQueue: Queue<
@@ -124,7 +184,10 @@ export const createRequestQueue = ({
         task.stopClockLag(),
       );
 
-      return await fetchRequest(task.request);
+      return await withRetry({
+        fn: fetchRequest,
+        request: task.request,
+      });
     },
   });
 
@@ -136,6 +199,12 @@ export const createRequestQueue = ({
       const stopClockLag = startClock();
 
       return requestQueue.add({ request: params, stopClockLag });
+    },
+    subscribe: (params: SubscribeParameters) => {
+      return withRetry({
+        fn: subscribe,
+        request: params,
+      });
     },
   } as RequestQueue;
 };
@@ -172,4 +241,29 @@ function shouldRetry(error: Error) {
     return false;
   }
   return true;
+}
+
+export function resolveWebsocketTransport(
+  transport: ReturnType<Transport>,
+): ResolvedWebSocketTransport | undefined {
+  if (transport.config.type === "http") {
+    return undefined;
+  }
+
+  if (transport.config.type === "fallback") {
+    const fallbackTransport: ReturnType<FallbackTransport> =
+      transport as ReturnType<FallbackTransport>;
+
+    const wsTransport = fallbackTransport.value!.transports.find(
+      (t: ReturnType<Transport>) => t.config.type === "webSocket",
+    ) as ResolvedWebSocketTransport | undefined;
+
+    return wsTransport;
+  }
+
+  if (transport.config.type === "webSocket") {
+    return transport as ResolvedWebSocketTransport;
+  }
+
+  return undefined;
 }

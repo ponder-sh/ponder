@@ -1,11 +1,15 @@
 import type {
+  RequestQueue,
+  SubscribeParameters,
+  SubscribeReturnType,
+} from "@/rpc/index.js";
+import type {
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Address,
   BlockNotFoundError,
@@ -203,3 +207,19 @@ export const _trace_block = (
       ],
     } as any)
     .then((traces) => traces as unknown as SyncTrace[]);
+
+/**
+ * Helper function for "eth_subscribe" request.
+ */
+export const _eth_subscribe_newHeads = (
+  requestQueue: RequestQueue,
+  handlers: {
+    onData: SubscribeParameters["onData"];
+    onError: SubscribeParameters["onError"];
+  },
+): Promise<SubscribeReturnType> =>
+  requestQueue.subscribe({
+    method: "eth_subscribe",
+    params: ["newHeads"],
+    ...handlers,
+  });

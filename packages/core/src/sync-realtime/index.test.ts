@@ -5,8 +5,8 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getRawRPCData, testClient } from "@/_test/utils.js";
+import type { RequestQueue } from "@/rpc/index.js";
 import type { SyncTrace } from "@/types/sync.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { type RealtimeSyncEvent, createRealtimeSync } from "./index.js";
