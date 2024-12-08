@@ -2,6 +2,7 @@ import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
+import { createRequestQueue } from "@/rpc/index.js";
 import type { RawEvent } from "@/sync/events.js";
 import type { Status } from "@/sync/index.js";
 import type { Source } from "@/sync/source.js";
@@ -18,7 +19,6 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type Chain,
   type Hash,

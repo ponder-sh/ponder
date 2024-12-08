@@ -1,6 +1,7 @@
 import type { Common } from "@/common/common.js";
 import { getAppProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
+import { type RequestQueue, createRequestQueue } from "@/rpc/index.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -32,7 +33,6 @@ import {
 } from "@/utils/interval.js";
 import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type Address,

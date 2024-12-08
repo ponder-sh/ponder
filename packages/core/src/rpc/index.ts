@@ -20,8 +20,8 @@ import {
   type WebSocketTransport,
   isHex,
 } from "viem";
-import { startClock } from "./timer.js";
-import { wait } from "./wait.js";
+import { startClock } from "../utils/timer.js";
+import { wait } from "../utils/wait.js";
 
 type RequestReturnType<
   method extends EIP1193Parameters<PublicRpcSchema>["method"],

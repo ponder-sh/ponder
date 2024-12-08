@@ -15,10 +15,10 @@ import {
   getMetadataStore,
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import type { RequestQueue } from "@/rpc/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import { createPglite } from "@/utils/pglite.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 import type { Address } from "viem";

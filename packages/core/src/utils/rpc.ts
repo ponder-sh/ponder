@@ -1,15 +1,15 @@
 import type {
+  RequestQueue,
+  SubscribeParameters,
+  SubscribeReturnType,
+} from "@/rpc/index.js";
+import type {
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type {
-  RequestQueue,
-  SubscribeParameters,
-  SubscribeReturnType,
-} from "@/utils/requestQueue.js";
 import {
   type Address,
   BlockNotFoundError,
@@ -38,7 +38,7 @@ export const _eth_getBlockByNumber = (
       params: [
         typeof blockNumber === "number"
           ? numberToHex(blockNumber)
-          : (blockNumber ?? blockTag),
+          : blockNumber ?? blockTag,
         true,
       ],
     })

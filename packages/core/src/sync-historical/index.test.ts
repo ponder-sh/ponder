@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { simulateFactoryDeploy, simulatePairSwap } from "@/_test/simulate.js";
 import { getRawRPCData } from "@/_test/utils.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
+import type { RequestQueue } from "@/rpc/index.js";
 import { hexToNumber } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";

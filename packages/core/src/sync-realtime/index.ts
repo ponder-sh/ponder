@@ -1,6 +1,11 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
+import {
+  type RequestQueue,
+  type SubscribeReturnType,
+  resolveWebsocketTransport,
+} from "@/rpc/index.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
@@ -21,11 +26,6 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { range } from "@/utils/range.js";
-import {
-  type RequestQueue,
-  type SubscribeReturnType,
-  resolveWebsocketTransport,
-} from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
