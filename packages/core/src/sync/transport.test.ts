@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { anvil, publicClient } from "@/_test/utils.js";
 import type { Transport } from "viem";
-import { getFunctionSelector, toHex } from "viem";
+import { toFunctionSelector, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
 
@@ -15,11 +15,11 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 test("default", async (context) => {
-  const { requestQueues } = context;
+  const { rpcs } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     syncStore,
   });
 
@@ -45,12 +45,12 @@ test("default", async (context) => {
 });
 
 test("eth_call", async (context) => {
-  const { erc20, requestQueues } = context;
+  const { erc20, rpcs } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     syncStore,
   })({
     chain: anvil,
@@ -60,7 +60,7 @@ test("eth_call", async (context) => {
     method: "eth_call",
     params: [
       {
-        data: getFunctionSelector("totalSupply()"),
+        data: toFunctionSelector("totalSupply()"),
         to: erc20.address,
       },
       toHex(blockNumber),
@@ -75,7 +75,7 @@ test("eth_call", async (context) => {
     method: "eth_call",
     params: [
       {
-        data: getFunctionSelector("totalSupply()"),
+        data: toFunctionSelector("totalSupply()"),
         to: erc20.address,
       },
       toHex(blockNumber),
@@ -92,7 +92,7 @@ test("eth_call", async (context) => {
     method: "eth_call",
     params: [
       {
-        data: getFunctionSelector("totalSupply()"),
+        data: toFunctionSelector("totalSupply()"),
         to: erc20.address,
       },
       "latest",
@@ -107,12 +107,12 @@ test("eth_call", async (context) => {
 });
 
 test("eth_getBalance", async (context) => {
-  const { erc20, requestQueues } = context;
+  const { erc20, rpcs } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     syncStore,
   })({
     chain: anvil,
@@ -151,12 +151,12 @@ test("eth_getBalance", async (context) => {
 });
 
 test("eth_getStorageAt", async (context) => {
-  const { erc20, requestQueues } = context;
+  const { erc20, rpcs } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     syncStore,
   })({
     chain: anvil,
@@ -195,12 +195,12 @@ test("eth_getStorageAt", async (context) => {
 });
 
 test("eth_getCode", async (context) => {
-  const { erc20, requestQueues } = context;
+  const { erc20, rpcs } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     syncStore,
   })({
     chain: anvil,
@@ -239,10 +239,10 @@ test("eth_getCode", async (context) => {
 });
 
 test("fallback method", async (context) => {
-  const { requestQueues } = context;
+  const { rpcs } = context;
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const transport = cachedTransport({
-    requestQueue: requestQueues[0],
+    rpc: rpcs[0],
     syncStore,
   })({
     chain: anvil,

@@ -2,6 +2,7 @@ import { type AddressInfo, createServer } from "node:net";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
 import { createConfig } from "@/config/config.js";
+import { createRpc } from "@/rpc/index.js";
 import type { RawEvent } from "@/sync/events.js";
 import type { Status } from "@/sync/index.js";
 import type { Source } from "@/sync/source.js";
@@ -18,7 +19,6 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type Chain,
   type Hash,
@@ -164,7 +164,7 @@ export const getNetworkAndSources = async (
   });
   const mainnet = { ...networks[0], finalityBlockCount: 4 };
 
-  const requestQueue = createRequestQueue({
+  const rpc = createRpc({
     network: networks[0]!,
     common,
   });
@@ -172,7 +172,7 @@ export const getNetworkAndSources = async (
   return {
     networks: [mainnet],
     sources,
-    requestQueues: [requestQueue],
+    rpcs: [rpc],
   };
 };
 
