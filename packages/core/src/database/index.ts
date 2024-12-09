@@ -85,10 +85,10 @@ export type PonderApp = {
   table_names: string[];
 };
 
-type PonderInternalSchema = {
+export type PonderInternalSchema = {
   _ponder_meta:
-    | { key: `app`; value: PonderApp }
-    | { key: `status`; value: Status | null };
+    | { key: "app"; value: PonderApp }
+    | { key: "status"; value: Status | null };
 } & {
   [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
 } & {

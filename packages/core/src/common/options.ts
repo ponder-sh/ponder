@@ -4,7 +4,7 @@ import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
 
 export type Options = {
-  command: "dev" | "start" | "serve" | "codegen";
+  command: "dev" | "start" | "serve" | "codegen" | "list";
 
   schema?: string;
 

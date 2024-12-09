@@ -7,6 +7,7 @@ import { Command } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
 import { dev } from "./commands/dev.js";
+import { list } from "./commands/list.js";
 import { serve } from "./commands/serve.js";
 import { start } from "./commands/start.js";
 
@@ -113,6 +114,17 @@ const serveCommand = new Command("serve")
     await serve({ cliOptions });
   });
 
+const listCommand = new Command("list")
+  .description("List all deployments")
+  .showHelpAfterError()
+  .action(async (_, command) => {
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+    } as GlobalOptions & ReturnType<typeof command.opts>;
+    await list({ cliOptions });
+  });
+
 const codegenCommand = new Command("codegen")
   .description("Generate the schema.graphql file, then exit")
   .showHelpAfterError()
@@ -147,6 +159,7 @@ const codegenCommand = new Command("codegen")
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
 ponder.addCommand(serveCommand);
+ponder.addCommand(listCommand);
 ponder.addCommand(codegenCommand);
 
 export type CliOptions = Prettify<
@@ -155,6 +168,7 @@ export type CliOptions = Prettify<
       ReturnType<typeof devCommand.opts> &
         ReturnType<typeof startCommand.opts> &
         ReturnType<typeof serveCommand.opts> &
+        ReturnType<typeof listCommand.opts> &
         ReturnType<typeof codegenCommand.opts>
     >
 >;

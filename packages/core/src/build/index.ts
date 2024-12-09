@@ -354,7 +354,10 @@ export const createBuild = async ({
   const build = {
     async execute(): Promise<ExecuteResult> {
       if (namespace === undefined) {
-        if (common.options.command === "dev") {
+        if (
+          common.options.command === "dev" ||
+          common.options.command === "list"
+        ) {
           namespace = "public";
         } else {
           const error = new BuildError(
