@@ -1,41 +1,43 @@
 import { createConfig } from "@ponder/core";
-import { http, createPublicClient } from "viem";
+import { createPublicClient, webSocket } from "viem";
 
 import { weth9Abi } from "./abis/weth9Abi";
 
 const latestBlockMainnet = await createPublicClient({
-  transport: http(process.env.PONDER_RPC_URL_1),
+  transport: webSocket(process.env.PONDER_RPC_URL_1),
 }).getBlock();
 const latestBlockBase = await createPublicClient({
-  transport: http(process.env.PONDER_RPC_URL_8453),
+  transport: webSocket(process.env.PONDER_RPC_URL_8453),
 }).getBlock();
 const latestBlockOptimism = await createPublicClient({
-  transport: http(process.env.PONDER_RPC_URL_10),
+  transport: webSocket(process.env.PONDER_RPC_URL_10),
 }).getBlock();
 const latestBlockPolygon = await createPublicClient({
-  transport: http(process.env.PONDER_RPC_URL_137),
+  transport: webSocket(process.env.PONDER_RPC_URL_137),
 }).getBlock();
 
 export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
+      transport: webSocket(process.env.PONDER_RPC_URL_1),
       pollingInterval: 15_000,
     },
     base: {
       chainId: 8453,
-      transport: http(process.env.PONDER_RPC_URL_8453),
+      transport: webSocket(
+        "wss://base-mainnet.g.alchemy.com/v2/Ni1nSzvVMNzPF6w5yFvmUcHiOCmuAX60",
+      ),
       pollingInterval: 15_000,
     },
     optimism: {
       chainId: 10,
-      transport: http(process.env.PONDER_RPC_URL_10),
+      transport: webSocket(process.env.PONDER_RPC_URL_10),
       pollingInterval: 15_000,
     },
     polygon: {
       chainId: 137,
-      transport: http(process.env.PONDER_RPC_URL_137),
+      transport: webSocket(process.env.PONDER_RPC_URL_137),
       pollingInterval: 15_000,
     },
   },

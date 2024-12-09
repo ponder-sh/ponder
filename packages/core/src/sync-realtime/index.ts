@@ -1,11 +1,6 @@
 import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
-import {
-  type Rpc,
-  type SubscribeReturnType,
-  resolveWebsocketTransport,
-} from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
@@ -31,7 +26,7 @@ import {
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
-  _eth_subscribe_newHeads,
+  _eth_subscribe,
   _trace_block,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
@@ -114,10 +109,7 @@ export const createRealtimeSync = (
   let unfinalizedBlocks: LightBlock[] = [];
   let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
   let consecutiveErrors = 0;
-  let interval: NodeJS.Timeout | undefined;
-  let activeWebSocketConnection: SubscribeReturnType | undefined = undefined;
-  const isPolling =
-    resolveWebsocketTransport(args.network.transport) === undefined;
+  let cleanup: (() => Promise<void>) | undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -671,7 +663,7 @@ export const createRealtimeSync = (
   };
 
   return {
-    start(startArgs) {
+    async start(startArgs) {
       finalizedBlock = startArgs.syncProgress.finalized;
       finalizedChildAddresses = startArgs.initialChildAddresses;
       /**
@@ -814,87 +806,39 @@ export const createRealtimeSync = (
         },
       });
 
-      const onError = (error: Error): void => {
-        if (error instanceof NonRetryableError) {
-          args.common.logger.error({
-            service: "realtime",
-            msg: `Fatal warning: Failed to fetch/subscribe the latest '${args.network.name}' block.`,
-            error,
-          });
-
-          args.onFatalError(error);
-          return;
-        }
-
-        args.common.logger.warn({
-          service: "realtime",
-          msg: `Failed to fetch/subscribe the latest '${args.network.name}' block`,
-          error,
-        });
-
-        // After a certain number of attempts, emit a fatal error.
-        if (++consecutiveErrors === ERROR_TIMEOUT.length) {
-          args.common.logger.error({
-            service: "realtime",
-            msg: `Fatal warning: Failed to fetch/subscribe the latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-            error,
-          });
-
-          args.onFatalError(error);
-        }
-      };
-
-      const watchWebsocket = async () => {
-        if (activeWebSocketConnection === undefined) {
-          // Subscribe only if there is no active websocket connection
-          try {
-            const connection = await _eth_subscribe_newHeads(args.rpc, {
-              onData: async (data) => {
-                await enqueue(data.result.hash);
-              },
-              onError: async (error) => {
-                args.common.logger.warn({
-                  service: "realtime",
-                  msg: `Failed active webSocket connection for '${args.network.name}' network.`,
-                  error,
-                });
-
-                activeWebSocketConnection = undefined;
-                await connection.unsubscribe();
-              },
-            });
-
-            consecutiveErrors = 0;
-            activeWebSocketConnection = connection;
-          } catch (_error) {
-            if (isKilled) return;
-
-            onError(_error as Error);
-          }
-        }
-      };
-
-      const enqueue = async (blockHash?: Hash) => {
+      const enqueue = async (hash?: Hash) => {
         try {
-          const block =
-            blockHash === undefined
-              ? await _eth_getBlockByNumber(args.rpc, {
-                  blockTag: "latest",
-                })
-              : await _eth_getBlockByHash(args.rpc, {
-                  hash: blockHash,
-                });
-
+          let block: SyncBlock;
           const latestBlock = getLatestUnfinalizedBlock();
 
-          // We already saw and handled this block. No-op.
-          if (latestBlock.hash === block.hash) {
-            args.common.logger.trace({
-              service: "realtime",
-              msg: `Skipped processing '${args.network.name}' block ${hexToNumber(block.number)}, already synced`,
+          if (hash === undefined) {
+            block = await _eth_getBlockByNumber(args.rpc, {
+              blockTag: "latest",
             });
 
-            return;
+            // We already saw and handled this block. No-op.
+            if (latestBlock.hash === block.hash) {
+              args.common.logger.trace({
+                service: "realtime",
+                msg: `Skipped processing '${args.network.name}' block ${hexToNumber(latestBlock.number)}, already synced`,
+              });
+
+              return;
+            }
+          } else {
+            // We already saw and handled this block. No-op.
+            if (latestBlock.hash === hash) {
+              args.common.logger.trace({
+                service: "realtime",
+                msg: `Skipped processing '${args.network.name}' block ${hexToNumber(latestBlock.number)}, already synced`,
+              });
+
+              return;
+            }
+
+            block = await _eth_getBlockByHash(args.rpc, {
+              hash,
+            });
           }
 
           const blockWithEventData = await fetchBlockEventData(block);
@@ -905,27 +849,102 @@ export const createRealtimeSync = (
         } catch (_error) {
           if (isKilled) return;
 
-          onError(_error as Error);
+          const error = _error as Error;
+
+          args.common.logger.warn({
+            service: "realtime",
+            msg: `Failed to fetch latest '${args.network.name}' block`,
+            error,
+          });
+
+          // After a certain number of attempts, emit a fatal error.
+          if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+            args.common.logger.error({
+              service: "realtime",
+              msg: `Fatal error: Unable to fetch latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+              error,
+            });
+
+            args.onFatalError(error);
+          }
         }
       };
 
-      if (isPolling) {
-        interval = setInterval(enqueue, args.network.pollingInterval);
+      if (args.rpc.supports("eth_subscribe")) {
+        args.common.logger.info({
+          service: "realtime",
+          msg: `Subscribing to '${args.network.name}' network via websocket`,
+        });
+
+        try {
+          const connection = await _eth_subscribe(args.rpc, {
+            params: ["newHeads"],
+            onData: (data) => {
+              if (data.error) {
+                if (isKilled) return;
+
+                console.log("onData");
+
+                // TODO(kyle) is the connection still valid? When does the connection get invalidated?
+
+                args.common.logger.warn({
+                  service: "realtime",
+                  msg: `Failed to subscribe to latest '${args.network.name}' block`,
+                  error: data.error,
+                });
+              } else {
+                enqueue(data.result.hash);
+              }
+            },
+            onError: (error: Error) => {
+              if (isKilled) return;
+
+              console.log("onError");
+
+              // TODO(kyle) is the connection still valid? When does the connection get invalidated?
+
+              args.common.logger.warn({
+                service: "realtime",
+                msg: `Failed to subscribe to latest '${args.network.name}' block`,
+                error,
+              });
+
+              // After a certain number of attempts, emit a fatal error.
+              if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+                args.common.logger.error({
+                  service: "realtime",
+                  msg: `Fatal error: Unable to subscribe to latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+                  error,
+                });
+
+                args.onFatalError(error);
+              }
+            },
+          });
+
+          cleanup = () => connection.unsubscribe().then(() => {});
+        } catch (error) {
+          args.onFatalError(error as Error);
+        }
       } else {
-        // Check on the connection every second
-        interval = setInterval(watchWebsocket, 1000);
+        args.common.logger.info({
+          service: "realtime",
+          msg: `Subscribing to '${args.network.name}' network via polling`,
+        });
+
+        const interval = setInterval(enqueue, args.network.pollingInterval);
+        cleanup = () => Promise.resolve(clearInterval(interval));
       }
 
       // Note: this is done just for testing.
       return enqueue().then(() => queue);
     },
     async kill() {
-      clearInterval(interval);
+      await cleanup?.();
       isKilled = true;
       queue?.pause();
       queue?.clear();
       await queue?.onIdle();
-      await activeWebSocketConnection?.unsubscribe();
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;

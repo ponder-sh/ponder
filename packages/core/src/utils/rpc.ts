@@ -211,15 +211,7 @@ export const _trace_block = (
 /**
  * Helper function for "eth_subscribe" request.
  */
-export const _eth_subscribe_newHeads = (
+export const _eth_subscribe = (
   rpc: Rpc,
-  handlers: {
-    onData: SubscribeParameters["onData"];
-    onError: SubscribeParameters["onError"];
-  },
-): Promise<SubscribeReturnType> =>
-  rpc.subscribe({
-    method: "eth_subscribe",
-    params: ["newHeads"],
-    ...handlers,
-  });
+  params: SubscribeParameters,
+): Promise<SubscribeReturnType> => rpc.subscribe(params);
