@@ -94,11 +94,13 @@ List all deployments.
 ```bash
 Usage: ponder db list
 
-| schema         | is_live | deployed_at    | table_count |
-| -------------- | ------- | -------------- | ----------- |
-| indexer_prod   | yes     | 45 seconds ago | 10          |
-| test           | no      | 2 hours ago    | 10          |
-| demo           | no      | 1 day ago      | 5           |
+List all deployments
+
+│ Schema        │ Is live? │ Last active    │ Table count │
+├───────────────┼──────────┼────────────────┼─────────────┤
+│ indexer_prod  │      yes │            --- │          10 │
+│ test          │       no │    26m 58s ago │          10 │
+│ demo          │       no │      1 day ago │           5 │
 ```
 
 ## codegen
