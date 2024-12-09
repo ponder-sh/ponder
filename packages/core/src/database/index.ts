@@ -704,9 +704,11 @@ export const createDatabase = ({
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
+                    const e = new NonRetryableError(
                       `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
+                    e.stack = undefined;
+                    throw e;
                   });
               }
               for (
@@ -720,9 +722,11 @@ export const createDatabase = ({
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
+                    const e = new NonRetryableError(
                       `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                     );
+                    e.stack = undefined;
+                    throw e;
                   });
               }
               common.logger.info({
@@ -779,9 +783,11 @@ export const createDatabase = ({
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
+                    const e = new NonRetryableError(
                       `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
+                    e.stack = undefined;
+                    throw e;
                   });
               }
               for (
@@ -795,9 +801,11 @@ export const createDatabase = ({
                   .catch((_error) => {
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
-                    throw new NonRetryableError(
+                    const e = new NonRetryableError(
                       `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                     );
+                    e.stack = undefined;
+                    throw e;
                   });
               }
               common.logger.info({
@@ -817,9 +825,11 @@ export const createDatabase = ({
               previousApp.build_id !== newApp.build_id ||
               previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
             ) {
-              throw new NonRetryableError(
+              const error = new NonRetryableError(
                 `Schema '${preBuild.namespace}' is used by a different deployment`,
               );
+              error.stack = undefined;
+              throw error;
             }
 
             const isAppUnlocked =
@@ -926,9 +936,11 @@ export const createDatabase = ({
 
         result = await attempt();
         if (result.status === "locked") {
-          throw new NonRetryableError(
+          const error = new NonRetryableError(
             `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this database.`,
           );
+          error.stack = undefined;
+          throw error;
         }
       }
 

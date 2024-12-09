@@ -4,7 +4,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
-import { createDatabase } from "@/database/index.js";
+import { type Database, createDatabase } from "@/database/index.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
@@ -45,6 +45,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   let cleanupReloadable = () => Promise.resolve();
   let cleanupReloadableServer = () => Promise.resolve();
+
+  // biome-ignore lint/style/useConst: <explanation>
+  let database: Database | undefined;
 
   const cleanup = async () => {
     await cleanupReloadable();
@@ -107,7 +110,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  const database = createDatabase({
+  database = createDatabase({
     common,
     preBuild,
     schemaBuild,

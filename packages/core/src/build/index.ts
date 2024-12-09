@@ -363,6 +363,12 @@ export const createBuild = async ({
           const error = new BuildError(
             "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag.",
           );
+          error.stack = undefined;
+          common.logger.error({
+            service: "build",
+            msg: "Failed build",
+            error,
+          });
           return {
             configResult: { status: "error", error },
             schemaResult: { status: "error", error },
