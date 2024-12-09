@@ -49,10 +49,6 @@ test("createSync()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const sync = await createSync({
@@ -83,10 +79,6 @@ test("getEvents() returns events", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 1 });
@@ -125,10 +117,6 @@ test("getEvents() with cache", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 1 });
@@ -183,10 +171,6 @@ test("getEvents() end block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 2 });
@@ -235,20 +219,12 @@ test.skip("getEvents() multichain", async (context) => {
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options: {
-        ponderDir: "",
-        rootDir: "",
-      },
     });
 
   const { sources: sources2, networks: networks2 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options: {
-        ponderDir: "",
-        rootDir: "",
-      },
     });
 
   await testClient.mine({ blocks: 2 });
@@ -292,10 +268,6 @@ test("getEvents() updates status", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 2 });
@@ -336,10 +308,6 @@ test("getEvents() pagination", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 2 });
@@ -378,10 +346,6 @@ test("getEvents() initialCheckpoint", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 2 });
@@ -420,10 +384,6 @@ test("getEvents() refetches finalized block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 2 });
@@ -466,10 +426,6 @@ test("startRealtime()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 2 });
@@ -509,10 +465,6 @@ test("onEvent() handles block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const promise = promiseWithResolvers<void>();
@@ -559,10 +511,6 @@ test("onEvent() handles finalize", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const promise = promiseWithResolvers<void>();
@@ -614,20 +562,12 @@ test("onEvent() multichain gets all events", async (context) => {
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options: {
-        ponderDir: "",
-        rootDir: "",
-      },
     });
 
   const { sources: sources2, networks: networks2 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options: {
-        ponderDir: "",
-        rootDir: "",
-      },
     });
 
   // finalized block: 0
@@ -674,20 +614,12 @@ test("onEvent() multichain end block", async (context) => {
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options: {
-        ponderDir: "",
-        rootDir: "",
-      },
     });
 
   const { sources: sources2, networks: networks2 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options: {
-        ponderDir: "",
-        rootDir: "",
-      },
     });
 
   // finalized block: 0
@@ -736,10 +668,6 @@ test("onEvent() handles endBlock finalization", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const promise = promiseWithResolvers<void>();
@@ -790,10 +718,6 @@ test("onEvent() handles errors", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const promise = promiseWithResolvers<void>();

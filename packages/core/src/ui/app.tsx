@@ -7,7 +7,7 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
 import { ProgressBar } from "./ProgressBar.js";
-import Table from "./Table.js";
+import { Table } from "./Table.js";
 
 export type UiState = {
   port: number;

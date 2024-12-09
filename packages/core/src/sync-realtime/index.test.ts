@@ -56,10 +56,6 @@ test("createRealtimeSyncService()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const realtimeSync = createRealtimeSync({
@@ -92,10 +88,6 @@ test("start() handles block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -142,10 +134,6 @@ test("start() no-op when receiving same block twice", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -199,10 +187,6 @@ test("start() gets missing block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -250,10 +234,6 @@ test("start() retries on error", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -305,10 +285,6 @@ test("kill()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -362,10 +338,6 @@ test("handleBlock() block event with log", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
@@ -447,10 +419,6 @@ test("handleBlock() block event with log factory", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
@@ -530,10 +498,6 @@ test("handleBlock() block event with block", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
@@ -610,10 +574,6 @@ test("handleBlock() block event with transaction", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
@@ -689,10 +649,6 @@ test("handleBlock() block event with transfer", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const request = async (request: any) => {
@@ -810,10 +766,6 @@ test("handleBlock() block event with trace", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const request = async (request: any) => {
@@ -945,10 +897,6 @@ test("handleBlock() finalize event", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1008,10 +956,6 @@ test("handleReorg() finds common ancestor", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const onEvent = vi.fn();
@@ -1071,10 +1015,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {

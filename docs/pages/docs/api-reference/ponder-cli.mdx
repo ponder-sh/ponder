@@ -13,6 +13,7 @@ The CLI (provided by the `ponder` package) is the entrypoint for your project.
 Usage: ponder <command> [OPTIONS]
 
 Options:
+  --schema <SCHEMA>      Database schema
   --root <PATH>          Path to the project root directory (default: working directory)
   --config <PATH>        Path to the project config file (default: "ponder.config.ts")
   -v, --debug            Enable debug logs, e.g. realtime blocks, internal events
@@ -26,6 +27,7 @@ Commands:
   dev [options]          Start the development server with hot reloading
   start [options]        Start the production server
   serve [options]        Start the production HTTP server without the indexer
+  db list                List all deployments
   codegen                Generate the schema.graphql file, then exit
 ```
 
@@ -83,6 +85,22 @@ Options:
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
+```
+
+## db list
+
+List all deployments.
+
+```bash
+Usage: ponder db list
+
+List all deployments
+
+│ Schema        │ Is live? │ Last active    │ Table count │
+├───────────────┼──────────┼────────────────┼─────────────┤
+│ indexer_prod  │      yes │            --- │          10 │
+│ test          │       no │    26m 58s ago │          10 │
+│ demo          │       no │      1 day ago │           5 │
 ```
 
 ## codegen

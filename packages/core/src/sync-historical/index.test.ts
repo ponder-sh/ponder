@@ -49,10 +49,6 @@ test("createHistoricalSync()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -92,10 +88,6 @@ test("sync() with log filter", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -147,10 +139,6 @@ test("sync() with log filter and transaction receipts", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -196,10 +184,6 @@ test("sync() with block filter", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await testClient.mine({ blocks: 3 });
@@ -258,10 +242,6 @@ test("sync() with log factory", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -319,10 +299,6 @@ test("sync() with trace filter", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const request = async (request: any) => {
@@ -414,10 +390,6 @@ test("sync() with transaction filter", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -479,10 +451,6 @@ test("sync() with transfer filter", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const request = async (request: any) => {
@@ -563,19 +531,11 @@ test("sync() with many filters", async (context) => {
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -631,10 +591,6 @@ test("sync() with cache hit", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   let historicalSync = await createHistoricalSync({
@@ -688,19 +644,11 @@ test("syncBlock() with cache", async (context) => {
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({
@@ -756,10 +704,6 @@ test("syncAddress() handles many addresses", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const historicalSync = await createHistoricalSync({

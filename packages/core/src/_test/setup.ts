@@ -145,19 +145,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
 type DatabaseServiceSetup = {
   buildId: string;
-  instanceId: string;
   schema: Schema;
   indexing: "realtime" | "historical";
 };
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   buildId: "abc",
-  instanceId: "1234",
   schema: {},
   indexing: "historical",
 };
-
-// @ts-ignore
-globalThis.__PONDER_INSTANCE_ID = "1234";
 
 export async function setupDatabaseServices(
   context: TestContext,
@@ -171,22 +166,23 @@ export async function setupDatabaseServices(
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema: config.schema,
-    instanceId: config.instanceId,
   });
 
   const database = createDatabase({
     common: context.common,
-    databaseConfig: context.databaseConfig,
-    schema: config.schema,
-    instanceId: config.instanceId,
-    buildId: config.buildId,
-    statements,
-    namespace,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: config.schema,
+      statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -206,7 +202,6 @@ export async function setupDatabaseServices(
 
   const metadataStore = getMetadataStore({
     db: database.qb.readonly,
-    instanceId: config.instanceId,
   });
 
   const cleanup = () => database.kill();
