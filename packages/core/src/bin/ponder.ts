@@ -114,6 +114,8 @@ const serveCommand = new Command("serve")
     await serve({ cliOptions });
   });
 
+const dbCommand = new Command("db").description("Database management commands");
+
 const listCommand = new Command("list")
   .description("List all deployments")
   .showHelpAfterError()
@@ -156,10 +158,12 @@ const codegenCommand = new Command("codegen")
 //     console.log("ponder cache prune");
 //   });
 
+dbCommand.addCommand(listCommand);
+
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
 ponder.addCommand(serveCommand);
-ponder.addCommand(listCommand);
+ponder.addCommand(dbCommand);
 ponder.addCommand(codegenCommand);
 
 export type CliOptions = Prettify<
