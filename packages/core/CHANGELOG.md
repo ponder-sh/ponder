@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.7.17
+
+### Patch Changes
+
+- [#1321](https://github.com/ponder-sh/ponder/pull/1321) [`63d95d5e7fd79d7f276746fc5fe3f9c38bb43762`](https://github.com/ponder-sh/ponder/commit/63d95d5e7fd79d7f276746fc5fe3f9c38bb43762) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused too many rows to be reverted after a reorg when using `.sql()` raw database access.
+
 ## 0.7.16
 
 ### Patch Changes
