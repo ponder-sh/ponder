@@ -7,6 +7,7 @@ export const client = () => {
 
     const db = c.get("db") as Drizzle;
 
+    // @ts-ignore
     const res = await db._.session
       .prepareQuery(
         {

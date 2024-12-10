@@ -3,6 +3,6 @@ import { client } from "ponder";
 
 const app = new Hono();
 
-app.use("/client", client());
+app.use(client());
 
 export default app;
