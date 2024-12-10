@@ -506,7 +506,12 @@ export const createSyncStore = ({
         {}
       >,
       address: LogFilter["address"],
-      column: "address" | "from" | "to",
+      column:
+        | "address"
+        | "transactions.from"
+        | "transactions.to"
+        | "traces.from"
+        | "traces.to",
     ) => {
       if (typeof address === "string") return qb.where(column, "=", address);
       if (isAddressFactory(address)) {
@@ -564,25 +569,24 @@ export const createSyncStore = ({
     const transactionColumnsNull = [
       ksql`null`.as("tx_accessList"),
       ksql`null`.as("tx_from"),
-      ksql`null`.as("tx_gas"),
-      ksql`null`.as("tx_gasPrice"),
+      ksql`CAST(null AS numeric(78, 0))`.as("tx_gas"),
+      ksql`CAST(null AS numeric(78, 0))`.as("tx_gasPrice"),
       ksql`null`.as("tx_hash"),
       ksql`null`.as("tx_input"),
-      ksql`null`.as("tx_maxFeePerGas"),
-      ksql`null`.as("tx_maxPriorityFeePerGas"),
-      ksql`null`.as("tx_nonce"),
+      ksql`CAST(null AS numeric(78, 0))`.as("tx_maxFeePerGas"),
+      ksql`CAST(null AS numeric(78, 0))`.as("tx_maxPriorityFeePerGas"),
+      ksql`CAST(null AS int4)`.as("tx_nonce"),
       ksql`null`.as("tx_r"),
       ksql`null`.as("tx_s"),
       ksql`null`.as("tx_to"),
-      ksql`null`.as("tx_transactionIndex"),
+      ksql`CAST(null AS int4)`.as("tx_transactionIndex"),
       ksql`null`.as("tx_type"),
-      ksql`null`.as("tx_value"),
-      ksql`null`.as("tx_v"),
+      ksql`CAST(null AS numeric(78, 0))`.as("tx_value"),
+      ksql`CAST(null AS numeric(78, 0))`.as("tx_v"),
     ];
 
     const logsColumns = [
       "logs.address as log_address",
-      "logs.chainId as log_chainId",
       "logs.data as log_data",
       "logs.id as log_id",
       "logs.logIndex as log_logIndex",
@@ -593,10 +597,9 @@ export const createSyncStore = ({
     ];
     const logsColumnsNull = [
       ksql`null`.as("log_address"),
-      ksql`null`.as("log_chainId"),
       ksql`null`.as("log_data"),
       ksql`null`.as("log_id"),
-      ksql`null`.as("log_logIndex"),
+      ksql`CAST(null AS int4)`.as("log_logIndex"),
       ksql`null`.as("log_topic0"),
       ksql`null`.as("log_topic1"),
       ksql`null`.as("log_topic2"),
@@ -605,7 +608,7 @@ export const createSyncStore = ({
 
     const traceColumns = [
       "traces.id as trace_id",
-      "traces.callType as trace_callType",
+      "traces.type as trace_callType",
       "traces.from as trace_from",
       "traces.to as trace_to",
       "traces.gas as trace_gas",
@@ -623,15 +626,15 @@ export const createSyncStore = ({
       ksql`null`.as("trace_callType"),
       ksql`null`.as("trace_from"),
       ksql`null`.as("trace_to"),
-      ksql`null`.as("trace_gas"),
-      ksql`null`.as("trace_gasUsed"),
+      ksql`CAST(null AS numeric(78, 0))`.as("trace_gas"),
+      ksql`CAST(null AS numeric(78, 0))`.as("trace_gasUsed"),
       ksql`null`.as("trace_input"),
       ksql`null`.as("trace_output"),
       ksql`null`.as("trace_error"),
       ksql`null`.as("trace_revertReason"),
-      ksql`null`.as("trace_value"),
-      ksql`null`.as("trace_index"),
-      ksql`null`.as("trace_subcalls"),
+      ksql`CAST(null AS numeric(78, 0))`.as("trace_value"),
+      ksql`CAST(null AS int4)`.as("trace_index"),
+      ksql`CAST(null AS int4)`.as("trace_subcalls"),
     ];
 
     const txReceiptColumns = [
@@ -647,10 +650,10 @@ export const createSyncStore = ({
     ];
     const txReceiptColumnsNull = [
       ksql`null`.as("txr_contractAddress"),
-      ksql`null`.as("txr_cumulativeGasUsed"),
-      ksql`null`.as("txr_effectiveGasPrice"),
+      ksql`CAST(null AS numeric(78, 0))`.as("txr_cumulativeGasUsed"),
+      ksql`CAST(null AS numeric(78, 0))`.as("txr_effectiveGasPrice"),
       ksql`null`.as("txr_from"),
-      ksql`null`.as("txr_gasUsed"),
+      ksql`CAST(null AS numeric(78, 0))`.as("txr_gasUsed"),
       ksql`null`.as("txr_logsBloom"),
       ksql`null`.as("txr_status"),
       ksql`null`.as("txr_to"),
@@ -703,8 +706,8 @@ export const createSyncStore = ({
         // @ts-ignore
         .select([
           ...blockColumns,
-          ...logsColumns,
           ...transactionColumns,
+          ...logsColumns,
           ...traceColumnsNull,
         ])
         .$call((qb) =>
@@ -749,8 +752,8 @@ export const createSyncStore = ({
         ) // @ts-ignore
         .select([
           ...blockColumns,
-          ...logsColumnsNull,
           ...transactionColumnsNull,
+          ...logsColumnsNull,
           ...traceColumnsNull,
           ...txReceiptColumnsNull,
         ]);
@@ -772,8 +775,12 @@ export const createSyncStore = ({
           ksql`null`.as("traceId"),
         ])
         .where("transactions.chainId", "=", filter.chainId)
-        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
+        .$call((qb) =>
+          addressSQL(qb as any, filter.fromAddress, "transactions.from"),
+        )
+        .$call((qb) =>
+          addressSQL(qb as any, filter.toAddress, "transactions.to"),
+        )
         .$if(filter.includeReverted === false, (qb) =>
           qb.where(
             db
@@ -839,8 +846,8 @@ export const createSyncStore = ({
           "traces.id as traceId",
         ])
         .where("traces.chainId", "=", filter.chainId)
-        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
+        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "traces.from"))
+        .$call((qb) => addressSQL(qb as any, filter.toAddress, "traces.to"))
         .where("traces.value", ">", "0")
         .$if(filter.includeReverted === false, (qb) =>
           qb.where("traces.isReverted", "=", 0),
@@ -889,8 +896,8 @@ export const createSyncStore = ({
           "traces.id as traceId",
         ])
         .where("traces.chainId", "=", filter.chainId)
-        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
+        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "traces.from"))
+        .$call((qb) => addressSQL(qb as any, filter.toAddress, "traces.to"))
         .$if(filter.includeReverted === false, (qb) =>
           qb.where("traces.isReverted", "=", 0),
         )
@@ -971,7 +978,6 @@ export const createSyncStore = ({
                 block_totalDifficulty: BlocksTable["totalDifficulty"];
                 block_transactionsRoot: BlocksTable["transactionsRoot"];
                 log_address: LogsTable["address"];
-                log_chainId: LogsTable["chainId"];
                 log_data: LogsTable["data"];
                 log_id: LogsTable["id"];
                 log_logIndex: LogsTable["logIndex"];
@@ -1046,7 +1052,73 @@ export const createSyncStore = ({
             "event.filterIndex as event_filterIndex",
             "event.checkpoint as event_checkpoint",
           ])
-          .selectAll()
+          .select([
+            "event.block_hash as block_hash",
+            "event.block_baseFeePerGas as block_baseFeePerGas",
+            "event.block_difficulty as block_difficulty",
+            "event.block_extraData as block_extraData",
+            "event.block_gasLimit as block_gasLimit",
+            "event.block_gasUsed as block_gasUsed",
+            "event.block_logsBloom as block_logsBloom",
+            "event.block_miner as block_miner",
+            "event.block_mixHash as block_mixHash",
+            "event.block_nonce as block_nonce",
+            "event.block_number as block_number",
+            "event.block_parentHash as block_parentHash",
+            "event.block_receiptsRoot as block_receiptsRoot",
+            "event.block_sha3Uncles as block_sha3Uncles",
+            "event.block_size as block_size",
+            "event.block_stateRoot as block_stateRoot",
+            "event.block_timestamp as block_timestamp",
+            "event.block_totalDifficulty as block_totalDifficulty",
+            "event.block_transactionsRoot as block_transactionsRoot",
+            "event.log_address as log_address",
+            "event.log_data as log_data",
+            "event.log_id as log_id",
+            "event.log_logIndex as log_logIndex",
+            "event.log_topic0 as log_topic0",
+            "event.log_topic1 as log_topic1",
+            "event.log_topic2 as log_topic2",
+            "event.log_topic3 as log_topic3",
+            "event.tx_hash as tx_hash",
+            "event.tx_from as tx_from",
+            "event.tx_to as tx_to",
+            "event.tx_gas as tx_gas",
+            "event.tx_gasPrice as tx_gasPrice",
+            "event.tx_input as tx_input",
+            "event.tx_maxFeePerGas as tx_maxFeePerGas",
+            "event.tx_maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+            "event.tx_nonce as tx_nonce",
+            "event.tx_r as tx_r",
+            "event.tx_s as tx_s",
+            "event.tx_transactionIndex as tx_transactionIndex",
+            "event.tx_type as tx_type",
+            "event.tx_value as tx_value",
+            "event.tx_v as tx_v",
+            "event.tx_accessList as tx_accessList",
+            "event.trace_id as trace_id",
+            "event.trace_callType as trace_callType",
+            "event.trace_from as trace_from",
+            "event.trace_to as trace_to",
+            "event.trace_gas as trace_gas",
+            "event.trace_gasUsed as trace_gasUsed",
+            "event.trace_input as trace_input",
+            "event.trace_output as trace_output",
+            "event.trace_value as trace_value",
+            "event.trace_index as trace_index",
+            "event.trace_subcalls as trace_subcalls",
+            "event.trace_error as trace_error",
+            "event.trace_revertReason as trace_revertReason",
+            "event.txr_contractAddress as txr_contractAddress",
+            "event.txr_cumulativeGasUsed as txr_cumulativeGasUsed",
+            "event.txr_effectiveGasPrice as txr_effectiveGasPrice",
+            "event.txr_from as txr_from",
+            "event.txr_gasUsed as txr_gasUsed",
+            "event.txr_logsBloom as txr_logsBloom",
+            "event.txr_status as txr_status",
+            "event.txr_to as txr_to",
+            "event.txr_type as txr_type",
+          ])
           .where("event.checkpoint", ">", from)
           .where("event.checkpoint", "<=", to)
           .orderBy("event.checkpoint", "asc")
