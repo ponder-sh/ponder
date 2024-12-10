@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",
+    "db": "ponder db list",
     "codegen": "ponder codegen",
     "serve": "ponder serve",
     "lint": "eslint .",
