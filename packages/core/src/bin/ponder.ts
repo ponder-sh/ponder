@@ -172,7 +172,7 @@ export type CliOptions = Prettify<
       ReturnType<typeof devCommand.opts> &
         ReturnType<typeof startCommand.opts> &
         ReturnType<typeof serveCommand.opts> &
-        ReturnType<typeof listCommand.opts> &
+        ReturnType<typeof dbCommand.opts> &
         ReturnType<typeof codegenCommand.opts>
     >
 >;

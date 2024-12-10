@@ -130,7 +130,13 @@ export function printTable<TRow extends { [key: string]: any }>(props: {
   }[];
   rows: TRow[];
 }) {
-  const table = <Table {...props} />;
+  const table = (
+    <>
+      <Text> </Text>
+      <Table {...props} />
+      <Text> </Text>
+    </>
+  );
   const instance = render(table);
   instance.cleanup();
 }

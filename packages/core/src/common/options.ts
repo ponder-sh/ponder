@@ -66,6 +66,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     logLevel = "info";
   }
 
+  if (["list", "codegen"].includes(cliOptions.command)) logLevel = "error";
+
   const port =
     process.env.PORT !== undefined
       ? Number(process.env.PORT)

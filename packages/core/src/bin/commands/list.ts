@@ -113,7 +113,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   printTable({
     columns: [
       { title: "Schema", key: "table_schema", align: "left" },
-      { title: "Is live?", key: "is_live", align: "right" },
+      { title: "Active", key: "active", align: "right" },
       { title: "Last active", key: "last_active", align: "right" },
       { title: "Table count", key: "table_count", align: "right" },
     ],
@@ -121,7 +121,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
       .filter((row) => row.value.is_dev === 0)
       .map((row) => ({
         table_schema: row.schema,
-        is_live:
+        active:
           row.value.is_locked === 1 &&
           row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
             Date.now()

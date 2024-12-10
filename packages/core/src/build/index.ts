@@ -355,11 +355,9 @@ export const createBuild = async ({
     async execute(): Promise<ExecuteResult> {
       if (namespace === undefined) {
         if (
-          common.options.command === "dev" ||
-          common.options.command === "list"
+          common.options.command === "start" ||
+          common.options.command === "serve"
         ) {
-          namespace = "public";
-        } else {
           const error = new BuildError(
             "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag.",
           );
@@ -375,6 +373,8 @@ export const createBuild = async ({
             indexingResult: { status: "error", error },
             apiResult: { status: "error", error },
           } as const;
+        } else {
+          namespace = "public";
         }
       }
 

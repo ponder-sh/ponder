@@ -42,11 +42,6 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
 
   const executeResult = await build.execute();
   if (executeResult.schemaResult.status === "error") {
-    logger.error({
-      service: "process",
-      msg: "Failed schema build",
-      error: executeResult.schemaResult.error,
-    });
     await shutdown({ reason: "Failed schema build", code: 1 });
     return;
   }
@@ -55,11 +50,6 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   );
 
   if (schemaBuildResult.status === "error") {
-    logger.error({
-      service: "process",
-      msg: "Failed schema build",
-      error: schemaBuildResult.error,
-    });
     await shutdown({ reason: "Failed schema build", code: 1 });
     return;
   }
