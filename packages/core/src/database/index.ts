@@ -743,7 +743,10 @@ export const createDatabase = ({
             // dev fast path
             if (
               common.options.command === "dev" &&
-              previousApp.is_locked === 0 &&
+              (previousApp.is_locked === 0 ||
+                previousApp.heartbeat_at +
+                  common.options.databaseHeartbeatTimeout <=
+                  Date.now()) &&
               previousApp.is_dev === 1
             ) {
               await tx

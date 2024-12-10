@@ -121,7 +121,12 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
       .filter((row) => row.value.is_dev === 0)
       .map((row) => ({
         table_schema: row.schema,
-        is_live: row.value.is_locked === 1 ? "yes" : "no",
+        is_live:
+          row.value.is_locked === 1 &&
+          row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
+            Date.now()
+            ? "yes"
+            : "no",
         last_active:
           row.value.is_locked === 1
             ? "---"
