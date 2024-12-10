@@ -32,6 +32,8 @@ export {
   bigint,
 } from "@/drizzle/index.js";
 
+export { client } from "@/client/index.js";
+
 export { graphql } from "@/graphql/middleware.js";
 export { printGraphqlSchema } from "@/graphql/print.js";
 

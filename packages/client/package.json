@@ -1,0 +1,46 @@
+{
+  "name": "@ponder/client",
+  "version": "0.0.0",
+  "description": "An open-source framework for crypto application backends",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ponder-sh/ponder",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/_test/**/*"
+  ],
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typings": "./dist/index.d.ts",
+  "exports": {
+    "import": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "test:typecheck": "vitest --typecheck.only",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.4"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "drizzle-orm": "0.36.4"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1"
+  }
+}

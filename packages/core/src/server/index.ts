@@ -106,6 +106,12 @@ export async function createServer({
 
       return c.json(status);
     })
+    .use(
+      createMiddleware(async (c, next) => {
+        c.set("db", database.drizzle);
+        await next();
+      }),
+    )
     .route("/", apiBuild.app)
     .onError((error, c) => onError(error, c, common));
 
