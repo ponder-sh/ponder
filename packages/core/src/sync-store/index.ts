@@ -36,7 +36,12 @@ import {
   hexToBigInt,
 } from "viem";
 import {
+  type BlocksTable,
+  type LogsTable,
   type PonderSyncSchema,
+  type TracesTable,
+  type TransactionReceiptsTable,
+  type TransactionsTable,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -497,7 +502,7 @@ export const createSyncStore = ({
     const addressSQL = (
       qb: SelectQueryBuilder<
         PonderSyncSchema,
-        "logs" | "blocks" | "traces",
+        "logs" | "blocks" | "traces" | "transactions",
         {}
       >,
       address: LogFilter["address"],
@@ -516,6 +521,142 @@ export const createSyncStore = ({
       return qb;
     };
 
+    const blockColumns = [
+      "blocks.baseFeePerGas as block_baseFeePerGas",
+      "blocks.difficulty as block_difficulty",
+      "blocks.extraData as block_extraData",
+      "blocks.gasLimit as block_gasLimit",
+      "blocks.gasUsed as block_gasUsed",
+      "blocks.hash as block_hash",
+      "blocks.logsBloom as block_logsBloom",
+      "blocks.miner as block_miner",
+      "blocks.mixHash as block_mixHash",
+      "blocks.nonce as block_nonce",
+      "blocks.number as block_number",
+      "blocks.parentHash as block_parentHash",
+      "blocks.receiptsRoot as block_receiptsRoot",
+      "blocks.sha3Uncles as block_sha3Uncles",
+      "blocks.size as block_size",
+      "blocks.stateRoot as block_stateRoot",
+      "blocks.timestamp as block_timestamp",
+      "blocks.totalDifficulty as block_totalDifficulty",
+      "blocks.transactionsRoot as block_transactionsRoot",
+    ];
+
+    const transactionColumns = [
+      "transactions.accessList as tx_accessList",
+      "transactions.from as tx_from",
+      "transactions.gas as tx_gas",
+      "transactions.gasPrice as tx_gasPrice",
+      "transactions.hash as tx_hash",
+      "transactions.input as tx_input",
+      "transactions.maxFeePerGas as tx_maxFeePerGas",
+      "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
+      "transactions.nonce as tx_nonce",
+      "transactions.r as tx_r",
+      "transactions.s as tx_s",
+      "transactions.to as tx_to",
+      "transactions.transactionIndex as tx_transactionIndex",
+      "transactions.type as tx_type",
+      "transactions.value as tx_value",
+      "transactions.v as tx_v",
+    ];
+    const transactionColumnsNull = [
+      ksql`null`.as("tx_accessList"),
+      ksql`null`.as("tx_from"),
+      ksql`null`.as("tx_gas"),
+      ksql`null`.as("tx_gasPrice"),
+      ksql`null`.as("tx_hash"),
+      ksql`null`.as("tx_input"),
+      ksql`null`.as("tx_maxFeePerGas"),
+      ksql`null`.as("tx_maxPriorityFeePerGas"),
+      ksql`null`.as("tx_nonce"),
+      ksql`null`.as("tx_r"),
+      ksql`null`.as("tx_s"),
+      ksql`null`.as("tx_to"),
+      ksql`null`.as("tx_transactionIndex"),
+      ksql`null`.as("tx_type"),
+      ksql`null`.as("tx_value"),
+      ksql`null`.as("tx_v"),
+    ];
+
+    const logsColumns = [
+      "logs.address as log_address",
+      "logs.chainId as log_chainId",
+      "logs.data as log_data",
+      "logs.id as log_id",
+      "logs.logIndex as log_logIndex",
+      "logs.topic0 as log_topic0",
+      "logs.topic1 as log_topic1",
+      "logs.topic2 as log_topic2",
+      "logs.topic3 as log_topic3",
+    ];
+    const logsColumnsNull = [
+      ksql`null`.as("log_address"),
+      ksql`null`.as("log_chainId"),
+      ksql`null`.as("log_data"),
+      ksql`null`.as("log_id"),
+      ksql`null`.as("log_logIndex"),
+      ksql`null`.as("log_topic0"),
+      ksql`null`.as("log_topic1"),
+      ksql`null`.as("log_topic2"),
+      ksql`null`.as("log_topic3"),
+    ];
+
+    const traceColumns = [
+      "traces.id as trace_id",
+      "traces.callType as trace_callType",
+      "traces.from as trace_from",
+      "traces.to as trace_to",
+      "traces.gas as trace_gas",
+      "traces.gasUsed as trace_gasUsed",
+      "traces.input as trace_input",
+      "traces.output as trace_output",
+      "traces.error as trace_error",
+      "traces.revertReason as trace_revertReason",
+      "traces.value as trace_value",
+      "traces.index as trace_index",
+      "traces.subcalls as trace_subcalls",
+    ];
+    const traceColumnsNull = [
+      ksql`null`.as("trace_id"),
+      ksql`null`.as("trace_callType"),
+      ksql`null`.as("trace_from"),
+      ksql`null`.as("trace_to"),
+      ksql`null`.as("trace_gas"),
+      ksql`null`.as("trace_gasUsed"),
+      ksql`null`.as("trace_input"),
+      ksql`null`.as("trace_output"),
+      ksql`null`.as("trace_error"),
+      ksql`null`.as("trace_revertReason"),
+      ksql`null`.as("trace_value"),
+      ksql`null`.as("trace_index"),
+      ksql`null`.as("trace_subcalls"),
+    ];
+
+    const txReceiptColumns = [
+      "transactionReceipts.contractAddress as txr_contractAddress",
+      "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
+      "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
+      "transactionReceipts.from as txr_from",
+      "transactionReceipts.gasUsed as txr_gasUsed",
+      "transactionReceipts.logsBloom as txr_logsBloom",
+      "transactionReceipts.status as txr_status",
+      "transactionReceipts.to as txr_to",
+      "transactionReceipts.type as txr_type",
+    ];
+    const txReceiptColumnsNull = [
+      ksql`null`.as("txr_contractAddress"),
+      ksql`null`.as("txr_cumulativeGasUsed"),
+      ksql`null`.as("txr_effectiveGasPrice"),
+      ksql`null`.as("txr_from"),
+      ksql`null`.as("txr_gasUsed"),
+      ksql`null`.as("txr_logsBloom"),
+      ksql`null`.as("txr_status"),
+      ksql`null`.as("txr_to"),
+      ksql`null`.as("txr_type"),
+    ];
+
     const logSQL = (
       filter: LogFilter,
       db: Kysely<PonderSyncSchema>,
@@ -525,14 +666,14 @@ export const createSyncStore = ({
         .selectFrom("logs")
         .select([
           ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "transactionHash",
-          "id as logId",
+          "logs.checkpoint as checkpoint",
+          "logs.chainId as chainId",
+          "logs.blockHash as blockHash",
+          "logs.transactionHash as transactionHash",
+          "logs.id as logId",
           ksql`null`.as("traceId"),
         ])
-        .where("chainId", "=", filter.chainId)
+        .where("logs.chainId", "=", filter.chainId)
         .$call((qb) => {
           for (const idx of [0, 1, 2, 3] as const) {
             // If it's an array of length 1, collapse it.
@@ -552,10 +693,30 @@ export const createSyncStore = ({
         })
         .$call((qb) => addressSQL(qb as any, filter.address, "address"))
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
+          qb.where("logs.blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
+          qb.where("logs.blockNumber", "<=", filter.toBlock!.toString()),
+        )
+        .innerJoin("blocks", "blocks.hash", "blockHash")
+        .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
+        // @ts-ignore
+        .select([
+          ...blockColumns,
+          ...logsColumns,
+          ...transactionColumns,
+          ...traceColumnsNull,
+        ])
+        .$call((qb) =>
+          shouldGetTransactionReceipt(filter)
+            ? qb
+                .leftJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "logs.transactionHash",
+                ) // @ts-ignore
+                .select(txReceiptColumns)
+            : qb.select(txReceiptColumnsNull),
         );
 
     const blockSQL = (
@@ -567,23 +728,32 @@ export const createSyncStore = ({
         .selectFrom("blocks")
         .select([
           ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "hash as blockHash",
+          "blocks.checkpoint as checkpoint",
+          "blocks.chainId as chainId",
+          "blocks.hash as blockHash",
           ksql`null`.as("transactionHash"),
           ksql`null`.as("logId"),
           ksql`null`.as("traceId"),
         ])
-        .where("chainId", "=", filter.chainId)
+        .where("blocks.chainId", "=", filter.chainId)
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
-          qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
+          qb.where(
+            ksql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
+          ),
         )
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
+          qb.where("blocks.number", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
-        );
+          qb.where("blocks.number", "<=", filter.toBlock!.toString()),
+        ) // @ts-ignore
+        .select([
+          ...blockColumns,
+          ...logsColumnsNull,
+          ...transactionColumnsNull,
+          ...traceColumnsNull,
+          ...txReceiptColumnsNull,
+        ]);
 
     const transactionSQL = (
       filter: TransactionFilter,
@@ -594,14 +764,14 @@ export const createSyncStore = ({
         .selectFrom("transactions")
         .select([
           ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "hash as transactionHash",
+          "transactions.checkpoint as checkpoint",
+          "transactions.chainId as chainId",
+          "transactions.blockHash as blockHash",
+          "transactions.hash as transactionHash",
           ksql`null`.as("logId"),
           ksql`null`.as("traceId"),
         ])
-        .where("chainId", "=", filter.chainId)
+        .where("transactions.chainId", "=", filter.chainId)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .$if(filter.includeReverted === false, (qb) =>
@@ -619,10 +789,37 @@ export const createSyncStore = ({
           ),
         )
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
+          qb.where(
+            "transactions.blockNumber",
+            ">=",
+            filter.fromBlock!.toString(),
+          ),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
+          qb.where(
+            "transactions.blockNumber",
+            "<=",
+            filter.toBlock!.toString(),
+          ),
+        )
+        .innerJoin("blocks", "blocks.hash", "transactions.blockHash")
+        // @ts-ignore
+        .select([
+          ...blockColumns,
+          ...transactionColumns,
+          ...logsColumnsNull,
+          ...traceColumnsNull,
+        ])
+        .$call((qb) =>
+          shouldGetTransactionReceipt(filter)
+            ? qb
+                .leftJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "transactions.hash",
+                ) // @ts-ignore
+                .select(txReceiptColumns)
+            : qb.select(txReceiptColumnsNull),
         );
 
     const transferSQL = (
@@ -634,25 +831,45 @@ export const createSyncStore = ({
         .selectFrom("traces")
         .select([
           ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "transactionHash",
+          "traces.checkpoint as checkpoint",
+          "traces.chainId as chainId",
+          "traces.blockHash as blockHash",
+          "traces.transactionHash as transactionHash",
           ksql`null`.as("logId"),
-          "id as traceId",
+          "traces.id as traceId",
         ])
-        .where("chainId", "=", filter.chainId)
+        .where("traces.chainId", "=", filter.chainId)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
-        .where("value", ">", "0")
+        .where("traces.value", ">", "0")
         .$if(filter.includeReverted === false, (qb) =>
-          qb.where("isReverted", "=", 0),
+          qb.where("traces.isReverted", "=", 0),
         )
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
+          qb.where("traces.blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
+          qb.where("traces.blockNumber", "<=", filter.toBlock!.toString()),
+        )
+        .innerJoin("blocks", "blocks.hash", "traces.blockHash")
+        .leftJoin("transactions", "transactions.hash", "traces.transactionHash")
+        // @ts-ignore
+        .select([
+          ...blockColumns,
+          ...transactionColumns,
+          ...logsColumnsNull,
+          ...traceColumns,
+        ])
+        .$call((qb) =>
+          shouldGetTransactionReceipt(filter)
+            ? qb
+                .leftJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "traces.transactionHash",
+                ) // @ts-ignore
+                .select(txReceiptColumns)
+            : qb.select(txReceiptColumnsNull),
         );
 
     const traceSQL = (
@@ -664,21 +881,21 @@ export const createSyncStore = ({
         .selectFrom("traces")
         .select([
           ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "transactionHash",
+          "traces.checkpoint as checkpoint",
+          "traces.chainId as chainId",
+          "traces.blockHash as blockHash",
+          "traces.transactionHash as transactionHash",
           ksql`null`.as("logId"),
-          "id as traceId",
+          "traces.id as traceId",
         ])
-        .where("chainId", "=", filter.chainId)
+        .where("traces.chainId", "=", filter.chainId)
         .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
         .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
         .$if(filter.includeReverted === false, (qb) =>
-          qb.where("isReverted", "=", 0),
+          qb.where("traces.isReverted", "=", 0),
         )
         .$if(filter.callType !== undefined, (qb) =>
-          qb.where("type", "=", filter.callType!),
+          qb.where("traces.type", "=", filter.callType!),
         )
         .$if(filter.functionSelector !== undefined, (qb) => {
           if (Array.isArray(filter.functionSelector)) {
@@ -688,10 +905,30 @@ export const createSyncStore = ({
           }
         })
         .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
+          qb.where("traces.blockNumber", ">=", filter.fromBlock!.toString()),
         )
         .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
+          qb.where("traces.blockNumber", "<=", filter.toBlock!.toString()),
+        )
+        .innerJoin("blocks", "blocks.hash", "traces.blockHash")
+        .leftJoin("transactions", "transactions.hash", "traces.transactionHash")
+        // @ts-ignore
+        .select([
+          ...blockColumns,
+          ...transactionColumns,
+          ...logsColumnsNull,
+          ...traceColumns,
+        ])
+        .$call((qb) =>
+          shouldGetTransactionReceipt(filter)
+            ? qb
+                .leftJoin(
+                  "transactionReceipts",
+                  "transactionReceipts.transactionHash",
+                  "traces.transactionHash",
+                ) // @ts-ignore
+                .select(txReceiptColumns)
+            : qb.select(txReceiptColumnsNull),
         );
 
     const rows = await db.wrap(
@@ -714,6 +951,72 @@ export const createSyncStore = ({
                 blockHash: string;
                 transactionHash: string;
                 traceId: string;
+                block_baseFeePerGas: BlocksTable["baseFeePerGas"];
+                block_difficulty: BlocksTable["difficulty"];
+                block_extraData: BlocksTable["extraData"];
+                block_gasLimit: BlocksTable["gasLimit"];
+                block_gasUsed: BlocksTable["gasUsed"];
+                block_hash: BlocksTable["hash"];
+                block_logsBloom: BlocksTable["logsBloom"];
+                block_miner: BlocksTable["miner"];
+                block_mixHash: BlocksTable["mixHash"];
+                block_nonce: BlocksTable["nonce"];
+                block_number: BlocksTable["number"];
+                block_parentHash: BlocksTable["parentHash"];
+                block_receiptsRoot: BlocksTable["receiptsRoot"];
+                block_sha3Uncles: BlocksTable["sha3Uncles"];
+                block_size: BlocksTable["size"];
+                block_stateRoot: BlocksTable["stateRoot"];
+                block_timestamp: BlocksTable["timestamp"];
+                block_totalDifficulty: BlocksTable["totalDifficulty"];
+                block_transactionsRoot: BlocksTable["transactionsRoot"];
+                log_address: LogsTable["address"];
+                log_chainId: LogsTable["chainId"];
+                log_data: LogsTable["data"];
+                log_id: LogsTable["id"];
+                log_logIndex: LogsTable["logIndex"];
+                log_topic0: LogsTable["topic0"];
+                log_topic1: LogsTable["topic1"];
+                log_topic2: LogsTable["topic2"];
+                log_topic3: LogsTable["topic3"];
+                tx_accessList: TransactionsTable["accessList"];
+                tx_from: TransactionsTable["from"];
+                tx_gas: TransactionsTable["gas"];
+                tx_gasPrice: TransactionsTable["gasPrice"];
+                tx_hash: TransactionsTable["hash"];
+                tx_input: TransactionsTable["input"];
+                tx_maxFeePerGas: TransactionsTable["maxFeePerGas"];
+                tx_maxPriorityFeePerGas: TransactionsTable["maxPriorityFeePerGas"];
+                tx_nonce: TransactionsTable["nonce"];
+                tx_r: TransactionsTable["r"];
+                tx_s: TransactionsTable["s"];
+                tx_to: TransactionsTable["to"];
+                tx_transactionIndex: TransactionsTable["transactionIndex"];
+                tx_type: TransactionsTable["type"];
+                tx_value: TransactionsTable["value"];
+                tx_v: TransactionsTable["v"];
+                trace_id: TracesTable["id"];
+                trace_callType: TracesTable["type"];
+                trace_from: TracesTable["from"];
+                trace_to: TracesTable["to"];
+                trace_gas: TracesTable["gas"];
+                trace_gasUsed: TracesTable["gasUsed"];
+                trace_input: TracesTable["input"];
+                trace_output: TracesTable["output"];
+                trace_value: TracesTable["value"];
+                trace_index: TracesTable["index"];
+                trace_subcalls: TracesTable["subcalls"];
+                trace_error: TracesTable["error"];
+                trace_revertReason: TracesTable["revertReason"];
+                txr_contractAddress: TransactionReceiptsTable["contractAddress"];
+                txr_cumulativeGasUsed: TransactionReceiptsTable["cumulativeGasUsed"];
+                txr_effectiveGasPrice: TransactionReceiptsTable["effectiveGasPrice"];
+                txr_from: TransactionReceiptsTable["from"];
+                txr_gasUsed: TransactionReceiptsTable["gasUsed"];
+                txr_logsBloom: TransactionReceiptsTable["logsBloom"];
+                txr_status: TransactionReceiptsTable["status"];
+                txr_to: TransactionReceiptsTable["to"];
+                txr_type: TransactionReceiptsTable["type"];
               }
             >
           | undefined;
@@ -743,95 +1046,7 @@ export const createSyncStore = ({
             "event.filterIndex as event_filterIndex",
             "event.checkpoint as event_checkpoint",
           ])
-          .innerJoin("blocks", "blocks.hash", "event.blockHash")
-          .select([
-            "blocks.baseFeePerGas as block_baseFeePerGas",
-            "blocks.difficulty as block_difficulty",
-            "blocks.extraData as block_extraData",
-            "blocks.gasLimit as block_gasLimit",
-            "blocks.gasUsed as block_gasUsed",
-            "blocks.hash as block_hash",
-            "blocks.logsBloom as block_logsBloom",
-            "blocks.miner as block_miner",
-            "blocks.mixHash as block_mixHash",
-            "blocks.nonce as block_nonce",
-            "blocks.number as block_number",
-            "blocks.parentHash as block_parentHash",
-            "blocks.receiptsRoot as block_receiptsRoot",
-            "blocks.sha3Uncles as block_sha3Uncles",
-            "blocks.size as block_size",
-            "blocks.stateRoot as block_stateRoot",
-            "blocks.timestamp as block_timestamp",
-            "blocks.totalDifficulty as block_totalDifficulty",
-            "blocks.transactionsRoot as block_transactionsRoot",
-          ])
-          .leftJoin("logs", "logs.id", "event.logId")
-          .select([
-            "logs.address as log_address",
-            "logs.chainId as log_chainId",
-            "logs.data as log_data",
-            "logs.id as log_id",
-            "logs.logIndex as log_logIndex",
-            "logs.topic0 as log_topic0",
-            "logs.topic1 as log_topic1",
-            "logs.topic2 as log_topic2",
-            "logs.topic3 as log_topic3",
-          ])
-          .leftJoin(
-            "transactions",
-            "transactions.hash",
-            "event.transactionHash",
-          )
-          .select([
-            "transactions.accessList as tx_accessList",
-            "transactions.from as tx_from",
-            "transactions.gas as tx_gas",
-            "transactions.gasPrice as tx_gasPrice",
-            "transactions.hash as tx_hash",
-            "transactions.input as tx_input",
-            "transactions.maxFeePerGas as tx_maxFeePerGas",
-            "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-            "transactions.nonce as tx_nonce",
-            "transactions.r as tx_r",
-            "transactions.s as tx_s",
-            "transactions.to as tx_to",
-            "transactions.transactionIndex as tx_transactionIndex",
-            "transactions.type as tx_type",
-            "transactions.value as tx_value",
-            "transactions.v as tx_v",
-          ])
-          .leftJoin("traces", "traces.id", "event.traceId")
-          .select([
-            "traces.id as trace_id",
-            "traces.type as trace_callType",
-            "traces.from as trace_from",
-            "traces.to as trace_to",
-            "traces.gas as trace_gas",
-            "traces.gasUsed as trace_gasUsed",
-            "traces.input as trace_input",
-            "traces.output as trace_output",
-            "traces.error as trace_error",
-            "traces.revertReason as trace_revertReason",
-            "traces.value as trace_value",
-            "traces.index as trace_index",
-            "traces.subcalls as trace_subcalls",
-          ])
-          .leftJoin(
-            "transactionReceipts",
-            "transactionReceipts.transactionHash",
-            "event.transactionHash",
-          )
-          .select([
-            "transactionReceipts.contractAddress as txr_contractAddress",
-            "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
-            "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
-            "transactionReceipts.from as txr_from",
-            "transactionReceipts.gasUsed as txr_gasUsed",
-            "transactionReceipts.logsBloom as txr_logsBloom",
-            "transactionReceipts.status as txr_status",
-            "transactionReceipts.to as txr_to",
-            "transactionReceipts.type as txr_type",
-          ])
+          .selectAll()
           .where("event.checkpoint", ">", from)
           .where("event.checkpoint", "<=", to)
           .orderBy("event.checkpoint", "asc")
