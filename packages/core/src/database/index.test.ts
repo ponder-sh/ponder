@@ -87,7 +87,7 @@ test("setup() throws with schema used", async (context) => {
     },
   });
 
-  const error = await databaseTwo.setup({ buildId: "abc" }).catch((err) => err);
+  const error = await databaseTwo.setup({ buildId: "def" }).catch((err) => err);
 
   expect(error).toBeDefined();
 
