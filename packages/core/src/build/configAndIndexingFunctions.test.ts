@@ -29,7 +29,8 @@ const func0 = parseAbiItem(
 );
 
 const address1 = "0x0000000000000000000000000000000000000001";
-const address2 = "0x0000000000000000000000000000000000000002";
+const address2 = "0x0000000000000000000000000000000000000001";
+const address3 = "0x0000000000000000000000000000000000000003";
 const bytes1 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const bytes2 =
@@ -108,7 +109,7 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
       a: {
         network: {
           mainnet: {
-            address: [address1, address2],
+            address: [address1, address3],
             startBlock: 16370000,
             endBlock: 16370020,
           },
