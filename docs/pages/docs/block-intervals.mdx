@@ -40,8 +40,8 @@ export default createConfig({
 This indexing function uses block events to index price chart data by reading the latest price from a Chainlink oracle contract every minute.
 
 ```ts filename="src/index.ts"
-import { prices } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { prices } from "ponder:schema";
 import { ChainlinkOracleAbi } from "../abis/ChainlinkOracle.ts";
 
 ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {

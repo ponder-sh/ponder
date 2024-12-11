@@ -1,4 +1,4 @@
-import { Box, Text } from "ink"; // Assuming you're using ink for CLI UI components
+import { Box, Text, render } from "ink"; // Assuming you're using ink for CLI UI components
 import React from "react";
 
 const MAX_COLUMN_WIDTH = 24;
@@ -121,4 +121,22 @@ export function Table<TRow extends { [key: string]: any }>(props: {
   );
 }
 
-export default Table;
+export function printTable<TRow extends { [key: string]: any }>(props: {
+  columns: {
+    title: string;
+    key: keyof TRow;
+    align: "left" | "right";
+    format?: (value: any, row: TRow) => string | number | React.JSX.Element;
+  }[];
+  rows: TRow[];
+}) {
+  const table = (
+    <>
+      <Text> </Text>
+      <Table {...props} />
+      <Text> </Text>
+    </>
+  );
+  const instance = render(table);
+  instance.cleanup();
+}

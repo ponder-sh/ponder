@@ -76,8 +76,8 @@ The API function context includes a ready-to-use Drizzle database client at `c.d
 Here's a simple query using the Drizzle `select` query builder.
 
 ```ts filename="src/api/index.ts"
-import { accounts } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { accounts } from "ponder:schema";
 
 ponder.get("/account/:address", async (c) => {
   const address = c.req.param("address");
@@ -126,8 +126,8 @@ ponder.get("/hot-trades", async (c) => {
 Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
 
 ```ts filename="src/api/index.ts" {5}
-import { accounts } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { accounts } from "ponder:schema";
 import { eq } from "ponder";
 
 ponder.get("/account/:address", async (c) => {
@@ -159,9 +159,9 @@ Use `ponder.post()` to handle HTTP `POST` requests.
 In this example, we calculate the volume of transfers for each recipient within a given time range. The `fromTimestamp` and `toTimestamp` parameters are passed in the request body.
 
 ```ts filename="src/api/index.ts" {5}
-import { and, gte, sum } from "ponder";
 import { ponder } from "ponder:registry";
 import { transferEvents } from "ponder:schema";
+import { and, gte, sum } from "ponder";
 
 ponder.post("/volume", async (c) => {
   const body = await c.req.json();

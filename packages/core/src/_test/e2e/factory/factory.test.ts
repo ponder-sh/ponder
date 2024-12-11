@@ -28,6 +28,7 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 const cliOptions = {
+  schema: "public",
   root: "./src/_test/e2e/factory",
   config: "ponder.config.ts",
   logLevel: "error",

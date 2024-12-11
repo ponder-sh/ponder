@@ -18,20 +18,12 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
-import {
-  type Schema,
-  sqlToUserTableName,
-  userToSqlTableName,
-} from "../index.js";
+import { type Schema, sqlToReorgTableName } from "../index.js";
 
 type Dialect = "postgresql";
 type CasingType = "snake_case" | "camelCase";
 
 export type SqlStatements = {
-  schema: {
-    sql: string[];
-    json: JsonCreateSchema[];
-  };
   tables: {
     sql: string[];
     json: JsonCreateTableStatement[];
@@ -43,7 +35,7 @@ export type SqlStatements = {
   indexes: { sql: string[]; json: JsonPgCreateIndexStatement[] };
 };
 
-export const getSql = (schema: Schema, instanceId: string): SqlStatements => {
+export const getSql = (schema: Schema): SqlStatements => {
   const { tables, enums, schemas } = prepareFromExports(schema);
   const json = generatePgSnapshot(tables, enums, schemas, "snake_case");
   const squashed = squashPgScheme(json);
@@ -60,10 +52,6 @@ export const getSql = (schema: Schema, instanceId: string): SqlStatements => {
       // @ts-ignore
       return prepareCreateEnumJson(it.name, it.schema, it.values);
     }) ?? [];
-
-  const jsonCreateSchemas = prepareCreateSchemasJson(
-    Object.values(squashed.schemas),
-  );
 
   const jsonCreateTables = Object.values(squashed.tables).map((it: any) => {
     return preparePgCreateTableJson(it, json);
@@ -87,18 +75,11 @@ export const getSql = (schema: Schema, instanceId: string): SqlStatements => {
       .filter((it) => it !== "");
 
   const combinedTables = jsonCreateTables.flatMap((statement) => [
-    {
-      ...statement,
-      tableName: userToSqlTableName(
-        sqlToUserTableName(statement.tableName),
-        instanceId,
-      ),
-    },
-    createReorgTableStatement(statement, instanceId),
+    statement,
+    createReorgTableStatement(statement),
   ]);
 
   return {
-    schema: { sql: fromJson(jsonCreateSchemas), json: jsonCreateSchemas },
     tables: {
       sql: fromJson(combinedTables),
       json: combinedTables,
@@ -111,10 +92,7 @@ export const getSql = (schema: Schema, instanceId: string): SqlStatements => {
   };
 };
 
-const createReorgTableStatement = (
-  statement: JsonCreateTableStatement,
-  instance_id: string,
-) => {
+const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
   const reorgStatement: JsonCreateTableStatement = structuredClone(statement);
 
   reorgStatement.compositePkName = undefined;
@@ -146,7 +124,7 @@ const createReorgTableStatement = (
 
   reorgStatement.columns.push(...Object.values(reorgColumns));
 
-  reorgStatement.tableName = `${instance_id}_reorg__${reorgStatement.tableName.slice(6)}`;
+  reorgStatement.tableName = sqlToReorgTableName(reorgStatement.tableName);
 
   return reorgStatement;
 };
@@ -635,15 +613,6 @@ const preparePgCreateIndexesJson = (
       data: PgSquasher.unsquashIdx(indexData),
       schema,
     };
-  });
-};
-
-const prepareCreateSchemasJson = (values: string[]): JsonCreateSchema[] => {
-  return values.map((it) => {
-    return {
-      type: "create_schema",
-      name: it,
-    } as JsonCreateSchema;
   });
 };
 

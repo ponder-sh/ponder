@@ -385,7 +385,6 @@ test("sql", async (context) => {
 
   const { database, cleanup } = await setupDatabaseServices(context, {
     schema,
-    instanceId: "1234",
   });
 
   const indexingStore = createHistoricalIndexingStore({

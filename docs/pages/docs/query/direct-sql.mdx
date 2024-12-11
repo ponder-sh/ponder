@@ -7,7 +7,7 @@ import { Callout, FileTree, Steps } from "nextra/components";
 
 # Direct SQL queries
 
-This guide describes how to query the database directly using Drizzle or psql.
+This guide describes how to query the database directly using psql or Drizzle.
 
 <Callout type="warning">
   Don't write to onchain tables from external clients. Only write to onchain
@@ -19,38 +19,6 @@ This guide describes how to query the database directly using Drizzle or psql.
   [possible](https://github.com/supabase-community/pg-gateway?tab=readme-ov-file#pglite),
   but the methods described here do not work out of the box.
 </Callout>
-
-## Drizzle
-
-The `onchainTable` objects exported by `ponder.schema.ts` are valid Drizzle table objects. You can import them from TypeScript files outside the Ponder `src/` directory and use them with the Drizzle query builder.
-
-<Callout type="info">
-  When you use `onchainTable` objects externally, they query the live views
-  automatically. [Read more](/docs/api-reference/database) about table names and
-  live views.
-</Callout>
-
-Here's a script that creates a Drizzle client and runs a query against the Ponder tables. Be sure to connect to the database using the same `DATABASE_URL` as the Ponder app.
-
-```ts filename="query.ts"
-import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "../../ponder/ponder.schema";
-
-const db = drizzle(process.env.DATABASE_URL, { schema, casing: "snake_case" });
-
-// Select
-const oldAccounts = await db
-  .select()
-  .from(schema.accounts)
-  .orderBy(asc(schema.accounts.createdAt))
-  .limit(100);
-
-// Query
-const whalesWithTransfers = await db.query.accounts.findMany({
-  where: (accounts, { eq }) => eq(accounts.balance, 1_000_000n),
-  with: { transferEvents: true },
-});
-```
 
 ## psql
 
@@ -82,54 +50,23 @@ Use the `\dt` command to list all tables in the `public` schema. If you are usin
 
 </div>
 
-Notice that the tables have an unfamiliar four-character prefix. This prefix mechanism is used to avoid table name conflicts during hot reloads and redeployments.
-
 The `reorg` tables are used by Ponder internally during reorg reconciliation, and the `_ponder_meta` table is used to store metadata about the database state.
 
 ```plaintext filename="psql (result)"
                     List of relations
  Schema | Name                        | Type  | Owner
 --------+-----------------------------+-------+----------
- public | b83f__accounts              | table | username
- public | b83f__transfer_events       | table | username
- public | b83f_reorg__accounts        | table | username
- public | b83f_reorg__transfer_events | table | username
+ public | accounts                    | table | username
+ public | transfer_events             | table | username
  public | _ponder_meta                | table | username
+ public | _reorg__accounts            | table | username
+ public | _reorg__transfer_events     | table | username
 (5 rows)
-```
-
-Querying the tables directly is not recommended, because the table names are subject to change. To work around this problem, use the **live views** instead.
-
-### Display views
-
-Now, for a more intuitive experience, run the `\dv` command to list all views in the schema.
-
-<div className="code-columns">
-
-```bash filename="psql"
-\dv
-```
-
-```bash filename="psql"
-\dv my_schema.*
-```
-
-</div>
-
-The `accounts` and `transfer_events` views are **live views**. They proxy queries to the underlying `b83f__accounts` and `b83f__transfer_events` tables. Read more about [live views](/docs/production/deploy#table-names-and-live-views).
-
-```plaintext filename="psql (result)"
-            List of relations
- Schema | Name            | Type  | Owner
---------+-----------------+-------+----------
- public | accounts        | view | username
- public | transfer_events | view | username
-(2 rows)
 ```
 
 ### Select rows
 
-Select a few rows from the `accounts` view.
+Select a few rows from the `accounts` table.
 
 ```sql filename="psql"
 SELECT * FROM accounts LIMIT 5;
@@ -170,3 +107,37 @@ SELECT "to", COUNT(*) AS transfer_count
 ```
 
 </Steps>
+
+## Drizzle
+
+<Callout type="warning">
+  As of `0.8`, the `onchainTable` objects are not automatically aware of the
+  database schema that your instance is using. To get this working, you'll need
+  to 1) use the `public` schema or 2) set the connection search path to the
+  schema that your instance is using. We're tracking this issue
+  [here](https://github.com/ponder-sh/ponder/issues/1325).
+</Callout>
+
+The `onchainTable` objects exported by `ponder.schema.ts` are valid Drizzle table objects. You can import them from TypeScript files outside the Ponder `src/` directory and use them with the Drizzle query builder.
+
+Here's a script that creates a Drizzle client and runs a query against the Ponder tables. Be sure to connect to the database using the same `DATABASE_URL` as the Ponder app.
+
+```ts filename="query.ts"
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "../../ponder/ponder.schema";
+
+const db = drizzle(process.env.DATABASE_URL, { schema, casing: "snake_case" });
+
+// Select
+const oldAccounts = await db
+  .select()
+  .from(schema.accounts)
+  .orderBy(asc(schema.accounts.createdAt))
+  .limit(100);
+
+// Query
+const whalesWithTransfers = await db.query.accounts.findMany({
+  where: (accounts, { eq }) => eq(accounts.balance, 1_000_000n),
+  with: { transferEvents: true },
+});
+```

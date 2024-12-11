@@ -232,10 +232,6 @@ test("getChildAddresses()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await syncStore.insertLogs({
@@ -269,10 +265,6 @@ test("getChildAddresses() empty", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const filter = sources[0]!.filter as LogFilter<Factory>;
@@ -310,10 +302,6 @@ test("filterChildAddresses()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   await syncStore.insertLogs({
@@ -1138,10 +1126,6 @@ test("getEvents() handles log filter logic", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1224,10 +1208,6 @@ test("getEvents() handles log factory", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // factory
@@ -1312,10 +1292,6 @@ test("getEvents() handles multiple log factories", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // factory
@@ -1399,10 +1375,6 @@ test("getEvents() handles block filter logic", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1451,10 +1423,6 @@ test("getEvents() handles trace filter logic", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1537,10 +1505,6 @@ test("getEvents() handles transaction filter logic", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1595,10 +1559,6 @@ test("getEvents() handles transfer filter logic", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1681,10 +1641,6 @@ test("getEvents() handles block bounds", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
@@ -1739,10 +1695,6 @@ test("getEvents() pagination", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   let rpcBlock = await _eth_getBlockByNumber(requestQueue, {

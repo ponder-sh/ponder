@@ -10,48 +10,82 @@ import { Callout } from "nextra/components";
 
 <Callout type="info">
   This is a low-level reference designed to assist with advanced workflows. To
-  learn how to run basic queries for indexed data, visit the [query the
+  learn how to query indexed data, visit the [query the
   database](/docs/query/direct-sql) guide.
 </Callout>
 
-This reference describes how Ponder interacts with the database, which may be useful for advanced workflows around zero-downtime deployments, crash recovery, and database administration.
+This reference documents the Ponder instance lifecycle, which may be useful for advanced workflows around zero-downtime deployments, crash recovery, and database administration.
 
 ## Instance lifecycle
 
-When a Ponder instance starts up, it runs the following logic (simplified for clarity).
+Here is a high-level overview of the Ponder instance lifecycle. Note that "instance" here refers to a Node.js process running `ponder dev` or `ponder start`.
 
 1. Start returning `200` from the `/health` endpoint. Return `503` from the `/ready` endpoint.
-2. Generate a new `instance_id` (a random four-character string).
-3. For each table defined in `ponder.schema.ts`, create a new table in the database named `{instance_id}__{table_name}`. If the user has specified a custom database schema in `ponder.schema.ts`, use it.
-4. Begin the historical backfill (starting from scratch) and write data to the tables created in the previous step.
-5. When the historical backfill is complete, for each table create a view named `{table_name}` as `SELECT * FROM {instance_id}__{table_name}`. If a view with that name already exists, drop the old one first.
-6. Start returning `200` from the `/ready` endpoint.
-7. On shutdown (e.g. due to a process exit signal), **do not** drop the tables or views.
+2. Build all user code (config, schema, indexing functions), then generate a `build_id` by hashing the build artifacts.
+3. Follow the database schema flow chart below to validate and prepare the target database schema.
+4. Begin historical indexing, either from scratch or from where the previous instance left off (crash recovery).
+5. When historical indexing is complete, start returning `200` from the `/ready` endpoint.
+6. On shutdown (e.g. due to a process exit signal), release the lock on the target schema. Do not drop any tables.
 
-The following sections describe possible deviations from this standard lifecycle.
+### Database schema rules
 
-### Live views
+- No two instances can use the same database schema at the same time. This prevents data corruption.
+- Once an instance running `ponder start` uses a schema, no other instance can use that schema – even after the instance stops. This is a safety mechanism to prevent data loss in production.
+- If the target schema was previously used by `ponder dev`, the new instance will drop the previous tables and start successfully.
 
-Instances running `ponder dev` create the live views immediately. Instances running `ponder start` create the live views as described above, just before the instance begins responding as ready.
+Here is the detailed flow chart.
+
+```mermaid
+flowchart TD
+A[Target schema is currently in use?]
+
+C[Target schema previously used?]
+F[Previous instance command?]
+E[Previous build ID same as current?]
+
+V(Drop existing tables)
+W(Recover from existing tables)
+X(Create tables)
+Y(Start)
+Z1(Error)
+Z2(Error)
+
+
+V --> X
+W --> Y
+X --> Y
+
+A -- yes --> Z1
+A -- no --> C
+
+C -- yes --> F
+C -- no --> X
+
+F -- ponder start --> E
+F -- ponder dev --> V
+
+E -- no --> Z2
+E -- yes --> W
+
+style Y fill:#0a0,color:#fff
+style Z1 fill:#f00,color:#fff
+style Z2 fill:#f00,color:#fff
+```
+
+### Lock / metadata table
+
+The `_ponder_meta` table tracks the state of an instance running in a specific database schema. It stores the `build_id`, indexing checkpoint, and table names of the current instance, and uses a heartbeat locking mechanism to support the lifecycle logic described above.
 
 ### Build ID and crash recovery
 
 During the build step, each instance generates a content hash of the entire app (config, schema, and indexing function file contents). This is called the `build_id`.
 
-Then, each instance checks the `_ponder_meta` registry table for any instances with the same `build_id` that are no longer running. If it finds one, the current instance will adopt the prior instance's `instance_id` and resume indexing where the prior instance left off.
-
-Crash recovery is disabled when running `ponder dev`.
-
-### Stale table cleanup
-
-Shortly after startup, each instance checks the `_ponder_meta` registry table and drops any tables belonging to instances that are not currently running, aside from the 3 most recent instances.
-
-Tables belonging to non-running `ponder dev` instances will **always** get dropped. They do not count towards the limit.
+Note that crash recovery is disabled when running `ponder dev`.
 
 ## RPC request cache
 
-Ponder caches RPC request data to improve reindexing performance on hot reloads and redeployments.
+Ponder caches RPC request data to improve reindexing performance on hot reloads and redeployments. This includes logs, blocks, transactions, traces, and any RPC requests made with `context.client`.
 
 - The RPC request cache is located in the `ponder_sync` schema.
 - The cache is durable, persists across instance restarts, and does not store unfinalized data.
-- The cache query patterns are designed to be lock-free. It's safe for multiple instances to run in the same Postgres database at the same time (reading and writing to the same `ponder_sync` schema).
+- The cache query patterns are lock-free. It's safe for multiple instances to run in the same Postgres database at the same time (reading and writing to the same `ponder_sync` schema).

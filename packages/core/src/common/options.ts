@@ -4,7 +4,9 @@ import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
 
 export type Options = {
-  command: "dev" | "start" | "serve" | "codegen";
+  command: "dev" | "start" | "serve" | "codegen" | "list";
+
+  schema?: string;
 
   configFile: string;
   schemaFile: string;
@@ -64,6 +66,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     logLevel = "info";
   }
 
+  if (["list", "codegen"].includes(cliOptions.command)) logLevel = "error";
+
   const port =
     process.env.PORT !== undefined
       ? Number(process.env.PORT)
@@ -75,6 +79,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   return {
     command: cliOptions.command,
+
+    schema: cliOptions.schema,
 
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
