@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.2
+
+### Patch Changes
+
+- [#1330](https://github.com/ponder-sh/ponder/pull/1330) [`0c7395ff2e86ac9f6431e4d702965e2036c35d64`](https://github.com/ponder-sh/ponder/commit/0c7395ff2e86ac9f6431e4d702965e2036c35d64) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with crash recovery.
+
 ## 0.8.1
 
 ### Patch Changes
