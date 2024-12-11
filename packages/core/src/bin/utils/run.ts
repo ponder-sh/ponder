@@ -167,7 +167,8 @@ export async function run({
 
       // Persist the indexing store to the db if it is too full. The `finalized`
       // checkpoint is used as a mutex. Any rows in the reorg table that may
-      // have been written because of raw sql access are deleted.
+      // have been written because of raw sql access are deleted. Also must truncate
+      // the reorg tables that may have been written because of raw sql access.
       if (
         (historicalIndexingStore.isCacheFull() && events.length > 0) ||
         (common.options.command === "dev" &&
@@ -198,8 +199,14 @@ export async function run({
 
     if (isKilled) return;
 
+    // Persist the indexing store to the db. The `finalized`
+    // checkpoint is used as a mutex. Any rows in the reorg table that may
+    // have been written because of raw sql access are deleted. Also must truncate
+    // the reorg tables that may have been written because of raw sql access.
+
     await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
     await historicalIndexingStore.flush();
+    await database.complete({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     // Manually update metrics to fix a UI bug that occurs when the end

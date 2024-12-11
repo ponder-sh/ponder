@@ -1,5 +1,23 @@
 # @ponder/core
 
+## 0.7.17
+
+### Patch Changes
+
+- [#1321](https://github.com/ponder-sh/ponder/pull/1321) [`63d95d5e7fd79d7f276746fc5fe3f9c38bb43762`](https://github.com/ponder-sh/ponder/commit/63d95d5e7fd79d7f276746fc5fe3f9c38bb43762) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused too many rows to be reverted after a reorg when using `.sql()` raw database access.
+
+## 0.7.16
+
+### Patch Changes
+
+- [`df699d14b75bf65fd4be9d9587f8192f3b3c9271`](https://github.com/ponder-sh/ponder/commit/df699d14b75bf65fd4be9d9587f8192f3b3c9271) Thanks [@typedarray](https://github.com/typedarray)! - Reset latest tag.
+
+## 0.7.15
+
+### Patch Changes
+
+- [#1311](https://github.com/ponder-sh/ponder/pull/1311) [`0a02afa0512b30150935bf424a742bbb04a2915b`](https://github.com/ponder-sh/ponder/commit/0a02afa0512b30150935bf424a742bbb04a2915b) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where the GraphiQL explorer displayed "Loading..." as soon as React 19 was released. The fix pins the `react` and `react-dom` versions in the GraphiQL HTML to `18.3.1`.
+
 ## 0.7.14
 
 ### Patch Changes
