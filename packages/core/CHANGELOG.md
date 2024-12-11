@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.8.0
+
+### Minor Changes
+
+- [#1235](https://github.com/ponder-sh/ponder/pull/1235) [`37ed2e1278cb70c6ff2c82b64852ff4c6324e969`](https://github.com/ponder-sh/ponder/commit/37ed2e1278cb70c6ff2c82b64852ff4c6324e969) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.8`. Visit the [migration guide](https://ponder.sh/docs/migration-guide) for a full list of changes.
+
 ## 0.7.17
 
 ### Patch Changes
