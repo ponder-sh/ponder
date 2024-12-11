@@ -1,5 +1,4 @@
 import { BuildError } from "@/common/errors.js";
-import type { Factory } from "@/config/address.js";
 import type { Config } from "@/config/config.js";
 import {
   type Network,
@@ -414,11 +413,14 @@ export async function buildConfigAndIndexingFunctions({
 
       const resolvedAddress = source?.address;
 
-      if (typeof resolvedAddress === "object") {
+      if (
+        typeof resolvedAddress === "object" &&
+        !Array.isArray(resolvedAddress)
+      ) {
         // Note that this can throw.
         const logFactory = buildLogFactory({
           chainId: network.chainId,
-          ...(resolvedAddress as Factory),
+          ...resolvedAddress,
         });
 
         const logSource = {
@@ -579,11 +581,14 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      if (typeof resolvedAddress === "object") {
+      if (
+        typeof resolvedAddress === "object" &&
+        !Array.isArray(resolvedAddress)
+      ) {
         // Note that this can throw.
         const logFactory = buildLogFactory({
           chainId: network.chainId,
-          ...(resolvedAddress as Factory),
+          ...resolvedAddress,
         });
 
         return [
