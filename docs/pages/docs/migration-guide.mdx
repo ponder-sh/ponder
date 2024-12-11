@@ -13,6 +13,65 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
   This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.8` app against a database, you can no longer run `<=0.7` apps against the same database.
 </Callout>
 
+### Database management
+
+Ponder now requires the database schema to be explicitly specified with an environment variable or CLI flag. **`onchainSchema()` is removed.**
+
+<div className="code-columns">
+
+```bash filename=".env.local"
+DATABASE_SCHEMA=my_schema
+```
+
+```bash filename="shell"
+ponder start --schema my_schema
+```
+
+</div>
+
+<Callout type="info">
+  Each deployment/instance of a Ponder app must have it's own schema, with some
+  exceptions for `ponder dev` and crash recovery. [Read
+  more](/docs/getting-started/database#database-schema).
+</Callout>
+
+#### Railway
+
+Railway users should [update the start command](/docs/production/deploy#create-a-ponder-app-service) to include a database schema.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```text filename="Start command"
+pnpm start --schema $RAILWAY_DEPLOYMENT_ID
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```text filename="Start command"
+yarn start --schema $RAILWAY_DEPLOYMENT_ID
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```text filename="Start command"
+npm run start --schema $RAILWAY_DEPLOYMENT_ID
+```
+</Tabs.Tab>
+</Tabs>
+
+#### `ponder db list`
+
+A new command was added for more visibility into which database schemas are being used.
+
+```bash filename="shell"
+$ ponder db list
+
+│ Schema        │ Active   │ Last active    │ Table count │
+├───────────────┼──────────┼────────────────┼─────────────┤
+│ indexer_prod  │      yes │            --- │          10 │
+│ test          │       no │    26m 58s ago │          10 │
+│ demo          │       no │      1 day ago │           5 │
+```
+
 ### New features
 
 #### Account indexing
@@ -50,19 +109,19 @@ New versions will be published to `ponder` and not `@ponder/core`.
   <Tabs.Tab>
 ```bash filename="shell"
 pnpm remove @ponder/core
-pnpm add ponder@next
+pnpm add ponder
 ```
 </Tabs.Tab>
   <Tabs.Tab>
 ```bash filename="shell"
 yarn remove @ponder/core
-yarn add ponder@next
+yarn add ponder
 ```
 </Tabs.Tab>
   <Tabs.Tab>
 ```bash filename="shell"
 npm remove @ponder/core
-npm add ponder@next
+npm add ponder
 ```
 </Tabs.Tab>
 </Tabs>
