@@ -7,7 +7,6 @@ export const client = () => {
 
     const db = c.get("db") as Drizzle;
 
-    // @ts-ignore
     const res = await db._.session
       .prepareQuery(
         {
@@ -22,9 +21,7 @@ export const client = () => {
       )
       .execute();
 
-    return c.json({ rows: [] });
-
     // @ts-ignore
-    // return { rows: res.rows.map((row) => Object.values(row)) };
+    return c.json({ rows: res.rows.map((row) => Object.values(row)) });
   });
 };
