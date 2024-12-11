@@ -78,42 +78,42 @@ test("insert", async (context) => {
 
   // single
 
-  let result: any = await indexingStore
+  let result = await indexingStore
     .insert(schema.account)
     .values({ address: zeroAddress, balance: 10n });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: zeroAddress,
-  });
+  }))!;
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
   // multiple
 
-  result = await indexingStore.insert(schema.account).values([
+  const results = await indexingStore.insert(schema.account).values([
     { address: "0x0000000000000000000000000000000000000001", balance: 12n },
     { address: "0x0000000000000000000000000000000000000002", balance: 52n },
   ]);
 
-  expect(result).toStrictEqual([
+  expect(results).toStrictEqual([
     { address: "0x0000000000000000000000000000000000000001", balance: 12n },
     { address: "0x0000000000000000000000000000000000000002", balance: 52n },
   ]);
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
-  });
+  }))!;
 
   expect(result).toStrictEqual({
     address: "0x0000000000000000000000000000000000000001",
     balance: 12n,
   });
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000002",
-  });
+  }))!;
 
   expect(result).toStrictEqual({
     address: "0x0000000000000000000000000000000000000002",
@@ -122,26 +122,26 @@ test("insert", async (context) => {
 
   // on conflict do nothing
 
-  result = await indexingStore
+  result = (await indexingStore
     .insert(schema.account)
     .values({
       address: "0x0000000000000000000000000000000000000001",
       balance: 44n,
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing())!;
 
   expect(result).toBe(null);
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
-  });
+  }))!;
 
   expect(result).toStrictEqual({
     address: "0x0000000000000000000000000000000000000001",
     balance: 12n,
   });
 
-  result = await indexingStore
+  const resultsPossiblyNull = await indexingStore
     .insert(schema.account)
     .values([
       { address: "0x0000000000000000000000000000000000000001", balance: 44n },
@@ -149,14 +149,14 @@ test("insert", async (context) => {
     ])
     .onConflictDoNothing();
 
-  expect(result).toStrictEqual([
+  expect(resultsPossiblyNull).toStrictEqual([
     null,
     { address: "0x0000000000000000000000000000000000000003", balance: 0n },
   ]);
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
-  });
+  }))!;
 
   expect(result).toStrictEqual({
     address: "0x0000000000000000000000000000000000000001",
@@ -175,9 +175,9 @@ test("insert", async (context) => {
       balance: 16n,
     });
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
-  });
+  }))!;
 
   expect(result).toStrictEqual({
     address: "0x0000000000000000000000000000000000000001",
@@ -194,9 +194,9 @@ test("insert", async (context) => {
       balance: row.balance + 16n,
     }));
 
-  result = await indexingStore.find(schema.account, {
+  result = (await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
-  });
+  }))!;
 
   expect(result).toStrictEqual({
     address: "0x0000000000000000000000000000000000000001",
@@ -431,7 +431,7 @@ test("sql", async (context) => {
     .insert(schema.account)
     .values({
       address: "0x0000000000000000000000000000000000000001",
-      balance: undefined,
+      balance: undefined as unknown as bigint,
     })
     .catch((error) => error);
 
