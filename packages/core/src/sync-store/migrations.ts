@@ -920,7 +920,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
             .select([
               sql<string>`concat('log', '_', lf.id)`.as("fragment_id"),
               "lf.chainId as chain_id",
-              sql`nummultirange(numrange(lfi."startBlock", lfi."endBlock" + 1, '[]'))`.as(
+              sql`numrange(lfi."startBlock", lfi."endBlock" + 1, '[]')`.as(
                 "blocks",
               ),
             ]),
@@ -958,7 +958,7 @@ GROUP BY fragment_id, chain_id
             .select([
               sql<string>`concat('log', '_', flf.id)`.as("fragment_id"),
               "flf.chainId as chain_id",
-              sql`nummultirange(numrange(flfi."startBlock", flfi."endBlock" + 1, '[]'))`.as(
+              sql`numrange(flfi."startBlock", flfi."endBlock" + 1, '[]')`.as(
                 "blocks",
               ),
             ]),
@@ -1005,7 +1005,7 @@ GROUP BY fragment_id, chain_id
             .select([
               sql<string>`concat('trace', '_', tf.id)`.as("fragment_id"),
               "tf.chainId as chain_id",
-              sql`nummultirange(numrange(tfi."startBlock", tfi."endBlock" + 1, '[]'))`.as(
+              sql`numrange(tfi."startBlock", tfi."endBlock" + 1, '[]')`.as(
                 "blocks",
               ),
             ]),
@@ -1048,7 +1048,7 @@ GROUP BY fragment_id, chain_id
             .select([
               sql<string>`concat('trace', '_', ftf.id)`.as("fragment_id"),
               "ftf.chainId as chain_id",
-              sql`nummultirange(numrange(ftfi."startBlock", ftfi."endBlock" + 1, '[]'))`.as(
+              sql`numrange(ftfi."startBlock", ftfi."endBlock" + 1, '[]')`.as(
                 "blocks",
               ),
             ]),
@@ -1095,7 +1095,7 @@ GROUP BY fragment_id, chain_id
             .select([
               sql<string>`concat('block', '_', bf.id)`.as("fragment_id"),
               "bf.chainId as chain_id",
-              sql`nummultirange(numrange(bfi."startBlock", bfi."endBlock" + 1, '[]'))`.as(
+              sql`numrange(bfi."startBlock", bfi."endBlock" + 1, '[]')`.as(
                 "blocks",
               ),
             ]),
