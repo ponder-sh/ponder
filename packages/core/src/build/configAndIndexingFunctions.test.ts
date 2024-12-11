@@ -29,7 +29,7 @@ const func0 = parseAbiItem(
 );
 
 const address1 = "0x0000000000000000000000000000000000000001";
-const address2 = "0x0000000000000000000000000000000000000001";
+const address2 = "0x0000000000000000000000000000000000000002";
 const bytes1 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const bytes2 =
@@ -81,6 +81,42 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [
+      { name: "a:Event1()", fn: () => {} },
+      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+    ],
+  });
+
+  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
+    toEventSelector(event1),
+    toEventSelector(event1Overloaded),
+  ]);
+});
+
+test("buildConfigAndIndexingFunctions() handles multiple addresses", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        network: {
+          mainnet: {
+            address: [address1, address2],
+            startBlock: 16370000,
+            endBlock: 16370020,
+          },
+        },
+        abi: [event1, event1Overloaded],
+        filter: {
+          event: ["Event1()", "Event1(bytes32 indexed)"],
+        },
       },
     },
   });
