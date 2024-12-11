@@ -742,7 +742,7 @@ export const createDatabase = ({
 
             // dev fast path
             if (
-              (common.options.command === "dev" && previousApp.is_dev === 1) ||
+              previousApp.is_dev === 1 ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
                 previousApp.build_id !== newApp.build_id) ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
