@@ -414,11 +414,14 @@ export async function buildConfigAndIndexingFunctions({
 
       const resolvedAddress = source?.address;
 
-      if (typeof resolvedAddress === "object") {
+      if (
+        typeof resolvedAddress === "object" &&
+        !Array.isArray(resolvedAddress)
+      ) {
         // Note that this can throw.
         const logFactory = buildLogFactory({
           chainId: network.chainId,
-          ...(resolvedAddress as Factory),
+          ...resolvedAddress,
         });
 
         const logSource = {
