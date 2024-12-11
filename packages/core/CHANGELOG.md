@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.1
+
+### Patch Changes
+
+- [#1328](https://github.com/ponder-sh/ponder/pull/1328) [`6df44c91095ec337faf27a8eb6e3ddfa48641b7c`](https://github.com/ponder-sh/ponder/commit/6df44c91095ec337faf27a8eb6e3ddfa48641b7c) Thanks [@3commascapital](https://github.com/3commascapital)! - Fixed a bug introduced in v0.8.0 with using an array of addresses in `ponder.config.ts`.
+
 ## 0.8.0
 
 ### Minor Changes
