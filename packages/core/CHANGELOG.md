@@ -1,4 +1,4 @@
-# @ponder/core
+# ponder
 
 ## 0.8.0
 
