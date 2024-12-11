@@ -586,15 +586,20 @@ export const createDatabase = ({
               .execute()
               .then((rows) => rows.map(({ value }) => value as PonderApp));
 
-            const removedDevApps = previousApps.filter(
-              (app) =>
-                app.is_dev === 1 &&
-                (app.is_locked === 0 ||
-                  app.heartbeat_at + common.options.databaseHeartbeatTimeout <
-                    Date.now()),
-            );
+            if (
+              previousApps.some(
+                (app) =>
+                  app.is_locked === 1 &&
+                  app.heartbeat_at + common.options.databaseHeartbeatTimeout >
+                    Date.now(),
+              )
+            ) {
+              throw new NonRetryableError(
+                `Migration failed: Schema '${preBuild.namespace}' has an active app`,
+              );
+            }
 
-            for (const app of removedDevApps) {
+            for (const app of previousApps) {
               for (const table of app.table_names) {
                 await tx.schema
                   // @ts-ignore
@@ -618,18 +623,6 @@ export const createDatabase = ({
                 .deleteFrom("_ponder_meta")
                 // @ts-ignore
                 .where("key", "=", `app_${app.instance_id}`)
-                .execute();
-            }
-
-            const previousApp = previousApps.find((app) => app.is_dev === 0);
-
-            if (previousApp) {
-              await tx
-                .insertInto("_ponder_meta")
-                .values({
-                  key: "app",
-                  value: previousApp,
-                })
                 .execute();
             }
 
