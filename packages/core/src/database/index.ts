@@ -658,7 +658,7 @@ export const createDatabase = ({
           .execute();
       });
 
-      const attempt = async () =>
+      const attempt = () =>
         qb.internal.wrap({ method: "setup" }, () =>
           qb.internal.transaction().execute(async (tx) => {
             const previousApp = await tx
@@ -742,12 +742,11 @@ export const createDatabase = ({
 
             // dev fast path
             if (
-              common.options.command === "dev" &&
-              (previousApp.is_locked === 0 ||
-                previousApp.heartbeat_at +
-                  common.options.databaseHeartbeatTimeout <=
-                  Date.now()) &&
-              previousApp.is_dev === 1
+              (common.options.command === "dev" && previousApp.is_dev === 1) ||
+              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
+                previousApp.build_id !== newApp.build_id) ||
+              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
+                previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint))
             ) {
               await tx
                 .updateTable("_ponder_meta")
