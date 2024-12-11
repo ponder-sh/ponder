@@ -729,6 +729,13 @@ export const createDatabase = ({
               }
             };
 
+            const dropEnums = async () => {
+              for (const enumName of schemaBuild.statements.enums.json) {
+                await tx.schema.dropType(enumName.name).ifExists().execute();
+              }
+            };
+
+            // If schema is empty, create tables
             // If schema is empty, create tables
             if (previousApp === undefined) {
               await tx
@@ -777,6 +784,7 @@ export const createDatabase = ({
                 .execute();
 
               await dropTables();
+              await dropEnums();
 
               await createEnums();
               await createTables();
@@ -835,6 +843,7 @@ export const createDatabase = ({
                 .execute();
 
               await dropTables();
+              await dropEnums();
 
               await createEnums();
               await createTables();
