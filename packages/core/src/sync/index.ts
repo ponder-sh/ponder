@@ -1031,6 +1031,7 @@ export async function* getLocalEventGenerator(params: {
   for await (const syncCheckpoint of getNonBlockingAsyncGenerator(
     params.localSyncGenerator,
   )) {
+    let consecutiveErrors = 0;
     while (cursor < min(syncCheckpoint, params.to)) {
       const to = min(
         syncCheckpoint,
@@ -1044,9 +1045,9 @@ export async function* getLocalEventGenerator(params: {
         }),
       );
 
-      let consecutiveErrors = 0;
       try {
         const { events, cursor: queryCursor } =
+          // TODO: use getEventsStream if using postgresql
           await params.syncStore.getEvents({
             filters: params.filters,
             from: cursor,
