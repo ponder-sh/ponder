@@ -3,8 +3,7 @@ title: "Deploy to production"
 description: "A guide for deploying Ponder apps to production"
 ---
 
-import { Steps } from "nextra/components";
-import { Callout } from "nextra/components";
+import { Steps, Tabs, Callout } from "nextra/components";
 
 # Deploy
 
@@ -12,59 +11,6 @@ You can deploy your Ponder app to any cloud environment that supports Node.js.
 
 - [Railway](#railway)
 - [Self-hosting](#self-hosting)
-
-## Database schemas
-
-The first thing you should consider when deploying your Ponder app is where your data will be stored. Ponder uses [database schemas](https://www.postgresql.org/docs/current/ddl-schemas.html) to isolate data between deployments.
-
-### Configure your schema
-
-The database schema must be configured using either an environment variable or a CLI flag.
-
-<div className="code-columns">
-
-```sh filename=".env.local"
-DATABASE_SCHEMA=my_schema
-```
-
-```sh
-ponder start --schema my_schema
-```
-
-</div>
-
-<Callout type="default">
-  To provide more visibility into which schemas are being used, Ponder provides
-  several [CLI entrypoints](/docs/...).
-</Callout>
-
-### Schema rules
-
-Ponder follows a strict set of rules for every new deployment.
-
-<Callout type="info">
-  In summary, a new deployment should use a new schema, or else the deployment
-  will fail. There is a special case for [crash recovery](#crash-recovery).
-</Callout>
-
-```mermaid
-flowchart TD
-  A[Is target schema empty?]
-  C[Is a crash recovery possible?]
-  D(Error)
-  E[Create tables]
-  F[Recover from existing tables]
-  G(Start)
-
-  A -- yes --> E
-  A -- no --> C
-  C -- yes --> F
-  C -- no --> D
-  E --> G
-  F --> G
-  style D fill:#f00
-  style G fill:#0f0
-```
 
 ## Railway
 
@@ -83,13 +29,34 @@ From the Railway console:
 1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list
 2. Click **Add variables**, then add RPC URLs (e.g. `PONDER_RPC_URL_1`) and other environment variables
 3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain**
-4. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `86400` seconds (1 day)
+4. Update the start command. In **Settings** → **Deploy**, set the **Custom Start Command** to include the `--schema` option. This is required to enable zero-downtime deployments. [Read more](/docs/getting-started/database#database-schema).
 
-<Callout type="warning">
-  _Monorepo users:_ Configure the **Root Directory** and **Start Command** such
-  that `ponder start` runs at the Ponder project root. For example, set the root
-  directory to `packages/ponder` or set the start command to `cd packages/ponder
-  && pnpm start`.
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```text filename="Start command"
+pnpm start --schema $RAILWAY_DEPLOYMENT_ID
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```text filename="Start command"
+yarn start --schema $RAILWAY_DEPLOYMENT_ID
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```text filename="Start command"
+npm run start --schema $RAILWAY_DEPLOYMENT_ID
+```
+</Tabs.Tab>
+</Tabs>
+
+5. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `86400` seconds (1 day)
+
+<Callout type="info">
+  _Monorepo users:_ Use the **Root Directory** and/or **Start Command** options
+  to run `ponder start` at the Ponder project root, e.g. set the root directory
+  to `packages/ponder` or set the start command to `cd packages/ponder && pnpm
+  start`.
 </Callout>
 
 ### Create a Postgres database
@@ -99,37 +66,20 @@ From the new project dashboard:
 1. Click **Create** → **Database** → **Add PostgreSQL**
 2. Open the **Variables** tab for the Ponder app service, click **New Variable** → **Add Reference** → select `DATABASE_URL` and click **Add**
 
-### Configure deployment behavior
-
-At this point, you need to configure your [database schema](#database-schemas) with the `DATABASE_SCHEMA` environment variable.
-
-1. **Git based auto-deployments:** A new deployment is created every time a commit is pushed to the default branch.
-   - Set `DATABASE_SCHEMA` to `${{RAILWAY_DEPLOYMENT_ID}}`
-2. **Manual deployments:** A new deployment is created manually via the Railway ui.
-   - Set `DATABASE_SCHEMA` to a custom value
-   - In **Settings** → **Source**, disconnect the git branch
-
-After a moment, the Ponder app service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
-
 </Steps>
+
+After a moment, the service running `ponder start` should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
 ## Self hosting
 
-In general, hosting a Ponder app is similar to hosting a normal Node.js HTTP server. Rather than offer a step-by-step guide, this section describes the key Ponder-specific quirks to consider when self-hosting.
-
-### Health checks & probes
-
-Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
-
-- **`/health`**: Returns an HTTP `200` response immediately after the process starts.
-- **`/ready`**: Returns an HTTP `200` response once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns an HTTP `503` response.
+In general, hosting a Ponder app is similar to hosting a normal Node.js web server. This section describes the key Ponder-specific quirks to consider when self-hosting.
 
 ### Database connection
 
-<Callout type="warning">
-  Your app will have performance issues if the roundtrip database latency
+<Callout type="info">
+  Your app will run into performance issues if the roundtrip database latency
   exceeds ~20 milliseconds. This is common when using a database in different
-  private network or region.
+  private network or cloud region.
 </Callout>
 
 In production, Ponder works best with a Postgres database in the same private network. Set the `DATABASE_URL` environment variable to the connection string of your Postgres database, or manually override the `database.connectionString` option in `ponder.config.ts`.
@@ -146,6 +96,57 @@ export default createConfig({
 });
 ```
 
+### Database schema
+
+Each deployment must use a different database schema. Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument passed to `ponder start` to specify which database schema each deployment should use. [Read more](/docs/api-reference/database#database-schema-rules) about database schema selection rules.
+
+The best choice depends on your deployment strategy – here are a few common options.
+
+- Kubernetes pod name
+- Railway deployment ID
+- Git branch name or commit hash
+
+### Health checks & probes
+
+Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
+
+- **`/health`**: Returns an HTTP `200` response immediately after the process starts.
+- **`/ready`**: Returns an HTTP `200` response once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns an HTTP `503` response.
+
 ### Crash recovery
 
-If a Ponder app running `ponder start` crashes and restarts, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/database#build-id-and-crash-recovery) about the instance lifecycle and crash recovery mechanism.
+If a Ponder app running `ponder start` crashes and restarts using the same database schema, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/database#build-id-and-crash-recovery) about the instance lifecycle and crash recovery mechanism.
+
+## Advanced
+
+### Scale the HTTP server
+
+If a `ponder start` instance receives a large volume of HTTP traffic (e.g. GraphQL requests), the HTTP server will contend with the indexing engine for CPU and memory resources. This can lead to degraded indexing performance and might ultimately crash the instance.
+
+To solve this problem, you can use `ponder serve` to run additional instances of the HTTP server without the indexing engine. Here are a few things to keep in mind.
+
+- The `ponder serve` instance should use the same [database schema](#database-schema) as the `ponder start` instance that you'd like to scale.
+- If one `ponder serve` instance is not enough, you can safely run multiple replicas behind a proxy using an architecture like this.
+
+```mermaid
+graph LR
+  A[Clients]
+  B[Proxy]
+  C["HTTP (ponder serve)"]
+  D["HTTP (ponder serve)"]
+  E["HTTP (ponder serve)"]
+  F["Database"]
+  G["Indexer (ponder start)"]
+  A --> B
+  B --> C
+  B --> D
+  B --> E
+  C --> F
+  D --> F
+  E --> F
+  F <--> G
+```
+
+### Database maintenance
+
+The `ponder db` CLI entrypoint offers a set of commands useful for observing and maintaining your database. [Read more](/docs/api-reference/ponder-cli#db).
