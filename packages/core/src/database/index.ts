@@ -821,7 +821,7 @@ export const createDatabase = ({
               previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)
             ) {
               const error = new NonRetryableError(
-                `Schema '${preBuild.namespace}' is used by a different deployment`,
+                `Schema '${preBuild.namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
               );
               error.stack = undefined;
               throw error;
@@ -863,7 +863,7 @@ export const createDatabase = ({
 
             common.logger.info({
               service: "database",
-              msg: `Detected cache hit for build '${buildId}' in schema '${preBuild.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+              msg: `Detected crash recovery for build '${buildId}' in schema '${preBuild.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
             });
 
             // Remove triggers
@@ -932,7 +932,7 @@ export const createDatabase = ({
         result = await attempt();
         if (result.status === "locked") {
           const error = new NonRetryableError(
-            `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this database.`,
+            `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this schema.`,
           );
           error.stack = undefined;
           throw error;

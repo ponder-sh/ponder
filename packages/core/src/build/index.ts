@@ -359,7 +359,7 @@ export const createBuild = async ({
           common.options.command === "serve"
         ) {
           const error = new BuildError(
-            "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag.",
+            "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/getting-started/database#database-schema",
           );
           error.stack = undefined;
           common.logger.error({
