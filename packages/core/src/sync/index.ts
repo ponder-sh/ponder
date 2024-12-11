@@ -418,7 +418,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               ? args.initialCheckpoint
               : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
           to,
-          batch: 1000,
+          batch: 10000,
         });
 
         return bufferAsyncGenerator(localEventGenerator, 2);
@@ -1046,14 +1046,34 @@ export async function* getLocalEventGenerator(params: {
       );
 
       try {
-        const { events, cursor: queryCursor } =
-          // TODO: use getEventsStream if using postgresql
-          await params.syncStore.getEvents({
+        let events: RawEvent[] = [];
+        let queryCursor: string;
+        if (params.syncStore.allowCursor) {
+          const stream = await params.syncStore.getEventsStream({
             filters: params.filters,
             from: cursor,
             to,
             limit: params.batch,
           });
+          for await (const row of stream) {
+            events.push(row);
+          }
+          if (events.length !== params.batch) {
+            queryCursor = to;
+          } else {
+            queryCursor = events[events.length - 1]!.checkpoint!;
+          }
+        } else {
+          const { events: _events, cursor: _queryCursor } =
+            await params.syncStore.getEvents({
+              filters: params.filters,
+              from: cursor,
+              to,
+              limit: params.batch,
+            });
+          events = _events;
+          queryCursor = _queryCursor;
+        }
 
         estimateSeconds = estimate({
           from: decodeCheckpoint(cursor).blockTimestamp,

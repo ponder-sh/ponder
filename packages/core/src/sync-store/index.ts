@@ -45,6 +45,7 @@ import {
 } from "./encoding.js";
 
 export type SyncStore = {
+  allowCursor: boolean;
   insertIntervals(args: {
     intervals: {
       filter: Filter;
@@ -658,6 +659,7 @@ export const createSyncStore = ({
   common: Common;
   db: HeadlessKysely<PonderSyncSchema>;
 }): SyncStore => ({
+  allowCursor: db.allowCursor,
   insertIntervals: async ({ intervals }) => {
     if (intervals.length === 0) return;
 

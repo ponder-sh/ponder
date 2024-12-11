@@ -11,15 +11,21 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
   private common: Common;
   private name: string;
   private isKilled = false;
+  readonly allowCursor: boolean;
 
   constructor({
     common,
     name,
     ...args
-  }: (KyselyConfig | KyselyProps) & { name: string; common: Common }) {
+  }: (KyselyConfig | KyselyProps) & {
+    name: string;
+    common: Common;
+    allowCursor?: boolean;
+  }) {
     super(args);
     this.common = common;
     this.name = name;
+    this.allowCursor = args.allowCursor ?? false;
   }
 
   override async destroy() {

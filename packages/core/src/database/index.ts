@@ -252,7 +252,6 @@ export const createDatabase = (args: {
         common: args.common,
         dialect: new PostgresDialect({
           pool: driver.internal,
-          cursor: Cursor,
         }),
         log(event) {
           if (event.level === "query") {
@@ -292,6 +291,7 @@ export const createDatabase = (args: {
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: args.common,
+        allowCursor: true,
         dialect: new PostgresDialect({ pool: driver.sync, cursor: Cursor }),
         log(event) {
           if (event.level === "query") {
