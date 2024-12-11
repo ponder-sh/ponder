@@ -70,10 +70,6 @@ test("isLogFactoryMatched()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
@@ -128,10 +124,6 @@ test("isLogFilterMatched()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const filter = sources[0]!.filter as LogFilter<undefined>;
@@ -185,10 +177,6 @@ test("isBlockFilterMatched", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const filter = sources[0]!.filter as BlockFilter;
@@ -234,10 +222,6 @@ test("isTransactionFilterMatched()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // transaction:from
@@ -285,10 +269,6 @@ test("isTransferFilterMatched()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   // transfer:from
@@ -360,10 +340,6 @@ test("isTraceFilterMatched()", async (context) => {
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
     rawIndexingFunctions,
-    options: {
-      ponderDir: "",
-      rootDir: "",
-    },
   });
 
   const filter = sources[1]!.filter as TraceFilter<undefined, undefined>;

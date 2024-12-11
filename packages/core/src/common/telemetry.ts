@@ -4,7 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { IndexingBuild } from "@/build/service.js";
+import type { PreBuild, SchemaBuild } from "@/build/index.js";
+import type { IndexingBuild } from "@/build/index.js";
 import type { Options } from "@/common/options.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
@@ -276,17 +277,27 @@ function getPackageJson(rootDir: string) {
   }
 }
 
-export function buildPayload(build: IndexingBuild) {
-  const table_count = Object.keys(build.schema).length;
-  const indexing_function_count = Object.values(build.indexingFunctions).reduce(
-    (acc, f) => acc + Object.keys(f).length,
-    0,
-  );
+export function buildPayload({
+  preBuild,
+  schemaBuild,
+  indexingBuild,
+}: {
+  preBuild: PreBuild;
+  schemaBuild?: SchemaBuild;
+  indexingBuild?: IndexingBuild;
+}) {
+  const table_count = schemaBuild ? Object.keys(schemaBuild.schema).length : 0;
+  const indexing_function_count = indexingBuild
+    ? Object.values(indexingBuild.indexingFunctions).reduce(
+        (acc, f) => acc + Object.keys(f).length,
+        0,
+      )
+    : 0;
 
   return {
-    database_kind: build.databaseConfig.kind,
-    contract_count: build.sources.length,
-    network_count: build.networks.length,
+    database_kind: preBuild?.databaseConfig.kind,
+    contract_count: indexingBuild?.sources.length ?? 0,
+    network_count: indexingBuild?.networks.length ?? 0,
     table_count,
     indexing_function_count,
   };

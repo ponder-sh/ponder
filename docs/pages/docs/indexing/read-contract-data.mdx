@@ -42,8 +42,8 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts"
-import { tokens } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { tokens } from "ponder:schema";
 
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
   const { client } = context;
@@ -348,8 +348,8 @@ contract ZorbNft is ERC721 {
 Every Zorb has a gradient, but the contract doesn't emit gradient data in any event logs (it only emits events required by ERC721). The gradient data for a given Zorb can, however, be accessed using the `gradientForAddress` function.
 
 ```ts filename="src/index.ts" {6-11}
-import { zorbs } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { zorbs } from "ponder:schema";
 
 ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
   if (event.args.from === ZERO_ADDRESS) {

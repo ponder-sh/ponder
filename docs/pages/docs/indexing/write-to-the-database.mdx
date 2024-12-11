@@ -216,8 +216,8 @@ The `db.sql` object exposes the raw Drizzle PostgreSQL query builder, including 
 Here's an example that uses the raw SQL `update` function to execute a complex bulk update query.
 
 ```ts filename="src/index.ts"
-import { accounts, tradeEvents } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { accounts, tradeEvents } from "ponder:schema";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
 // Add 100 points to all accounts that submitted a trade in the last 24 hours.

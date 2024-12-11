@@ -95,8 +95,8 @@ Read more about [designing your schema](/docs/schema).
 Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to write indexed data to the database.
 
 ```ts filename="src/index.ts"
-import { blitmapTokens } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { blitmapTokens } from "ponder:schema";
 
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   await context.db.insert(blitmapTokens).values({

@@ -1,11 +1,12 @@
 import path from "node:path";
-import { createBuildService } from "@/build/index.js";
+import { createBuild } from "@/build/index.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { createDatabase } from "@/database/index.js";
 import { createServer } from "@/server/index.js";
+import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
@@ -39,7 +40,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const buildService = await createBuildService({ common });
+  const build = await createBuild({ common });
 
   let cleanupReloadable = () => Promise.resolve();
 
@@ -50,27 +51,47 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const buildResult = await buildService.start({ watch: false });
-  // Once we have the initial build, we can kill the build service.
-  await buildService.kill();
+  const executeResult = await build.execute();
+  await build.kill();
+
+  if (executeResult.configResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.schemaResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+  if (executeResult.apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const buildResult = mergeResults([
+    build.preCompile(executeResult.configResult.result),
+    build.compileSchema(executeResult.schemaResult.result),
+    build.compileApi({ apiResult: executeResult.apiResult.result }),
+  ]);
 
   if (buildResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
+  const [preBuild, schemaBuild, apiBuild] = buildResult.result;
+
   telemetry.record({
     name: "lifecycle:session_start",
     properties: {
       cli_command: "serve",
-      ...buildPayload(buildResult.indexingBuild),
+      ...buildPayload({
+        preBuild,
+        schemaBuild,
+      }),
     },
   });
 
-  const { databaseConfig, schema, instanceId, buildId, statements, namespace } =
-    buildResult.apiBuild;
-
-  if (databaseConfig.kind === "pglite") {
+  if (preBuild.databaseConfig.kind === "pglite") {
     await shutdown({
       reason: "The 'ponder serve' command does not support PGlite",
       code: 1,
@@ -80,24 +101,15 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const database = createDatabase({
     common,
-    schema,
-    databaseConfig,
-    instanceId,
-    buildId,
-    statements,
-    namespace,
+    preBuild,
+    schemaBuild,
   });
 
   const server = await createServer({
     common,
-    app: buildResult.apiBuild.app,
-    routes: buildResult.apiBuild.routes,
-    graphqlSchema: buildResult.indexingBuild.graphqlSchema,
     database,
-    instanceId:
-      process.env.PONDER_EXPERIMENTAL_INSTANCE_ID === undefined
-        ? undefined
-        : instanceId,
+    schemaBuild,
+    apiBuild,
   });
 
   cleanupReloadable = async () => {

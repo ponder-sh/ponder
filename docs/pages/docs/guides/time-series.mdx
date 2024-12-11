@@ -109,8 +109,8 @@ export const swapEvents = onchainTable("swap_events", (t) => ({
 ```
 
 ```ts filename="src/index.ts" {10}
-import { swapEvents } from "ponder:schema";
 import { ponder } from "ponder:registry";
+import { swapEvents } from "ponder:schema";
 
 ponder.on("Token:Swap", async ({ event, context }) => {
   await context.db.insert(swapEvents).values({
