@@ -18,7 +18,7 @@ The store API is a SQL-like query builder optimized for EVM indexing workloads. 
   <p />
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable, primaryKey } from "@ponder/core";
+import { onchainTable, primaryKey } from "ponder";
 
 export const accounts = onchainTable("accounts", (t) => ({
   address: t.hex().primaryKey(),
@@ -47,7 +47,7 @@ Insert one or many rows into the database. Returns the inserted rows, **includin
 
 {/* prettier-ignore */}
 ```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db.insert(accounts).values({
   address: "0x7Df1", balance: 0n
@@ -62,7 +62,7 @@ const rows = await db.insert(accounts).values([
 If you insert a row that violates a not null constraint, `insert` will reject with an error.
 
 ```ts filename="src/index.ts" {7}
-import { tokens } from "../ponder.schema";
+import { tokens } from "ponder:schema";
 
 const row = await db.insert(accounts).values({
   address: "0x7Df1",
@@ -76,7 +76,7 @@ const row = await db.insert(accounts).values({
 Find a single row by primary key. Returns the row, or `null` if no matching row is found.
 
 ```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db.find(accounts, { address: "0x7Df1" });
 ```
@@ -84,7 +84,7 @@ const row = await db.find(accounts, { address: "0x7Df1" });
 If the table has a composite primary key, the second argument is an object including all the primary key values.
 
 ```ts filename="src/index.ts"
-import { allowances } from "../ponder.schema";
+import { allowances } from "ponder:schema";
 
 const row = await db.find(allowances, { owner: "0x7Df1", spender: "0x7Df2" });
 ```
@@ -94,7 +94,7 @@ const row = await db.find(allowances, { owner: "0x7Df1", spender: "0x7Df2" });
 Update a row by primary key. Returns the updated row.
 
 ```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db
   .update(accounts, { address: "0x7Df1" })
@@ -104,7 +104,7 @@ const row = await db
 You can also pass a function to `set` which receives the existing row and returns the update object.
 
 ```ts filename="src/index.ts" {5}
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db
   .update(accounts, { address: "0x7Df1" })
@@ -114,7 +114,7 @@ const row = await db
 If the target row is not found, `update` will reject with an error.
 
 ```ts filename="src/index.ts" {7}
-import { tokens } from "../ponder.schema";
+import { tokens } from "ponder:schema";
 
 const row = await db
   .update(accounts, { address: "0x7Df1" })
@@ -126,7 +126,7 @@ const row = await db
 If the new row violates a not null constraint, `update` will reject with an error.
 
 ```ts filename="src/index.ts" {7}
-import { tokens } from "../ponder.schema";
+import { tokens } from "ponder:schema";
 
 const row = await db
   .update(accounts, { address: "0x7Df1" })
@@ -140,7 +140,7 @@ const row = await db
 Delete a row by primary key. Returns `true` if the row was deleted, or `false` if no matching row was found.
 
 ```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const deleted = await db.delete(accounts, { address: "0x7Df1" });
 ```
@@ -150,7 +150,7 @@ const deleted = await db.delete(accounts, { address: "0x7Df1" });
 If you insert a duplicate row that violates the table's primary key constraint, `insert` will reject with an error. Use `onConflictDoNothing` to skip the insert operation if a row with the same primary key already exists.
 
 ```ts filename="src/index.ts" {6}
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db
   .insert(accounts)
@@ -161,7 +161,7 @@ const row = await db
 Or, perform an **upsert** with `onConflictDoUpdate`.
 
 ```ts filename="src/index.ts" {6}
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db
   .insert(accounts)
@@ -172,7 +172,7 @@ const row = await db
 Like `update`, you can pass a function to `onConflictDoUpdate` which receives the existing row and returns the update object.
 
 ```ts filename="src/index.ts" {6}
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const row = await db
   .insert(accounts)
@@ -183,7 +183,7 @@ const row = await db
 Both `onConflictDoNothing` and `onConflictDoUpdate` also work when inserting many rows at once. The conflict resolution logic gets applied to each row individually.
 
 ```ts filename="src/index.ts"
-import { accounts } from "../ponder.schema";
+import { accounts } from "ponder:schema";
 
 const rows = await db
   .insert(accounts)
@@ -216,8 +216,8 @@ The `db.sql` object exposes the raw Drizzle PostgreSQL query builder, including 
 Here's an example that uses the raw SQL `update` function to execute a complex bulk update query.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
-import { accounts, tradeEvents } from "../ponder.schema";
+import { ponder } from "ponder:registry";
+import { accounts, tradeEvents } from "ponder:schema";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
 // Add 100 points to all accounts that submitted a trade in the last 24 hours.
@@ -246,8 +246,8 @@ Drizzle's relational query builder (AKA Drizzle Queries) offers a great develope
 Here's an example that uses the relational query builder in an API function to find the 10 largest trades in the past hour joined with the account that made the trade.
 
 ```ts filename="src/api/index.ts"
-import { accounts, tradeEvents } from "../ponder.schema";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
+import { accounts, tradeEvents } from "ponder:schema";
 
 ponder.get("/hot-trades", async (c) => {
   const trades = await c.db.query.tradeEvents.findMany({

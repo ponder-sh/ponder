@@ -80,7 +80,7 @@ PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 The `ponder.schema.ts` file contains the database schema, and defines the shape data that the GraphQL API serves.
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const blitmapTokens = onchainTable("blitmap_tokens", (t) => ({
   id: t.integer().primaryKey(),
@@ -95,8 +95,8 @@ Read more about [designing your schema](/docs/schema).
 Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to write indexed data to the database.
 
 ```ts filename="src/index.ts"
-import { ponder } from "@/generated";
-import { blitmapTokens } from "../ponder.schema";
+import { ponder } from "ponder:registry";
+import { blitmapTokens } from "ponder:schema";
 
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   await context.db.insert(blitmapTokens).values({

@@ -1,5 +1,5 @@
 {
-  "name": "@ponder/core",
+  "name": "ponder",
   "version": "0.7.17",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
@@ -23,8 +23,13 @@
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
-    "types": "./dist/index.d.ts",
-    "import": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./virtual": {
+      "types": "./src/types.d.ts"
+    }
   },
   "scripts": {
     "build": "tsup",

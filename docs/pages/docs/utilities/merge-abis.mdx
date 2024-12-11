@@ -22,10 +22,10 @@ const tokenAbi = mergeAbis([erc20Abi, erc4626Abi]);
 
 Use `mergeAbis` to preserve type safety when combining multiple ABIs for a single contract. This is especially useful for proxy contracts that have had several different implementation ABIs.
 
-For convenience, `@ponder/core` re-exports `mergeAbis` from `@ponder/utils`.
+For convenience, `ponder` re-exports `mergeAbis` from `@ponder/utils`.
 
 ```ts filename="ponder.config.ts" {1,14}
-import { createConfig, mergeAbis } from "@ponder/core";
+import { createConfig, mergeAbis } from "ponder";
 import { http } from "viem";
 
 import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";

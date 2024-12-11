@@ -4,7 +4,9 @@ import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
 
 export type Options = {
-  command: "dev" | "start" | "serve" | "codegen";
+  command: "dev" | "start" | "serve" | "codegen" | "list";
+
+  schema?: string;
 
   configFile: string;
   schemaFile: string;
@@ -34,7 +36,6 @@ export type Options = {
   indexingCacheMaxBytes: number;
   indexingCacheFlushRatio: number;
 
-  syncStoreMaxIntervals: number;
   syncEventsQuerySize: number;
   syncHandoffStaleSeconds: number;
 };
@@ -65,6 +66,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     logLevel = "info";
   }
 
+  if (["list", "codegen"].includes(cliOptions.command)) logLevel = "error";
+
   const port =
     process.env.PORT !== undefined
       ? Number(process.env.PORT)
@@ -76,6 +79,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   return {
     command: cliOptions.command,
+
+    schema: cliOptions.schema,
 
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
@@ -121,7 +126,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
       1_024,
     indexingCacheFlushRatio: 0.35,
 
-    syncStoreMaxIntervals: 5_000,
     syncEventsQuerySize: 10_000,
     syncHandoffStaleSeconds: 300,
   } satisfies Options;

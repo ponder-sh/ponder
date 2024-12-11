@@ -41,15 +41,15 @@ importers:
       '@graphprotocol/graph-ts':
         specifier: ^0.31.0
         version: 0.31.0
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../packages/core
       '@types/node':
         specifier: ^20.10.0
         version: 20.11.24
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      ponder:
+        specifier: workspace:*
+        version: link:../packages/core
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
@@ -136,17 +136,39 @@ importers:
         specifier: ^5.2.2
         version: 5.3.3
 
-  examples/feature-api-functions:
+  examples/feature-accounts:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      drizzle-kit:
-        specifier: 0.25.0
-        version: 0.25.0
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^2.21.3
+        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.11.24
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.3
+
+  examples/feature-api-functions:
+    dependencies:
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -166,12 +188,12 @@ importers:
 
   examples/feature-blocks:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -191,12 +213,12 @@ importers:
 
   examples/feature-call-traces:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -216,15 +238,15 @@ importers:
 
   examples/feature-factory:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -244,12 +266,12 @@ importers:
 
   examples/feature-filter:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -269,12 +291,12 @@ importers:
 
   examples/feature-multichain:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -294,12 +316,12 @@ importers:
 
   examples/feature-proxy:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -319,12 +341,12 @@ importers:
 
   examples/feature-read-contract:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -344,12 +366,12 @@ importers:
 
   examples/project-friendtech:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -369,12 +391,12 @@ importers:
 
   examples/project-uniswap-v3-flash:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -394,12 +416,12 @@ importers:
 
   examples/reference-erc1155:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -419,15 +441,15 @@ importers:
 
   examples/reference-erc20:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       drizzle-kit:
         specifier: 0.22.8
         version: 0.22.8
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -447,12 +469,12 @@ importers:
 
   examples/reference-erc4626:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -472,12 +494,12 @@ importers:
 
   examples/reference-erc721:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -518,15 +540,15 @@ importers:
       '@hono/trpc-server':
         specifier: ^0.3.2
         version: 0.3.2(@trpc/server@10.45.2)(hono@4.5.0)
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -561,12 +583,12 @@ importers:
 
   examples/with-foundry/ponder:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -643,12 +665,12 @@ importers:
 
   examples/with-nextjs/ponder:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -679,15 +701,15 @@ importers:
       '@hono/trpc-server':
         specifier: ^0.3.2
         version: 0.3.2(@trpc/server@10.45.2)(hono@4.5.0)
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -1722,9 +1744,6 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
-
-  '@drizzle-team/brocli@0.10.1':
-    resolution: {integrity: sha512-AHy0vjc+n/4w/8Mif+w86qpppHuF3AyXbcWW+R/W7GNA3F5/p2nuhlkCJaTXSLZheB4l1rtHzOfr9A7NwoR/Zg==}
 
   '@electric-sql/pglite@0.2.10':
     resolution: {integrity: sha512-0TJF/1ouBweCtyZC4oHwx+dHGn/lP16KfEO/3q22RDuZUsV2saTuYAwb6eK3gBLzVdXG4dj4xZilvmBYEM/WQg==}
@@ -4450,10 +4469,6 @@ packages:
 
   drizzle-kit@0.22.8:
     resolution: {integrity: sha512-VjI4wsJjk3hSqHSa3TwBf+uvH6M6pRHyxyoVbt935GUzP9tUR/BRZ+MhEJNgryqbzN2Za1KP0eJMTgKEPsalYQ==}
-    hasBin: true
-
-  drizzle-kit@0.25.0:
-    resolution: {integrity: sha512-Rcf0nYCAKizwjWQCY+d3zytyuTbDb81NcaPor+8NebESlUz1+9W3uGl0+r9FhU4Qal5Zv9j/7neXCSCe7DHzjA==}
     hasBin: true
 
   drizzle-orm@0.34.1:
@@ -9809,8 +9824,6 @@ snapshots:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
 
-  '@drizzle-team/brocli@0.10.1': {}
-
   '@electric-sql/pglite@0.2.10': {}
 
   '@envelop/core@5.0.2':
@@ -12594,15 +12607,6 @@ snapshots:
 
   drizzle-kit@0.22.8:
     dependencies:
-      '@esbuild-kit/esm-loader': 2.6.5
-      esbuild: 0.19.11
-      esbuild-register: 3.6.0(esbuild@0.19.11)
-    transitivePeerDependencies:
-      - supports-color
-
-  drizzle-kit@0.25.0:
-    dependencies:
-      '@drizzle-team/brocli': 0.10.1
       '@esbuild-kit/esm-loader': 2.6.5
       esbuild: 0.19.11
       esbuild-register: 3.6.0(esbuild@0.19.11)

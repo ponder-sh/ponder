@@ -1,23 +1,24 @@
 ---
-title: "Installation"
+title: "System requirements"
 description: "A guide for installing Ponder on any platform."
 ---
 
 import { Tabs, Callout } from "nextra/components";
 
-# Installation
+# System requirements
 
 The [`create-ponder` CLI](/docs/getting-started/new-project) is the best way to get started. If `create-ponder` runs without error, your system meets the requirements.
 
-## System requirements
+## Requirements
 
 - MacOS, Linux, or Windows
 - [Node.js](https://nodejs.org/en) >=18 (support for Bun is [in progress](https://github.com/ponder-sh/ponder/issues/442))
 - [pnpm](https://pnpm.io/installation) (recommended), [yarn](https://yarnpkg.com/getting-started/install), or npm
+- [PostgreSQL](https://www.postgresql.org/download/) version 14, 15, 16 or 17.
 
 ### Windows
 
-As of `0.4.7`, Ponder supports Windows via PowerShell, command prompt (cmd.exe), or Windows Subsystem for Linux (WSL). If you encounter a Windows-specific problem, please [open an issue](https://github.com/ponder-sh/ponder/issues).
+Ponder supports Windows via PowerShell, command prompt (cmd.exe), or Windows Subsystem for Linux (WSL). If you encounter a Windows-specific problem, please [open an issue](https://github.com/ponder-sh/ponder/issues).
 
 ## TypeScript
 
@@ -25,15 +26,15 @@ Ponder uses advanced TypeScript features to offer end-to-end type safety without
 
 ### Requirements
 
-- TypeScript `>=5.0.4` and viem `>=1.16.0`
+- TypeScript `>=5.0.4`, viem `>=2`, and hono `>=4.5
 - ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/getting-started#usage)
 - The `ponder-env.d.ts` file must be present and up to date
 
 ### `ponder-env.d.ts`
 
-This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"@/generated"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
+This "magical" file is what makes Ponder's zero-codegen type system possible. The file contains a module declaration for `"ponder:registry"{:ts}` that exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
 
-After upgrading to a new version of `@ponder/core`, the dev server might make changes to `ponder-env.d.ts`. When this happens, please accept and commit the changes.
+After upgrading to a new version of `ponder`, the dev server might make changes to `ponder-env.d.ts`. When this happens, please accept and commit the changes.
 
 ### VSCode
 

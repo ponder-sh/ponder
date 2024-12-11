@@ -1,4 +1,4 @@
-import type { IndexingBuild } from "@/build/index.js";
+import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
@@ -21,29 +21,22 @@ import { createQueue } from "@ponder/common";
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
   common,
-  build,
+  schemaBuild,
+  indexingBuild,
   database,
   onFatalError,
   onReloadableError,
 }: {
   common: Common;
-  build: IndexingBuild;
+  schemaBuild: SchemaBuild;
+  indexingBuild: IndexingBuild;
   database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const {
-    instanceId,
-    networks,
-    sources,
-    schema,
-    indexingFunctions,
-    graphqlSchema,
-  } = build;
-
   let isKilled = false;
 
-  const { checkpoint: initialCheckpoint } = await database.setup();
+  const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
 
   const syncStore = createSyncStore({
     common,
@@ -52,21 +45,20 @@ export async function run({
 
   const metadataStore = getMetadataStore({
     db: database.qb.user,
-    instanceId,
   });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  runCodegen({ common, graphqlSchema });
+  runCodegen({ common, graphqlSchema: schemaBuild.graphqlSchema });
 
   // Note: can throw
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    networks: indexingBuild.networks,
+    sources: indexingBuild.sources,
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {
@@ -95,7 +87,7 @@ export async function run({
           // update the temporary `checkpoint` value set in the trigger.
           for (const events of splitEvents(event.events)) {
             const result = await handleEvents(
-              decodeEvents(common, sources, events),
+              decodeEvents(common, indexingBuild.sources, events),
               event.checkpoint,
             );
 
@@ -127,17 +119,17 @@ export async function run({
   });
 
   const indexingService = createIndexingService({
-    indexingFunctions,
+    indexingFunctions: indexingBuild.indexingFunctions,
     common,
-    sources,
-    networks,
+    sources: indexingBuild.sources,
+    networks: indexingBuild.networks,
     sync,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
     common,
     database,
-    schema,
+    schema: schemaBuild.schema,
     initialCheckpoint,
   });
 
@@ -149,8 +141,8 @@ export async function run({
     // If the initial checkpoint is zero, we need to run setup events.
     if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
       const result = await indexingService.processSetupEvents({
-        sources,
-        networks,
+        sources: indexingBuild.sources,
+        networks: indexingBuild.networks,
       });
       if (result.status === "killed") {
         return;
@@ -169,7 +161,7 @@ export async function run({
       end = checkpoint;
 
       const result = await handleEvents(
-        decodeEvents(common, sources, events),
+        decodeEvents(common, indexingBuild.sources, events),
         checkpoint,
       );
 
@@ -240,13 +232,12 @@ export async function run({
     });
 
     await database.createIndexes();
-    await database.createLiveViews();
     await database.createTriggers();
 
     indexingService.setIndexingStore(
       createRealtimeIndexingStore({
         database,
-        schema,
+        schema: schemaBuild.schema,
         common,
       }),
     );

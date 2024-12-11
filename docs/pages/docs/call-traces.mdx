@@ -7,12 +7,12 @@ import { Callout, Steps } from "nextra/components";
 
 # Call traces
 
-As of `0.4.26`, Ponder supports call trace indexing. Call traces are similar to logs, but they represent a _function call_ instead of an event log.
+Call traces are similar to logs, but they represent a _function call_ instead of an event log.
 
 <Callout type="warning">
   Call traces are slower, more expensive, and less widely supported than logs.
   For new chains, you might struggle to find an RPC provider that supports the
-  `trace_filter` and `trace_block` methods.
+  `debug_traceBlockByNumber` and `debug_traceBlockByHash` methods.
 </Callout>
 
 ## Register an indexing function
@@ -24,7 +24,7 @@ After enabling this option, each function in the contract ABI will become availa
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts" {11}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
@@ -42,7 +42,7 @@ export default createConfig({
 ```
 
 ```ts filename="src/index.ts" {15}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
   event.args;
@@ -53,7 +53,6 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 ```
 
 </div>
-
 
 ## What is a call trace?
 
@@ -81,12 +80,3 @@ ponder.on("ERC20.transfer()", async ({ event }) => {
 The `eth_call` RPC method **does not** produce a call trace. These calls do not occur during the execution of a transaction, so they are not recorded as call traces.
 
 However, calls made to `view` or `pure` functions **do** produce call traces if they are made during the execution of a transaction. These call traces are rarely useful for indexing, but they do happen.
-
-## RPC methods
-
-|            | RPC methods                                    |
-| :--------- | :--------------------------------------------- |
-| Historical | `trace_filter` and `eth_getTransactionReceipt` |
-| Realtime   | `trace_block` and `eth_getTransactionReceipt`  |
-
-The sync engine fetches call traces using the `trace_filter` and `trace_block` RPC methods, and uses `eth_getTransactionReceipt` to confirm that a specific call trace did not occur within a reverted transaction.

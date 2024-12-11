@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",
+    "db": "ponder db",
     "codegen": "ponder codegen",
     "lint": "eslint .",
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@ponder/core": "workspace:*",
+    "ponder": "workspace:*",
     "hono": "^4.5.0",
     "viem": "^2.21.3"
   },
