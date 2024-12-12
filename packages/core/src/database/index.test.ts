@@ -1,6 +1,12 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
+import {
+  bigint,
+  hex,
+  onchainEnum,
+  onchainTable,
+  primaryKey,
+} from "@/drizzle/index.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,
@@ -9,7 +15,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "drizzle-orm";
-import { index } from "drizzle-orm/pg-core";
+import { index, pgSchema } from "drizzle-orm/pg-core";
 import { sql as ksql } from "kysely";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -52,6 +58,36 @@ test("createDatabase() readonly", async (context) => {
 
   expect(error).toBeDefined();
   expect(error?.message).toContain("permission denied for table");
+
+  await database.kill();
+});
+
+test("createDatabase() search path", async (context) => {
+  const schemaAccount = pgSchema("ponder").table("account", {
+    address: hex().primaryKey(),
+    balance: bigint(),
+  });
+
+  const database = await createDatabase({
+    common: context.common,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "ponder",
+    },
+    schemaBuild: {
+      schema: { account: schemaAccount },
+      statements: buildSchema({ schema: { account: schemaAccount } })
+        .statements,
+    },
+  });
+  await database.setup({ buildId: "abc" });
+
+  // using bare "account" will leave schema empty, and the search_path
+  // will then use the "ponder" schema
+
+  const rows = await database.qb.drizzleClient.select().from(account);
+
+  expect(rows).toStrictEqual([]);
 
   await database.kill();
 });

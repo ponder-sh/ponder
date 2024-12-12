@@ -239,22 +239,35 @@ export const createDatabase = async ({
     const connection = (parse as unknown as typeof parse.parse)(
       preBuild.databaseConfig.poolConfig.connectionString!,
     );
+
     // TODO(kyle) use params
+    // TODO(kyle) should schema name be in the role name?
 
-    await internal.query("DROP OWNED BY ponder_readonly");
-    await internal.query("DROP ROLE IF EXISTS ponder_readonly");
+    const role = "ponder_readonly";
 
-    await internal.query("CREATE ROLE ponder_readonly WITH LOGIN");
+    await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
+    await internal.query(`DROP OWNED BY ${role}`);
+    await internal.query(`DROP ROLE IF EXISTS ${role}`);
+    await internal.query(`CREATE ROLE ${role} WITH LOGIN`);
     await internal.query(
-      `GRANT CONNECT ON DATABASE "${connection.database}" TO ponder_readonly`,
+      `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
     );
     await internal.query(
-      `GRANT USAGE ON SCHEMA ${preBuild.namespace} TO ponder_readonly`,
+      `GRANT USAGE ON SCHEMA ${preBuild.namespace} TO ${role}`,
     );
     await internal.query(
-      `GRANT SELECT ON ALL TABLES IN SCHEMA ${preBuild.namespace} TO ponder_readonly`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${preBuild.namespace} GRANT SELECT ON TABLES TO ${role}`,
     );
-    // ALTER ROLE ponder_readonly SET search_path TO app, audit, public;
+    await internal.query(
+      `ALTER ROLE ${role} SET search_path TO ${preBuild.namespace}, public`,
+    );
+
+    const readonlyConnectionString = `postgres://${role}@${connection.host}:${connection.port}/${connection.database}`;
+
+    common.logger.info({
+      service: "database",
+      msg: `Readonly connection string: ${readonlyConnectionString}`,
+    });
 
     driver = {
       internal,
@@ -674,11 +687,6 @@ export const createDatabase = async ({
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        await qb.internal.schema
-          .createSchema(preBuild.namespace)
-          .ifNotExists()
-          .execute();
-
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
           .createTable("_ponder_meta")
