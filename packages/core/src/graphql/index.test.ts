@@ -15,7 +15,7 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 function buildContextValue(database: Database, metadataStore: MetadataStore) {
-  const drizzle = database.drizzle;
+  const drizzle = database.qb.drizzleClient;
   const getDataLoader = buildDataLoaderCache({ drizzle });
   return { drizzle, metadataStore, getDataLoader };
 }

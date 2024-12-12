@@ -170,7 +170,7 @@ export async function setupDatabaseServices(
     schema: config.schema,
   });
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,

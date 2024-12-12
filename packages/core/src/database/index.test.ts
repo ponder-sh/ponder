@@ -27,8 +27,37 @@ function createCheckpoint(index: number): string {
   return encodeCheckpoint({ ...zeroCheckpoint, blockTimestamp: index });
 }
 
+test("createDatabase() readonly", async (context) => {
+  const database = await createDatabase({
+    common: context.common,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.setup({ buildId: "abc" });
+
+  const error = await database.qb.drizzleClient
+    .insert(account)
+    .values({
+      address: zeroAddress,
+      balance: 10n,
+    })
+    .catch((error) => error);
+
+  expect(error).toBeDefined();
+  expect(error?.message).toContain("permission denied for table");
+
+  await database.kill();
+});
+
 test("setup() succeeds with empty schema", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -61,7 +90,7 @@ test("setup() succeeds with empty schema", async (context) => {
 });
 
 test("setup() throws with schema used", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -75,7 +104,7 @@ test("setup() throws with schema used", async (context) => {
   await database.setup({ buildId: "abc" });
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -95,7 +124,7 @@ test("setup() throws with schema used", async (context) => {
 });
 
 test("setup() succeeds with crash recovery", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -116,7 +145,7 @@ test("setup() succeeds with crash recovery", async (context) => {
   await database.unlock();
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -151,7 +180,7 @@ test("setup() succeeds with crash recovery after waiting for lock", async (conte
   context.common.options.databaseHeartbeatInterval = 750;
   context.common.options.databaseHeartbeatTimeout = 500;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -165,7 +194,7 @@ test("setup() succeeds with crash recovery after waiting for lock", async (conte
   await database.setup({ buildId: "abc" });
   await database.finalize({ checkpoint: createCheckpoint(10) });
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -194,7 +223,7 @@ test("setup() throws with schema used after waiting for lock", async (context) =
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 1000;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -208,7 +237,7 @@ test("setup() throws with schema used after waiting for lock", async (context) =
   await database.setup({ buildId: "abc" });
   await database.finalize({ checkpoint: createCheckpoint(10) });
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -228,8 +257,7 @@ test("setup() throws with schema used after waiting for lock", async (context) =
   await databaseTwo.kill();
 });
 
-// TODO(kyle) this causes an issue on pglite
-test.skip("setup() with empty schema creates tables and enums", async (context) => {
+test("setup() with empty schema creates tables and enums", async (context) => {
   const mood = onchainEnum("mood", ["sad", "happy"]);
 
   const kyle = onchainTable("kyle", (p) => ({
@@ -249,7 +277,7 @@ test.skip("setup() with empty schema creates tables and enums", async (context) 
     }),
   );
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -278,7 +306,7 @@ test.skip("setup() with empty schema creates tables and enums", async (context) 
 });
 
 test("setup() with crash recovery reverts rows", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -325,7 +353,7 @@ test("setup() with crash recovery reverts rows", async (context) => {
   await database.unlock();
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -341,7 +369,7 @@ test("setup() with crash recovery reverts rows", async (context) => {
 
   expect(checkpoint).toMatchObject(createCheckpoint(10));
 
-  const rows = await databaseTwo.drizzle
+  const rows = await databaseTwo.qb.drizzle
     .execute(sql`SELECT * from "account"`)
     .then((result) => result.rows);
 
@@ -370,7 +398,7 @@ test("setup() with crash recovery drops indexes and triggers", async (context) =
     }),
   );
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -393,7 +421,7 @@ test("setup() with crash recovery drops indexes and triggers", async (context) =
   await database.unlock();
   await database.kill();
 
-  const databaseTwo = createDatabase({
+  const databaseTwo = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -418,7 +446,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -457,7 +485,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 });
 
 test("finalize()", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -529,7 +557,7 @@ test("finalize()", async (context) => {
 });
 
 test("unlock()", async (context) => {
-  let database = createDatabase({
+  let database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -545,7 +573,7 @@ test("unlock()", async (context) => {
   await database.unlock();
   await database.kill();
 
-  database = createDatabase({
+  database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -581,7 +609,7 @@ test("createIndexes()", async (context) => {
     }),
   );
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -604,7 +632,7 @@ test("createIndexes()", async (context) => {
 });
 
 test("createTriggers()", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -649,7 +677,7 @@ test("createTriggers()", async (context) => {
 });
 
 test("complete()", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -697,7 +725,7 @@ test("complete()", async (context) => {
 });
 
 test("revert()", async (context) => {
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
