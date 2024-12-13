@@ -187,7 +187,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
                   fields {
                     type {
                       description
-                    }              
+                    }
                   }
                 }
               }
@@ -245,7 +245,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
                   fields {
                     type {
                       description
-                    }              
+                    }
                   }
                 }
               }

@@ -1,0 +1,24 @@
+services:
+  ponder-postgres:
+    container_name: ponder-postgres
+    image: postgres:16
+    shm_size: 16g
+    command: postgres -c 'max_connections=500' -c work_mem=2GB -c maintenance_work_mem=2GB -c max_wal_size=1GB
+    ports:
+      - 42068:5432
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    networks:
+      - ponder-postgres
+    environment:
+      - POSTGRES_DB=ponder-postgres
+      - POSTGRES_USER=ponder-postgres
+      - POSTGRES_PASSWORD=password
+
+networks:
+  ponder-postgres:
+    driver: bridge
+
+volumes:
+  ponder-postgres:
+    external: true

@@ -7,3 +7,6 @@ tmp
 
 # IDE
 .idea
+
+coverage
+postgres-data

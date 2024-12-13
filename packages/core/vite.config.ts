@@ -21,5 +21,18 @@ export default defineConfig({
     },
     sequence: { hooks: "stack" },
     testTimeout: os.platform() === "win32" ? 30_000 : 10_000,
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      reportsDirectory: "coverage",
+    },
+    server: {
+      deps: {
+        // needed so that graphql is resolved as a
+        // CJS module and not loaded 2x (erring)
+        fallbackCJS: true,
+      },
+    },
   },
 });

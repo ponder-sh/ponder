@@ -42,7 +42,7 @@ test("setup() succeeds with empty schema", async (context) => {
 
   const { checkpoint } = await database.setup({ buildId: "abc" });
 
-  expect(checkpoint).toMatchObject(encodeCheckpoint(zeroCheckpoint));
+  expect(checkpoint).toEqual(encodeCheckpoint(zeroCheckpoint));
 
   const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("account");
@@ -130,7 +130,7 @@ test("setup() succeeds with crash recovery", async (context) => {
 
   const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
 
-  expect(checkpoint).toMatchObject(createCheckpoint(10));
+  expect(checkpoint).toEqual(createCheckpoint(10));
 
   const metadata = await databaseTwo.qb.internal
     .selectFrom("_ponder_meta")
@@ -179,7 +179,7 @@ test("setup() succeeds with crash recovery after waiting for lock", async (conte
 
   const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
 
-  expect(checkpoint).toMatchObject(createCheckpoint(10));
+  expect(checkpoint).toEqual(createCheckpoint(10));
 
   await database.unlock();
   await database.kill();
@@ -339,7 +339,7 @@ test("setup() with crash recovery reverts rows", async (context) => {
 
   const { checkpoint } = await databaseTwo.setup({ buildId: "abc" });
 
-  expect(checkpoint).toMatchObject(createCheckpoint(10));
+  expect(checkpoint).toEqual(createCheckpoint(10));
 
   const rows = await databaseTwo.drizzle
     .execute(sql`SELECT * from "account"`)
