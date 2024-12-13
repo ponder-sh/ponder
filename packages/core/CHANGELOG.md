@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.3
+
+### Patch Changes
+
+- [#1333](https://github.com/ponder-sh/ponder/pull/1333) [`7e9e92ad16654350b787e8c5f15545860bad3b35`](https://github.com/ponder-sh/ponder/commit/7e9e92ad16654350b787e8c5f15545860bad3b35) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a graphql bug when using enums in a primary key.
+
 ## 0.8.2
 
 ### Patch Changes
