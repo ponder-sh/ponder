@@ -226,14 +226,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
-      unfinalizedEventData: BlockWithEventData[];
+      unfinalizedEventData: (BlockWithEventData & {
+        events: RawEvent[];
+      })[];
     }
   >();
   const status: Status = {};
   let isKilled = false;
   // Realtime events across all chains that can't be passed to the parent function
   // because the overall checkpoint hasn't caught up to the events yet.
-  let pendingEvents: RawEvent[] = [];
 
   // Instantiate `localSyncData` and `status`
   await Promise.all(
@@ -640,8 +641,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           transactionReceipts: event.transactionReceipts,
         };
 
-        unfinalizedEventData.push(blockWithEventData);
-
         const events = buildEvents({
           sources: args.sources,
           chainId: network.chainId,
@@ -650,20 +649,28 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
 
-        pendingEvents.push(...events);
+        unfinalizedEventData.push({ ...blockWithEventData, events });
 
         if (to > from) {
           for (const network of args.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
+          const pendingEvents: RawEvent[] = [];
+
+          for (const [, { unfinalizedEventData }] of localSyncContext) {
+            for (const blockWithEventData of unfinalizedEventData) {
+              for (const event of blockWithEventData.events) {
+                if (event.checkpoint > from && event.checkpoint <= to) {
+                  pendingEvents.push(event);
+                }
+              }
+            }
+          }
+
           const events = pendingEvents
             .filter(({ checkpoint }) => checkpoint <= to)
             .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
-
-          pendingEvents = pendingEvents.filter(
-            ({ checkpoint }) => checkpoint > to,
-          );
 
           args
             .onRealtimeEvent({
@@ -829,15 +836,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             (led) =>
               hexToNumber(led.block.number) <= hexToNumber(event.block.number),
           );
-
-        const reorgedHashes = new Set<Hash>();
-        for (const b of event.reorgedBlocks) {
-          reorgedHashes.add(b.hash);
-        }
-
-        pendingEvents = pendingEvents.filter(
-          (e) => reorgedHashes.has(e.block.hash) === false,
-        );
 
         await args.syncStore.pruneRpcRequestResult({
           blocks: event.reorgedBlocks,
