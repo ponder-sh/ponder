@@ -33,7 +33,9 @@ function createCheckpoint(index: number): string {
   return encodeCheckpoint({ ...zeroCheckpoint, blockTimestamp: index });
 }
 
+// skip pglite because it doesn't support multiple connections
 test("createDatabase() readonly", async (context) => {
+  if (context.databaseConfig.kind === "pglite") return;
   const database = await createDatabase({
     common: context.common,
     preBuild: {
