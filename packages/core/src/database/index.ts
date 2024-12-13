@@ -159,8 +159,6 @@ export const createDatabase = async ({
 
     const role = "ponder";
 
-    // TODO(kyle) role might already be on "ponder";
-
     await driver.instance.query(
       `CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`,
     );
@@ -262,9 +260,8 @@ export const createDatabase = async ({
     );
 
     // TODO(kyle) use params
-    // TODO(kyle) should schema name be in the role name?
 
-    const role = "ponder_readonly";
+    const role = `ponder_${preBuild.namespace}_readonly`;
 
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
     const hasRole = await internal
