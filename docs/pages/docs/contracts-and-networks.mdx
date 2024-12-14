@@ -190,7 +190,7 @@ ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
 
 #### Network override logic
 
-Network-specific configuration uses an override pattern. Any options defined at the top level are the default, and the network-specific objects override those defaults. All fields other than `abi` can be specified on a per-network basis, including `address`, `factory`, `filter`, `startBlock`, and `endBlock`.
+Network-specific configuration uses an override pattern. Any options defined at the top level are the default, and the network-specific objects override those defaults. All fields other than `abi` can be specified on a per-network basis, including `address`, `filter`, `startBlock`, and `endBlock`.
 
 For example, the Uniswap V3 factory contract is deployed to the same address on most chains, but has a different address on Base.
 
