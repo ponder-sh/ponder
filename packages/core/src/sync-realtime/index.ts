@@ -66,7 +66,7 @@ type CreateRealtimeSyncParameters = {
 
 export type BlockWithEventData = {
   block: SyncBlock;
-  filters: Set<Filter>;
+  // filters: Set<Filter>;
   logs: SyncLog[];
   factoryLogs: SyncLog[];
   traces: SyncTrace[];
@@ -77,6 +77,7 @@ export type BlockWithEventData = {
 export type RealtimeSyncEvent =
   | ({
       type: "block";
+      hasMatchedFilter: boolean;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -111,7 +112,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<void, Omit<BlockWithEventData, "filters">>;
+  let queue: Queue<void, BlockWithEventData>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -186,7 +187,7 @@ export const createRealtimeSync = (
     traces,
     transactions,
     transactionReceipts,
-  }: Omit<BlockWithEventData, "filters">) => {
+  }: BlockWithEventData) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
@@ -400,7 +401,7 @@ export const createRealtimeSync = (
 
     await args.onEvent({
       type: "block",
-      filters: matchedFilters,
+      hasMatchedFilter: matchedFilters.size > 0,
       block,
       factoryLogs,
       logs,
@@ -584,7 +585,7 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<Omit<BlockWithEventData, "filters">> => {
+  ): Promise<BlockWithEventData> => {
     ////////
     // Logs
     ////////

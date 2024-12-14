@@ -6,7 +6,6 @@ import {
   createHistoricalSync,
 } from "@/sync-historical/index.js";
 import {
-  type BlockWithEventData,
   type RealtimeSync,
   type RealtimeSyncEvent,
   createRealtimeSync,
@@ -219,16 +218,17 @@ type CreateSyncParameters = {
 };
 
 export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
-  const localSyncContext = new Map<
+  const perNetworkSync = new Map<
     Network,
     {
       requestQueue: RequestQueue;
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
-      unfinalizedEventData: (BlockWithEventData & {
-        events: RawEvent[];
-      })[];
+      unfinalizedBlocks: (Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      > & { events: RawEvent[] })[];
     }
   >();
   const status: Status = {};
@@ -323,12 +323,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         0,
       );
 
-      localSyncContext.set(network, {
+      perNetworkSync.set(network, {
         requestQueue,
         syncProgress,
         historicalSync,
         realtimeSync,
-        unfinalizedEventData: [],
+        unfinalizedBlocks: [],
       });
       status[network.name] = { block: null, ready: false };
     }),
@@ -340,7 +340,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   const getOmnichainCheckpoint = (
     tag: "start" | "end" | "current" | "finalized",
   ): string | undefined => {
-    const checkpoints = Array.from(localSyncContext.entries()).map(
+    const checkpoints = Array.from(perNetworkSync.entries()).map(
       ([network, { syncProgress }]) =>
         getChainCheckpoint({ syncProgress, network, tag }),
     );
@@ -390,7 +390,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     checkpoint: string;
     network: Network;
   }) => {
-    const localBlock = localSyncContext
+    const localBlock = perNetworkSync
       .get(network)!
       .realtimeSync.unfinalizedBlocks.findLast(
         (block) =>
@@ -438,7 +438,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     let showLogs = true;
     while (true) {
       const syncGenerator = mergeAsyncGenerators(
-        Array.from(localSyncContext.entries()).map(
+        Array.from(perNetworkSync.entries()).map(
           ([network, { syncProgress, historicalSync }]) =>
             localHistoricalSyncGenerator({
               common: args.common,
@@ -460,7 +460,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          * It is an invariant that `latestBlock` will eventually be defined.
          */
         if (
-          Array.from(localSyncContext.values()).some(
+          Array.from(perNetworkSync.values()).some(
             ({ syncProgress }) => syncProgress.current === undefined,
           )
         ) {
@@ -547,7 +547,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       /** `true` if all networks have synced all known finalized blocks.  */
       const allHistoricalSyncExhaustive = Array.from(
-        localSyncContext.values(),
+        perNetworkSync.values(),
       ).every(({ syncProgress }) => {
         if (isSyncEnd(syncProgress)) return true;
 
@@ -567,7 +567,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       latestFinalizedFetch = Date.now();
 
       await Promise.all(
-        Array.from(localSyncContext.entries()).map(
+        Array.from(perNetworkSync.entries()).map(
           async ([network, { requestQueue, syncProgress }]) => {
             args.common.logger.debug({
               service: "sync",
@@ -612,8 +612,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     network,
     event,
   }: { network: Network; event: RealtimeSyncEvent }) => {
-    const { syncProgress, realtimeSync, unfinalizedEventData } =
-      localSyncContext.get(network)!;
+    const { syncProgress, realtimeSync, unfinalizedBlocks } =
+      perNetworkSync.get(network)!;
 
     switch (event.type) {
       /**
@@ -631,15 +631,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        const blockWithEventData = {
-          block: event.block,
-          filters: event.filters,
-          logs: event.logs,
-          factoryLogs: event.factoryLogs,
-          traces: event.traces,
-          transactions: event.transactions,
-          transactionReceipts: event.transactionReceipts,
-        };
+        const blockWithEventData = event;
 
         const events = buildEvents({
           sources: args.sources,
@@ -649,7 +641,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
 
-        unfinalizedEventData.push({ ...blockWithEventData, events });
+        unfinalizedBlocks.push({ ...blockWithEventData, events });
 
         if (to > from) {
           for (const network of args.networks) {
@@ -658,9 +650,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
           const pendingEvents: RawEvent[] = [];
 
-          for (const [, { unfinalizedEventData }] of localSyncContext) {
-            for (const blockWithEventData of unfinalizedEventData) {
-              for (const event of blockWithEventData.events) {
+          for (const { unfinalizedBlocks } of perNetworkSync.values()) {
+            for (const { events } of unfinalizedBlocks) {
+              for (const event of events) {
                 if (event.checkpoint > from && event.checkpoint <= to) {
                   pendingEvents.push(event);
                 }
@@ -668,9 +660,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             }
           }
 
-          const events = pendingEvents
-            .filter(({ checkpoint }) => checkpoint <= to)
-            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+          const events = pendingEvents.sort((a, b) =>
+            a.checkpoint < b.checkpoint ? -1 : 1,
+          );
 
           args
             .onRealtimeEvent({
@@ -711,17 +703,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           args.onRealtimeEvent({ type: "finalize", checkpoint });
         }
 
-        const finalizedEventData = unfinalizedEventData.filter(
-          (ued) =>
-            hexToNumber(ued.block.number) <= hexToNumber(event.block.number),
-        );
-
-        localSyncContext.get(network)!.unfinalizedEventData =
-          unfinalizedEventData.filter(
-            (ued) =>
-              hexToNumber(ued.block.number) > hexToNumber(event.block.number),
-          );
-
         if (
           getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
           getOmnichainCheckpoint("current")!
@@ -730,57 +711,67 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             service: "sync",
             msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
           });
+          return;
         }
+
+        const finalizedBlocks = unfinalizedBlocks.filter(
+          ({ block }) =>
+            hexToNumber(block.number) <= hexToNumber(event.block.number),
+        );
+
+        perNetworkSync.get(network)!.unfinalizedBlocks =
+          unfinalizedBlocks.filter(
+            ({ block }) =>
+              hexToNumber(block.number) > hexToNumber(event.block.number),
+          );
 
         // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
         await Promise.all([
           args.syncStore.insertBlocks({
-            blocks: finalizedEventData
-              .filter(({ filters }) => filters.size > 0)
+            blocks: finalizedBlocks
+              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
               .map(({ block }) => block),
             chainId: network.chainId,
           }),
           args.syncStore.insertLogs({
-            logs: finalizedEventData.flatMap(({ logs, block }) =>
+            logs: finalizedBlocks.flatMap(({ logs, block }) =>
               logs.map((log) => ({ log, block })),
             ),
             shouldUpdateCheckpoint: true,
             chainId: network.chainId,
           }),
           args.syncStore.insertLogs({
-            logs: finalizedEventData.flatMap(({ factoryLogs }) =>
+            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
               factoryLogs.map((log) => ({ log })),
             ),
             shouldUpdateCheckpoint: false,
             chainId: network.chainId,
           }),
           args.syncStore.insertTransactions({
-            transactions: finalizedEventData.flatMap(
-              ({ transactions, block }) =>
-                transactions.map((transaction) => ({
-                  transaction,
-                  block,
-                })),
+            transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
+              transactions.map((transaction) => ({
+                transaction,
+                block,
+              })),
             ),
             chainId: network.chainId,
           }),
           args.syncStore.insertTransactionReceipts({
-            transactionReceipts: finalizedEventData.flatMap(
+            transactionReceipts: finalizedBlocks.flatMap(
               ({ transactionReceipts }) => transactionReceipts,
             ),
             chainId: network.chainId,
           }),
           args.syncStore.insertTraces({
-            traces: finalizedEventData.flatMap(
-              ({ traces, block, transactions }) =>
-                traces.map((trace) => ({
-                  trace,
-                  block,
-                  transaction: transactions.find(
-                    (t) => t.hash === trace.transactionHash,
-                  )!,
-                })),
+            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+              traces.map((trace) => ({
+                trace,
+                block,
+                transaction: transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              })),
             ),
             chainId: network.chainId,
           }),
@@ -831,10 +822,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        localSyncContext.get(network)!.unfinalizedEventData =
-          unfinalizedEventData.filter(
-            (led) =>
-              hexToNumber(led.block.number) <= hexToNumber(event.block.number),
+        perNetworkSync.get(network)!.unfinalizedBlocks =
+          unfinalizedBlocks.filter(
+            ({ block }) =>
+              hexToNumber(block.number) <= hexToNumber(event.block.number),
           );
 
         await args.syncStore.pruneRpcRequestResult({
@@ -856,7 +847,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     getEvents,
     async startRealtime() {
       for (const network of args.networks) {
-        const { syncProgress, realtimeSync } = localSyncContext.get(network)!;
+        const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
@@ -905,14 +896,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return status;
     },
     getCachedTransport(network) {
-      const { requestQueue } = localSyncContext.get(network)!;
+      const { requestQueue } = perNetworkSync.get(network)!;
       return cachedTransport({ requestQueue, syncStore: args.syncStore });
     },
     async kill() {
       isKilled = true;
       const promises: Promise<void>[] = [];
       for (const network of args.networks) {
-        const { historicalSync, realtimeSync } = localSyncContext.get(network)!;
+        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
         historicalSync.kill();
         promises.push(realtimeSync.kill());
       }
