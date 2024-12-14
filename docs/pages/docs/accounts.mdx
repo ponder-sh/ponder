@@ -31,7 +31,7 @@ import { createConfig } from "ponder";
 export default createConfig({
   // ... more config
   accounts: {
-    BeaverBuilder: {
+    BeaverBuild: {
       network: "mainnet",
       address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
       startBlock: 20000000,
@@ -48,7 +48,7 @@ Register an indexing function for the `transaction:from` event. The framework wi
 import { ponder } from "ponder:registry";
 import { transactions } from "ponder:schema";
 
-ponder.on("BeaverBuilder:transaction:from", async ({ event, context }) => {
+ponder.on("BeaverBuild:transaction:from", async ({ event, context }) => {
   await context.db.insert(transactions).values({
     from: event.transaction.from,
     to: event.transaction.to,
@@ -76,7 +76,7 @@ export default createConfig({
     mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   accounts: {
-    BeaverBuilder: {
+    BeaverBuild: {
       network: "mainnet",
       address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
       startBlock: 12439123,
