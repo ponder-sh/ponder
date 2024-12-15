@@ -711,6 +711,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             service: "sync",
             msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
           });
+          // exit early because we need to keep `unfinalizedBlocks.events`
           return;
         }
 
