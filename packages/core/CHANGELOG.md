@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.4
+
+### Patch Changes
+
+- [#1335](https://github.com/ponder-sh/ponder/pull/1335) [`77b92ef14fa4a0491f04a009cd2158af8f77c656`](https://github.com/ponder-sh/ponder/commit/77b92ef14fa4a0491f04a009cd2158af8f77c656) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that occassionaly caused reorgs to lead to missing events. Please note that this did not affect the rpc cache, users do not have to re-sync.
+
 ## 0.8.3
 
 ### Patch Changes
