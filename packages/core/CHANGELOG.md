@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.6
+
+### Patch Changes
+
+- [#1349](https://github.com/ponder-sh/ponder/pull/1349) [`4b18d8d2ab45475eea651e0db5c515b1242031f5`](https://github.com/ponder-sh/ponder/commit/4b18d8d2ab45475eea651e0db5c515b1242031f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue leading to "could not determine data type of parameter" for some postgres versions.
+
 ## 0.8.5
 
 ### Patch Changes
