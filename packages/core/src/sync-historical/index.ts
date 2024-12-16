@@ -153,6 +153,22 @@ export const createHistoricalSync = async (
             filter.topic3 ?? null,
           ];
 
+    // Note: the `topics` field is very fragile for many rpc providers, and
+    // cannot handle extra "null" topics
+
+    if (topics[3] === null) {
+      topics.pop();
+      if (topics[2] === null) {
+        topics.pop();
+        if (topics[1] === null) {
+          topics.pop();
+          if (topics[0] === null) {
+            topics.pop();
+          }
+        }
+      }
+    }
+
     // Batch large arrays of addresses, handling arrays that are empty
 
     let addressBatches: (Address | Address[] | undefined)[];
