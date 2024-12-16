@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.5
+
+### Patch Changes
+
+- [#1345](https://github.com/ponder-sh/ponder/pull/1345) [`7ec278f0fe5d71ebb5386a5f948ef63f158c174c`](https://github.com/ponder-sh/ponder/commit/7ec278f0fe5d71ebb5386a5f948ef63f158c174c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused no events to be found in the historical backfill. Affected users should resync their apps to get rid of the incorrect cached data.
+
 ## 0.8.4
 
 ### Patch Changes
