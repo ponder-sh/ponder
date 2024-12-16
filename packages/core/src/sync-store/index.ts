@@ -210,7 +210,7 @@ export const createSyncStore = ({
             )
             .select([
               sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
-              sql<string>`${i}`.as("filter"),
+              sql.raw<string>(`${i}`).as("filter"),
             ]);
           // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);
