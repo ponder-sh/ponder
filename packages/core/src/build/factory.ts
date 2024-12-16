@@ -21,6 +21,10 @@ export function buildLogFactory({
 
   parameter = parameterParts[0]!;
 
+  if (parameter === undefined) {
+    throw new Error("No parameter provided.");
+  }
+
   const address = Array.isArray(_address)
     ? _address.map(toLowerCase)
     : toLowerCase(_address);
