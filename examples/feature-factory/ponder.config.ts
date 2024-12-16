@@ -1,14 +1,19 @@
 import { parseAbiItem } from "abitype";
 import { createConfig, factory } from "ponder";
-
 import { http } from "viem";
 
+import { ChildContractAbi } from "./abis/ChildContractAbi";
 import { LlamaCoreAbi } from "./abis/LlamaCoreAbi";
 import { LlamaPolicyAbi } from "./abis/LlamaPolicyAbi";
 
 const llamaFactoryEvent = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
+
+const FactoryEvent = parseAbiItem([
+  "event ChildCreated(address indexed creator, ChildInfo child, uint256 indexed timestamp)",
+  "struct ChildInfo { address childAddress; string name; uint256 initialValue; uint256 creationTime; address creator; }",
+]);
 
 export default createConfig({
   networks: {
@@ -37,6 +42,16 @@ export default createConfig({
         parameter: "llamaPolicy",
       }),
       startBlock: 4121269,
+    },
+    ChildContract: {
+      network: "sepolia",
+      abi: ChildContractAbi,
+      address: factory({
+        address: "0x021626321f74956da6d64605780D738A569F24DD",
+        event: FactoryEvent,
+        parameter: "child.childAddress",
+      }),
+      startBlock: 7262700,
     },
   },
 });
