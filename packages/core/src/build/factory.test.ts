@@ -6,17 +6,17 @@ const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
-const FactoryEventSimpleParamsAbiItem = parseAbiItem([
+const factoryEventSimpleParamsAbiItem = parseAbiItem([
   "event CreateMarket(bytes32 indexed id ,MarketParams marketParams)",
   "struct MarketParams {address loanToken; address collateralToken; address oracle; address irm; uint256 lltv;}",
 ]);
 
-const FactoryEventWithDynamicChildParamsAbiItem = parseAbiItem([
+const factoryEventWithDynamicChildParamsAbiItem = parseAbiItem([
   "event ChildCreated(address indexed creator, ChildInfo child, uint256 indexed timestamp)",
   "struct ChildInfo { address childAddress; string name; uint256 initialValue; uint256 creationTime; address creator; }",
 ]);
 
-const FactoryEventWithDynamicChildParamsAbiItem2 = parseAbiItem([
+const factoryEventWithDynamicChildParamsAbiItem2 = parseAbiItem([
   "event ChildCreated(address creator, ChildInfo child, uint256 timestamp)",
   "struct ChildInfo { address childAddress; string name; uint256 initialValue; uint256 creationTime; address creator; }",
 ]);
@@ -80,14 +80,14 @@ test("buildLogFactory throws if provided parameter not found in inputs", () => {
 test("buildLogFactory handles CreateMarket", () => {
   const criteria = buildLogFactory({
     address: "0xa",
-    event: FactoryEventSimpleParamsAbiItem,
+    event: factoryEventSimpleParamsAbiItem,
     parameter: "marketParams.oracle",
     chainId: 1,
   });
 
   expect(criteria).toMatchObject({
     address: "0xa",
-    eventSelector: getEventSelector(FactoryEventSimpleParamsAbiItem),
+    eventSelector: getEventSelector(factoryEventSimpleParamsAbiItem),
     childAddressLocation: "offset64",
   });
 });
@@ -95,14 +95,14 @@ test("buildLogFactory handles CreateMarket", () => {
 test("buildLogFactory handles ChildCreated", () => {
   const criteria = buildLogFactory({
     address: "0xa",
-    event: FactoryEventWithDynamicChildParamsAbiItem,
+    event: factoryEventWithDynamicChildParamsAbiItem,
     parameter: "child.childAddress",
     chainId: 1,
   });
 
   expect(criteria).toMatchObject({
     address: "0xa",
-    eventSelector: getEventSelector(FactoryEventWithDynamicChildParamsAbiItem),
+    eventSelector: getEventSelector(factoryEventWithDynamicChildParamsAbiItem),
     childAddressLocation: "offset32",
   });
 });
@@ -110,14 +110,14 @@ test("buildLogFactory handles ChildCreated", () => {
 test("buildLogFactory handles ChildCreated", () => {
   const criteria = buildLogFactory({
     address: "0xa",
-    event: FactoryEventWithDynamicChildParamsAbiItem2,
+    event: factoryEventWithDynamicChildParamsAbiItem2,
     parameter: "child.childAddress",
     chainId: 1,
   });
 
   expect(criteria).toMatchObject({
     address: "0xa",
-    eventSelector: getEventSelector(FactoryEventWithDynamicChildParamsAbiItem2),
+    eventSelector: getEventSelector(factoryEventWithDynamicChildParamsAbiItem2),
     childAddressLocation: "offset96",
   });
 });
