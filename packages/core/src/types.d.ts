@@ -15,7 +15,6 @@ declare module "ponder:registry" {
     schema,
     name
   >;
-  export type ApiContext = Virtual.ApiContext<schema>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config["default"], schema, name>;
 }

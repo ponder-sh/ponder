@@ -1,7 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
-import { type GraphQLSchema, printSchema } from "graphql";
 
 export const ponderEnv = `/// <reference types="ponder/virtual" />
 
@@ -20,10 +19,7 @@ declare module "ponder:schema" {
 // See https://ponder.sh/docs/getting-started/installation#typescript for more information.
 `;
 
-export function runCodegen({
-  common,
-  graphqlSchema,
-}: { common: Common; graphqlSchema: GraphQLSchema }) {
+export function runCodegen({ common }: { common: Common }) {
   writeFileSync(
     path.join(common.options.rootDir, "ponder-env.d.ts"),
     ponderEnv,
@@ -36,11 +32,6 @@ export function runCodegen({
   });
 
   mkdirSync(common.options.generatedDir, { recursive: true });
-  writeFileSync(
-    path.join(common.options.generatedDir, "schema.graphql"),
-    printSchema(graphqlSchema),
-    "utf-8",
-  );
 
   common.logger.debug({
     service: "codegen",

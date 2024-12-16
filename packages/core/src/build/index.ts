@@ -8,12 +8,11 @@ import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { SqlStatements } from "@/drizzle/kit/index.js";
-import type { PonderRoutes } from "@/hono/index.js";
 import type { Source } from "@/sync/source.js";
+import { getNextAvailablePort } from "@/utils/port.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
-import type { GraphQLSchema } from "graphql";
 import type { Hono } from "hono";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
@@ -41,7 +40,6 @@ export type PreBuild = {
 export type SchemaBuild = {
   schema: Schema;
   statements: SqlStatements;
-  graphqlSchema: GraphQLSchema;
 };
 
 export type IndexingBuild = {
@@ -52,8 +50,9 @@ export type IndexingBuild = {
 };
 
 export type ApiBuild = {
+  hostname?: string;
+  port: number;
   app: Hono;
-  routes: PonderRoutes;
 };
 
 export type BuildResultDev =
@@ -72,7 +71,7 @@ type ExecuteResult = {
     indexingFunctions: RawIndexingFunctions;
     contentHash: string;
   }>;
-  apiResult: Result<{ app: Hono; routes: PonderRoutes }>;
+  apiResult: Result<{ app: Hono }>;
 };
 
 export type Build = {
@@ -98,7 +97,7 @@ export type Build = {
       ExecuteResult["apiResult"],
       { status: "success" }
     >["result"];
-  }) => Result<ApiBuild>;
+  }) => Promise<Result<ApiBuild>>;
   startDev: (params: {
     onBuild: (buildResult: BuildResultDev) => void;
   }) => void;
@@ -119,19 +118,8 @@ export const createBuild = async ({
     .replace(escapeRegex, "\\$&");
   const indexingRegex = new RegExp(`^${escapedIndexingDir}/.*\\.(ts|js)$`);
 
-  const escapedApiDir = common.options.apiDir
-    // If on Windows, use a POSIX path for this regex.
-    .replace(/\\/g, "/")
-    // Escape special characters in the path.
-    .replace(escapeRegex, "\\$&");
-  const apiRegex = new RegExp(`^${escapedApiDir}/.*\\.(ts|js)$`);
-
   const indexingPattern = path
     .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
-
-  const apiPattern = path
-    .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
   const viteLogger = {
@@ -260,7 +248,7 @@ export const createBuild = async ({
     Awaited<ReturnType<Build["execute"]>>["indexingResult"]
   > => {
     const files = glob.sync(indexingPattern, {
-      ignore: apiPattern,
+      ignore: common.options.apiFile,
     });
     const executeResults = await Promise.all(
       files.map(async (file) => ({
@@ -312,39 +300,34 @@ export const createBuild = async ({
     };
   };
 
-  const executeApiRoutes = async (): Promise<
+  const executeApi = async (): Promise<
     Awaited<ReturnType<Build["execute"]>>["apiResult"]
   > => {
-    const files = glob.sync(apiPattern);
-    const executeResults = await Promise.all(
-      files.map(async (file) => ({
-        ...(await executeFile({ file })),
-        file,
-      })),
-    );
+    // TODO(kyle) This assumes the api file exists.
 
-    for (const executeResult of executeResults) {
-      if (executeResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: `Error while executing '${path.relative(
-            common.options.rootDir,
-            executeResult.file,
-          )}':`,
-          error: executeResult.error,
-        });
+    const executeResult = await executeFile({
+      file: common.options.apiFile,
+    });
 
-        return executeResult;
-      }
+    if (executeResult.status === "error") {
+      common.logger.error({
+        service: "build",
+        msg: `Error while executing '${path.relative(
+          common.options.rootDir,
+          common.options.apiFile,
+        )}':`,
+        error: executeResult.error,
+      });
+
+      return executeResult;
     }
 
-    const exports = await viteNodeRunner.executeId("ponder:registry");
+    const app = executeResult.exports.default;
 
     return {
       status: "success",
       result: {
-        app: exports.ponder.hono,
-        routes: exports.ponder.routes,
+        app,
       },
     };
   };
@@ -385,7 +368,7 @@ export const createBuild = async ({
       const configResult = await executeConfig();
       const schemaResult = await executeSchema();
       const indexingResult = await executeIndexingFunctions();
-      const apiResult = await executeApiRoutes();
+      const apiResult = await executeApi();
 
       return {
         configResult,
@@ -441,7 +424,6 @@ export const createBuild = async ({
         result: {
           schema,
           statements: buildSchemaResult.statements,
-          graphqlSchema: buildSchemaResult.graphqlSchema,
         },
       } as const;
     },
@@ -486,18 +468,16 @@ export const createBuild = async ({
         },
       } as const;
     },
-    compileApi({ apiResult }) {
-      for (const {
-        pathOrHandlers: [maybePathOrHandler],
-      } of apiResult.routes) {
-        if (typeof maybePathOrHandler === "string") {
+    async compileApi({ apiResult }) {
+      for (const route of apiResult.app.routes) {
+        if (typeof route.path === "string") {
           if (
-            maybePathOrHandler === "/status" ||
-            maybePathOrHandler === "/metrics" ||
-            maybePathOrHandler === "/health"
+            route.path === "/status" ||
+            route.path === "/metrics" ||
+            route.path === "/health"
           ) {
             const error = new BuildError(
-              `Validation failed: API route "${maybePathOrHandler}" is reserved for internal use.`,
+              `Validation failed: API route "${route.path}" is reserved for internal use.`,
             );
             error.stack = undefined;
             common.logger.error({
@@ -510,11 +490,14 @@ export const createBuild = async ({
         }
       }
 
+      const port = await getNextAvailablePort({ common });
+
       return {
         status: "success",
         result: {
+          hostname: common.options.hostname,
+          port,
           app: apiResult.app,
-          routes: apiResult.routes,
         },
       };
     },
@@ -568,10 +551,10 @@ export const createBuild = async ({
         );
 
         const hasIndexingUpdate = Array.from(invalidated).some(
-          (file) => indexingRegex.test(file) && !apiRegex.test(file),
+          (file) => indexingRegex.test(file) && file !== common.options.apiFile,
         );
-        const hasApiUpdate = Array.from(invalidated).some((file) =>
-          apiRegex.test(file),
+        const hasApiUpdate = Array.from(invalidated).some(
+          (file) => file === common.options.apiFile,
         );
 
         // This branch could trigger if you change a `note.txt` file within `src/`.
@@ -599,11 +582,12 @@ export const createBuild = async ({
           hasSchemaUpdate === false &&
           hasIndexingUpdate === false
         ) {
-          const files = glob.sync(apiPattern);
-          viteNodeRunner.moduleCache.invalidateDepTree(files);
+          viteNodeRunner.moduleCache.invalidateDepTree([
+            common.options.apiFile,
+          ]);
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
 
-          const executeResult = await executeApiRoutes();
+          const executeResult = await executeApi();
           if (executeResult.status === "error") {
             onBuild({
               status: "error",
@@ -613,8 +597,12 @@ export const createBuild = async ({
             return;
           }
 
+          const compileResult = await this.compileApi({
+            apiResult: executeResult.result,
+          });
+
           onBuild({
-            ...this.compileApi({ apiResult: executeResult.result }),
+            ...compileResult,
             kind: "api",
           });
         } else {
@@ -627,16 +615,18 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.invalidateDepTree(
             glob.sync(indexingPattern, {
-              ignore: apiPattern,
+              ignore: common.options.apiFile,
             }),
           );
-          viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
+          viteNodeRunner.moduleCache.invalidateDepTree([
+            common.options.apiFile,
+          ]);
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
 
           const configResult = await executeConfig();
           const schemaResult = await executeSchema();
           const indexingResult = await executeIndexingFunctions();
-          const apiResult = await executeApiRoutes();
+          const apiResult = await executeApi();
 
           if (configResult.status === "error") {
             onBuild({
@@ -679,7 +669,7 @@ export const createBuild = async ({
               schemaResult: schemaResult.result,
               indexingResult: indexingResult.result,
             }),
-            build.compileApi({ apiResult: apiResult.result }),
+            await build.compileApi({ apiResult: apiResult.result }),
           ]);
 
           if (compileResult.status === "error") {

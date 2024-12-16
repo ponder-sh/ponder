@@ -1,10 +1,11 @@
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { type YogaServerInstance, createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { buildDataLoaderCache } from "./index.js";
+import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**
  * Middleware for GraphQL with an interactive web view.
@@ -19,6 +20,7 @@ import { buildDataLoaderCache } from "./index.js";
  *
  */
 export const graphql = (
+  { db, schema }: { db: Drizzle<Schema>; schema: Schema },
   {
     maxOperationTokens = 1000,
     maxOperationDepth = 100,
@@ -43,15 +45,15 @@ export const graphql = (
     }
 
     if (yoga === undefined) {
-      const metadataStore = c.get("metadataStore");
-      const graphqlSchema = c.get("graphqlSchema");
-      const drizzle = c.get("db");
+      const graphqlSchema = buildGraphQLSchema(schema);
+
+      // TODO(kyle) metadata store
 
       yoga = createYoga({
         schema: graphqlSchema,
         context: () => {
-          const getDataLoader = buildDataLoaderCache({ drizzle });
-          return { drizzle, metadataStore, getDataLoader };
+          const getDataLoader = buildDataLoaderCache({ drizzle: db });
+          return { drizzle: db, getDataLoader };
         },
         graphqlEndpoint: c.req.path,
         maskedErrors: process.env.NODE_ENV === "production",

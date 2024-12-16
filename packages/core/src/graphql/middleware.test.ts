@@ -5,9 +5,7 @@ import {
 } from "@/_test/setup.js";
 import { onchainTable } from "@/drizzle/index.js";
 import { Hono } from "hono";
-import { createMiddleware } from "hono/factory";
 import { beforeEach, expect, test } from "vitest";
-import { buildGraphQLSchema } from "./index.js";
 import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);
@@ -26,17 +24,10 @@ test("middleware serves request", async (context) => {
     })),
   };
 
-  const graphqlSchema = buildGraphQLSchema(schema);
-
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schema });
-
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.drizzle);
-    await next();
-  });
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schema },
+  );
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -48,7 +39,10 @@ test("middleware serves request", async (context) => {
     bigint: 0n,
   });
 
-  const app = new Hono().use(contextMiddleware).use("/graphql", graphql());
+  const app = new Hono().use(
+    "/graphql",
+    graphql({ schema, db: database.drizzle }),
+  );
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -104,21 +98,14 @@ test("middleware throws error when extra filter is applied", async (context) => 
     })),
   };
 
-  const graphqlSchema = buildGraphQLSchema(schema);
-
-  const { database, metadataStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.drizzle);
-    await next();
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
   });
 
-  const app = new Hono().use(contextMiddleware).use("/graphql", graphql());
+  const app = new Hono().use(
+    "/graphql",
+    graphql({ schema, db: database.drizzle }),
+  );
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -156,23 +143,14 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
     })),
   };
 
-  const graphqlSchema = buildGraphQLSchema(schema);
-
-  const { database, metadataStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.drizzle);
-    await next();
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
   });
 
-  const app = new Hono()
-    .use(contextMiddleware)
-    .use("/graphql", graphql({ maxOperationTokens: 3 }));
+  const app = new Hono().use(
+    "/graphql",
+    graphql({ schema, db: database.drizzle }, { maxOperationTokens: 3 }),
+  );
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -214,23 +192,14 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
     })),
   };
 
-  const graphqlSchema = buildGraphQLSchema(schema);
-
-  const { database, metadataStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.drizzle);
-    await next();
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
   });
 
-  const app = new Hono()
-    .use(contextMiddleware)
-    .use("/graphql", graphql({ maxOperationDepth: 5 }));
+  const app = new Hono().use(
+    "/graphql",
+    graphql({ schema, db: database.drizzle }, { maxOperationDepth: 5 }),
+  );
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -272,23 +241,14 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
     })),
   };
 
-  const graphqlSchema = buildGraphQLSchema(schema);
-
-  const { database, metadataStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.drizzle);
-    await next();
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
   });
 
-  const app = new Hono()
-    .use(contextMiddleware)
-    .use("/graphql", graphql({ maxOperationAliases: 2 }));
+  const app = new Hono().use(
+    "/graphql",
+    graphql({ schema, db: database.drizzle }, { maxOperationAliases: 2 }),
+  );
 
   const response = await app.request("/graphql", {
     method: "POST",
@@ -335,23 +295,15 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
 
 test("graphQLMiddleware interactive", async (context) => {
   const schema = {};
-  const graphqlSchema = buildGraphQLSchema(schema);
 
-  const { database, metadataStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schema },
-  );
-
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.drizzle);
-    await next();
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
   });
 
-  const app = new Hono()
-    .use(contextMiddleware)
-    .use("/graphql", graphql({ maxOperationAliases: 2 }));
+  const app = new Hono().use(
+    "/graphql",
+    graphql({ schema, db: database.drizzle }, { maxOperationAliases: 2 }),
+  );
 
   const response = await app.request("/graphql");
 

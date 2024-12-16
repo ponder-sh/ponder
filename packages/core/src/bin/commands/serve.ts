@@ -70,7 +70,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const buildResult = mergeResults([
     build.preCompile(executeResult.configResult.result),
     build.compileSchema(executeResult.schemaResult.result),
-    build.compileApi({ apiResult: executeResult.apiResult.result }),
+    await build.compileApi({ apiResult: executeResult.apiResult.result }),
   ]);
 
   if (buildResult.status === "error") {
@@ -108,7 +108,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const server = await createServer({
     common,
     database,
-    schemaBuild,
     apiBuild,
   });
 

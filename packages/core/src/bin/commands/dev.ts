@@ -1,10 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-  type BuildResultDev,
-  type SchemaBuild,
-  createBuild,
-} from "@/build/index.js";
+import { type BuildResultDev, createBuild } from "@/build/index.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
@@ -75,8 +71,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  let schemaBuild: SchemaBuild | undefined;
-
   const buildQueue = createQueue({
     initialStart: true,
     concurrency: 1,
@@ -93,8 +87,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           if (database) {
             await database.kill();
           }
-
-          schemaBuild = result.result.schemaBuild;
 
           database = createDatabase({
             common,
@@ -121,7 +113,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           apiCleanupReloadable = await runServer({
             common,
             database: database!,
-            schemaBuild: result.result.schemaBuild,
             apiBuild: result.result.apiBuild,
           });
         } else {
@@ -130,7 +121,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           apiCleanupReloadable = await runServer({
             common,
             database: database!,
-            schemaBuild: schemaBuild!,
             apiBuild: result.result,
           });
         }
@@ -174,7 +164,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       schemaResult: executeResult.schemaResult.result,
       indexingResult: executeResult.indexingResult.result,
     }),
-    build.compileApi({ apiResult: executeResult.apiResult.result }),
+    await build.compileApi({ apiResult: executeResult.apiResult.result }),
   ]);
 
   if (initialBuildResult.status === "error") {
