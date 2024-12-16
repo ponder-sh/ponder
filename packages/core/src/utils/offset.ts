@@ -59,7 +59,7 @@ export function getBytesConsumedByParam(param: AbiParameter): number {
   });
 }
 
-function hasDynamicChild(param: AbiParameter) {
+export function hasDynamicChild(param: AbiParameter) {
   const { type } = param;
   if (type === "string") return true;
   if (type === "bytes") return true;
