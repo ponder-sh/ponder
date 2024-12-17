@@ -25,7 +25,7 @@ import type {
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
 import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
-import { type Kysely, type SelectQueryBuilder, sql as ksql, sql } from "kysely";
+import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
 import type { InsertObject } from "kysely";
 import {
   type Address,
@@ -224,13 +224,13 @@ export const createSyncStore = ({
             .selectFrom(
               db
                 .selectFrom("intervals")
-                .select(sql`unnest(blocks)`.as("blocks"))
+                .select(ksql`unnest(blocks)`.as("blocks"))
                 .where("fragment_id", "in", fragment.adjacent)
                 .as("unnested"),
             )
             .select([
-              sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
-              sql.raw<string>(`${i}`).as("filter"),
+              ksql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
+              ksql.raw(`'${i}'`).as("filter"),
             ]);
           // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);
@@ -612,7 +612,7 @@ export const createSyncStore = ({
               .where(
                 "transactionReceipts.transactionHash",
                 "=",
-                sql.ref("transactions.hash"),
+                ksql.ref("transactions.hash"),
               ),
             "=",
             "0x1",
@@ -1026,7 +1026,7 @@ export const createSyncStore = ({
         .selectFrom("rpc_request_results")
         .select("result")
 
-        .where("request_hash", "=", sql`MD5(${request})`)
+        .where("request_hash", "=", ksql`MD5(${request})`)
         .where("chain_id", "=", chainId)
         .executeTakeFirst();
 
