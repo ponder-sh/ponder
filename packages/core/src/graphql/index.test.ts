@@ -217,7 +217,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
   await cleanup();
 });
 
-test.skip("enum, enum not null, enum array, enum array not null", async (context) => {
+test("enum, enum not null, enum array, enum array not null", async (context) => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable("table", (t) => ({
     id: t.text().primaryKey(),
@@ -270,7 +270,7 @@ test.skip("enum, enum not null, enum array, enum array not null", async (context
   await cleanup();
 });
 
-test.skip("enum primary key", async (context) => {
+test("enum primary key", async (context) => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable(
     "table",
