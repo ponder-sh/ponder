@@ -1,7 +1,7 @@
 import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
-import { getFragmentIds } from "@/sync/fragments.js";
+import { type FragmentId, getFragmentIds } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type Factory,
@@ -50,6 +50,7 @@ export type SyncStore = {
       filter: Filter;
       interval: Interval;
     }[];
+    chainId: number;
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
@@ -156,23 +157,42 @@ export const createSyncStore = ({
   common: Common;
   db: HeadlessKysely<PonderSyncSchema>;
 }): SyncStore => ({
-  insertIntervals: async ({ intervals }) => {
+  insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
     await db.wrap({ method: "insertIntervals" }, async () => {
+      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
       const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
+
+      // dedupe and merge matching fragments
+
+      for (const { filter, interval } of intervals) {
+        for (const fragment of getFragmentIds(filter)) {
+          if (perFragmentIntervals.has(fragment.id) === false) {
+            perFragmentIntervals.set(fragment.id, []);
+          }
+
+          perFragmentIntervals.get(fragment.id)!.push(interval);
+        }
+      }
 
       // NOTE: In order to force proper range union behavior, `interval[1]` must
       // be rounded up.
 
-      for (const { interval, filter } of intervals) {
-        for (const fragment of getFragmentIds(filter)) {
-          values.push({
-            fragment_id: fragment.id,
-            chain_id: filter.chainId,
-            blocks: ksql`nummultirange(numrange(${interval[0]}, ${interval[1] + 1}, '[]'))`,
-          });
-        }
+      for (const [fragmentId, intervals] of perFragmentIntervals) {
+        const numranges = intervals
+          .map((interval) => {
+            const start = interval[0];
+            const end = interval[1] + 1;
+            return `numrange(${start}, ${end}, '[]')`;
+          })
+          .join(", ");
+
+        values.push({
+          fragment_id: fragmentId,
+          chain_id: chainId,
+          blocks: ksql.raw(`nummultirange(${numranges})`),
+        });
       }
 
       await db
@@ -230,7 +250,7 @@ export const createSyncStore = ({
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i]!;
         const intervals = rows
-          .filter((row) => row.filter === `${i}`)
+          .filter((row) => +row.filter === i)
           .map((row) =>
             (row.merged_blocks
               ? (JSON.parse(
