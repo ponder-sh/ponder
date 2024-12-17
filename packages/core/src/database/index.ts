@@ -1087,7 +1087,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
       });
     },
     async disableTriggers() {
-      await qb.internal.wrap({ method: "removeTriggers" }, async () => {
+      await qb.internal.wrap({ method: "disableTriggers" }, async () => {
         await Promise.all(
           getTableNames(schemaBuild.schema).flatMap((tableName) => [
             sql
