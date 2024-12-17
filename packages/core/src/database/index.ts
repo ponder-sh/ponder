@@ -1045,7 +1045,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
 
           await sql
             .raw(`
-CREATE TRIGGER "${tableName.sql}_update"
+CREATE OR REPLACE TRIGGER "${tableName.sql}_update"
 AFTER UPDATE ON "${preBuild.namespace}"."${tableName.sql}"
 REFERENCING OLD TABLE AS old_table
 FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
@@ -1054,7 +1054,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
 
           await sql
             .raw(`
-CREATE TRIGGER "${tableName.sql}_delete"
+CREATEOR REPLACE TRIGGER "${tableName.sql}_delete"
 AFTER DELETE ON "${preBuild.namespace}"."${tableName.sql}"
 REFERENCING OLD TABLE AS old_table
 FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
