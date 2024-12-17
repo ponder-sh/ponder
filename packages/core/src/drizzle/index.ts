@@ -71,7 +71,6 @@ export const getTableNames = (schema: Schema) => {
       return {
         sql,
         reorg: sqlToReorgTableName(sql),
-        trigger: sqlToReorgTableName(sql),
         triggerFn: `operation_reorg__${sql}()`,
         js,
       } as const;

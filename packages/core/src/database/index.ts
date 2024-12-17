@@ -885,9 +885,21 @@ export const createDatabase = ({
             for (const tableName of getTableNames(schemaBuild.schema)) {
               await sql
                 .raw(
-                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
+                  `DROP TRIGGER IF EXISTS "${tableName.sql}_insert" ON "${preBuild.namespace}"."${tableName.sql}"`,
                 )
-                .execute(tx);
+                .execute(qb.internal);
+
+              await sql
+                .raw(
+                  `DROP TRIGGER IF EXISTS "${tableName.sql}_update" ON "${preBuild.namespace}"."${tableName.sql}"`,
+                )
+                .execute(qb.internal);
+
+              await sql
+                .raw(
+                  `DROP TRIGGER IF EXISTS "${tableName.sql}_delete" ON "${preBuild.namespace}"."${tableName.sql}"`,
+                )
+                .execute(qb.internal);
             }
 
             // Remove indexes
@@ -1025,7 +1037,7 @@ $$ LANGUAGE plpgsql
 
           await sql
             .raw(`
-CREATE TRIGGER "${tableName.trigger}_insert"
+CREATE TRIGGER "${tableName.sql}_insert"
 AFTER INSERT ON "${preBuild.namespace}"."${tableName.sql}"
 REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
@@ -1034,7 +1046,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
 
           await sql
             .raw(`
-CREATE TRIGGER "${tableName.trigger}_update"
+CREATE TRIGGER "${tableName.sql}_update"
 AFTER UPDATE ON "${preBuild.namespace}"."${tableName.sql}"
 REFERENCING OLD TABLE AS old_table
 FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
@@ -1043,7 +1055,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
 
           await sql
             .raw(`
-CREATE TRIGGER "${tableName.trigger}_delete"
+CREATE TRIGGER "${tableName.sql}_delete"
 AFTER DELETE ON "${preBuild.namespace}"."${tableName.sql}"
 REFERENCING OLD TABLE AS old_table
 FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
@@ -1057,25 +1069,19 @@ FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
         for (const tableName of getTableNames(schemaBuild.schema)) {
           await sql
             .raw(
-              `
-DROP TRIGGER IF EXISTS "${tableName.trigger}_insert" ON "${preBuild.namespace}"."${tableName.sql}";
-`,
+              `DROP TRIGGER IF EXISTS "${tableName.sql}_insert" ON "${preBuild.namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
 
           await sql
             .raw(
-              `
-DROP TRIGGER IF EXISTS "${tableName.trigger}_update" ON "${preBuild.namespace}"."${tableName.sql}";
-`,
+              `DROP TRIGGER IF EXISTS "${tableName.sql}_update" ON "${preBuild.namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
 
           await sql
             .raw(
-              `
-DROP TRIGGER IF EXISTS "${tableName.trigger}_delete" ON "${preBuild.namespace}"."${tableName.sql}";
-`,
+              `DROP TRIGGER IF EXISTS "${tableName.sql}_delete" ON "${preBuild.namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
         }
@@ -1084,26 +1090,42 @@ DROP TRIGGER IF EXISTS "${tableName.trigger}_delete" ON "${preBuild.namespace}".
     async enableTriggers() {
       await qb.internal.wrap({ method: "enableTriggers" }, async () => {
         await Promise.all(
-          getTableNames(schemaBuild.schema).map(async (tableName) => {
+          getTableNames(schemaBuild.schema).flatMap(async (tableName) => [
             sql
               .raw(
-                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" ENABLE TRIGGER "${tableName.trigger}"`,
+                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" ENABLE TRIGGER "${tableName.sql}_insert"`,
               )
-              .execute(qb.internal);
-          }),
+              .execute(qb.internal),
+            sql
+              .raw(
+                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" ENABLE TRIGGER "${tableName.sql}_update"`,
+              )
+              .execute(qb.internal),
+            sql.raw(
+              `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" ENABLE TRIGGER "${tableName.sql}_delete"`,
+            ),
+          ]),
         );
       });
     },
     async disableTriggers() {
       await qb.internal.wrap({ method: "removeTriggers" }, async () => {
         await Promise.all(
-          getTableNames(schemaBuild.schema).map(async (tableName) => {
+          getTableNames(schemaBuild.schema).flatMap(async (tableName) => [
             sql
               .raw(
-                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" DISABLE TRIGGER "${tableName.trigger}"`,
+                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" DISABLE TRIGGER "${tableName.sql}_insert"`,
               )
-              .execute(qb.internal);
-          }),
+              .execute(qb.internal),
+            sql
+              .raw(
+                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" DISABLE TRIGGER "${tableName.sql}_update"`,
+              )
+              .execute(qb.internal),
+            sql.raw(
+              `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" DISABLE TRIGGER "${tableName.sql}_delete"`,
+            ),
+          ]),
         );
       });
     },
