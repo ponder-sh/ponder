@@ -38,6 +38,10 @@ export async function run({
 
   const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
 
+  // Remove triggers first in case they were created by a previous run
+  await database.removeTriggers();
+  await database.createTriggers();
+
   const syncStore = createSyncStore({
     common,
     db: database.qb.sync,
@@ -102,9 +106,9 @@ export async function run({
           break;
         }
         case "reorg":
-          await database.removeTriggers();
+          await database.disableTriggers();
           await database.revert({ checkpoint: event.checkpoint });
-          await database.createTriggers();
+          await database.enableTriggers();
 
           break;
 
@@ -232,7 +236,7 @@ export async function run({
     });
 
     await database.createIndexes();
-    await database.createTriggers();
+    await database.enableTriggers();
 
     indexingService.setIndexingStore(
       createRealtimeIndexingStore({

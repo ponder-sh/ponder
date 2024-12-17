@@ -69,6 +69,8 @@ export type Database = {
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
+  enableTriggers(): Promise<void>;
+  disableTriggers(): Promise<void>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
@@ -1037,6 +1039,32 @@ $$ LANGUAGE plpgsql
             )
             .execute(qb.internal);
         }
+      });
+    },
+    async enableTriggers() {
+      await qb.internal.wrap({ method: "enableTriggers" }, async () => {
+        await Promise.all(
+          getTableNames(schemaBuild.schema).map(async (tableName) => {
+            sql
+              .raw(
+                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" ENABLE TRIGGER "${tableName.trigger}"`,
+              )
+              .execute(qb.internal);
+          }),
+        );
+      });
+    },
+    async disableTriggers() {
+      await qb.internal.wrap({ method: "removeTriggers" }, async () => {
+        await Promise.all(
+          getTableNames(schemaBuild.schema).map(async (tableName) => {
+            sql
+              .raw(
+                `ALTER TABLE "${preBuild.namespace}"."${tableName.sql}" DISABLE TRIGGER "${tableName.trigger}"`,
+              )
+              .execute(qb.internal);
+          }),
+        );
       });
     },
     async revert({ checkpoint }) {

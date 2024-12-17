@@ -728,9 +728,9 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await database.createTriggers();
+        await database.enableTriggers();
         await indexingStore.flush();
-        await database.removeTriggers();
+        await database.disableTriggers();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
