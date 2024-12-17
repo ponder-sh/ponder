@@ -18,7 +18,6 @@ import {
   serial,
   varchar,
 } from "drizzle-orm/pg-core";
-import { type Schema, sqlToReorgTableName } from "../index.js";
 
 type Dialect = "postgresql";
 type CasingType = "snake_case" | "camelCase";
@@ -35,7 +34,10 @@ export type SqlStatements = {
   indexes: { sql: string[]; json: JsonPgCreateIndexStatement[] };
 };
 
-export const getSql = (schema: Schema): SqlStatements => {
+export const sqlToReorgTableName = (tableName: string) =>
+  `_reorg__${tableName}`;
+
+export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
   const { tables, enums, schemas } = prepareFromExports(schema);
   const json = generatePgSnapshot(tables, enums, schemas, "snake_case");
   const squashed = squashPgScheme(json);

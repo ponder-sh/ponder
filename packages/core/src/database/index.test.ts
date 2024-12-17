@@ -1,6 +1,6 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
+import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,

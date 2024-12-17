@@ -27,6 +27,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./schema": {
+      "types": "./dist/drizzle/onchain.d.ts",
+      "import": "./dist/drizzle/onchain.js"
+    },
     "./virtual": {
       "types": "./src/types.d.ts"
     }

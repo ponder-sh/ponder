@@ -38,3 +38,47 @@ export const createClient = <schema extends Schema>(
 
   return { db };
 };
+
+export {
+  sql,
+  eq,
+  gt,
+  gte,
+  lt,
+  lte,
+  ne,
+  isNull,
+  isNotNull,
+  inArray,
+  notInArray,
+  exists,
+  notExists,
+  between,
+  notBetween,
+  like,
+  notIlike,
+  not,
+  asc,
+  desc,
+  and,
+  or,
+  count,
+  countDistinct,
+  avg,
+  avgDistinct,
+  sum,
+  sumDistinct,
+  max,
+  min,
+  relations,
+} from "drizzle-orm";
+
+export {
+  alias,
+  union,
+  unionAll,
+  intersect,
+  intersectAll,
+  except,
+  exceptAll,
+} from "drizzle-orm/pg-core";
