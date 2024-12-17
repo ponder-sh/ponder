@@ -648,6 +648,33 @@ test("createTriggers()", async (context) => {
   await database.kill();
 });
 
+test("enableTriggers() is idempotent", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.setup({ buildId: "abc" });
+
+  await database.createTriggers();
+
+  await database.enableTriggers();
+  await database.enableTriggers();
+
+  await database.disableTriggers();
+  await database.disableTriggers();
+
+  await database.unlock();
+  await database.kill();
+});
+
 test("complete()", async (context) => {
   const database = createDatabase({
     common: context.common,

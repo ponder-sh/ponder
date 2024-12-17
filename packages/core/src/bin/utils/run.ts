@@ -38,9 +38,8 @@ export async function run({
 
   const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
 
-  // Remove triggers first in case they were created by a previous run
-  await database.removeTriggers();
   await database.createTriggers();
+  await database.disableTriggers();
 
   const syncStore = createSyncStore({
     common,

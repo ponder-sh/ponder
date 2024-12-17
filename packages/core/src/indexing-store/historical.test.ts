@@ -417,7 +417,7 @@ test("sql", async (context) => {
 
   // triggers
 
-  const spy = vi.spyOn(database, "createTriggers");
+  const spy = vi.spyOn(database, "enableTriggers");
 
   await indexingStore.sql.select().from(schema.account);
 

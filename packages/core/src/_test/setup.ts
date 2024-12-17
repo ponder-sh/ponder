@@ -200,6 +200,9 @@ export async function setupDatabaseServices(
 
   await database.setup({ buildId: config.buildId });
 
+  await database.createTriggers();
+  await database.disableTriggers();
+
   await database.migrateSync().catch((err) => {
     console.log(err);
     throw err;
