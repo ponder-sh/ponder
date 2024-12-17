@@ -66,7 +66,6 @@ type CreateRealtimeSyncParameters = {
 
 export type BlockWithEventData = {
   block: SyncBlock;
-  // filters: Set<Filter>;
   logs: SyncLog[];
   factoryLogs: SyncLog[];
   traces: SyncTrace[];
