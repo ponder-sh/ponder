@@ -1006,13 +1006,16 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
+    SELECT ${columnNames.map((name) => `n.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}'
+    FROM new_table n;
   ELSIF TG_OP = 'UPDATE' THEN
     INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
+    SELECT ${columnNames.map((name) => `o.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}'
+    FROM old_table o;
   ELSIF TG_OP = 'DELETE' THEN
     INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
+    SELECT ${columnNames.map((name) => `o.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}'
+    FROM old_table o;
   END IF;
   RETURN NULL;
 END;
@@ -1022,10 +1025,29 @@ $$ LANGUAGE plpgsql
 
           await sql
             .raw(`
-          CREATE TRIGGER "${tableName.trigger}"
-          AFTER INSERT OR UPDATE OR DELETE ON "${preBuild.namespace}"."${tableName.sql}"
-          FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
-          `)
+CREATE TRIGGER "${tableName.trigger}_insert"
+AFTER INSERT ON "${preBuild.namespace}"."${tableName.sql}"
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
+`)
+            .execute(qb.internal);
+
+          await sql
+            .raw(`
+CREATE TRIGGER "${tableName.trigger}_update"
+AFTER UPDATE ON "${preBuild.namespace}"."${tableName.sql}"
+REFERENCING OLD TABLE AS old_table
+FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
+`)
+            .execute(qb.internal);
+
+          await sql
+            .raw(`
+CREATE TRIGGER "${tableName.trigger}_delete"
+AFTER DELETE ON "${preBuild.namespace}"."${tableName.sql}"
+REFERENCING OLD TABLE AS old_table
+FOR EACH STATEMENT EXECUTE FUNCTION ${tableName.triggerFn};
+`)
             .execute(qb.internal);
         }
       });
@@ -1035,7 +1057,25 @@ $$ LANGUAGE plpgsql
         for (const tableName of getTableNames(schemaBuild.schema)) {
           await sql
             .raw(
-              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
+              `
+DROP TRIGGER IF EXISTS "${tableName.trigger}_insert" ON "${preBuild.namespace}"."${tableName.sql}";
+`,
+            )
+            .execute(qb.internal);
+
+          await sql
+            .raw(
+              `
+DROP TRIGGER IF EXISTS "${tableName.trigger}_update" ON "${preBuild.namespace}"."${tableName.sql}";
+`,
+            )
+            .execute(qb.internal);
+
+          await sql
+            .raw(
+              `
+DROP TRIGGER IF EXISTS "${tableName.trigger}_delete" ON "${preBuild.namespace}"."${tableName.sql}";
+`,
             )
             .execute(qb.internal);
         }
