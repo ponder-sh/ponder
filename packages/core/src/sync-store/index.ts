@@ -250,7 +250,7 @@ export const createSyncStore = ({
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i]!;
         const intervals = rows
-          .filter((row) => +row.filter === i)
+          .filter((row) => row.filter === `${i}`)
           .map((row) =>
             (row.merged_blocks
               ? (JSON.parse(
