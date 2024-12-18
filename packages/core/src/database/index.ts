@@ -253,7 +253,9 @@ export const createDatabase = async ({
       await internal.query(`DROP OWNED BY ${role}`);
       await internal.query(`DROP ROLE IF EXISTS ${role}`);
     }
-    await internal.query(`CREATE ROLE ${role} WITH LOGIN`);
+    await internal.query(
+      `CREATE ROLE ${role} WITH LOGIN PASSWORD '${connection.password}'`,
+    );
     await internal.query(
       `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
     );
@@ -284,6 +286,7 @@ export const createDatabase = async ({
         application_name: `${preBuild.namespace}_readonly`,
         max: readonlyMax,
         user: role,
+        password: connection.password,
         host: connection.host ?? undefined,
         port: Number(connection.port!),
         database: connection.database ?? undefined,
