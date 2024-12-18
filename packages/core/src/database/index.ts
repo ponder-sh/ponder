@@ -304,7 +304,7 @@ export const createDatabase = async ({
         connectionString: undefined,
         application_name: `${preBuild.namespace}_readonly`,
         max: readonlyMax,
-        user: "ponder_readonly",
+        user: role,
         host: connection.host ?? undefined,
         port: Number(connection.port!),
         database: connection.database ?? undefined,

@@ -65,6 +65,8 @@ test("createDatabase() readonly", async (context) => {
 });
 
 test("createDatabase() search path", async (context) => {
+  // create table in "ponder" schema
+
   const schemaAccount = pgSchema("ponder").table("account", {
     address: hex().primaryKey(),
     balance: bigint(),
