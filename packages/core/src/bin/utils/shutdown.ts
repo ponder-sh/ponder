@@ -23,7 +23,7 @@ export function setupShutdown({
   }: { reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    setTimeout(async () => {
+    const timeoutId = setTimeout(async () => {
       common.logger.fatal({
         service: "process",
         msg: "Failed to shutdown within 5 seconds, terminating (exit code 1)",
@@ -43,7 +43,9 @@ export function setupShutdown({
       properties: { duration_seconds: process.uptime() },
     });
 
-    await cleanup();
+    await cleanup().catch((err) => {
+      console.log("cleanup error", err);
+    });
 
     const level = code === 0 ? "info" : "fatal";
     common.logger[level]({
@@ -52,6 +54,7 @@ export function setupShutdown({
     });
 
     await common.logger.kill();
+    clearTimeout(timeoutId);
     process.exit(code);
   };
 
