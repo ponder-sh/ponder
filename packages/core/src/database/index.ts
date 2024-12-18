@@ -101,7 +101,6 @@ export type PonderInternalSchema = {
 
 type PGliteDriver = {
   instance: PGlite;
-  // TODO(kyle) client?
 };
 
 type PostgresDriver = {
@@ -109,7 +108,6 @@ type PostgresDriver = {
   user: Pool;
   sync: Pool;
   readonly: Pool;
-  // client: Pool;
 };
 
 type QueryBuilder = {
@@ -245,8 +243,7 @@ export const createDatabase = async ({
       preBuild.databaseConfig.poolConfig.connectionString!,
     );
 
-    // TODO(kyle) update
-    const role = `ponder_${preBuild.namespace}_readonly`;
+    const role = `ponder_readonly_${connection.database}_${preBuild.namespace}`;
 
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
     const hasRole = await internal
@@ -273,13 +270,6 @@ export const createDatabase = async ({
     await internal.query(
       `ALTER ROLE ${role} SET search_path TO ${preBuild.namespace}`,
     );
-
-    const readonlyConnectionString = `postgres://${role}@${connection.host}:${connection.port}/${connection.database}`;
-
-    common.logger.info({
-      service: "database",
-      msg: `Readonly connection string: ${readonlyConnectionString}`,
-    });
 
     driver = {
       internal,
