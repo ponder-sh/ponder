@@ -28,7 +28,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Test (types)
-        run: pnpm --filter core test:typecheck
+        run: pnpm --filter "ponder" test:typecheck
 
       - name: Lint
         run: pnpm lint
@@ -70,7 +70,7 @@ jobs:
         run: cd packages/core/ && pnpm wagmi generate
 
       - name: Test
-        run: pnpm --filter core test
+        run: pnpm --filter "ponder" test
         env:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
 

@@ -94,50 +94,66 @@ export async function setupIsolatedDatabase(context: TestContext) {
     await instance.exec(`
       DO $$
       DECLARE
-          obj TEXT;
-          schema TEXT;
+        obj TEXT;
+        schema TEXT;
       BEGIN
-          SET ROLE postgres;
+        SET ROLE postgres;
 
-          -- Loop over all user-defined schemas
-          FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
+        -- Loop over all user-defined schemas
+        FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
+        LOOP
+          -- Drop all tables
+          FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = schema
           LOOP
-              -- Drop all tables
-              FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = schema
-              LOOP
-                  EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all sequences
-              FOR obj IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = schema
-              LOOP
-                  EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all views
-              FOR obj IN SELECT table_name FROM information_schema.views WHERE table_schema = schema
-              LOOP
-                  EXECUTE 'DROP VIEW IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all functions
-              FOR obj IN SELECT routine_name FROM information_schema.routines WHERE routine_type = 'FUNCTION' AND routine_schema = schema
-              LOOP
-                  EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all custom types
-              FOR obj IN SELECT typname FROM pg_type WHERE typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
-              LOOP
-                  EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all extensions (extensions are usually in public, but handling if in other schemas)
-              FOR obj IN SELECT extname FROM pg_extension WHERE extnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
-              LOOP
-                  EXECUTE 'DROP EXTENSION IF EXISTS ' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
+            EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
           END LOOP;
+
+          -- Drop all sequences
+          FOR obj IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = schema
+          LOOP
+            EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all views
+          FOR obj IN SELECT table_name FROM information_schema.views WHERE table_schema = schema
+          LOOP
+            EXECUTE 'DROP VIEW IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all functions
+          FOR obj IN SELECT routine_name FROM information_schema.routines WHERE routine_type = 'FUNCTION' AND routine_schema = schema
+          LOOP
+            EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all enum types first (this will cascade and drop their associated array types)
+          FOR obj IN
+            SELECT typname
+            FROM pg_type
+            JOIN pg_namespace ns ON pg_type.typnamespace = ns.oid
+            WHERE ns.nspname = schema
+              AND typtype = 'e'  -- 'e' stands for enum type
+          LOOP
+            EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all remaining custom types (non-enum)
+          FOR obj IN
+            SELECT typname
+            FROM pg_type
+            JOIN pg_namespace ns ON pg_type.typnamespace = ns.oid
+            WHERE ns.nspname = schema
+              AND typtype <> 'e'
+          LOOP
+            EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all extensions
+          FOR obj IN SELECT extname FROM pg_extension WHERE extnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
+          LOOP
+            EXECUTE 'DROP EXTENSION IF EXISTS ' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+        END LOOP;
       END $$;
     `);
 
