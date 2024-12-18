@@ -157,24 +157,10 @@ export const createDatabase = async ({
 
     const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
 
-    const role = "ponder";
-
     await driver.instance.query(
       `CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`,
     );
-    const hasRole = await driver.instance
-      .query(`SELECT FROM pg_roles WHERE rolname = '${role}'`)
-      .then(({ rows }) => rows[0]);
-    if (hasRole) {
-      await driver.instance.query(`DROP OWNED BY ${role}`);
-      await driver.instance.query(`DROP ROLE IF EXISTS ${role}`);
-    }
-    await driver.instance.query(`CREATE ROLE ${role} WITH LOGIN`);
-    await driver.instance.query(`GRANT postgres TO ${role}`);
-    await driver.instance.query(`SET ROLE ${role}`);
-    await driver.instance.query(
-      `SET search_path TO ${preBuild.namespace}, public`,
-    );
+    await driver.instance.query(`SET search_path TO ${preBuild.namespace}`);
 
     qb = {
       internal: new HeadlessKysely({
@@ -259,6 +245,7 @@ export const createDatabase = async ({
       preBuild.databaseConfig.poolConfig.connectionString!,
     );
 
+    // TODO(kyle) update
     const role = `ponder_${preBuild.namespace}_readonly`;
 
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);

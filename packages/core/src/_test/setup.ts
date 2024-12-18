@@ -97,8 +97,6 @@ export async function setupIsolatedDatabase(context: TestContext) {
         obj TEXT;
         schema TEXT;
       BEGIN
-        SET ROLE postgres;
-
         -- Loop over all user-defined schemas
         FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
         LOOP

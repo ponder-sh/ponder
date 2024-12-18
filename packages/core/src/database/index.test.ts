@@ -35,7 +35,7 @@ function createCheckpoint(index: number): string {
 
 // skip pglite because it doesn't support multiple connections
 test("createDatabase() readonly", async (context) => {
-  if (context.databaseConfig.kind === "pglite") return;
+  if (context.databaseConfig.kind === "pglite_test") return;
   const database = await createDatabase({
     common: context.common,
     preBuild: {
