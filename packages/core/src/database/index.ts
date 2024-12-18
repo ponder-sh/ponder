@@ -259,13 +259,11 @@ export const createDatabase = async ({
       preBuild.databaseConfig.poolConfig.connectionString!,
     );
 
-    // TODO(kyle) use params
-
     const role = `ponder_${preBuild.namespace}_readonly`;
 
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
     const hasRole = await internal
-      .query(`SELECT FROM pg_roles WHERE rolname = '${role}'`)
+      .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
       .then(({ rows }) => rows[0]);
     if (hasRole) {
       await internal.query(`DROP OWNED BY ${role}`);
@@ -275,6 +273,10 @@ export const createDatabase = async ({
     await internal.query(
       `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
     );
+    await internal.query(`REVOKE ALL ON SCHEMA public FROM ${role}`);
+    await internal.query(
+      `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM ${role}`,
+    );
     await internal.query(
       `GRANT USAGE ON SCHEMA ${preBuild.namespace} TO ${role}`,
     );
@@ -282,7 +284,7 @@ export const createDatabase = async ({
       `ALTER DEFAULT PRIVILEGES IN SCHEMA ${preBuild.namespace} GRANT SELECT ON TABLES TO ${role}`,
     );
     await internal.query(
-      `ALTER ROLE ${role} SET search_path TO ${preBuild.namespace}, public`,
+      `ALTER ROLE ${role} SET search_path TO ${preBuild.namespace}`,
     );
 
     const readonlyConnectionString = `postgres://${role}@${connection.host}:${connection.port}/${connection.database}`;
