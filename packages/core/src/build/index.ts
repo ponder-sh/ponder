@@ -64,39 +64,29 @@ export type BuildResultDev =
     }> & { kind: "indexing" })
   | (Result<ApiBuild> & { kind: "api" });
 
-type ExecuteResult = {
-  configResult: Result<{ config: Config; contentHash: string }>;
-  schemaResult: Result<{ schema: Schema; contentHash: string }>;
-  indexingResult: Result<{
-    indexingFunctions: RawIndexingFunctions;
-    contentHash: string;
-  }>;
-  apiResult: Result<{ app: Hono }>;
-};
+type ConfigResult = Result<{ config: Config; contentHash: string }>;
+type SchemaResult = Result<{ schema: Schema; contentHash: string }>;
+type IndexingResult = Result<{
+  indexingFunctions: RawIndexingFunctions;
+  contentHash: string;
+}>;
+type ApiResult = Result<{ app: Hono }>;
 
 export type Build = {
-  execute: () => Promise<ExecuteResult>;
+  initNamespace: () => Result<undefined>;
+  executeConfig: () => Promise<ConfigResult>;
+  executeSchema: () => Promise<SchemaResult>;
+  executeIndexingFunctions: () => Promise<IndexingResult>;
+  executeApi: () => Promise<ApiResult>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexing: (params: {
-    configResult: Extract<
-      ExecuteResult["configResult"],
-      { status: "success" }
-    >["result"];
-    schemaResult: Extract<
-      ExecuteResult["schemaResult"],
-      { status: "success" }
-    >["result"];
-    indexingResult: Extract<
-      ExecuteResult["indexingResult"],
-      { status: "success" }
-    >["result"];
+    configResult: Extract<ConfigResult, { status: "success" }>["result"];
+    schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
+    indexingResult: Extract<IndexingResult, { status: "success" }>["result"];
   }) => Promise<Result<IndexingBuild>>;
   compileApi: (params: {
-    apiResult: Extract<
-      ExecuteResult["apiResult"],
-      { status: "success" }
-    >["result"];
+    apiResult: Extract<ApiResult, { status: "success" }>["result"];
   }) => Promise<Result<ApiBuild>>;
   startDev: (params: {
     onBuild: (buildResult: BuildResultDev) => void;
@@ -185,157 +175,10 @@ export const createBuild = async ({
     }
   };
 
-  const executeConfig = async (): Promise<
-    Awaited<ReturnType<Build["execute"]>>["configResult"]
-  > => {
-    const executeResult = await executeFile({
-      file: common.options.configFile,
-    });
-
-    if (executeResult.status === "error") {
-      common.logger.error({
-        service: "build",
-        msg: "Error while executing 'ponder.config.ts':",
-        error: executeResult.error,
-      });
-
-      return executeResult;
-    }
-
-    const config = executeResult.exports.default as Config;
-
-    const contentHash = crypto
-      .createHash("sha256")
-      .update(serialize(config))
-      .digest("hex");
-
-    return {
-      status: "success",
-      result: { config, contentHash },
-    } as const;
-  };
-
-  const executeSchema = async (): Promise<
-    Awaited<ReturnType<Build["execute"]>>["schemaResult"]
-  > => {
-    const executeResult = await executeFile({
-      file: common.options.schemaFile,
-    });
-
-    if (executeResult.status === "error") {
-      common.logger.error({
-        service: "build",
-        msg: "Error while executing 'ponder.schema.ts':",
-        error: executeResult.error,
-      });
-
-      return executeResult;
-    }
-
-    const schema = executeResult.exports;
-
-    const contents = fs.readFileSync(common.options.schemaFile, "utf-8");
-    return {
-      status: "success",
-      result: {
-        schema,
-        contentHash: crypto.createHash("sha256").update(contents).digest("hex"),
-      },
-    } as const;
-  };
-
-  const executeIndexingFunctions = async (): Promise<
-    Awaited<ReturnType<Build["execute"]>>["indexingResult"]
-  > => {
-    const files = glob.sync(indexingPattern, {
-      ignore: common.options.apiFile,
-    });
-    const executeResults = await Promise.all(
-      files.map(async (file) => ({
-        ...(await executeFile({ file })),
-        file,
-      })),
-    );
-
-    for (const executeResult of executeResults) {
-      if (executeResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: `Error while executing '${path.relative(
-            common.options.rootDir,
-            executeResult.file,
-          )}':`,
-          error: executeResult.error,
-        });
-
-        return executeResult;
-      }
-    }
-
-    // Note that we are only hashing the file contents, not the exports. This is
-    // different from the config/schema, where we include the serializable object itself.
-    const hash = crypto.createHash("sha256");
-    for (const file of files) {
-      try {
-        const contents = fs.readFileSync(file, "utf-8");
-        hash.update(contents);
-      } catch (e) {
-        common.logger.warn({
-          service: "build",
-          msg: `Unable to read contents of file '${file}' while constructin build ID`,
-        });
-        hash.update(file);
-      }
-    }
-    const contentHash = hash.digest("hex");
-
-    const exports = await viteNodeRunner.executeId("ponder:registry");
-
-    return {
-      status: "success",
-      result: {
-        indexingFunctions: exports.ponder.fns,
-        contentHash,
-      },
-    };
-  };
-
-  const executeApi = async (): Promise<
-    Awaited<ReturnType<Build["execute"]>>["apiResult"]
-  > => {
-    // TODO(kyle) This assumes the api file exists.
-
-    const executeResult = await executeFile({
-      file: common.options.apiFile,
-    });
-
-    if (executeResult.status === "error") {
-      common.logger.error({
-        service: "build",
-        msg: `Error while executing '${path.relative(
-          common.options.rootDir,
-          common.options.apiFile,
-        )}':`,
-        error: executeResult.error,
-      });
-
-      return executeResult;
-    }
-
-    const app = executeResult.exports.default;
-
-    return {
-      status: "success",
-      result: {
-        app,
-      },
-    };
-  };
-
   let namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
 
   const build = {
-    async execute(): Promise<ExecuteResult> {
+    initNamespace: () => {
       if (namespace === undefined) {
         if (
           common.options.command === "start" ||
@@ -350,12 +193,7 @@ export const createBuild = async ({
             msg: "Failed build",
             error,
           });
-          return {
-            configResult: { status: "error", error },
-            schemaResult: { status: "error", error },
-            indexingResult: { status: "error", error },
-            apiResult: { status: "error", error },
-          } as const;
+          return { status: "error", error } as const;
         } else {
           namespace = "public";
         }
@@ -363,18 +201,144 @@ export const createBuild = async ({
 
       process.env.PONDER_DATABASE_SCHEMA = namespace;
 
-      // Note: Don't run these in parallel. If there are circular imports in user code,
-      // it's possible for ViteNodeRunner to return exports as undefined (a race condition).
-      const configResult = await executeConfig();
-      const schemaResult = await executeSchema();
-      const indexingResult = await executeIndexingFunctions();
-      const apiResult = await executeApi();
+      return { status: "success", result: undefined } as const;
+    },
+    async executeConfig(): Promise<ConfigResult> {
+      const executeResult = await executeFile({
+        file: common.options.configFile,
+      });
+
+      if (executeResult.status === "error") {
+        common.logger.error({
+          service: "build",
+          msg: "Error while executing 'ponder.config.ts':",
+          error: executeResult.error,
+        });
+
+        return executeResult;
+      }
+
+      const config = executeResult.exports.default as Config;
+
+      const contentHash = crypto
+        .createHash("sha256")
+        .update(serialize(config))
+        .digest("hex");
 
       return {
-        configResult,
-        schemaResult,
-        indexingResult,
-        apiResult,
+        status: "success",
+        result: { config, contentHash },
+      } as const;
+    },
+    async executeSchema(): Promise<SchemaResult> {
+      const executeResult = await executeFile({
+        file: common.options.schemaFile,
+      });
+
+      if (executeResult.status === "error") {
+        common.logger.error({
+          service: "build",
+          msg: "Error while executing 'ponder.schema.ts':",
+          error: executeResult.error,
+        });
+
+        return executeResult;
+      }
+
+      const schema = executeResult.exports;
+
+      const contents = fs.readFileSync(common.options.schemaFile, "utf-8");
+      return {
+        status: "success",
+        result: {
+          schema,
+          contentHash: crypto
+            .createHash("sha256")
+            .update(contents)
+            .digest("hex"),
+        },
+      } as const;
+    },
+    async executeIndexingFunctions(): Promise<IndexingResult> {
+      const files = glob.sync(indexingPattern, {
+        ignore: common.options.apiFile,
+      });
+      const executeResults = await Promise.all(
+        files.map(async (file) => ({
+          ...(await executeFile({ file })),
+          file,
+        })),
+      );
+
+      for (const executeResult of executeResults) {
+        if (executeResult.status === "error") {
+          common.logger.error({
+            service: "build",
+            msg: `Error while executing '${path.relative(
+              common.options.rootDir,
+              executeResult.file,
+            )}':`,
+            error: executeResult.error,
+          });
+
+          return executeResult;
+        }
+      }
+
+      // Note that we are only hashing the file contents, not the exports. This is
+      // different from the config/schema, where we include the serializable object itself.
+      const hash = crypto.createHash("sha256");
+      for (const file of files) {
+        try {
+          const contents = fs.readFileSync(file, "utf-8");
+          hash.update(contents);
+        } catch (e) {
+          common.logger.warn({
+            service: "build",
+            msg: `Unable to read contents of file '${file}' while constructin build ID`,
+          });
+          hash.update(file);
+        }
+      }
+      const contentHash = hash.digest("hex");
+
+      const exports = await viteNodeRunner.executeId("ponder:registry");
+
+      return {
+        status: "success",
+        result: {
+          indexingFunctions: exports.ponder.fns,
+          contentHash,
+        },
+      };
+    },
+    async executeApi(): Promise<ApiResult> {
+      // TODO(kyle) This assumes the api file exists.
+
+      const executeResult = await executeFile({
+        file: common.options.apiFile,
+      });
+
+      if (executeResult.status === "error") {
+        common.logger.error({
+          service: "build",
+          msg: `Error while executing '${path.relative(
+            common.options.rootDir,
+            common.options.apiFile,
+          )}':`,
+          error: executeResult.error,
+        });
+
+        return executeResult;
+      }
+
+      const app = executeResult.exports.default;
+
+      return {
+        status: "success",
+        result: {
+          app,
+        },
       };
     },
     preCompile({ config }): Result<PreBuild> {
@@ -587,7 +551,7 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
 
-          const executeResult = await executeApi();
+          const executeResult = await this.executeApi();
           if (executeResult.status === "error") {
             onBuild({
               status: "error",
@@ -623,10 +587,10 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
 
-          const configResult = await executeConfig();
-          const schemaResult = await executeSchema();
-          const indexingResult = await executeIndexingFunctions();
-          const apiResult = await executeApi();
+          const configResult = await this.executeConfig();
+          const schemaResult = await this.executeSchema();
+          const indexingResult = await this.executeIndexingFunctions();
+          const apiResult = await this.executeApi();
 
           if (configResult.status === "error") {
             onBuild({

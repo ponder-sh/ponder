@@ -137,34 +137,45 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   let database: Database | undefined;
 
-  const executeResult = await build.execute();
+  const namespaceResult = build.initNamespace();
+  if (namespaceResult.status === "error") {
+    await shutdown({ reason: "Failed to initialize namespace", code: 1 });
+    return cleanup;
+  }
 
-  if (executeResult.configResult.status === "error") {
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
-  if (executeResult.schemaResult.status === "error") {
+
+  const schemaResult = await build.executeSchema();
+  if (schemaResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
-  if (executeResult.indexingResult.status === "error") {
+
+  const indexingResult = await build.executeIndexingFunctions();
+  if (indexingResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
-  if (executeResult.apiResult.status === "error") {
+
+  const apiResult = await build.executeApi();
+  if (apiResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
   const initialBuildResult = mergeResults([
-    build.preCompile(executeResult.configResult.result),
-    build.compileSchema(executeResult.schemaResult.result),
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
     await build.compileIndexing({
-      configResult: executeResult.configResult.result,
-      schemaResult: executeResult.schemaResult.result,
-      indexingResult: executeResult.indexingResult.result,
+      configResult: configResult.result,
+      schemaResult: schemaResult.result,
+      indexingResult: indexingResult.result,
     }),
-    await build.compileApi({ apiResult: executeResult.apiResult.result }),
+    await build.compileApi({ apiResult: apiResult.result }),
   ]);
 
   if (initialBuildResult.status === "error") {

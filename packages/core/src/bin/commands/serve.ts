@@ -50,27 +50,37 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   };
 
   const shutdown = setupShutdown({ common, cleanup });
+  const namespaceResult = build.initNamespace();
 
-  const executeResult = await build.execute();
+  if (namespaceResult.status === "error") {
+    await shutdown({ reason: "Failed to initialize namespace", code: 1 });
+    return cleanup;
+  }
+
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const schemaResult = await build.executeSchema();
+  if (schemaResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const apiResult = await build.executeApi();
+  if (apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
   await build.kill();
 
-  if (executeResult.configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.schemaResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.apiResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-
   const buildResult = mergeResults([
-    build.preCompile(executeResult.configResult.result),
-    build.compileSchema(executeResult.schemaResult.result),
-    await build.compileApi({ apiResult: executeResult.apiResult.result }),
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
+    await build.compileApi({ apiResult: apiResult.result }),
   ]);
 
   if (buildResult.status === "error") {
