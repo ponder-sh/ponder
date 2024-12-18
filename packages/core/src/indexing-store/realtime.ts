@@ -106,7 +106,7 @@ export const createRealtimeIndexingStore = ({
   };
 
   const find = (table: Table, key: object) => {
-    return database.drizzle
+    return database.qb.drizzle
       .select()
       .from(table)
       .where(getWhereCondition(table, key))
@@ -166,7 +166,7 @@ export const createRealtimeIndexingStore = ({
                     };
 
                     try {
-                      return await database.drizzle
+                      return await database.qb.drizzle
                         .insert(table)
                         .values(values)
                         .onConflictDoNothing()
@@ -189,7 +189,7 @@ export const createRealtimeIndexingStore = ({
 
                     if (typeof valuesU === "object") {
                       try {
-                        return await database.drizzle
+                        return await database.qb.drizzle
                           .insert(table)
                           .values(values)
                           .onConflictDoUpdate({
@@ -216,7 +216,7 @@ export const createRealtimeIndexingStore = ({
                         if (row === null) {
                           try {
                             rows.push(
-                              await database.drizzle
+                              await database.qb.drizzle
                                 .insert(table)
                                 .values(value)
                                 .returning()
@@ -228,7 +228,7 @@ export const createRealtimeIndexingStore = ({
                         } else {
                           try {
                             rows.push(
-                              await database.drizzle
+                              await database.qb.drizzle
                                 .update(table)
                                 .set(valuesU(row))
                                 .where(getWhereCondition(table, value))
@@ -246,7 +246,7 @@ export const createRealtimeIndexingStore = ({
 
                       if (row === null) {
                         try {
-                          return await database.drizzle
+                          return await database.qb.drizzle
                             .insert(table)
                             .values(values)
                             .returning()
@@ -256,7 +256,7 @@ export const createRealtimeIndexingStore = ({
                         }
                       } else {
                         try {
-                          return await database.drizzle
+                          return await database.qb.drizzle
                             .update(table)
                             .set(valuesU(row))
                             .where(getWhereCondition(table, values))
@@ -282,7 +282,7 @@ export const createRealtimeIndexingStore = ({
                       checkOnchainTable(table, "insert");
 
                       try {
-                        return await database.drizzle
+                        return await database.qb.drizzle
                           .insert(table)
                           .values(values)
                           .returning()
@@ -341,7 +341,7 @@ export const createRealtimeIndexingStore = ({
                   }
 
                   try {
-                    return await database.drizzle
+                    return await database.qb.drizzle
                       .update(table)
                       .set(values(row))
                       .where(getWhereCondition(table, key))
@@ -352,7 +352,7 @@ export const createRealtimeIndexingStore = ({
                   }
                 } else {
                   try {
-                    return await database.drizzle
+                    return await database.qb.drizzle
                       .update(table)
                       .set(values)
                       .where(getWhereCondition(table, key))
@@ -375,7 +375,7 @@ export const createRealtimeIndexingStore = ({
           async () => {
             checkOnchainTable(table, "delete");
 
-            const deleted = await database.drizzle
+            const deleted = await database.qb.drizzle
               .delete(table)
               .where(getWhereCondition(table, key))
               .returning();
@@ -395,7 +395,7 @@ export const createRealtimeIndexingStore = ({
             { method: "sql" },
             async () => {
               try {
-                return await database.drizzle._.session
+                return await database.qb.drizzle._.session
                   .prepareQuery(query, undefined, undefined, method === "all")
                   .execute();
               } catch (e) {

@@ -110,7 +110,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  database = createDatabase({
+  database = await createDatabase({
     common,
     preBuild,
     schemaBuild,

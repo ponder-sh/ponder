@@ -38,12 +38,12 @@ import {
 } from "kysely";
 import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
+import parse from "pg-connection-string";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database = {
   qb: QueryBuilder;
-  drizzle: Drizzle<Schema>;
   migrateSync(): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
@@ -106,8 +106,8 @@ type PGliteDriver = {
 type PostgresDriver = {
   internal: Pool;
   user: Pool;
-  readonly: Pool;
   sync: Pool;
+  readonly: Pool;
 };
 
 type QueryBuilder = {
@@ -115,13 +115,17 @@ type QueryBuilder = {
   internal: HeadlessKysely<PonderInternalSchema>;
   /** For indexing-store methods in user code */
   user: HeadlessKysely<any>;
-  /** Used in api functions */
-  readonly: HeadlessKysely<unknown>;
   /** Used to interact with the sync-store */
   sync: HeadlessKysely<PonderSyncSchema>;
+  /** Used in api functions */
+  readonly: HeadlessKysely<unknown>;
+  /** Used in client queries */
+  // client: HeadlessKysely<unknown>;
+  drizzle: Drizzle<Schema>;
+  drizzleClient: Drizzle<Schema>;
 };
 
-export const createDatabase = ({
+export const createDatabase = async ({
   common,
   preBuild,
   schemaBuild,
@@ -129,7 +133,7 @@ export const createDatabase = ({
   common: Common;
   preBuild: PreBuild;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   ////////
@@ -150,6 +154,11 @@ export const createDatabase = ({
     };
 
     const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
+
+    await driver.instance.query(
+      `CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`,
+    );
+    await driver.instance.query(`SET search_path TO ${preBuild.namespace}`);
 
     qb = {
       internal: new HeadlessKysely({
@@ -204,6 +213,14 @@ export const createDatabase = ({
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
+      drizzle: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      drizzleClient: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
     };
   } else {
     const internalMax = 2;
@@ -215,13 +232,49 @@ export const createDatabase = ({
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
+    const internal = createPool({
+      ...preBuild.databaseConfig.poolConfig,
+      application_name: `${preBuild.namespace}_internal`,
+      max: internalMax,
+      statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+    });
+
+    const connection = (parse as unknown as typeof parse.parse)(
+      preBuild.databaseConfig.poolConfig.connectionString!,
+    );
+
+    const role = `ponder_readonly_${connection.database}_${preBuild.namespace}`;
+
+    await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
+    const hasRole = await internal
+      .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
+      .then(({ rows }) => rows[0]);
+    if (hasRole) {
+      await internal.query(`DROP OWNED BY ${role}`);
+      await internal.query(`DROP ROLE IF EXISTS ${role}`);
+    }
+    await internal.query(
+      `CREATE ROLE ${role} WITH LOGIN PASSWORD '${connection.password}'`,
+    );
+    await internal.query(
+      `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
+    );
+    await internal.query(`REVOKE ALL ON SCHEMA public FROM ${role}`);
+    await internal.query(
+      `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM ${role}`,
+    );
+    await internal.query(
+      `GRANT USAGE ON SCHEMA ${preBuild.namespace} TO ${role}`,
+    );
+    await internal.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${preBuild.namespace} GRANT SELECT ON TABLES TO ${role}`,
+    );
+    await internal.query(
+      `ALTER ROLE ${role} SET search_path TO ${preBuild.namespace}`,
+    );
+
     driver = {
-      internal: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_internal`,
-        max: internalMax,
-        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-      }),
+      internal,
       user: createPool({
         ...preBuild.databaseConfig.poolConfig,
         application_name: `${preBuild.namespace}_user`,
@@ -229,8 +282,14 @@ export const createDatabase = ({
       }),
       readonly: createPool({
         ...preBuild.databaseConfig.poolConfig,
+        connectionString: undefined,
         application_name: `${preBuild.namespace}_readonly`,
         max: readonlyMax,
+        user: role,
+        password: connection.password,
+        host: connection.host ?? undefined,
+        port: Number(connection.port!),
+        database: connection.database ?? undefined,
       }),
       sync: createPool({
         ...preBuild.databaseConfig.poolConfig,
@@ -292,6 +351,14 @@ export const createDatabase = ({
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
+      drizzle: drizzleNodePg((driver as PostgresDriver).user, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      drizzleClient: drizzleNodePg((driver as PostgresDriver).readonly, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
     };
 
     // Register Postgres-only metrics
@@ -332,17 +399,6 @@ export const createDatabase = ({
       },
     });
   }
-
-  const drizzle =
-    dialect === "pglite" || dialect === "pglite_test"
-      ? drizzlePglite((driver as PGliteDriver).instance, {
-          casing: "snake_case",
-          schema: schemaBuild.schema,
-        })
-      : drizzleNodePg((driver as PostgresDriver).user, {
-          casing: "snake_case",
-          schema: schemaBuild.schema,
-        });
 
   ////////
   // Helpers
@@ -442,7 +498,6 @@ export const createDatabase = ({
 
   const database = {
     qb,
-    drizzle,
     async migrateSync() {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
@@ -637,11 +692,6 @@ export const createDatabase = ({
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        await qb.internal.schema
-          .createSchema(preBuild.namespace)
-          .ifNotExists()
-          .execute();
-
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
           .createTable("_ponder_meta")
