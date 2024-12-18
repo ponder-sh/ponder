@@ -217,7 +217,7 @@ export async function setupDatabaseServices(
   });
 
   const metadataStore = getMetadataStore({
-    db: database.qb.readonly,
+    db: database.qb.user,
   });
 
   const cleanup = () => database.kill();

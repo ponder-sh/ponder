@@ -742,10 +742,17 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema(schema);
 
-  // @ts-expect-error
-  const personFindManySpy = vi.spyOn(database.drizzle.query.person, "findMany");
-  // @ts-expect-error
-  const petFindManySpy = vi.spyOn(database.drizzle.query.pet, "findMany");
+  const personFindManySpy = vi.spyOn(
+    // @ts-expect-error
+    database.qb.drizzleClient.query.person,
+    "findMany",
+  );
+
+  const petFindManySpy = vi.spyOn(
+    // @ts-expect-error
+    database.qb.drizzleClient.query.pet,
+    "findMany",
+  );
 
   const result = await query(`
     query {
