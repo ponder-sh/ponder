@@ -82,3 +82,5 @@ export {
   except,
   exceptAll,
 } from "drizzle-orm/pg-core";
+
+export { setDrizzleSchema } from "./setDrizzleSchema.js";
