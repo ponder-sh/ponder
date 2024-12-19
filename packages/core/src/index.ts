@@ -32,7 +32,7 @@ export {
   bigint,
 } from "@/drizzle/onchain.js";
 
-export type { Drizzle } from "@/drizzle/index.js";
+export type { ReadonlyDrizzle } from "@/drizzle/index.js";
 
 export { client } from "@/client/index.js";
 

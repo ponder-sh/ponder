@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
+import type { ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
@@ -29,7 +29,7 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  *
  */
 export const graphql = (
-  { db, schema }: { db: Drizzle<Schema>; schema: Schema },
+  { db, schema }: { db: ReadonlyDrizzle<Schema>; schema: Schema },
   {
     maxOperationTokens = 1000,
     maxOperationDepth = 100,
