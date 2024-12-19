@@ -11,7 +11,7 @@ import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFuncti
 import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
-import { onchainTable } from "@/drizzle/index.js";
+import { onchainTable } from "@/drizzle/onchain.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";

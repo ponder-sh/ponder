@@ -9,8 +9,8 @@ import {
   type Schema,
   getPrimaryKeyColumns,
   getTableNames,
-  onchain,
 } from "@/drizzle/index.js";
+import { onchain } from "@/drizzle/onchain.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type QueryWithTypings,

@@ -1,47 +1,24 @@
+import { desc } from "@ponder/client";
 import { useQuery } from "@tanstack/react-query";
-import { GraphQLClient, gql } from "graphql-request";
+import { client, schema } from "./index";
 
-const client = new GraphQLClient("http://localhost:42069");
-
-export type Deposit = {
-  id: string;
-  account: string;
-  timestamp: number;
-  amount: bigint;
-};
+export type Deposit = NonNullable<
+  ReturnType<typeof useDeposits>["data"]
+>[number];
 
 export const useDeposits = () => {
-  return useQuery<Deposit[]>({
+  return useQuery({
     queryKey: ["weth deposits"],
-    queryFn: async () => {
-      const r = (await client.request(gql`
-        {
-          depositEvents(
-            orderDirection: "desc"
-            orderBy: "timestamp"
-            first: 10
-          ) {
-            id
-            timestamp
-            account
-            amount
-          }
-        }
-      `)) as {
-        depositEvents: {
-          id: string;
-          timestamp: number;
-          account: string;
-          amount: number;
-        }[];
-      };
-      return r.depositEvents.map((d) => ({
-        id: d.id,
-        timestamp: d.timestamp,
-        account: d.account,
-        amount: BigInt(d.amount),
-      }));
-    },
+    queryFn: async () =>
+      client.db
+        .select({
+          timestamp: schema.depositEvent.timestamp,
+          account: schema.depositEvent.account,
+          amount: schema.depositEvent.amount,
+        })
+        .from(schema.depositEvent)
+        .orderBy(desc(schema.depositEvent.timestamp))
+        .limit(10),
     staleTime: Number.POSITIVE_INFINITY,
     refetchInterval: 1_000,
   });

@@ -13,10 +13,10 @@ export default function Home() {
     <main
       className={`flex min-h-screen flex-col items-center justify-between pt-24 ${inter.className}`}
     >
-      <div className="w-full max-w-2xl flex flex-col p-4 gap-6">
-        <h1 className="font-bold text-2xl">10 latest WETH mints</h1>
+      <div className="flex flex-col gap-6 p-4 w-full max-w-2xl">
+        <h1 className="text-2xl font-bold">10 latest WETH mints</h1>
 
-        <div className="w-full flex gap-1 flex-col justify-between items-center">
+        <div className="flex flex-col gap-1 justify-between items-center w-full">
           {deposits.status === "pending" ? (
             <p className="font-semibold">Loading...</p>
           ) : deposits.status === "error" ? (
@@ -33,18 +33,18 @@ export default function Home() {
 function Table({ deposits }: { deposits: Deposit[] }) {
   return (
     <ul className="w-full">
-      <li className="w-full grid grid-cols-2 font-semibold text-lg sm:grid-cols-3">
+      <li className="grid grid-cols-2 w-full text-lg font-semibold sm:grid-cols-3">
         <p>Account</p>
         <p>Amount</p>
         <p className="hidden sm:flex">Timestamp</p>
       </li>
-      {deposits.map(({ id, account, timestamp, amount }) => (
+      {deposits.map(({ account, timestamp, amount }) => (
         <li
-          className="w-full grid grid-cols-2 sm:grid-cols-3 font-semibold text-lg py-2"
-          key={id}
+          className="grid grid-cols-2 py-2 w-full text-lg font-semibold sm:grid-cols-3"
+          key={`${account}-${timestamp}`}
         >
           <a
-            className="text-blue-500 text-sm font-semibold underline"
+            className="text-sm font-semibold text-blue-500 underline"
             href={`https://etherscan.io/address/${account}`}
           >
             {account.slice(0, 6)}...{account.slice(38)}
@@ -58,7 +58,7 @@ function Table({ deposits }: { deposits: Deposit[] }) {
             separator={","}
             className="text-sm font-semibold"
           />
-          <p className="text-sm hidden sm:flex">
+          <p className="hidden text-sm sm:flex">
             {new Date(timestamp * 1000).toLocaleString()}
           </p>
         </li>

@@ -4,7 +4,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import type { Database } from "@/database/index.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/index.js";
+import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";

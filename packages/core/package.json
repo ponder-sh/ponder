@@ -27,6 +27,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./schema": {
+      "types": "./dist/drizzle/onchain.d.ts",
+      "import": "./dist/drizzle/onchain.js"
+    },
     "./virtual": {
       "types": "./src/types.d.ts"
     }
@@ -96,7 +100,8 @@
     "vitest": "^1.0.2"
   },
   "imports": {
-    "@ponder/common": "../common/index.ts"
+    "@ponder/common": "../common/index.ts",
+    "@ponder/client": "../client/index.ts"
   },
   "engines": {
     "node": ">=18.14"

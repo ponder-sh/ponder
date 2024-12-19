@@ -1,4 +1,4 @@
-import { onchainTable } from "ponder";
+import { onchainTable } from "ponder/schema";
 
 export const depositEvent = onchainTable("deposit_event", (t) => ({
   id: t.text().primaryKey(),

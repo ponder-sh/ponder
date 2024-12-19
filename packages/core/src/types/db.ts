@@ -1,5 +1,6 @@
-import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/index.js";
-import type { Drizzle, Schema, onchain } from "@/drizzle/index.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
+import { onchain } from "@/drizzle/onchain.js";
+import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/onchain.js";
 import type {
   Column,
   GetColumnData,
