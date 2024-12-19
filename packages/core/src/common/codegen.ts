@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Common } from "@/common/common.js";
 
@@ -29,12 +29,5 @@ export function runCodegen({ common }: { common: Common }) {
   common.logger.debug({
     service: "codegen",
     msg: "Wrote new file at ponder-env.d.ts",
-  });
-
-  mkdirSync(common.options.generatedDir, { recursive: true });
-
-  common.logger.debug({
-    service: "codegen",
-    msg: "Wrote new file at generated/schema.graphql",
   });
 }

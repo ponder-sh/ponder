@@ -44,7 +44,6 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   runCodegen({ common });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
-  logger.info({ service: "codegen", msg: "Wrote schema.graphql" });
 
   await shutdown({ reason: "Success", code: 0 });
 }

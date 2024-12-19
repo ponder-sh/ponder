@@ -1,8 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
+import { printSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
@@ -44,6 +47,18 @@ export const graphql = (
   },
 ) => {
   const graphqlSchema = buildGraphQLSchema(schema);
+
+  fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
+  fs.writeFileSync(
+    path.join(process.cwd(), "generated", "schema.graphql"),
+    printSchema(graphqlSchema),
+    "utf-8",
+  );
+
+  // common.logger.debug({
+  //   service: "codegen",
+  //   msg: "Wrote new file at generated/schema.graphql",
+  // });
 
   const yoga = createYoga({
     schema: graphqlSchema,

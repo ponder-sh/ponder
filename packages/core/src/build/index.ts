@@ -462,6 +462,7 @@ export const createBuild = async ({
       for (const route of apiResult.app.routes) {
         if (typeof route.path === "string") {
           if (
+            route.path === "/ready" ||
             route.path === "/status" ||
             route.path === "/metrics" ||
             route.path === "/health"
