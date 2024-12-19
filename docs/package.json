@@ -3,9 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && $npm_execpath generate-all-md",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate-all-md": "mkdir -p public/docs && find pages/docs -name '*.mdx' -print0 | xargs -0 -I{} sh -c 'cat \"{}\"; echo \"\"' > public/docs/all.mdx"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.0.2",
