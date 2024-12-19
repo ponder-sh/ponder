@@ -151,15 +151,13 @@ export const _eth_getTransactionReceipt = (
  */
 export const _eth_getBlockReceipts = (
   requestQueue: RequestQueue,
-  { blockNumber }: { blockNumber: Hex | number },
+  { blockHash }: { blockHash: Hash },
 ): Promise<SyncTransactionReceipt[]> =>
   requestQueue
     .request({
       method: "eth_getBlockReceipts",
       params: [
-        typeof blockNumber === "number"
-          ? numberToHex(blockNumber)
-          : blockNumber,
+        blockHash
       ],
     } as any)
     .then((receipts) => receipts as unknown as SyncTransactionReceipt[]);

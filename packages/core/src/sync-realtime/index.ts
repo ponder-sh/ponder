@@ -30,7 +30,6 @@ import {
   _eth_getBlockByNumber,
   _eth_getBlockReceipts,
   _eth_getLogs,
-  _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
@@ -781,9 +780,9 @@ export const createRealtimeSync = (
     ////////
 
     const blockReceipts = await _eth_getBlockReceipts(args.requestQueue, {
-      blockNumber: block.number,
+      blockHash: block.hash,
     });
-    
+
     // Validate that block transaction receipts include all required transactions
     const blockReceiptsTransactionHashes = new Set(
       blockReceipts.map((r) => r.transactionHash),
