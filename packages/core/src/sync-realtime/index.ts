@@ -28,8 +28,8 @@ import {
   _debug_traceBlockByHash,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
+  _eth_getBlockReceipts,
   _eth_getLogs,
-  _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
@@ -769,7 +769,7 @@ export const createRealtimeSync = (
     for (const hash of Array.from(requiredTransactions)) {
       if (blockTransactionsHashes.has(hash) === false) {
         throw new Error(
-          `Detected inconsistent RPC responses. Transaction with hash ${hash} is missing in \`block.transactions\`.`,
+          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${block.hash}'.`,
         );
       }
     }
@@ -778,12 +778,23 @@ export const createRealtimeSync = (
     // Transaction Receipts
     ////////
 
-    const transactionReceipts = await Promise.all(
-      block.transactions
-        .filter(({ hash }) => requiredTransactionReceipts.has(hash))
-        .map(({ hash }) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
-        ),
+    const blockReceipts = await _eth_getBlockReceipts(args.requestQueue, {
+      blockHash: block.hash,
+    });
+
+    // Validate that block transaction receipts include all required transactions
+    const blockReceiptsTransactionHashes = new Set(
+      blockReceipts.map((r) => r.transactionHash),
+    );
+    for (const hash of Array.from(requiredTransactions)) {
+      if (blockReceiptsTransactionHashes.has(hash) === false) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Transaction receipt with transactionHash ${hash} is missing in \`blockReceipts\`.`,
+        );
+      }
+    }
+    const transactionReceipts = blockReceipts.filter((receipt) =>
+      requiredTransactionReceipts.has(receipt.transactionHash),
     );
 
     return {
