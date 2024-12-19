@@ -44,7 +44,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  build.initNamespace();
+  build.initNamespace({ isSchemaRequired: false });
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {

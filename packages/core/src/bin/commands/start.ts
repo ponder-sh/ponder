@@ -46,7 +46,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   let cleanupReloadable = () => Promise.resolve();
   let cleanupReloadableServer = () => Promise.resolve();
 
-  // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
   const cleanup = async () => {
@@ -60,7 +59,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const namespaceResult = build.initNamespace();
+  const namespaceResult = build.initNamespace({ isSchemaRequired: true });
   if (namespaceResult.status === "error") {
     await shutdown({ reason: "Failed to initialize namespace", code: 1 });
     return cleanup;
@@ -78,23 +77,37 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
+  const buildResult1 = mergeResults([
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
+  ]);
+
+  if (buildResult1.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const [preBuild, schemaBuild] = buildResult1.result;
+
+  database = createDatabase({
+    common,
+    preBuild,
+    schemaBuild,
+  });
+
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const apiResult = await build.executeApi();
+  const apiResult = await build.executeApi({ database });
   if (apiResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  await build.kill();
-
-  const buildResult = mergeResults([
-    build.preCompile(configResult.result),
-    build.compileSchema(schemaResult.result),
+  const buildResult2 = mergeResults([
     await build.compileIndexing({
       configResult: configResult.result,
       schemaResult: schemaResult.result,
@@ -103,12 +116,14 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     await build.compileApi({ apiResult: apiResult.result }),
   ]);
 
-  if (buildResult.status === "error") {
+  if (buildResult2.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const [preBuild, schemaBuild, indexingBuild, apiBuild] = buildResult.result;
+  const [indexingBuild, apiBuild] = buildResult2.result;
+
+  await build.kill();
 
   telemetry.record({
     name: "lifecycle:session_start",

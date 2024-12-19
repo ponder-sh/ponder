@@ -50,7 +50,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   };
 
   const shutdown = setupShutdown({ common, cleanup });
-  const namespaceResult = build.initNamespace();
+  const namespaceResult = build.initNamespace({ isSchemaRequired: true });
 
   if (namespaceResult.status === "error") {
     await shutdown({ reason: "Failed to initialize namespace", code: 1 });
@@ -69,37 +69,17 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const apiResult = await build.executeApi();
-  if (apiResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-
-  await build.kill();
-
-  const buildResult = mergeResults([
+  const buildResult1 = mergeResults([
     build.preCompile(configResult.result),
     build.compileSchema(schemaResult.result),
-    await build.compileApi({ apiResult: apiResult.result }),
   ]);
 
-  if (buildResult.status === "error") {
+  if (buildResult1.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const [preBuild, schemaBuild, apiBuild] = buildResult.result;
-
-  telemetry.record({
-    name: "lifecycle:session_start",
-    properties: {
-      cli_command: "serve",
-      ...buildPayload({
-        preBuild,
-        schemaBuild,
-      }),
-    },
-  });
+  const [preBuild, schemaBuild] = buildResult1.result;
 
   if (preBuild.databaseConfig.kind === "pglite") {
     await shutdown({
@@ -113,6 +93,34 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     preBuild,
     schemaBuild,
+  });
+
+  const apiResult = await build.executeApi({ database });
+  if (apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  await build.kill();
+
+  const buildResult2 = await build.compileApi({ apiResult: apiResult.result });
+
+  if (buildResult2.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const apiBuild = buildResult2.result;
+
+  telemetry.record({
+    name: "lifecycle:session_start",
+    properties: {
+      cli_command: "serve",
+      ...buildPayload({
+        preBuild,
+        schemaBuild,
+      }),
+    },
   });
 
   const server = await createServer({

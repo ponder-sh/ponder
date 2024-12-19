@@ -6,11 +6,12 @@ import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
 import type { Network } from "@/config/networks.js";
-import type { Schema } from "@/drizzle/index.js";
+import type { Database } from "@/database/index.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { SqlStatements } from "@/drizzle/kit/index.js";
 import type { Source } from "@/sync/source.js";
 import { getNextAvailablePort } from "@/utils/port.js";
-import { type Result, mergeResults } from "@/utils/result.js";
+import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
 import type { Hono } from "hono";
@@ -29,6 +30,11 @@ import { vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";
 import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
+
+declare global {
+  var PONDER_DATABASE_SCHEMA: string | undefined;
+  var PONDER_READONLY_DB: Drizzle<Schema>;
+}
 
 const BUILD_ID_VERSION = "1";
 
@@ -55,15 +61,6 @@ export type ApiBuild = {
   app: Hono;
 };
 
-export type BuildResultDev =
-  | (Result<{
-      preBuild: PreBuild;
-      schemaBuild: SchemaBuild;
-      indexingBuild: IndexingBuild;
-      apiBuild: ApiBuild;
-    }> & { kind: "indexing" })
-  | (Result<ApiBuild> & { kind: "api" });
-
 type ConfigResult = Result<{ config: Config; contentHash: string }>;
 type SchemaResult = Result<{ schema: Schema; contentHash: string }>;
 type IndexingResult = Result<{
@@ -73,11 +70,11 @@ type IndexingResult = Result<{
 type ApiResult = Result<{ app: Hono }>;
 
 export type Build = {
-  initNamespace: () => Result<undefined>;
+  initNamespace: (params: { isSchemaRequired: boolean }) => Result<undefined>;
   executeConfig: () => Promise<ConfigResult>;
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
-  executeApi: () => Promise<ApiResult>;
+  executeApi: (params: { database: Database }) => Promise<ApiResult>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexing: (params: {
@@ -89,7 +86,7 @@ export type Build = {
     apiResult: Extract<ApiResult, { status: "success" }>["result"];
   }) => Promise<Result<ApiBuild>>;
   startDev: (params: {
-    onBuild: (buildResult: BuildResultDev) => void;
+    onReload: (kind: "indexing" | "api") => void;
   }) => void;
   kill: () => Promise<void>;
 };
@@ -99,6 +96,8 @@ export const createBuild = async ({
 }: {
   common: Common;
 }): Promise<Build> => {
+  let namespace: string | undefined;
+
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
 
   const escapedIndexingDir = common.options.indexingDir
@@ -175,14 +174,12 @@ export const createBuild = async ({
     }
   };
 
-  let namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
-
   const build = {
-    initNamespace: () => {
-      if (namespace === undefined) {
+    initNamespace: ({ isSchemaRequired }) => {
+      if (isSchemaRequired) {
         if (
-          common.options.command === "start" ||
-          common.options.command === "serve"
+          common.options.schema === undefined &&
+          process.env.DATABASE_SCHEMA === undefined
         ) {
           const error = new BuildError(
             "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/getting-started/database#database-schema",
@@ -194,12 +191,15 @@ export const createBuild = async ({
             error,
           });
           return { status: "error", error } as const;
-        } else {
-          namespace = "public";
         }
+
+        namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
+      } else {
+        namespace =
+          common.options.schema ?? process.env.DATABASE_SCHEMA ?? "public";
       }
 
-      process.env.PONDER_DATABASE_SCHEMA = namespace;
+      global.PONDER_DATABASE_SCHEMA = namespace;
 
       return { status: "success", result: undefined } as const;
     },
@@ -312,7 +312,9 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi(): Promise<ApiResult> {
+    async executeApi({ database }): Promise<ApiResult> {
+      global.PONDER_READONLY_DB = database.drizzle;
+
       // TODO(kyle) This assumes the api file exists.
 
       const executeResult = await executeFile({
@@ -465,7 +467,7 @@ export const createBuild = async ({
         },
       };
     },
-    async startDev({ onBuild }) {
+    async startDev({ onReload }) {
       // Define the directories and files to ignore
       const ignoredDirs = [
         common.options.generatedDir,
@@ -549,27 +551,11 @@ export const createBuild = async ({
           viteNodeRunner.moduleCache.invalidateDepTree([
             common.options.apiFile,
           ]);
-          viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
 
-          const executeResult = await this.executeApi();
-          if (executeResult.status === "error") {
-            onBuild({
-              status: "error",
-              kind: "api",
-              error: executeResult.error,
-            });
-            return;
-          }
-
-          const compileResult = await this.compileApi({
-            apiResult: executeResult.result,
-          });
-
-          onBuild({
-            ...compileResult,
-            kind: "api",
-          });
+          onReload("api");
         } else {
+          // Instead, just invalidate the files that have changed and ...
+
           // re-execute all files
           viteNodeRunner.moduleCache.invalidateDepTree([
             common.options.configFile,
@@ -586,75 +572,9 @@ export const createBuild = async ({
             common.options.apiFile,
           ]);
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
+          viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
 
-          const configResult = await this.executeConfig();
-          const schemaResult = await this.executeSchema();
-          const indexingResult = await this.executeIndexingFunctions();
-          const apiResult = await this.executeApi();
-
-          if (configResult.status === "error") {
-            onBuild({
-              status: "error",
-              kind: "indexing",
-              error: configResult.error,
-            });
-            return;
-          }
-          if (schemaResult.status === "error") {
-            onBuild({
-              status: "error",
-              kind: "indexing",
-              error: schemaResult.error,
-            });
-            return;
-          }
-          if (indexingResult.status === "error") {
-            onBuild({
-              status: "error",
-              kind: "indexing",
-              error: indexingResult.error,
-            });
-            return;
-          }
-          if (apiResult.status === "error") {
-            onBuild({
-              status: "error",
-              kind: "indexing",
-              error: apiResult.error,
-            });
-            return;
-          }
-
-          const compileResult = mergeResults([
-            build.preCompile(configResult.result),
-            build.compileSchema(schemaResult.result),
-            await build.compileIndexing({
-              configResult: configResult.result,
-              schemaResult: schemaResult.result,
-              indexingResult: indexingResult.result,
-            }),
-            await build.compileApi({ apiResult: apiResult.result }),
-          ]);
-
-          if (compileResult.status === "error") {
-            onBuild({
-              status: "error",
-              kind: "indexing",
-              error: compileResult.error,
-            });
-            return;
-          }
-
-          onBuild({
-            status: "success",
-            kind: "indexing",
-            result: {
-              preBuild: compileResult.result[0],
-              schemaBuild: compileResult.result[1],
-              indexingBuild: compileResult.result[2],
-              apiBuild: compileResult.result[3],
-            },
-          });
+          onReload("indexing");
         }
       };
 
