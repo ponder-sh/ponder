@@ -770,7 +770,7 @@ export const createRealtimeSync = (
     for (const hash of Array.from(requiredTransactions)) {
       if (blockTransactionsHashes.has(hash) === false) {
         throw new Error(
-          `Detected inconsistent RPC responses. Transaction with hash ${hash} is missing in \`block.transactions\`.`,
+          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${block.hash}'.`,
         );
       }
     }

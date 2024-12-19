@@ -410,41 +410,33 @@ export const createHistoricalSync = async (
     if (isKilled) return;
 
     if (shouldGetTransactionReceipt(filter)) {
-      const requiredBlockReceipts = new Set(blocks.map((b) => b.hash));
-      // Request transactionReceipts to check for reverted transactions.
       const blockReceipts = await Promise.all(
-        Array.from(requiredBlockReceipts).map((blockHash) =>
-          syncBlockReceipts(blockHash).then((receipts) => ({
-            blockHash,
-            receipts,
-          })),
-        ),
-      );
+        blocks.map(({ hash }) => syncBlockReceipts(hash)),
+      ).then((receipts) => receipts.flat());
 
       if (isKilled) return;
 
+      const transactionReceipts = new Set<SyncTransactionReceipt>();
+
+      // Validate that block transaction receipts include all required transactions
       for (const log of logs) {
-        const { blockHash, receipts } = blockReceipts.find(
-          ({ blockHash }) => blockHash === log.blockHash,
-        )!;
-        if (
-          receipts.find((r) => r.transactionHash === log.transactionHash) ===
-          undefined
-        ) {
+        const receipt = blockReceipts.find(
+          ({ transactionHash }) => transactionHash === log.transactionHash,
+        );
+
+        if (receipt === undefined) {
           throw new Error(
-            `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'blockReceipts' ${blockHash}`,
+            `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in eth_getBlockReceipts response for block '${log.blockHash}'`,
           );
+        } else {
+          transactionReceipts.add(receipt);
         }
       }
-
-      const transactionReceipts = blockReceipts
-        .flatMap(({ receipts }) => receipts)
-        .filter((r) => transactionHashes.has(r.transactionHash));
 
       if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
-        transactionReceipts,
+        transactionReceipts: Array.from(transactionReceipts),
         chainId: args.network.chainId,
       });
     }
@@ -517,37 +509,35 @@ export const createHistoricalSync = async (
 
     const blockReceipts = await Promise.all(
       Array.from(requiredBlockReceipts).map((blockHash) =>
-        syncBlockReceipts(blockHash).then((receipts) => ({
-          blockHash,
-          receipts,
-        })),
+        syncBlockReceipts(blockHash),
       ),
-    );
+    ).then((receipts) => receipts.flat());
+
+    const transactionReceipts = new Set<SyncTransactionReceipt>();
 
     // Validate that block transaction receipts include all required transactions
-    for (const hash of Array.from(transactionHashes)) {
-      const block = blocks.find(
-        (b) => b.transactions.find((t) => t.hash === hash) !== undefined,
-      )!;
-      const { receipts } = blockReceipts.find(
-        ({ blockHash }) => blockHash === block.hash,
-      )!;
+    for (const hash of transactionHashes) {
+      const receipt = blockReceipts.find(
+        ({ transactionHash }) => transactionHash === hash,
+      );
 
-      if (receipts.find((r) => r.transactionHash === hash) === undefined) {
+      if (receipt === undefined) {
+        const transaction = blocks
+          .flatMap((block) => block.transactions)
+          .find((transaction) => transaction.hash === hash)!;
+
         throw new Error(
-          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in 'blockReceipts' ${block.number}`,
+          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${transaction.blockHash}'`,
         );
+      } else {
+        transactionReceipts.add(receipt);
       }
     }
-
-    const transactionReceipts = blockReceipts
-      .flatMap(({ receipts }) => receipts)
-      .filter((r) => transactionHashes.has(r.transactionHash));
 
     if (isKilled) return;
 
     await args.syncStore.insertTransactionReceipts({
-      transactionReceipts,
+      transactionReceipts: Array.from(transactionReceipts),
       chainId: args.network.chainId,
     });
   };
@@ -563,8 +553,6 @@ export const createHistoricalSync = async (
     const toChildAddresses = isAddressFactory(filter.toAddress)
       ? await syncAddressFactory(filter.toAddress, interval)
       : undefined;
-
-    const requiredBlockReceipts: Set<Hash> = new Set();
 
     const traces = await Promise.all(
       intervalRange(interval).map(async (number) => {
@@ -600,7 +588,6 @@ export const createHistoricalSync = async (
         if (traces.length === 0) return [];
 
         const block = await syncBlock(number);
-        requiredBlockReceipts.add(block.hash);
 
         return traces.map((trace) => {
           const transaction = block.transactions.find(
@@ -622,10 +609,6 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    const transactionHashes = new Set(
-      traces.map(({ transaction }) => transaction.hash),
-    );
-
     await args.syncStore.insertTraces({
       traces,
       chainId: args.network.chainId,
@@ -635,37 +618,30 @@ export const createHistoricalSync = async (
 
     if (shouldGetTransactionReceipt(filter)) {
       const blockReceipts = await Promise.all(
-        Array.from(requiredBlockReceipts).map((blockHash) =>
-          syncBlockReceipts(blockHash).then((receipts) => ({
-            blockHash,
-            receipts,
-          })),
-        ),
-      );
+        traces.map(({ block }) => syncBlockReceipts(block.hash)),
+      ).then((receipts) => receipts.flat());
 
-      // Validate that all filetered traces point to receipt blockReceipts
+      const transactionReceipts = new Set<SyncTransactionReceipt>();
+
+      // Validate that all filtered traces point to receipt blockReceipts
       for (const { trace, block } of traces) {
-        const { blockHash, receipts } = blockReceipts.find(
-          ({ blockHash }) => blockHash === block.hash,
-        )!;
-        if (
-          receipts.find((r) => r.transactionHash === trace.transactionHash) ===
-          undefined
-        ) {
+        const receipt = blockReceipts.find(
+          ({ transactionHash }) => transactionHash === trace.transactionHash,
+        );
+
+        if (receipt === undefined) {
           throw new Error(
-            `Detected inconsistent RPC responses. 'trace.transactionHash' ${trace.transactionHash} not found in 'blockReceipts' ${blockHash}`,
+            `Detected inconsistent RPC responses. 'trace.transactionHash' ${trace.transactionHash} not found in eth_getBlockReceipts response for block '${block.hash}'`,
           );
+        } else {
+          transactionReceipts.add(receipt);
         }
       }
-
-      const transactionReceipts = blockReceipts
-        .flatMap(({ receipts }) => receipts)
-        .filter((r) => transactionHashes.has(r.transactionHash));
 
       if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
-        transactionReceipts,
+        transactionReceipts: Array.from(transactionReceipts),
         chainId: args.network.chainId,
       });
     }
