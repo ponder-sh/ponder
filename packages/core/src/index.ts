@@ -30,9 +30,11 @@ export {
   primaryKey,
   hex,
   bigint,
+  type Drizzle,
 } from "@/drizzle/index.js";
 
 export { graphql } from "@/graphql/middleware.js";
+export { printGraphqlSchema } from "@/graphql/print.js";
 
 export {
   sql,

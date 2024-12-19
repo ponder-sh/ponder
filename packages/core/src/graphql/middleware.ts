@@ -1,10 +1,11 @@
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
-import { type YogaServerInstance, createYoga } from "graphql-yoga";
+import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { buildDataLoaderCache } from "./index.js";
+import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**
  * Middleware for GraphQL with an interactive web view.
@@ -19,6 +20,7 @@ import { buildDataLoaderCache } from "./index.js";
  *
  */
 export const graphql = (
+  { db, schema }: { db: Drizzle<Schema>; schema: Schema },
   {
     maxOperationTokens = 1000,
     maxOperationDepth = 100,
@@ -35,35 +37,30 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
-  let yoga: YogaServerInstance<any, any> | undefined = undefined;
+  const graphqlSchema = buildGraphQLSchema(schema);
+
+  const yoga = createYoga({
+    schema: graphqlSchema,
+    context: () => {
+      const getDataLoader = buildDataLoaderCache({ drizzle: db });
+      return { drizzle: db, getDataLoader };
+    },
+    // TODO(kyle) do we need this property?
+    // graphqlEndpoint: c.req.path,
+    maskedErrors: process.env.NODE_ENV === "production",
+    logging: false,
+    graphiql: false,
+    parserAndValidationCache: false,
+    plugins: [
+      maxTokensPlugin({ n: maxOperationTokens }),
+      maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
+      maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
+    ],
+  });
 
   return createMiddleware(async (c) => {
     if (c.req.method === "GET") {
       return c.html(graphiQLHtml(c.req.path));
-    }
-
-    if (yoga === undefined) {
-      const metadataStore = c.get("metadataStore");
-      const graphqlSchema = c.get("graphqlSchema");
-      const drizzle = c.get("db");
-
-      yoga = createYoga({
-        schema: graphqlSchema,
-        context: () => {
-          const getDataLoader = buildDataLoaderCache({ drizzle });
-          return { drizzle, metadataStore, getDataLoader };
-        },
-        graphqlEndpoint: c.req.path,
-        maskedErrors: process.env.NODE_ENV === "production",
-        logging: false,
-        graphiql: false,
-        parserAndValidationCache: false,
-        plugins: [
-          maxTokensPlugin({ n: maxOperationTokens }),
-          maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
-          maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
-        ],
-      });
     }
 
     const response = await yoga.handle(c.req.raw);

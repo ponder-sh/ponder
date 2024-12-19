@@ -1,4 +1,4 @@
-import type { ApiBuild, SchemaBuild } from "@/build/index.js";
+import type { ApiBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import { createServer } from "@/server/index.js";
@@ -8,7 +8,6 @@ import { createServer } from "@/server/index.js";
  */
 export async function runServer(params: {
   common: Common;
-  schemaBuild: SchemaBuild;
   apiBuild: ApiBuild;
   database: Database;
 }) {
