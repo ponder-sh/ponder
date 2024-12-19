@@ -10,6 +10,8 @@ export type Network = {
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
   disableCache: boolean;
+  maxBlockRange: number;
+  minBlockRange: number;
 };
 
 /**

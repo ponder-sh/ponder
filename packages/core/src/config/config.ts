@@ -109,6 +109,10 @@ type NetworkConfig<network> = {
   maxRequestsPerSecond?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
+  /** Maximum number of blocks to process in a single request. Default: `100_000`. */
+  maxBlockRange?: number;
+  /** Minimum number of blocks to process in a single request. Default: `25`. */
+  minBlockRange?: number;
 };
 
 type NetworksConfig<networks> = {} extends networks

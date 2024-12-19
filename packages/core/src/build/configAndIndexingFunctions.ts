@@ -103,7 +103,7 @@ export async function buildConfigAndIndexingFunctions({
         network.pollingInterval! < 100
       ) {
         throw new Error(
-          `Invalid 'pollingInterval' for network '${networkName}. Expected 100 milliseconds or greater, got ${network.pollingInterval} milliseconds.`,
+          `Invalid 'pollingInterval' for network '${networkName}'. Expected 100 milliseconds or greater, got ${network.pollingInterval} milliseconds.`,
         );
       }
 
@@ -114,6 +114,8 @@ export async function buildConfigAndIndexingFunctions({
         transport: network.transport({ chain }),
         maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
         pollingInterval: network.pollingInterval ?? 1_000,
+        maxBlockRange: network.maxBlockRange ?? 100_000,
+        minBlockRange: network.minBlockRange ?? 25,
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         disableCache: network.disableCache ?? false,
       } satisfies Network;
