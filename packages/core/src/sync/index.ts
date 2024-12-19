@@ -1205,14 +1205,14 @@ export async function* localHistoricalSyncGenerator({
       );
 
       // Use the duration and interval of the last call to `sync` to update estimate
-      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
+      // minBlockRange <= estimate(new) <= estimate(prev) * 2 <= maxBlockRange
       estimateRange = Math.min(
         Math.max(
-          25,
+          network.minBlockRange,
           Math.round((1_000 * (interval[1] - interval[0])) / duration),
         ),
         estimateRange * 2,
-        100_000,
+        network.maxBlockRange,
       );
     }
 
