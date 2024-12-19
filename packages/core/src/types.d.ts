@@ -25,8 +25,8 @@ declare module "ponder:schema" {
 }
 
 declare module "ponder:api" {
-  import type { Drizzle } from "ponder";
+  import type { ReadonlyDrizzle } from "ponder";
   type schema = typeof import("ponder:internal").schema;
 
-  export const db: Drizzle<schema>;
+  export const db: ReadonlyDrizzle<schema>;
 }

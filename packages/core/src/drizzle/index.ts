@@ -57,6 +57,18 @@ export type Drizzle<TSchema extends Schema = { [name: string]: never }> =
   | NodePgDatabase<TSchema>
   | PgliteDatabase<TSchema>;
 
+export type ReadonlyDrizzle<
+  TSchema extends Schema = { [name: string]: never },
+> = Omit<
+  Drizzle<TSchema>,
+  | "insert"
+  | "update"
+  | "delete"
+  | "transaction"
+  | "refreshMaterializedView"
+  | "_"
+>;
+
 export type Schema = { [name: string]: unknown };
 
 export const sqlToReorgTableName = (tableName: string) =>
