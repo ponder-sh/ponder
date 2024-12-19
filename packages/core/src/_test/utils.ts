@@ -226,17 +226,3 @@ export async function waitForIndexedBlock(
     }, 20);
   });
 }
-
-export async function postGraphql(port: number, query: string) {
-  const response = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: `query { ${query} }` }),
-  });
-  return response;
-}
-
-export async function getMetrics(port: number) {
-  const response = await fetch(`http://localhost:${port}/metrics`);
-  return await response.text();
-}
