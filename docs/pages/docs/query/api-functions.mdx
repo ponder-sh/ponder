@@ -31,8 +31,6 @@ API functions are available starting from version `0.5.0`. Read the [migration g
 To enable API functions, create a file named `src/api/index.ts` with the following code. You can register API functions in any `.ts` file in the `src/api/` directory.
 
 ```ts filename="src/api/index.ts"
-import { db } from "ponder:api";
-import schema from "ponder:schema";
 import { Hono } from "hono";
 
 const app = new Hono();
