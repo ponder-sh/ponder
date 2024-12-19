@@ -156,9 +156,7 @@ export const _eth_getBlockReceipts = (
   requestQueue
     .request({
       method: "eth_getBlockReceipts",
-      params: [
-        blockHash
-      ],
+      params: [blockHash],
     } as any)
     .then((receipts) => receipts as unknown as SyncTransactionReceipt[]);
 
