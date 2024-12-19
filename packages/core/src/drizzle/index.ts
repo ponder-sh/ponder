@@ -57,6 +57,18 @@ export type Drizzle<TSchema extends Schema = { [name: string]: never }> =
   | NodePgDatabase<TSchema>
   | PgliteDatabase<TSchema>;
 
+export type ReadonlyDrizzle<
+  TSchema extends Schema = { [name: string]: never },
+> = Omit<
+  Drizzle<TSchema>,
+  | "insert"
+  | "update"
+  | "delete"
+  | "transaction"
+  | "refreshMaterializedView"
+  | "_"
+>;
+
 export type Schema = { [name: string]: unknown };
 
 export const sqlToReorgTableName = (tableName: string) =>
@@ -216,7 +228,7 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  const schema = process.env.PONDER_DATABASE_SCHEMA;
+  const schema = global.PONDER_DATABASE_SCHEMA;
   const table = pgTableWithSchema(name, columns, extraConfig as any, schema);
 
   // @ts-ignore
@@ -248,7 +260,7 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-  const schema = process.env.PONDER_DATABASE_SCHEMA;
+  const schema = global.PONDER_DATABASE_SCHEMA;
   const e = pgEnumWithSchema(enumName, values, schema);
 
   // @ts-ignore
