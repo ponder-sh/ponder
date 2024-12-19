@@ -1,9 +1,12 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
-import { type YogaServerInstance, createYoga } from "graphql-yoga";
+import { printSchema } from "graphql";
+import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
@@ -13,10 +16,16 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
  *
  * @example
- * import { ponder } from "ponder:registry";
- * import { graphql } from "ponder";
+ * import { db } from "ponder:api";
+ * import schema from "ponder:schema";
+ * import { graphql } from "@/index.js";
+ * import { Hono } from "hono";
  *
- * ponder.use("/graphql", graphql());
+ * const app = new Hono();
+ *
+ * app.use("/graphql", graphql({ db, schema }));
+ *
+ * export default app;
  *
  */
 export const graphql = (
@@ -37,35 +46,40 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
-  let yoga: YogaServerInstance<any, any> | undefined = undefined;
+  const graphqlSchema = buildGraphQLSchema(schema);
+
+  fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
+  fs.writeFileSync(
+    path.join(process.cwd(), "generated", "schema.graphql"),
+    printSchema(graphqlSchema),
+    "utf-8",
+  );
+
+  // common.logger.debug({
+  //   service: "codegen",
+  //   msg: "Wrote new file at generated/schema.graphql",
+  // });
+
+  const yoga = createYoga({
+    schema: graphqlSchema,
+    context: () => {
+      const getDataLoader = buildDataLoaderCache({ drizzle: db });
+      return { drizzle: db, getDataLoader };
+    },
+    maskedErrors: process.env.NODE_ENV === "production",
+    logging: false,
+    graphiql: false,
+    parserAndValidationCache: false,
+    plugins: [
+      maxTokensPlugin({ n: maxOperationTokens }),
+      maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
+      maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
+    ],
+  });
 
   return createMiddleware(async (c) => {
     if (c.req.method === "GET") {
       return c.html(graphiQLHtml(c.req.path));
-    }
-
-    if (yoga === undefined) {
-      const graphqlSchema = buildGraphQLSchema(schema);
-
-      // TODO(kyle) metadata store
-
-      yoga = createYoga({
-        schema: graphqlSchema,
-        context: () => {
-          const getDataLoader = buildDataLoaderCache({ drizzle: db });
-          return { drizzle: db, getDataLoader };
-        },
-        graphqlEndpoint: c.req.path,
-        maskedErrors: process.env.NODE_ENV === "production",
-        logging: false,
-        graphiql: false,
-        parserAndValidationCache: false,
-        plugins: [
-          maxTokensPlugin({ n: maxOperationTokens }),
-          maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
-          maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
-        ],
-      });
     }
 
     const response = await yoga.handle(c.req.raw);

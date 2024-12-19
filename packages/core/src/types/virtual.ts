@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Schema, Drizzle as _Drizzle } from "@/drizzle/index.js";
+import type { Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type {
   Block,
@@ -246,6 +246,4 @@ export namespace Virtual {
       ) => Promise<void> | void,
     ) => void;
   };
-
-  export type Drizzle<schema extends Schema> = _Drizzle<schema>;
 }

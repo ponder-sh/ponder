@@ -1,4 +1,3 @@
-import { createBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
@@ -31,28 +30,11 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const build = await createBuild({ common });
-
   const cleanup = async () => {
-    await build.kill();
     await telemetry.kill();
   };
 
   const shutdown = setupShutdown({ common, cleanup });
-
-  const executeResult = await build.execute();
-  if (executeResult.schemaResult.status === "error") {
-    await shutdown({ reason: "Failed schema build", code: 1 });
-    return;
-  }
-  const schemaBuildResult = build.compileSchema(
-    executeResult.schemaResult.result,
-  );
-
-  if (schemaBuildResult.status === "error") {
-    await shutdown({ reason: "Failed schema build", code: 1 });
-    return;
-  }
 
   telemetry.record({
     name: "lifecycle:session_start",
@@ -62,7 +44,6 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   runCodegen({ common });
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
-  logger.info({ service: "codegen", msg: "Wrote schema.graphql" });
 
   await shutdown({ reason: "Success", code: 0 });
 }

@@ -786,6 +786,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             intervals: args.sources
               .filter(({ filter }) => filter.chainId === network.chainId)
               .map(({ filter }) => ({ filter, interval })),
+            chainId: network.chainId,
           });
         }
 

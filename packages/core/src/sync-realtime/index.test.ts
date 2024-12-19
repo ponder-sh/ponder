@@ -370,7 +370,7 @@ test("handleBlock() block event with log", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(1);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
-    filters: expect.any(Object),
+    hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -453,7 +453,7 @@ test("handleBlock() block event with log factory", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(2);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
-    filters: expect.any(Object),
+    hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -532,7 +532,7 @@ test("handleBlock() block event with block", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(1);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
-    filters: expect.any(Object),
+    hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -606,7 +606,7 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(1);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
-    filters: expect.any(Object),
+    hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -707,7 +707,7 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(1);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
-    filters: expect.any(Object),
+    hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -852,7 +852,7 @@ test("handleBlock() block event with trace", async (context) => {
   expect(onEvent).toHaveBeenCalledTimes(2);
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
-    filters: expect.any(Object),
+    hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),

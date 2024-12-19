@@ -114,6 +114,7 @@ test("getIntervals() returns intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    chainId: 1,
   });
 
   const intervals = await syncStore.getIntervals({
@@ -146,6 +147,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    chainId: 1,
   });
 
   await syncStore.insertIntervals({
@@ -155,6 +157,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
     filters: [filter],
@@ -189,6 +192,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    chainId: 1,
   });
 
   await syncStore.insertIntervals({
@@ -198,7 +202,55 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    chainId: 1,
   });
+  const intervals = await syncStore.getIntervals({
+    filters: [filter],
+  });
+
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
+
+  await cleanup();
+});
+
+test("insertIntervals() merges duplicates", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const filter = {
+    type: "block",
+    chainId: 1,
+    interval: 1,
+    offset: 0,
+    fromBlock: undefined,
+    toBlock: undefined,
+    include: [],
+  } satisfies BlockFilter;
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter,
+        interval: [0, 4],
+      },
+    ],
+    chainId: 1,
+  });
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter,
+        interval: [5, 6],
+      },
+      {
+        filter,
+        interval: [5, 8],
+      },
+    ],
+    chainId: 1,
+  });
+
   const intervals = await syncStore.getIntervals({
     filters: [filter],
   });

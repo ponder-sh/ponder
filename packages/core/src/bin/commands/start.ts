@@ -60,43 +60,71 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const executeResult = await build.execute();
-  await build.kill();
+  const namespaceResult = build.initNamespace({ isSchemaRequired: true });
+  if (namespaceResult.status === "error") {
+    await shutdown({ reason: "Failed to initialize namespace", code: 1 });
+    return cleanup;
+  }
 
-  if (executeResult.configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.schemaResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.indexingResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.apiResult.status === "error") {
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const buildResult = mergeResults([
-    build.preCompile(executeResult.configResult.result),
-    build.compileSchema(executeResult.schemaResult.result),
-    await build.compileIndexing({
-      configResult: executeResult.configResult.result,
-      schemaResult: executeResult.schemaResult.result,
-      indexingResult: executeResult.indexingResult.result,
-    }),
-    await build.compileApi({ apiResult: executeResult.apiResult.result }),
+  const schemaResult = await build.executeSchema();
+  if (schemaResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const buildResult1 = mergeResults([
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
   ]);
 
-  if (buildResult.status === "error") {
+  if (buildResult1.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const [preBuild, schemaBuild, indexingBuild, apiBuild] = buildResult.result;
+  const [preBuild, schemaBuild] = buildResult1.result;
+
+  database = createDatabase({
+    common,
+    preBuild,
+    schemaBuild,
+  });
+
+  const indexingResult = await build.executeIndexingFunctions();
+  if (indexingResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const apiResult = await build.executeApi({ database });
+  if (apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const buildResult2 = mergeResults([
+    await build.compileIndexing({
+      configResult: configResult.result,
+      schemaResult: schemaResult.result,
+      indexingResult: indexingResult.result,
+    }),
+    await build.compileApi({ apiResult: apiResult.result }),
+  ]);
+
+  if (buildResult2.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const [indexingBuild, apiBuild] = buildResult2.result;
+
+  await build.kill();
 
   telemetry.record({
     name: "lifecycle:session_start",
@@ -108,12 +136,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
         indexingBuild,
       }),
     },
-  });
-
-  database = createDatabase({
-    common,
-    preBuild,
-    schemaBuild,
   });
 
   cleanupReloadable = await run({

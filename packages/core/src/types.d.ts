@@ -23,3 +23,10 @@ declare module "ponder:schema" {
   const schema: typeof import("ponder:internal").schema;
   export { schema as default };
 }
+
+declare module "ponder:api" {
+  import type { Drizzle } from "ponder";
+  type schema = typeof import("ponder:internal").schema;
+
+  export const db: Drizzle<schema>;
+}

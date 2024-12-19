@@ -701,6 +701,7 @@ export const createHistoricalSync = async (
       if (args.network.disableCache === false) {
         await args.syncStore.insertIntervals({
           intervals: syncedIntervals,
+          chainId: args.network.chainId,
         });
       }
 
