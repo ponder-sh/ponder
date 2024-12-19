@@ -70,7 +70,7 @@ type IndexingResult = Result<{
 type ApiResult = Result<{ app: Hono }>;
 
 export type Build = {
-  initNamespace: (params: { isSchemaRequired: boolean }) => Result<undefined>;
+  initNamespace: (params: { isSchemaRequired: boolean }) => Result<never>;
   executeConfig: () => Promise<ConfigResult>;
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
@@ -201,7 +201,7 @@ export const createBuild = async ({
 
       global.PONDER_DATABASE_SCHEMA = namespace;
 
-      return { status: "success", result: undefined } as const;
+      return { status: "success" } as const;
     },
     async executeConfig(): Promise<ConfigResult> {
       const executeResult = await executeFile({
