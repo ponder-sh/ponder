@@ -1,7 +1,7 @@
 import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
-import { getFragmentIds } from "@/sync/fragments.js";
+import { type FragmentId, getFragmentIds } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type Factory,
@@ -25,7 +25,7 @@ import type {
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
 import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
-import { type Kysely, type SelectQueryBuilder, sql as ksql, sql } from "kysely";
+import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
 import type { InsertObject } from "kysely";
 import {
   type Address,
@@ -50,6 +50,7 @@ export type SyncStore = {
       filter: Filter;
       interval: Interval;
     }[];
+    chainId: number;
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
@@ -156,23 +157,42 @@ export const createSyncStore = ({
   common: Common;
   db: HeadlessKysely<PonderSyncSchema>;
 }): SyncStore => ({
-  insertIntervals: async ({ intervals }) => {
+  insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
     await db.wrap({ method: "insertIntervals" }, async () => {
+      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
       const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
+
+      // dedupe and merge matching fragments
+
+      for (const { filter, interval } of intervals) {
+        for (const fragment of getFragmentIds(filter)) {
+          if (perFragmentIntervals.has(fragment.id) === false) {
+            perFragmentIntervals.set(fragment.id, []);
+          }
+
+          perFragmentIntervals.get(fragment.id)!.push(interval);
+        }
+      }
 
       // NOTE: In order to force proper range union behavior, `interval[1]` must
       // be rounded up.
 
-      for (const { interval, filter } of intervals) {
-        for (const fragment of getFragmentIds(filter)) {
-          values.push({
-            fragment_id: fragment.id,
-            chain_id: filter.chainId,
-            blocks: ksql`nummultirange(numrange(${interval[0]}, ${interval[1] + 1}, '[]'))`,
-          });
-        }
+      for (const [fragmentId, intervals] of perFragmentIntervals) {
+        const numranges = intervals
+          .map((interval) => {
+            const start = interval[0];
+            const end = interval[1] + 1;
+            return `numrange(${start}, ${end}, '[]')`;
+          })
+          .join(", ");
+
+        values.push({
+          fragment_id: fragmentId,
+          chain_id: chainId,
+          blocks: ksql.raw(`nummultirange(${numranges})`),
+        });
       }
 
       await db
@@ -204,13 +224,13 @@ export const createSyncStore = ({
             .selectFrom(
               db
                 .selectFrom("intervals")
-                .select(sql`unnest(blocks)`.as("blocks"))
+                .select(ksql`unnest(blocks)`.as("blocks"))
                 .where("fragment_id", "in", fragment.adjacent)
                 .as("unnested"),
             )
             .select([
-              sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
-              sql.raw<string>(`${i}`).as("filter"),
+              ksql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
+              ksql.raw(`'${i}'`).as("filter"),
             ]);
           // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);
@@ -592,7 +612,7 @@ export const createSyncStore = ({
               .where(
                 "transactionReceipts.transactionHash",
                 "=",
-                sql.ref("transactions.hash"),
+                ksql.ref("transactions.hash"),
               ),
             "=",
             "0x1",
@@ -1006,7 +1026,7 @@ export const createSyncStore = ({
         .selectFrom("rpc_request_results")
         .select("result")
 
-        .where("request_hash", "=", sql`MD5(${request})`)
+        .where("request_hash", "=", ksql`MD5(${request})`)
         .where("chain_id", "=", chainId)
         .executeTakeFirst();
 

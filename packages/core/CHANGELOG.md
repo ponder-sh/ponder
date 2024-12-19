@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.7
+
+### Patch Changes
+
+- [#1355](https://github.com/ponder-sh/ponder/pull/1355) [`083f11420a4030b15dd710f86521406fdbb52b74`](https://github.com/ponder-sh/ponder/commit/083f11420a4030b15dd710f86521406fdbb52b74) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with detecting cached rpc requests.
+
 ## 0.8.6
 
 ### Patch Changes
