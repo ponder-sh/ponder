@@ -13,10 +13,16 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
  *
  * @example
- * import { ponder } from "ponder:registry";
- * import { graphql } from "ponder";
+ * import { db } from "ponder:api";
+ * import schema from "ponder:schema";
+ * import { graphql } from "@/index.js";
+ * import { Hono } from "hono";
  *
- * ponder.use("/graphql", graphql());
+ * const app = new Hono();
+ *
+ * app.use("/graphql", graphql({ db, schema }));
+ *
+ * export default app;
  *
  */
 export const graphql = (
@@ -45,8 +51,6 @@ export const graphql = (
       const getDataLoader = buildDataLoaderCache({ drizzle: db });
       return { drizzle: db, getDataLoader };
     },
-    // TODO(kyle) do we need this property?
-    // graphqlEndpoint: c.req.path,
     maskedErrors: process.env.NODE_ENV === "production",
     logging: false,
     graphiql: false,

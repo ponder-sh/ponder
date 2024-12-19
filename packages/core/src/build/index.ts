@@ -338,9 +338,7 @@ export const createBuild = async ({
 
       return {
         status: "success",
-        result: {
-          app,
-        },
+        result: { app },
       };
     },
     preCompile({ config }): Result<PreBuild> {

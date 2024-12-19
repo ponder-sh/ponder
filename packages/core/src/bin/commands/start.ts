@@ -46,6 +46,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   let cleanupReloadable = () => Promise.resolve();
   let cleanupReloadableServer = () => Promise.resolve();
 
+  // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
   const cleanup = async () => {
@@ -135,12 +136,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
         indexingBuild,
       }),
     },
-  });
-
-  database = createDatabase({
-    common,
-    preBuild,
-    schemaBuild,
   });
 
   cleanupReloadable = await run({
