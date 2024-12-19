@@ -14,7 +14,7 @@ import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
-import type { Hono } from "hono";
+import { Hono } from "hono";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -315,7 +315,19 @@ export const createBuild = async ({
     async executeApi({ database }): Promise<ApiResult> {
       global.PONDER_READONLY_DB = database.drizzle;
 
-      // TODO(kyle) This assumes the api file exists.
+      if (!fs.existsSync(common.options.apiFile)) {
+        const error = new BuildError(
+          `API function file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/getting-started/database#database-schema"`,
+        );
+        error.stack = undefined;
+        common.logger.error({
+          service: "build",
+          msg: "Failed build",
+          error,
+        });
+
+        return { status: "error", error };
+      }
 
       const executeResult = await executeFile({
         file: common.options.apiFile,
@@ -335,6 +347,20 @@ export const createBuild = async ({
       }
 
       const app = executeResult.exports.default;
+
+      if (app instanceof Hono === false) {
+        const error = new BuildError(
+          `API function file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/getting-started/database#database-schema"`,
+        );
+        error.stack = undefined;
+        common.logger.error({
+          service: "build",
+          msg: "Failed build",
+          error,
+        });
+
+        return { status: "error", error };
+      }
 
       return {
         status: "success",
