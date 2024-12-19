@@ -836,9 +836,6 @@ importers:
         specifier: 4.3.1
         version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
     devDependencies:
-      '@ponder/client':
-        specifier: workspace:*
-        version: link:../client
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6

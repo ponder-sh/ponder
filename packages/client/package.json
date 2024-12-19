@@ -4,6 +4,7 @@
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/ponder-sh/ponder",
@@ -20,8 +21,10 @@
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
-    "import": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsup",
