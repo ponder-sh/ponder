@@ -1,11 +1,9 @@
-import type { Drizzle } from "@/drizzle/index.js";
+import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { createMiddleware } from "hono/factory";
 
-export const client = () => {
+export const client = ({ db }: { db: Drizzle<Schema> }) => {
   return createMiddleware(async (c) => {
     const body = await c.req.json();
-
-    const db = c.get("db") as Drizzle;
 
     const res = await db._.session
       .prepareQuery(
