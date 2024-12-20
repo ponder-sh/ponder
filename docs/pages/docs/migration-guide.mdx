@@ -11,7 +11,7 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 ### API functions
 
-API functions are required and Ponder will fail to start if `src/api/index.ts` does not exist.
+This release makes Ponder's API layer less opinionated. Now, you just need to default export a Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
 
 Copy the following code into `src/api/index.ts` to achieve the same functionality as `<=0.8`.
 
@@ -28,9 +28,9 @@ app.use("/graphql", graphql({ db, schema }));
 export default app;
 ```
 
-#### Removed `ponder.get()`
+#### Removed `ponder.get()`, `post()`, `use()`
 
-The `ponder.get()` function was removed. Ponder now requires the explicit use of **Hono with a default export**.
+Now, simply use Hono's built-in routing system.
 
 <div className="code-columns">
 
@@ -58,7 +58,7 @@ export default app;
 
 #### `import { db } from "ponder:api"`
 
-The `db` object is now injected into the API function context. `c.db` is removed.
+The `c.db` object was removed from the Hono context. Now, use the `"ponder:api"` virtual module to access a readonly Drizzle database object.
 
 ```ts filename="src/api/index.ts" {1,10}
 import { db } from "ponder:api";
