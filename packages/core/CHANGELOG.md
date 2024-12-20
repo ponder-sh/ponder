@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.8
+
+### Patch Changes
+
+- [#1368](https://github.com/ponder-sh/ponder/pull/1368) [`492d7e7744dbddede2e72b0649cd7dffb96173cd`](https://github.com/ponder-sh/ponder/commit/492d7e7744dbddede2e72b0649cd7dffb96173cd) Thanks [@typedarray](https://github.com/typedarray)! - Improved debug-level logs for historical indexing observability.
+
 ## 0.8.7
 
 ### Patch Changes
