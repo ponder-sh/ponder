@@ -3,13 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {},
-  "dependencies": {
-    "drizzle-orm": "0.34.1",
-    "pg": "^8.11.3",
-    "tsx": "^4.19.2"
-  },
   "engines": {
     "node": ">=18.14"
+  },
+  "dependencies": {
+    "@ponder/client": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "^8.10.9"

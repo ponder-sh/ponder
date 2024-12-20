@@ -128,7 +128,7 @@ const listCommand = new Command("list")
   });
 
 const codegenCommand = new Command("codegen")
-  .description("Generate the schema.graphql file, then exit")
+  .description("Generate the ponder-env.d.ts file, then exit")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
