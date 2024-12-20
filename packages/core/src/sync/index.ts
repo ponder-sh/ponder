@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { getAppProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import {
   type HistoricalSync,
@@ -502,6 +501,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             });
             consecutiveErrors = 0;
 
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from ${decodeCheckpoint(from).blockTimestamp}`,
+            });
+
             for (const network of args.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });
             }
@@ -519,27 +523,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
             yield { events, checkpoint: to };
             from = cursor;
-
-            // underlying metrics collection is actually synchronous
-            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-            const { eta, progress } = await getAppProgress(args.common.metrics);
-
-            if (events.length > 0) {
-              if (eta === undefined || progress === undefined) {
-                args.common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} events`,
-                });
-              } else {
-                args.common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
-                });
-              }
-            }
           } catch (error) {
             // Handle errors by reducing the requested range by 10x
             estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Failed to fetch events from the database, retrying with a ${formatEta(estimateSeconds * 1000)} range`,
+            });
+
             if (++consecutiveErrors > 4) throw error;
           }
         }
