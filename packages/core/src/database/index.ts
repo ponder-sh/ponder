@@ -158,7 +158,7 @@ export const createDatabase = async ({
     await driver.instance.query(
       `CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`,
     );
-    await driver.instance.query(`SET search_path TO ${preBuild.namespace}`);
+    await driver.instance.query(`SET search_path TO "${preBuild.namespace}"`);
 
     qb = {
       internal: new HeadlessKysely({
@@ -243,7 +243,10 @@ export const createDatabase = async ({
       preBuild.databaseConfig.poolConfig.connectionString!,
     );
 
-    const role = `ponder_readonly_${connection.database}_${preBuild.namespace}`;
+    const role =
+      connection.database === undefined
+        ? `ponder_readonly_${preBuild.namespace}`
+        : `ponder_readonly_${connection.database}_${preBuild.namespace}`;
 
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
     const hasRole = await internal
