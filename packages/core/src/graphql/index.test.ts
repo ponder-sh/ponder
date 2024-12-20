@@ -15,7 +15,7 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 function buildContextValue(database: Database, metadataStore: MetadataStore) {
-  const drizzle = database.qb.drizzleClient;
+  const drizzle = database.qb.drizzleReadonly;
   const getDataLoader = buildDataLoaderCache({ drizzle });
   return { drizzle, metadataStore, getDataLoader };
 }
@@ -744,13 +744,13 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const personFindManySpy = vi.spyOn(
     // @ts-expect-error
-    database.qb.drizzleClient.query.person,
+    database.qb.drizzleReadonly.query.person,
     "findMany",
   );
 
   const petFindManySpy = vi.spyOn(
     // @ts-expect-error
-    database.qb.drizzleClient.query.pet,
+    database.qb.drizzleReadonly.query.pet,
     "findMany",
   );
 

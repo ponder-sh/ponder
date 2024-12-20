@@ -34,7 +34,7 @@ test("middleware serves request", async (context) => {
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     await next();
   });
 
@@ -114,7 +114,7 @@ test("middleware throws error when extra filter is applied", async (context) => 
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     await next();
   });
 
@@ -166,7 +166,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     await next();
   });
 
@@ -224,7 +224,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     await next();
   });
 
@@ -282,7 +282,7 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     await next();
   });
 
@@ -345,7 +345,7 @@ test("graphQLMiddleware interactive", async (context) => {
   const contextMiddleware = createMiddleware(async (c, next) => {
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", graphqlSchema);
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     await next();
   });
 

@@ -122,7 +122,7 @@ type QueryBuilder = {
   /** Used in client queries */
   // client: HeadlessKysely<unknown>;
   drizzle: Drizzle<Schema>;
-  drizzleClient: Drizzle<Schema>;
+  drizzleReadonly: Drizzle<Schema>;
 };
 
 export const createDatabase = async ({
@@ -217,7 +217,7 @@ export const createDatabase = async ({
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
-      drizzleClient: drizzlePglite((driver as PGliteDriver).instance, {
+      drizzleReadonly: drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
@@ -253,24 +253,18 @@ export const createDatabase = async ({
       await internal.query(`DROP OWNED BY ${role}`);
       await internal.query(`DROP ROLE IF EXISTS ${role}`);
     }
-    await internal.query(
-      `CREATE ROLE ${role} WITH LOGIN PASSWORD '${connection.password}'`,
-    );
+    await internal.query(`CREATE ROLE ${role} WITH LOGIN PASSWORD 'pw'`);
     await internal.query(
       `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
     );
-    await internal.query(`REVOKE ALL ON SCHEMA public FROM ${role}`);
     await internal.query(
-      `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM ${role}`,
+      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO ${role}`,
     );
     await internal.query(
-      `GRANT USAGE ON SCHEMA ${preBuild.namespace} TO ${role}`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO ${role}`,
     );
     await internal.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${preBuild.namespace} GRANT SELECT ON TABLES TO ${role}`,
-    );
-    await internal.query(
-      `ALTER ROLE ${role} SET search_path TO ${preBuild.namespace}`,
+      `ALTER ROLE ${role} SET search_path TO "${preBuild.namespace}"`,
     );
 
     driver = {
@@ -286,7 +280,7 @@ export const createDatabase = async ({
         application_name: `${preBuild.namespace}_readonly`,
         max: readonlyMax,
         user: role,
-        password: connection.password,
+        password: "pw",
         host: connection.host ?? undefined,
         port: Number(connection.port!),
         database: connection.database ?? undefined,
@@ -355,7 +349,7 @@ export const createDatabase = async ({
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
-      drizzleClient: drizzleNodePg((driver as PostgresDriver).readonly, {
+      drizzleReadonly: drizzleNodePg((driver as PostgresDriver).readonly, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),

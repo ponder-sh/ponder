@@ -83,7 +83,7 @@ export async function createServer({
 
   // context required for graphql middleware and hono middleware
   const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("db", database.qb.drizzleClient);
+    c.set("db", database.qb.drizzleReadonly);
     c.set("metadataStore", metadataStore);
     c.set("graphqlSchema", schemaBuild.graphqlSchema);
     await next();
@@ -129,7 +129,7 @@ export async function createServer({
   } else {
     // apply user routes to hono instance, registering a custom error handler
     applyHonoRoutes(hono, apiBuild.routes, {
-      db: database.qb.drizzleClient,
+      db: database.qb.drizzleReadonly,
     }).onError((error, c) => onError(error, c, common));
 
     common.logger.debug({

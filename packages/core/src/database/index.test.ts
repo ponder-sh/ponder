@@ -50,7 +50,7 @@ test("createDatabase() readonly", async (context) => {
 
   await database.setup({ buildId: "abc" });
 
-  const error = await database.qb.drizzleClient
+  const error = await database.qb.drizzleReadonly
     .insert(account)
     .values({
       address: zeroAddress,
@@ -89,7 +89,7 @@ test("createDatabase() search path", async (context) => {
   // using bare "account" will leave schema empty, and the search_path
   // will then use the "ponder" schema
 
-  const rows = await database.qb.drizzleClient.select().from(account);
+  const rows = await database.qb.drizzleReadonly.select().from(account);
 
   expect(rows).toStrictEqual([]);
 
