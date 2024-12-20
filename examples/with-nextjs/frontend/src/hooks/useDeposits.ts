@@ -9,7 +9,7 @@ export type Deposit = NonNullable<
 export const useDeposits = () => {
   return useQuery({
     queryKey: ["weth deposits"],
-    queryFn: async () =>
+    queryFn: () =>
       client.db
         .select({
           timestamp: schema.depositEvent.timestamp,

@@ -83,4 +83,4 @@ export {
   exceptAll,
 } from "drizzle-orm/pg-core";
 
-export { setDrizzleSchema } from "./setDrizzleSchema.js";
+export { setDatabaseSchema } from "./setDatabaseSchema.js";

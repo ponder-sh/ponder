@@ -113,7 +113,7 @@ SELECT "to", COUNT(*) AS transfer_count
 <Callout type="warning">
   As of `0.8`, the `onchainTable` objects are not automatically aware of the
   database schema that your instance is using. To get this working, you'll need
-  to specify the schema using `setDrizzleSchema()`.
+  to specify the schema using `setDatabaseSchema()`.
 </Callout>
 
 The `onchainTable` objects exported by `ponder.schema.ts` are valid Drizzle table objects. You can import them from TypeScript files outside the Ponder `src/` directory and use them with the Drizzle query builder.
@@ -121,11 +121,11 @@ The `onchainTable` objects exported by `ponder.schema.ts` are valid Drizzle tabl
 Here's a script that creates a Drizzle client and runs a query against the Ponder tables in the specified schema. Be sure to connect to the database using the same `DATABASE_URL` as the Ponder app.
 
 ```ts filename="query.ts"
-import { setDrizzleSchema } from "@ponder/client";
+import { setDatabaseSchema } from "@ponder/client";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as _schema from "../../ponder/ponder.schema";
 
-const schema = setDrizzleSchema(_schema, "my_schema");
+const schema = setDatabaseSchema(_schema, "my_schema");
 
 const db = drizzle(process.env.DATABASE_URL, { schema, casing: "snake_case" });
 

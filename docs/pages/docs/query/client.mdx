@@ -26,6 +26,8 @@ These example apps demonstrate how to use `@ponder/client`.
 
 ### Register client middleware
 
+Register the `client` middleware to enable client queries.
+
 ```ts filename="src/api/index.ts" {7}
 import { db } from "ponder:api";
 import { Hono } from "hono";
@@ -39,6 +41,8 @@ export default app;
 ```
 
 ### Install `@ponder/client`
+
+Install the `@ponder/client` package in your client project. This package works in any JavaScript environment, including the browser, server-side scripts, and both client and server code from web frameworks like Next.js.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
@@ -60,6 +64,8 @@ export default app;
 </Tabs>
 
 ### Create a client and send a request
+
+Create a client using the root path of your Ponder server. For example, local development should use `http://localhost:42069`.
 
 ```ts {4,6}
 import { createClient } from "@ponder/client";

@@ -2,7 +2,7 @@ import { Table, is } from "drizzle-orm";
 
 const Schema = Symbol.for("drizzle:Schema");
 
-export const setDrizzleSchema = <T extends { [name: string]: unknown }>(
+export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
   schema: T,
   schemaName: string,
 ): T => {
