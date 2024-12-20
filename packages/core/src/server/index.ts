@@ -1,10 +1,7 @@
 import http from "node:http";
 import type { ApiBuild } from "@/build/index.js";
-import type { SchemaBuild } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
-import { graphql } from "@/graphql/middleware.js";
-import { applyHonoRoutes } from "@/hono/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
@@ -16,19 +13,16 @@ import { onError } from "./error.js";
 
 type Server = {
   hono: Hono;
-  port: number;
   kill: () => Promise<void>;
 };
 
 export async function createServer({
   common,
   database,
-  schemaBuild,
   apiBuild,
 }: {
   common: Common;
   database: Database;
-  schemaBuild: Pick<SchemaBuild, "graphqlSchema">;
   apiBuild: ApiBuild;
 }): Promise<Server> {
   // Create hono app
@@ -81,14 +75,6 @@ export async function createServer({
     }
   });
 
-  // context required for graphql middleware and hono middleware
-  const contextMiddleware = createMiddleware(async (c, next) => {
-    c.set("db", database.qb.drizzleReadonly);
-    c.set("metadataStore", metadataStore);
-    c.set("graphqlSchema", schemaBuild.graphqlSchema);
-    await next();
-  });
-
   const hono = new Hono()
     .use(metricsMiddleware)
     .use(cors({ origin: "*", maxAge: 86400 }))
@@ -120,66 +106,10 @@ export async function createServer({
 
       return c.json(status);
     })
-    .use(contextMiddleware);
-
-  if (apiBuild.routes.length === 0 && apiBuild.app.routes.length === 0) {
-    // apply graphql middleware if no custom api exists
-    hono.use("/graphql", graphql());
-    hono.use("/", graphql());
-  } else {
-    // apply user routes to hono instance, registering a custom error handler
-    applyHonoRoutes(hono, apiBuild.routes, {
-      db: database.qb.drizzleReadonly,
-    }).onError((error, c) => onError(error, c, common));
-
-    common.logger.debug({
-      service: "server",
-      msg: `Detected a custom server with routes: [${apiBuild.routes
-        .map(({ pathOrHandlers: [maybePathOrHandler] }) => maybePathOrHandler)
-        .filter((maybePathOrHandler) => typeof maybePathOrHandler === "string")
-        .join(", ")}]`,
-    });
-
-    hono.route("/", apiBuild.app);
-  }
+    .route("/", apiBuild.app)
+    .onError((error, c) => onError(error, c, common));
 
   // Create nodejs server
-
-  let port = common.options.port;
-
-  const createServerWithNextAvailablePort: typeof http.createServer = (
-    ...args: any
-  ) => {
-    const httpServer = http.createServer(...args);
-
-    const errorHandler = (error: Error & { code: string }) => {
-      if (error.code === "EADDRINUSE") {
-        common.logger.warn({
-          service: "server",
-          msg: `Port ${port} was in use, trying port ${port + 1}`,
-        });
-        port += 1;
-        setTimeout(() => {
-          httpServer.close();
-          httpServer.listen(port, common.options.hostname);
-        }, 5);
-      }
-    };
-
-    const listenerHandler = () => {
-      common.metrics.ponder_http_server_port.set(port);
-      common.logger.info({
-        service: "server",
-        msg: `Started listening on port ${port}`,
-      });
-      httpServer.off("error", errorHandler);
-    };
-
-    httpServer.on("error", errorHandler);
-    httpServer.on("listening", listenerHandler);
-
-    return httpServer;
-  };
 
   const httpServer = await new Promise<http.Server>((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -189,12 +119,12 @@ export async function createServer({
     const httpServer = serve(
       {
         fetch: hono.fetch,
-        createServer: createServerWithNextAvailablePort,
-        port,
+        createServer: http.createServer,
+        port: apiBuild.port,
         // Note that common.options.hostname can be undefined if the user did not specify one.
         // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
         // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
-        hostname: common.options.hostname,
+        hostname: apiBuild.hostname,
       },
       () => {
         clearTimeout(timeout);
@@ -210,7 +140,6 @@ export async function createServer({
 
   return {
     hono,
-    port,
     kill: () => terminator.terminate(),
   };
 }

@@ -30,6 +30,7 @@ export {
   primaryKey,
   hex,
   bigint,
+  type ReadonlyDrizzle,
 } from "@/drizzle/index.js";
 
 export { graphql } from "@/graphql/middleware.js";

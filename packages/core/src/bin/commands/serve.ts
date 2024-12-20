@@ -50,46 +50,36 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   };
 
   const shutdown = setupShutdown({ common, cleanup });
+  const namespaceResult = build.initNamespace({ isSchemaRequired: true });
 
-  const executeResult = await build.execute();
-  await build.kill();
-
-  if (executeResult.configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
+  if (namespaceResult.status === "error") {
+    await shutdown({ reason: "Failed to initialize namespace", code: 1 });
     return cleanup;
   }
-  if (executeResult.schemaResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.apiResult.status === "error") {
+
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const buildResult = mergeResults([
-    build.preCompile(executeResult.configResult.result),
-    build.compileSchema(executeResult.schemaResult.result),
-    build.compileApi({ apiResult: executeResult.apiResult.result }),
+  const schemaResult = await build.executeSchema();
+  if (schemaResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const buildResult1 = mergeResults([
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
   ]);
 
-  if (buildResult.status === "error") {
+  if (buildResult1.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
   }
 
-  const [preBuild, schemaBuild, apiBuild] = buildResult.result;
-
-  telemetry.record({
-    name: "lifecycle:session_start",
-    properties: {
-      cli_command: "serve",
-      ...buildPayload({
-        preBuild,
-        schemaBuild,
-      }),
-    },
-  });
+  const [preBuild, schemaBuild] = buildResult1.result;
 
   if (preBuild.databaseConfig.kind === "pglite") {
     await shutdown({
@@ -105,10 +95,37 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     schemaBuild,
   });
 
+  const apiResult = await build.executeApi({ database });
+  if (apiResult.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  await build.kill();
+
+  const buildResult2 = await build.compileApi({ apiResult: apiResult.result });
+
+  if (buildResult2.status === "error") {
+    await shutdown({ reason: "Failed intial build", code: 1 });
+    return cleanup;
+  }
+
+  const apiBuild = buildResult2.result;
+
+  telemetry.record({
+    name: "lifecycle:session_start",
+    properties: {
+      cli_command: "serve",
+      ...buildPayload({
+        preBuild,
+        schemaBuild,
+      }),
+    },
+  });
+
   const server = await createServer({
     common,
     database,
-    schemaBuild,
     apiBuild,
   });
 
