@@ -1,4 +1,4 @@
-import { onchainTable } from "../../../drizzle/index.js";
+import { onchainTable } from "../../../drizzle/onchain.js";
 
 export const swapEvent = onchainTable("swap_event", (t) => ({
   id: t.text().primaryKey(),

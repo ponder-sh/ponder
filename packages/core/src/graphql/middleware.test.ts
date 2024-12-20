@@ -3,7 +3,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable } from "@/drizzle/index.js";
+import { onchainTable } from "@/drizzle/onchain.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test } from "vitest";
 import { graphql } from "./middleware.js";

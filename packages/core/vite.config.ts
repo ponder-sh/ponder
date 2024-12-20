@@ -7,6 +7,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@ponder/common": path.resolve(__dirname, "../common/src"),
+      "@ponder/client": path.resolve(__dirname, "../client/src"),
       "@ponder/utils": path.resolve(__dirname, "../utils/src"),
     },
   },

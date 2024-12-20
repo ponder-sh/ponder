@@ -6,7 +6,7 @@ import {
   onchainEnum,
   onchainTable,
   primaryKey,
-} from "@/drizzle/index.js";
+} from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,
