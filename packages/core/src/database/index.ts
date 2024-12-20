@@ -266,6 +266,8 @@ export const createDatabase = async ({
     await internal.query(
       `ALTER ROLE ${role} SET search_path TO "${preBuild.namespace}"`,
     );
+    await internal.query(`ALTER ROLE ${role} SET statement_timeout TO '1s'`);
+    await internal.query(`ALTER ROLE ${role} SET work_mem TO '1MB'`);
 
     driver = {
       internal,
