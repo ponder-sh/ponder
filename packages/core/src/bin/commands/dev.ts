@@ -135,7 +135,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const [preBuild, schemaBuild] = buildResult1.result;
 
-        database = createDatabase({
+        database = await createDatabase({
           common,
           preBuild,
           schemaBuild,

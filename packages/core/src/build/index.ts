@@ -313,7 +313,7 @@ export const createBuild = async ({
       };
     },
     async executeApi({ database }): Promise<ApiResult> {
-      global.PONDER_READONLY_DB = database.drizzle;
+      global.PONDER_READONLY_DB = database.qb.drizzleReadonly;
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(
