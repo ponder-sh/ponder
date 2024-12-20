@@ -1,14 +1,14 @@
 {
   "name": "@ponder/client",
   "version": "0.0.0",
-  "description": "An open-source framework for crypto application backends",
+  "description": "",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/ponder-sh/ponder",
-    "directory": "packages/core"
+    "directory": "packages/client"
   },
   "files": [
     "dist",
