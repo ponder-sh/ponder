@@ -332,7 +332,7 @@ export const createHistoricalIndexingStore = ({
   };
 
   const find = (table: Table, key: object) => {
-    return database.drizzle
+    return database.qb.drizzle
       .select()
       .from(table)
       .where(getWhereCondition(table as PgTable, key))
@@ -705,7 +705,7 @@ export const createHistoricalIndexingStore = ({
                 return true;
               }
 
-              await database.drizzle
+              await database.qb.drizzle
                 .delete(table)
                 .where(getWhereCondition(table, key));
 
@@ -715,7 +715,7 @@ export const createHistoricalIndexingStore = ({
                 return false;
               }
 
-              const deleteResult = await database.drizzle
+              const deleteResult = await database.qb.drizzle
                 .delete(table as Table)
                 .where(getWhereCondition(table as Table, key))
                 .returning();
@@ -736,7 +736,7 @@ export const createHistoricalIndexingStore = ({
 
         const res = await database.qb.user.wrap({ method: "sql" }, async () => {
           try {
-            return await database.drizzle._.session
+            return await database.qb.drizzle._.session
               .prepareQuery(query, undefined, undefined, method === "all")
               .execute();
           } catch (e) {
@@ -800,7 +800,7 @@ export const createHistoricalIndexingStore = ({
                 database.qb.user.wrap(
                   { method: `${getTableName(table)}.flush()` },
                   async () => {
-                    await database.drizzle
+                    await database.qb.drizzle
                       .insert(table)
                       .values(values)
                       .catch((_error) => {
@@ -842,7 +842,7 @@ export const createHistoricalIndexingStore = ({
                     method: `${getTableName(table)}.flush()`,
                   },
                   async () => {
-                    await database.drizzle
+                    await database.qb.drizzle
                       .insert(table)
                       .values(values)
                       .onConflictDoUpdate({

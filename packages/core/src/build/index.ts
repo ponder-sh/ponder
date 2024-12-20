@@ -313,11 +313,11 @@ export const createBuild = async ({
       };
     },
     async executeApi({ database }): Promise<ApiResult> {
-      global.PONDER_READONLY_DB = database.drizzle;
+      global.PONDER_READONLY_DB = database.qb.drizzleReadonly;
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(
-          `API function file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/getting-started/database#database-schema"`,
+          `API function file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder-docs-git-kjs-api-functions-ponder-sh.vercel.app/docs/query/api-functions`,
         );
         error.stack = undefined;
         common.logger.error({
@@ -350,7 +350,7 @@ export const createBuild = async ({
 
       if (app instanceof Hono === false) {
         const error = new BuildError(
-          `API function file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/getting-started/database#database-schema"`,
+          "API function file does not export a Hono instance as the default export. Read more: https://ponder-docs-git-kjs-api-functions-ponder-sh.vercel.app/docs/query/api-functions",
         );
         error.stack = undefined;
         common.logger.error({

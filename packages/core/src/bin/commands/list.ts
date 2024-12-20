@@ -59,7 +59,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common,
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
