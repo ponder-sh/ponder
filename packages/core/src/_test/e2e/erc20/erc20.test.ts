@@ -62,11 +62,11 @@ test(
 
     expect(result[0]).toMatchObject({
       address: zeroAddress,
-      balance: (-1 * 10 ** 18).toString(),
+      balance: -1n * 10n ** 18n,
     });
     expect(result[1]).toMatchObject({
       address: ALICE.toLowerCase(),
-      balance: (10 ** 18).toString(),
+      balance: 10n ** 18n,
     });
 
     await cleanup();

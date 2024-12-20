@@ -4,6 +4,6 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-app.use("/graphql", client({ db }));
+app.use(client({ db }));
 
 export default app;

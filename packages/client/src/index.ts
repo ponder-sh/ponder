@@ -26,7 +26,7 @@ export const createClient = <schema extends Schema>(
 ): Client<schema> => {
   const db = drizzle(
     async (sql, params, method, typings) => {
-      const result = await fetch(url, {
+      const result = await fetch(`${url}/client`, {
         method: "POST",
         body: JSON.stringify({ sql, params, method, typings }),
       });

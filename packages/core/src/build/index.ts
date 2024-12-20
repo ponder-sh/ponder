@@ -465,7 +465,8 @@ export const createBuild = async ({
             route.path === "/ready" ||
             route.path === "/status" ||
             route.path === "/metrics" ||
-            route.path === "/health"
+            route.path === "/health" ||
+            route.path === "/client"
           ) {
             const error = new BuildError(
               `Validation failed: API route "${route.path}" is reserved for internal use.`,

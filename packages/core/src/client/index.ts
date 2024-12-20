@@ -2,7 +2,11 @@ import type { ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
 import { createMiddleware } from "hono/factory";
 
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
-  return createMiddleware(async (c) => {
+  return createMiddleware(async (c, next) => {
+    if (c.req.path !== "/client") {
+      return next();
+    }
+
     const body = await c.req.json();
 
     // @ts-ignore
