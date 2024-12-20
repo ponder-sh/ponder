@@ -53,17 +53,9 @@ export type Database = {
    * "_ponder_meta" table, and any residual entries in this table are
    * used to determine what action this function will take.
    *
-   * - If schema is empty or no matching build_id, start
-   * - If matching build_id and unlocked, cache hit
-   * - Else, start
-   *
-   * Separate from this main control flow, two other actions can happen:
-   * - Tables corresponding to non-live apps will be dropped, with a 3 app buffer
-   * - Apps run with "ponder dev" will publish view immediately
-   *
    * @returns The progress checkpoint that that app should start from.
    */
-  setup(args: Pick<IndexingBuild, "buildId">): Promise<{
+  prepareNamespace(args: Pick<IndexingBuild, "buildId">): Promise<{
     checkpoint: string;
   }>;
   createIndexes(): Promise<void>;
@@ -518,7 +510,7 @@ export const createDatabase = async ({
         if (error) throw error;
       });
     },
-    async setup({ buildId }) {
+    async prepareNamespace({ buildId }) {
       common.logger.info({
         service: "database",
         msg: `Using database schema '${preBuild.namespace}'`,

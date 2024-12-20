@@ -36,7 +36,8 @@ export async function run({
 }) {
   let isKilled = false;
 
-  const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
+  const { checkpoint: initialCheckpoint } =
+    await database.prepareNamespace(indexingBuild);
 
   const syncStore = createSyncStore({
     common,
