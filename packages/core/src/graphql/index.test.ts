@@ -29,7 +29,11 @@ test("metadata", async (context) => {
   );
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   const graphqlSchema = buildGraphQLSchema(schema);
 
@@ -108,7 +112,11 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -232,7 +240,11 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -288,7 +300,11 @@ test("enum primary key", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.table).values({
     a: "0",
@@ -330,7 +346,11 @@ test("json, json not null", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -385,7 +405,11 @@ test("singular", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.transferEvents).values([
     { id: "0", amount: 0n },
@@ -484,7 +508,11 @@ test("singular with one relation", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.person).values([
     { id: "jake", name: "jake" },
@@ -549,7 +577,11 @@ test("singular with many relation", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore
     .insert(schema.person)
@@ -606,7 +638,11 @@ test("singular with many relation using filter", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore
     .insert(schema.person)
@@ -667,7 +703,11 @@ test("singular with many relation using order by", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore
     .insert(schema.person)
@@ -729,7 +769,11 @@ test("plural with one relation uses dataloader", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore
     .insert(schema.person)
@@ -742,8 +786,11 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema(schema);
 
-  // @ts-expect-error
-  const personFindManySpy = vi.spyOn(database.drizzle.query.person, "findMany");
+  const personFindManySpy = vi.spyOn(
+    // @ts-expect-error
+    database.drizzle.query.person,
+    "findMany",
+  );
   // @ts-expect-error
   const petFindManySpy = vi.spyOn(database.drizzle.query.pet, "findMany");
 
@@ -932,7 +979,11 @@ test("filter universal", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore
     .insert(schema.person)
@@ -981,7 +1032,11 @@ test("filter singular", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore
     .insert(schema.person)
@@ -1033,7 +1088,11 @@ test("filter plural", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.person).values([
     { id: "1", number: [1, 2, 3] },
@@ -1141,7 +1200,11 @@ test("filter numeric", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.person).values([
     {
@@ -1265,7 +1328,11 @@ test("filter string", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.person).values([
     { id: "1", text: "one", hex: "0xabc" },
@@ -1334,7 +1401,11 @@ test("filter and/or", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
@@ -1384,7 +1455,11 @@ test("order by", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.person).values([
     {
@@ -1503,7 +1578,11 @@ test("limit", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   for (let i = 0; i < 100; i++) {
     await indexingStore.insert(schema.person).values({ id: String(i) });
@@ -1569,7 +1648,11 @@ test("cursor pagination ascending", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip" },
@@ -1717,7 +1800,11 @@ test("cursor pagination descending", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
@@ -1854,7 +1941,11 @@ test("cursor pagination start and end cursors", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
@@ -1921,7 +2012,11 @@ test("cursor pagination has previous page", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip", bigAge: 105n },
@@ -2011,7 +2106,11 @@ test("cursor pagination composite primary key", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.allowance).values([
     { owner: "alice", spender: "bob", amount: 100n },
@@ -2156,7 +2255,11 @@ test("column casing", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -2208,7 +2311,11 @@ test("snake case table and column names with where clause", async (context) => {
     await setupDatabaseServices(context, { schema });
   const contextValue = buildContextValue(database, metadataStore);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.deposited_token).values({
     chain_id: 1n,

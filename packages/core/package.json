@@ -14,7 +14,8 @@
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/**/*.test-d.ts",
-    "!src/_test/**/*"
+    "!src/_test/**/*",
+    "!**/coverage/**/*"
   ],
   "bin": {
     "ponder": "./dist/bin/ponder.js"
@@ -64,7 +65,7 @@
     "dotenv": "^16.3.1",
     "drizzle-orm": "0.36.4",
     "glob": "^10.3.10",
-    "graphql": "^16.8.1",
+    "graphql": "^16.8.2",
     "graphql-yoga": "^5.3.0",
     "http-terminator": "^3.2.0",
     "ink": "^4.4.1",
@@ -89,11 +90,12 @@
     "@types/pg-copy-streams": "^1.2.5",
     "@types/react": "^18.2.38",
     "@viem/anvil": "^0.0.6",
+    "@vitest/coverage-v8": "^2.1.8",
     "@wagmi/cli": "^1.5.2",
     "execa": "^8.0.1",
     "rimraf": "^5.0.5",
     "tsup": "^8.0.1",
-    "vitest": "^1.0.2"
+    "vitest": "^2.1.8"
   },
   "imports": {
     "@ponder/common": "../common/index.ts"
