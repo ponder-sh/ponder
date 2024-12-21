@@ -81,6 +81,7 @@ export type Status = {
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
   end: SyncBlock | LightBlock | undefined;
+  endBlockNumber: number | undefined;
   cached: SyncBlock | LightBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
@@ -247,7 +248,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         ({ filter }) => filter.chainId === network.chainId,
       );
 
-      const { start, end, finalized } = await syncDiagnostic({
+      const { start, end, finalized, endBlockNumber } = await syncDiagnostic({
         common: args.common,
         sources,
         requestQueue,
@@ -309,6 +310,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const syncProgress: SyncProgress = {
         start,
         end,
+        endBlockNumber,
         finalized,
         cached,
         current: cached,
@@ -465,6 +467,24 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           )
         ) {
           continue;
+        }
+
+        // Fetch the endBlock if available and update syncProgress
+        for (const [
+          network,
+          { requestQueue, syncProgress, ...val },
+        ] of Array.from(perNetworkSync.entries())) {
+          if (
+            syncProgress.end === undefined &&
+            syncProgress.endBlockNumber !== undefined &&
+            BigInt(syncProgress.endBlockNumber) <=
+              hexToBigInt(syncProgress.finalized.number)
+          ) {
+            syncProgress.end = await _eth_getBlockByNumber(requestQueue, {
+              blockNumber: syncProgress.endBlockNumber,
+            });
+            perNetworkSync.set(network, { ...val, syncProgress, requestQueue });
+          }
         }
 
         // Calculate the mininum "current" checkpoint, limited by "finalized" and "end"
@@ -936,14 +956,16 @@ export const syncDiagnostic = async ({
     ? undefined
     : Math.max(...sources.map(({ filter }) => filter.toBlock!));
 
-  const [remoteChainId, startBlock, endBlock, latestBlock] = await Promise.all([
+  const [remoteChainId, startBlock, latestBlock] = await Promise.all([
     requestQueue.request({ method: "eth_chainId" }),
     _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
-    end === undefined
-      ? undefined
-      : _eth_getBlockByNumber(requestQueue, { blockNumber: end }),
     _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }),
   ]);
+
+  const endBlock =
+    end === undefined || end > hexToBigInt(latestBlock.number)
+      ? undefined
+      : await _eth_getBlockByNumber(requestQueue, { blockNumber: end });
 
   // Warn if the config has a different chainId than the remote.
   if (hexToNumber(remoteChainId) !== network.chainId) {
@@ -965,6 +987,7 @@ export const syncDiagnostic = async ({
   return {
     start: startBlock,
     end: endBlock,
+    endBlockNumber: end,
     finalized: finalizedBlock,
   };
 };
