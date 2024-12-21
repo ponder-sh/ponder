@@ -38,6 +38,7 @@ import {
   type Transport,
   hexToBigInt,
   hexToNumber,
+  toHex,
 } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import { type RawEvent, buildEvents } from "./events.js";
@@ -928,14 +929,23 @@ export const syncDiagnostic = async ({
     ? undefined
     : Math.max(...sources.map(({ filter }) => filter.toBlock!));
 
-  const [remoteChainId, startBlock, endBlock, latestBlock] = await Promise.all([
+  const [remoteChainId, startBlock, latestBlock] = await Promise.all([
     requestQueue.request({ method: "eth_chainId" }),
     _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
-    end === undefined
-      ? undefined
-      : _eth_getBlockByNumber(requestQueue, { blockNumber: end }),
     _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }),
   ]);
+
+  const endBlock =
+    end === undefined
+      ? undefined
+      : end > hexToBigInt(latestBlock.number)
+        ? ({
+            number: toHex(end),
+            hash: "0x",
+            parentHash: "0x",
+            timestamp: toHex(maxCheckpoint.blockTimestamp),
+          } as LightBlock)
+        : await _eth_getBlockByNumber(requestQueue, { blockNumber: end });
 
   // Warn if the config has a different chainId than the remote.
   if (hexToNumber(remoteChainId) !== network.chainId) {
