@@ -96,31 +96,83 @@ export function buildTopics(
   topic1: Hex | Hex[] | null;
   topic2: Hex | Hex[] | null;
   topic3: Hex | Hex[] | null;
-} {
-  if (Array.isArray(filter.event)) {
-    // List of event signatures
-    return {
-      topic0: filter.event.map((event) =>
-        toEventSelector(findAbiEvent(abi, event)),
-      ),
-      topic1: null,
-      topic2: null,
-      topic3: null,
-    };
-  } else {
-    // Single event with args
-    const topics = encodeEventTopics({
-      abi: [findAbiEvent(abi, filter.event)],
-      args: filter.args as GetEventArgs<Abi, string>,
-    });
+}[] {
+  const filters = Array.isArray(filter) ? filter : [filter];
 
-    return {
-      topic0: topics[0],
-      topic1: topics[1] ?? null,
-      topic2: topics[2] ?? null,
-      topic3: topics[3] ?? null,
-    };
-  }
+  const topics = filters
+    .map((filter) => {
+      if (Array.isArray(filter.event)) {
+        // List of event signatures
+        return {
+          topic0: filter.event.map((event) =>
+            toEventSelector(findAbiEvent(abi, event)),
+          ),
+          topic1: null,
+          topic2: null,
+          topic3: null,
+        };
+      } else {
+        // Single event with args
+        const topics = encodeEventTopics({
+          abi: [findAbiEvent(abi, filter.event)],
+          args: filter.args as GetEventArgs<Abi, string>,
+        });
+
+        return {
+          topic0: topics[0],
+          topic1: topics[1] ?? null,
+          topic2: topics[2] ?? null,
+          topic3: topics[3] ?? null,
+        };
+      }
+    })
+    .reduce(
+      // Merge similar topics
+      (acc, cur) => {
+        // Ignore if topics in array
+        if (acc.some((t) => t === cur) === true) {
+          return acc;
+        }
+
+        // Push as is if args defined
+        if (cur.topic1 !== null || cur.topic2 !== null || cur.topic3 !== null) {
+          acc.push(cur);
+          return acc;
+        }
+
+        // Merge topic0 with topics with no args defined
+        const isMerged = acc.some((t, idx) => {
+          if (t.topic1 === null && t.topic2 === null && t.topic3 === null) {
+            const topic0 = Array.isArray(t.topic0) ? t.topic0 : [t.topic0];
+            const curTopic0 = Array.isArray(cur.topic0)
+              ? cur.topic0
+              : [cur.topic0];
+            acc[idx] = {
+              topic0: Array.from(new Set([...topic0, ...curTopic0])),
+              topic1: null,
+              topic2: null,
+              topic3: null,
+            };
+            return true;
+          }
+          return false;
+        });
+
+        if (isMerged === false) {
+          acc.push(cur);
+        }
+
+        return acc;
+      },
+      [] as {
+        topic0: Hex | Hex[];
+        topic1: Hex | Hex[] | null;
+        topic2: Hex | Hex[] | null;
+        topic3: Hex | Hex[] | null;
+      }[],
+    );
+
+  return topics;
 }
 
 /**

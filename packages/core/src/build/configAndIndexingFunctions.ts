@@ -322,37 +322,49 @@ export async function buildConfigAndIndexingFunctions({
         registeredFunctionSelectors.push(abiFunction.selector);
       }
 
-      let topic0: LogTopic = registeredEventSelectors;
-      let topic1: LogTopic = null;
-      let topic2: LogTopic = null;
-      let topic3: LogTopic = null;
+      let topicsArray: {
+        topic0: LogTopic;
+        topic1: LogTopic;
+        topic2: LogTopic;
+        topic3: LogTopic;
+      }[] = [
+        {
+          topic0: registeredEventSelectors,
+          topic1: null,
+          topic2: null,
+          topic3: null,
+        },
+      ];
 
       if (source.filter !== undefined) {
-        if (
-          Array.isArray(source.filter.event) &&
-          source.filter.args !== undefined
-        ) {
-          throw new Error(
-            `Validation failed: Event filter for contract '${source.name}' cannot contain indexed argument values if multiple events are provided.`,
-          );
-        }
+        source.filter = Array.isArray(source.filter)
+          ? source.filter
+          : [source.filter];
 
-        const filterSafeEventNames = Array.isArray(source.filter.event)
-          ? source.filter.event
-          : [source.filter.event];
-
-        for (const filterSafeEventName of filterSafeEventNames) {
-          const abiEvent = abiEvents.bySafeName[filterSafeEventName];
-          if (!abiEvent) {
+        for (const filter of source.filter) {
+          if (Array.isArray(filter.event) && filter.args !== undefined) {
             throw new Error(
-              `Validation failed: Invalid filter for contract '${
-                source.name
-              }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
-                abiEvents.bySafeName,
-              )
-                .map((n) => `'${n}'`)
-                .join(", ")}].`,
+              `Validation failed: Event filter for contract '${source.name}' cannot contain indexed argument values if multiple events are provided.`,
             );
+          }
+
+          const filterSafeEventNames = Array.isArray(filter.event)
+            ? filter.event
+            : [filter.event];
+
+          for (const filterSafeEventName of filterSafeEventNames) {
+            const abiEvent = abiEvents.bySafeName[filterSafeEventName];
+            if (!abiEvent) {
+              throw new Error(
+                `Validation failed: Invalid filter for contract '${
+                  source.name
+                }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
+                  abiEvents.bySafeName,
+                )
+                  .map((n) => `'${n}'`)
+                  .join(", ")}].`,
+              );
+            }
           }
         }
 
@@ -361,15 +373,22 @@ export async function buildConfigAndIndexingFunctions({
         // is an invariant of the current filter design.
         // Note: This can throw.
 
-        const topics = buildTopics(source.abi, source.filter);
-        const topic0FromFilter = topics.topic0;
-        topic1 = topics.topic1;
-        topic2 = topics.topic2;
-        topic3 = topics.topic3;
+        topicsArray = buildTopics(source.abi, source.filter);
 
-        const filteredEventSelectors = Array.isArray(topic0FromFilter)
-          ? topic0FromFilter
-          : [topic0FromFilter];
+        const filteredEventSelectors = topicsArray.reduce((acc, cur) => {
+          const topic0 = Array.isArray(cur.topic0) ? cur.topic0 : [cur.topic0];
+
+          for (const eventSelector of topic0) {
+            if (
+              eventSelector !== null &&
+              acc.includes(eventSelector) === false
+            ) {
+              acc.push(eventSelector);
+            }
+          }
+
+          return acc;
+        }, [] as Hex[]);
 
         // Validate that the topic0 value defined by the `eventFilter` is a superset of the
         // registered indexing functions. Simply put, confirm that no indexing function is
@@ -389,8 +408,6 @@ export async function buildConfigAndIndexingFunctions({
             );
           }
         }
-
-        topic0 = registeredEventSelectors;
       }
 
       const startBlockMaybeNan = source.startBlock;
@@ -423,29 +440,32 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        const logSource = {
-          ...contractMetadata,
-          filter: {
-            type: "log",
-            chainId: network.chainId,
-            address: logFactory,
-            topic0,
-            topic1,
-            topic2,
-            topic3,
-            fromBlock,
-            toBlock,
-            include: defaultLogFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies ContractSource;
+        const logSources = topicsArray.map(
+          (topics) =>
+            ({
+              ...contractMetadata,
+              filter: {
+                type: "log",
+                chainId: network.chainId,
+                address: logFactory,
+                topic0: topics.topic0,
+                topic1: topics.topic1,
+                topic2: topics.topic2,
+                topic3: topics.topic3,
+                fromBlock,
+                toBlock,
+                include: defaultLogFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            }) satisfies ContractSource,
+        );
 
         if (source.includeCallTraces) {
           return [
-            logSource,
+            ...logSources,
             {
               ...contractMetadata,
               filter: {
@@ -468,7 +488,7 @@ export async function buildConfigAndIndexingFunctions({
           ];
         }
 
-        return [logSource];
+        return logSources;
       } else if (resolvedAddress !== undefined) {
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
@@ -493,29 +513,32 @@ export async function buildConfigAndIndexingFunctions({
           ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
-      const logSource = {
-        ...contractMetadata,
-        filter: {
-          type: "log",
-          chainId: network.chainId,
-          address: validatedAddress,
-          topic0,
-          topic1,
-          topic2,
-          topic3,
-          fromBlock,
-          toBlock,
-          include: defaultLogFilterInclude.concat(
-            source.includeTransactionReceipts
-              ? defaultTransactionReceiptInclude
-              : [],
-          ),
-        },
-      } satisfies ContractSource;
+      const logSources = topicsArray.map(
+        (topics) =>
+          ({
+            ...contractMetadata,
+            filter: {
+              type: "log",
+              chainId: network.chainId,
+              address: validatedAddress,
+              topic0: topics.topic0,
+              topic1: topics.topic1,
+              topic2: topics.topic2,
+              topic3: topics.topic3,
+              fromBlock,
+              toBlock,
+              include: defaultLogFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          }) satisfies ContractSource,
+      );
 
       if (source.includeCallTraces) {
         return [
-          logSource,
+          ...logSources,
           {
             ...contractMetadata,
             filter: {
@@ -540,7 +563,7 @@ export async function buildConfigAndIndexingFunctions({
             },
           } satisfies ContractSource,
         ];
-      } else return [logSource];
+      } else return logSources;
     }) // Remove sources with no registered indexing functions
     .filter((source) => {
       const hasRegisteredIndexingFunctions =
