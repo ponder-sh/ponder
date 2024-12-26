@@ -71,7 +71,8 @@ function createErrorHandler(logger: Logger) {
 
     logger.error({
       service: "postgres",
-      msg: `Pool error (application_name: ${applicationName}, pid: ${pid}): ${error.message}`,
+      msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
+      error,
     });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
