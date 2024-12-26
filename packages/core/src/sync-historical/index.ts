@@ -72,7 +72,10 @@ export const createHistoricalSync = async (
   args: CreateHistoricalSyncParameters,
 ): Promise<HistoricalSync> => {
   let isKilled = false;
-
+  /**
+   * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
+   */
+  let isBlockReceipts = true;
   /**
    * Blocks that have already been extracted.
    * Note: All entries are deleted at the end of each call to `sync()`.
@@ -311,14 +314,11 @@ export const createHistoricalSync = async (
   const syncTransactionReceipts = async (
     block: Hash,
     transactionHashes: Set<Hash>,
-    isBlockReceipts = true,
   ) => {
     if (isBlockReceipts === false) {
-      const transactionReceipts = Array.from(
-        await Promise.all(
-          Array.from(transactionHashes).map(async (hash) => {
-            return await syncTransactionReceipt(hash);
-          }),
+      const transactionReceipts = await Promise.all(
+        Array.from(transactionHashes).map(async (hash) =>
+          syncTransactionReceipt(hash),
         ),
       );
 
@@ -329,25 +329,24 @@ export const createHistoricalSync = async (
     try {
       blockReceipts = await syncBlockReceipts(block);
     } catch {
-      return syncTransactionReceipts(block, transactionHashes, false);
+      isBlockReceipts = false;
+      return syncTransactionReceipts(block, transactionHashes);
     }
 
-    const transactionReceipts: SyncTransactionReceipt[] = [];
-
+    const blockReceiptsTransactionHashes = new Set(
+      blockReceipts.map((r) => r.transactionHash),
+    );
     // Validate that block transaction receipts include all required transactions
-    for (const hash of transactionHashes) {
-      const receipt = blockReceipts.find(
-        ({ transactionHash }) => transactionHash === hash,
-      );
-
-      if (receipt === undefined) {
+    for (const hash of Array.from(transactionHashes)) {
+      if (blockReceiptsTransactionHashes.has(hash) === false) {
         throw new Error(
           `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${block}'`,
         );
-      } else {
-        transactionReceipts.push(receipt);
       }
     }
+    const transactionReceipts = blockReceipts.filter((receipt) =>
+      transactionHashes.has(receipt.transactionHash),
+    );
 
     return transactionReceipts;
   };

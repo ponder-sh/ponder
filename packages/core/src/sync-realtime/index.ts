@@ -30,6 +30,7 @@ import {
   _eth_getBlockByNumber,
   _eth_getBlockReceipts,
   _eth_getLogs,
+  _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
@@ -101,6 +102,7 @@ export const createRealtimeSync = (
   // state
   ////////
   let isKilled = false;
+  let isBlockReceipts = true;
   let finalizedBlock: LightBlock;
   let finalizedChildAddresses: Map<Factory, Set<Address>>;
   const unfinalizedChildAddresses = new Map<Factory, Set<Address>>();
@@ -576,6 +578,48 @@ export const createRealtimeSync = (
     }
   };
 
+  const syncTransactionReceipts = async (
+    blockHash: Hash,
+    transactionHashes: Set<Hash>,
+  ) => {
+    if (isBlockReceipts === false) {
+      const transactionReceipts = await Promise.all(
+        Array.from(transactionHashes).map(async (hash) =>
+          _eth_getTransactionReceipt(args.requestQueue, { hash }),
+        ),
+      );
+
+      return transactionReceipts;
+    }
+
+    let blockReceipts: SyncTransactionReceipt[];
+    try {
+      blockReceipts = await _eth_getBlockReceipts(args.requestQueue, {
+        blockHash,
+      });
+    } catch {
+      isBlockReceipts = false;
+      return syncTransactionReceipts(blockHash, transactionHashes);
+    }
+
+    const blockReceiptsTransactionHashes = new Set(
+      blockReceipts.map((r) => r.transactionHash),
+    );
+    // Validate that block transaction receipts include all required transactions
+    for (const hash of Array.from(transactionHashes)) {
+      if (blockReceiptsTransactionHashes.has(hash) === false) {
+        throw new Error(
+          `Detected inconsistent RPC responses. Transaction receipt with transactionHash ${hash} is missing in \`blockReceipts\`.`,
+        );
+      }
+    }
+    const transactionReceipts = blockReceipts.filter((receipt) =>
+      transactionHashes.has(receipt.transactionHash),
+    );
+
+    return transactionReceipts;
+  };
+
   /**
    * Fetch all data (logs, traces, receipts) for the specified block required by `args.sources`
    *
@@ -779,23 +823,9 @@ export const createRealtimeSync = (
     // Transaction Receipts
     ////////
 
-    const blockReceipts = await _eth_getBlockReceipts(args.requestQueue, {
-      blockHash: block.hash,
-    });
-
-    // Validate that block transaction receipts include all required transactions
-    const blockReceiptsTransactionHashes = new Set(
-      blockReceipts.map((r) => r.transactionHash),
-    );
-    for (const hash of Array.from(requiredTransactions)) {
-      if (blockReceiptsTransactionHashes.has(hash) === false) {
-        throw new Error(
-          `Detected inconsistent RPC responses. Transaction receipt with transactionHash ${hash} is missing in \`blockReceipts\`.`,
-        );
-      }
-    }
-    const transactionReceipts = blockReceipts.filter((receipt) =>
-      requiredTransactionReceipts.has(receipt.transactionHash),
+    const transactionReceipts = await syncTransactionReceipts(
+      block.hash,
+      requiredTransactionReceipts,
     );
 
     return {
