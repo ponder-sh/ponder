@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import { type Rpc, createRpc } from "@/rpc/index.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -30,7 +31,6 @@ import {
 } from "@/utils/interval.js";
 import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type Address,
@@ -220,7 +220,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   const perNetworkSync = new Map<
     Network,
     {
-      requestQueue: RequestQueue;
+      rpc: Rpc;
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
@@ -238,7 +238,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   // Instantiate `localSyncData` and `status`
   await Promise.all(
     args.networks.map(async (network) => {
-      const requestQueue = createRequestQueue({
+      const rpc = createRpc({
         network,
         common: args.common,
       });
@@ -249,7 +249,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       const { start, end, finalized } = await syncDiagnostic({
         common: args.common,
         sources,
-        requestQueue,
+        rpc,
         network,
       });
 
@@ -270,14 +270,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         common: args.common,
         sources,
         syncStore: args.syncStore,
-        requestQueue,
+        rpc,
         network,
         onFatalError: args.onFatalError,
       });
       const realtimeSync = createRealtimeSync({
         common: args.common,
         sources,
-        requestQueue,
+        rpc,
         network,
         onEvent: (event) =>
           onRealtimeSyncEvent({ event, network }).catch((error) => {
@@ -293,7 +293,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       const cached = await getCachedBlock({
         sources,
-        requestQueue,
+        rpc,
         historicalSync,
       });
 
@@ -323,7 +323,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       );
 
       perNetworkSync.set(network, {
-        requestQueue,
+        rpc,
         syncProgress,
         historicalSync,
         realtimeSync,
@@ -560,13 +560,13 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       await Promise.all(
         Array.from(perNetworkSync.entries()).map(
-          async ([network, { requestQueue, syncProgress }]) => {
+          async ([network, { rpc, syncProgress }]) => {
             args.common.logger.debug({
               service: "sync",
               msg: `Refetching '${network.name}' finalized block`,
             });
 
-            const latestBlock = await _eth_getBlockByNumber(requestQueue, {
+            const latestBlock = await _eth_getBlockByNumber(rpc, {
               blockTag: "latest",
             });
 
@@ -575,7 +575,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               hexToNumber(latestBlock.number) - network.finalityBlockCount,
             );
 
-            syncProgress.finalized = await _eth_getBlockByNumber(requestQueue, {
+            syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
               blockNumber: finalizedBlockNumber,
             });
 
@@ -890,8 +890,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return status;
     },
     getCachedTransport(network) {
-      const { requestQueue } = perNetworkSync.get(network)!;
-      return cachedTransport({ requestQueue, syncStore: args.syncStore });
+      const { rpc } = perNetworkSync.get(network)!;
+      return cachedTransport({ rpc, syncStore: args.syncStore });
     },
     async kill() {
       isKilled = true;
@@ -911,12 +911,12 @@ export const syncDiagnostic = async ({
   common,
   sources,
   network,
-  requestQueue,
+  rpc,
 }: {
   common: Common;
   sources: Source[];
   network: Network;
-  requestQueue: RequestQueue;
+  rpc: Rpc;
 }) => {
   /** Earliest `startBlock` among all `filters` */
   const start = Math.min(...sources.map(({ filter }) => filter.fromBlock ?? 0));
@@ -929,12 +929,12 @@ export const syncDiagnostic = async ({
     : Math.max(...sources.map(({ filter }) => filter.toBlock!));
 
   const [remoteChainId, startBlock, endBlock, latestBlock] = await Promise.all([
-    requestQueue.request({ method: "eth_chainId" }),
-    _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
+    rpc.request({ method: "eth_chainId" }),
+    _eth_getBlockByNumber(rpc, { blockNumber: start }),
     end === undefined
       ? undefined
-      : _eth_getBlockByNumber(requestQueue, { blockNumber: end }),
-    _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }),
+      : _eth_getBlockByNumber(rpc, { blockNumber: end }),
+    _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
   ]);
 
   // Warn if the config has a different chainId than the remote.
@@ -950,7 +950,7 @@ export const syncDiagnostic = async ({
     hexToNumber(latestBlock.number) - network.finalityBlockCount,
   );
 
-  const finalizedBlock = await _eth_getBlockByNumber(requestQueue, {
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: finalizedBlockNumber,
   });
 
@@ -964,11 +964,11 @@ export const syncDiagnostic = async ({
 /** Returns the closest-to-tip block that has been synced for all `sources`. */
 export const getCachedBlock = ({
   sources,
-  requestQueue,
+  rpc,
   historicalSync,
 }: {
   sources: Source[];
-  requestQueue: RequestQueue;
+  rpc: Rpc;
   historicalSync: HistoricalSync;
 }): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
@@ -1008,7 +1008,7 @@ export const getCachedBlock = ({
         (sources[i]!.filter.fromBlock ?? 0) > minCompletedBlock,
     )
   ) {
-    return _eth_getBlockByNumber(requestQueue, {
+    return _eth_getBlockByNumber(rpc, {
       blockNumber: minCompletedBlock,
     });
   }

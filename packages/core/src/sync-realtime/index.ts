@@ -1,5 +1,6 @@
 import type { Common } from "@/common/common.js";
 import type { Network } from "@/config/networks.js";
+import type { Rpc } from "@/rpc/index.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import {
   type BlockFilter,
@@ -23,13 +24,13 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { range } from "@/utils/range.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _debug_traceBlockByHash,
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
+  _eth_subscribe,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
@@ -58,7 +59,7 @@ export type RealtimeSync = {
 type CreateRealtimeSyncParameters = {
   common: Common;
   network: Network;
-  requestQueue: RequestQueue;
+  rpc: Rpc;
   sources: Source[];
   onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
@@ -113,7 +114,7 @@ export const createRealtimeSync = (
   let unfinalizedBlocks: LightBlock[] = [];
   let queue: Queue<void, BlockWithEventData>;
   let consecutiveErrors = 0;
-  let interval: NodeJS.Timeout | undefined;
+  let cleanup: (() => Promise<void>) | undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -531,7 +532,7 @@ export const createRealtimeSync = (
 
         throw new Error(msg);
       } else {
-        remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
+        remoteBlock = await _eth_getBlockByHash(args.rpc, {
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
@@ -596,7 +597,7 @@ export const createRealtimeSync = (
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      logs = await _eth_getLogs(args.requestQueue, { blockHash: block.hash });
+      logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
 
       // Protect against RPCs returning empty logs. Known to happen near chain tip.
       if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
@@ -634,7 +635,7 @@ export const createRealtimeSync = (
 
     let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _debug_traceBlockByHash(args.requestQueue, {
+      traces = await _debug_traceBlockByHash(args.rpc, {
         hash: block.hash,
       });
 
@@ -781,9 +782,7 @@ export const createRealtimeSync = (
     const transactionReceipts = await Promise.all(
       block.transactions
         .filter(({ hash }) => requiredTransactionReceipts.has(hash))
-        .map(({ hash }) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
-        ),
+        .map(({ hash }) => _eth_getTransactionReceipt(args.rpc, { hash })),
     );
 
     return {
@@ -803,7 +802,7 @@ export const createRealtimeSync = (
   };
 
   return {
-    start(startArgs) {
+    async start(startArgs) {
       finalizedBlock = startArgs.syncProgress.finalized;
       finalizedChildAddresses = startArgs.initialChildAddresses;
       /**
@@ -859,7 +858,7 @@ export const createRealtimeSync = (
 
               const pendingBlocks = await Promise.all(
                 missingBlockRange.map((blockNumber) =>
-                  _eth_getBlockByNumber(args.requestQueue, {
+                  _eth_getBlockByNumber(args.rpc, {
                     blockNumber,
                   }).then((block) => fetchBlockEventData(block)),
                 ),
@@ -947,22 +946,39 @@ export const createRealtimeSync = (
         },
       });
 
-      const enqueue = async () => {
+      const enqueue = async (hash?: Hash) => {
         try {
-          const block = await _eth_getBlockByNumber(args.requestQueue, {
-            blockTag: "latest",
-          });
-
+          let block: SyncBlock;
           const latestBlock = getLatestUnfinalizedBlock();
 
-          // We already saw and handled this block. No-op.
-          if (latestBlock.hash === block.hash) {
-            args.common.logger.trace({
-              service: "realtime",
-              msg: `Skipped processing '${args.network.name}' block ${hexToNumber(block.number)}, already synced`,
+          if (hash === undefined) {
+            block = await _eth_getBlockByNumber(args.rpc, {
+              blockTag: "latest",
             });
 
-            return;
+            // We already saw and handled this block. No-op.
+            if (latestBlock.hash === block.hash) {
+              args.common.logger.trace({
+                service: "realtime",
+                msg: `Skipped processing '${args.network.name}' block ${hexToNumber(latestBlock.number)}, already synced`,
+              });
+
+              return;
+            }
+          } else {
+            // We already saw and handled this block. No-op.
+            if (latestBlock.hash === hash) {
+              args.common.logger.trace({
+                service: "realtime",
+                msg: `Skipped processing '${args.network.name}' block ${hexToNumber(latestBlock.number)}, already synced`,
+              });
+
+              return;
+            }
+
+            block = await _eth_getBlockByHash(args.rpc, {
+              hash,
+            });
           }
 
           const blockWithEventData = await fetchBlockEventData(block);
@@ -994,13 +1010,77 @@ export const createRealtimeSync = (
         }
       };
 
-      interval = setInterval(enqueue, args.network.pollingInterval);
+      if (args.rpc.supports("eth_subscribe")) {
+        args.common.logger.info({
+          service: "realtime",
+          msg: `Subscribing to '${args.network.name}' network via websocket`,
+        });
+
+        try {
+          const connection = await _eth_subscribe(args.rpc, {
+            params: ["newHeads"],
+            onData: (data) => {
+              if (data.error) {
+                if (isKilled) return;
+
+                console.log("onData");
+
+                // TODO(kyle) is the connection still valid? When does the connection get invalidated?
+
+                args.common.logger.warn({
+                  service: "realtime",
+                  msg: `Failed to subscribe to latest '${args.network.name}' block`,
+                  error: data.error,
+                });
+              } else {
+                enqueue(data.result.hash);
+              }
+            },
+            onError: (error: Error) => {
+              if (isKilled) return;
+
+              console.log("onError");
+
+              // TODO(kyle) is the connection still valid? When does the connection get invalidated?
+
+              args.common.logger.warn({
+                service: "realtime",
+                msg: `Failed to subscribe to latest '${args.network.name}' block`,
+                error,
+              });
+
+              // After a certain number of attempts, emit a fatal error.
+              if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+                args.common.logger.error({
+                  service: "realtime",
+                  msg: `Fatal error: Unable to subscribe to latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+                  error,
+                });
+
+                args.onFatalError(error);
+              }
+            },
+          });
+
+          cleanup = () => connection.unsubscribe().then(() => {});
+        } catch (error) {
+          args.onFatalError(error as Error);
+        }
+      } else {
+        args.common.logger.info({
+          service: "realtime",
+          msg: `Subscribing to '${args.network.name}' network via polling`,
+        });
+
+        const interval = setInterval(enqueue, args.network.pollingInterval);
+        cleanup = () => Promise.resolve(clearInterval(interval));
+      }
 
       // Note: this is done just for testing.
       return enqueue().then(() => queue);
     },
     async kill() {
-      clearInterval(interval);
+      await cleanup?.();
       isKilled = true;
       queue?.pause();
       queue?.clear();
