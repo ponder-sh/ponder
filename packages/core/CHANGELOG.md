@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.10
+
+### Patch Changes
+
+- [#1370](https://github.com/ponder-sh/ponder/pull/1370) [`61b0b04c3306929bf2ff1ef781be874f561d8e11`](https://github.com/ponder-sh/ponder/commit/61b0b04c3306929bf2ff1ef781be874f561d8e11) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed a bug causing future end blocks to error.
+
 ## 0.8.9
 
 ### Patch Changes
