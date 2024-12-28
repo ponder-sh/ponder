@@ -1,9 +1,14 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { IndexingBuild } from "@/build/index.js";
+import { deployErc20 } from "@/_test/simulate.js";
+import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
+import { getNetwork } from "@/_test/utils.js";
+import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
 import { onchainTable } from "@/drizzle/index.js";
@@ -25,42 +30,57 @@ const schema = { account };
 const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() setup", async (context) => {
+  const network = getNetwork();
+
+  const { address } = await deployErc20({ sender: ALICE });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema,
-    instanceId: "1234",
   });
 
-  const build: IndexingBuild = {
-    buildId: "buildId",
-    instanceId: "1234",
+  const schemaBuild: SchemaBuild = {
     schema,
-    graphqlSchema,
-    databaseConfig: context.databaseConfig,
-    networks: context.networks,
-    sources: context.sources,
-    indexingFunctions,
     statements,
-    namespace,
+    graphqlSchema,
+  };
+
+  const indexingBuild: IndexingBuild = {
+    buildId: "buildId",
+    networks: [network],
+    sources,
+    indexingFunctions,
   };
 
   const database = createDatabase({
     common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-    instanceId: "1234",
-    buildId: "buildId",
-    statements,
-    namespace,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema,
+      statements,
+    },
   });
 
   const kill = await run({
     common: context.common,
-    build,
     database,
+    schemaBuild,
+    indexingBuild,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
@@ -73,45 +93,60 @@ test("run() setup", async (context) => {
 });
 
 test("run() setup error", async (context) => {
+  const network = getNetwork();
+
+  const { address } = await deployErc20({ sender: ALICE });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
   const onReloadableErrorPromiseResolver = promiseWithResolvers<void>();
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema,
-    instanceId: "1234",
   });
 
-  const build: IndexingBuild = {
-    buildId: "buildId",
-    instanceId: "1234",
+  const schemaBuild: SchemaBuild = {
     schema,
-    graphqlSchema,
-    databaseConfig: context.databaseConfig,
-    networks: context.networks,
-    sources: context.sources,
-    indexingFunctions,
     statements,
-    namespace,
+    graphqlSchema,
+  };
+
+  const indexingBuild: IndexingBuild = {
+    buildId: "buildId",
+    networks: [network],
+    sources,
+    indexingFunctions,
   };
 
   const database = createDatabase({
     common: context.common,
-    schema,
-    databaseConfig: context.databaseConfig,
-    instanceId: "1234",
-    buildId: "buildId",
-    statements,
-    namespace,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema,
+      statements,
+    },
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const kill = await run({
     common: context.common,
-    build,
     database,
+    schemaBuild,
+    indexingBuild,
     onFatalError: vi.fn(),
     onReloadableError: () => {
       onReloadableErrorPromiseResolver.resolve();

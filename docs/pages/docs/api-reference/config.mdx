@@ -15,7 +15,7 @@ The `ponder.config.ts` file must **default export** the object returned by `crea
 
 {/* prettier-ignore */}
 ```ts filename="ponder.config.ts" {1,4}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
@@ -44,7 +44,7 @@ The `networks` field is an object where each key is a network name containing th
 | **disableCache**         | `boolean \| undefined` | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/advanced/foundry) like Anvil. |
 
 ```ts filename="ponder.config.ts" {7-12,16}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
 
 import { BlitmapAbi } from "./abis/Blitmap";
@@ -74,32 +74,27 @@ export default createConfig({
   the [contracts & networks](/docs/contracts-and-networks) guide.
 </Callout>
 
-The `contracts` field is an object where each key is a contract name containing that contract's configuration. Ponder will sync & index contract data according to the options you provide.
+The `contracts` field is an object where each key is a contract name containing that contract's configuration. Ponder will sync & index logs or call traces according to the options you provide.
 
-| field          |             type             |                                                                                                                                                                                                                          |
-| :------------- | :--------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **name**       |           `string`           | A unique name for the smart contract. Must be unique across all contracts. _Provided as an object property name._                                                                                                        |
-| **abi**        |        `abitype.Abi`         | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html) as an array as const. Must be asserted as constant, see [ABIType documentation](https://abitype.dev/guide/getting-started#usage) for details. |
-| **network**    |           `string`           | The name of the network this contract is deployed to. References the `networks` field.                                                                                                                                   |
-| **address**    | `0x{string} \| 0x{string}[]` | One more more contract addresses. Mutually exclusive with `factory`.                                                                                                                                                     |
-| **factory**    |    [`Factory?`](#factory)    | Factory pattern configuration. Mutually exclusive with `address`.                                                                                                                                                        |
-| **filter**     |     [`Filter?`](#filter)     | Event filter criteria.                                                                                                                                                                                                   |
-| **startBlock** |    `number \| undefined`     | **Default: `0`**. Block number to start syncing events. Usually set to the contract deployment block number. **Default: `0`**                                                                                            |
-| **endBlock**   |    `number \| undefined`     | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range.  |
+| field                          |                         type                         |                                                                                                                                                                                                                          |
+| :----------------------------- | :--------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**                       |                       `string`                       | A unique name for the smart contract. Must be unique across all contracts. _Provided as an object property name._                                                                                                        |
+| **abi**                        |                    `abitype.Abi`                     | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html) as an array as const. Must be asserted as constant, see [ABIType documentation](https://abitype.dev/guide/getting-started#usage) for details. |
+| **network**                    |                       `string`                       | The name of the network this contract is deployed to. References the `networks` field. Also supports [multiple networks](/docs/contracts-and-networks#multiple-networks).                                                |
+| **address**                    | `0x{string} \| 0x{string}[] \| Factory \| undefined` | One or more contract addresses or factory configuration.                                                                                                                                                                 |
+| **filter**                     |                 [`Filter`](#filter)                  | Event filter criteria.                                                                                                                                                                                                   |
+| **startBlock**                 |                `number \| undefined`                 | **Default: `0`**. Block number to start syncing events. Usually set to the contract deployment block number.                                                                                                             |
+| **endBlock**                   |                `number \| undefined`                 | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range.  |
+| **includeTransactionReceipts** |                `boolean \| undefined`                | **Default: `false`**. If this field is `true`, `transactionReceipt` will be included in `event`.                                                                                                                         |
+| **includeCallTraces**          |                `boolean \| undefined`                | **Default: `false`**. If this field is `true`, each function in the abi will be available as an indexing function event name. See the [call traces guide](/docs/call-traces#register-an-indexing-function) for details.  |
 
-```ts filename="ponder.config.ts" {14-19}
-import { createConfig } from "@ponder/core";
-import { http } from "viem";
+```ts filename="ponder.config.ts" {7-14}
+import { createConfig } from "ponder";
 
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
-  networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
-  },
+  // ... more config
   contracts: {
     Blitmap: {
       abi: BlitmapAbi,
@@ -111,16 +106,6 @@ export default createConfig({
 });
 ```
 
-### Factory
-
-| field         |                         type                         |                                                                                               |
-| :------------ | :--------------------------------------------------: | :-------------------------------------------------------------------------------------------- |
-| **address**   |                       `string`                       | The address of the factory contract that creates instances of this contract.                  |
-| **event**     | [`AbiEvent`](https://abitype.dev/api/types#abievent) | The ABI item of the event that announces the creation of a new child contract.                |
-| **parameter** |                       `string`                       | The name of the parameter within `event` that contains the address of the new child contract. |
-
-[Read more](/docs/contracts-and-networks#factory-contracts) about factory patterns.
-
 ### Filter
 
 | field     |               type                |                                                                                                                                                   |
@@ -129,6 +114,83 @@ export default createConfig({
 | **args**  |       `object \| undefined`       | **Default: `undefined`**. An object containing indexed argument values to filter for. Only allowed if **one** event name was provided in `event`. |
 
 [Read more](/docs/contracts-and-networks#event-filter) about event filters.
+
+## Accounts
+
+The `accounts` field is an object similar to `contracts` where each key is an account name containing that account's configuration. Accounts are used to index transactions or native transfers.
+
+| field                          |                         type                         |                                                                                                                                                                                                                         |
+| :----------------------------- | :--------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**                       |                       `string`                       | A unique name for the smart contract. Must be unique across all contracts. _Provided as an object property name._                                                                                                       |
+| **network**                    |                       `string`                       | The name of the network this contract is deployed to. References the `networks` field. Also supports [multiple networks](/docs/contracts-and-networks#multiple-networks).                                               |
+| **address**                    | `0x{string} \| 0x{string}[] \| Factory \| undefined` | Address or factory configuration.                                                                                                                                                                                       |
+| **startBlock**                 |                `number \| undefined`                 | **Default: `0`**. Block number to start syncing events.                                                                                                                                                                 |
+| **endBlock**                   |                `number \| undefined`                 | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range. |
+| **includeTransactionReceipts** |                `boolean \| undefined`                | **Default: `false`**. If this field is `true`, `transactionReceipt` will be included in `event`.                                                                                                                        |
+
+```ts filename="ponder.config.ts" {5-11}
+import { createConfig } from "ponder";
+
+export default createConfig({
+  // ... more config
+  accounts: {
+    coinbasePrime: {
+      network: "mainnet",
+      address: "0xCD531Ae9EFCCE479654c4926dec5F6209531Ca7b",
+      startBlock: 12111233,
+    },
+  },
+});
+```
+
+## Blocks
+
+```ts filename="ponder.config.ts" {5-11}
+import { createConfig } from "ponder";
+
+export default createConfig({
+  // ... more config
+  blocks: {
+    ChainlinkPriceOracle: {
+      network: "mainnet",
+      startBlock: 19_750_000,
+      interval: 5, // every minute
+    },
+  },
+});
+```
+
+## `factory()`
+
+The `factory()` function is used to specify if an address is derived from the log of another contract. Both [`contracts`](#contracts) and [`accounts`](#accounts) support `factory()` in their `address` field.
+
+| field         |                         type                         |                                                                                               |
+| :------------ | :--------------------------------------------------: | :-------------------------------------------------------------------------------------------- |
+| **address**   |             `0x{string} \| 0x{string}[]`             | The address of the factory contract that creates instances of this contract.                  |
+| **event**     | [`AbiEvent`](https://abitype.dev/api/types#abievent) | The ABI item of the event that announces the creation of a new child contract.                |
+| **parameter** |                       `string`                       | The name of the parameter within `event` that contains the address of the new child contract. |
+
+[Read more](/docs/contracts-and-networks#factory-contracts) about factory patterns.
+
+```ts filename="ponder.config.ts" {8-14}
+import { createConfig, factory } from "ponder";
+
+export default createConfig({
+  // ... more config
+  contracts: {
+    uniswapV2: {
+      // ... other contract options
+      address: factory({
+        address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+        event: parseAbiItem(
+          "event PairCreated(address indexed token0, address indexed token1, address pair, uint256)"
+        ),
+        parameter: "pair",
+      }),
+    },
+  },
+});
+```
 
 ## Database
 
@@ -150,7 +212,7 @@ Here is the logic Ponder uses to determine which database to use:
   <p />
 
 ```ts filename="ponder.config.ts" {4-7}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 export default createConfig({
   database: {
@@ -176,7 +238,7 @@ export default createConfig({
   <p />
 
 ```ts filename="ponder.config.ts" {4-10}
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 
 export default createConfig({
   database: {
@@ -197,8 +259,10 @@ export default createConfig({
 ### Basic example
 
 ```ts filename="ponder.config.ts"
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http } from "viem";
+
+import { ArtGobblersAbi } from "./abis/ArtGobblers";
 
 export default createConfig({
   networks: {
@@ -210,7 +274,7 @@ export default createConfig({
   contracts: {
     ArtGobblers: {
       network: "mainnet",
-      abi: "./abis/ArtGobblers.json",
+      abi: ArtGobblersAbi,
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock: 15863321,
     },
@@ -221,8 +285,10 @@ export default createConfig({
 ### Using top-level await
 
 {/* prettier-ignore */}
-```ts filename="ponder.config.ts" {3,17}
-import { createConfig } from "@ponder/core";
+```ts filename="ponder.config.ts" {5,19}
+import { createConfig } from "ponder";
+
+import { ArtGobblersAbi } from "./abis/ArtGobblers";
 
 const startBlock = await fetch("http://...");
 
@@ -236,7 +302,7 @@ export default createConfig({
   contracts: {
     ArtGobblers: {
       network: "mainnet",
-      abi: "./abis/ArtGobblers.json",
+      abi: ArtGobblersAbi,
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock,
     },

@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { http, getAddress, hexToNumber } from "viem";
 import type { Hex } from "viem";
 import { counterABI } from "../abis/CounterAbi";

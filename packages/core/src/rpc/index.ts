@@ -1,6 +1,9 @@
 import type { Common } from "@/common/common.js";
 import { NonRetryableError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
+import type { DebugRpcSchema } from "@/utils/debug.js";
+import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
   type GetLogsRetryHelperParameters,
@@ -19,12 +22,11 @@ import {
   type WebSocketTransport,
   isHex,
 } from "viem";
-import { startClock } from "../utils/timer.js";
-import { wait } from "../utils/wait.js";
 
-type RequestReturnType<
-  method extends EIP1193Parameters<PublicRpcSchema>["method"],
-> = Extract<PublicRpcSchema[number], { Method: method }>["ReturnType"];
+type Schema = [...PublicRpcSchema, ...DebugRpcSchema];
+
+type RequestReturnType<method extends EIP1193Parameters<Schema>["method"]> =
+  Extract<Schema[number], { Method: method }>["ReturnType"];
 
 export type SubscribeParameters = Parameters<
   NonNullable<ReturnType<WebSocketTransport>["value"]>["subscribe"]
@@ -35,12 +37,12 @@ export type SubscribeReturnType = Awaited<
 >;
 
 export type Rpc = {
-  request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
+  request: <TParameters extends EIP1193Parameters<Schema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: SubscribeParameters) => Promise<SubscribeReturnType>;
   supports: (
-    method: EIP1193Parameters<PublicRpcSchema>["method"] | "eth_subscribe",
+    method: EIP1193Parameters<Schema>["method"] | "eth_subscribe",
   ) => boolean;
 };
 

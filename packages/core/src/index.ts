@@ -1,4 +1,5 @@
 export { createConfig } from "@/config/config.js";
+export { factory } from "@/config/address.js";
 export type {
   Block,
   Log,
@@ -25,7 +26,6 @@ export type DatabaseConfig = Prettify<Config["database"]>;
 
 export {
   onchainTable,
-  onchainSchema,
   onchainEnum,
   primaryKey,
   hex,

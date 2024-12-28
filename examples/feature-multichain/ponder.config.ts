@@ -1,4 +1,4 @@
-import { createConfig } from "@ponder/core";
+import { createConfig } from "ponder";
 import { createPublicClient, webSocket } from "viem";
 
 import { weth9Abi } from "./abis/weth9Abi";

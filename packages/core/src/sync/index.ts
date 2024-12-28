@@ -1,5 +1,4 @@
 import type { Common } from "@/common/common.js";
-import { getAppProgress } from "@/common/metrics.js";
 import type { Network } from "@/config/networks.js";
 import { type Rpc, createRpc } from "@/rpc/index.js";
 import {
@@ -7,7 +6,6 @@ import {
   createHistoricalSync,
 } from "@/sync-historical/index.js";
 import {
-  type BlockWithEventData,
   type RealtimeSync,
   type RealtimeSyncEvent,
   createRealtimeSync,
@@ -219,21 +217,23 @@ type CreateSyncParameters = {
 };
 
 export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
-  const localSyncContext = new Map<
+  const perNetworkSync = new Map<
     Network,
     {
       rpc: Rpc;
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
-      unfinalizedEventData: BlockWithEventData[];
+      unfinalizedBlocks: (Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      > & { events: RawEvent[] })[];
     }
   >();
   const status: Status = {};
   let isKilled = false;
   // Realtime events across all chains that can't be passed to the parent function
   // because the overall checkpoint hasn't caught up to the events yet.
-  let pendingEvents: RawEvent[] = [];
 
   // Instantiate `localSyncData` and `status`
   await Promise.all(
@@ -322,12 +322,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         0,
       );
 
-      localSyncContext.set(network, {
+      perNetworkSync.set(network, {
         rpc,
         syncProgress,
         historicalSync,
         realtimeSync,
-        unfinalizedEventData: [],
+        unfinalizedBlocks: [],
       });
       status[network.name] = { block: null, ready: false };
     }),
@@ -339,7 +339,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   const getOmnichainCheckpoint = (
     tag: "start" | "end" | "current" | "finalized",
   ): string | undefined => {
-    const checkpoints = Array.from(localSyncContext.entries()).map(
+    const checkpoints = Array.from(perNetworkSync.entries()).map(
       ([network, { syncProgress }]) =>
         getChainCheckpoint({ syncProgress, network, tag }),
     );
@@ -389,7 +389,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     checkpoint: string;
     network: Network;
   }) => {
-    const localBlock = localSyncContext
+    const localBlock = perNetworkSync
       .get(network)!
       .realtimeSync.unfinalizedBlocks.findLast(
         (block) =>
@@ -437,7 +437,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     let showLogs = true;
     while (true) {
       const syncGenerator = mergeAsyncGenerators(
-        Array.from(localSyncContext.entries()).map(
+        Array.from(perNetworkSync.entries()).map(
           ([network, { syncProgress, historicalSync }]) =>
             localHistoricalSyncGenerator({
               common: args.common,
@@ -459,7 +459,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
          * It is an invariant that `latestBlock` will eventually be defined.
          */
         if (
-          Array.from(localSyncContext.values()).some(
+          Array.from(perNetworkSync.values()).some(
             ({ syncProgress }) => syncProgress.current === undefined,
           )
         ) {
@@ -501,6 +501,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             });
             consecutiveErrors = 0;
 
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from ${decodeCheckpoint(from).blockTimestamp}`,
+            });
+
             for (const network of args.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });
             }
@@ -518,27 +523,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
             yield { events, checkpoint: to };
             from = cursor;
-
-            // underlying metrics collection is actually synchronous
-            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-            const { eta, progress } = await getAppProgress(args.common.metrics);
-
-            if (events.length > 0) {
-              if (eta === undefined || progress === undefined) {
-                args.common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} events`,
-                });
-              } else {
-                args.common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
-                });
-              }
-            }
           } catch (error) {
             // Handle errors by reducing the requested range by 10x
             estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Failed to fetch events from the database, retrying with a ${formatEta(estimateSeconds * 1000)} range`,
+            });
+
             if (++consecutiveErrors > 4) throw error;
           }
         }
@@ -546,7 +539,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
       /** `true` if all networks have synced all known finalized blocks.  */
       const allHistoricalSyncExhaustive = Array.from(
-        localSyncContext.values(),
+        perNetworkSync.values(),
       ).every(({ syncProgress }) => {
         if (isSyncEnd(syncProgress)) return true;
 
@@ -566,7 +559,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       latestFinalizedFetch = Date.now();
 
       await Promise.all(
-        Array.from(localSyncContext.entries()).map(
+        Array.from(perNetworkSync.entries()).map(
           async ([network, { rpc, syncProgress }]) => {
             args.common.logger.debug({
               service: "sync",
@@ -611,8 +604,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     network,
     event,
   }: { network: Network; event: RealtimeSyncEvent }) => {
-    const { syncProgress, realtimeSync, unfinalizedEventData } =
-      localSyncContext.get(network)!;
+    const { syncProgress, realtimeSync, unfinalizedBlocks } =
+      perNetworkSync.get(network)!;
 
     switch (event.type) {
       /**
@@ -630,17 +623,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        const blockWithEventData = {
-          block: event.block,
-          filters: event.filters,
-          logs: event.logs,
-          factoryLogs: event.factoryLogs,
-          callTraces: event.callTraces,
-          transactions: event.transactions,
-          transactionReceipts: event.transactionReceipts,
-        };
-
-        unfinalizedEventData.push(blockWithEventData);
+        const blockWithEventData = event;
 
         const events = buildEvents({
           sources: args.sources,
@@ -650,19 +633,27 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
 
-        pendingEvents.push(...events);
+        unfinalizedBlocks.push({ ...blockWithEventData, events });
 
         if (to > from) {
           for (const network of args.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          const events = pendingEvents
-            .filter(({ checkpoint }) => checkpoint <= to)
-            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+          const pendingEvents: RawEvent[] = [];
 
-          pendingEvents = pendingEvents.filter(
-            ({ checkpoint }) => checkpoint > to,
+          for (const { unfinalizedBlocks } of perNetworkSync.values()) {
+            for (const { events } of unfinalizedBlocks) {
+              for (const event of events) {
+                if (event.checkpoint > from && event.checkpoint <= to) {
+                  pendingEvents.push(event);
+                }
+              }
+            }
+          }
+
+          const events = pendingEvents.sort((a, b) =>
+            a.checkpoint < b.checkpoint ? -1 : 1,
           );
 
           args
@@ -704,17 +695,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           args.onRealtimeEvent({ type: "finalize", checkpoint });
         }
 
-        const finalizedEventData = unfinalizedEventData.filter(
-          (ued) =>
-            hexToNumber(ued.block.number) <= hexToNumber(event.block.number),
-        );
-
-        localSyncContext.get(network)!.unfinalizedEventData =
-          unfinalizedEventData.filter(
-            (ued) =>
-              hexToNumber(ued.block.number) > hexToNumber(event.block.number),
-          );
-
         if (
           getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
           getOmnichainCheckpoint("current")!
@@ -723,46 +703,68 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             service: "sync",
             msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
           });
+          // exit early because we need to keep `unfinalizedBlocks.events`
+          return;
         }
+
+        const finalizedBlocks = unfinalizedBlocks.filter(
+          ({ block }) =>
+            hexToNumber(block.number) <= hexToNumber(event.block.number),
+        );
+
+        perNetworkSync.get(network)!.unfinalizedBlocks =
+          unfinalizedBlocks.filter(
+            ({ block }) =>
+              hexToNumber(block.number) > hexToNumber(event.block.number),
+          );
 
         // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
         await Promise.all([
           args.syncStore.insertBlocks({
-            blocks: finalizedEventData
-              .filter(({ filters }) => filters.size > 0)
+            blocks: finalizedBlocks
+              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
               .map(({ block }) => block),
             chainId: network.chainId,
           }),
           args.syncStore.insertLogs({
-            logs: finalizedEventData.flatMap(({ logs, block }) =>
+            logs: finalizedBlocks.flatMap(({ logs, block }) =>
               logs.map((log) => ({ log, block })),
             ),
             shouldUpdateCheckpoint: true,
             chainId: network.chainId,
           }),
           args.syncStore.insertLogs({
-            logs: finalizedEventData.flatMap(({ factoryLogs }) =>
+            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
               factoryLogs.map((log) => ({ log })),
             ),
             shouldUpdateCheckpoint: false,
             chainId: network.chainId,
           }),
           args.syncStore.insertTransactions({
-            transactions: finalizedEventData.flatMap(
-              ({ transactions }) => transactions,
+            transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
+              transactions.map((transaction) => ({
+                transaction,
+                block,
+              })),
             ),
             chainId: network.chainId,
           }),
           args.syncStore.insertTransactionReceipts({
-            transactionReceipts: finalizedEventData.flatMap(
+            transactionReceipts: finalizedBlocks.flatMap(
               ({ transactionReceipts }) => transactionReceipts,
             ),
             chainId: network.chainId,
           }),
-          args.syncStore.insertCallTraces({
-            callTraces: finalizedEventData.flatMap(({ callTraces, block }) =>
-              callTraces.map((callTrace) => ({ callTrace, block })),
+          args.syncStore.insertTraces({
+            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+              traces.map((trace) => ({
+                trace,
+                block,
+                transaction: transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              })),
             ),
             chainId: network.chainId,
           }),
@@ -770,13 +772,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         // Add corresponding intervals to the sync-store
         // Note: this should happen after so the database doesn't become corrupted
-        await Promise.all(
-          args.sources
-            .filter(({ filter }) => filter.chainId === network.chainId)
-            .map(({ filter }) =>
-              args.syncStore.insertInterval({ filter, interval }),
-            ),
-        );
+
+        if (network.disableCache === false) {
+          await args.syncStore.insertIntervals({
+            intervals: args.sources
+              .filter(({ filter }) => filter.chainId === network.chainId)
+              .map(({ filter }) => ({ filter, interval })),
+            chainId: network.chainId,
+          });
+        }
 
         /**
          * The realtime service can be killed if `endBlock` is
@@ -812,20 +816,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        localSyncContext.get(network)!.unfinalizedEventData =
-          unfinalizedEventData.filter(
-            (led) =>
-              hexToNumber(led.block.number) <= hexToNumber(event.block.number),
+        perNetworkSync.get(network)!.unfinalizedBlocks =
+          unfinalizedBlocks.filter(
+            ({ block }) =>
+              hexToNumber(block.number) <= hexToNumber(event.block.number),
           );
-
-        const reorgedHashes = new Set<Hash>();
-        for (const b of event.reorgedBlocks) {
-          reorgedHashes.add(b.hash);
-        }
-
-        pendingEvents = pendingEvents.filter(
-          (e) => reorgedHashes.has(e.block.hash) === false,
-        );
 
         await args.syncStore.pruneRpcRequestResult({
           blocks: event.reorgedBlocks,
@@ -846,7 +841,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     getEvents,
     async startRealtime() {
       for (const network of args.networks) {
-        const { syncProgress, realtimeSync } = localSyncContext.get(network)!;
+        const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
@@ -895,14 +890,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       return status;
     },
     getCachedTransport(network) {
-      const { rpc } = localSyncContext.get(network)!;
+      const { rpc } = perNetworkSync.get(network)!;
       return cachedTransport({ rpc, syncStore: args.syncStore });
     },
     async kill() {
       isKilled = true;
       const promises: Promise<void>[] = [];
       for (const network of args.networks) {
-        const { historicalSync, realtimeSync } = localSyncContext.get(network)!;
+        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
         historicalSync.kill();
         promises.push(realtimeSync.kill());
       }
@@ -978,7 +973,7 @@ export const getCachedBlock = ({
 }): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
-      filter.fromBlock,
+      filter.fromBlock ?? 0,
       filter.toBlock ?? Number.POSITIVE_INFINITY,
     ] satisfies Interval;
     const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
@@ -990,7 +985,9 @@ export const getCachedBlock = ({
     if (completedIntervals.length === 0) return undefined;
 
     const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== filter.fromBlock) return undefined;
+    if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
+      return undefined;
+    }
     return earliestCompletedInterval[1];
   });
 
@@ -1007,7 +1004,8 @@ export const getCachedBlock = ({
   if (
     latestCompletedBlocks.every(
       (block, i) =>
-        block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
+        block !== undefined ||
+        (sources[i]!.filter.fromBlock ?? 0) > minCompletedBlock,
     )
   ) {
     return _eth_getBlockByNumber(rpc, {
@@ -1076,7 +1074,7 @@ export async function* localHistoricalSyncGenerator({
     intervalDifference(
       [
         [
-          filter.fromBlock,
+          filter.fromBlock ?? 0,
           Math.min(
             filter.toBlock ?? Number.POSITIVE_INFINITY,
             totalInterval[1],

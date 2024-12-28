@@ -1,8 +1,5 @@
-import path from "node:path";
 import { BuildError } from "@/common/errors.js";
-import type { Options } from "@/common/options.js";
 import type { Config } from "@/config/config.js";
-import type { DatabaseConfig } from "@/config/database.js";
 import {
   type Network,
   getFinalityBlockCount,
@@ -10,12 +7,21 @@ import {
   isRpcUrlPublic,
 } from "@/config/networks.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
-import type { BlockSource, ContractSource } from "@/sync/source.js";
+import {
+  type AccountSource,
+  type BlockSource,
+  type ContractSource,
+  type Source,
+  defaultBlockFilterInclude,
+  defaultLogFilterInclude,
+  defaultTraceFilterInclude,
+  defaultTransactionFilterInclude,
+  defaultTransactionReceiptInclude,
+  defaultTransferFilterInclude,
+} from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { dedupe } from "@ponder/common";
-import parse from "pg-connection-string";
-import type { Hex, LogTopic } from "viem";
+import type { Address, Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
 
 export type RawIndexingFunctions = {
@@ -27,107 +33,49 @@ export type IndexingFunctions = {
   [eventName: string]: (...args: any) => any;
 };
 
+const flattenSources = <
+  T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
+>(
+  config: T,
+): (Omit<T[string], "network"> & { name: string; network: string })[] => {
+  return Object.entries(config).flatMap(
+    ([name, source]: [string, T[string]]) => {
+      if (typeof source.network === "string") {
+        return {
+          name,
+          ...source,
+        };
+      } else {
+        return Object.entries(source.network).map(
+          ([network, sourceOverride]) => {
+            const { network: _network, ...base } = source;
+
+            return {
+              name,
+              network,
+              ...base,
+              ...sourceOverride,
+            };
+          },
+        );
+      }
+    },
+  );
+};
+
 export async function buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
-  options: { rootDir, ponderDir },
 }: {
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
-  options: Pick<Options, "ponderDir" | "rootDir">;
 }): Promise<{
-  databaseConfig: DatabaseConfig;
   networks: Network[];
-  sources: (BlockSource | ContractSource)[];
+  sources: Source[];
   indexingFunctions: IndexingFunctions;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
-
-  // Build database.
-  let databaseConfig: DatabaseConfig;
-
-  // Determine PGlite directory, preferring config.database.directory if available
-  const pgliteDir =
-    config.database?.kind === "pglite" && config.database.directory
-      ? config.database.directory === "memory://"
-        ? "memory://"
-        : path.resolve(config.database.directory)
-      : path.join(ponderDir, "pglite");
-
-  const pglitePrintPath =
-    pgliteDir === "memory://" ? "memory://" : path.relative(rootDir, pgliteDir);
-
-  if (config.database?.kind) {
-    if (config.database.kind === "postgres") {
-      let connectionString: string | undefined = undefined;
-      let source: string | undefined = undefined;
-
-      if (config.database.connectionString) {
-        connectionString = config.database.connectionString;
-        source = "from ponder.config.ts";
-      } else if (process.env.DATABASE_PRIVATE_URL) {
-        connectionString = process.env.DATABASE_PRIVATE_URL;
-        source = "from DATABASE_PRIVATE_URL env var";
-      } else if (process.env.DATABASE_URL) {
-        connectionString = process.env.DATABASE_URL;
-        source = "from DATABASE_URL env var";
-      } else {
-        throw new Error(
-          `Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.`,
-        );
-      }
-
-      logs.push({
-        level: "info",
-        msg: `Using Postgres database '${getDatabaseName(connectionString)}' (${source})`,
-      });
-
-      const poolConfig = {
-        max: config.database.poolConfig?.max ?? 30,
-        connectionString,
-      };
-
-      databaseConfig = { kind: "postgres", poolConfig };
-    } else {
-      logs.push({
-        level: "info",
-        msg: `Using PGlite database in '${pglitePrintPath}' (from ponder.config.ts)`,
-      });
-
-      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
-    }
-  } else {
-    let connectionString: string | undefined = undefined;
-    let source: string | undefined = undefined;
-    if (process.env.DATABASE_PRIVATE_URL) {
-      connectionString = process.env.DATABASE_PRIVATE_URL;
-      source = "from DATABASE_PRIVATE_URL env var";
-    } else if (process.env.DATABASE_URL) {
-      connectionString = process.env.DATABASE_URL;
-      source = "from DATABASE_URL env var";
-    }
-
-    // If either of the DATABASE_URL env vars are set, use Postgres.
-    if (connectionString !== undefined) {
-      logs.push({
-        level: "info",
-        msg: `Using Postgres database ${getDatabaseName(connectionString)} (${source})`,
-      });
-
-      const poolConfig = { max: 30, connectionString };
-
-      databaseConfig = { kind: "postgres", poolConfig };
-    } else {
-      // Fall back to PGlite.
-      logs.push({
-        level: "info",
-        msg: `Using PGlite database at ${pglitePrintPath} (default)`,
-      });
-
-      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
-    }
-  }
 
   const networks: Network[] = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
@@ -172,6 +120,20 @@ export async function buildConfigAndIndexingFunctions({
     }),
   );
 
+  const sourceNames = new Set<string>();
+  for (const source of [
+    ...Object.keys(config.contracts ?? {}),
+    ...Object.keys(config.accounts ?? {}),
+    ...Object.keys(config.blocks ?? {}),
+  ]) {
+    if (sourceNames.has(source)) {
+      throw new Error(
+        `Validation failed: Duplicate source name '${source}' not allowed.`,
+      );
+    }
+    sourceNames.add(source);
+  }
+
   // Validate and build indexing functions
   let indexingFunctionCount = 0;
   const indexingFunctions: IndexingFunctions = {};
@@ -180,10 +142,37 @@ export async function buildConfigAndIndexingFunctions({
     const eventNameComponents = eventName.includes(".")
       ? eventName.split(".")
       : eventName.split(":");
-    const [sourceName, sourceEventName] = eventNameComponents;
-    if (eventNameComponents.length !== 2 || !sourceName || !sourceEventName) {
+
+    const [sourceName] = eventNameComponents;
+
+    if (!sourceName) {
       throw new Error(
-        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{eventName}'.`,
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
+      );
+    }
+
+    if (eventNameComponents.length === 3) {
+      const [, sourceType, fromOrTo] = eventNameComponents;
+
+      if (
+        (sourceType !== "transaction" && sourceType !== "transfer") ||
+        (fromOrTo !== "from" && fromOrTo !== "to")
+      ) {
+        throw new Error(
+          `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:transaction:from', '{sourceName}:transaction:to', '{sourceName}:transfer:from', or '{sourceName}:transfer:to'.`,
+        );
+      }
+    } else if (eventNameComponents.length === 2) {
+      const [, sourceEventName] = eventNameComponents;
+
+      if (!sourceEventName) {
+        throw new Error(
+          `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
+        );
+      }
+    } else {
+      throw new Error(
+        `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
       );
     }
 
@@ -196,16 +185,15 @@ export async function buildConfigAndIndexingFunctions({
     // Validate that the indexing function uses a sourceName that is present in the config.
     const matchedSourceName = Object.keys({
       ...(config.contracts ?? {}),
+      ...(config.accounts ?? {}),
       ...(config.blocks ?? {}),
     }).find((_sourceName) => _sourceName === sourceName);
 
     if (!matchedSourceName) {
-      // Multi-network has N sources, but the hint here should not have duplicates.
-      const uniqueSourceNames = dedupe(
-        Object.keys({ ...(config.contracts ?? {}), ...(config.blocks ?? {}) }),
-      );
       throw new Error(
-        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${uniqueSourceNames
+        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${Array.from(
+          sourceNames,
+        )
           .map((n) => `'${n}'`)
           .join(", ")}].`,
       );
@@ -219,118 +207,56 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
-  const contractSources: ContractSource[] = Object.entries(
+  // common validation for all sources
+  for (const source of [
+    ...flattenSources(config.contracts ?? {}),
+    ...flattenSources(config.accounts ?? {}),
+    ...flattenSources(config.blocks ?? {}),
+  ]) {
+    if (source.network === null || source.network === undefined) {
+      throw new Error(
+        `Validation failed: Network for '${source.name}' is null or undefined. Expected one of [${networks
+          .map((n) => `'${n.name}'`)
+          .join(", ")}].`,
+      );
+    }
+
+    const startBlockMaybeNan = source.startBlock;
+    const startBlock = Number.isNaN(startBlockMaybeNan)
+      ? undefined
+      : startBlockMaybeNan;
+    const endBlockMaybeNan = source.endBlock;
+    const endBlock = Number.isNaN(endBlockMaybeNan)
+      ? undefined
+      : endBlockMaybeNan;
+
+    if (
+      startBlock !== undefined &&
+      endBlock !== undefined &&
+      endBlock < startBlock
+    ) {
+      throw new Error(
+        `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
+      );
+    }
+
+    const network = networks.find((n) => n.name === source.network);
+    if (!network) {
+      throw new Error(
+        `Validation failed: Invalid network for '${
+          source.name
+        }'. Got '${source.network}', expected one of [${networks
+          .map((n) => `'${n.name}'`)
+          .join(", ")}].`,
+      );
+    }
+  }
+
+  const contractSources: ContractSource[] = flattenSources(
     config.contracts ?? {},
   )
-    // First, apply any network-specific overrides and flatten the result.
-    .flatMap(([contractName, contract]) => {
-      if (contract.network === null || contract.network === undefined) {
-        throw new Error(
-          `Validation failed: Network for contract '${contractName}' is null or undefined. Expected one of [${networks
-            .map((n) => `'${n.name}'`)
-            .join(", ")}].`,
-        );
-      }
-
-      const startBlockMaybeNan = contract.startBlock ?? 0;
-      const startBlock = Number.isNaN(startBlockMaybeNan)
-        ? 0
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = contract.endBlock;
-      const endBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
-
-      if (endBlock !== undefined && endBlock < startBlock) {
-        throw new Error(
-          `Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`,
-        );
-      }
-
-      // Single network case.
-      if (typeof contract.network === "string") {
-        return {
-          id: `log_${contractName}_${contract.network}`,
-          name: contractName,
-          networkName: contract.network,
-          abi: contract.abi,
-
-          address: "address" in contract ? contract.address : undefined,
-          factory: "factory" in contract ? contract.factory : undefined,
-          filter: contract.filter,
-
-          includeTransactionReceipts:
-            contract.includeTransactionReceipts ?? false,
-          includeCallTraces: contract.includeCallTraces ?? false,
-
-          startBlock,
-          endBlock,
-        };
-      }
-
-      type DefinedNetworkOverride = NonNullable<
-        Exclude<Config["contracts"][string]["network"], string>[string]
-      >;
-
-      // Multiple networks case.
-      return Object.entries(contract.network)
-        .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
-        .map(([networkName, overrides]) => {
-          const startBlockMaybeNan =
-            overrides.startBlock ?? contract.startBlock ?? 0;
-          const startBlock = Number.isNaN(startBlockMaybeNan)
-            ? 0
-            : startBlockMaybeNan;
-          const endBlockMaybeNan = overrides.endBlock ?? contract.endBlock;
-          const endBlock = Number.isNaN(endBlockMaybeNan)
-            ? undefined
-            : endBlockMaybeNan;
-
-          if (endBlock !== undefined && endBlock < startBlock) {
-            throw new Error(
-              `Validation failed: Start block for contract '${contractName}' is after end block (${startBlock} > ${endBlock}).`,
-            );
-          }
-
-          return {
-            name: contractName,
-            networkName,
-            abi: contract.abi,
-
-            address:
-              ("address" in overrides ? overrides?.address : undefined) ??
-              ("address" in contract ? contract.address : undefined),
-            factory:
-              ("factory" in overrides ? overrides.factory : undefined) ??
-              ("factory" in contract ? contract.factory : undefined),
-            filter: overrides.filter ?? contract.filter,
-
-            includeTransactionReceipts:
-              overrides.includeTransactionReceipts ??
-              contract.includeTransactionReceipts ??
-              false,
-            includeCallTraces:
-              overrides.includeCallTraces ??
-              contract.includeCallTraces ??
-              false,
-
-            startBlock,
-            endBlock,
-          };
-        });
-    })
-    // Second, build and validate the factory or log source.
-    .flatMap((rawContract): ContractSource[] => {
-      const network = networks.find((n) => n.name === rawContract.networkName);
-      if (!network) {
-        throw new Error(
-          `Validation failed: Invalid network for contract '${
-            rawContract.name
-          }'. Got '${rawContract.networkName}', expected one of [${networks
-            .map((n) => `'${n.name}'`)
-            .join(", ")}].`,
-        );
-      }
+    .flatMap((source): ContractSource[] => {
+      const network = networks.find((n) => n.name === source.network)!;
 
       // Get indexing function that were registered for this contract
       const registeredLogEvents: string[] = [];
@@ -342,29 +268,26 @@ export async function buildConfigAndIndexingFunctions({
             string,
             string,
           ];
-          if (
-            logContractName === rawContract.name &&
-            logEventName !== "setup"
-          ) {
+          if (logContractName === source.name && logEventName !== "setup") {
             registeredLogEvents.push(logEventName);
           }
         }
 
-        // call trace event
+        //  trace event
         if (eventName.includes(".")) {
           const [functionContractName, functionName] = eventName.split(".") as [
             string,
             string,
           ];
-          if (functionContractName === rawContract.name) {
+          if (functionContractName === source.name) {
             registeredCallTraceEvents.push(functionName);
           }
         }
       }
 
       // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
-      const abiEvents = buildAbiEvents({ abi: rawContract.abi });
-      const abiFunctions = buildAbiFunctions({ abi: rawContract.abi });
+      const abiEvents = buildAbiEvents({ abi: source.abi });
+      const abiFunctions = buildAbiFunctions({ abi: source.abi });
 
       const registeredEventSelectors: Hex[] = [];
       // Validate that the registered log events exist in the abi
@@ -399,28 +322,31 @@ export async function buildConfigAndIndexingFunctions({
         registeredFunctionSelectors.push(abiFunction.selector);
       }
 
-      let topics: LogTopic[] = [registeredEventSelectors];
+      let topic0: LogTopic = registeredEventSelectors;
+      let topic1: LogTopic = null;
+      let topic2: LogTopic = null;
+      let topic3: LogTopic = null;
 
-      if (rawContract.filter !== undefined) {
+      if (source.filter !== undefined) {
         if (
-          Array.isArray(rawContract.filter.event) &&
-          rawContract.filter.args !== undefined
+          Array.isArray(source.filter.event) &&
+          source.filter.args !== undefined
         ) {
           throw new Error(
-            `Validation failed: Event filter for contract '${rawContract.name}' cannot contain indexed argument values if multiple events are provided.`,
+            `Validation failed: Event filter for contract '${source.name}' cannot contain indexed argument values if multiple events are provided.`,
           );
         }
 
-        const filterSafeEventNames = Array.isArray(rawContract.filter.event)
-          ? rawContract.filter.event
-          : [rawContract.filter.event];
+        const filterSafeEventNames = Array.isArray(source.filter.event)
+          ? source.filter.event
+          : [source.filter.event];
 
         for (const filterSafeEventName of filterSafeEventNames) {
           const abiEvent = abiEvents.bySafeName[filterSafeEventName];
           if (!abiEvent) {
             throw new Error(
               `Validation failed: Invalid filter for contract '${
-                rawContract.name
+                source.name
               }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
                 abiEvents.bySafeName,
               )
@@ -434,10 +360,12 @@ export async function buildConfigAndIndexingFunctions({
         // The first element of the array return from `buildTopics` being defined
         // is an invariant of the current filter design.
         // Note: This can throw.
-        const [topic0FromFilter, ...topicsFromFilter] = buildTopics(
-          rawContract.abi,
-          rawContract.filter,
-        ) as [Exclude<LogTopic, null>, ...LogTopic[]];
+
+        const topics = buildTopics(source.abi, source.filter);
+        const topic0FromFilter = topics.topic0;
+        topic1 = topics.topic1;
+        topic2 = topics.topic2;
+        topic3 = topics.topic3;
 
         const filteredEventSelectors = Array.isArray(topic0FromFilter)
           ? topic0FromFilter
@@ -453,7 +381,7 @@ export async function buildConfigAndIndexingFunctions({
 
             throw new Error(
               `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
-                rawContract.name
+                source.name
               }'. Got '${logEventName}', expected one of [${filteredEventSelectors
                 .map((s) => abiEvents.bySelector[s]!.safeName)
                 .map((eventName) => `'${eventName}'`)
@@ -462,32 +390,37 @@ export async function buildConfigAndIndexingFunctions({
           }
         }
 
-        topics = [registeredEventSelectors, ...topicsFromFilter];
+        topic0 = registeredEventSelectors;
       }
+
+      const startBlockMaybeNan = source.startBlock;
+      const fromBlock = Number.isNaN(startBlockMaybeNan)
+        ? undefined
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = source.endBlock;
+      const toBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
 
       const contractMetadata = {
         type: "contract",
-        abi: rawContract.abi,
+        abi: source.abi,
         abiEvents,
         abiFunctions,
-        name: rawContract.name,
-        networkName: rawContract.networkName,
+        name: source.name,
+        networkName: source.network,
       } as const;
 
-      const resolvedFactory = rawContract?.factory;
-      const resolvedAddress = rawContract?.address;
+      const resolvedAddress = source?.address;
 
-      if (resolvedFactory !== undefined && resolvedAddress !== undefined) {
-        throw new Error(
-          `Validation failed: Contract '${contractMetadata.name}' cannot specify both 'factory' and 'address' options.`,
-        );
-      }
-
-      if (resolvedFactory) {
+      if (
+        typeof resolvedAddress === "object" &&
+        !Array.isArray(resolvedAddress)
+      ) {
         // Note that this can throw.
         const logFactory = buildLogFactory({
           chainId: network.chainId,
-          ...resolvedFactory,
+          ...resolvedAddress,
         });
 
         const logSource = {
@@ -496,58 +429,68 @@ export async function buildConfigAndIndexingFunctions({
             type: "log",
             chainId: network.chainId,
             address: logFactory,
-            topics,
-            includeTransactionReceipts: rawContract.includeTransactionReceipts,
-            fromBlock: rawContract.startBlock,
-            toBlock: rawContract.endBlock,
+            topic0,
+            topic1,
+            topic2,
+            topic3,
+            fromBlock,
+            toBlock,
+            include: defaultLogFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
           },
         } satisfies ContractSource;
 
-        if (rawContract.includeCallTraces) {
+        if (source.includeCallTraces) {
           return [
             logSource,
             {
               ...contractMetadata,
               filter: {
-                type: "callTrace",
+                type: "trace",
                 chainId: network.chainId,
                 fromAddress: undefined,
                 toAddress: logFactory,
-                functionSelectors: registeredFunctionSelectors,
-                includeTransactionReceipts:
-                  rawContract.includeTransactionReceipts,
-                fromBlock: rawContract.startBlock,
-                toBlock: rawContract.endBlock,
+                callType: "CALL",
+                functionSelector: registeredFunctionSelectors,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTraceFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
               },
             } satisfies ContractSource,
           ];
         }
 
         return [logSource];
-      }
-
-      if (resolvedAddress !== undefined) {
+      } else if (resolvedAddress !== undefined) {
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
           : [resolvedAddress]) {
-          if (!address.startsWith("0x"))
+          if (!address!.startsWith("0x"))
             throw new Error(
-              `Validation failed: Invalid prefix for address '${address}'. Got '${address.slice(
+              `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
                 0,
                 2,
               )}', expected '0x'.`,
             );
-          if (address.length !== 42)
+          if (address!.length !== 42)
             throw new Error(
-              `Validation failed: Invalid length for address '${address}'. Got ${address.length}, expected 42 characters.`,
+              `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
             );
         }
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? resolvedAddress.map((r) => toLowerCase(r))
+        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
         : resolvedAddress !== undefined
-          ? toLowerCase(resolvedAddress)
+          ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
       const logSource = {
@@ -556,20 +499,27 @@ export async function buildConfigAndIndexingFunctions({
           type: "log",
           chainId: network.chainId,
           address: validatedAddress,
-          topics,
-          includeTransactionReceipts: rawContract.includeTransactionReceipts,
-          fromBlock: rawContract.startBlock,
-          toBlock: rawContract.endBlock,
+          topic0,
+          topic1,
+          topic2,
+          topic3,
+          fromBlock,
+          toBlock,
+          include: defaultLogFilterInclude.concat(
+            source.includeTransactionReceipts
+              ? defaultTransactionReceiptInclude
+              : [],
+          ),
         },
       } satisfies ContractSource;
 
-      if (rawContract.includeCallTraces) {
+      if (source.includeCallTraces) {
         return [
           logSource,
           {
             ...contractMetadata,
             filter: {
-              type: "callTrace",
+              type: "trace",
               chainId: network.chainId,
               fromAddress: undefined,
               toAddress: Array.isArray(validatedAddress)
@@ -577,145 +527,293 @@ export async function buildConfigAndIndexingFunctions({
                 : validatedAddress === undefined
                   ? undefined
                   : [validatedAddress],
-              functionSelectors: registeredFunctionSelectors,
-              includeTransactionReceipts:
-                rawContract.includeTransactionReceipts,
-              fromBlock: rawContract.startBlock,
-              toBlock: rawContract.endBlock,
+              callType: "CALL",
+              functionSelector: registeredFunctionSelectors,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTraceFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
             },
           } satisfies ContractSource,
         ];
       } else return [logSource];
-    })
-    // Remove sources with no registered indexing functions
+    }) // Remove sources with no registered indexing functions
     .filter((source) => {
       const hasRegisteredIndexingFunctions =
-        source.filter.type === "callTrace"
-          ? source.filter.functionSelectors.length !== 0
-          : source.filter.topics[0]?.length !== 0;
+        source.filter.type === "trace"
+          ? Array.isArray(source.filter.functionSelector) &&
+            source.filter.functionSelector.length > 0
+          : Array.isArray(source.filter.topic0) &&
+            source.filter.topic0?.length > 0;
       if (!hasRegisteredIndexingFunctions) {
         logs.push({
           level: "debug",
           msg: `No indexing functions were registered for '${
             source.name
-          }' ${source.filter.type === "callTrace" ? "call traces" : "logs"}`,
+          }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
         });
       }
       return hasRegisteredIndexingFunctions;
     });
 
-  const blockSources: BlockSource[] = Object.entries(config.blocks ?? {})
-    .flatMap(([sourceName, blockSourceConfig]) => {
-      const startBlockMaybeNan = blockSourceConfig.startBlock ?? 0;
-      const startBlock = Number.isNaN(startBlockMaybeNan)
-        ? 0
+  const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
+    .flatMap((source): AccountSource[] => {
+      const network = networks.find((n) => n.name === source.network)!;
+
+      const startBlockMaybeNan = source.startBlock;
+      const fromBlock = Number.isNaN(startBlockMaybeNan)
+        ? undefined
         : startBlockMaybeNan;
-      const endBlockMaybeNan = blockSourceConfig.endBlock;
-      const endBlock = Number.isNaN(endBlockMaybeNan)
+      const endBlockMaybeNan = source.endBlock;
+      const toBlock = Number.isNaN(endBlockMaybeNan)
         ? undefined
         : endBlockMaybeNan;
 
-      if (endBlock !== undefined && endBlock < startBlock) {
+      const resolvedAddress = source?.address;
+
+      if (resolvedAddress === undefined) {
         throw new Error(
-          `Validation failed: Start block for block source '${sourceName}' is after end block (${startBlock} > ${endBlock}).`,
+          `Validation failed: Account '${source.name}' must specify an 'address'.`,
         );
       }
 
-      if (typeof blockSourceConfig.network === "string") {
-        const network = networks.find(
-          (n) => n.name === blockSourceConfig.network,
-        );
-        if (!network) {
-          throw new Error(
-            `Validation failed: Invalid network for block source '${sourceName}'. Got '${
-              blockSourceConfig.network
-            }', expected one of [${networks.map((n) => `'${n.name}'`).join(", ")}].`,
-          );
-        }
-
-        const intervalMaybeNan = blockSourceConfig.interval ?? 1;
-        const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
-
-        if (!Number.isInteger(interval) || interval === 0) {
-          throw new Error(
-            `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
-          );
-        }
-
-        return {
-          type: "block",
-          name: sourceName,
-          networkName: blockSourceConfig.network,
-          filter: {
-            type: "block",
-            chainId: network.chainId,
-            interval: interval,
-            offset: startBlock % interval,
-            fromBlock: startBlock,
-            toBlock: endBlock,
-          },
-        } satisfies BlockSource;
-      }
-
-      type DefinedNetworkOverride = NonNullable<
-        Exclude<Config["blocks"][string]["network"], string>[string]
-      >;
-
-      return Object.entries(blockSourceConfig.network)
-        .filter((n): n is [string, DefinedNetworkOverride] => !!n[1])
-        .map(([networkName, overrides]) => {
-          const network = networks.find((n) => n.name === networkName);
-          if (!network) {
-            throw new Error(
-              `Validation failed: Invalid network for block source '${sourceName}'. Got '${networkName}', expected one of [${networks
-                .map((n) => `'${n.name}'`)
-                .join(", ")}].`,
-            );
-          }
-
-          const startBlockMaybeNan =
-            overrides.startBlock ?? blockSourceConfig.startBlock ?? 0;
-          const startBlock = Number.isNaN(startBlockMaybeNan)
-            ? 0
-            : startBlockMaybeNan;
-          const endBlockMaybeNan =
-            overrides.endBlock ?? blockSourceConfig.endBlock;
-          const endBlock = Number.isNaN(endBlockMaybeNan)
-            ? undefined
-            : endBlockMaybeNan;
-
-          if (endBlock !== undefined && endBlock < startBlock) {
-            throw new Error(
-              `Validation failed: Start block for block source '${sourceName}' is after end block (${startBlock} > ${endBlock}).`,
-            );
-          }
-
-          const intervalMaybeNan =
-            overrides.interval ?? blockSourceConfig.interval ?? 0;
-          const interval = Number.isNaN(intervalMaybeNan)
-            ? 0
-            : intervalMaybeNan;
-
-          if (!Number.isInteger(interval) || interval === 0) {
-            throw new Error(
-              `Validation failed: Invalid interval for block source '${sourceName}'. Got ${interval}, expected a non-zero integer.`,
-            );
-          }
-
-          return {
-            type: "block",
-            name: sourceName,
-            networkName,
-            filter: {
-              type: "block",
-              chainId: network.chainId,
-              interval: interval,
-              offset: startBlock % interval,
-              fromBlock: startBlock,
-              toBlock: endBlock,
-            },
-          } satisfies BlockSource;
+      if (
+        typeof resolvedAddress === "object" &&
+        !Array.isArray(resolvedAddress)
+      ) {
+        // Note that this can throw.
+        const logFactory = buildLogFactory({
+          chainId: network.chainId,
+          ...resolvedAddress,
         });
+
+        return [
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: logFactory,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: logFactory,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: logFactory,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: logFactory,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+        ];
+      }
+
+      for (const address of Array.isArray(resolvedAddress)
+        ? resolvedAddress
+        : [resolvedAddress]) {
+        if (!address!.startsWith("0x"))
+          throw new Error(
+            `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
+              0,
+              2,
+            )}', expected '0x'.`,
+          );
+        if (address!.length !== 42)
+          throw new Error(
+            `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
+          );
+      }
+
+      const validatedAddress = Array.isArray(resolvedAddress)
+        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
+        : resolvedAddress !== undefined
+          ? (toLowerCase(resolvedAddress) as Address)
+          : undefined;
+
+      return [
+        {
+          type: "account",
+          name: source.name,
+
+          networkName: source.network,
+          filter: {
+            type: "transaction",
+            chainId: network.chainId,
+            fromAddress: undefined,
+            toAddress: validatedAddress,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransactionFilterInclude,
+          },
+        } satisfies AccountSource,
+        {
+          type: "account",
+          name: source.name,
+          networkName: source.network,
+          filter: {
+            type: "transaction",
+            chainId: network.chainId,
+            fromAddress: validatedAddress,
+            toAddress: undefined,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransactionFilterInclude,
+          },
+        } satisfies AccountSource,
+        {
+          type: "account",
+          name: source.name,
+          networkName: source.network,
+          filter: {
+            type: "transfer",
+            chainId: network.chainId,
+            fromAddress: undefined,
+            toAddress: validatedAddress,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransferFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
+          },
+        } satisfies AccountSource,
+        {
+          type: "account",
+          name: source.name,
+          networkName: source.network,
+          filter: {
+            type: "transfer",
+            chainId: network.chainId,
+            fromAddress: validatedAddress,
+            toAddress: undefined,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransferFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
+          },
+        } satisfies AccountSource,
+      ];
+    })
+    .filter((source) => {
+      const eventName =
+        source.filter.type === "transaction"
+          ? source.filter.fromAddress === undefined
+            ? `${source.name}:transaction:to`
+            : `${source.name}:transaction:from`
+          : source.filter.fromAddress === undefined
+            ? `${source.name}:transfer:to`
+            : `${source.name}:transfer:from`;
+
+      const hasRegisteredIndexingFunction =
+        indexingFunctions[eventName] !== undefined;
+      if (!hasRegisteredIndexingFunction) {
+        logs.push({
+          level: "debug",
+          msg: `No indexing functions were registered for '${eventName}'`,
+        });
+      }
+      return hasRegisteredIndexingFunction;
+    });
+
+  const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
+    .map((source) => {
+      const network = networks.find((n) => n.name === source.network)!;
+
+      const intervalMaybeNan = source.interval ?? 1;
+      const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
+
+      if (!Number.isInteger(interval) || interval === 0) {
+        throw new Error(
+          `Validation failed: Invalid interval for block source '${source.name}'. Got ${interval}, expected a non-zero integer.`,
+        );
+      }
+
+      const startBlockMaybeNan = source.startBlock;
+      const fromBlock = Number.isNaN(startBlockMaybeNan)
+        ? undefined
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = source.endBlock;
+      const toBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+
+      return {
+        type: "block",
+        name: source.name,
+        networkName: source.network,
+        filter: {
+          type: "block",
+          chainId: network.chainId,
+          interval: interval,
+          offset: (fromBlock ?? 0) % interval,
+          fromBlock,
+          toBlock,
+          include: defaultBlockFilterInclude,
+        },
+      } satisfies BlockSource;
     })
     .filter((blockSource) => {
       const hasRegisteredIndexingFunction =
@@ -729,7 +827,7 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunction;
     });
 
-  const sources = [...contractSources, ...blockSources];
+  const sources = [...contractSources, ...accountSources, ...blockSources];
 
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
@@ -752,7 +850,6 @@ export async function buildConfigAndIndexingFunctions({
   }
 
   return {
-    databaseConfig,
     networks: networksWithSources,
     sources,
     indexingFunctions,
@@ -763,17 +860,14 @@ export async function buildConfigAndIndexingFunctions({
 export async function safeBuildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
-  options,
 }: {
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
-  options: Pick<Options, "rootDir" | "ponderDir">;
 }) {
   try {
     const result = await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
-      options,
     });
 
     return {
@@ -781,7 +875,6 @@ export async function safeBuildConfigAndIndexingFunctions({
       sources: result.sources,
       networks: result.networks,
       indexingFunctions: result.indexingFunctions,
-      databaseConfig: result.databaseConfig,
       logs: result.logs,
     } as const;
   } catch (_error) {
@@ -789,9 +882,4 @@ export async function safeBuildConfigAndIndexingFunctions({
     buildError.stack = undefined;
     return { status: "error", error: buildError } as const;
   }
-}
-
-function getDatabaseName(connectionString: string) {
-  const parsed = (parse as unknown as typeof parse.parse)(connectionString);
-  return `${parsed.host}:${parsed.port}/${parsed.database}`;
 }

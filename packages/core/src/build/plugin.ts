@@ -1,3 +1,4 @@
+import type { Common } from "@/common/common.js";
 import type { Plugin } from "vite";
 
 const virtualModule = () => `import { Hono } from "hono";
@@ -30,11 +31,19 @@ const ponder = {
 export { ponder };
 `;
 
-export const vitePluginPonder = (): Plugin => {
+const schemaModule = (
+  schemaPath: string,
+) => `import * as schema from "${schemaPath}";
+export * from "${schemaPath}";
+export default schema;
+`;
+
+export const vitePluginPonder = (options: Common["options"]): Plugin => {
   return {
     name: "ponder",
     load: (id) => {
-      if (id === "@/generated") return virtualModule();
+      if (id === "ponder:registry") return virtualModule();
+      if (id === "ponder:schema") return schemaModule(options.schemaFile);
       return null;
     },
   };

@@ -34,6 +34,7 @@ import {
 } from "drizzle-orm";
 import {
   type PgEnum,
+  PgEnumColumn,
   PgInteger,
   PgSerial,
   isPgEnum,
@@ -443,19 +444,16 @@ const columnToGraphQLCore = (
     return GraphQLBigInt;
   }
 
-  if (column.columnType === "PgEnumColumn") {
-    const enumObject = (column as any)?.enum as
-      | PgEnum<[string, ...string[]]>
-      | undefined;
-    if (enumObject === undefined) {
+  if (column instanceof PgEnumColumn) {
+    if (column.enum === undefined) {
       throw new Error(
         `Internal error: Expected enum column "${getColumnTsName(column)}" to have an "enum" property`,
       );
     }
-    const enumType = enumTypes[enumObject.enumName];
+    const enumType = enumTypes[column.enum.enumName];
     if (enumType === undefined) {
       throw new Error(
-        `Internal error: Expected to find a GraphQL enum named "${enumObject.enumName}"`,
+        `Internal error: Expected to find a GraphQL enum named "${column.enum.enumName}"`,
       );
     }
 

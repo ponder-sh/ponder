@@ -1,4 +1,94 @@
-# @ponder/core
+# ponder
+
+## 0.8.8
+
+### Patch Changes
+
+- [#1368](https://github.com/ponder-sh/ponder/pull/1368) [`492d7e7744dbddede2e72b0649cd7dffb96173cd`](https://github.com/ponder-sh/ponder/commit/492d7e7744dbddede2e72b0649cd7dffb96173cd) Thanks [@typedarray](https://github.com/typedarray)! - Improved debug-level logs for historical indexing observability.
+
+## 0.8.7
+
+### Patch Changes
+
+- [#1355](https://github.com/ponder-sh/ponder/pull/1355) [`083f11420a4030b15dd710f86521406fdbb52b74`](https://github.com/ponder-sh/ponder/commit/083f11420a4030b15dd710f86521406fdbb52b74) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with detecting cached rpc requests.
+
+## 0.8.6
+
+### Patch Changes
+
+- [#1349](https://github.com/ponder-sh/ponder/pull/1349) [`4b18d8d2ab45475eea651e0db5c515b1242031f5`](https://github.com/ponder-sh/ponder/commit/4b18d8d2ab45475eea651e0db5c515b1242031f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue leading to "could not determine data type of parameter" for some postgres versions.
+
+## 0.8.5
+
+### Patch Changes
+
+- [#1345](https://github.com/ponder-sh/ponder/pull/1345) [`7ec278f0fe5d71ebb5386a5f948ef63f158c174c`](https://github.com/ponder-sh/ponder/commit/7ec278f0fe5d71ebb5386a5f948ef63f158c174c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused no events to be found in the historical backfill. Affected users should resync their apps to get rid of the incorrect cached data.
+
+## 0.8.4
+
+### Patch Changes
+
+- [#1335](https://github.com/ponder-sh/ponder/pull/1335) [`77b92ef14fa4a0491f04a009cd2158af8f77c656`](https://github.com/ponder-sh/ponder/commit/77b92ef14fa4a0491f04a009cd2158af8f77c656) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that occassionaly caused reorgs to lead to missing events. Please note that this did not affect the rpc cache, users do not have to re-sync.
+
+## 0.8.3
+
+### Patch Changes
+
+- [#1333](https://github.com/ponder-sh/ponder/pull/1333) [`7e9e92ad16654350b787e8c5f15545860bad3b35`](https://github.com/ponder-sh/ponder/commit/7e9e92ad16654350b787e8c5f15545860bad3b35) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a graphql bug when using enums in a primary key.
+
+## 0.8.2
+
+### Patch Changes
+
+- [#1330](https://github.com/ponder-sh/ponder/pull/1330) [`0c7395ff2e86ac9f6431e4d702965e2036c35d64`](https://github.com/ponder-sh/ponder/commit/0c7395ff2e86ac9f6431e4d702965e2036c35d64) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with crash recovery.
+
+## 0.8.1
+
+### Patch Changes
+
+- [#1328](https://github.com/ponder-sh/ponder/pull/1328) [`6df44c91095ec337faf27a8eb6e3ddfa48641b7c`](https://github.com/ponder-sh/ponder/commit/6df44c91095ec337faf27a8eb6e3ddfa48641b7c) Thanks [@3commascapital](https://github.com/3commascapital)! - Fixed a bug introduced in v0.8.0 with using an array of addresses in `ponder.config.ts`.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#1235](https://github.com/ponder-sh/ponder/pull/1235) [`37ed2e1278cb70c6ff2c82b64852ff4c6324e969`](https://github.com/ponder-sh/ponder/commit/37ed2e1278cb70c6ff2c82b64852ff4c6324e969) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.8`. Visit the [migration guide](https://ponder.sh/docs/migration-guide) for a full list of changes.
+
+## 0.7.17
+
+### Patch Changes
+
+- [#1321](https://github.com/ponder-sh/ponder/pull/1321) [`63d95d5e7fd79d7f276746fc5fe3f9c38bb43762`](https://github.com/ponder-sh/ponder/commit/63d95d5e7fd79d7f276746fc5fe3f9c38bb43762) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused too many rows to be reverted after a reorg when using `.sql()` raw database access.
+
+## 0.7.16
+
+### Patch Changes
+
+- [`df699d14b75bf65fd4be9d9587f8192f3b3c9271`](https://github.com/ponder-sh/ponder/commit/df699d14b75bf65fd4be9d9587f8192f3b3c9271) Thanks [@typedarray](https://github.com/typedarray)! - Reset latest tag.
+
+## 0.7.15
+
+### Patch Changes
+
+- [#1311](https://github.com/ponder-sh/ponder/pull/1311) [`0a02afa0512b30150935bf424a742bbb04a2915b`](https://github.com/ponder-sh/ponder/commit/0a02afa0512b30150935bf424a742bbb04a2915b) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where the GraphiQL explorer displayed "Loading..." as soon as React 19 was released. The fix pins the `react` and `react-dom` versions in the GraphiQL HTML to `18.3.1`.
+
+## 0.7.14
+
+### Patch Changes
+
+- [#1305](https://github.com/ponder-sh/ponder/pull/1305) [`6ebb19dc51d97f311455b4091183c52bba716081`](https://github.com/ponder-sh/ponder/commit/6ebb19dc51d97f311455b4091183c52bba716081) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.7.6 that caused errors with `flush()`.
+
+## 0.7.13
+
+### Patch Changes
+
+- [#1293](https://github.com/ponder-sh/ponder/pull/1293) [`f7190e313ab6aa7b0180e8dc0f96c9195799bd74`](https://github.com/ponder-sh/ponder/commit/f7190e313ab6aa7b0180e8dc0f96c9195799bd74) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where the database did not contain recent records when running `ponder dev`. Now, the indexing store flushes to the database every 5 seconds regardless of the size of the in-memory cache.
+
+## 0.7.12
+
+### Patch Changes
+
+- [#1300](https://github.com/ponder-sh/ponder/pull/1300) [`31fa94b34bc4fd9f7c64f3934b2a92f709e17bc8`](https://github.com/ponder-sh/ponder/commit/31fa94b34bc4fd9f7c64f3934b2a92f709e17bc8) Thanks [@kyscott18](https://github.com/kyscott18)! - Update drizzle-orm to v0.36.
 
 ## 0.7.11
 
@@ -1311,7 +1401,7 @@
 
 ### Patch Changes
 
-- [#270](https://github.com/0xOlias/ponder/pull/270) [`9919db8`](https://github.com/0xOlias/ponder/commit/9919db807e546d220d92706f00910afaa4424ea2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the server would crash if no event handlers were registered in a file that had `import { ponder } from "@/generated"`
+- [#270](https://github.com/0xOlias/ponder/pull/270) [`9919db8`](https://github.com/0xOlias/ponder/commit/9919db807e546d220d92706f00910afaa4424ea2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the server would crash if no event handlers were registered in a file that had `import { ponder } from "ponder:registry"`
 
 ## 0.0.75
 
@@ -1539,7 +1629,7 @@
 - [#151](https://github.com/0xOlias/ponder/pull/151) [`ace6a36`](https://github.com/0xOlias/ponder/commit/ace6a3664c2e1354701e2225d0f5c92c3eae9a28) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a "setup" event which is processed before all log events. The "setup" event handler argument only includes `context` (no `event` property). Example:
 
   ```ts
-  import { ponder } from "@/generated";
+  import { ponder } from "ponder:registry";
 
   ponder.on("setup", async ({ context }) => {
     const { MyEntity } = context.entities;
@@ -1647,18 +1737,18 @@
 
 - [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated package exports to include cjs and esm
 
-- [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a path alias `@/generated` in Ponder project `src` files.
+- [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a path alias `ponder:registry` in Ponder project `src` files.
 
   ```ts
   // src/SomeContract.ts
-  import { ponder } from "@/generated";
+  import { ponder } from "ponder:registry";
 
   ponder.on(...)
   ```
 
   ```ts
   // src/nested/AnotherContract.ts
-  import { ponder } from "@/generated";
+  import { ponder } from "ponder:registry";
 
   ponder.on(...)
 

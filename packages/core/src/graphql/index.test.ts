@@ -270,6 +270,53 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
   await cleanup();
 });
 
+test("enum primary key", async (context) => {
+  const testEnum = onchainEnum("enum", ["A", "B"]);
+  const table = onchainTable(
+    "table",
+    (t) => ({
+      a: t.text().notNull(),
+      enum: testEnum("enum").notNull(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.a, table.enum] }),
+    }),
+  );
+  const schema = { testEnum, table };
+
+  const { database, indexingStore, metadataStore, cleanup } =
+    await setupDatabaseServices(context, { schema });
+  const contextValue = buildContextValue(database, metadataStore);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.table).values({
+    a: "0",
+    enum: "A",
+  });
+
+  const graphqlSchema = buildGraphQLSchema(schema);
+
+  const result = await query(`
+    query {
+      table(a: "0", enum: "A") {
+        a
+        enum
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    table: {
+      a: "0",
+      enum: "A",
+    },
+  });
+
+  await cleanup();
+});
+
 test("json, json not null", async (context) => {
   const schema = {
     table: onchainTable("table", (t) => ({

@@ -41,15 +41,15 @@ importers:
       '@graphprotocol/graph-ts':
         specifier: ^0.31.0
         version: 0.31.0
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../packages/core
       '@types/node':
         specifier: ^20.10.0
         version: 20.11.24
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      ponder:
+        specifier: workspace:*
+        version: link:../packages/core
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
@@ -136,17 +136,39 @@ importers:
         specifier: ^5.2.2
         version: 5.3.3
 
-  examples/feature-api-functions:
+  examples/feature-accounts:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      drizzle-kit:
-        specifier: 0.25.0
-        version: 0.25.0
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^2.21.3
+        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.11.24
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.3
+
+  examples/feature-api-functions:
+    dependencies:
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -166,12 +188,12 @@ importers:
 
   examples/feature-blocks:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -191,12 +213,12 @@ importers:
 
   examples/feature-call-traces:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -216,15 +238,15 @@ importers:
 
   examples/feature-factory:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -244,12 +266,12 @@ importers:
 
   examples/feature-filter:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -269,12 +291,12 @@ importers:
 
   examples/feature-multichain:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -294,12 +316,12 @@ importers:
 
   examples/feature-proxy:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -319,12 +341,12 @@ importers:
 
   examples/feature-read-contract:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -344,12 +366,12 @@ importers:
 
   examples/project-friendtech:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -369,12 +391,12 @@ importers:
 
   examples/project-uniswap-v3-flash:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -394,12 +416,12 @@ importers:
 
   examples/reference-erc1155:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -419,15 +441,15 @@ importers:
 
   examples/reference-erc20:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       drizzle-kit:
         specifier: 0.22.8
         version: 0.22.8
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -447,12 +469,12 @@ importers:
 
   examples/reference-erc4626:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -472,12 +494,12 @@ importers:
 
   examples/reference-erc721:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -518,15 +540,15 @@ importers:
       '@hono/trpc-server':
         specifier: ^0.3.2
         version: 0.3.2(@trpc/server@10.45.2)(hono@4.5.0)
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -557,16 +579,16 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0e7097750918380d84dd3cfdef595bee74dabb70
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b
 
   examples/with-foundry/ponder:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -643,12 +665,12 @@ importers:
 
   examples/with-nextjs/ponder:
     dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -679,15 +701,15 @@ importers:
       '@hono/trpc-server':
         specifier: ^0.3.2
         version: 0.3.2(@trpc/server@10.45.2)(hono@4.5.0)
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
       hono:
         specifier: ^4.5.0
         version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../../packages/core
       viem:
         specifier: ^2.21.3
         version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
@@ -768,8 +790,8 @@ importers:
         specifier: ^16.3.1
         version: 16.4.5
       drizzle-orm:
-        specifier: 0.34.1
-        version: 0.34.1(@electric-sql/pglite@0.2.10)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
+        specifier: 0.36.4
+        version: 0.36.4(@electric-sql/pglite@0.2.10)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       glob:
         specifier: ^10.3.10
         version: 10.3.10
@@ -797,9 +819,6 @@ importers:
       pg-connection-string:
         specifier: ^2.6.2
         version: 2.6.2
-      pg-copy-streams:
-        specifier: ^6.0.6
-        version: 6.0.6
       picocolors:
         specifier: ^1.0.0
         version: 1.0.0
@@ -1725,9 +1744,6 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
-
-  '@drizzle-team/brocli@0.10.1':
-    resolution: {integrity: sha512-AHy0vjc+n/4w/8Mif+w86qpppHuF3AyXbcWW+R/W7GNA3F5/p2nuhlkCJaTXSLZheB4l1rtHzOfr9A7NwoR/Zg==}
 
   '@electric-sql/pglite@0.2.10':
     resolution: {integrity: sha512-0TJF/1ouBweCtyZC4oHwx+dHGn/lP16KfEO/3q22RDuZUsV2saTuYAwb6eK3gBLzVdXG4dj4xZilvmBYEM/WQg==}
@@ -4455,10 +4471,6 @@ packages:
     resolution: {integrity: sha512-VjI4wsJjk3hSqHSa3TwBf+uvH6M6pRHyxyoVbt935GUzP9tUR/BRZ+MhEJNgryqbzN2Za1KP0eJMTgKEPsalYQ==}
     hasBin: true
 
-  drizzle-kit@0.25.0:
-    resolution: {integrity: sha512-Rcf0nYCAKizwjWQCY+d3zytyuTbDb81NcaPor+8NebESlUz1+9W3uGl0+r9FhU4Qal5Zv9j/7neXCSCe7DHzjA==}
-    hasBin: true
-
   drizzle-orm@0.34.1:
     resolution: {integrity: sha512-t+zCwyWWt8xTqtYV4doE/xYmT7hpv1L8pQ66zddEz+3VWyedBBtctjMAp22mAJPfyWurRQXUJ1nrTtqLq+DqNA==}
     peerDependencies:
@@ -4498,6 +4510,98 @@ packages:
       '@electric-sql/pglite':
         optional: true
       '@libsql/client':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@op-engineering/op-sqlite':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@prisma/client':
+        optional: true
+      '@tidbcloud/serverless':
+        optional: true
+      '@types/better-sqlite3':
+        optional: true
+      '@types/pg':
+        optional: true
+      '@types/react':
+        optional: true
+      '@types/sql.js':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      '@xata.io/client':
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      expo-sqlite:
+        optional: true
+      knex:
+        optional: true
+      kysely:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      postgres:
+        optional: true
+      prisma:
+        optional: true
+      react:
+        optional: true
+      sql.js:
+        optional: true
+      sqlite3:
+        optional: true
+
+  drizzle-orm@0.36.4:
+    resolution: {integrity: sha512-1OZY3PXD7BR00Gl61UUOFihslDldfH4NFRH2MbP54Yxi0G/PKn4HfO65JYZ7c16DeP3SpM3Aw+VXVG9j6CRSXA==}
+    peerDependencies:
+      '@aws-sdk/client-rds-data': '>=3'
+      '@cloudflare/workers-types': '>=3'
+      '@electric-sql/pglite': '>=0.2.0'
+      '@libsql/client': '>=0.10.0'
+      '@libsql/client-wasm': '>=0.10.0'
+      '@neondatabase/serverless': '>=0.10.0'
+      '@op-engineering/op-sqlite': '>=2'
+      '@opentelemetry/api': ^1.4.1
+      '@planetscale/database': '>=1'
+      '@prisma/client': '*'
+      '@tidbcloud/serverless': '*'
+      '@types/better-sqlite3': '*'
+      '@types/pg': '*'
+      '@types/react': '>=18'
+      '@types/sql.js': '*'
+      '@vercel/postgres': '>=0.8.0'
+      '@xata.io/client': '*'
+      better-sqlite3: '>=7'
+      bun-types: '*'
+      expo-sqlite: '>=14.0.0'
+      knex: '*'
+      kysely: '*'
+      mysql2: '>=2'
+      pg: '>=8'
+      postgres: '>=3'
+      prisma: '*'
+      react: '>=18'
+      sql.js: '>=1'
+      sqlite3: '>=5'
+    peerDependenciesMeta:
+      '@aws-sdk/client-rds-data':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@electric-sql/pglite':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@libsql/client-wasm':
         optional: true
       '@neondatabase/serverless':
         optional: true
@@ -5018,8 +5122,8 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0e7097750918380d84dd3cfdef595bee74dabb70:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0e7097750918380d84dd3cfdef595bee74dabb70}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b}
     version: 1.9.4
 
   form-data@2.3.3:
@@ -6994,9 +7098,6 @@ packages:
 
   pg-connection-string@2.6.2:
     resolution: {integrity: sha512-ch6OwaeaPYcova4kKZ15sbJ2hKb/VP48ZD2gE7i1J+L4MspCtBMAx8nMgz7bksc7IojCIIWuEhHibSMFH8m8oA==}
-
-  pg-copy-streams@6.0.6:
-    resolution: {integrity: sha512-Z+Dd2C2NIDTsjyFKmc6a9QLlpM8tjpERx+43RSx0WmL7j3uNChERi3xSvZUL0hWJ1oRUn4S3fhyt3apdSrTyKQ==}
 
   pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -9722,8 +9823,6 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
-
-  '@drizzle-team/brocli@0.10.1': {}
 
   '@electric-sql/pglite@0.2.10': {}
 
@@ -12514,16 +12613,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-kit@0.25.0:
-    dependencies:
-      '@drizzle-team/brocli': 0.10.1
-      '@esbuild-kit/esm-loader': 2.6.5
-      esbuild: 0.19.11
-      esbuild-register: 3.6.0(esbuild@0.19.11)
-    transitivePeerDependencies:
-      - supports-color
-
   drizzle-orm@0.34.1(@electric-sql/pglite@0.2.10)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
+    optionalDependencies:
+      '@electric-sql/pglite': 0.2.10
+      '@opentelemetry/api': 1.7.0
+      '@types/pg': 8.10.9
+      '@types/react': 18.2.46
+      kysely: 0.26.3
+      pg: 8.11.3
+      react: 18.2.0
+
+  drizzle-orm@0.36.4(@electric-sql/pglite@0.2.10)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
     optionalDependencies:
       '@electric-sql/pglite': 0.2.10
       '@opentelemetry/api': 1.7.0
@@ -13286,7 +13386,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0e7097750918380d84dd3cfdef595bee74dabb70: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b: {}
 
   form-data@2.3.3:
     dependencies:
@@ -15925,10 +16025,6 @@ snapshots:
     optional: true
 
   pg-connection-string@2.6.2: {}
-
-  pg-copy-streams@6.0.6:
-    dependencies:
-      obuf: 1.1.2
 
   pg-int8@1.0.1: {}
 

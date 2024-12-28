@@ -1,6 +1,7 @@
-import type { IndexingBuild } from "@/build/index.js";
+import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { runCodegen } from "@/common/codegen.js";
 import type { Common } from "@/common/common.js";
+import { getAppProgress } from "@/common/metrics.js";
 import type { Database } from "@/database/index.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
@@ -15,35 +16,29 @@ import {
   encodeCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
 import { createQueue } from "@ponder/common";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
   common,
-  build,
+  schemaBuild,
+  indexingBuild,
   database,
   onFatalError,
   onReloadableError,
 }: {
   common: Common;
-  build: IndexingBuild;
+  schemaBuild: SchemaBuild;
+  indexingBuild: IndexingBuild;
   database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const {
-    instanceId,
-    networks,
-    sources,
-    schema,
-    indexingFunctions,
-    graphqlSchema,
-  } = build;
-
   let isKilled = false;
 
-  const { checkpoint: initialCheckpoint } = await database.setup();
+  const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
 
   const syncStore = createSyncStore({
     common,
@@ -52,21 +47,20 @@ export async function run({
 
   const metadataStore = getMetadataStore({
     db: database.qb.user,
-    instanceId,
   });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  runCodegen({ common, graphqlSchema });
+  runCodegen({ common, graphqlSchema: schemaBuild.graphqlSchema });
 
   // Note: can throw
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    networks: indexingBuild.networks,
+    sources: indexingBuild.sources,
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {
@@ -95,7 +89,7 @@ export async function run({
           // update the temporary `checkpoint` value set in the trigger.
           for (const events of splitEvents(event.events)) {
             const result = await handleEvents(
-              decodeEvents(common, sources, events),
+              decodeEvents(common, indexingBuild.sources, events),
               event.checkpoint,
             );
 
@@ -127,17 +121,17 @@ export async function run({
   });
 
   const indexingService = createIndexingService({
-    indexingFunctions,
+    indexingFunctions: indexingBuild.indexingFunctions,
     common,
-    sources,
-    networks,
+    sources: indexingBuild.sources,
+    networks: indexingBuild.networks,
     sync,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
     common,
     database,
-    schema,
+    schema: schemaBuild.schema,
     initialCheckpoint,
   });
 
@@ -149,8 +143,8 @@ export async function run({
     // If the initial checkpoint is zero, we need to run setup events.
     if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
       const result = await indexingService.processSetupEvents({
-        sources,
-        networks,
+        sources: indexingBuild.sources,
+        networks: indexingBuild.networks,
       });
       if (result.status === "killed") {
         return;
@@ -162,20 +156,54 @@ export async function run({
 
     // Track the last processed checkpoint, used to set metrics
     let end: string | undefined;
+    let lastFlush = Date.now();
 
     // Run historical indexing until complete.
     for await (const { events, checkpoint } of sync.getEvents()) {
       end = checkpoint;
 
-      const result = await handleEvents(
-        decodeEvents(common, sources, events),
-        checkpoint,
-      );
+      const decodedEvents = decodeEvents(common, indexingBuild.sources, events);
+      const result = await handleEvents(decodedEvents, checkpoint);
+
+      // underlying metrics collection is actually synchronous
+      // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+      const { eta, progress } = await getAppProgress(common.metrics);
+      if (events.length > 0) {
+        if (eta === undefined || progress === undefined) {
+          common.logger.info({
+            service: "app",
+            msg: `Indexed ${events.length} events`,
+          });
+        } else {
+          common.logger.info({
+            service: "app",
+            msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
+          });
+        }
+      }
 
       // Persist the indexing store to the db if it is too full. The `finalized`
       // checkpoint is used as a mutex. Any rows in the reorg table that may
-      // have been written because of raw sql access are deleted.
-      if (historicalIndexingStore.isCacheFull() && events.length > 0) {
+      // have been written because of raw sql access are deleted. Also must truncate
+      // the reorg tables that may have been written because of raw sql access.
+      if (
+        (historicalIndexingStore.isCacheFull() && events.length > 0) ||
+        (common.options.command === "dev" &&
+          lastFlush + 5_000 < Date.now() &&
+          events.length > 0)
+      ) {
+        if (historicalIndexingStore.isCacheFull()) {
+          common.logger.debug({
+            service: "indexing",
+            msg: `Indexing cache has exceeded ${common.options.indexingCacheMaxBytes} MB limit, starting flush`,
+          });
+        } else {
+          common.logger.debug({
+            service: "indexing",
+            msg: "Dev server periodic flush triggered, starting flush",
+          });
+        }
+
         await database.finalize({
           checkpoint: encodeCheckpoint(zeroCheckpoint),
         });
@@ -185,6 +213,12 @@ export async function run({
         });
         await database.finalize({
           checkpoint: events[events.length - 1]!.checkpoint,
+        });
+        lastFlush = Date.now();
+
+        common.logger.debug({
+          service: "indexing",
+          msg: "Completed flush",
         });
       }
 
@@ -199,8 +233,19 @@ export async function run({
 
     if (isKilled) return;
 
+    // Persist the indexing store to the db. The `finalized`
+    // checkpoint is used as a mutex. Any rows in the reorg table that may
+    // have been written because of raw sql access are deleted. Also must truncate
+    // the reorg tables that may have been written because of raw sql access.
+
+    common.logger.debug({
+      service: "indexing",
+      msg: "Completed all historical events, starting final flush",
+    });
+
     await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
     await historicalIndexingStore.flush();
+    await database.complete({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
     // Manually update metrics to fix a UI bug that occurs when the end
@@ -226,13 +271,12 @@ export async function run({
     });
 
     await database.createIndexes();
-    await database.createLiveViews();
     await database.createTriggers();
 
     indexingService.setIndexingStore(
       createRealtimeIndexingStore({
         database,
-        schema,
+        schema: schemaBuild.schema,
         common,
       }),
     );

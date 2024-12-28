@@ -1,4 +1,4 @@
-import { onchainSchema, onchainTable } from "@/index.js";
+import { onchainEnum, onchainTable } from "@/index.js";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -10,8 +10,6 @@ import {
 import { expect, test } from "vitest";
 import { buildSchema } from "./schema.js";
 
-const instanceId = "1234";
-
 test("buildSchema() success", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -20,19 +18,7 @@ test("buildSchema() success", () => {
     })),
   };
 
-  buildSchema({ schema, instanceId });
-});
-
-test("buildSchema() error with schema", () => {
-  const schema = {
-    ponder: onchainSchema("ponder"),
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  buildSchema({ schema });
 });
 
 test("buildSchema() error with multiple primary key", () => {
@@ -43,7 +29,7 @@ test("buildSchema() error with multiple primary key", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildSchema() error with no primary key", () => {
@@ -54,7 +40,7 @@ test("buildSchema() error with no primary key", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildSchema() success with composite primary key", () => {
@@ -71,7 +57,7 @@ test("buildSchema() success with composite primary key", () => {
     ),
   };
 
-  buildSchema({ schema, instanceId });
+  buildSchema({ schema });
 });
 
 test("buildScheama() error with view", () => {
@@ -84,7 +70,7 @@ test("buildScheama() error with view", () => {
     v: pgView("v").as((qb) => qb.select().from(account)),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with sequences", () => {
@@ -96,7 +82,7 @@ test("buildScheama() error with sequences", () => {
     seq: pgSequence("seq"),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with generated", () => {
@@ -107,7 +93,7 @@ test("buildScheama() error with generated", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with generated identity", () => {
@@ -121,7 +107,7 @@ test("buildScheama() error with generated identity", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with serial", () => {
@@ -132,7 +118,7 @@ test("buildScheama() error with serial", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() success with default", () => {
@@ -143,7 +129,7 @@ test("buildScheama() success with default", () => {
     })),
   };
 
-  buildSchema({ schema, instanceId });
+  buildSchema({ schema });
 });
 
 test("buildScheama() error with default sql", () => {
@@ -154,7 +140,7 @@ test("buildScheama() error with default sql", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with $defaultFn sql", () => {
@@ -165,7 +151,7 @@ test("buildScheama() error with $defaultFn sql", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with $onUpdateFn sql", () => {
@@ -176,7 +162,7 @@ test("buildScheama() error with $onUpdateFn sql", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with foreign key", () => {
@@ -191,7 +177,7 @@ test("buildScheama() error with foreign key", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with unique", () => {
@@ -202,7 +188,7 @@ test("buildScheama() error with unique", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() error with check", () => {
@@ -219,20 +205,18 @@ test("buildScheama() error with check", () => {
     ),
   };
 
-  expect(() => buildSchema({ schema, instanceId })).toThrowError();
+  expect(() => buildSchema({ schema })).toThrowError();
 });
 
 test("buildScheama() success with enum", () => {
-  const p = onchainSchema("p");
-  const mood = p.enum("mood", ["good", "bad"]);
+  const mood = onchainEnum("mood", ["good", "bad"]);
   const schema = {
-    p,
     mood,
-    account: p.table("account", (p) => ({
+    account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       m: mood().notNull(),
     })),
   };
 
-  buildSchema({ schema, instanceId });
+  buildSchema({ schema });
 });

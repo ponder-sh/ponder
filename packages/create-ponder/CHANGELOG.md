@@ -1,5 +1,35 @@
 # create-ponder
 
+## 0.8.8
+
+## 0.8.7
+
+## 0.8.6
+
+## 0.8.5
+
+## 0.8.4
+
+## 0.8.3
+
+## 0.8.2
+
+## 0.8.1
+
+## 0.8.0
+
+## 0.7.17
+
+## 0.7.16
+
+## 0.7.15
+
+## 0.7.14
+
+## 0.7.13
+
+## 0.7.12
+
 ## 0.7.11
 
 ## 0.7.10
@@ -536,7 +566,7 @@
 
 ### Patch Changes
 
-- [#123](https://github.com/0xOlias/ponder/pull/123) [`9d6f820`](https://github.com/0xOlias/ponder/commit/9d6f820e9d0d1815aa6ebf7b001c0a3139c58f7c) Thanks [@0xOlias](https://github.com/0xOlias)! - Migrated to viem and added `@/generated` alias in generated handler code
+- [#123](https://github.com/0xOlias/ponder/pull/123) [`9d6f820`](https://github.com/0xOlias/ponder/commit/9d6f820e9d0d1815aa6ebf7b001c0a3139c58f7c) Thanks [@0xOlias](https://github.com/0xOlias)! - Migrated to viem and added `ponder:registry` alias in generated handler code
 
 ## 0.0.39
 

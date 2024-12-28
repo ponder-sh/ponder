@@ -151,67 +151,152 @@ export const _eth_getTransactionReceipt = (
     });
 
 /**
- * Helper function for "trace_filter" request.
- *
- * Note: No strict typing is available.
- */
-export const _trace_filter = (
-  rpc: Rpc,
-  params: {
-    fromBlock: Hex | number;
-    toBlock: Hex | number;
-    fromAddress?: Address[];
-    toAddress?: Address[];
-  },
-): Promise<SyncTrace[]> =>
-  rpc
-    .request({
-      method: "trace_filter",
-      params: [
-        {
-          fromBlock:
-            typeof params.fromBlock === "number"
-              ? numberToHex(params.fromBlock)
-              : params.fromBlock,
-          toBlock:
-            typeof params.toBlock === "number"
-              ? numberToHex(params.toBlock)
-              : params.toBlock,
-          fromAddress: params.fromAddress
-            ? params.fromAddress.map((a) => toLowerCase(a))
-            : undefined,
-          toAddress: params.toAddress
-            ? params.toAddress.map((a) => toLowerCase(a))
-            : undefined,
-        },
-      ],
-    } as any)
-    .then((traces) => traces as unknown as SyncTrace[]);
-
-/**
- * Helper function for "trace_block" request.
- */
-export const _trace_block = (
-  rpc: Rpc,
-  params: {
-    blockNumber: Hex | number;
-  },
-): Promise<SyncTrace[]> =>
-  rpc
-    .request({
-      method: "trace_block",
-      params: [
-        typeof params.blockNumber === "number"
-          ? numberToHex(params.blockNumber)
-          : params.blockNumber,
-      ],
-    } as any)
-    .then((traces) => traces as unknown as SyncTrace[]);
-
-/**
  * Helper function for "eth_subscribe" request.
  */
 export const _eth_subscribe = (
   rpc: Rpc,
   params: SubscribeParameters,
 ): Promise<SubscribeReturnType> => rpc.subscribe(params);
+
+/**
+ * Helper function for "debug_traceBlockByNumber" request.
+ */
+export const _debug_traceBlockByNumber = (
+  rpc: Rpc,
+  {
+    blockNumber,
+  }: {
+    blockNumber: Hex | number;
+  },
+): Promise<SyncTrace[]> =>
+  rpc
+    .request({
+      method: "debug_traceBlockByNumber",
+      params: [
+        typeof blockNumber === "number"
+          ? numberToHex(blockNumber)
+          : blockNumber,
+        { tracer: "callTracer" },
+      ],
+    })
+    .then((traces) => {
+      const result: SyncTrace[] = [];
+      let index = 0;
+      // all traces that weren't included because the trace has an error
+      // or the trace's parent has an error, mapped to the error string
+      const failedTraces = new Map<
+        (typeof traces)[number]["result"],
+        { error?: string; revertReason?: string }
+      >();
+
+      const dfs = (
+        frames: (typeof traces)[number]["result"][],
+        transactionHash: Hex,
+        parentFrame: (typeof traces)[number]["result"] | undefined,
+      ) => {
+        for (const frame of frames) {
+          if (frame.error !== undefined) {
+            failedTraces.set(frame, {
+              error: frame.error,
+              revertReason: frame.revertReason,
+            });
+          } else if (parentFrame && failedTraces.has(parentFrame)) {
+            const error = failedTraces.get(parentFrame)!;
+
+            frame.error = error.error;
+            frame.revertReason = error.revertReason;
+
+            failedTraces.set(frame, error);
+          }
+
+          // @ts-ignore
+          frame.index = index;
+          // @ts-ignore
+          frame.subcalls = frame.calls?.length ?? 0;
+
+          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+
+          index++;
+
+          if (frame.calls) {
+            dfs(frame.calls, transactionHash, frame);
+          }
+        }
+      };
+
+      for (const trace of traces) {
+        index = 0;
+        dfs([trace.result], trace.txHash, undefined);
+      }
+
+      return result;
+    });
+
+/**
+ * Helper function for "debug_traceBlockByHash" request.
+ */
+export const _debug_traceBlockByHash = (
+  rpc: Rpc,
+  {
+    hash,
+  }: {
+    hash: Hash;
+  },
+): Promise<SyncTrace[]> =>
+  rpc
+    .request({
+      method: "debug_traceBlockByHash",
+      params: [hash, { tracer: "callTracer" }],
+    })
+    .then((traces) => {
+      const result: SyncTrace[] = [];
+      let index = 0;
+      // all traces that weren't included because the trace has an error
+      // or the trace's parent has an error, mapped to the error string
+      const failedTraces = new Map<
+        (typeof traces)[number]["result"],
+        { error?: string; revertReason?: string }
+      >();
+
+      const dfs = (
+        frames: (typeof traces)[number]["result"][],
+        transactionHash: Hex,
+        parentFrame: (typeof traces)[number]["result"] | undefined,
+      ) => {
+        for (const frame of frames) {
+          if (frame.error !== undefined) {
+            failedTraces.set(frame, {
+              error: frame.error,
+              revertReason: frame.revertReason,
+            });
+          } else if (parentFrame && failedTraces.has(parentFrame)) {
+            const error = failedTraces.get(parentFrame)!;
+
+            frame.error = error.error;
+            frame.revertReason = error.revertReason;
+
+            failedTraces.set(frame, error);
+          }
+
+          // @ts-ignore
+          frame.index = index;
+          // @ts-ignore
+          frame.subcalls = frame.calls?.length ?? 0;
+
+          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+
+          index++;
+
+          if (frame.calls) {
+            dfs(frame.calls, transactionHash, frame);
+          }
+        }
+      };
+
+      for (const trace of traces) {
+        index = 0;
+        dfs([trace.result], trace.txHash, undefined);
+      }
+
+      return result;
+    });

@@ -1,12 +1,15 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { anvil, publicClient } from "@/_test/utils.js";
-import type { Transport } from "viem";
-import { toFunctionSelector, toHex } from "viem";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
+import { createRpc } from "@/rpc/index.js";
+import { type Transport, parseEther } from "viem";
+import { toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
 
@@ -15,11 +18,16 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 test("default", async (context) => {
-  const { rpcs } = context;
+  const network = getNetwork();
+  const rpc = createRpc({
+    network,
+    common: context.common,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const transport = cachedTransport({
-    rpc: rpcs[0],
+    rpc,
     syncStore,
   });
 
@@ -44,211 +52,117 @@ test("default", async (context) => {
   await cleanup();
 });
 
-test("eth_call", async (context) => {
-  const { erc20, rpcs } = context;
+test("request() block dependent method", async (context) => {
+  const network = getNetwork();
+  const rpc = createRpc({
+    network,
+    common: context.common,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    rpc: rpcs[0],
+    rpc,
     syncStore,
   })({
     chain: anvil,
   });
 
   const response1 = await transport.request({
-    method: "eth_call",
-    params: [
-      {
-        data: toFunctionSelector("totalSupply()"),
-        to: erc20.address,
-      },
-      toHex(blockNumber),
-    ],
+    method: "eth_getBlockByNumber",
+    params: [toHex(blockNumber), false],
   });
 
   expect(response1).toBeDefined();
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-
-  const response2 = await transport.request({
-    method: "eth_call",
-    params: [
-      {
-        data: toFunctionSelector("totalSupply()"),
-        to: erc20.address,
-      },
-      toHex(blockNumber),
-    ],
-  });
-
-  expect(response1).toBe(response2);
-
-  expect(insertSpy).toHaveBeenCalledTimes(0);
-
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
-  const response3 = await transport.request({
-    method: "eth_call",
-    params: [
-      {
-        data: toFunctionSelector("totalSupply()"),
-        to: erc20.address,
-      },
-      "latest",
-    ],
+  const response2 = await transport.request({
+    method: "eth_getBlockByNumber",
+    params: [toHex(blockNumber), false],
   });
 
-  expect(response3).toBeDefined();
+  expect(response1).toStrictEqual(response2);
 
+  expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });
 
-test("eth_getBalance", async (context) => {
-  const { erc20, rpcs } = context;
+test("request() non-block dependent method", async (context) => {
+  const network = getNetwork();
+  const rpc = createRpc({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
+  const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
   const transport = cachedTransport({
-    rpc: rpcs[0],
+    rpc,
     syncStore,
   })({
     chain: anvil,
   });
 
   const response1 = await transport.request({
-    method: "eth_getBalance",
-    params: [erc20.address, toHex(blockNumber)],
+    method: "eth_getTransactionByHash",
+    params: [block.transactions[0]!],
   });
 
-  expect(response1).toBeDefined();
+  expect(response1).toBeDefined;
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-
-  const response2 = await transport.request({
-    method: "eth_getBalance",
-    params: [erc20.address, toHex(blockNumber)],
-  });
-
-  expect(response1).toBe(response2);
-
-  expect(insertSpy).toHaveBeenCalledTimes(0);
-
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
-  const response3 = await transport.request({
-    method: "eth_getBalance",
-    params: [erc20.address, "latest"],
+  const response2 = await transport.request({
+    method: "eth_getTransactionByHash",
+    params: [block.transactions[0]!],
   });
 
-  expect(response3).toBeDefined();
+  expect(response1).toStrictEqual(response2);
 
+  expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(1);
 
   await cleanup();
 });
 
-test("eth_getStorageAt", async (context) => {
-  const { erc20, rpcs } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumber = await publicClient.getBlockNumber();
+test("request() non-cached method", async (context) => {
+  const network = getNetwork();
+  const rpc = createRpc({
+    network,
+    common: context.common,
+  });
 
+  const { syncStore, cleanup } = await setupDatabaseServices(context);
   const transport = cachedTransport({
-    rpc: rpcs[0],
+    rpc,
     syncStore,
   })({
     chain: anvil,
   });
-
-  const response1 = await transport.request({
-    method: "eth_getStorageAt",
-    params: [erc20.address, toHex(3), toHex(blockNumber)],
-  });
-
-  expect(response1).toBeDefined();
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-
-  const response2 = await transport.request({
-    method: "eth_getStorageAt",
-    params: [erc20.address, toHex(3), toHex(blockNumber)],
-  });
-
-  expect(response1).toBe(response2);
-
-  expect(insertSpy).toHaveBeenCalledTimes(0);
-
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
-
-  const response3 = await transport.request({
-    method: "eth_getStorageAt",
-    params: [erc20.address, toHex(3), "latest"],
-  });
-
-  expect(response3).toBeDefined();
-
-  expect(getSpy).toHaveBeenCalledTimes(1);
-
-  await cleanup();
-});
-
-test("eth_getCode", async (context) => {
-  const { erc20, rpcs } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const blockNumber = await publicClient.getBlockNumber();
-
-  const transport = cachedTransport({
-    rpc: rpcs[0],
-    syncStore,
-  })({
-    chain: anvil,
-  });
-
-  const response1 = await transport.request({
-    method: "eth_getCode",
-    params: [erc20.address, toHex(blockNumber)],
-  });
-
-  expect(response1).toBeDefined();
-
-  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-
-  const response2 = await transport.request({
-    method: "eth_getCode",
-    params: [erc20.address, toHex(blockNumber)],
-  });
-
-  expect(response1).toBe(response2);
-
-  expect(insertSpy).toHaveBeenCalledTimes(0);
-
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
-
-  const response3 = await transport.request({
-    method: "eth_getCode",
-    params: [erc20.address, "latest"],
-  });
-
-  expect(response3).toBeDefined();
-
-  expect(getSpy).toHaveBeenCalledTimes(1);
-
-  await cleanup();
-});
-
-test("fallback method", async (context) => {
-  const { rpcs } = context;
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
-  const transport = cachedTransport({
-    rpc: rpcs[0],
-    syncStore,
-  })({
-    chain: anvil,
-  });
 
   expect(await transport.request({ method: "eth_blockNumber" })).toBeDefined();
+
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+  expect(getSpy).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });

@@ -1,13 +1,11 @@
 import { BuildError } from "@/common/errors.js";
-import { type Schema, isPgEnumSym } from "@/drizzle/index.js";
+import type { Schema } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { buildGraphQLSchema } from "@/graphql/index.js";
 import { SQL, getTableColumns, is } from "drizzle-orm";
 import {
   PgBigSerial53,
   PgBigSerial64,
-  type PgEnum,
-  PgSchema,
   PgSequence,
   PgSerial,
   PgSmallSerial,
@@ -16,40 +14,11 @@ import {
   getTableConfig,
 } from "drizzle-orm/pg-core";
 
-export const buildSchema = ({
-  schema,
-  instanceId,
-}: { schema: Schema; instanceId: string }) => {
-  const statements = getSql(schema, instanceId);
-
-  // find and validate namespace
-
-  let namespace: string;
-
-  for (const maybeSchema of Object.values(schema)) {
-    if (is(maybeSchema, PgSchema)) {
-      namespace = maybeSchema.schemaName;
-      break;
-    }
-  }
-
-  if (namespace! === undefined) {
-    namespace = "public";
-  }
+export const buildSchema = ({ schema }: { schema: Schema }) => {
+  const statements = getSql(schema);
 
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
-      if (namespace === "public" && getTableConfig(s).schema !== undefined) {
-        throw new Error(
-          `Schema validation failed: All tables must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema}' than '${namespace}'.`,
-        );
-      }
-      if (namespace !== "public" && getTableConfig(s).schema !== namespace) {
-        throw new Error(
-          `Schema validation failed: All tables  must use the same schema and ${name} uses a different schema '${getTableConfig(s).schema ?? "public"}' than '${namespace}'.`,
-        );
-      }
-
       let hasPrimaryKey = false;
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
@@ -164,35 +133,14 @@ export const buildSchema = ({
         `Schema validation failed: '${name}' is a view and views are unsupported.`,
       );
     }
-
-    // @ts-ignore
-    if (isPgEnumSym in s) {
-      // @ts-ignore
-      if (namespace === "public" && (s as PgEnum<any>).schema !== undefined) {
-        throw new Error(
-          // @ts-ignore
-          `Schema validation failed: All enums must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema}' than '${namespace}'.`,
-        );
-      }
-      // @ts-ignore
-      if (namespace !== "public" && (s as PgEnum<any>).schema !== namespace) {
-        throw new Error(
-          // @ts-ignore
-          `Schema validation failed: All enums must use the same schema and ${name} uses a different schema '${(s as PgEnum<any>).schema ?? "public"}' than '${namespace}'.`,
-        );
-      }
-    }
   }
 
-  return { statements, namespace };
+  return { statements };
 };
 
-export const safeBuildSchema = ({
-  schema,
-  instanceId,
-}: { schema: Schema; instanceId: string }) => {
+export const safeBuildSchema = ({ schema }: { schema: Schema }) => {
   try {
-    const result = buildSchema({ schema, instanceId });
+    const result = buildSchema({ schema });
     const graphqlSchema = buildGraphQLSchema(schema);
 
     return {

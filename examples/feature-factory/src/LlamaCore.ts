@@ -1,4 +1,4 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.on("LlamaCore:ActionCreated", async ({ event }) => {
   console.log(

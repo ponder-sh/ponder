@@ -1,0 +1,62 @@
+---
+title: "Database"
+description: "A guide to set up the Ponder database."
+---
+
+import { Tabs, Callout } from "nextra/components";
+
+# Set up the database
+
+Ponder supports two database options.
+
+- **PostgreSQL**: A traditional Postgres database server. Required for production, can be used for local development.
+- **PGlite**: An embedded Postgres database that runs in the same process as your Ponder app. Only suitable for local development.
+
+## Choose a database
+
+By default, Ponder uses PGlite with data stored in the `.ponder` directory. To use Postgres, set the `DATABASE_URL` environment variable to a Postgres connection string, or use explicit configuration in `ponder.config.ts`.
+
+```ts filename="ponder.config.ts"
+import { createConfig } from "ponder";
+
+export default createConfig({
+  database: {
+    kind: "postgres",
+    connectionString: "postgresql://user:password@localhost:5432/dbname",
+  },
+  // ... more config
+});
+```
+
+Visit the `ponder.config.ts` [API reference](/docs/api-reference/config#database) for more details.
+
+## Database schema
+
+When you start a Ponder app, you must specify which **database schema** it should use. This is where the app will create the tables defined in `ponder.schema.ts`.
+
+Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI option to configure it.
+
+<div className="code-columns">
+
+```bash filename=".env.local"
+DATABASE_SCHEMA=my_schema
+```
+
+```bash filename="shell"
+ponder start --schema my_schema
+```
+
+</div>
+
+### Guidelines
+
+Here are the key guidelines to keep in mind when selecting a database schema.
+
+- No two Ponder instances/deployments can use the same database schema at the same time.
+- Tables created by `ponder start` are treated as valuable and will never be dropped automatically.
+- The default schema for `ponder dev` is `public`. When using `ponder start`, you must explicitly set the database schema; there is no default.
+- Use `ponder dev` for local development; `ponder start` is intended for production.
+
+{/* - Use `ponder db drop {schema name}` to reuse a schema previously used by `ponder start`. */}
+
+[Read more](/docs/api-reference/database) about the instance lifecycle and database schema rules.

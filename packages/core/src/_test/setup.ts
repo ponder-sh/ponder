@@ -4,9 +4,7 @@ import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { createTelemetry } from "@/common/telemetry.js";
-import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
-import type { Network } from "@/config/networks.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
@@ -15,38 +13,17 @@ import {
   getMetadataStore,
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import type { Rpc } from "@/rpc/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
-import type { BlockSource, ContractSource, LogFactory } from "@/sync/source.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import type { Address } from "viem";
 import { type TestContext, afterAll } from "vitest";
-import { deploy, simulate } from "./simulate.js";
-import {
-  getConfig,
-  getNetworkAndSources,
-  poolId,
-  testClient,
-} from "./utils.js";
+import { poolId, testClient } from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
     common: Common;
     databaseConfig: DatabaseConfig;
-    sources: [
-      ContractSource<"log", undefined>,
-      ContractSource<"log", LogFactory>,
-      ContractSource<"trace", LogFactory>,
-      ContractSource<"trace", undefined>,
-      BlockSource,
-    ];
-    networks: [Network];
-    rpcs: [Rpc];
-    config: Config;
-    erc20: { address: Address };
-    factory: { address: Address; pair: Address };
   }
 }
 
@@ -95,6 +72,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
     const client = new pg.Client({ connectionString });
     await client.connect();
+    await client.query(
+      `
+      SELECT pg_terminate_backend(pg_stat_activity.pid)
+      FROM pg_stat_activity
+      WHERE pg_stat_activity.datname = $1 AND pid <> pg_backend_pid()
+      `,
+      [databaseName],
+    );
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
@@ -117,48 +102,64 @@ export async function setupIsolatedDatabase(context: TestContext) {
     await instance.exec(`
       DO $$
       DECLARE
-          obj TEXT;
-          schema TEXT;
+        obj TEXT;
+        schema TEXT;
       BEGIN
-          -- Loop over all user-defined schemas
-          FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
+        -- Loop over all user-defined schemas
+        FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
+        LOOP
+          -- Drop all tables
+          FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = schema
           LOOP
-              -- Drop all tables
-              FOR obj IN SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = schema
-              LOOP
-                  EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all sequences
-              FOR obj IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = schema
-              LOOP
-                  EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all views
-              FOR obj IN SELECT table_name FROM information_schema.views WHERE table_schema = schema
-              LOOP
-                  EXECUTE 'DROP VIEW IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all functions
-              FOR obj IN SELECT routine_name FROM information_schema.routines WHERE routine_type = 'FUNCTION' AND routine_schema = schema
-              LOOP
-                  EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all custom types
-              FOR obj IN SELECT typname FROM pg_type WHERE typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
-              LOOP
-                  EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
-
-              -- Drop all extensions (extensions are usually in public, but handling if in other schemas)
-              FOR obj IN SELECT extname FROM pg_extension WHERE extnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
-              LOOP
-                  EXECUTE 'DROP EXTENSION IF EXISTS ' || quote_ident(obj) || ' CASCADE;';
-              END LOOP;
+            EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
           END LOOP;
+
+          -- Drop all sequences
+          FOR obj IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = schema
+          LOOP
+            EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all views
+          FOR obj IN SELECT table_name FROM information_schema.views WHERE table_schema = schema
+          LOOP
+            EXECUTE 'DROP VIEW IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all functions
+          FOR obj IN SELECT routine_name FROM information_schema.routines WHERE routine_type = 'FUNCTION' AND routine_schema = schema
+          LOOP
+            EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all enum types first (this will cascade and drop their associated array types)
+          FOR obj IN
+            SELECT typname
+            FROM pg_type
+            JOIN pg_namespace ns ON pg_type.typnamespace = ns.oid
+            WHERE ns.nspname = schema
+              AND typtype = 'e'  -- 'e' stands for enum type
+          LOOP
+            EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all remaining custom types (non-enum)
+          FOR obj IN
+            SELECT typname
+            FROM pg_type
+            JOIN pg_namespace ns ON pg_type.typnamespace = ns.oid
+            WHERE ns.nspname = schema
+              AND typtype <> 'e'
+          LOOP
+            EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(schema) || '.' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+
+          -- Drop all extensions
+          FOR obj IN SELECT extname FROM pg_extension WHERE extnamespace = (SELECT oid FROM pg_namespace WHERE nspname = schema)
+          LOOP
+            EXECUTE 'DROP EXTENSION IF EXISTS ' || quote_ident(obj) || ' CASCADE;';
+          END LOOP;
+        END LOOP;
       END $$;
     `);
 
@@ -168,19 +169,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
 type DatabaseServiceSetup = {
   buildId: string;
-  instanceId: string;
   schema: Schema;
   indexing: "realtime" | "historical";
 };
 const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
   buildId: "abc",
-  instanceId: "1234",
   schema: {},
   indexing: "historical",
 };
-
-// @ts-ignore
-globalThis.__PONDER_INSTANCE_ID = "1234";
 
 export async function setupDatabaseServices(
   context: TestContext,
@@ -194,22 +190,23 @@ export async function setupDatabaseServices(
 }> {
   const config = { ...defaultDatabaseServiceSetup, ...overrides };
 
-  const { statements, namespace } = buildSchema({
+  const { statements } = buildSchema({
     schema: config.schema,
-    instanceId: config.instanceId,
   });
 
   const database = createDatabase({
     common: context.common,
-    databaseConfig: context.databaseConfig,
-    schema: config.schema,
-    instanceId: config.instanceId,
-    buildId: config.buildId,
-    statements,
-    namespace,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: config.schema,
+      statements,
+    },
   });
 
-  await database.setup();
+  await database.setup({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -229,7 +226,6 @@ export async function setupDatabaseServices(
 
   const metadataStore = getMetadataStore({
     db: database.qb.readonly,
-    instanceId: config.instanceId,
   });
 
   const cleanup = () => database.kill();
@@ -244,41 +240,16 @@ export async function setupDatabaseServices(
 }
 
 /**
- * Sets up an isolated Ethereum client on the test context, with the appropriate Erc20 + Factory state.
+ * Sets up an isolated Ethereum client.
  *
+ * @example
  * ```ts
  * // Add this to any test suite that uses the Ethereum client.
- * beforeEach((context) => setupAnvil(context))
+ * beforeEach(setupAnvil)
  * ```
  */
-export async function setupAnvil(context: TestContext) {
+export async function setupAnvil() {
   const emptySnapshotId = await testClient.snapshot();
-
-  // Chain state setup shared across all tests.
-  const addresses = await deploy();
-  const pair = await simulate(addresses);
-  await testClient.mine({ blocks: 1 });
-
-  context.config = getConfig(addresses);
-
-  const { networks, sources, rpcs } = await getNetworkAndSources(
-    addresses,
-    context.common,
-  );
-  context.networks = networks as [Network];
-  context.rpcs = rpcs as [Rpc];
-  context.sources = sources as [
-    ContractSource<"log", undefined>,
-    ContractSource<"log", LogFactory>,
-    ContractSource<"trace", LogFactory>,
-    ContractSource<"trace", undefined>,
-    BlockSource,
-  ];
-  context.erc20 = { address: addresses.erc20Address };
-  context.factory = {
-    address: addresses.factoryAddress,
-    pair: pair.toLowerCase() as Address,
-  };
 
   return async () => {
     await testClient.revert({ id: emptySnapshotId });

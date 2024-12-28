@@ -14,7 +14,7 @@ This guide describes techniques for working with time-series data in your app.
 To power a [candlestick](https://en.wikipedia.org/wiki/Candlestick_chart) or open-high-low-close chart, create a table that stores OHLC data for a specific time interval.
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const hourBuckets = onchainTable("hour_buckets", (t) => ({
   id: t.integer().primaryKey(),
@@ -30,7 +30,7 @@ export const hourBuckets = onchainTable("hour_buckets", (t) => ({
 Then, in your indexing function, create or update the bucket record that the current event falls into.
 
 ```ts filename="src/index.ts"
-import { ponder, type Schema } from "@/generated";
+import { ponder, type Schema } from "ponder:registry";
 
 const secondsInHour = 60 * 60;
 
@@ -97,7 +97,7 @@ The simplest way to add a time dimension to your data is to include the block nu
 <div class="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { onchainTable } from "@ponder/core";
+import { onchainTable } from "ponder";
 
 export const swapEvents = onchainTable("swap_events", (t) => ({
   id: t.text().primaryKey(),
@@ -109,8 +109,8 @@ export const swapEvents = onchainTable("swap_events", (t) => ({
 ```
 
 ```ts filename="src/index.ts" {10}
-import { ponder } from "@/generated";
-import { swapEvents } from "../ponder.schema";
+import { ponder } from "ponder:registry";
+import { swapEvents } from "ponder:schema";
 
 ponder.on("Token:Swap", async ({ event, context }) => {
   await context.db.insert(swapEvents).values({

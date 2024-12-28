@@ -1,0 +1,98 @@
+---
+title: "Accounts"
+description: "Learn how to index accounts in a Ponder app"
+---
+
+import { Callout, Steps } from "nextra/components";
+
+# Accounts
+
+Account indexing is useful for activity that is not associated with a specific contract, like transactions and native transfers to and from an address. The key difference between `contracts` and `accounts` in `ponder.config.ts` is that accounts do not have an ABI.
+
+<Callout type="info">
+  The standard Ethereum RPC does not support filtering for transactions & native
+  transfers. So, account indexing uses a block-by-block approach which is often
+  slower than log indexing.
+</Callout>
+
+## Quick example
+
+In this example, we'll index transactions sent by the [Beaver](https://beaverbuild.org/) block builder account.
+
+<Steps>
+
+### Add an account
+
+Add the network, address, and start block to the `accounts` field in `ponder.config.ts`.
+
+```ts filename="ponder.config.ts"
+import { createConfig } from "ponder";
+
+export default createConfig({
+  // ... more config
+  accounts: {
+    BeaverBuild: {
+      network: "mainnet",
+      address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
+      startBlock: 20000000,
+    },
+  },
+});
+```
+
+### Register indexing functions
+
+Register an indexing function for the `transaction:from` event. The framework will fetch all transactions where `transaction.from` matches the account address, then process each one using your indexing function.
+
+```ts filename="src/index.ts" {4}
+import { ponder } from "ponder:registry";
+import { transactions } from "ponder:schema";
+
+ponder.on("BeaverBuild:transaction:from", async ({ event, context }) => {
+  await context.db.insert(transactions).values({
+    from: event.transaction.from,
+    to: event.transaction.to,
+    value: event.transaction.value,
+    gasUsed: event.transactionReceipt.gasUsed,
+    // ... more fields
+  });
+});
+```
+
+Account indexing also supports the `transaction:to`, `transfer:from`, and `transfer:to` events. [Read more](/docs/api-reference/config#accounts) about event types.
+
+</Steps>
+
+## Account name
+
+Every account must have a unique name, provided as a key to the `accounts` object. Names must be unique across accounts, contracts, and block intervals.
+
+```ts filename="ponder.config.ts" {9}
+import { createConfig } from "ponder";
+import { http } from "viem";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  accounts: {
+    BeaverBuild: {
+      network: "mainnet",
+      address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
+      startBlock: 12439123,
+    },
+  },
+});
+```
+
+## Network
+
+The `network` option for accounts works the same way as it does for contracts. [Read more](/docs/contracts-and-networks#network).
+
+## Address
+
+The `address` option for accounts works the same way as it does for contracts. You can provide a single address, a list of addresses, or an address factory. You can also specify network-specific overrides. [Read more](/docs/contracts-and-networks#address).
+
+## Block range
+
+The `startBlock` and `endBlock` options for accounts work the same way as it does for contracts. [Read more](/docs/contracts-and-networks#block-range).

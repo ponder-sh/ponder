@@ -5,13 +5,14 @@
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",
+    "db": "ponder db",
     "codegen": "ponder codegen",
     "lint": "eslint .",
     "typecheck": "tsc"
   },
   "dependencies": {
     "@hono/trpc-server": "^0.3.2",
-    "@ponder/core": "workspace:*",
+    "ponder": "workspace:*",
     "@trpc/server": "^10.45.2",
     "hono": "^4.5.0",
     "viem": "^2.21.3",

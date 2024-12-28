@@ -7,6 +7,7 @@ import { Command } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
 import { dev } from "./commands/dev.js";
+import { list } from "./commands/list.js";
 import { serve } from "./commands/serve.js";
 import { start } from "./commands/start.js";
 
@@ -60,6 +61,7 @@ type GlobalOptions = {
 
 const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
+  .option("--schema <SCHEMA>", "Database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   // NOTE: Do not set a default for hostname. We currently rely on the Node.js
   // default behavior when passing undefined to http.Server.listen(), which
@@ -80,6 +82,7 @@ const devCommand = new Command("dev")
 
 const startCommand = new Command("start")
   .description("Start the production server")
+  .option("--schema <SCHEMA>", "Database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
@@ -96,6 +99,7 @@ const startCommand = new Command("start")
 
 const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
+  .option("--schema <SCHEMA>", "Database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
@@ -108,6 +112,19 @@ const serveCommand = new Command("serve")
       command: command.name(),
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await serve({ cliOptions });
+  });
+
+const dbCommand = new Command("db").description("Database management commands");
+
+const listCommand = new Command("list")
+  .description("List all deployments")
+  .showHelpAfterError()
+  .action(async (_, command) => {
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+    } as GlobalOptions & ReturnType<typeof command.opts>;
+    await list({ cliOptions });
   });
 
 const codegenCommand = new Command("codegen")
@@ -141,9 +158,12 @@ const codegenCommand = new Command("codegen")
 //     console.log("ponder cache prune");
 //   });
 
+dbCommand.addCommand(listCommand);
+
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
 ponder.addCommand(serveCommand);
+ponder.addCommand(dbCommand);
 ponder.addCommand(codegenCommand);
 
 export type CliOptions = Prettify<
@@ -152,6 +172,7 @@ export type CliOptions = Prettify<
       ReturnType<typeof devCommand.opts> &
         ReturnType<typeof startCommand.opts> &
         ReturnType<typeof serveCommand.opts> &
+        ReturnType<typeof dbCommand.opts> &
         ReturnType<typeof codegenCommand.opts>
     >
 >;
