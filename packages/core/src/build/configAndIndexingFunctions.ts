@@ -342,29 +342,17 @@ export async function buildConfigAndIndexingFunctions({
           : [source.filter];
 
         for (const filter of source.filter) {
-          if (Array.isArray(filter.event) && filter.args !== undefined) {
+          const abiEvent = abiEvents.bySafeName[filter.event];
+          if (!abiEvent) {
             throw new Error(
-              `Validation failed: Event filter for contract '${source.name}' cannot contain indexed argument values if multiple events are provided.`,
+              `Validation failed: Invalid filter for contract '${
+                source.name
+              }'. Got event name '${filter.event}', expected one of [${Object.keys(
+                abiEvents.bySafeName,
+              )
+                .map((n) => `'${n}'`)
+                .join(", ")}].`,
             );
-          }
-
-          const filterSafeEventNames = Array.isArray(filter.event)
-            ? filter.event
-            : [filter.event];
-
-          for (const filterSafeEventName of filterSafeEventNames) {
-            const abiEvent = abiEvents.bySafeName[filterSafeEventName];
-            if (!abiEvent) {
-              throw new Error(
-                `Validation failed: Invalid filter for contract '${
-                  source.name
-                }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
-                  abiEvents.bySafeName,
-                )
-                  .map((n) => `'${n}'`)
-                  .join(", ")}].`,
-              );
-            }
           }
         }
 
@@ -373,41 +361,59 @@ export async function buildConfigAndIndexingFunctions({
         // is an invariant of the current filter design.
         // Note: This can throw.
 
-        topicsArray = buildTopics(source.abi, source.filter);
+        const filteredTopicsArray = buildTopics(
+          source.abi,
+          source.filter,
+        ).reduce(
+          (acc, cur) => {
+            if (acc.includes(cur) === false) {
+              acc.push(cur);
+            }
 
-        const filteredEventSelectors = topicsArray.reduce((acc, cur) => {
-          const topic0 = Array.isArray(cur.topic0) ? cur.topic0 : [cur.topic0];
+            return acc;
+          },
+          [] as {
+            topic0: Hex;
+            topic1: Hex | Hex[] | null;
+            topic2: Hex | Hex[] | null;
+            topic3: Hex | Hex[] | null;
+          }[],
+        );
 
-          for (const eventSelector of topic0) {
+        const filteredEventSelectors = filteredTopicsArray.reduce(
+          (acc, cur) => {
+            const eventSelector = cur.topic0;
+
             if (
               eventSelector !== null &&
               acc.includes(eventSelector) === false
             ) {
               acc.push(eventSelector);
             }
-          }
 
-          return acc;
-        }, [] as Hex[]);
+            return acc;
+          },
+          [] as Hex[],
+        );
 
-        // Validate that the topic0 value defined by the `eventFilter` is a superset of the
-        // registered indexing functions. Simply put, confirm that no indexing function is
-        // defined for a log event that is excluded by the filter.
-        for (const registeredEventSelector of registeredEventSelectors) {
-          if (!filteredEventSelectors.includes(registeredEventSelector)) {
-            const logEventName =
-              abiEvents.bySelector[registeredEventSelector]!.safeName;
+        // Merge filtered topics and registered event selectors
+        const excludedRegisteredEventSelectors =
+          registeredEventSelectors.filter(
+            (s) => filteredEventSelectors.includes(s) === false,
+          );
 
-            throw new Error(
-              `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
-                source.name
-              }'. Got '${logEventName}', expected one of [${filteredEventSelectors
-                .map((s) => abiEvents.bySelector[s]!.safeName)
-                .map((eventName) => `'${eventName}'`)
-                .join(", ")}].`,
-            );
-          }
-        }
+        topicsArray =
+          excludedRegisteredEventSelectors.length > 0
+            ? [
+                {
+                  topic0: excludedRegisteredEventSelectors,
+                  topic1: null,
+                  topic2: null,
+                  topic3: null,
+                },
+                ...filteredTopicsArray,
+              ]
+            : filteredTopicsArray;
       }
 
       const startBlockMaybeNan = source.startBlock;
