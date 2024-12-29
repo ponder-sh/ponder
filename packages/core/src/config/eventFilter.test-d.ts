@@ -27,55 +27,23 @@ test("event filter with no event", () => {
   });
 });
 
-test("event filter with list of events", () => {
+test("event filter with event only", () => {
   eventFilter({
     abi,
-
-    filter: {
-      event: ["Event0"],
-    },
-  });
-});
-
-test("event filter with invalid list of events", () => {
-  eventFilter({
-    abi,
-
-    filter: {
-      // @ts-expect-error
-      event: ["Evnt0"],
-    },
-  });
-});
-
-test("event filter with list of events with args", () => {
-  eventFilter({
-    abi,
-
-    filter: {
-      event: ["Event0"],
-      // @ts-expect-error
-      args: undefined,
-    },
-  });
-});
-
-test("event filter with event", () => {
-  eventFilter({
-    abi,
-
+    // @ts-expect-error
     filter: {
       event: "Event1()",
     },
   });
 });
 
-test("event filter with invalid event", () => {
+test("event filter with invalid event and args", () => {
   eventFilter({
     abi,
     filter: {
       // @ts-expect-error
       event: "made up",
+      // @ts-expect-error
       args: undefined,
     },
   });
@@ -102,6 +70,46 @@ test("event filter with event and args", () => {
         arg: "0x",
       },
     },
+  });
+});
+
+test("event filters with event and args", () => {
+  eventFilter({
+    abi,
+
+    filter: [
+      {
+        event: "Event0",
+        args: {
+          arg: "0x",
+        },
+      },
+      {
+        event: "Event0",
+        args: {
+          arg: "0x1",
+        },
+      },
+    ],
+  });
+});
+
+test("event filters with event only filter", () => {
+  eventFilter({
+    abi,
+
+    filter: [
+      {
+        event: "Event0",
+        args: {
+          arg: "0x",
+        },
+      },
+      // @ts-expect-error
+      {
+        event: "Event1()",
+      },
+    ],
   });
 });
 

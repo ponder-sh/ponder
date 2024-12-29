@@ -45,7 +45,6 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        filter: { event: ["Event0", "Event1"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -76,9 +75,6 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
       a: {
         network: { mainnet: {} },
         abi: [event1, event1Overloaded],
-        filter: {
-          event: ["Event1()", "Event1(bytes32 indexed)"],
-        },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -115,9 +111,6 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
           },
         },
         abi: [event1, event1Overloaded],
-        filter: {
-          event: ["Event1()", "Event1(bytes32 indexed)"],
-        },
       },
     },
   });
@@ -233,7 +226,6 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
     contracts: {
       a: {
         abi: [event0],
-        filter: { event: ["Event0"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -263,7 +255,6 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
       a: {
         network: "mainnet",
         abi: [event0],
-        filter: { event: ["Event0"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -333,35 +324,6 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() validates against multiple events and indexed argument values", async () => {
-  const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
-    },
-    contracts: {
-      a: {
-        network: "mainnet",
-        abi: [event0, event1],
-        filter: {
-          event: ["Event0", "Event1"],
-          // @ts-expect-error
-          args: [bytes1],
-        },
-      },
-    },
-  }) as any;
-
-  const result = await safeBuildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Event filter for contract 'a' cannot contain indexed argument values if multiple events are provided.",
-  );
-});
-
 test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     networks: {
@@ -374,6 +336,9 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
         filter: {
           // @ts-expect-error
           event: "Event2",
+          args: {
+            arg: "0x",
+          },
         },
       },
     },
