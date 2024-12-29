@@ -216,27 +216,39 @@ export const createDatabase = ({
         : [equalMax, equalMax, equalMax];
 
     driver = {
-      internal: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_internal`,
-        max: internalMax,
-        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-      }),
-      user: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_user`,
-        max: userMax,
-      }),
-      readonly: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_readonly`,
-        max: readonlyMax,
-      }),
-      sync: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: "ponder_sync",
-        max: syncMax,
-      }),
+      internal: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${preBuild.namespace}_internal`,
+          max: internalMax,
+          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+        },
+        common.logger,
+      ),
+      user: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${preBuild.namespace}_user`,
+          max: userMax,
+        },
+        common.logger,
+      ),
+      readonly: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${preBuild.namespace}_readonly`,
+          max: readonlyMax,
+        },
+        common.logger,
+      ),
+      sync: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: "ponder_sync",
+          max: syncMax,
+        },
+        common.logger,
+      ),
     };
 
     qb = {
