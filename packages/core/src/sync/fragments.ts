@@ -30,7 +30,7 @@ export type FragmentId =
   | `transfer_${number}_${FragmentAddress}_${FragmentAddress}_${0 | 1}`;
 
 export const getFragmentIds = (
-  filter: Omit<Filter, "startBlock" | "endBlock">,
+  filter: Omit<Filter, "fromBlock" | "toBlock">,
 ): FragmentReturnType => {
   switch (filter.type) {
     case "block":
@@ -273,3 +273,7 @@ export const getTransferFilterFragmentIds = ({
 
   return fragments;
 };
+
+export const recoverFilter = (
+  fragmentIds: FragmentId[],
+): Omit<Filter, "fromBlock" | "toBlock"> => {};

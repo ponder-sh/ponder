@@ -24,7 +24,7 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
-import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
+import type { Interval } from "@/utils/interval.js";
 import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
 import type { InsertObject } from "kysely";
 import {
@@ -47,14 +47,14 @@ import {
 export type SyncStore = {
   insertIntervals(args: {
     intervals: {
-      filter: Filter;
+      filter: Omit<Filter, "fromBlock" | "toBlock">;
       interval: Interval;
     }[];
     chainId: number;
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
-  }): Promise<Map<Filter, Interval[]>>;
+  }): Promise<Map<Filter, [FragmentId, Interval[]][]>>;
   getChildAddresses(args: {
     filter: Factory;
     limit?: number;
@@ -239,7 +239,7 @@ export const createSyncStore = ({
 
       const rows = await query!.execute();
 
-      const result: Map<Filter, Interval[]> = new Map();
+      const result: Map<Filter, [FragmentId, Interval[]]> = new Map();
 
       // intervals use "union" for the same fragment, and
       // "intersection" for the same filter
@@ -260,7 +260,13 @@ export const createSyncStore = ({
             ).map((interval) => [interval[0], interval[1] - 1] as Interval),
           );
 
-        result.set(filter, intervalIntersectionMany(intervals));
+        //   result.set(filt)
+
+        //   for (const fragment of getFragmentIds(filter)) {
+        //     result.
+        //   }
+
+        // result.set(filter, intervalIntersectionMany(intervals));
       }
 
       return result;
