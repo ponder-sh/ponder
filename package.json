@@ -10,7 +10,7 @@
     "lint": "biome check .",
     "lint:fix": "pnpm lint --write",
     "prepare": "npx simple-git-hooks",
-    "test": "pnpm --parallel --no-bail test",
+    "test": "mkdir -p coverage && pnpm --parallel --no-bail test",
     "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"
   },
   "devDependencies": {
@@ -38,6 +38,9 @@
     "peerDependencyRules": {
       "ignoreMissing": ["node-fetch"]
     }
+  },
+  "resolutions": {
+    "graphql": "^16.8.2"
   },
   "engines": {
     "node": ">=18.14"

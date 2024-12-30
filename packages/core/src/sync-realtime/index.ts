@@ -948,8 +948,9 @@ export const createRealtimeSync = (
       });
 
       const enqueue = async () => {
+        let block: SyncBlock | null = null;
         try {
-          const block = await _eth_getBlockByNumber(args.requestQueue, {
+          block = await _eth_getBlockByNumber(args.requestQueue, {
             blockTag: "latest",
           });
 
@@ -977,7 +978,7 @@ export const createRealtimeSync = (
 
           args.common.logger.warn({
             service: "realtime",
-            msg: `Failed to fetch latest '${args.network.name}' block`,
+            msg: `Failed to fetch latest '${args.network.name}' block${block ? ` ${hexToNumber(block.number)}` : ""}`,
             error,
           });
 
