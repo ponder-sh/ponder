@@ -361,40 +361,34 @@ export async function buildConfigAndIndexingFunctions({
         // is an invariant of the current filter design.
         // Note: This can throw.
 
-        const filteredTopicsArray = buildTopics(
-          source.abi,
-          source.filter,
-        ).reduce(
-          (acc, cur) => {
-            if (acc.includes(cur) === false) {
-              acc.push(cur);
-            }
+        const filteredTopicsArray = buildTopics(source.abi, source.filter);
 
-            return acc;
-          },
-          [] as {
-            topic0: Hex;
-            topic1: Hex | Hex[] | null;
-            topic2: Hex | Hex[] | null;
-            topic3: Hex | Hex[] | null;
-          }[],
-        );
+        const filteredEventSelectors: Hex[] = [];
+        const resolvedTopicsArray: {
+          topic0: Hex;
+          topic1: LogTopic;
+          topic2: LogTopic;
+          topic3: LogTopic;
+        }[] = [];
 
-        const filteredEventSelectors = filteredTopicsArray.reduce(
-          (acc, cur) => {
-            const eventSelector = cur.topic0;
+        for (const topics of filteredTopicsArray) {
+          const eventSelector = topics.topic0;
+          if (
+            resolvedTopicsArray.some(
+              (t) =>
+                t.topic0 === eventSelector &&
+                t.topic1 === topics.topic1 &&
+                t.topic2 === topics.topic2 &&
+                t.topic3 === topics.topic3,
+            ) === false
+          ) {
+            resolvedTopicsArray.push(topics);
+          }
 
-            if (
-              eventSelector !== null &&
-              acc.includes(eventSelector) === false
-            ) {
-              acc.push(eventSelector);
-            }
-
-            return acc;
-          },
-          [] as Hex[],
-        );
+          if (filteredEventSelectors.includes(eventSelector) === false) {
+            filteredEventSelectors.push(eventSelector);
+          }
+        }
 
         // Merge filtered topics and registered event selectors
         const excludedRegisteredEventSelectors =
