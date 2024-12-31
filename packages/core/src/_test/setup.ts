@@ -1,10 +1,10 @@
+import type { DatabaseConfig } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import type { Common } from "@/common/common.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { createTelemetry } from "@/common/telemetry.js";
-import type { DatabaseConfig } from "@/config/database.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";

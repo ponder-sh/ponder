@@ -1,4 +1,4 @@
-import type { Config } from "@/config/config.js";
+import type { Config } from "@/config/index.js";
 import type {
   FormatEventArgs,
   FormatFunctionArgs,
