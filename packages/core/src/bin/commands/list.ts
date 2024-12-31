@@ -35,7 +35,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const build = await createBuild({ common });
+  const build = await createBuild({ common, cliOptions });
 
   const cleanup = async () => {
     await build.kill();

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import type { CliOptions } from "@/bin/ponder.js";
 import type { Common } from "@/common/common.js";
 import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/config.js";
@@ -93,8 +94,10 @@ export type Build = {
 
 export const createBuild = async ({
   common,
+  cliOptions,
 }: {
   common: Common;
+  cliOptions: CliOptions;
 }): Promise<Build> => {
   let namespace: string | undefined;
 
@@ -178,7 +181,7 @@ export const createBuild = async ({
     initNamespace: ({ isSchemaRequired }) => {
       if (isSchemaRequired) {
         if (
-          common.options.schema === undefined &&
+          cliOptions.schema === undefined &&
           process.env.DATABASE_SCHEMA === undefined
         ) {
           const error = new BuildError(
@@ -193,10 +196,10 @@ export const createBuild = async ({
           return { status: "error", error } as const;
         }
 
-        namespace = common.options.schema ?? process.env.DATABASE_SCHEMA;
+        namespace = cliOptions.schema ?? process.env.DATABASE_SCHEMA;
       } else {
         namespace =
-          common.options.schema ?? process.env.DATABASE_SCHEMA ?? "public";
+          cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
       }
 
       global.PONDER_DATABASE_SCHEMA = namespace;

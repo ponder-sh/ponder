@@ -41,7 +41,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const build = await createBuild({ common });
+  const build = await createBuild({ common, cliOptions });
 
   let cleanupReloadable = () => Promise.resolve();
   let cleanupReloadableServer = () => Promise.resolve();
