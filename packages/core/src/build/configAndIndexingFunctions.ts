@@ -403,7 +403,7 @@ export async function buildConfigAndIndexingFunctions({
         abiEvents,
         abiFunctions,
         name: source.name,
-        networkName: source.network,
+        network,
       } as const;
 
       const resolvedAddress = source?.address;
@@ -590,7 +590,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transaction",
               chainId: network.chainId,
@@ -605,7 +605,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transaction",
               chainId: network.chainId,
@@ -620,7 +620,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transfer",
               chainId: network.chainId,
@@ -639,7 +639,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transfer",
               chainId: network.chainId,
@@ -684,8 +684,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-
-          networkName: source.network,
+          network,
           filter: {
             type: "transaction",
             chainId: network.chainId,
@@ -700,7 +699,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-          networkName: source.network,
+          network,
           filter: {
             type: "transaction",
             chainId: network.chainId,
@@ -715,7 +714,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-          networkName: source.network,
+          network,
           filter: {
             type: "transfer",
             chainId: network.chainId,
@@ -734,7 +733,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-          networkName: source.network,
+          network,
           filter: {
             type: "transfer",
             chainId: network.chainId,
@@ -798,7 +797,7 @@ export async function buildConfigAndIndexingFunctions({
       return {
         type: "block",
         name: source.name,
-        networkName: source.network,
+        network,
         filter: {
           type: "block",
           chainId: network.chainId,
@@ -827,7 +826,7 @@ export async function buildConfigAndIndexingFunctions({
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
     const hasSources = sources.some(
-      (source) => source.networkName === network.name,
+      (source) => source.network.name === network.name,
     );
     if (!hasSources) {
       logs.push({

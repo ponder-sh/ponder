@@ -222,17 +222,17 @@ export type ContractMetadata = {
   abiEvents: AbiEvents;
   abiFunctions: AbiFunctions;
   name: string;
-  networkName: string;
+  network: Network;
 };
 export type AccountMetadata = {
   type: "account";
   name: string;
-  networkName: string;
+  network: Network;
 };
 export type BlockMetadata = {
   type: "block";
   name: string;
-  networkName: string;
+  network: Network;
 };
 
 // Network
