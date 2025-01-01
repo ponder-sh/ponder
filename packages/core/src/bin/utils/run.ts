@@ -38,14 +38,9 @@ export async function run({
   const { checkpoint: initialCheckpoint } =
     await database.prepareNamespace(indexingBuild);
 
-  const syncStore = createSyncStore({
-    common,
-    db: database.qb.sync,
-  });
+  const syncStore = createSyncStore({ common, database });
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.user,
-  });
+  const metadataStore = getMetadataStore({ database });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.

@@ -27,9 +27,7 @@ export async function createServer({
 }): Promise<Server> {
   // Create hono app
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.readonly,
-  });
+  const metadataStore = getMetadataStore({ database });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes

@@ -204,10 +204,7 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const syncStore = createSyncStore({
-    common: context.common,
-    db: database.qb.sync,
-  });
+  const syncStore = createSyncStore({ common: context.common, database });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
@@ -215,9 +212,7 @@ export async function setupDatabaseServices(
     schema: config.schema,
   });
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.user,
-  });
+  const metadataStore = getMetadataStore({ database });
 
   const cleanup = () => database.kill();
 

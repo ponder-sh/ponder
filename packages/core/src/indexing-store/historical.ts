@@ -341,7 +341,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
@@ -382,7 +382,7 @@ export const createHistoricalIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -435,7 +435,7 @@ export const createHistoricalIndexingStore = ({
               ),
             onConflictDoUpdate: (valuesU: any) =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -532,7 +532,7 @@ export const createHistoricalIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               queue
                 .add(() =>
-                  database.qb.user.wrap(
+                  database.wrap(
                     {
                       method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
@@ -624,7 +624,7 @@ export const createHistoricalIndexingStore = ({
       return {
         set: (values: any) =>
           queue.add(() =>
-            database.qb.user.wrap(
+            database.wrap(
               { method: `${getTableName(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table, "update");
@@ -689,7 +689,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
@@ -731,7 +731,7 @@ export const createHistoricalIndexingStore = ({
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
-        const res = await database.qb.user.wrap({ method: "sql" }, async () => {
+        const res = await database.wrap({ method: "sql" }, async () => {
           try {
             return await database.qb.drizzle._.session
               .prepareQuery(query, undefined, undefined, method === "all")
@@ -794,7 +794,7 @@ export const createHistoricalIndexingStore = ({
             while (insertValues.length > 0) {
               const values = insertValues.splice(0, batchSize);
               promises.push(
-                database.qb.user.wrap(
+                database.wrap(
                   { method: `${getTableName(table)}.flush()` },
                   async () => {
                     await database.qb.drizzle
@@ -834,7 +834,7 @@ export const createHistoricalIndexingStore = ({
             while (updateValues.length > 0) {
               const values = updateValues.splice(0, batchSize);
               promises.push(
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table)}.flush()`,
                   },

@@ -1,4 +1,4 @@
-import type { HeadlessKysely } from "@/database/kysely.js";
+import type { Database } from "@/database/index.js";
 import type { Status } from "@/internal/types.js";
 
 export type MetadataStore = {
@@ -7,13 +7,13 @@ export type MetadataStore = {
 };
 
 export const getMetadataStore = ({
-  db,
+  database,
 }: {
-  db: HeadlessKysely<any>;
+  database: Database;
 }): MetadataStore => ({
   getStatus: async () => {
-    return db.wrap({ method: "_ponder_meta.getStatus()" }, async () => {
-      const metadata = await db
+    return database.wrap({ method: "_ponder_meta.getStatus()" }, async () => {
+      const metadata = await database.qb.readonly
         .selectFrom("_ponder_meta")
         .select("value")
         .where("key", "=", "status")
@@ -25,8 +25,8 @@ export const getMetadataStore = ({
     });
   },
   setStatus: (status: Status) => {
-    return db.wrap({ method: "_ponder_meta.setStatus()" }, async () => {
-      await db
+    return database.wrap({ method: "_ponder_meta.setStatus()" }, async () => {
+      await database.qb.user
         .insertInto("_ponder_meta")
         .values({
           key: "status",
