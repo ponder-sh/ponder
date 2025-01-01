@@ -1,13 +1,16 @@
-import type { IndexingFunctions, Network } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
-import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  ContractSource,
+  Event,
+  IndexingFunctions,
+  Network,
+  Schema,
+  SetupEvent,
+  Source,
+} from "@/internal/types.js";
+import { isAddressFactory } from "@/sync/filter.js";
 import type { Sync } from "@/sync/index.js";
-import {
-  type ContractSource,
-  type Source,
-  isAddressFactory,
-} from "@/sync/source.js";
 import type { Db } from "@/types/db.js";
 import {
   type Checkpoint,
@@ -19,7 +22,6 @@ import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
 import { checksumAddress, createClient } from "viem";
-import type { Event, SetupEvent } from "../sync/events.js";
 import { addStackTrace } from "./addStackTrace.js";
 import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
 

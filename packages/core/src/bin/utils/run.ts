@@ -1,13 +1,12 @@
-import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
-import { runCodegen } from "@/common/codegen.js";
-import type { Common } from "@/common/common.js";
+import { runCodegen } from "@/bin/utils/codegen.js";
 import type { Database } from "@/database/index.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexingService } from "@/indexing/index.js";
+import type { Common } from "@/internal/common.js";
+import type { Event, IndexingBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import {

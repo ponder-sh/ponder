@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createTelemetry } from "@/common/telemetry.js";
+import { createTelemetry } from "@/internal/telemetry.js";
 import { rimrafSync } from "rimraf";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Common } from "./common.js";

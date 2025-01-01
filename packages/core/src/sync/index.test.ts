@@ -10,6 +10,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type { RawEvent } from "@/internal/types.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -19,7 +20,6 @@ import {
 import { wait } from "@/utils/wait.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
-import type { RawEvent } from "./events.js";
 import { type Sync, createSync } from "./index.js";
 
 beforeEach(setupCommon);

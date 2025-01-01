@@ -10,13 +10,14 @@ import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import type { RawEvent } from "@/internal/types.js";
+import { decodeEvents } from "@/sync/events.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
-import { type RawEvent, decodeEvents } from "../sync/events.js";
 import {
   type Context,
   create,

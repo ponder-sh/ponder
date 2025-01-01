@@ -1,16 +1,13 @@
-import type { Common } from "@/common/common.js";
+import type { Database } from "@/database/index.js";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
+import { onchain } from "@/drizzle/onchain.js";
+import type { Common } from "@/internal/common.js";
 import {
   InvalidStoreMethodError,
   RecordNotFoundError,
   UndefinedTableError,
-} from "@/common/errors.js";
-import type { Database } from "@/database/index.js";
-import {
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-} from "@/drizzle/index.js";
-import { onchain } from "@/drizzle/onchain.js";
+} from "@/internal/errors.js";
+import type { Schema } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type QueryWithTypings,

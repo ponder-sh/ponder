@@ -1,6 +1,12 @@
-import type { Network } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
-import { getAppProgress } from "@/common/metrics.js";
+import type { Common } from "@/internal/common.js";
+import { getAppProgress } from "@/internal/metrics.js";
+import type {
+  Factory,
+  Network,
+  RawEvent,
+  Source,
+  Status,
+} from "@/internal/types.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -41,8 +47,8 @@ import {
   hexToNumber,
 } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
-import { type RawEvent, buildEvents } from "./events.js";
-import { type Factory, type Source, isAddressFactory } from "./source.js";
+import { buildEvents } from "./events.js";
+import { isAddressFactory } from "./filter.js";
 import { cachedTransport } from "./transport.js";
 
 export type Sync = {
@@ -70,13 +76,6 @@ export type RealtimeEvent =
       type: "finalize";
       checkpoint: string;
     };
-
-export type Status = {
-  [networkName: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
-  };
-};
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;

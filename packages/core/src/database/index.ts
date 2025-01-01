@@ -1,19 +1,20 @@
-import type { IndexingBuild, PreBuild, SchemaBuild } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
-import {
-  type Drizzle,
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-} from "@/drizzle/index.js";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import type { Common } from "@/internal/common.js";
+import { NonRetryableError } from "@/internal/errors.js";
+import type {
+  IndexingBuild,
+  PreBuild,
+  Schema,
+  SchemaBuild,
+  Status,
+} from "@/internal/types.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
 } from "@/sync-store/migrations.js";
-import type { Status } from "@/sync/index.js";
+import type { Drizzle } from "@/types/db.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -111,8 +112,6 @@ type QueryBuilder = {
   sync: HeadlessKysely<PonderSyncSchema>;
   /** Used in api functions */
   readonly: HeadlessKysely<unknown>;
-  /** Used in client queries */
-  // client: HeadlessKysely<unknown>;
   drizzle: Drizzle<Schema>;
   drizzleReadonly: Drizzle<Schema>;
 };

@@ -1,5 +1,5 @@
-import type { Common } from "@/common/common.js";
-import { IgnorableError, NonRetryableError } from "@/common/errors.js";
+import type { Common } from "@/internal/common.js";
+import { IgnorableError, NonRetryableError } from "@/internal/errors.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { Kysely, type KyselyConfig, type KyselyProps } from "kysely";

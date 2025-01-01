@@ -1,6 +1,7 @@
-import type { Drizzle, ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
+import type { Schema } from "@/internal/types.js";
+import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";

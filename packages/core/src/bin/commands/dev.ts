@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { type Database, createDatabase } from "@/database/index.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createUi } from "@/ui/service.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";

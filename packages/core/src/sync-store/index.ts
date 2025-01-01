@@ -1,19 +1,22 @@
-import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { RawEvent } from "@/sync/events.js";
-import { type FragmentId, getFragmentIds } from "@/sync/fragments.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  BlockFilter,
+  Factory,
+  Filter,
+  FragmentId,
+  LogFactory,
+  LogFilter,
+  RawEvent,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
 import {
-  type BlockFilter,
-  type Factory,
-  type Filter,
-  type LogFactory,
-  type LogFilter,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
   isAddressFactory,
   shouldGetTransactionReceipt,
-} from "@/sync/source.js";
+} from "@/sync/filter.js";
+import { getFragmentIds } from "@/sync/fragments.js";
 import type { Log, Trace } from "@/types/eth.js";
 import type {
   LightBlock,

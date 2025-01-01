@@ -1,10 +1,6 @@
 import { factory } from "@/config/address.js";
-import {
-  type LogFactory,
-  type LogFilter,
-  type TraceFilter,
-  shouldGetTransactionReceipt,
-} from "@/sync/source.js";
+import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
   http,
   type Address,

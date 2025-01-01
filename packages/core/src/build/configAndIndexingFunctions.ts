@@ -1,32 +1,32 @@
-import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/index.js";
 import {
   getFinalityBlockCount,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import { BuildError } from "@/internal/errors.js";
+import type {
+  AccountSource,
+  BlockSource,
+  ContractSource,
+  IndexingFunctions,
+  Network,
+  RawIndexingFunctions,
+  Source,
+} from "@/internal/types.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
-  type AccountSource,
-  type BlockSource,
-  type ContractSource,
-  type Source,
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
   defaultTraceFilterInclude,
   defaultTransactionFilterInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-} from "@/sync/source.js";
+} from "@/sync/filter.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Address, Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
-import type {
-  IndexingFunctions,
-  Network,
-  RawIndexingFunctions,
-} from "./index.js";
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],

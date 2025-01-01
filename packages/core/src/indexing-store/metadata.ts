@@ -1,5 +1,5 @@
 import type { HeadlessKysely } from "@/database/kysely.js";
-import type { Status } from "@/sync/index.js";
+import type { Status } from "@/internal/types.js";
 
 export type MetadataStore = {
   setStatus: (status: Status) => Promise<void>;
