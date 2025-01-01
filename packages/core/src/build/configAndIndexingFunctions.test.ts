@@ -151,7 +151,7 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
   expect(sources.length).toBe(2);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for event with args", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for event filter", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -178,13 +178,14 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
+  expect(sources).toHaveLength(1);
+  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
     toEventSelector(event0),
-  ]);
+  );
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for event with unnamed parameters", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -192,11 +193,19 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
     contracts: {
       a: {
         network: { mainnet: {} },
-        abi: [event1Overloaded],
-        filter: {
-          event: "Event1",
-          args: [[bytes1, bytes2]],
-        },
+        abi: [event0, event1Overloaded],
+        filter: [
+          {
+            event: "Event1",
+            args: [[bytes1, bytes2]],
+          },
+          {
+            event: "Event0",
+            args: {
+              arg: bytes1,
+            },
+          },
+        ],
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -209,13 +218,18 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
     rawIndexingFunctions: [{ name: "a:Event1", fn: () => {} }],
   });
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
+  expect(sources).toHaveLength(2);
+  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
     toEventSelector(event1Overloaded),
-  ]);
+  );
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject([
     bytes1,
     bytes2,
   ]);
+  expect((sources[1]!.filter as LogFilter).topic0).toMatchObject(
+    toEventSelector(event0),
+  );
+  expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {

@@ -322,26 +322,19 @@ export async function buildConfigAndIndexingFunctions({
         registeredFunctionSelectors.push(abiFunction.selector);
       }
 
-      let topicsArray: {
+      const topicsArray: {
         topic0: LogTopic;
         topic1: LogTopic;
         topic2: LogTopic;
         topic3: LogTopic;
-      }[] = [
-        {
-          topic0: registeredEventSelectors,
-          topic1: null,
-          topic2: null,
-          topic3: null,
-        },
-      ];
+      }[] = [];
 
       if (source.filter !== undefined) {
-        source.filter = Array.isArray(source.filter)
+        const eventFilters = Array.isArray(source.filter)
           ? source.filter
           : [source.filter];
 
-        for (const filter of source.filter) {
+        for (const filter of eventFilters) {
           const abiEvent = abiEvents.bySafeName[filter.event];
           if (!abiEvent) {
             throw new Error(
@@ -356,58 +349,36 @@ export async function buildConfigAndIndexingFunctions({
           }
         }
 
-        // TODO: Explicit validation of indexed argument value format (array or object).
-        // The first element of the array return from `buildTopics` being defined
-        // is an invariant of the current filter design.
-        // Note: This can throw.
+        topicsArray.push(...buildTopics(source.abi, eventFilters));
 
-        const filteredTopicsArray = buildTopics(source.abi, source.filter);
-
-        const filteredEventSelectors: Hex[] = [];
-        const resolvedTopicsArray: {
-          topic0: Hex;
-          topic1: LogTopic;
-          topic2: LogTopic;
-          topic3: LogTopic;
-        }[] = [];
-
-        for (const topics of filteredTopicsArray) {
-          const eventSelector = topics.topic0;
-          if (
-            resolvedTopicsArray.some(
-              (t) =>
-                t.topic0 === eventSelector &&
-                t.topic1 === topics.topic1 &&
-                t.topic2 === topics.topic2 &&
-                t.topic3 === topics.topic3,
-            ) === false
-          ) {
-            resolvedTopicsArray.push(topics);
-          }
-
-          if (filteredEventSelectors.includes(eventSelector) === false) {
-            filteredEventSelectors.push(eventSelector);
-          }
-        }
-
-        // Merge filtered topics and registered event selectors
+        // event selectors that have a filter
+        const filteredEventSelectors: Hex[] = topicsArray.map(
+          (t) => t.topic0 as Hex,
+        );
+        // event selectors that are registered but don't have a filter
         const excludedRegisteredEventSelectors =
           registeredEventSelectors.filter(
             (s) => filteredEventSelectors.includes(s) === false,
           );
 
-        topicsArray =
-          excludedRegisteredEventSelectors.length > 0
-            ? [
-                {
-                  topic0: excludedRegisteredEventSelectors,
-                  topic1: null,
-                  topic2: null,
-                  topic3: null,
-                },
-                ...filteredTopicsArray,
-              ]
-            : filteredTopicsArray;
+        // TODO(kyle) should we throw an error when an event selector has
+        // a filter but is not registered?
+
+        if (excludedRegisteredEventSelectors.length > 0) {
+          topicsArray.push({
+            topic0: excludedRegisteredEventSelectors,
+            topic1: null,
+            topic2: null,
+            topic3: null,
+          });
+        }
+      } else {
+        topicsArray.push({
+          topic0: registeredEventSelectors,
+          topic1: null,
+          topic2: null,
+          topic3: null,
+        });
       }
 
       const startBlockMaybeNan = source.startBlock;
@@ -566,13 +537,13 @@ export async function buildConfigAndIndexingFunctions({
       } else return logSources;
     }) // Remove sources with no registered indexing functions
     .filter((source) => {
-      const hasRegisteredIndexingFunctions =
+      const hasNoRegisteredIndexingFunctions =
         source.filter.type === "trace"
           ? Array.isArray(source.filter.functionSelector) &&
-            source.filter.functionSelector.length > 0
+            source.filter.functionSelector.length === 0
           : Array.isArray(source.filter.topic0) &&
-            source.filter.topic0?.length > 0;
-      if (!hasRegisteredIndexingFunctions) {
+            source.filter.topic0?.length === 0;
+      if (hasNoRegisteredIndexingFunctions) {
         logs.push({
           level: "debug",
           msg: `No indexing functions were registered for '${
@@ -580,7 +551,7 @@ export async function buildConfigAndIndexingFunctions({
           }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
         });
       }
-      return hasRegisteredIndexingFunctions;
+      return hasNoRegisteredIndexingFunctions === false;
     });
 
   const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
