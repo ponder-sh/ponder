@@ -81,7 +81,9 @@ type PluralArgs = {
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1000 as const;
 
-export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
+export function buildGraphQLSchema({
+  schema,
+}: { schema: Schema }): GraphQLSchema {
   const tablesConfig = extractTablesRelationalConfig(
     schema,
     createTableRelationsHelpers,

@@ -51,9 +51,8 @@ export async function run({
   // Note: can throw
   const sync = await createSync({
     common,
+    indexingBuild,
     syncStore,
-    networks: indexingBuild.networks,
-    sources: indexingBuild.sources,
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {

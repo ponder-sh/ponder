@@ -6,7 +6,7 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
-import { createUi } from "@/ui/service.js";
+import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";

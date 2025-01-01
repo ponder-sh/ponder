@@ -47,7 +47,7 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
   fs.writeFileSync(

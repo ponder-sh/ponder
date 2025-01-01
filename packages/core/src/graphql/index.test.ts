@@ -31,7 +31,7 @@ test("metadata", async (context) => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   await metadataStore.setStatus({
     mainnet: {
@@ -141,7 +141,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     bigintArrayNotNull: [0n],
   });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -242,7 +242,7 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
     enumArrayNotNull: ["A"],
   });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -295,7 +295,7 @@ test("enum primary key", async (context) => {
     enum: "A",
   });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -338,7 +338,7 @@ test("json, json not null", async (context) => {
     jsonNotNull: { kevin: 52 },
   });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -397,7 +397,7 @@ test("singular", async (context) => {
     { owner: "1", spender: "0", amount: 100n },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -494,7 +494,7 @@ test("singular with one relation", async (context) => {
     .insert(schema.pet)
     .values({ id: "dog1", ownerId: "jake" });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -560,7 +560,7 @@ test("singular with many relation", async (context) => {
     { id: "dog3", ownerId: "kyle" },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -617,7 +617,7 @@ test("singular with many relation using filter", async (context) => {
     { id: "dog3", age: 3, ownerId: "jake" },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -678,7 +678,7 @@ test("singular with many relation using order by", async (context) => {
     { id: "dog3", age: 3, ownerId: "jake" },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -740,7 +740,7 @@ test("plural with one relation uses dataloader", async (context) => {
     { id: "dog3", ownerId: "kyle" },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const personFindManySpy = vi.spyOn(
     // @ts-expect-error
@@ -807,7 +807,7 @@ test("filter input type", async (context) => {
 
   const { cleanup } = await setupDatabaseServices(context, { schema });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
   const typeMap = graphqlSchema.getTypeMap();
   const tableFilterType = typeMap.tableFilter!;
   const fields = (tableFilterType.toConfig() as any).fields as Record<
@@ -945,7 +945,7 @@ test("filter universal", async (context) => {
     .insert(schema.person)
     .values([{ id: 1n }, { id: 2n }, { id: 3n }]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -994,7 +994,7 @@ test("filter singular", async (context) => {
     .insert(schema.person)
     .values([{ id: "0x01" }, { id: "0x02" }, { id: "0x03" }]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1048,7 +1048,7 @@ test("filter plural", async (context) => {
     { id: "3", number: [5, 6, 7] },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1177,7 +1177,7 @@ test("filter numeric", async (context) => {
     },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1280,7 +1280,7 @@ test("filter string", async (context) => {
     { id: "3", text: "three", hex: "0xef0" },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1351,7 +1351,7 @@ test("filter and/or", async (context) => {
     { id: "id5", name: "Winston", age: 12 },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -1420,7 +1420,7 @@ test("order by", async (context) => {
     },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1516,7 +1516,7 @@ test("limit", async (context) => {
     await indexingStore.insert(schema.person).values({ id: String(i) });
   }
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   // Default limit of 50
   let result = await query(`
@@ -1590,7 +1590,7 @@ test("cursor pagination ascending", async (context) => {
     { id: "id9", name: "Last" },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1734,7 +1734,7 @@ test("cursor pagination descending", async (context) => {
     { id: "id5", name: "Winston", age: 12 },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -1871,7 +1871,7 @@ test("cursor pagination start and end cursors", async (context) => {
     { id: "id5", name: "Winston", age: 12 },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -1938,7 +1938,7 @@ test("cursor pagination has previous page", async (context) => {
     { id: "id5", name: "Winston", age: 12 },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -2029,7 +2029,7 @@ test("cursor pagination composite primary key", async (context) => {
     { owner: "jenny", spender: "bill", amount: 800n },
   ]);
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   let result = await query(`
     query {
@@ -2171,7 +2171,7 @@ test("column casing", async (context) => {
     camelCase: "0",
   });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {
@@ -2224,7 +2224,7 @@ test("snake case table and column names with where clause", async (context) => {
     total_supply: 0n,
   });
 
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   const result = await query(`
     query {

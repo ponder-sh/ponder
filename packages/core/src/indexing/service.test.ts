@@ -56,8 +56,10 @@ test("createIndexing()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -89,8 +91,10 @@ test("processSetupEvents() empty", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -126,8 +130,10 @@ test("processSetupEvents()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -185,8 +191,10 @@ test("processEvent()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -285,8 +293,10 @@ test("processEvents killed", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -358,8 +368,10 @@ test("processEvents eventCount", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -427,8 +439,10 @@ test("executeSetup() context.client", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -482,8 +496,10 @@ test("executeSetup() context.db", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -537,8 +553,10 @@ test("executeSetup() metrics", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -578,8 +596,10 @@ test("executeSetup() error", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -622,8 +642,10 @@ test("processEvents() context.client", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -701,8 +723,10 @@ test("processEvents() context.db", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -781,8 +805,10 @@ test("processEvents() metrics", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -846,8 +872,10 @@ test("processEvents() error", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -924,8 +952,10 @@ test("execute() error after killed", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -993,8 +1023,10 @@ test("ponderActions getBalance()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -1031,8 +1063,10 @@ test("ponderActions getCode()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -1075,8 +1109,10 @@ test("ponderActions getStorageAt()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -1121,8 +1157,10 @@ test("ponderActions readContract()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -1167,8 +1205,10 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -1215,8 +1255,10 @@ test.skip("ponderActions multicall()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
