@@ -314,10 +314,10 @@ export const createHistoricalSync = async (
   const syncTransactionReceipts = async (
     block: Hash,
     transactionHashes: Set<Hash>,
-  ) => {
+  ): Promise<SyncTransactionReceipt[]> => {
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) =>
+        Array.from(transactionHashes).map((hash) =>
           syncTransactionReceipt(hash),
         ),
       );
@@ -490,7 +490,7 @@ export const createHistoricalSync = async (
       if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
-        transactionReceipts: Array.from(transactionReceipts),
+        transactionReceipts,
         chainId: args.network.chainId,
       });
     }
@@ -575,7 +575,7 @@ export const createHistoricalSync = async (
     if (isKilled) return;
 
     await args.syncStore.insertTransactionReceipts({
-      transactionReceipts: Array.from(transactionReceipts),
+      transactionReceipts,
       chainId: args.network.chainId,
     });
   };
@@ -671,7 +671,7 @@ export const createHistoricalSync = async (
       if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
-        transactionReceipts: Array.from(transactionReceipts),
+        transactionReceipts,
         chainId: args.network.chainId,
       });
     }
