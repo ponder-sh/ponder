@@ -6,11 +6,12 @@ import {
   isTransferFilterMatched,
 } from "@/sync-realtime/filter.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { type FragmentId, recoverFilter } from "@/sync/fragments.js";
+import { type Fragment, recoverFilter } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type Factory,
   type Filter,
+  type FilterWithoutBlocks,
   type LogFactory,
   type LogFilter,
   type TraceFilter,
@@ -45,7 +46,7 @@ import {
 } from "viem";
 
 export type HistoricalSync = {
-  intervalsCache: Map<Filter, [FragmentId, Interval[]][]>;
+  intervalsCache: Map<Filter, [Fragment, Interval[]][]>;
   /**
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
@@ -101,7 +102,7 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  let intervalsCache: Map<Filter, [FragmentId, Interval[]][]>;
+  let intervalsCache: Map<Filter, [Fragment, Interval[]][]>;
   if (args.network.disableCache) {
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
@@ -595,7 +596,7 @@ export const createHistoricalSync = async (
     async sync(_interval) {
       const syncedIntervals: {
         interval: Interval;
-        filter: Omit<Filter, "fromBlock" | "toBlock">;
+        filter: FilterWithoutBlocks;
       }[] = [];
 
       // Determine the requests that need to be made, and which intervals need to be inserted.
@@ -616,31 +617,34 @@ export const createHistoricalSync = async (
         ];
 
         const completedIntervals = intervalsCache.get(filter)!;
-        const requiredIntervals: [FragmentId, Interval[]][] = [];
+        const requiredIntervals: [Fragment, Interval[]][] = [];
 
-        for (const [fragmentId, fragmentInterval] of completedIntervals) {
+        for (const [fragment, fragmentInterval] of completedIntervals) {
           const requiredFragmentIntervals = intervalDifference(
             [interval],
             fragmentInterval,
           );
 
           if (requiredFragmentIntervals.length > 0) {
-            requiredIntervals.push([fragmentId, requiredFragmentIntervals]);
+            requiredIntervals.push([fragment, requiredFragmentIntervals]);
           }
         }
 
-        const requiredInterval = intervalBounds(
-          requiredIntervals.flatMap(([_, interval]) => interval),
-        );
+        if (requiredIntervals.length > 0) {
+          const requiredInterval = intervalBounds(
+            requiredIntervals.flatMap(([_, interval]) => interval),
+          );
 
-        const requiredFilter = recoverFilter(
-          requiredIntervals.map(([fragmentId]) => fragmentId),
-        );
+          const requiredFilter = recoverFilter(
+            filter,
+            requiredIntervals.map(([fragmentId]) => fragmentId),
+          );
 
-        syncedIntervals.push({
-          filter: requiredFilter,
-          interval: requiredInterval,
-        });
+          syncedIntervals.push({
+            filter: requiredFilter,
+            interval: requiredInterval,
+          });
+        }
       }
 
       await Promise.all(
@@ -694,8 +698,6 @@ export const createHistoricalSync = async (
           if (isKilled) return;
 
           await blockPromise;
-
-          syncedIntervals.push({ filter, interval });
         }),
       );
 

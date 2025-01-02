@@ -1,11 +1,12 @@
 import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
-import { type FragmentId, getFragmentIds } from "@/sync/fragments.js";
+import { type Fragment, fragmentToId, getFragments } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type Factory,
   type Filter,
+  type FilterWithoutBlocks,
   type LogFactory,
   type LogFilter,
   type TraceFilter,
@@ -47,14 +48,14 @@ import {
 export type SyncStore = {
   insertIntervals(args: {
     intervals: {
-      filter: Omit<Filter, "fromBlock" | "toBlock">;
+      filter: FilterWithoutBlocks;
       interval: Interval;
     }[];
     chainId: number;
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
-  }): Promise<Map<Filter, [FragmentId, Interval[]][]>>;
+  }): Promise<Map<Filter, [Fragment, Interval[]][]>>;
   getChildAddresses(args: {
     filter: Factory;
     limit?: number;
@@ -161,25 +162,25 @@ export const createSyncStore = ({
     if (intervals.length === 0) return;
 
     await db.wrap({ method: "insertIntervals" }, async () => {
-      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
+      const perFragmentIntervals = new Map<Fragment, Interval[]>();
       const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
 
       // dedupe and merge matching fragments
 
       for (const { filter, interval } of intervals) {
-        for (const fragment of getFragmentIds(filter)) {
-          if (perFragmentIntervals.has(fragment.id) === false) {
-            perFragmentIntervals.set(fragment.id, []);
+        for (const fragment of getFragments(filter)) {
+          if (perFragmentIntervals.has(fragment.fragment) === false) {
+            perFragmentIntervals.set(fragment.fragment, []);
           }
 
-          perFragmentIntervals.get(fragment.id)!.push(interval);
+          perFragmentIntervals.get(fragment.fragment)!.push(interval);
         }
       }
 
       // NOTE: In order to force proper range union behavior, `interval[1]` must
       // be rounded up.
 
-      for (const [fragmentId, intervals] of perFragmentIntervals) {
+      for (const [fragment, intervals] of perFragmentIntervals) {
         const numranges = intervals
           .map((interval) => {
             const start = interval[0];
@@ -189,7 +190,7 @@ export const createSyncStore = ({
           .join(", ");
 
         values.push({
-          fragment_id: fragmentId,
+          fragment_id: fragmentToId(fragment),
           chain_id: chainId,
           blocks: ksql.raw(`nummultirange(${numranges})`),
         });
@@ -212,25 +213,27 @@ export const createSyncStore = ({
         | SelectQueryBuilder<
             PonderSyncSchema,
             "intervals",
-            { merged_blocks: string | null; filter: string }
+            { merged_blocks: string | null; filter: string; fragment: string }
           >
         | undefined;
 
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i]!;
-        const fragments = getFragmentIds(filter);
-        for (const fragment of fragments) {
+        const fragments = getFragments(filter);
+        for (let j = 0; j < fragments.length; j++) {
+          const fragment = fragments[j]!;
           const _query = db
             .selectFrom(
               db
                 .selectFrom("intervals")
                 .select(ksql`unnest(blocks)`.as("blocks"))
-                .where("fragment_id", "in", fragment.adjacent)
+                .where("fragment_id", "in", fragment.adjacentIds)
                 .as("unnested"),
             )
             .select([
               ksql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
               ksql.raw(`'${i}'`).as("filter"),
+              ksql.raw(`'${j}'`).as("fragment"),
             ]);
           // @ts-ignore
           query = query === undefined ? _query : query.unionAll(_query);
@@ -239,34 +242,31 @@ export const createSyncStore = ({
 
       const rows = await query!.execute();
 
-      const result: Map<Filter, [FragmentId, Interval[]]> = new Map();
-
-      // intervals use "union" for the same fragment, and
-      // "intersection" for the same filter
+      const result: Map<Filter, [Fragment, Interval[]][]> = new Map();
 
       // NOTE: `interval[1]` must be rounded down in order to offset the previous
       // rounding.
 
       for (let i = 0; i < filters.length; i++) {
         const filter = filters[i]!;
-        const intervals = rows
-          .filter((row) => row.filter === `${i}`)
-          .map((row) =>
-            (row.merged_blocks
-              ? (JSON.parse(
-                  `[${row.merged_blocks.slice(1, -1)}]`,
-                ) as Interval[])
-              : []
-            ).map((interval) => [interval[0], interval[1] - 1] as Interval),
-          );
+        const fragments = getFragments(filter);
+        result.set(filter, []);
+        for (let j = 0; j < fragments.length; j++) {
+          const fragment = fragments[j]!;
+          const intervals = rows
+            .filter((row) => row.filter === `${i}`)
+            .filter((row) => row.fragment === `${j}`)
+            .map((row) =>
+              (row.merged_blocks
+                ? (JSON.parse(
+                    `[${row.merged_blocks.slice(1, -1)}]`,
+                  ) as Interval[])
+                : []
+              ).map((interval) => [interval[0], interval[1] - 1] as Interval),
+            )[0]!;
 
-        //   result.set(filt)
-
-        //   for (const fragment of getFragmentIds(filter)) {
-        //     result.
-        //   }
-
-        // result.set(filter, intervalIntersectionMany(intervals));
+          result.get(filter)!.push([fragment.fragment, intervals]);
+        }
       }
 
       return result;

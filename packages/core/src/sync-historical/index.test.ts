@@ -568,7 +568,62 @@ test("sync() with many filters", async (context) => {
   await cleanup();
 });
 
-test("sync() with cache hit", async (context) => {
+test("sync() with cache", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  let historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 2]);
+
+  // re-instantiate `historicalSync` to reset the cached intervals
+
+  const spy = vi.spyOn(requestQueue, "request");
+
+  historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 2]);
+  expect(spy).toHaveBeenCalledTimes(0);
+
+  await cleanup();
+});
+
+test.todo("sync() with partial cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
