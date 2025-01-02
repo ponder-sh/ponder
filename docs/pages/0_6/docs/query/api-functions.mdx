@@ -36,7 +36,7 @@ API functions are available starting from version `0.5.0`. Read the [migration g
 To enable API functions, create a file named `src/api/index.ts` with the following code. You can register API functions in any `.ts` file in the `src/api/` directory.
 
 ```ts filename="src/api/index.ts"
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.get("/hello", (c) => {
   return c.text("Hello, world!");
@@ -58,11 +58,11 @@ Hello, world!
   your app **will not** serve the standard GraphQL API by default.
 </Callout>
 
-To continue using the standard GraphQL API, register the `graphql` middleware exported from `@ponder/core`.
+To continue using the standard GraphQL API, register the `graphql` middleware exported from `ponder`.
 
 ```ts filename="src/api/index.ts" {2,4-5}
-import { ponder } from "@/generated";
-import { graphql } from "@ponder/core";
+import { ponder } from "ponder:registry";
+import { graphql } from "ponder";
 
 ponder.use("/", graphql());
 ponder.use("/graphql", graphql());
@@ -91,7 +91,7 @@ To build a query, use `c.db.select(){:ts}` and include a table object using `.fr
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts" {4}
-import { createSchema } from "@ponder/core";
+import { createSchema } from "ponder";
 
 export default createSchema((p) => ({
   Account: p.createTable({
@@ -102,7 +102,7 @@ export default createSchema((p) => ({
 ```
 
 ```ts filename="src/api/index.ts" {6}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.get("/account/:address", async (c) => {
   const address = c.req.param("address");
@@ -115,13 +115,13 @@ ponder.get("/account/:address", async (c) => {
 
 </div>
 
-To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `@ponder/core`.
+To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `ponder`.
 
 For more details, please reference the [Drizzle documentation](https://orm.drizzle.team/docs/select).
 
 ```ts filename="src/api/index.ts" {2,7-11}
-import { ponder } from "@/generated";
-import { gte } from "@ponder/core";
+import { ponder } from "ponder:registry";
+import { gte } from "ponder";
 
 ponder.get("/whales", async (c) => {
   const { Account } = c.tables;
@@ -141,8 +141,8 @@ ponder.get("/whales", async (c) => {
 To run raw SQL queries, use `db.execute(...){:ts}` with the `sql` utility function. [Read more](https://orm.drizzle.team/docs/sql) about the `sql` function.
 
 ```ts filename="src/api/index.ts" {2,7-9}
-import { ponder } from "@/generated";
-import { sql } from "@ponder/core";
+import { ponder } from "ponder:registry";
+import { sql } from "ponder";
 
 ponder.get("/:token/ticker", async (c) => {
   const token = c.req.param("token");
@@ -163,8 +163,8 @@ ponder.get("/:token/ticker", async (c) => {
 Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
 
 ```ts filename="src/api/index.ts" {3,5}
-import { ponder } from "@/generated";
-import { eq } from "@ponder/core";
+import { ponder } from "ponder:registry";
+import { eq } from "ponder";
 
 ponder.get("/account/:address", async (c) => {
   const { Account } = c.tables;
@@ -196,8 +196,8 @@ Use `ponder.post()` to handle HTTP `POST` requests.
 In this example, we calculate the volume of transfers for each recipient within a given time range. The `fromTimestamp` and `toTimestamp` parameters are passed in the request body.
 
 ```ts filename="src/api/index.ts" {5,7-9}
-import { ponder } from "@/generated";
-import { and, gte, sum } from "@ponder/core";
+import { ponder } from "ponder:registry";
+import { and, gte, sum } from "ponder";
 
 ponder.post("/volume", async (c) => {
   const { TransferEvent } = c.tables;
@@ -229,7 +229,7 @@ ponder.post("/volume", async (c) => {
 Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware functions can modify the request and response objects, add logs, authenticate requests, and more. [Read more](https://hono.dev/docs/guides/middleware) about Hono middleware.
 
 ```ts filename="src/api/index.ts" {3}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.use((c, next) => {
   console.log("Request received:", c.req.url);
@@ -242,7 +242,7 @@ ponder.use((c, next) => {
 Use `ponder.hono` to access the underlying Hono instance.
 
 ```ts filename="src/api/index.ts" {3}
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
 
 ponder.hono.notFound((c) => {
   return c.text("Custom 404 Message", 404);
