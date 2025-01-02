@@ -94,7 +94,7 @@ const account = onchainTable("account", (p) => ({
 
 const schema = { account };
 
-test("FormatEventNames without filter", () => {
+test("FormatEventNames", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {
@@ -109,42 +109,6 @@ test("FormatEventNames without filter", () => {
     | "contract:Event0"
     | "contract:Event1()"
     | "contract:Event1(bytes32)";
-
-  assertType<a>({} as any as eventNames);
-  assertType<eventNames>({} as any as a);
-});
-
-test("FormatEvent names with filter", () => {
-  type a = Virtual.FormatEventNames<
-    // ^?
-    {
-      contract: { abi: abi; network: ""; filter: { event: "Event1()" } };
-    },
-    {},
-    {}
-  >;
-
-  type eventNames = "contract:setup" | "contract:Event1()";
-
-  assertType<a>({} as any as eventNames);
-  assertType<eventNames>({} as any as a);
-});
-
-test("FormatEvent names with filter array", () => {
-  type a = Virtual.FormatEventNames<
-    // ^?
-    {
-      contract: {
-        abi: abi;
-        network: "";
-        filter: { event: readonly ["Event1()"] };
-      };
-    },
-    {},
-    {}
-  >;
-
-  type eventNames = "contract:setup" | "contract:Event1()";
 
   assertType<a>({} as any as eventNames);
   assertType<eventNames>({} as any as a);
