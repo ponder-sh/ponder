@@ -729,25 +729,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             chainId: network.chainId,
           }),
           args.syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ logs, block }) =>
-              logs.map((log) => ({ log, block })),
-            ),
-            shouldUpdateCheckpoint: true,
+            logs: finalizedBlocks.flatMap(({ logs }) => logs),
             chainId: network.chainId,
           }),
           args.syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
-              factoryLogs.map((log) => ({ log })),
-            ),
-            shouldUpdateCheckpoint: false,
+            logs: finalizedBlocks.flatMap(({ factoryLogs }) => factoryLogs),
             chainId: network.chainId,
           }),
           args.syncStore.insertTransactions({
-            transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
-              transactions.map((transaction) => ({
-                transaction,
-                block,
-              })),
+            transactions: finalizedBlocks.flatMap(
+              ({ transactions }) => transactions,
             ),
             chainId: network.chainId,
           }),

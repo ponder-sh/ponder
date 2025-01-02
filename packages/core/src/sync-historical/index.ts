@@ -315,11 +315,7 @@ export const createHistoricalSync = async (
     if (isKilled) return;
 
     // Insert `logs` into the sync-store
-    await args.syncStore.insertLogs({
-      logs: logs.map((log) => ({ log })),
-      shouldUpdateCheckpoint: false,
-      chainId: args.network.chainId,
-    });
+    await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
   };
 
   /**
@@ -394,11 +390,7 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    await args.syncStore.insertLogs({
-      logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
-      shouldUpdateCheckpoint: true,
-      chainId: args.network.chainId,
-    });
+    await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
 
     if (isKilled) return;
 
@@ -681,17 +673,16 @@ export const createHistoricalSync = async (
 
       const blocks = await Promise.all(blockCache.values());
 
+      // The insertBlocks method mutates the blocks array, so we need to
+      // filter + copy the transactions array before calling it.
+      const transactions = blocks.flatMap((block) =>
+        block.transactions.filter((t) => transactionsCache.has(t.hash)),
+      );
+
       await Promise.all([
         args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
         args.syncStore.insertTransactions({
-          transactions: blocks.flatMap((block) =>
-            block.transactions
-              .filter(({ hash }) => transactionsCache.has(hash))
-              .map((transaction) => ({
-                transaction,
-                block,
-              })),
-          ),
+          transactions,
           chainId: args.network.chainId,
         }),
       ]);

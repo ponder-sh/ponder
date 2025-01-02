@@ -378,7 +378,7 @@ test("buildEvents() matches getEvents() log", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -387,8 +387,7 @@ test("buildEvents() matches getEvents() log", async (context) => {
     toBlock: 2,
   });
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
+    logs: [rpcLogs[0]!],
     chainId: 1,
   });
 
@@ -458,8 +457,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
     toBlock: 2,
   });
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+    logs: [rpcLogs[0]!],
     chainId: 1,
   });
 
@@ -471,7 +469,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -480,8 +478,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
     toBlock: 3,
   });
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
+    logs: [rpcLogs[0]!],
     chainId: 1,
   });
 
@@ -597,7 +594,7 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -695,7 +692,7 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -766,7 +763,7 @@ test("buildEvents() matches getEvents() trace", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 

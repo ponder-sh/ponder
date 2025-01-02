@@ -13,6 +13,7 @@ import {
   type TransactionFilter,
   type TransferFilter,
   isAddressFactory,
+  shouldGetTransactionReceipt,
 } from "@/sync/source.js";
 import type { Trace } from "@/types/eth.js";
 import type {
@@ -24,9 +25,12 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  EVENT_TYPES,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
 import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
-import { never } from "@/utils/never.js";
 import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
 import type { InsertObject } from "kysely";
 import {
@@ -36,6 +40,7 @@ import {
   type TransactionReceipt,
   checksumAddress,
   hexToBigInt,
+  numberToHex,
 } from "viem";
 import {
   type PonderSyncSchema,
@@ -100,11 +105,10 @@ export type SyncStore = {
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
   getEvents(args: {
     filters: Filter[];
-    from: bigint;
-    to: bigint;
+    from: string;
+    to: string;
     limit: number;
-    chainId: number;
-  }): Promise<{ events: RawEvent[]; cursor: bigint }>;
+  }): Promise<{ events: RawEvent[]; cursor: string }>;
   insertRpcRequestResult(args: {
     request: string;
     chainId: number;
@@ -586,7 +590,15 @@ export const createSyncStore = ({
           .execute();
       }),
     ),
-  getEvents: async ({ chainId, filters, from, to, limit }) => {
+  getEvents: async ({ filters, from, to, limit }) => {
+    // // TODO: accept chainId as argument
+    // const chainId = filters[0]?.chainId!;
+    // TODO: use block numbers instead of checkpoints for pagination, or use streaming
+    const fromBlock = Number(decodeCheckpoint(from).blockNumber);
+    const toBlock = Number(decodeCheckpoint(to).blockNumber);
+    // // TODO: remove
+    // const adjustedLimit = limit + 2;
+
     const rows = await db.wrap(
       {
         method: "getEvents",
@@ -602,7 +614,10 @@ export const createSyncStore = ({
               {
                 filter_index: number;
                 block_number: number;
-                transaction_index: number | null;
+                transaction_index: number;
+                event_type: number;
+                event_index: number;
+
                 log_index: number | null;
                 trace_index: number | null;
               }
@@ -636,6 +651,8 @@ export const createSyncStore = ({
             "event.filter_index as event_filter_index",
             "event.block_number as event_block_number",
             "event.transaction_index as event_transaction_index",
+            "event.event_type as event_type",
+            "event.event_index as event_index",
             "event.log_index as event_log_index",
             "event.trace_index as event_trace_index",
           ])
@@ -688,7 +705,10 @@ export const createSyncStore = ({
                 "event.transaction_index",
               ),
           )
-          .select(["transaction_receipts.body as tx_receipt_body"])
+          .select([
+            "transaction_receipts.status as tx_receipt_status",
+            "transaction_receipts.body as tx_receipt_body",
+          ])
           .leftJoin("traces", (join) =>
             join
               .onRef("traces.block_number", "=", "event.block_number")
@@ -704,14 +724,14 @@ export const createSyncStore = ({
             "traces.is_reverted as trace_isReverted",
             "traces.body as trace_body",
           ])
-          .where("event.block_number", ">", Number(from))
-          .where("event.block_number", "<=", Number(to))
+          .where("event.block_number", ">=", fromBlock)
+          .where("event.block_number", "<=", toBlock)
           .orderBy("event.block_number", "asc")
           .orderBy("event.transaction_index", "asc")
-          .orderBy("event.log_index", "asc")
-          .orderBy("event.trace_index", "asc")
-          .orderBy("event.filter_index", "asc")
-          .limit(limit);
+          .orderBy("event.event_type", "asc")
+          .orderBy("event.event_index", "asc")
+          .orderBy("event.filter_index", "asc");
+        // .limit(adjustedLimit);
 
         return await query.execute();
       },
@@ -725,72 +745,20 @@ export const createSyncStore = ({
 
       const filter = filters[row.event_filter_index]!;
 
-      const filterType = filter.type;
-      let checkpoint: string | undefined = undefined!;
-      switch (filterType) {
-        case "block": {
-          checkpoint = encodeCheckpoint({
-            chainId: BigInt(filter.chainId),
-            blockTimestamp: Number(row.block_timestamp),
-            blockNumber: BigInt(row.event_block_number),
-            transactionIndex: 0n,
-            eventType: EVENT_TYPES.blocks,
-            eventIndex: 0n,
-          });
-          break;
-        }
-        case "transaction": {
-          checkpoint = encodeCheckpoint({
-            chainId: BigInt(filter.chainId),
-            blockTimestamp: Number(row.block_timestamp),
-            blockNumber: BigInt(row.event_block_number),
-            transactionIndex: BigInt(row.event_transaction_index),
-            eventType: EVENT_TYPES.transactions,
-            eventIndex: 0n,
-          });
-          break;
-        }
-        case "log": {
-          checkpoint = encodeCheckpoint({
-            chainId: BigInt(filter.chainId),
-            blockTimestamp: Number(row.block_timestamp),
-            blockNumber: BigInt(row.event_block_number),
-            transactionIndex: BigInt(row.event_transaction_index),
-            eventType: EVENT_TYPES.logs,
-            eventIndex: BigInt(row.event_log_index),
-          });
-          break;
-        }
-        case "trace": {
-          checkpoint = encodeCheckpoint({
-            chainId: BigInt(filter.chainId),
-            blockTimestamp: Number(row.block_timestamp),
-            blockNumber: BigInt(row.event_block_number),
-            transactionIndex: BigInt(row.event_transaction_index),
-            eventType: EVENT_TYPES.traces,
-            eventIndex: BigInt(row.event_trace_index),
-          });
-          break;
-        }
-        case "transfer": {
-          checkpoint = encodeCheckpoint({
-            chainId: BigInt(filter.chainId),
-            blockTimestamp: Number(row.block_timestamp),
-            blockNumber: BigInt(row.event_block_number),
-            transactionIndex: BigInt(row.event_transaction_index),
-            eventType: EVENT_TYPES.traces,
-            eventIndex: BigInt(row.event_trace_index),
-          });
-          break;
-        }
-        default:
-          never(filterType);
-      }
+      const checkpoint = encodeCheckpoint({
+        chainId: BigInt(filter.chainId),
+        blockTimestamp: Number(row.block_timestamp),
+        blockNumber: BigInt(row.event_block_number),
+        transactionIndex: BigInt(row.event_transaction_index),
+        eventType: row.event_type,
+        eventIndex: BigInt(row.event_index),
+      });
 
       const hasLog = row.log_data !== null;
       const hasTransaction = row.tx_body !== null;
       const hasTrace = row.trace_body !== null;
-      const hasTransactionReceipt = row.tx_receipt_body !== null;
+      // const hasTransactionReceipt = row.tx_receipt_body !== null;
+      const hasTransactionReceipt = shouldGetTransactionReceipt(filter);
 
       return {
         chainId: filter.chainId,
@@ -825,7 +793,8 @@ export const createSyncStore = ({
         },
         log: hasLog
           ? {
-              id: `${chainId}-${row.event_block_number}-${row.event_log_index}`,
+              // id: `${chainId}-${row.event_block_number}-${row.event_log_index}`,
+              id: `${row.block_hash}-${numberToHex(row.event_log_index)}`,
               address: checksumAddress(row.log_address!),
               data: row.log_data,
               logIndex: Number(row.event_log_index),
@@ -889,7 +858,8 @@ export const createSyncStore = ({
           : undefined,
         trace: hasTrace
           ? {
-              id: `${chainId}-${row.event_block_number}-${row.event_transaction_index}-${row.event_trace_index}`,
+              // id: `${chainId}-${row.event_block_number}-${row.event_transaction_index}-${row.event_trace_index}`,
+              id: `${row.tx_hash}-${row.event_trace_index}`,
               type: row.trace_callType as Trace["type"],
               from: checksumAddress(row.trace_from),
               to: checksumAddress(row.trace_to),
@@ -913,12 +883,11 @@ export const createSyncStore = ({
               gasUsed: BigInt(row.tx_receipt_body.gasUsed),
               logsBloom: row.tx_receipt_body.logsBloom,
               status:
-                row.tx_receipt_body.status === "0x1"
+                row.tx_receipt_status === "0x1"
                   ? "success"
-                  : row.tx_receipt_body.status === "0x0"
+                  : row.tx_receipt_status === "0x0"
                     ? "reverted"
-                    : (row.tx_receipt_body
-                        .status as TransactionReceipt["status"]),
+                    : (row.tx_receipt_status as TransactionReceipt["status"]),
               to: row.tx_receipt_body.to
                 ? checksumAddress(row.tx_receipt_body.to)
                 : null,
@@ -937,14 +906,19 @@ export const createSyncStore = ({
       } satisfies RawEvent;
     });
 
-    let cursor: bigint;
-    if (events.length !== limit) {
+    // TODO: Remove once limits are passed using block numbers instead of checkpoints
+    const filteredEvents = events
+      .filter((event) => event.checkpoint > from && event.checkpoint <= to)
+      .slice(0, limit);
+
+    let cursor: string;
+    if (filteredEvents.length !== limit) {
       cursor = to;
     } else {
-      cursor = events[events.length - 1]!.block.number;
+      cursor = filteredEvents[filteredEvents.length - 1]!.checkpoint;
     }
 
-    return { events, cursor };
+    return { events: filteredEvents, cursor };
   },
 });
 
@@ -1008,13 +982,14 @@ const logSQL = (
     .selectFrom("logs")
     .select([
       ksql.raw(`'${index}'`).as("filter_index"),
-      // "chainId",
       "block_number",
       "transaction_index",
+      ksql`5::integer`.as("event_type"),
+      "log_index as event_index",
+
       "log_index",
       ksql`null::integer`.as("trace_index"),
     ])
-    // .where("chainId", "=", filter.chainId)
     .$call((qb) => {
       for (const idx of [0, 1, 2, 3] as const) {
         // If it's an array of length 1, collapse it.
@@ -1048,13 +1023,16 @@ const blockSQL = (
     .selectFrom("blocks")
     .select([
       ksql.raw(`'${index}'`).as("filter_index"),
-      // "chainId",
       "number as block_number",
-      ksql`null::integer`.as("transaction_index"),
+      ksql`9999999999999999::bigint`.as("transaction_index"),
+      ksql`${ksql.raw(EVENT_TYPES.blocks.toString())}::integer`.as(
+        "event_type",
+      ),
+      ksql`0::integer`.as("event_index"),
+
       ksql`null::integer`.as("log_index"),
       ksql`null::integer`.as("trace_index"),
     ])
-    // .where("chainId", "=", filter.chainId)
     .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
       qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
     )
@@ -1074,33 +1052,40 @@ const transactionSQL = (
     .selectFrom("transactions")
     .select([
       ksql.raw(`'${index}'`).as("filter_index"),
-      "block_number",
-      "transaction_index",
+      "transactions.block_number",
+      "transactions.transaction_index",
+      ksql`${ksql.raw(EVENT_TYPES.transactions.toString())}::integer`.as(
+        "event_type",
+      ),
+      ksql`0::integer`.as("event_index"),
+
       ksql`null::integer`.as("log_index"),
       ksql`null::integer`.as("trace_index"),
     ])
     // .where("chainId", "=", filter.chainId)
     .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
     .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
-    // .$if(filter.includeReverted === false, (qb) =>
-    //   qb.where(
-    //     db
-    //       .selectFrom("transactionReceipts")
-    //       .select("status")
-    //       .where(
-    //         "transactionReceipts.transactionHash",
-    //         "=",
-    //         ksql.ref("transactions.hash"),
-    //       ),
-    //     "=",
-    //     "0x1",
-    //   ),
-    // )
+    .$if(filter.includeReverted === false, (qb) =>
+      qb.innerJoin("transaction_receipts", (join) =>
+        join
+          .onRef(
+            "transactions.block_number",
+            "=",
+            "transaction_receipts.block_number",
+          )
+          .onRef(
+            "transactions.transaction_index",
+            "=",
+            "transaction_receipts.transaction_index",
+          )
+          .on("transaction_receipts.status", "=", "0x1"),
+      ),
+    )
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+      qb.where("transactions.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("block_number", "<=", filter.toBlock!.toString()),
+      qb.where("transactions.block_number", "<=", filter.toBlock!.toString()),
     );
 
 const transferSQL = (
@@ -1114,6 +1099,11 @@ const transferSQL = (
       ksql.raw(`'${index}'`).as("filter_index"),
       "block_number",
       "transaction_index",
+      ksql`${ksql.raw(EVENT_TYPES.traces.toString())}::integer`.as(
+        "event_type",
+      ),
+      "trace_index as event_index",
+
       ksql`null::integer`.as("log_index"),
       "trace_index",
     ])
@@ -1142,6 +1132,11 @@ const traceSQL = (
       ksql.raw(`'${index}'`).as("filter_index"),
       "block_number",
       "transaction_index",
+      ksql`${ksql.raw(EVENT_TYPES.traces.toString())}::integer`.as(
+        "event_type",
+      ),
+      "trace_index as event_index",
+
       ksql`null::integer`.as("log_index"),
       "trace_index",
     ])

@@ -170,6 +170,7 @@ type TransactionReceiptsTable = {
   block_number: ColumnType<string, string | bigint, string | bigint>;
   transaction_index: number;
   hash: Hash;
+  status: Hex;
 
   body: any;
   // body: {
@@ -196,6 +197,7 @@ export const encodeTransactionReceipt = ({
     blockNumber,
     transactionIndex,
     transactionHash,
+    status,
     logs, // Not included in the table
     ...rest
   } = transactionReceipt;
@@ -206,6 +208,7 @@ export const encodeTransactionReceipt = ({
     block_number: hexToBigInt(blockNumber),
     transaction_index: hexToNumber(transactionIndex),
     hash: transactionHash,
+    status: status,
 
     body: rest,
   };

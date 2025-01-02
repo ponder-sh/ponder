@@ -153,7 +153,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
   await historicalSync.sync([1, 2]);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
@@ -411,7 +411,7 @@ test("sync() with transaction filter", async (context) => {
   expect(transactions).toHaveLength(1);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 

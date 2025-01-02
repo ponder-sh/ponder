@@ -1335,8 +1335,11 @@ GROUP BY fragment_id, chain_id
         .addColumn("transaction_index", "integer", (col) => col.notNull())
         .addColumn("hash", "varchar(66)", (col) => col.notNull())
 
+        // Indexed / filter-able columns
+        .addColumn("status", "text", (col) => col.notNull())
+
         // Body columns
-        // from, to, contractAddress, cumulativeGasUsed, effectiveGasPrice, gasUsed, logsBloom, status
+        // from, to, contractAddress, cumulativeGasUsed, effectiveGasPrice, gasUsed, logsBloom
         .addColumn("body", "jsonb", (col) => col.notNull())
 
         .addPrimaryKeyConstraint("transaction_receipts_pk", [

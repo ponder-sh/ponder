@@ -30,7 +30,11 @@ import type {
   LogFilter,
 } from "@/sync/source.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
-import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  encodeCheckpoint,
+  maxCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
@@ -1125,10 +1129,9 @@ test("getEvents() returns events", async (context) => {
   } satisfies LogFilter;
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: [filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1207,10 +1210,9 @@ test("getEvents() handles log filter logic", async (context) => {
   });
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: [sources[0]!.filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1290,10 +1292,9 @@ test("getEvents() handles log factory", async (context) => {
   });
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: [sources[0]!.filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1381,10 +1382,9 @@ test("getEvents() handles multiple log factories", async (context) => {
   ];
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: [filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1423,10 +1423,9 @@ test("getEvents() handles block filter logic", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: [sources[0]!.filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1507,10 +1506,9 @@ test("getEvents() handles trace filter logic", async (context) => {
   });
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: sources.map((source) => source.filter),
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1562,10 +1560,9 @@ test("getEvents() handles transaction filter logic", async (context) => {
   });
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: sources.map((source) => source.filter),
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1644,10 +1641,9 @@ test("getEvents() handles transfer filter logic", async (context) => {
   });
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: sources.map((source) => source.filter),
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1705,10 +1701,9 @@ test("getEvents() handles block bounds", async (context) => {
   filter.toBlock = 1;
 
   const { events } = await syncStore.getEvents({
-    chainId: 1,
     filters: [sources[0]!.filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
 
@@ -1747,20 +1742,18 @@ test("getEvents() pagination", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   const { events, cursor } = await syncStore.getEvents({
-    chainId: 1,
     filters: [sources[0]!.filter],
-    from: zeroCheckpoint.blockNumber,
-    to: maxCheckpoint.blockNumber,
+    from: encodeCheckpoint(zeroCheckpoint),
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 1,
   });
 
   expect(events).toHaveLength(1);
 
   const { events: events2 } = await syncStore.getEvents({
-    chainId: 1,
     filters: [sources[0]!.filter],
     from: cursor,
-    to: maxCheckpoint.blockNumber,
+    to: encodeCheckpoint(maxCheckpoint),
     limit: 1,
   });
 
