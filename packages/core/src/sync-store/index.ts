@@ -1,7 +1,12 @@
 import type { Common } from "@/common/common.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
-import { type Fragment, fragmentToId, getFragments } from "@/sync/fragments.js";
+import {
+  type Fragment,
+  type FragmentId,
+  fragmentToId,
+  getFragments,
+} from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type Factory,
@@ -162,25 +167,26 @@ export const createSyncStore = ({
     if (intervals.length === 0) return;
 
     await db.wrap({ method: "insertIntervals" }, async () => {
-      const perFragmentIntervals = new Map<Fragment, Interval[]>();
+      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
       const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
 
       // dedupe and merge matching fragments
 
       for (const { filter, interval } of intervals) {
         for (const fragment of getFragments(filter)) {
-          if (perFragmentIntervals.has(fragment.fragment) === false) {
-            perFragmentIntervals.set(fragment.fragment, []);
+          const fragmentId = fragmentToId(fragment.fragment);
+          if (perFragmentIntervals.has(fragmentId) === false) {
+            perFragmentIntervals.set(fragmentId, []);
           }
 
-          perFragmentIntervals.get(fragment.fragment)!.push(interval);
+          perFragmentIntervals.get(fragmentId)!.push(interval);
         }
       }
 
       // NOTE: In order to force proper range union behavior, `interval[1]` must
       // be rounded up.
 
-      for (const [fragment, intervals] of perFragmentIntervals) {
+      for (const [fragmentId, intervals] of perFragmentIntervals) {
         const numranges = intervals
           .map((interval) => {
             const start = interval[0];
@@ -190,7 +196,7 @@ export const createSyncStore = ({
           .join(", ");
 
         values.push({
-          fragment_id: fragmentToId(fragment),
+          fragment_id: fragmentId,
           chain_id: chainId,
           blocks: ksql.raw(`nummultirange(${numranges})`),
         });

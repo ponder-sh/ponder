@@ -101,7 +101,12 @@ test("getIntervals() empty", async (context) => {
         "type": "block",
       } => [
         [
-          "block_1_1_0",
+          {
+            "chainId": 1,
+            "interval": 1,
+            "offset": 0,
+            "type": "block",
+          },
           [],
         ],
       ],
@@ -150,7 +155,12 @@ test("getIntervals() returns intervals", async (context) => {
         "type": "block",
       } => [
         [
-          "block_1_1_0",
+          {
+            "chainId": 1,
+            "interval": 1,
+            "offset": 0,
+            "type": "block",
+          },
           [
             [
               0,
@@ -213,7 +223,12 @@ test("getIntervals() merges intervals", async (context) => {
         "type": "block",
       } => [
         [
-          "block_1_1_0",
+          {
+            "chainId": 1,
+            "interval": 1,
+            "offset": 0,
+            "type": "block",
+          },
           [
             [
               0,
@@ -285,7 +300,16 @@ test("getIntervals() adjacent intervals", async (context) => {
         "type": "log",
       } => [
         [
-          "log_1_0x0000000000000000000000000000000000000000_null_null_null_null_0",
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "chainId": 1,
+            "includeTransactionReceipts": false,
+            "topic0": null,
+            "topic1": null,
+            "topic2": null,
+            "topic3": null,
+            "type": "log",
+          },
           [
             [
               0,
@@ -353,7 +377,12 @@ test("insertIntervals() merges duplicates", async (context) => {
         "type": "block",
       } => [
         [
-          "block_1_1_0",
+          {
+            "chainId": 1,
+            "interval": 1,
+            "offset": 0,
+            "type": "block",
+          },
           [
             [
               0,
@@ -416,7 +445,16 @@ test("insertIntervals() preserves fragments", async (context) => {
         "type": "log",
       } => [
         [
-          "log_1_0x0000000000000000000000000000000000000000_null_null_null_null_0",
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "chainId": 1,
+            "includeTransactionReceipts": false,
+            "topic0": null,
+            "topic1": null,
+            "topic2": null,
+            "topic3": null,
+            "type": "log",
+          },
           [
             [
               0,
@@ -425,7 +463,16 @@ test("insertIntervals() preserves fragments", async (context) => {
           ],
         ],
         [
-          "log_1_0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266_null_null_null_null_0",
+          {
+            "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "chainId": 1,
+            "includeTransactionReceipts": false,
+            "topic0": null,
+            "topic1": null,
+            "topic2": null,
+            "topic3": null,
+            "type": "log",
+          },
           [
             [
               0,
