@@ -453,6 +453,41 @@ test("sql", async (context) => {
   await cleanup();
 });
 
+test("sql followed by find", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    database,
+    schema,
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await indexingStore.sql
+    .insert(schema.account)
+    .values({ address: zeroAddress, balance: 10n });
+
+  const row = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(row).toStrictEqual({
+    address: zeroAddress,
+    balance: 10n,
+  });
+
+  await cleanup();
+});
+
 test("onchain table", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 

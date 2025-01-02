@@ -1,5 +1,5 @@
 import { http } from "viem";
-import { createConfig } from "../../../config/config.js";
+import { createConfig } from "../../../config/index.js";
 import { erc20ABI } from "../../generated.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);

@@ -1,7 +1,7 @@
 import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import { factory } from "./address.js";
-import { createConfig } from "./config.js";
+import { createConfig } from "./index.js";
 
 const event0 = parseAbiItem(
   "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",

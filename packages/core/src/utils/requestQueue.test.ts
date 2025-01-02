@@ -1,7 +1,7 @@
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { getNetwork } from "@/_test/utils.js";
+import type { Network } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
 import { beforeEach, expect, test } from "vitest";
 import { createRequestQueue } from "./requestQueue.js";
 
