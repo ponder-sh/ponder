@@ -299,7 +299,9 @@ export const createSyncStore = ({
             .insertInto("logs")
             .values(batch)
             .onConflict((oc) =>
-              oc.columns(["block_number", "log_index"]).doNothing(),
+              oc
+                .columns(["block_number", "transaction_index", "log_index"])
+                .doNothing(),
             )
             .execute();
         } catch (e) {
@@ -618,8 +620,35 @@ export const createSyncStore = ({
                 event_type: number;
                 event_index: number;
 
-                log_index: number | null;
-                trace_index: number | null;
+                block_hash: Hex;
+                block_parentHash: Hex;
+                block_timestamp: number;
+                block_body: any;
+
+                tx_hash: Hex;
+                tx_from: Hex;
+                tx_to: Hex;
+                tx_body: any;
+
+                tx_receipt_status: Hex;
+                tx_receipt_body: any;
+
+                log_index: number;
+                log_address: Hex;
+                log_data: Hex;
+                log_topic0: Hex;
+                log_topic1: Hex;
+                log_topic2: Hex;
+                log_topic3: Hex;
+
+                trace_index: number;
+                trace_callType: Trace["type"];
+                trace_from: Hex;
+                trace_to: Hex;
+                trace_value: Hex;
+                trace_functionSelector: Hex;
+                trace_isReverted: boolean;
+                trace_body: any;
               }
             >
           | undefined;
@@ -638,100 +667,45 @@ export const createSyncStore = ({
                     ? transferSQL(filter, db, i)
                     : traceSQL(filter, db, i);
 
+          // const result = await _query.execute();
+          // result[0]?.
+
           // @ts-ignore
           filterQuery =
             // @ts-ignore
             filterQuery === undefined ? _query : filterQuery.unionAll(_query);
         }
 
+        // await db.executeQuery(ksql`SET parallel_setup_cost TO 0`.compile(db));
+        // await db.executeQuery(ksql`SET parallel_tuple_cost TO 0`.compile(db));
+
         const query = db
           .with("event", () => filterQuery!)
           .selectFrom("event")
-          .select([
-            "event.filter_index as event_filter_index",
-            "event.block_number as event_block_number",
-            "event.transaction_index as event_transaction_index",
-            "event.event_type as event_type",
-            "event.event_index as event_index",
-            "event.log_index as event_log_index",
-            "event.trace_index as event_trace_index",
-          ])
-          .innerJoin("blocks", "blocks.number", "event.block_number")
-          .select([
-            "blocks.hash as block_hash",
-            "blocks.parent_hash as block_parentHash",
-            "blocks.timestamp as block_timestamp",
-            "blocks.body as block_body",
-          ])
-          .leftJoin("logs", (join) =>
-            join
-              .onRef("logs.block_number", "=", "event.block_number")
-              .onRef("logs.log_index", "=", "event.log_index"),
-          )
-          .select([
-            "logs.address as log_address",
-            "logs.data as log_data",
-            "logs.topic0 as log_topic0",
-            "logs.topic1 as log_topic1",
-            "logs.topic2 as log_topic2",
-            "logs.topic3 as log_topic3",
-          ])
-          .leftJoin("transactions", (join) =>
-            join
-              .onRef("transactions.block_number", "=", "event.block_number")
-              .onRef(
-                "transactions.transaction_index",
-                "=",
-                "event.transaction_index",
-              ),
-          )
-          .select([
-            "transactions.body as tx_body",
-            "transactions.from as tx_from",
-            "transactions.hash as tx_hash",
-            "transactions.to as tx_to",
-            "transactions.body as tx_body",
-          ])
-          .leftJoin("transaction_receipts", (join) =>
-            join
-              .onRef(
-                "transaction_receipts.block_number",
-                "=",
-                "event.block_number",
-              )
-              .onRef(
-                "transaction_receipts.transaction_index",
-                "=",
-                "event.transaction_index",
-              ),
-          )
-          .select([
-            "transaction_receipts.status as tx_receipt_status",
-            "transaction_receipts.body as tx_receipt_body",
-          ])
-          .leftJoin("traces", (join) =>
-            join
-              .onRef("traces.block_number", "=", "event.block_number")
-              .onRef("traces.transaction_index", "=", "event.transaction_index")
-              .onRef("traces.trace_index", "=", "event.trace_index"),
-          )
-          .select([
-            "traces.type as trace_callType",
-            "traces.from as trace_from",
-            "traces.to as trace_to",
-            "traces.value as trace_value",
-            "traces.function_selector as trace_functionSelector",
-            "traces.is_reverted as trace_isReverted",
-            "traces.body as trace_body",
-          ])
+          .selectAll()
           .where("event.block_number", ">=", fromBlock)
           .where("event.block_number", "<=", toBlock)
           .orderBy("event.block_number", "asc")
-          .orderBy("event.transaction_index", "asc")
-          .orderBy("event.event_type", "asc")
-          .orderBy("event.event_index", "asc")
-          .orderBy("event.filter_index", "asc");
-        // .limit(adjustedLimit);
+          .orderBy("event.transaction_index", "asc");
+        // .orderBy("event.event_type", "asc")
+        // .orderBy("event.event_index", "asc")
+        // .orderBy("event.filter_index", "asc");
+
+        try {
+          // console.log(query.compile());
+
+          const planText = await query.explain("text", ksql`analyze`);
+          const prettyPlanText = planText
+            .map((line) => line["QUERY PLAN"])
+            .join("\n");
+          console.log(prettyPlanText);
+
+          // const planJson = await query.explain("json", ksql`analyze`);
+          // const prettyPlanJson = JSON.stringify(planJson, null, 2);
+          // console.log(prettyPlanJson);
+        } catch (e) {
+          console.error(e);
+        }
 
         return await query.execute();
       },
@@ -743,13 +717,13 @@ export const createSyncStore = ({
       // that those fields are indeed present before continuing here.
       const row = _row as NonNull<(typeof rows)[number]>;
 
-      const filter = filters[row.event_filter_index]!;
+      const filter = filters[row.filter_index]!;
 
       const checkpoint = encodeCheckpoint({
         chainId: BigInt(filter.chainId),
         blockTimestamp: Number(row.block_timestamp),
-        blockNumber: BigInt(row.event_block_number),
-        transactionIndex: BigInt(row.event_transaction_index),
+        blockNumber: BigInt(row.block_number),
+        transactionIndex: BigInt(row.transaction_index),
         eventType: row.event_type,
         eventIndex: BigInt(row.event_index),
       });
@@ -763,7 +737,7 @@ export const createSyncStore = ({
       return {
         chainId: filter.chainId,
         checkpoint,
-        sourceIndex: Number(row.event_filter_index),
+        sourceIndex: row.filter_index,
         block: {
           baseFeePerGas:
             row.block_body.baseFeePerGas !== null
@@ -778,7 +752,7 @@ export const createSyncStore = ({
           miner: checksumAddress(row.block_body.miner),
           mixHash: row.block_body.mixHash,
           nonce: row.block_body.nonce,
-          number: BigInt(row.event_block_number),
+          number: BigInt(row.block_number),
           parentHash: row.block_parentHash,
           receiptsRoot: row.block_body.receiptsRoot,
           sha3Uncles: row.block_body.sha3Uncles,
@@ -794,10 +768,10 @@ export const createSyncStore = ({
         log: hasLog
           ? {
               // id: `${chainId}-${row.event_block_number}-${row.event_log_index}`,
-              id: `${row.block_hash}-${numberToHex(row.event_log_index)}`,
+              id: `${row.block_hash}-${numberToHex(row.log_index)}`,
               address: checksumAddress(row.log_address!),
               data: row.log_data,
-              logIndex: Number(row.event_log_index),
+              logIndex: Number(row.log_index),
               removed: false,
               topics: [
                 row.log_topic0,
@@ -817,7 +791,7 @@ export const createSyncStore = ({
               r: row.tx_body.r,
               s: row.tx_body.s,
               to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
-              transactionIndex: Number(row.event_transaction_index),
+              transactionIndex: Number(row.transaction_index),
               value: BigInt(row.tx_body.value),
               v: row.tx_body.v !== null ? BigInt(row.tx_body.v) : null,
               ...(row.tx_body.type === "0x0"
@@ -859,7 +833,7 @@ export const createSyncStore = ({
         trace: hasTrace
           ? {
               // id: `${chainId}-${row.event_block_number}-${row.event_transaction_index}-${row.event_trace_index}`,
-              id: `${row.tx_hash}-${row.event_trace_index}`,
+              id: `${row.tx_hash}-${row.trace_index}`,
               type: row.trace_callType as Trace["type"],
               from: checksumAddress(row.trace_from),
               to: checksumAddress(row.trace_to),
@@ -868,7 +842,7 @@ export const createSyncStore = ({
               input: row.trace_body.input,
               output: row.trace_body.output,
               value: BigInt(row.trace_value),
-              traceIndex: Number(row.event_trace_index),
+              traceIndex: Number(row.trace_index),
               subcalls: Number(row.trace_body.subcalls),
             }
           : undefined,
@@ -951,14 +925,19 @@ const logFactorySQL = (
       }
       return qb.where("address", "=", factory.address);
     })
-    .where("topic0", "=", factory.eventSelector)
-    .where("chain_id", "=", factory.chainId);
+    .where("topic0", "=", factory.eventSelector);
 
 const addressSQL = (
   db: Kysely<PonderSyncSchema>,
   qb: SelectQueryBuilder<PonderSyncSchema, any, {}>,
   address: LogFilter["address"],
-  column: "address" | "from" | "to",
+  column:
+    | "address"
+    | "from"
+    | "to"
+    | `${string}.address`
+    | `${string}.from`
+    | `${string}.to`,
 ) => {
   if (typeof address === "string") return qb.where(column, "=", address);
   if (isAddressFactory(address)) {
@@ -981,15 +960,13 @@ const logSQL = (
   db
     .selectFrom("logs")
     .select([
-      ksql.raw(`'${index}'`).as("filter_index"),
-      "block_number",
-      "transaction_index",
-      ksql`5::integer`.as("event_type"),
-      "log_index as event_index",
-
-      "log_index",
-      ksql`null::integer`.as("trace_index"),
+      ksql`${index.toString()}::integer`.as("filter_index"),
+      "logs.block_number",
+      "logs.transaction_index",
+      ksql`${ksql.raw(EVENT_TYPES.logs.toString())}::integer`.as("event_type"),
+      "logs.log_index as event_index",
     ])
+    // Filters
     .$call((qb) => {
       for (const idx of [0, 1, 2, 3] as const) {
         // If it's an array of length 1, collapse it.
@@ -998,20 +975,105 @@ const logSQL = (
         const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
         if (Array.isArray(topic)) {
           qb = qb.where((eb) =>
-            eb.or(topic.map((t) => eb(`topic${idx}`, "=", t))),
+            eb.or(topic.map((t) => eb(`logs.topic${idx}`, "=", t))),
           );
         } else {
-          qb = qb.where(`topic${idx}`, "=", topic);
+          qb = qb.where(`logs.topic${idx}`, "=", topic);
         }
       }
       return qb;
     })
-    .$call((qb) => addressSQL(db, qb, filter.address, "address"))
+    .$call((qb) => addressSQL(db, qb, filter.address, "logs.address"))
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+      qb.where("logs.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("block_number", "<=", filter.toBlock!.toString()),
+      qb.where("logs.block_number", "<=", filter.toBlock!.toString()),
+    )
+    // Joins and selects
+    // Blocks
+    .$call((qb) =>
+      qb
+        .leftJoin("blocks", (join) =>
+          join.onRef("logs.block_number", "=", "blocks.number"),
+        )
+        .select([
+          "blocks.hash as block_hash",
+          "blocks.parent_hash as block_parentHash",
+          "blocks.timestamp as block_timestamp",
+          "blocks.body as block_body",
+        ]),
+    )
+    // Transactions
+    .$call((qb) =>
+      qb
+        .leftJoin("transactions", (join) =>
+          join
+            .onRef("logs.block_number", "=", "transactions.block_number")
+            .onRef(
+              "logs.transaction_index",
+              "=",
+              "transactions.transaction_index",
+            ),
+        )
+        .select([
+          "transactions.hash as tx_hash",
+          "transactions.from as tx_from",
+          "transactions.to as tx_to",
+          "transactions.body as tx_body",
+        ]),
+    )
+    // Transaction receipts
+    .$if(shouldGetTransactionReceipt(filter), (qb) =>
+      qb
+        .leftJoin("transaction_receipts", (join) =>
+          join
+            .onRef(
+              "traces.block_number",
+              "=",
+              "transaction_receipts.block_number",
+            )
+            .onRef(
+              "traces.transaction_index",
+              "=",
+              "transaction_receipts.transaction_index",
+            ),
+        )
+        .select([
+          "transaction_receipts.status as tx_receipt_status",
+          "transaction_receipts.body as tx_receipt_body",
+        ]),
+    )
+    .$if(!shouldGetTransactionReceipt(filter), (qb) =>
+      qb.select([
+        ksql`null::text`.as("tx_receipt_status"),
+        ksql`null::jsonb`.as("tx_receipt_body"),
+      ]),
+    )
+    // Logs
+    .$call((qb) =>
+      qb.select([
+        "logs.log_index as log_index",
+        "logs.address as log_address",
+        "logs.data as log_data",
+        "logs.topic0 as log_topic0",
+        "logs.topic1 as log_topic1",
+        "logs.topic2 as log_topic2",
+        "logs.topic3 as log_topic3",
+      ]),
+    )
+    // Traces
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("trace_index"),
+        ksql`null::text`.as("trace_callType"),
+        ksql`null::text`.as("trace_from"),
+        ksql`null::text`.as("trace_to"),
+        ksql`null::numeric(78,0)`.as("trace_value"),
+        ksql`null::text`.as("trace_functionSelector"),
+        ksql`null::integer`.as("trace_isReverted"),
+        ksql`null::jsonb`.as("trace_body"),
+      ]),
     );
 
 const blockSQL = (
@@ -1022,25 +1084,76 @@ const blockSQL = (
   db
     .selectFrom("blocks")
     .select([
-      ksql.raw(`'${index}'`).as("filter_index"),
-      "number as block_number",
+      ksql`${index.toString()}::integer`.as("filter_index"),
+      "blocks.number as block_number",
       ksql`9999999999999999::bigint`.as("transaction_index"),
       ksql`${ksql.raw(EVENT_TYPES.blocks.toString())}::integer`.as(
         "event_type",
       ),
       ksql`0::integer`.as("event_index"),
-
-      ksql`null::integer`.as("log_index"),
-      ksql`null::integer`.as("trace_index"),
     ])
+    // Filters
     .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
-      qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
+      qb.where(
+        ksql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
+      ),
     )
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("number", ">=", filter.fromBlock!.toString()),
+      qb.where("blocks.number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("number", "<=", filter.toBlock!.toString()),
+      qb.where("blocks.number", "<=", filter.toBlock!.toString()),
+    )
+    // Joins and selects
+    // Blocks
+    .$call((qb) =>
+      qb.select([
+        "blocks.hash as block_hash",
+        "blocks.parent_hash as block_parentHash",
+        "blocks.timestamp as block_timestamp",
+        "blocks.body as block_body",
+      ]),
+    )
+    // Transactions
+    .$call((qb) =>
+      qb.select([
+        ksql`null::text`.as("tx_hash"),
+        ksql`null::text`.as("tx_from"),
+        ksql`null::text`.as("tx_to"),
+        ksql`null::jsonb`.as("tx_body"),
+      ]),
+    )
+    // Transaction receipts
+    .$call((qb) =>
+      qb.select([
+        ksql`null::text`.as("tx_receipt_status"),
+        ksql`null::jsonb`.as("tx_receipt_body"),
+      ]),
+    )
+    // Logs
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("log_index"),
+        ksql`null::text`.as("log_address"),
+        ksql`null::text`.as("log_data"),
+        ksql`null::text`.as("log_topic0"),
+        ksql`null::text`.as("log_topic1"),
+        ksql`null::text`.as("log_topic2"),
+        ksql`null::text`.as("log_topic3"),
+      ]),
+    )
+    // Traces
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("trace_index"),
+        ksql`null::text`.as("trace_callType"),
+        ksql`null::text`.as("trace_from"),
+        ksql`null::text`.as("trace_to"),
+        ksql`null::numeric(78,0)`.as("trace_value"),
+        ksql`null::text`.as("trace_functionSelector"),
+        ksql`null::integer`.as("trace_isReverted"),
+        ksql`null::jsonb`.as("trace_body"),
+      ]),
     );
 
 const transactionSQL = (
@@ -1051,41 +1164,94 @@ const transactionSQL = (
   db
     .selectFrom("transactions")
     .select([
-      ksql.raw(`'${index}'`).as("filter_index"),
+      ksql`${index.toString()}::integer`.as("filter_index"),
       "transactions.block_number",
       "transactions.transaction_index",
       ksql`${ksql.raw(EVENT_TYPES.transactions.toString())}::integer`.as(
         "event_type",
       ),
       ksql`0::integer`.as("event_index"),
-
-      ksql`null::integer`.as("log_index"),
-      ksql`null::integer`.as("trace_index"),
     ])
-    // .where("chainId", "=", filter.chainId)
-    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
-    .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
+    // Filters
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "transactions.from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "transactions.to"))
     .$if(filter.includeReverted === false, (qb) =>
-      qb.innerJoin("transaction_receipts", (join) =>
-        join
-          .onRef(
-            "transactions.block_number",
-            "=",
-            "transaction_receipts.block_number",
-          )
-          .onRef(
-            "transactions.transaction_index",
-            "=",
-            "transaction_receipts.transaction_index",
-          )
-          .on("transaction_receipts.status", "=", "0x1"),
-      ),
+      qb.where("transaction_receipts.status", "=", "0x1"),
     )
     .$if(filter.fromBlock !== undefined, (qb) =>
       qb.where("transactions.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
       qb.where("transactions.block_number", "<=", filter.toBlock!.toString()),
+    )
+    // Joins and selects
+    // Blocks
+    .$call((qb) =>
+      qb
+        .leftJoin("blocks", (join) =>
+          join.onRef("transactions.block_number", "=", "blocks.number"),
+        )
+        .select([
+          "blocks.hash as block_hash",
+          "blocks.parent_hash as block_parentHash",
+          "blocks.timestamp as block_timestamp",
+          "blocks.body as block_body",
+        ]),
+    )
+    // Transactions
+    .$call((qb) =>
+      qb.select([
+        "transactions.hash as tx_hash",
+        "transactions.from as tx_from",
+        "transactions.to as tx_to",
+        "transactions.body as tx_body",
+      ]),
+    )
+    // Transaction receipts (always include for now, using an inner join)
+    .$call((qb) =>
+      qb
+        .innerJoin("transaction_receipts", (join) =>
+          join
+            .onRef(
+              "transactions.block_number",
+              "=",
+              "transaction_receipts.block_number",
+            )
+            .onRef(
+              "transactions.transaction_index",
+              "=",
+              "transaction_receipts.transaction_index",
+            ),
+        )
+        .select([
+          "transaction_receipts.status as tx_receipt_status",
+          "transaction_receipts.body as tx_receipt_body",
+        ]),
+    )
+    // Logs
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("log_index"),
+        ksql`null::text`.as("log_address"),
+        ksql`null::text`.as("log_data"),
+        ksql`null::text`.as("log_topic0"),
+        ksql`null::text`.as("log_topic1"),
+        ksql`null::text`.as("log_topic2"),
+        ksql`null::text`.as("log_topic3"),
+      ]),
+    )
+    // Traces
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("trace_index"),
+        ksql`null::text`.as("trace_callType"),
+        ksql`null::text`.as("trace_from"),
+        ksql`null::text`.as("trace_to"),
+        ksql`null::numeric(78,0)`.as("trace_value"),
+        ksql`null::text`.as("trace_functionSelector"),
+        ksql`null::integer`.as("trace_isReverted"),
+        ksql`null::jsonb`.as("trace_body"),
+      ]),
     );
 
 const transferSQL = (
@@ -1096,29 +1262,111 @@ const transferSQL = (
   db
     .selectFrom("traces")
     .select([
-      ksql.raw(`'${index}'`).as("filter_index"),
-      "block_number",
-      "transaction_index",
+      ksql`${index.toString()}::integer`.as("filter_index"),
+      "traces.block_number",
+      "traces.transaction_index",
       ksql`${ksql.raw(EVENT_TYPES.traces.toString())}::integer`.as(
         "event_type",
       ),
-      "trace_index as event_index",
-
-      ksql`null::integer`.as("log_index"),
-      "trace_index",
+      "traces.trace_index as event_index",
     ])
-    // .where("chainId", "=", filter.chainId)
-    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
-    .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
-    .where("value", ">", "0")
+    // Filters
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "traces.from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "traces.to"))
+    .where("traces.value", ">", "0")
     .$if(filter.includeReverted === false, (qb) =>
-      qb.where("is_reverted", "=", 0),
+      qb.where("traces.is_reverted", "=", 0),
     )
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+      qb.where("traces.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("block_number", "<=", filter.toBlock!.toString()),
+      qb.where("traces.block_number", "<=", filter.toBlock!.toString()),
+    )
+    // Joins and selects
+    // Blocks
+    .$call((qb) =>
+      qb
+        .leftJoin("blocks", (join) =>
+          join.onRef("traces.block_number", "=", "blocks.number"),
+        )
+        .select([
+          "blocks.hash as block_hash",
+          "blocks.parent_hash as block_parentHash",
+          "blocks.timestamp as block_timestamp",
+          "blocks.body as block_body",
+        ]),
+    )
+    // Transactions
+    .$call((qb) =>
+      qb
+        .leftJoin("transactions", (join) =>
+          join
+            .onRef("traces.block_number", "=", "transactions.block_number")
+            .onRef(
+              "traces.transaction_index",
+              "=",
+              "transactions.transaction_index",
+            ),
+        )
+        .select([
+          "transactions.hash as tx_hash",
+          "transactions.from as tx_from",
+          "transactions.to as tx_to",
+          "transactions.body as tx_body",
+        ]),
+    )
+    // Transaction receipts
+    .$if(shouldGetTransactionReceipt(filter), (qb) =>
+      qb
+        .leftJoin("transaction_receipts", (join) =>
+          join
+            .onRef(
+              "traces.block_number",
+              "=",
+              "transaction_receipts.block_number",
+            )
+            .onRef(
+              "traces.transaction_index",
+              "=",
+              "transaction_receipts.transaction_index",
+            ),
+        )
+        .select([
+          "transaction_receipts.status as tx_receipt_status",
+          "transaction_receipts.body as tx_receipt_body",
+        ]),
+    )
+    .$if(!shouldGetTransactionReceipt(filter), (qb) =>
+      qb.select([
+        ksql`null::text`.as("tx_receipt_status"),
+        ksql`null::jsonb`.as("tx_receipt_body"),
+      ]),
+    )
+    // Logs
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("log_index"),
+        ksql`null::text`.as("log_address"),
+        ksql`null::text`.as("log_data"),
+        ksql`null::text`.as("log_topic0"),
+        ksql`null::text`.as("log_topic1"),
+        ksql`null::text`.as("log_topic2"),
+        ksql`null::text`.as("log_topic3"),
+      ]),
+    )
+    // Traces
+    .$call((qb) =>
+      qb.select([
+        "traces.trace_index as trace_index",
+        "traces.type as trace_callType",
+        "traces.from as trace_from",
+        "traces.to as trace_to",
+        "traces.value as trace_value",
+        "traces.function_selector as trace_functionSelector",
+        "traces.is_reverted as trace_isReverted",
+        "traces.body as trace_body",
+      ]),
     );
 
 const traceSQL = (
@@ -1129,36 +1377,126 @@ const traceSQL = (
   db
     .selectFrom("traces")
     .select([
-      ksql.raw(`'${index}'`).as("filter_index"),
-      "block_number",
-      "transaction_index",
+      ksql`${index.toString()}::integer`.as("filter_index"),
+      "traces.block_number",
+      "traces.transaction_index",
       ksql`${ksql.raw(EVENT_TYPES.traces.toString())}::integer`.as(
         "event_type",
       ),
-      "trace_index as event_index",
-
-      ksql`null::integer`.as("log_index"),
-      "trace_index",
+      "traces.trace_index as event_index",
     ])
-    // .where("chainId", "=", filter.chainId)
-    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
-    .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
+    // Filters
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "traces.from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "traces.to"))
     .$if(filter.includeReverted === false, (qb) =>
-      qb.where("is_reverted", "=", 0),
+      qb.where("traces.is_reverted", "=", 0),
     )
     .$if(filter.callType !== undefined, (qb) =>
-      qb.where("type", "=", filter.callType!),
+      qb.where("traces.type", "=", filter.callType!),
     )
     .$if(filter.functionSelector !== undefined, (qb) => {
       if (Array.isArray(filter.functionSelector)) {
-        return qb.where("function_selector", "in", filter.functionSelector!);
+        return qb.where(
+          "traces.function_selector",
+          "in",
+          filter.functionSelector!,
+        );
       } else {
-        return qb.where("function_selector", "=", filter.functionSelector!);
+        return qb.where(
+          "traces.function_selector",
+          "=",
+          filter.functionSelector!,
+        );
       }
     })
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+      qb.where("traces.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("block_number", "<=", filter.toBlock!.toString()),
+      qb.where("traces.block_number", "<=", filter.toBlock!.toString()),
+    )
+    // Joins and selects
+    // Blocks
+    .$call((qb) =>
+      qb
+        .leftJoin("blocks", (join) =>
+          join.onRef("traces.block_number", "=", "blocks.number"),
+        )
+        .select([
+          "blocks.hash as block_hash",
+          "blocks.parent_hash as block_parentHash",
+          "blocks.timestamp as block_timestamp",
+          "blocks.body as block_body",
+        ]),
+    )
+    // Transactions
+    .$call((qb) =>
+      qb
+        .leftJoin("transactions", (join) =>
+          join
+            .onRef("traces.block_number", "=", "transactions.block_number")
+            .onRef(
+              "traces.transaction_index",
+              "=",
+              "transactions.transaction_index",
+            ),
+        )
+        .select([
+          "transactions.hash as tx_hash",
+          "transactions.from as tx_from",
+          "transactions.to as tx_to",
+          "transactions.body as tx_body",
+        ]),
+    )
+    // Transaction receipts
+    .$if(shouldGetTransactionReceipt(filter), (qb) =>
+      qb
+        .leftJoin("transaction_receipts", (join) =>
+          join
+            .onRef(
+              "traces.block_number",
+              "=",
+              "transaction_receipts.block_number",
+            )
+            .onRef(
+              "traces.transaction_index",
+              "=",
+              "transaction_receipts.transaction_index",
+            ),
+        )
+        .select([
+          "transaction_receipts.status as tx_receipt_status",
+          "transaction_receipts.body as tx_receipt_body",
+        ]),
+    )
+    .$if(!shouldGetTransactionReceipt(filter), (qb) =>
+      qb.select([
+        ksql`null::text`.as("tx_receipt_status"),
+        ksql`null::jsonb`.as("tx_receipt_body"),
+      ]),
+    )
+    // Logs
+    .$call((qb) =>
+      qb.select([
+        ksql`null::integer`.as("log_index"),
+        ksql`null::text`.as("log_address"),
+        ksql`null::text`.as("log_data"),
+        ksql`null::text`.as("log_topic0"),
+        ksql`null::text`.as("log_topic1"),
+        ksql`null::text`.as("log_topic2"),
+        ksql`null::text`.as("log_topic3"),
+      ]),
+    )
+    // Traces
+    .$call((qb) =>
+      qb.select([
+        "traces.trace_index as trace_index",
+        "traces.type as trace_callType",
+        "traces.from as trace_from",
+        "traces.to as trace_to",
+        "traces.value as trace_value",
+        "traces.function_selector as trace_functionSelector",
+        "traces.is_reverted as trace_isReverted",
+        "traces.body as trace_body",
+      ]),
     );

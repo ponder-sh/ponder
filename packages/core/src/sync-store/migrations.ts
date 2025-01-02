@@ -1311,8 +1311,6 @@ GROUP BY fragment_id, chain_id
         // Body columns
         // gas, gasPrice, input, maxFeePerGas, maxPriorityFeePerGas, nonce, r, s, type, value, v, accessList
         .addColumn("body", "jsonb", (col) => col.notNull())
-        // // contractAddress, cumulativeGasUsed, effectiveGasPrice, gasUsed, logsBloom, status
-        // .addColumn("receipt_body", "jsonb")
 
         .addPrimaryKeyConstraint("transactions_pk", [
           "block_number",
@@ -1369,7 +1367,11 @@ GROUP BY fragment_id, chain_id
 
         // Body columns (none)
 
-        .addPrimaryKeyConstraint("logs_pk", ["block_number", "log_index"])
+        .addPrimaryKeyConstraint("logs_pk", [
+          "block_number",
+          "transaction_index",
+          "log_index",
+        ])
         .modifyEnd(sql`PARTITION BY RANGE (block_number)`)
         .execute();
 
