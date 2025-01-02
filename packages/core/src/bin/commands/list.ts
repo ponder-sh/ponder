@@ -35,7 +35,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger });
   const common = { options, logger, metrics, telemetry };
 
-  const build = await createBuild({ common });
+  const build = await createBuild({ common, cliOptions });
 
   const cleanup = async () => {
     await build.kill();
@@ -44,21 +44,22 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const executeResult = await build.execute();
+  build.initNamespace({ isSchemaRequired: false });
 
-  if (executeResult.configResult.status === "error") {
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return;
   }
 
-  const buildResult = build.preCompile(executeResult.configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return;
   }
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common,
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,

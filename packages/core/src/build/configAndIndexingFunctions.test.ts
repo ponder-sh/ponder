@@ -14,7 +14,7 @@ import {
   zeroAddress,
 } from "viem";
 import { expect, test } from "vitest";
-import { type Config, createConfig } from "../config/config.js";
+import { type Config, createConfig } from "../config/index.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,

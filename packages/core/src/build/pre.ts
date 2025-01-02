@@ -1,9 +1,9 @@
 import path from "node:path";
 import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
-import type { Config } from "@/config/config.js";
-import type { DatabaseConfig } from "@/config/database.js";
+import type { Config } from "@/config/index.js";
 import parse from "pg-connection-string";
+import type { DatabaseConfig } from "./index.js";
 
 function getDatabaseName(connectionString: string) {
   const parsed = (parse as unknown as typeof parse.parse)(connectionString);

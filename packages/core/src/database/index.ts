@@ -38,12 +38,12 @@ import {
 } from "kysely";
 import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
+import parse from "pg-connection-string";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
 export type Database = {
   qb: QueryBuilder;
-  drizzle: Drizzle<Schema>;
   migrateSync(): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
@@ -53,17 +53,9 @@ export type Database = {
    * "_ponder_meta" table, and any residual entries in this table are
    * used to determine what action this function will take.
    *
-   * - If schema is empty or no matching build_id, start
-   * - If matching build_id and unlocked, cache hit
-   * - Else, start
-   *
-   * Separate from this main control flow, two other actions can happen:
-   * - Tables corresponding to non-live apps will be dropped, with a 3 app buffer
-   * - Apps run with "ponder dev" will publish view immediately
-   *
    * @returns The progress checkpoint that that app should start from.
    */
-  setup(args: Pick<IndexingBuild, "buildId">): Promise<{
+  prepareNamespace(args: Pick<IndexingBuild, "buildId">): Promise<{
     checkpoint: string;
   }>;
   createIndexes(): Promise<void>;
@@ -106,8 +98,8 @@ type PGliteDriver = {
 type PostgresDriver = {
   internal: Pool;
   user: Pool;
-  readonly: Pool;
   sync: Pool;
+  readonly: Pool;
 };
 
 type QueryBuilder = {
@@ -115,13 +107,17 @@ type QueryBuilder = {
   internal: HeadlessKysely<PonderInternalSchema>;
   /** For indexing-store methods in user code */
   user: HeadlessKysely<any>;
-  /** Used in api functions */
-  readonly: HeadlessKysely<unknown>;
   /** Used to interact with the sync-store */
   sync: HeadlessKysely<PonderSyncSchema>;
+  /** Used in api functions */
+  readonly: HeadlessKysely<unknown>;
+  /** Used in client queries */
+  // client: HeadlessKysely<unknown>;
+  drizzle: Drizzle<Schema>;
+  drizzleReadonly: Drizzle<Schema>;
 };
 
-export const createDatabase = ({
+export const createDatabase = async ({
   common,
   preBuild,
   schemaBuild,
@@ -129,7 +125,7 @@ export const createDatabase = ({
   common: Common;
   preBuild: PreBuild;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   ////////
@@ -150,6 +146,11 @@ export const createDatabase = ({
     };
 
     const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
+
+    await driver.instance.query(
+      `CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`,
+    );
+    await driver.instance.query(`SET search_path TO "${preBuild.namespace}"`);
 
     qb = {
       internal: new HeadlessKysely({
@@ -204,6 +205,14 @@ export const createDatabase = ({
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
+      drizzle: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      drizzleReadonly: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
     };
   } else {
     const internalMax = 2;
@@ -215,16 +224,51 @@ export const createDatabase = ({
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
+    const internal = createPool(
+      {
+        ...preBuild.databaseConfig.poolConfig,
+        application_name: `${preBuild.namespace}_internal`,
+        max: internalMax,
+        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+      },
+      common.logger,
+    );
+
+    const connection = (parse as unknown as typeof parse.parse)(
+      preBuild.databaseConfig.poolConfig.connectionString!,
+    );
+
+    const role =
+      connection.database === undefined
+        ? `ponder_readonly_${preBuild.namespace}`
+        : `ponder_readonly_${connection.database}_${preBuild.namespace}`;
+
+    await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
+    const hasRole = await internal
+      .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
+      .then(({ rows }) => rows[0]);
+    if (hasRole) {
+      await internal.query(`DROP OWNED BY ${role}`);
+      await internal.query(`DROP ROLE IF EXISTS ${role}`);
+    }
+    await internal.query(`CREATE ROLE ${role} WITH LOGIN PASSWORD 'pw'`);
+    await internal.query(
+      `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
+    );
+    await internal.query(
+      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO ${role}`,
+    );
+    await internal.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO ${role}`,
+    );
+    await internal.query(
+      `ALTER ROLE ${role} SET search_path TO "${preBuild.namespace}"`,
+    );
+    await internal.query(`ALTER ROLE ${role} SET statement_timeout TO '1s'`);
+    await internal.query(`ALTER ROLE ${role} SET work_mem TO '1MB'`);
+
     driver = {
-      internal: createPool(
-        {
-          ...preBuild.databaseConfig.poolConfig,
-          application_name: `${preBuild.namespace}_internal`,
-          max: internalMax,
-          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-        },
-        common.logger,
-      ),
+      internal,
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
@@ -236,8 +280,14 @@ export const createDatabase = ({
       readonly: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
+          connectionString: undefined,
           application_name: `${preBuild.namespace}_readonly`,
           max: readonlyMax,
+          user: role,
+          password: "pw",
+          host: connection.host ?? undefined,
+          port: Number(connection.port!),
+          database: connection.database ?? undefined,
         },
         common.logger,
       ),
@@ -304,6 +354,14 @@ export const createDatabase = ({
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
+      drizzle: drizzleNodePg((driver as PostgresDriver).user, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      drizzleReadonly: drizzleNodePg((driver as PostgresDriver).readonly, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
     };
 
     // Register Postgres-only metrics
@@ -344,17 +402,6 @@ export const createDatabase = ({
       },
     });
   }
-
-  const drizzle =
-    dialect === "pglite" || dialect === "pglite_test"
-      ? drizzlePglite((driver as PGliteDriver).instance, {
-          casing: "snake_case",
-          schema: schemaBuild.schema,
-        })
-      : drizzleNodePg((driver as PostgresDriver).user, {
-          casing: "snake_case",
-          schema: schemaBuild.schema,
-        });
 
   ////////
   // Helpers
@@ -454,7 +501,6 @@ export const createDatabase = ({
 
   const database = {
     qb,
-    drizzle,
     async migrateSync() {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
@@ -476,7 +522,7 @@ export const createDatabase = ({
         if (error) throw error;
       });
     },
-    async setup({ buildId }) {
+    async prepareNamespace({ buildId }) {
       common.logger.info({
         service: "database",
         msg: `Using database schema '${preBuild.namespace}'`,
@@ -649,11 +695,6 @@ export const createDatabase = ({
       }
 
       await qb.internal.wrap({ method: "setup" }, async () => {
-        await qb.internal.schema
-          .createSchema(preBuild.namespace)
-          .ifNotExists()
-          .execute();
-
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
           .createTable("_ponder_meta")

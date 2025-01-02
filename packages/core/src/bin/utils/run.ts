@@ -38,7 +38,8 @@ export async function run({
 }) {
   let isKilled = false;
 
-  const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
+  const { checkpoint: initialCheckpoint } =
+    await database.prepareNamespace(indexingBuild);
 
   const syncStore = createSyncStore({
     common,
@@ -53,7 +54,7 @@ export async function run({
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  runCodegen({ common, graphqlSchema: schemaBuild.graphqlSchema });
+  runCodegen({ common });
 
   // Note: can throw
   const sync = await createSync({
