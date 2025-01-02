@@ -63,6 +63,60 @@ const flattenSources = <
   );
 };
 
+function resolveBlockRanges(
+  blocks: [number | undefined, number | undefined][] | undefined,
+): [number | undefined, number | undefined][] {
+  const blockRanges: [number | undefined, number | undefined][] =
+    blocks === undefined || blocks.length === 0
+      ? [[undefined, undefined]]
+      : blocks;
+  blockRanges.sort((a, b) => {
+    if (a[0] === undefined) {
+      return -1;
+    }
+    if (b[0] === undefined) {
+      return 1;
+    }
+    return a[0] - b[0];
+  });
+
+  const resolvedBlockRanges: [number | undefined, number | undefined][] = [];
+
+  for (const blockRange of blockRanges) {
+    const [curStartBlockMaybeNaN, curEndBlockMaybeNaN] = blockRange;
+    const curStartBlock = Number.isNaN(curStartBlockMaybeNaN)
+      ? undefined
+      : curStartBlockMaybeNaN;
+    const curEndBlock = Number.isNaN(curEndBlockMaybeNaN)
+      ? undefined
+      : curEndBlockMaybeNaN;
+
+    if (resolvedBlockRanges.length === 0) {
+      resolvedBlockRanges.push([curStartBlock, curEndBlock]);
+      continue;
+    }
+
+    const last = resolvedBlockRanges[resolvedBlockRanges.length - 1]!;
+    const [lastStartBlock, lastEndBlock] = last;
+    if (lastEndBlock === undefined) {
+      break;
+    }
+    // Check for overlap
+    if (curStartBlock === undefined || curStartBlock <= lastEndBlock) {
+      resolvedBlockRanges[resolvedBlockRanges.length - 1] = [
+        lastStartBlock,
+        curEndBlock === undefined || curEndBlock >= lastEndBlock
+          ? curEndBlock
+          : lastEndBlock,
+      ];
+    } else {
+      resolvedBlockRanges.push([curStartBlock, curEndBlock]);
+    }
+  }
+
+  return resolvedBlockRanges;
+}
+
 export async function buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
@@ -221,23 +275,26 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const startBlockMaybeNan = source.startBlock;
-    const startBlock = Number.isNaN(startBlockMaybeNan)
-      ? undefined
-      : startBlockMaybeNan;
-    const endBlockMaybeNan = source.endBlock;
-    const endBlock = Number.isNaN(endBlockMaybeNan)
-      ? undefined
-      : endBlockMaybeNan;
-
-    if (
-      startBlock !== undefined &&
-      endBlock !== undefined &&
-      endBlock < startBlock
-    ) {
-      throw new Error(
-        `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
-      );
+    const blockRanges =
+      source.blocks === undefined ? [[undefined, undefined]] : source.blocks;
+    for (const blockRange of blockRanges) {
+      const startBlockMaybeNan = blockRange[0];
+      const startBlock = Number.isNaN(startBlockMaybeNan)
+        ? undefined
+        : startBlockMaybeNan;
+      const endBlockMaybeNan = blockRange[1];
+      const endBlock = Number.isNaN(endBlockMaybeNan)
+        ? undefined
+        : endBlockMaybeNan;
+      if (
+        startBlock !== undefined &&
+        endBlock !== undefined &&
+        endBlock < startBlock
+      ) {
+        throw new Error(
+          `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
+        );
+      }
     }
 
     const network = networks.find((n) => n.name === source.network);
@@ -381,14 +438,7 @@ export async function buildConfigAndIndexingFunctions({
         });
       }
 
-      const startBlockMaybeNan = source.startBlock;
-      const fromBlock = Number.isNaN(startBlockMaybeNan)
-        ? undefined
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = source.endBlock;
-      const toBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
 
       const contractMetadata = {
         type: "contract",
@@ -411,52 +461,56 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        const logSources = topicsArray.map(
-          (topics) =>
-            ({
-              ...contractMetadata,
-              filter: {
-                type: "log",
-                chainId: network.chainId,
-                address: logFactory,
-                topic0: topics.topic0,
-                topic1: topics.topic1,
-                topic2: topics.topic2,
-                topic3: topics.topic3,
-                fromBlock,
-                toBlock,
-                include: defaultLogFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            }) satisfies ContractSource,
+        const logSources = topicsArray.flatMap((topics) =>
+          resolvedBlockRanges.map(
+            ([fromBlock, toBlock]) =>
+              ({
+                ...contractMetadata,
+                filter: {
+                  type: "log",
+                  chainId: network.chainId,
+                  address: logFactory,
+                  topic0: topics.topic0,
+                  topic1: topics.topic1,
+                  topic2: topics.topic2,
+                  topic3: topics.topic3,
+                  fromBlock,
+                  toBlock,
+                  include: defaultLogFilterInclude.concat(
+                    source.includeTransactionReceipts
+                      ? defaultTransactionReceiptInclude
+                      : [],
+                  ),
+                },
+              }) satisfies ContractSource,
+          ),
         );
 
         if (source.includeCallTraces) {
-          return [
-            ...logSources,
-            {
-              ...contractMetadata,
-              filter: {
-                type: "trace",
-                chainId: network.chainId,
-                fromAddress: undefined,
-                toAddress: logFactory,
-                callType: "CALL",
-                functionSelector: registeredFunctionSelectors,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTraceFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            } satisfies ContractSource,
-          ];
+          const callTraceSources = resolvedBlockRanges.map(
+            ([fromBlock, toBlock]) =>
+              ({
+                ...contractMetadata,
+                filter: {
+                  type: "trace",
+                  chainId: network.chainId,
+                  fromAddress: undefined,
+                  toAddress: logFactory,
+                  callType: "CALL",
+                  functionSelector: registeredFunctionSelectors,
+                  includeReverted: false,
+                  fromBlock,
+                  toBlock,
+                  include: defaultTraceFilterInclude.concat(
+                    source.includeTransactionReceipts
+                      ? defaultTransactionReceiptInclude
+                      : [],
+                  ),
+                },
+              }) satisfies ContractSource,
+          );
+
+          return [...logSources, ...callTraceSources];
         }
 
         return logSources;
@@ -484,56 +538,60 @@ export async function buildConfigAndIndexingFunctions({
           ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
-      const logSources = topicsArray.map(
-        (topics) =>
-          ({
-            ...contractMetadata,
-            filter: {
-              type: "log",
-              chainId: network.chainId,
-              address: validatedAddress,
-              topic0: topics.topic0,
-              topic1: topics.topic1,
-              topic2: topics.topic2,
-              topic3: topics.topic3,
-              fromBlock,
-              toBlock,
-              include: defaultLogFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          }) satisfies ContractSource,
+      const logSources = topicsArray.flatMap((topics) =>
+        resolvedBlockRanges.map(
+          ([fromBlock, toBlock]) =>
+            ({
+              ...contractMetadata,
+              filter: {
+                type: "log",
+                chainId: network.chainId,
+                address: validatedAddress,
+                topic0: topics.topic0,
+                topic1: topics.topic1,
+                topic2: topics.topic2,
+                topic3: topics.topic3,
+                fromBlock,
+                toBlock,
+                include: defaultLogFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            }) satisfies ContractSource,
+        ),
       );
 
       if (source.includeCallTraces) {
-        return [
-          ...logSources,
-          {
-            ...contractMetadata,
-            filter: {
-              type: "trace",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: Array.isArray(validatedAddress)
-                ? validatedAddress
-                : validatedAddress === undefined
-                  ? undefined
-                  : [validatedAddress],
-              callType: "CALL",
-              functionSelector: registeredFunctionSelectors,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTraceFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies ContractSource,
-        ];
+        const callTraceSources = resolvedBlockRanges.map(
+          ([fromBlock, toBlock]) =>
+            ({
+              ...contractMetadata,
+              filter: {
+                type: "trace",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: Array.isArray(validatedAddress)
+                  ? validatedAddress
+                  : validatedAddress === undefined
+                    ? undefined
+                    : [validatedAddress],
+                callType: "CALL",
+                functionSelector: registeredFunctionSelectors,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTraceFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            }) satisfies ContractSource,
+        );
+
+        return [...logSources, ...callTraceSources];
       } else return logSources;
     }) // Remove sources with no registered indexing functions
     .filter((source) => {
@@ -558,14 +616,7 @@ export async function buildConfigAndIndexingFunctions({
     .flatMap((source): AccountSource[] => {
       const network = networks.find((n) => n.name === source.network)!;
 
-      const startBlockMaybeNan = source.startBlock;
-      const fromBlock = Number.isNaN(startBlockMaybeNan)
-        ? undefined
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = source.endBlock;
-      const toBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
 
       const resolvedAddress = source?.address;
 
@@ -585,76 +636,80 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        return [
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transaction",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: logFactory,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransactionFilterInclude,
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transaction",
-              chainId: network.chainId,
-              fromAddress: logFactory,
-              toAddress: undefined,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransactionFilterInclude,
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transfer",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: logFactory,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransferFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transfer",
-              chainId: network.chainId,
-              fromAddress: logFactory,
-              toAddress: undefined,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransferFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies AccountSource,
-        ];
+        const accountSources = resolvedBlockRanges.flatMap(
+          ([fromBlock, toBlock]) => [
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transaction",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: logFactory,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransactionFilterInclude,
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transaction",
+                chainId: network.chainId,
+                fromAddress: logFactory,
+                toAddress: undefined,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransactionFilterInclude,
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transfer",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: logFactory,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransferFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transfer",
+                chainId: network.chainId,
+                fromAddress: logFactory,
+                toAddress: undefined,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransferFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            } satisfies AccountSource,
+          ],
+        );
+
+        return accountSources;
       }
 
       for (const address of Array.isArray(resolvedAddress)
@@ -679,77 +734,81 @@ export async function buildConfigAndIndexingFunctions({
           ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
-      return [
-        {
-          type: "account",
-          name: source.name,
+      const accountSources = resolvedBlockRanges.flatMap(
+        ([fromBlock, toBlock]) => [
+          {
+            type: "account",
+            name: source.name,
 
-          networkName: source.network,
-          filter: {
-            type: "transaction",
-            chainId: network.chainId,
-            fromAddress: undefined,
-            toAddress: validatedAddress,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransactionFilterInclude,
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          networkName: source.network,
-          filter: {
-            type: "transaction",
-            chainId: network.chainId,
-            fromAddress: validatedAddress,
-            toAddress: undefined,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransactionFilterInclude,
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          networkName: source.network,
-          filter: {
-            type: "transfer",
-            chainId: network.chainId,
-            fromAddress: undefined,
-            toAddress: validatedAddress,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransferFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          networkName: source.network,
-          filter: {
-            type: "transfer",
-            chainId: network.chainId,
-            fromAddress: validatedAddress,
-            toAddress: undefined,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransferFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies AccountSource,
-      ];
+            networkName: source.network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: validatedAddress,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: validatedAddress,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: validatedAddress,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: validatedAddress,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+        ],
+      );
+
+      return accountSources;
     })
     .filter((source) => {
       const eventName =
@@ -773,7 +832,7 @@ export async function buildConfigAndIndexingFunctions({
     });
 
   const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
-    .map((source) => {
+    .flatMap((source) => {
       const network = networks.find((n) => n.name === source.network)!;
 
       const intervalMaybeNan = source.interval ?? 1;
@@ -785,29 +844,25 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const startBlockMaybeNan = source.startBlock;
-      const fromBlock = Number.isNaN(startBlockMaybeNan)
-        ? undefined
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = source.endBlock;
-      const toBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
 
-      return {
-        type: "block",
-        name: source.name,
-        networkName: source.network,
-        filter: {
-          type: "block",
-          chainId: network.chainId,
-          interval: interval,
-          offset: (fromBlock ?? 0) % interval,
-          fromBlock,
-          toBlock,
-          include: defaultBlockFilterInclude,
-        },
-      } satisfies BlockSource;
+      return resolvedBlockRanges.map(
+        ([fromBlock, toBlock]) =>
+          ({
+            type: "block",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "block",
+              chainId: network.chainId,
+              interval: interval,
+              offset: (fromBlock ?? 0) % interval,
+              fromBlock,
+              toBlock,
+              include: defaultBlockFilterInclude,
+            },
+          }) satisfies BlockSource,
+      );
     })
     .filter((blockSource) => {
       const hasRegisteredIndexingFunction =
