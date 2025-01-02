@@ -1,5 +1,9 @@
 import type { Common } from "@/common/common.js";
-import { IgnorableError, NonRetryableError } from "@/common/errors.js";
+import {
+  IgnorableError,
+  ImmediateRetryError,
+  NonRetryableError,
+} from "@/common/errors.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { Kysely, type KyselyConfig, type KyselyProps } from "kysely";
@@ -90,13 +94,22 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           throw firstError;
         }
 
-        const duration = BASE_DURATION * 2 ** i;
-        this.common.logger.debug({
-          service: this.name,
-          msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds`,
-          error,
-        });
-        await wait(duration);
+        if (error instanceof ImmediateRetryError) {
+          // This is a "happy path" error, so we don't want to log it.
+          // this.common.logger.debug({
+          //   service: this.name,
+          //   msg: `Failed '${options.method}' database method, retrying immediately`,
+          //   error,
+          // });
+        } else {
+          const duration = BASE_DURATION * 2 ** i;
+          this.common.logger.debug({
+            service: this.name,
+            msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds`,
+            error,
+          });
+          await wait(duration);
+        }
       }
     }
   };

@@ -44,6 +44,15 @@ export class IgnorableError extends BaseError {
   }
 }
 
+export class ImmediateRetryError extends BaseError {
+  override name = "ImmediateRetryError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, ImmediateRetryError.prototype);
+  }
+}
+
 // Indexing store errors
 
 export class StoreError extends NonRetryableError {

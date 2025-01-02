@@ -1274,6 +1274,133 @@ GROUP BY fragment_id, chain_id
         .execute();
     },
   },
+  "2025_01_01_0_partition": {
+    async up(db) {
+      await db.schema.dropTable("blocks").ifExists().cascade().execute();
+
+      await db.schema
+        .createTable("blocks")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull())
+        .addColumn("parent_hash", "varchar(66)", (col) => col.notNull())
+        .addColumn("timestamp", "numeric(78, 0)", (col) => col.notNull())
+
+        // Body columns
+        // receiptsRoot, sha3Uncles, size, stateRoot, logsBloom, miner, mixHash, nonce, totalDifficulty, transactionsRoot, difficulty, extraData, gasLimit, gasUsed, baseFeePerGas
+        .addColumn("body", "jsonb", (col) => col.notNull())
+
+        .addPrimaryKeyConstraint("blocks_pk", ["number"])
+        .modifyEnd(sql`PARTITION BY RANGE (number)`)
+        .execute();
+
+      // Transactions table
+      await db.schema.dropTable("transactions").ifExists().cascade().execute();
+      await db.schema
+        .createTable("transactions")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("transaction_index", "integer", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull())
+
+        // Indexed / filter-able columns
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+
+        // Body columns
+        // gas, gasPrice, input, maxFeePerGas, maxPriorityFeePerGas, nonce, r, s, type, value, v, accessList
+        .addColumn("body", "jsonb", (col) => col.notNull())
+        // // contractAddress, cumulativeGasUsed, effectiveGasPrice, gasUsed, logsBloom, status
+        // .addColumn("receipt_body", "jsonb")
+
+        .addPrimaryKeyConstraint("transactions_pk", [
+          "block_number",
+          "transaction_index",
+        ])
+        .modifyEnd(sql`PARTITION BY RANGE (block_number)`)
+        .execute();
+
+      // Transaction receipts
+      await db.schema
+        .dropTable("transactionReceipts")
+        .ifExists()
+        .cascade()
+        .execute();
+      await db.schema
+        .createTable("transaction_receipts")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("transaction_index", "integer", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull())
+
+        // Body columns
+        // from, to, contractAddress, cumulativeGasUsed, effectiveGasPrice, gasUsed, logsBloom, status
+        .addColumn("body", "jsonb", (col) => col.notNull())
+
+        .addPrimaryKeyConstraint("transaction_receipts_pk", [
+          "block_number",
+          "transaction_index",
+        ])
+        .modifyEnd(sql`PARTITION BY RANGE (block_number)`)
+        .execute();
+
+      // Logs table
+      await db.schema.dropTable("logs").ifExists().cascade().execute();
+      await db.schema
+        .createTable("logs")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+        .addColumn("transaction_index", "integer", (col) => col.notNull())
+        .addColumn("log_index", "integer", (col) => col.notNull())
+
+        // Indexed / filter-able columns
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+
+        // Body columns (none)
+
+        .addPrimaryKeyConstraint("logs_pk", ["block_number", "log_index"])
+        .modifyEnd(sql`PARTITION BY RANGE (block_number)`)
+        .execute();
+
+      // Traces table
+      await db.schema.dropTable("traces").ifExists().cascade().execute();
+      await db.schema
+        .createTable("traces")
+        .addColumn("chain_id", "integer", (col) => col.notNull())
+        .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("transaction_index", "integer", (col) => col.notNull())
+        .addColumn("trace_index", "integer", (col) => col.notNull())
+
+        // Indexed / filter-able columns
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("function_selector", "text", (col) => col.notNull())
+        .addColumn("value", "numeric(78, 0)")
+        .addColumn("is_reverted", "integer", (col) => col.notNull())
+
+        // Body columns
+        // gas, gasUsed, input, output, error, revertReason, subcalls
+        .addColumn("body", "jsonb", (col) => col.notNull())
+
+        .addPrimaryKeyConstraint("traces_pk", [
+          "block_number",
+          "transaction_index",
+          "trace_index",
+        ])
+        .modifyEnd(sql`PARTITION BY RANGE (block_number)`)
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

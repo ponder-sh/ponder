@@ -1,4 +1,5 @@
 import type { Common } from "@/common/common.js";
+import { ImmediateRetryError } from "@/common/errors.js";
 import type { HeadlessKysely } from "@/database/kysely.js";
 import type { RawEvent } from "@/sync/events.js";
 import { type FragmentId, getFragmentIds } from "@/sync/fragments.js";
@@ -12,9 +13,8 @@ import {
   type TransactionFilter,
   type TransferFilter,
   isAddressFactory,
-  shouldGetTransactionReceipt,
 } from "@/sync/source.js";
-import type { Log, Trace } from "@/types/eth.js";
+import type { Trace } from "@/types/eth.js";
 import type {
   LightBlock,
   SyncBlock,
@@ -24,7 +24,9 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
+import { never } from "@/utils/never.js";
 import { type Kysely, type SelectQueryBuilder, sql as ksql } from "kysely";
 import type { InsertObject } from "kysely";
 import {
@@ -43,6 +45,7 @@ import {
   encodeTransaction,
   encodeTransactionReceipt,
 } from "./encoding.js";
+import { createMissingPartitions } from "./partition.js";
 
 export type SyncStore = {
   insertIntervals(args: {
@@ -64,15 +67,18 @@ export type SyncStore = {
     addresses: Address[];
   }): Promise<Set<Address>>;
   insertLogs(args: {
-    logs: { log: SyncLog; block?: SyncBlock }[];
-    shouldUpdateCheckpoint: boolean;
+    logs: SyncLog[];
+    // shouldUpdateCheckpoint: boolean;
     chainId: number;
   }): Promise<void>;
-  insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
+  insertBlocks(args: {
+    blocks: SyncBlock[];
+    chainId: number;
+  }): Promise<void>;
   /** Return true if the block receipt is present in the database. */
   hasBlock(args: { hash: Hash }): Promise<boolean>;
   insertTransactions(args: {
-    transactions: { transaction: SyncTransaction; block: SyncBlock }[];
+    transactions: SyncTransaction[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
@@ -94,10 +100,11 @@ export type SyncStore = {
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
   getEvents(args: {
     filters: Filter[];
-    from: string;
-    to: string;
+    from: bigint;
+    to: bigint;
     limit: number;
-  }): Promise<{ events: RawEvent[]; cursor: string }>;
+    chainId: number;
+  }): Promise<{ events: RawEvent[]; cursor: bigint }>;
   insertRpcRequestResult(args: {
     request: string;
     chainId: number;
@@ -117,38 +124,6 @@ export type SyncStore = {
     chainId: number;
   }): Promise<void>;
 };
-
-const logFactorySQL = (
-  qb: SelectQueryBuilder<PonderSyncSchema, "logs", {}>,
-  factory: LogFactory,
-) =>
-  qb
-    .select(
-      (() => {
-        if (factory.childAddressLocation.startsWith("offset")) {
-          const childAddressOffset = Number(
-            factory.childAddressLocation.substring(6),
-          );
-          const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
-          const length = 20 * 2;
-          return ksql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
-        } else {
-          const start = 2 + 12 * 2 + 1;
-          const length = 20 * 2;
-          return ksql<Hex>`'0x' || substring(${ksql.ref(
-            factory.childAddressLocation,
-          )} from ${start}::integer for ${length}::integer)`;
-        }
-      })().as("childAddress"),
-    )
-    .$call((qb) => {
-      if (Array.isArray(factory.address)) {
-        return qb.where("address", "in", factory.address);
-      }
-      return qb.where("address", "=", factory.address);
-    })
-    .where("topic0", "=", factory.eventSelector)
-    .where("chainId", "=", factory.chainId);
 
 export const createSyncStore = ({
   common,
@@ -270,7 +245,8 @@ export const createSyncStore = ({
       return await db
         .selectFrom("logs")
         .$call((qb) => logFactorySQL(qb, filter))
-        .orderBy("id asc")
+        .orderBy("block_number asc")
+        .orderBy("log_index asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!))
         .execute()
         .then((addresses) => addresses.map(({ childAddress }) => childAddress));
@@ -297,65 +273,83 @@ export const createSyncStore = ({
 
       return new Set<Address>([...result.map(({ address }) => address)]);
     }),
-  insertLogs: async ({ logs, shouldUpdateCheckpoint, chainId }) => {
-    if (logs.length === 0) return;
-    await db.wrap({ method: "insertLogs" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(encodeLog({ log: logs[0]!.log, chainId })).length,
-      );
+  insertLogs: async ({ logs, chainId }) => {
+    // Calculate `batchSize` based on how many parameters the input will have.
+    // Return early if there are no logs.
+    const firstLog = logs[0];
+    if (firstLog === undefined) return;
+    const firstLogEncoded = encodeLog({ log: firstLog, chainId });
+    const batchSize = Math.floor(
+      common.options.databaseMaxQueryParameters /
+        Object.keys(firstLogEncoded).length,
+    );
 
-      // As an optimization, logs that are matched by a factory do
-      // not contain a checkpoint, because not corresponding block is
-      // fetched (no block.timestamp). However, when a log is matched by
-      // both a log filter and a factory, the checkpoint must be included
-      // in the db.
+    while (logs.length > 0) {
+      const batch = logs
+        .splice(0, batchSize)
+        .map((log) => encodeLog({ log, chainId }));
 
-      for (let i = 0; i < logs.length; i += batchSize) {
-        await db
-          .insertInto("logs")
-          .values(
-            logs
-              .slice(i, i + batchSize)
-              .map(({ log, block }) => encodeLog({ log, block, chainId })),
-          )
-          .onConflict((oc) =>
-            oc.column("id").$call((qb) =>
-              shouldUpdateCheckpoint
-                ? qb.doUpdateSet((eb) => ({
-                    checkpoint: eb.ref("excluded.checkpoint"),
-                  }))
-                : qb.doNothing(),
-            ),
-          )
-          .execute();
-      }
-    });
+      await db.wrap({ method: "insertLogs" }, async () => {
+        try {
+          await db
+            .insertInto("logs")
+            .values(batch)
+            .onConflict((oc) =>
+              oc.columns(["block_number", "log_index"]).doNothing(),
+            )
+            .execute();
+        } catch (e) {
+          if ((e as Error).message?.toLowerCase().includes("partition")) {
+            await createMissingPartitions({
+              tableName: "logs",
+              chainId,
+              blockNumbers: batch.map(({ block_number }) => block_number),
+              db,
+              common,
+            });
+            throw new ImmediateRetryError();
+          }
+          throw e;
+        }
+      });
+    }
   },
   insertBlocks: async ({ blocks, chainId }) => {
-    if (blocks.length === 0) return;
-    await db.wrap({ method: "insertBlocks" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
-      );
+    const firstBlock = blocks[0];
+    if (firstBlock === undefined) return;
+    const firstBlockEncoded = encodeBlock({ block: firstBlock, chainId });
+    const batchSize = Math.floor(
+      common.options.databaseMaxQueryParameters /
+        Object.keys(firstBlockEncoded).length,
+    );
 
-      for (let i = 0; i < blocks.length; i += batchSize) {
-        await db
-          .insertInto("blocks")
-          .values(
-            blocks
-              .slice(i, i + batchSize)
-              .map((block) => encodeBlock({ block, chainId })),
-          )
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-      }
-    });
+    while (blocks.length > 0) {
+      const batch = blocks
+        .splice(0, batchSize)
+        .map((block) => encodeBlock({ block, chainId }));
+
+      await db.wrap({ method: "insertBlocks" }, async () => {
+        try {
+          await db
+            .insertInto("blocks")
+            .values(batch)
+            .onConflict((oc) => oc.column("number").doNothing())
+            .execute();
+        } catch (e) {
+          if ((e as Error).message?.toLowerCase().includes("partition")) {
+            await createMissingPartitions({
+              tableName: "blocks",
+              chainId,
+              blockNumbers: batch.map(({ number }) => number),
+              db,
+              common,
+            });
+            throw new ImmediateRetryError();
+          }
+          throw e;
+        }
+      });
+    }
   },
   hasBlock: async ({ hash }) =>
     db.wrap({ method: "hasBlock" }, async () => {
@@ -367,43 +361,43 @@ export const createSyncStore = ({
         .then((result) => result !== undefined);
     }),
   insertTransactions: async ({ transactions, chainId }) => {
-    if (transactions.length === 0) return;
-    await db.wrap({ method: "insertTransactions" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(
-            encodeTransaction({
-              transaction: transactions[0]!.transaction,
-              block: transactions[0]!.block,
+    const firstTx = transactions[0];
+    if (firstTx === undefined) return;
+    const firstTxEncoded = encodeTransaction({ transaction: firstTx, chainId });
+    const batchSize = Math.floor(
+      common.options.databaseMaxQueryParameters /
+        Object.keys(firstTxEncoded).length,
+    );
+
+    while (transactions.length > 0) {
+      const batch = transactions
+        .splice(0, batchSize)
+        .map((transaction) => encodeTransaction({ transaction, chainId }));
+
+      await db.wrap({ method: "insertTransactions" }, async () => {
+        try {
+          await db
+            .insertInto("transactions")
+            .values(batch)
+            .onConflict((oc) =>
+              oc.columns(["block_number", "transaction_index"]).doNothing(),
+            )
+            .execute();
+        } catch (e) {
+          if ((e as Error).message?.toLowerCase().includes("partition")) {
+            await createMissingPartitions({
+              tableName: "transactions",
               chainId,
-            }),
-          ).length,
-      );
-
-      // As an optimization for the migration, transactions inserted before 0.8 do not
-      // contain a checkpoint. However, for correctness the checkpoint must be inserted
-      // for new transactions (using onConflictDoUpdate).
-
-      for (let i = 0; i < transactions.length; i += batchSize) {
-        await db
-          .insertInto("transactions")
-          .values(
-            transactions
-              .slice(i, i + batchSize)
-              .map(({ transaction, block }) =>
-                encodeTransaction({ transaction, block, chainId }),
-              ),
-          )
-          .onConflict((oc) =>
-            oc.column("hash").doUpdateSet((eb) => ({
-              checkpoint: eb.ref("excluded.checkpoint"),
-            })),
-          )
-          .execute();
-      }
-    });
+              blockNumbers: batch.map(({ block_number }) => block_number),
+              db,
+              common,
+            });
+            throw new ImmediateRetryError();
+          }
+          throw e;
+        }
+      });
+    }
   },
   hasTransaction: async ({ hash }) =>
     db.wrap({ method: "hasTransaction" }, async () => {
@@ -415,595 +409,106 @@ export const createSyncStore = ({
         .then((result) => result !== undefined);
     }),
   insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
-    if (transactionReceipts.length === 0) return;
-    await db.wrap({ method: "insertTransactionReceipts" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(
-            encodeTransactionReceipt({
-              transactionReceipt: transactionReceipts[0]!,
-              chainId,
-            }),
-          ).length,
-      );
-
-      for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-        await db
-          .insertInto("transactionReceipts")
-          .values(
-            transactionReceipts
-              .slice(i, i + batchSize)
-              .map((transactionReceipt) =>
-                encodeTransactionReceipt({
-                  transactionReceipt,
-                  chainId,
-                }),
-              ),
-          )
-          .onConflict((oc) => oc.column("transactionHash").doNothing())
-          .execute();
-      }
+    const firstTxReceipt = transactionReceipts[0];
+    if (firstTxReceipt === undefined) return;
+    const firstTxEncoded = encodeTransactionReceipt({
+      transactionReceipt: firstTxReceipt,
+      chainId,
     });
+    const batchSize = Math.floor(
+      common.options.databaseMaxQueryParameters /
+        Object.keys(firstTxEncoded).length,
+    );
+
+    while (transactionReceipts.length > 0) {
+      const batch = transactionReceipts
+        .splice(0, batchSize)
+        .map((transactionReceipt) =>
+          encodeTransactionReceipt({ transactionReceipt, chainId }),
+        );
+
+      await db.wrap({ method: "insertTransactionReceipts" }, async () => {
+        try {
+          await db
+            .insertInto("transaction_receipts")
+            .values(batch)
+            .onConflict((oc) =>
+              oc.columns(["block_number", "transaction_index"]).doNothing(),
+            )
+            .execute();
+        } catch (e) {
+          if ((e as Error).message?.toLowerCase().includes("partition")) {
+            await createMissingPartitions({
+              tableName: "transaction_receipts",
+              chainId,
+              blockNumbers: batch.map(({ block_number }) => block_number),
+              db,
+              common,
+            });
+            throw new ImmediateRetryError();
+          }
+          throw e;
+        }
+      });
+    }
   },
   hasTransactionReceipt: async ({ hash }) =>
     db.wrap({ method: "hasTransactionReceipt" }, async () => {
       return await db
-        .selectFrom("transactionReceipts")
-        .select("transactionHash")
-        .where("transactionHash", "=", hash)
+        .selectFrom("transaction_receipts")
+        .select("hash")
+        .where("hash", "=", hash)
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
   insertTraces: async ({ traces, chainId }) => {
-    if (traces.length === 0) return;
-    await db.wrap({ method: "insertTraces" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(
-            encodeTrace({
-              trace: traces[0]!.trace.trace,
-              block: traces[0]!.block,
-              transaction: traces[0]!.transaction,
-              chainId,
-            }),
-          ).length,
-      );
-
-      for (let i = 0; i < traces.length; i += batchSize) {
-        await db
-          .insertInto("traces")
-          .values(
-            traces
-              .slice(i, i + batchSize)
-              .map(({ trace, block, transaction }) =>
-                encodeTrace({
-                  trace: trace.trace,
-                  block,
-                  transaction,
-                  chainId,
-                }),
-              ),
-          )
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-      }
-    });
-  },
-  getEvents: async ({ filters, from, to, limit }) => {
-    const addressSQL = (
-      qb: SelectQueryBuilder<
-        PonderSyncSchema,
-        "logs" | "blocks" | "traces",
-        {}
-      >,
-      address: LogFilter["address"],
-      column: "address" | "from" | "to",
-    ) => {
-      if (typeof address === "string") return qb.where(column, "=", address);
-      if (isAddressFactory(address)) {
-        return qb.where(
-          column,
-          "in",
-          db.selectFrom("logs").$call((qb) => logFactorySQL(qb, address)),
-        );
-      }
-      if (Array.isArray(address)) return qb.where(column, "in", address);
-
-      return qb;
-    };
-
-    const logSQL = (
-      filter: LogFilter,
-      db: Kysely<PonderSyncSchema>,
-      index: number,
-    ) =>
-      db
-        .selectFrom("logs")
-        .select([
-          ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "transactionHash",
-          "id as logId",
-          ksql`null`.as("traceId"),
-        ])
-        .where("chainId", "=", filter.chainId)
-        .$call((qb) => {
-          for (const idx of [0, 1, 2, 3] as const) {
-            // If it's an array of length 1, collapse it.
-            const raw = filter[`topic${idx}`] ?? null;
-            if (raw === null) continue;
-            const topic =
-              Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
-            if (Array.isArray(topic)) {
-              qb = qb.where((eb) =>
-                eb.or(topic.map((t) => eb(`logs.topic${idx}`, "=", t))),
-              );
-            } else {
-              qb = qb.where(`logs.topic${idx}`, "=", topic);
-            }
-          }
-          return qb;
-        })
-        .$call((qb) => addressSQL(qb as any, filter.address, "address"))
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
-
-    const blockSQL = (
-      filter: BlockFilter,
-      db: Kysely<PonderSyncSchema>,
-      index: number,
-    ) =>
-      db
-        .selectFrom("blocks")
-        .select([
-          ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "hash as blockHash",
-          ksql`null`.as("transactionHash"),
-          ksql`null`.as("logId"),
-          ksql`null`.as("traceId"),
-        ])
-        .where("chainId", "=", filter.chainId)
-        .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
-          qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
-        )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
-        );
-
-    const transactionSQL = (
-      filter: TransactionFilter,
-      db: Kysely<PonderSyncSchema>,
-      index: number,
-    ) =>
-      db
-        .selectFrom("transactions")
-        .select([
-          ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "hash as transactionHash",
-          ksql`null`.as("logId"),
-          ksql`null`.as("traceId"),
-        ])
-        .where("chainId", "=", filter.chainId)
-        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
-        .$if(filter.includeReverted === false, (qb) =>
-          qb.where(
-            db
-              .selectFrom("transactionReceipts")
-              .select("status")
-              .where(
-                "transactionReceipts.transactionHash",
-                "=",
-                ksql.ref("transactions.hash"),
-              ),
-            "=",
-            "0x1",
-          ),
-        )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
-
-    const transferSQL = (
-      filter: TransferFilter,
-      db: Kysely<PonderSyncSchema>,
-      index: number,
-    ) =>
-      db
-        .selectFrom("traces")
-        .select([
-          ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "transactionHash",
-          ksql`null`.as("logId"),
-          "id as traceId",
-        ])
-        .where("chainId", "=", filter.chainId)
-        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
-        .where("value", ">", "0")
-        .$if(filter.includeReverted === false, (qb) =>
-          qb.where("isReverted", "=", 0),
-        )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
-
-    const traceSQL = (
-      filter: TraceFilter,
-      db: Kysely<PonderSyncSchema>,
-      index: number,
-    ) =>
-      db
-        .selectFrom("traces")
-        .select([
-          ksql.raw(`'${index}'`).as("filterIndex"),
-          "checkpoint",
-          "chainId",
-          "blockHash",
-          "transactionHash",
-          ksql`null`.as("logId"),
-          "id as traceId",
-        ])
-        .where("chainId", "=", filter.chainId)
-        .$call((qb) => addressSQL(qb as any, filter.fromAddress, "from"))
-        .$call((qb) => addressSQL(qb as any, filter.toAddress, "to"))
-        .$if(filter.includeReverted === false, (qb) =>
-          qb.where("isReverted", "=", 0),
-        )
-        .$if(filter.callType !== undefined, (qb) =>
-          qb.where("type", "=", filter.callType!),
-        )
-        .$if(filter.functionSelector !== undefined, (qb) => {
-          if (Array.isArray(filter.functionSelector)) {
-            return qb.where("functionSelector", "in", filter.functionSelector!);
-          } else {
-            return qb.where("functionSelector", "=", filter.functionSelector!);
-          }
-        })
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
-
-    const rows = await db.wrap(
-      {
-        method: "getEvents",
-        shouldRetry(error) {
-          return error.message.includes("statement timeout") === false;
-        },
-      },
-      async () => {
-        let query:
-          | SelectQueryBuilder<
-              PonderSyncSchema,
-              "logs" | "blocks" | "traces" | "transactions",
-              {
-                filterIndex: number;
-                checkpoint: string;
-                chainId: number;
-                logId: string;
-                blockHash: string;
-                transactionHash: string;
-                traceId: string;
-              }
-            >
-          | undefined;
-
-        for (let i = 0; i < filters.length; i++) {
-          const filter = filters[i]!;
-
-          const _query =
-            filter.type === "log"
-              ? logSQL(filter, db, i)
-              : filter.type === "block"
-                ? blockSQL(filter, db, i)
-                : filter.type === "transaction"
-                  ? transactionSQL(filter, db, i)
-                  : filter.type === "transfer"
-                    ? transferSQL(filter, db, i)
-                    : traceSQL(filter, db, i);
-
-          // @ts-ignore
-          query = query === undefined ? _query : query.unionAll(_query);
-        }
-
-        return await db
-          .with("event", () => query!)
-          .selectFrom("event")
-          .select([
-            "event.filterIndex as event_filterIndex",
-            "event.checkpoint as event_checkpoint",
-          ])
-          .innerJoin("blocks", "blocks.hash", "event.blockHash")
-          .select([
-            "blocks.baseFeePerGas as block_baseFeePerGas",
-            "blocks.difficulty as block_difficulty",
-            "blocks.extraData as block_extraData",
-            "blocks.gasLimit as block_gasLimit",
-            "blocks.gasUsed as block_gasUsed",
-            "blocks.hash as block_hash",
-            "blocks.logsBloom as block_logsBloom",
-            "blocks.miner as block_miner",
-            "blocks.mixHash as block_mixHash",
-            "blocks.nonce as block_nonce",
-            "blocks.number as block_number",
-            "blocks.parentHash as block_parentHash",
-            "blocks.receiptsRoot as block_receiptsRoot",
-            "blocks.sha3Uncles as block_sha3Uncles",
-            "blocks.size as block_size",
-            "blocks.stateRoot as block_stateRoot",
-            "blocks.timestamp as block_timestamp",
-            "blocks.totalDifficulty as block_totalDifficulty",
-            "blocks.transactionsRoot as block_transactionsRoot",
-          ])
-          .leftJoin("logs", "logs.id", "event.logId")
-          .select([
-            "logs.address as log_address",
-            "logs.chainId as log_chainId",
-            "logs.data as log_data",
-            "logs.id as log_id",
-            "logs.logIndex as log_logIndex",
-            "logs.topic0 as log_topic0",
-            "logs.topic1 as log_topic1",
-            "logs.topic2 as log_topic2",
-            "logs.topic3 as log_topic3",
-          ])
-          .leftJoin(
-            "transactions",
-            "transactions.hash",
-            "event.transactionHash",
-          )
-          .select([
-            "transactions.accessList as tx_accessList",
-            "transactions.from as tx_from",
-            "transactions.gas as tx_gas",
-            "transactions.gasPrice as tx_gasPrice",
-            "transactions.hash as tx_hash",
-            "transactions.input as tx_input",
-            "transactions.maxFeePerGas as tx_maxFeePerGas",
-            "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-            "transactions.nonce as tx_nonce",
-            "transactions.r as tx_r",
-            "transactions.s as tx_s",
-            "transactions.to as tx_to",
-            "transactions.transactionIndex as tx_transactionIndex",
-            "transactions.type as tx_type",
-            "transactions.value as tx_value",
-            "transactions.v as tx_v",
-          ])
-          .leftJoin("traces", "traces.id", "event.traceId")
-          .select([
-            "traces.id as trace_id",
-            "traces.type as trace_callType",
-            "traces.from as trace_from",
-            "traces.to as trace_to",
-            "traces.gas as trace_gas",
-            "traces.gasUsed as trace_gasUsed",
-            "traces.input as trace_input",
-            "traces.output as trace_output",
-            "traces.error as trace_error",
-            "traces.revertReason as trace_revertReason",
-            "traces.value as trace_value",
-            "traces.index as trace_index",
-            "traces.subcalls as trace_subcalls",
-          ])
-          .leftJoin(
-            "transactionReceipts",
-            "transactionReceipts.transactionHash",
-            "event.transactionHash",
-          )
-          .select([
-            "transactionReceipts.contractAddress as txr_contractAddress",
-            "transactionReceipts.cumulativeGasUsed as txr_cumulativeGasUsed",
-            "transactionReceipts.effectiveGasPrice as txr_effectiveGasPrice",
-            "transactionReceipts.from as txr_from",
-            "transactionReceipts.gasUsed as txr_gasUsed",
-            "transactionReceipts.logsBloom as txr_logsBloom",
-            "transactionReceipts.status as txr_status",
-            "transactionReceipts.to as txr_to",
-            "transactionReceipts.type as txr_type",
-          ])
-          .where("event.checkpoint", ">", from)
-          .where("event.checkpoint", "<=", to)
-          .orderBy("event.checkpoint", "asc")
-          .orderBy("event.filterIndex", "asc")
-          .limit(limit)
-          .execute();
-      },
+    const firstTrace = traces[0];
+    if (firstTrace === undefined) return;
+    const batchSize = Math.floor(
+      common.options.databaseMaxQueryParameters /
+        Object.keys(
+          encodeTrace({
+            trace: firstTrace.trace.trace,
+            block: firstTrace.block,
+            transaction: firstTrace.transaction,
+            chainId,
+          }),
+        ).length,
     );
 
-    const events = rows.map((_row) => {
-      // Without this cast, the block_ and tx_ fields are all nullable
-      // which makes this very annoying. Should probably add a runtime check
-      // that those fields are indeed present before continuing here.
-      const row = _row as NonNull<(typeof rows)[number]>;
+    while (traces.length > 0) {
+      const batch = traces
+        .splice(0, batchSize)
+        .map(({ trace, block, transaction }) =>
+          encodeTrace({ trace: trace.trace, block, transaction, chainId }),
+        );
 
-      const filter = filters[row.event_filterIndex]!;
-
-      const hasLog = row.log_id !== null;
-      const hasTransaction = row.tx_hash !== null;
-      const hasTrace = row.trace_id !== null;
-      const hasTransactionReceipt = shouldGetTransactionReceipt(filter);
-
-      return {
-        chainId: filter.chainId,
-        sourceIndex: Number(row.event_filterIndex),
-        checkpoint: row.event_checkpoint,
-        block: {
-          baseFeePerGas:
-            row.block_baseFeePerGas !== null
-              ? BigInt(row.block_baseFeePerGas)
-              : null,
-          difficulty: BigInt(row.block_difficulty),
-          extraData: row.block_extraData,
-          gasLimit: BigInt(row.block_gasLimit),
-          gasUsed: BigInt(row.block_gasUsed),
-          hash: row.block_hash,
-          logsBloom: row.block_logsBloom,
-          miner: checksumAddress(row.block_miner),
-          mixHash: row.block_mixHash,
-          nonce: row.block_nonce,
-          number: BigInt(row.block_number),
-          parentHash: row.block_parentHash,
-          receiptsRoot: row.block_receiptsRoot,
-          sha3Uncles: row.block_sha3Uncles,
-          size: BigInt(row.block_size),
-          stateRoot: row.block_stateRoot,
-          timestamp: BigInt(row.block_timestamp),
-          totalDifficulty:
-            row.block_totalDifficulty !== null
-              ? BigInt(row.block_totalDifficulty)
-              : null,
-          transactionsRoot: row.block_transactionsRoot,
-        },
-        log: hasLog
-          ? {
-              address: checksumAddress(row.log_address!),
-              data: row.log_data,
-              id: row.log_id as Log["id"],
-              logIndex: Number(row.log_logIndex),
-              removed: false,
-              topics: [
-                row.log_topic0,
-                row.log_topic1,
-                row.log_topic2,
-                row.log_topic3,
-              ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-            }
-          : undefined,
-        transaction: hasTransaction
-          ? {
-              from: checksumAddress(row.tx_from),
-              gas: BigInt(row.tx_gas),
-              hash: row.tx_hash,
-              input: row.tx_input,
-              nonce: Number(row.tx_nonce),
-              r: row.tx_r,
-              s: row.tx_s,
-              to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
-              transactionIndex: Number(row.tx_transactionIndex),
-              value: BigInt(row.tx_value),
-              v: row.tx_v !== null ? BigInt(row.tx_v) : null,
-              ...(row.tx_type === "0x0"
-                ? {
-                    type: "legacy",
-                    gasPrice: BigInt(row.tx_gasPrice),
-                  }
-                : row.tx_type === "0x1"
-                  ? {
-                      type: "eip2930",
-                      gasPrice: BigInt(row.tx_gasPrice),
-                      accessList: JSON.parse(row.tx_accessList),
-                    }
-                  : row.tx_type === "0x2"
-                    ? {
-                        type: "eip1559",
-                        maxFeePerGas: BigInt(row.tx_maxFeePerGas),
-                        maxPriorityFeePerGas: BigInt(
-                          row.tx_maxPriorityFeePerGas,
-                        ),
-                      }
-                    : row.tx_type === "0x7e"
-                      ? {
-                          type: "deposit",
-                          maxFeePerGas:
-                            row.tx_maxFeePerGas !== null
-                              ? BigInt(row.tx_maxFeePerGas)
-                              : undefined,
-                          maxPriorityFeePerGas:
-                            row.tx_maxPriorityFeePerGas !== null
-                              ? BigInt(row.tx_maxPriorityFeePerGas)
-                              : undefined,
-                        }
-                      : {
-                          type: row.tx_type,
-                        }),
-            }
-          : undefined,
-        trace: hasTrace
-          ? {
-              id: row.trace_id,
-              type: row.trace_callType as Trace["type"],
-              from: checksumAddress(row.trace_from),
-              to: checksumAddress(row.trace_to),
-              gas: BigInt(row.trace_gas),
-              gasUsed: BigInt(row.trace_gasUsed),
-              input: row.trace_input,
-              output: row.trace_output,
-              value: BigInt(row.trace_value),
-              traceIndex: Number(row.trace_index),
-              subcalls: Number(row.trace_subcalls),
-            }
-          : undefined,
-        transactionReceipt: hasTransactionReceipt
-          ? {
-              contractAddress: row.txr_contractAddress
-                ? checksumAddress(row.txr_contractAddress)
-                : null,
-              cumulativeGasUsed: BigInt(row.txr_cumulativeGasUsed),
-              effectiveGasPrice: BigInt(row.txr_effectiveGasPrice),
-              from: checksumAddress(row.txr_from),
-              gasUsed: BigInt(row.txr_gasUsed),
-              logsBloom: row.txr_logsBloom,
-              status:
-                row.txr_status === "0x1"
-                  ? "success"
-                  : row.txr_status === "0x0"
-                    ? "reverted"
-                    : (row.txr_status as TransactionReceipt["status"]),
-              to: row.txr_to ? checksumAddress(row.txr_to) : null,
-              type:
-                row.txr_type === "0x0"
-                  ? "legacy"
-                  : row.txr_type === "0x1"
-                    ? "eip2930"
-                    : row.tx_type === "0x2"
-                      ? "eip1559"
-                      : row.tx_type === "0x7e"
-                        ? "deposit"
-                        : row.tx_type,
-            }
-          : undefined,
-      } satisfies RawEvent;
-    });
-
-    let cursor: string;
-    if (events.length !== limit) {
-      cursor = to;
-    } else {
-      cursor = events[events.length - 1]!.checkpoint!;
+      await db.wrap({ method: "insertTraces" }, async () => {
+        try {
+          await db
+            .insertInto("traces")
+            .values(batch)
+            .onConflict((oc) =>
+              oc
+                .columns(["block_number", "transaction_index", "trace_index"])
+                .doNothing(),
+            )
+            .execute();
+        } catch (e) {
+          if ((e as Error).message?.toLowerCase().includes("partition")) {
+            await createMissingPartitions({
+              tableName: "traces",
+              chainId,
+              blockNumbers: batch.map(({ block_number }) => block_number),
+              db,
+              common,
+            });
+            throw new ImmediateRetryError();
+          }
+          throw e;
+        }
+      });
     }
-
-    return { events, cursor };
   },
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     db.wrap({ method: "insertRpcRequestResult" }, async () => {
@@ -1051,34 +556,614 @@ export const createSyncStore = ({
       db.transaction().execute(async (tx) => {
         await tx
           .deleteFrom("logs")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
+          .where("chain_id", "=", chainId)
           .where("number", ">=", fromBlock.toString())
+          .execute();
+        await tx
+          .deleteFrom("traces")
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">=", fromBlock.toString())
+          .execute();
+        await tx
+          .deleteFrom("transactions")
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">=", fromBlock.toString())
+          .execute();
+        await tx
+          .deleteFrom("transaction_receipts")
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("rpc_request_results")
           .where("chain_id", "=", chainId)
           .where("block_number", ">=", fromBlock.toString())
           .execute();
-        await tx
-          .deleteFrom("traces")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom("transactionReceipts")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
       }),
     ),
+  getEvents: async ({ chainId, filters, from, to, limit }) => {
+    const rows = await db.wrap(
+      {
+        method: "getEvents",
+        shouldRetry(error) {
+          return error.message.includes("statement timeout") === false;
+        },
+      },
+      async () => {
+        let filterQuery:
+          | SelectQueryBuilder<
+              PonderSyncSchema,
+              "logs" | "blocks" | "traces" | "transactions",
+              {
+                filter_index: number;
+                block_number: number;
+                transaction_index: number | null;
+                log_index: number | null;
+                trace_index: number | null;
+              }
+            >
+          | undefined;
+
+        for (let i = 0; i < filters.length; i++) {
+          const filter = filters[i]!;
+
+          const _query =
+            filter.type === "log"
+              ? logSQL(filter, db, i)
+              : filter.type === "block"
+                ? blockSQL(filter, db, i)
+                : filter.type === "transaction"
+                  ? transactionSQL(filter, db, i)
+                  : filter.type === "transfer"
+                    ? transferSQL(filter, db, i)
+                    : traceSQL(filter, db, i);
+
+          // @ts-ignore
+          filterQuery =
+            // @ts-ignore
+            filterQuery === undefined ? _query : filterQuery.unionAll(_query);
+        }
+
+        const query = db
+          .with("event", () => filterQuery!)
+          .selectFrom("event")
+          .select([
+            "event.filter_index as event_filter_index",
+            "event.block_number as event_block_number",
+            "event.transaction_index as event_transaction_index",
+            "event.log_index as event_log_index",
+            "event.trace_index as event_trace_index",
+          ])
+          .innerJoin("blocks", "blocks.number", "event.block_number")
+          .select([
+            "blocks.hash as block_hash",
+            "blocks.parent_hash as block_parentHash",
+            "blocks.timestamp as block_timestamp",
+            "blocks.body as block_body",
+          ])
+          .leftJoin("logs", (join) =>
+            join
+              .onRef("logs.block_number", "=", "event.block_number")
+              .onRef("logs.log_index", "=", "event.log_index"),
+          )
+          .select([
+            "logs.address as log_address",
+            "logs.data as log_data",
+            "logs.topic0 as log_topic0",
+            "logs.topic1 as log_topic1",
+            "logs.topic2 as log_topic2",
+            "logs.topic3 as log_topic3",
+          ])
+          .leftJoin("transactions", (join) =>
+            join
+              .onRef("transactions.block_number", "=", "event.block_number")
+              .onRef(
+                "transactions.transaction_index",
+                "=",
+                "event.transaction_index",
+              ),
+          )
+          .select([
+            "transactions.body as tx_body",
+            "transactions.from as tx_from",
+            "transactions.hash as tx_hash",
+            "transactions.to as tx_to",
+            "transactions.body as tx_body",
+          ])
+          .leftJoin("transaction_receipts", (join) =>
+            join
+              .onRef(
+                "transaction_receipts.block_number",
+                "=",
+                "event.block_number",
+              )
+              .onRef(
+                "transaction_receipts.transaction_index",
+                "=",
+                "event.transaction_index",
+              ),
+          )
+          .select(["transaction_receipts.body as tx_receipt_body"])
+          .leftJoin("traces", (join) =>
+            join
+              .onRef("traces.block_number", "=", "event.block_number")
+              .onRef("traces.transaction_index", "=", "event.transaction_index")
+              .onRef("traces.trace_index", "=", "event.trace_index"),
+          )
+          .select([
+            "traces.type as trace_callType",
+            "traces.from as trace_from",
+            "traces.to as trace_to",
+            "traces.value as trace_value",
+            "traces.function_selector as trace_functionSelector",
+            "traces.is_reverted as trace_isReverted",
+            "traces.body as trace_body",
+          ])
+          .where("event.block_number", ">", Number(from))
+          .where("event.block_number", "<=", Number(to))
+          .orderBy("event.block_number", "asc")
+          .orderBy("event.transaction_index", "asc")
+          .orderBy("event.log_index", "asc")
+          .orderBy("event.trace_index", "asc")
+          .orderBy("event.filter_index", "asc")
+          .limit(limit);
+
+        return await query.execute();
+      },
+    );
+
+    const events = rows.map((_row) => {
+      // Without this cast, the block_ and tx_ fields are all nullable
+      // which makes this very annoying. Should probably add a runtime check
+      // that those fields are indeed present before continuing here.
+      const row = _row as NonNull<(typeof rows)[number]>;
+
+      const filter = filters[row.event_filter_index]!;
+
+      const filterType = filter.type;
+      let checkpoint: string | undefined = undefined!;
+      switch (filterType) {
+        case "block": {
+          checkpoint = encodeCheckpoint({
+            chainId: BigInt(filter.chainId),
+            blockTimestamp: Number(row.block_timestamp),
+            blockNumber: BigInt(row.event_block_number),
+            transactionIndex: 0n,
+            eventType: EVENT_TYPES.blocks,
+            eventIndex: 0n,
+          });
+          break;
+        }
+        case "transaction": {
+          checkpoint = encodeCheckpoint({
+            chainId: BigInt(filter.chainId),
+            blockTimestamp: Number(row.block_timestamp),
+            blockNumber: BigInt(row.event_block_number),
+            transactionIndex: BigInt(row.event_transaction_index),
+            eventType: EVENT_TYPES.transactions,
+            eventIndex: 0n,
+          });
+          break;
+        }
+        case "log": {
+          checkpoint = encodeCheckpoint({
+            chainId: BigInt(filter.chainId),
+            blockTimestamp: Number(row.block_timestamp),
+            blockNumber: BigInt(row.event_block_number),
+            transactionIndex: BigInt(row.event_transaction_index),
+            eventType: EVENT_TYPES.logs,
+            eventIndex: BigInt(row.event_log_index),
+          });
+          break;
+        }
+        case "trace": {
+          checkpoint = encodeCheckpoint({
+            chainId: BigInt(filter.chainId),
+            blockTimestamp: Number(row.block_timestamp),
+            blockNumber: BigInt(row.event_block_number),
+            transactionIndex: BigInt(row.event_transaction_index),
+            eventType: EVENT_TYPES.traces,
+            eventIndex: BigInt(row.event_trace_index),
+          });
+          break;
+        }
+        case "transfer": {
+          checkpoint = encodeCheckpoint({
+            chainId: BigInt(filter.chainId),
+            blockTimestamp: Number(row.block_timestamp),
+            blockNumber: BigInt(row.event_block_number),
+            transactionIndex: BigInt(row.event_transaction_index),
+            eventType: EVENT_TYPES.traces,
+            eventIndex: BigInt(row.event_trace_index),
+          });
+          break;
+        }
+        default:
+          never(filterType);
+      }
+
+      const hasLog = row.log_data !== null;
+      const hasTransaction = row.tx_body !== null;
+      const hasTrace = row.trace_body !== null;
+      const hasTransactionReceipt = row.tx_receipt_body !== null;
+
+      return {
+        chainId: filter.chainId,
+        checkpoint,
+        sourceIndex: Number(row.event_filter_index),
+        block: {
+          baseFeePerGas:
+            row.block_body.baseFeePerGas !== null
+              ? BigInt(row.block_body.baseFeePerGas)
+              : null,
+          difficulty: BigInt(row.block_body.difficulty),
+          extraData: row.block_body.extraData,
+          gasLimit: BigInt(row.block_body.gasLimit),
+          gasUsed: BigInt(row.block_body.gasUsed),
+          hash: row.block_hash,
+          logsBloom: row.block_body.logsBloom,
+          miner: checksumAddress(row.block_body.miner),
+          mixHash: row.block_body.mixHash,
+          nonce: row.block_body.nonce,
+          number: BigInt(row.event_block_number),
+          parentHash: row.block_parentHash,
+          receiptsRoot: row.block_body.receiptsRoot,
+          sha3Uncles: row.block_body.sha3Uncles,
+          size: BigInt(row.block_body.size),
+          stateRoot: row.block_body.stateRoot,
+          timestamp: BigInt(row.block_timestamp),
+          totalDifficulty:
+            row.block_body.totalDifficulty !== null
+              ? BigInt(row.block_body.totalDifficulty)
+              : null,
+          transactionsRoot: row.block_body.transactionsRoot,
+        },
+        log: hasLog
+          ? {
+              id: `${chainId}-${row.event_block_number}-${row.event_log_index}`,
+              address: checksumAddress(row.log_address!),
+              data: row.log_data,
+              logIndex: Number(row.event_log_index),
+              removed: false,
+              topics: [
+                row.log_topic0,
+                row.log_topic1,
+                row.log_topic2,
+                row.log_topic3,
+              ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+            }
+          : undefined,
+        transaction: hasTransaction
+          ? {
+              from: checksumAddress(row.tx_from),
+              gas: BigInt(row.tx_body.gas),
+              hash: row.tx_hash,
+              input: row.tx_body.input,
+              nonce: Number(row.tx_body.nonce),
+              r: row.tx_body.r,
+              s: row.tx_body.s,
+              to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
+              transactionIndex: Number(row.event_transaction_index),
+              value: BigInt(row.tx_body.value),
+              v: row.tx_body.v !== null ? BigInt(row.tx_body.v) : null,
+              ...(row.tx_body.type === "0x0"
+                ? {
+                    type: "legacy",
+                    gasPrice: BigInt(row.tx_body.gasPrice!),
+                  }
+                : row.tx_body.type === "0x1"
+                  ? {
+                      type: "eip2930",
+                      gasPrice: BigInt(row.tx_body.gasPrice!),
+                      accessList: JSON.parse(row.tx_body.accessList!),
+                    }
+                  : row.tx_body.type === "0x2"
+                    ? {
+                        type: "eip1559",
+                        maxFeePerGas: BigInt(row.tx_body.maxFeePerGas!),
+                        maxPriorityFeePerGas: BigInt(
+                          row.tx_body.maxPriorityFeePerGas!,
+                        ),
+                      }
+                    : row.tx_body.type === "0x7e"
+                      ? {
+                          type: "deposit",
+                          maxFeePerGas:
+                            row.tx_body.maxFeePerGas !== null
+                              ? BigInt(row.tx_body.maxFeePerGas!)
+                              : undefined,
+                          maxPriorityFeePerGas:
+                            row.tx_body.maxPriorityFeePerGas !== null
+                              ? BigInt(row.tx_body.maxPriorityFeePerGas!)
+                              : undefined,
+                        }
+                      : {
+                          type: row.tx_body.type,
+                        }),
+            }
+          : undefined,
+        trace: hasTrace
+          ? {
+              id: `${chainId}-${row.event_block_number}-${row.event_transaction_index}-${row.event_trace_index}`,
+              type: row.trace_callType as Trace["type"],
+              from: checksumAddress(row.trace_from),
+              to: checksumAddress(row.trace_to),
+              gas: BigInt(row.trace_body.gas),
+              gasUsed: BigInt(row.trace_body.gasUsed),
+              input: row.trace_body.input,
+              output: row.trace_body.output,
+              value: BigInt(row.trace_value),
+              traceIndex: Number(row.event_trace_index),
+              subcalls: Number(row.trace_body.subcalls),
+            }
+          : undefined,
+        transactionReceipt: hasTransactionReceipt
+          ? {
+              contractAddress: row.tx_receipt_body.contractAddress
+                ? checksumAddress(row.tx_receipt_body.contractAddress)
+                : null,
+              cumulativeGasUsed: BigInt(row.tx_receipt_body.cumulativeGasUsed),
+              effectiveGasPrice: BigInt(row.tx_receipt_body.effectiveGasPrice),
+              from: checksumAddress(row.tx_receipt_body.from),
+              gasUsed: BigInt(row.tx_receipt_body.gasUsed),
+              logsBloom: row.tx_receipt_body.logsBloom,
+              status:
+                row.tx_receipt_body.status === "0x1"
+                  ? "success"
+                  : row.tx_receipt_body.status === "0x0"
+                    ? "reverted"
+                    : (row.tx_receipt_body
+                        .status as TransactionReceipt["status"]),
+              to: row.tx_receipt_body.to
+                ? checksumAddress(row.tx_receipt_body.to)
+                : null,
+              type:
+                row.tx_receipt_body.type === "0x0"
+                  ? "legacy"
+                  : row.tx_receipt_body.type === "0x1"
+                    ? "eip2930"
+                    : row.tx_receipt_body.type === "0x2"
+                      ? "eip1559"
+                      : row.tx_receipt_body.type === "0x7e"
+                        ? "deposit"
+                        : row.tx_receipt_body.type,
+            }
+          : undefined,
+      } satisfies RawEvent;
+    });
+
+    let cursor: bigint;
+    if (events.length !== limit) {
+      cursor = to;
+    } else {
+      cursor = events[events.length - 1]!.block.number;
+    }
+
+    return { events, cursor };
+  },
 });
+
+const logFactorySQL = (
+  qb: SelectQueryBuilder<PonderSyncSchema, "logs", {}>,
+  factory: LogFactory,
+) =>
+  qb
+    .select(
+      (() => {
+        if (factory.childAddressLocation.startsWith("offset")) {
+          const childAddressOffset = Number(
+            factory.childAddressLocation.substring(6),
+          );
+          const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
+          const length = 20 * 2;
+          return ksql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
+        } else {
+          const start = 2 + 12 * 2 + 1;
+          const length = 20 * 2;
+          return ksql<Hex>`'0x' || substring(${ksql.ref(
+            factory.childAddressLocation,
+          )} from ${start}::integer for ${length}::integer)`;
+        }
+      })().as("childAddress"),
+    )
+    .$call((qb) => {
+      if (Array.isArray(factory.address)) {
+        return qb.where("address", "in", factory.address);
+      }
+      return qb.where("address", "=", factory.address);
+    })
+    .where("topic0", "=", factory.eventSelector)
+    .where("chain_id", "=", factory.chainId);
+
+const addressSQL = (
+  db: Kysely<PonderSyncSchema>,
+  qb: SelectQueryBuilder<PonderSyncSchema, any, {}>,
+  address: LogFilter["address"],
+  column: "address" | "from" | "to",
+) => {
+  if (typeof address === "string") return qb.where(column, "=", address);
+  if (isAddressFactory(address)) {
+    return qb.where(
+      column,
+      "in",
+      db.selectFrom("logs").$call((qb) => logFactorySQL(qb, address)),
+    );
+  }
+  if (Array.isArray(address)) return qb.where(column, "in", address);
+
+  return qb;
+};
+
+const logSQL = (
+  filter: LogFilter,
+  db: Kysely<PonderSyncSchema>,
+  index: number,
+) =>
+  db
+    .selectFrom("logs")
+    .select([
+      ksql.raw(`'${index}'`).as("filter_index"),
+      // "chainId",
+      "block_number",
+      "transaction_index",
+      "log_index",
+      ksql`null::integer`.as("trace_index"),
+    ])
+    // .where("chainId", "=", filter.chainId)
+    .$call((qb) => {
+      for (const idx of [0, 1, 2, 3] as const) {
+        // If it's an array of length 1, collapse it.
+        const raw = filter[`topic${idx}`] ?? null;
+        if (raw === null) continue;
+        const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
+        if (Array.isArray(topic)) {
+          qb = qb.where((eb) =>
+            eb.or(topic.map((t) => eb(`topic${idx}`, "=", t))),
+          );
+        } else {
+          qb = qb.where(`topic${idx}`, "=", topic);
+        }
+      }
+      return qb;
+    })
+    .$call((qb) => addressSQL(db, qb, filter.address, "address"))
+    .$if(filter.fromBlock !== undefined, (qb) =>
+      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+    )
+    .$if(filter.toBlock !== undefined, (qb) =>
+      qb.where("block_number", "<=", filter.toBlock!.toString()),
+    );
+
+const blockSQL = (
+  filter: BlockFilter,
+  db: Kysely<PonderSyncSchema>,
+  index: number,
+) =>
+  db
+    .selectFrom("blocks")
+    .select([
+      ksql.raw(`'${index}'`).as("filter_index"),
+      // "chainId",
+      "number as block_number",
+      ksql`null::integer`.as("transaction_index"),
+      ksql`null::integer`.as("log_index"),
+      ksql`null::integer`.as("trace_index"),
+    ])
+    // .where("chainId", "=", filter.chainId)
+    .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
+      qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
+    )
+    .$if(filter.fromBlock !== undefined, (qb) =>
+      qb.where("number", ">=", filter.fromBlock!.toString()),
+    )
+    .$if(filter.toBlock !== undefined, (qb) =>
+      qb.where("number", "<=", filter.toBlock!.toString()),
+    );
+
+const transactionSQL = (
+  filter: TransactionFilter,
+  db: Kysely<PonderSyncSchema>,
+  index: number,
+) =>
+  db
+    .selectFrom("transactions")
+    .select([
+      ksql.raw(`'${index}'`).as("filter_index"),
+      "block_number",
+      "transaction_index",
+      ksql`null::integer`.as("log_index"),
+      ksql`null::integer`.as("trace_index"),
+    ])
+    // .where("chainId", "=", filter.chainId)
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
+    // .$if(filter.includeReverted === false, (qb) =>
+    //   qb.where(
+    //     db
+    //       .selectFrom("transactionReceipts")
+    //       .select("status")
+    //       .where(
+    //         "transactionReceipts.transactionHash",
+    //         "=",
+    //         ksql.ref("transactions.hash"),
+    //       ),
+    //     "=",
+    //     "0x1",
+    //   ),
+    // )
+    .$if(filter.fromBlock !== undefined, (qb) =>
+      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+    )
+    .$if(filter.toBlock !== undefined, (qb) =>
+      qb.where("block_number", "<=", filter.toBlock!.toString()),
+    );
+
+const transferSQL = (
+  filter: TransferFilter,
+  db: Kysely<PonderSyncSchema>,
+  index: number,
+) =>
+  db
+    .selectFrom("traces")
+    .select([
+      ksql.raw(`'${index}'`).as("filter_index"),
+      "block_number",
+      "transaction_index",
+      ksql`null::integer`.as("log_index"),
+      "trace_index",
+    ])
+    // .where("chainId", "=", filter.chainId)
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
+    .where("value", ">", "0")
+    .$if(filter.includeReverted === false, (qb) =>
+      qb.where("is_reverted", "=", 0),
+    )
+    .$if(filter.fromBlock !== undefined, (qb) =>
+      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+    )
+    .$if(filter.toBlock !== undefined, (qb) =>
+      qb.where("block_number", "<=", filter.toBlock!.toString()),
+    );
+
+const traceSQL = (
+  filter: TraceFilter,
+  db: Kysely<PonderSyncSchema>,
+  index: number,
+) =>
+  db
+    .selectFrom("traces")
+    .select([
+      ksql.raw(`'${index}'`).as("filter_index"),
+      "block_number",
+      "transaction_index",
+      ksql`null::integer`.as("log_index"),
+      "trace_index",
+    ])
+    // .where("chainId", "=", filter.chainId)
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "to"))
+    .$if(filter.includeReverted === false, (qb) =>
+      qb.where("is_reverted", "=", 0),
+    )
+    .$if(filter.callType !== undefined, (qb) =>
+      qb.where("type", "=", filter.callType!),
+    )
+    .$if(filter.functionSelector !== undefined, (qb) => {
+      if (Array.isArray(filter.functionSelector)) {
+        return qb.where("function_selector", "in", filter.functionSelector!);
+      } else {
+        return qb.where("function_selector", "=", filter.functionSelector!);
+      }
+    })
+    .$if(filter.fromBlock !== undefined, (qb) =>
+      qb.where("block_number", ">=", filter.fromBlock!.toString()),
+    )
+    .$if(filter.toBlock !== undefined, (qb) =>
+      qb.where("block_number", "<=", filter.toBlock!.toString()),
+    );
