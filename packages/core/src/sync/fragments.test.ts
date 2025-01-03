@@ -1,14 +1,14 @@
 import { buildLogFactory } from "@/build/factory.js";
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
-import { getLogFilterFragmentIds } from "./fragments.js";
+import { getLogFilterFragments } from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
-test("getLogFilterFragmentIds generates 1 log filter fragment for null filter", () => {
-  const logFilterFragments = getLogFilterFragmentIds({
+test("getLogFilterFragments generates 1 log filter fragment for null filter", () => {
+  const logFilterFragments = getLogFilterFragments({
     type: "log",
     chainId: 1,
     address: undefined,
@@ -41,8 +41,8 @@ test("getLogFilterFragmentIds generates 1 log filter fragment for null filter", 
   `);
 });
 
-test("getLogFilterFragmentIds generates 1 log filter fragment for simple filter", () => {
-  const logFilterFragments = getLogFilterFragmentIds({
+test("getLogFilterFragments generates 1 log filter fragment for simple filter", () => {
+  const logFilterFragments = getLogFilterFragments({
     type: "log",
     chainId: 1,
     address: "0xa",
@@ -77,8 +77,8 @@ test("getLogFilterFragmentIds generates 1 log filter fragment for simple filter"
   `);
 });
 
-test("getLogFilterFragmentIds generates 4 log filter fragment for 2x2 filter", () => {
-  const logFilterFragments = getLogFilterFragmentIds({
+test("getLogFilterFragments generates 4 log filter fragment for 2x2 filter", () => {
+  const logFilterFragments = getLogFilterFragments({
     type: "log",
     chainId: 115511,
     address: ["0xa", "0xb"],
@@ -215,8 +215,8 @@ test("getLogFilterFragmentIds generates 4 log filter fragment for 2x2 filter", (
   `);
 });
 
-test("getLogFilterFragmentIds generates 12 log filter fragment for 2x2x3 filter", () => {
-  const logFilterFragments = getLogFilterFragmentIds({
+test("getLogFilterFragments generates 12 log filter fragment for 2x2x3 filter", () => {
+  const logFilterFragments = getLogFilterFragments({
     type: "log",
     chainId: 1,
     address: ["0xa", "0xb"],
@@ -230,8 +230,8 @@ test("getLogFilterFragmentIds generates 12 log filter fragment for 2x2x3 filter"
   expect(logFilterFragments.length).toBe(12);
 });
 
-test("getLogFilterFragmentIds includeTransactionReceipts", () => {
-  const logFilterFragments = getLogFilterFragmentIds({
+test("getLogFilterFragments includeTransactionReceipts", () => {
+  const logFilterFragments = getLogFilterFragments({
     type: "log",
     chainId: 1,
     address: undefined,
@@ -263,7 +263,7 @@ test("getLogFilterFragmentIds includeTransactionReceipts", () => {
   `);
 });
 
-test("getLogFilterFragmentIds builds id containing factory topic", () => {
+test("getLogFilterFragments builds id containing factory topic", () => {
   const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
@@ -271,7 +271,7 @@ test("getLogFilterFragmentIds builds id containing factory topic", () => {
     chainId: 1,
   });
 
-  const fragments = getLogFilterFragmentIds({
+  const fragments = getLogFilterFragments({
     type: "log",
     chainId: 1,
     topic0: null,
@@ -308,7 +308,7 @@ test("getLogFilterFragmentIds builds id containing factory topic", () => {
   `);
 });
 
-test("getLogFilterFragmentIds builds id containing factory offset", () => {
+test("getLogFilterFragments builds id containing factory offset", () => {
   const factory = buildLogFactory({
     address: "0xa",
     event: llamaFactoryEventAbiItem,
@@ -316,7 +316,7 @@ test("getLogFilterFragmentIds builds id containing factory offset", () => {
     chainId: 1,
   });
 
-  const fragments = getLogFilterFragmentIds({
+  const fragments = getLogFilterFragments({
     type: "log",
     chainId: 115511,
     topic0: null,
@@ -353,7 +353,7 @@ test("getLogFilterFragmentIds builds id containing factory offset", () => {
   `);
 });
 
-test("getLogFilterFragmentIds builds id with multiple factories", () => {
+test("getLogFilterFragments builds id with multiple factories", () => {
   const factory = buildLogFactory({
     address: ["0xa", "0xb"],
     event: llamaFactoryEventAbiItem,
@@ -361,7 +361,7 @@ test("getLogFilterFragmentIds builds id with multiple factories", () => {
     chainId: 1,
   });
 
-  const fragments = getLogFilterFragmentIds({
+  const fragments = getLogFilterFragments({
     type: "log",
     chainId: 1,
     topic0: null,
