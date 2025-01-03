@@ -184,6 +184,8 @@ export const getNetwork = (params?: {
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
     disableCache: false,
+    maxBlockRange: 100_000,
+    minBlockRange: 25,
   } satisfies Network;
 };
 

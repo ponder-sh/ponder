@@ -53,10 +53,10 @@ test("telemetry calls fetch with event body", async (context) => {
 
   expect(fetchSpy).toHaveBeenCalledTimes(1);
 
-  const fetchUrl = fetchSpy.mock.calls[0][0];
+  const fetchUrl = fetchSpy.mock.calls[0]?.[0];
   expect(fetchUrl).toBe(context.common.options.telemetryUrl);
 
-  const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
+  const fetchBody = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body ?? "{}");
   expect(fetchBody).toMatchObject({
     distinctId: expect.any(String),
     event: "lifecycle:heartbeat_send",

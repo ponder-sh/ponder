@@ -188,7 +188,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
   expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
     toEventSelector(event0),
   ]);
-  expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
+  expect((sources[0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() builds topics for event with unnamed parameters", async () => {
@@ -583,7 +583,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect((sources[0]!.filter as TraceFilter).fromAddress).toBeUndefined();
   expect(
     ((sources[0]!.filter as TraceFilter).toAddress as LogFactory).address,
-  ).toMatchObject(address2);
+  ).toEqual(address2);
   expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
     toFunctionSelector(func0),
   ]);
