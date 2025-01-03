@@ -262,6 +262,7 @@ type TracesTable = {
   checkpoint: string;
   type: string;
   transactionHash: Hex;
+  transactionIndex: number;
   blockHash: Hex;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
@@ -307,6 +308,7 @@ export function encodeTrace({
     }),
     type: trace.type,
     transactionHash: transaction.hash,
+    transactionIndex: hexToNumber(transaction.transactionIndex),
     blockHash: block.hash,
     blockNumber: hexToBigInt(block.number),
     from: toLowerCase(trace.from),

@@ -38,6 +38,7 @@ import {
 } from "kysely";
 import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
+import Cursor from "pg-cursor";
 import prometheus from "prom-client";
 import { HeadlessKysely } from "./kysely.js";
 
@@ -246,6 +247,7 @@ export const createDatabase = ({
           ...preBuild.databaseConfig.poolConfig,
           application_name: "ponder_sync",
           max: syncMax,
+          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
         },
         common.logger,
       ),
@@ -294,7 +296,7 @@ export const createDatabase = ({
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: common,
-        dialect: new PostgresDialect({ pool: driver.sync }),
+        dialect: new PostgresDialect({ pool: driver.sync, cursor: Cursor }),
         log(event) {
           if (event.level === "query") {
             common.metrics.ponder_postgres_query_total.inc({

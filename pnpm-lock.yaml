@@ -579,7 +579,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/b5a86914561f38735ef1fc357685de3e7c92dc48
 
   examples/with-foundry/ponder:
     dependencies:
@@ -819,6 +819,9 @@ importers:
       pg-connection-string:
         specifier: ^2.6.2
         version: 2.6.2
+      pg-cursor:
+        specifier: ^2.12.1
+        version: 2.12.1(pg@8.11.3)
       picocolors:
         specifier: ^1.0.0
         version: 1.0.0
@@ -859,6 +862,9 @@ importers:
       '@types/pg-copy-streams':
         specifier: ^1.2.5
         version: 1.2.5
+      '@types/pg-cursor':
+        specifier: ^2.7.2
+        version: 2.7.2
       '@types/react':
         specifier: ^18.2.38
         version: 18.2.46
@@ -3145,6 +3151,9 @@ packages:
   '@types/pg-copy-streams@1.2.5':
     resolution: {integrity: sha512-7D6/GYW2uHIaVU6S/5omI+6RZnwlZBpLQDZAH83xX1rjxAOK0f6/deKyyUTewxqts145VIGn6XWYz1YGf50G5g==}
 
+  '@types/pg-cursor@2.7.2':
+    resolution: {integrity: sha512-m3xT8bVFCvx98LuzbvXyuCdT/Hjdd/v8ml4jL4K1QF70Y8clOfCFdgoaEB1FWdcSwcpoFYZTJQaMD9/GQ27efQ==}
+
   '@types/pg@8.10.9':
     resolution: {integrity: sha512-UksbANNE/f8w0wOMxVKKIrLCbEMV+oM1uKejmwXr39olg4xqcfBDbXxObJAt6XxHbDa4XTKOlUEcEltXDX+XLQ==}
 
@@ -5122,9 +5131,9 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b}
-    version: 1.9.4
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/b5a86914561f38735ef1fc357685de3e7c92dc48:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/b5a86914561f38735ef1fc357685de3e7c92dc48}
+    version: 1.9.5
 
   form-data@2.3.3:
     resolution: {integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==}
@@ -7099,6 +7108,11 @@ packages:
   pg-connection-string@2.6.2:
     resolution: {integrity: sha512-ch6OwaeaPYcova4kKZ15sbJ2hKb/VP48ZD2gE7i1J+L4MspCtBMAx8nMgz7bksc7IojCIIWuEhHibSMFH8m8oA==}
 
+  pg-cursor@2.12.1:
+    resolution: {integrity: sha512-V13tEaA9Oq1w+V6Q3UBIB/blxJrwbbr35/dY54r/86soBJ7xkP236bXaORUTVXUPt9B6Ql2BQu+uwQiuMfRVgg==}
+    peerDependencies:
+      pg: ^8
+
   pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
     engines: {node: '>=4.0.0'}
@@ -7743,7 +7757,6 @@ packages:
 
   shikiji@0.6.10:
     resolution: {integrity: sha512-WE+A5Y2ntM5hL3iJQujk97qr5Uj7PSIRXpQfrZ6h+JWPXZ8KBEDhFXc4lqNriaRq1WGOVPUT83XMOzmHiH3W8A==}
-    deprecated: Shikiji is merged back to Shiki v1.0, please migrate over to get the latest updates
 
   side-channel@1.0.4:
     resolution: {integrity: sha512-q5XPytqFEIKHkGdiMIrY10mvLRvnQh42/+GoBlFW3b2LXLE2xxJpZFdm94we0BaoV3RwJyGqg5wS7epxTv0Zvw==}
@@ -11155,6 +11168,11 @@ snapshots:
       '@types/node': 20.11.24
       '@types/pg': 8.10.9
 
+  '@types/pg-cursor@2.7.2':
+    dependencies:
+      '@types/node': 20.11.24
+      '@types/pg': 8.10.9
+
   '@types/pg@8.10.9':
     dependencies:
       '@types/node': 20.11.24
@@ -13386,7 +13404,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/83c5d212a01f8950727da4095cdfe2654baccb5b: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/b5a86914561f38735ef1fc357685de3e7c92dc48: {}
 
   form-data@2.3.3:
     dependencies:
@@ -16025,6 +16043,10 @@ snapshots:
     optional: true
 
   pg-connection-string@2.6.2: {}
+
+  pg-cursor@2.12.1(pg@8.11.3):
+    dependencies:
+      pg: 8.11.3
 
   pg-int8@1.0.1: {}
 

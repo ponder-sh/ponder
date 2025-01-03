@@ -1274,6 +1274,45 @@ GROUP BY fragment_id, chain_id
         .execute();
     },
   },
+  "2025_01_02_0_join_optimizations": {
+    async up(db) {
+      await db.schema
+        .createIndex("transactions_ordering_index")
+        .on("transactions")
+        .columns(["blockNumber asc", "transactionIndex asc"])
+        .execute();
+
+      await db.schema
+        .createIndex("logs_ordering_index")
+        .on("logs")
+        .columns(["blockNumber asc", "transactionIndex asc", "logIndex asc"])
+        .execute();
+
+      // Add `transactionIndex` column to `traces`
+      await db.schema
+        .alterTable("traces")
+        .addColumn("transactionIndex", "integer")
+        .execute();
+      await db
+        .updateTable("traces")
+        .from("transactions")
+        .set((eb: any) => ({
+          transactionIndex: eb.ref("transactions.transactionIndex"),
+        }))
+        .whereRef("traces.transactionHash", "=", "transactions.hash")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("transactionIndex", (ac) => ac.setNotNull())
+        .execute();
+
+      await db.schema
+        .createIndex("traces_ordering_index")
+        .on("traces")
+        .columns(["blockNumber asc", "transactionIndex asc", "index asc"])
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
