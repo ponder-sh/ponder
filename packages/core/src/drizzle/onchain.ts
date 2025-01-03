@@ -160,6 +160,13 @@ export const onchainTable = <
   return table;
 };
 
+export const status = onchainTable("_ponder_status", (t) => ({
+  chainId: t.int8({ mode: "number" }).primaryKey(),
+  blockNumber: t.int8({ mode: "number" }),
+  blockTimestamp: t.int8({ mode: "number" }),
+  ready: t.boolean().notNull(),
+}));
+
 export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 
 export interface OnchainEnum<TValues extends [string, ...string[]]> {

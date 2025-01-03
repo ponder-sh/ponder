@@ -29,13 +29,13 @@ test("setMetadata()", async (context) => {
   });
 
   await metadataStore.setStatus({
-    mainnet: { block: { number: 10, timestamp: 10 }, ready: false },
+    [1]: { block: { number: 10, timestamp: 10 }, ready: false },
   });
 
   const status = await metadataStore.getStatus();
 
   expect(status).toStrictEqual({
-    mainnet: { block: { number: 10, timestamp: 10 }, ready: false },
+    [1]: { block: { number: 10, timestamp: 10 }, ready: false },
   });
 
   await cleanup();

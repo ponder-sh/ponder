@@ -34,7 +34,7 @@ test("metadata", async (context) => {
   const graphqlSchema = buildGraphQLSchema(schema);
 
   await metadataStore.setStatus({
-    mainnet: {
+    [1]: {
       ready: true,
       block: {
         number: 10,
@@ -55,7 +55,7 @@ test("metadata", async (context) => {
   expect(result.data).toMatchObject({
     _meta: {
       status: {
-        mainnet: {
+        1: {
           ready: true,
           block: {
             number: 10,

@@ -60,7 +60,11 @@ test(
       sender: ALICE,
     });
 
-    await waitForIndexedBlock(port, "mainnet", 3);
+    await waitForIndexedBlock({
+      port,
+      chainId: 1,
+      block: { number: 3 },
+    });
 
     let result = await client.db.select().from(schema.swapEvent);
 
@@ -80,7 +84,11 @@ test(
       sender: ALICE,
     });
 
-    await waitForIndexedBlock(port, "mainnet", 4);
+    await waitForIndexedBlock({
+      port,
+      chainId: 1,
+      block: { number: 4 },
+    });
 
     result = await client.db.select().from(schema.swapEvent);
 
