@@ -200,13 +200,9 @@ export namespace Virtual {
           config["contracts"][_contractName],
           "address"
         >;
-        startBlock: ExtractOverridenProperty<
+        blocks: ExtractOverridenProperty<
           config["contracts"][_contractName],
-          "startBlock"
-        >;
-        endBlock: ExtractOverridenProperty<
-          config["contracts"][_contractName],
-          "endBlock"
+          "blocks"
         >;
       };
     };

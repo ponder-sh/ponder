@@ -920,7 +920,7 @@ export const syncDiagnostic = async ({
   requestQueue: RequestQueue;
 }) => {
   /** Earliest `startBlock` among all `filters` */
-  const start = Math.min(...sources.map(({ filter }) => filter.fromBlock ?? 0));
+  const start = Math.min(...sources.map(({ filter }) => filter.fromBlock));
   /**
    * Latest `endBlock` among all filters. `undefined` if at least one
    * of the filters doesn't have an `endBlock`.
@@ -983,7 +983,7 @@ export const getCachedBlock = ({
 }): Promise<SyncBlock | LightBlock> | undefined => {
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
-      filter.fromBlock ?? 0,
+      filter.fromBlock,
       filter.toBlock ?? Number.POSITIVE_INFINITY,
     ] satisfies Interval;
     const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
@@ -995,7 +995,7 @@ export const getCachedBlock = ({
     if (completedIntervals.length === 0) return undefined;
 
     const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
+    if (earliestCompletedInterval[0] !== filter.fromBlock) {
       return undefined;
     }
     return earliestCompletedInterval[1];
@@ -1014,8 +1014,7 @@ export const getCachedBlock = ({
   if (
     latestCompletedBlocks.every(
       (block, i) =>
-        block !== undefined ||
-        (sources[i]!.filter.fromBlock ?? 0) > minCompletedBlock,
+        block !== undefined || sources[i]!.filter.fromBlock > minCompletedBlock,
     )
   ) {
     return _eth_getBlockByNumber(requestQueue, {
@@ -1084,7 +1083,7 @@ export async function* localHistoricalSyncGenerator({
     intervalDifference(
       [
         [
-          filter.fromBlock ?? 0,
+          filter.fromBlock,
           Math.min(
             filter.toBlock ?? Number.POSITIVE_INFINITY,
             totalInterval[1],

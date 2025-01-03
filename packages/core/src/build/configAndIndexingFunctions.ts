@@ -1,5 +1,5 @@
 import { BuildError } from "@/common/errors.js";
-import type { Config } from "@/config/config.js";
+import type { BlockRange, Config } from "@/config/config.js";
 import {
   type Network,
   getFinalityBlockCount,
@@ -62,6 +62,46 @@ const flattenSources = <
     },
   );
 };
+
+function resolveBlockRanges(blocks: BlockRange[] | undefined): BlockRange[] {
+  const blockRanges: BlockRange[] =
+    blocks === undefined || blocks.length === 0
+      ? [[0, "realtime"]]
+      : blocks.map(([rawStartBlock, rawEndBlock]) => [
+          Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
+          Number.isNaN(rawEndBlock) ? "realtime" : rawEndBlock,
+        ]);
+
+  blockRanges.sort((a, b) => a[0] - b[0]);
+
+  const resolvedBlockRanges: BlockRange[] = [];
+
+  for (const [curStartBlock, curEndBlock] of blockRanges) {
+    if (resolvedBlockRanges.length === 0) {
+      resolvedBlockRanges.push([curStartBlock, curEndBlock]);
+      continue;
+    }
+
+    const last = resolvedBlockRanges[resolvedBlockRanges.length - 1]!;
+    const [lastStartBlock, lastEndBlock] = last;
+    if (lastEndBlock === "realtime") {
+      break;
+    }
+    // Check for overlapping block ranges
+    if (curStartBlock === undefined || curStartBlock <= lastEndBlock) {
+      resolvedBlockRanges[resolvedBlockRanges.length - 1] = [
+        lastStartBlock,
+        curEndBlock === "realtime" || curEndBlock >= lastEndBlock
+          ? curEndBlock
+          : lastEndBlock,
+      ];
+    } else {
+      resolvedBlockRanges.push([curStartBlock, curEndBlock]);
+    }
+  }
+
+  return resolvedBlockRanges;
+}
 
 export async function buildConfigAndIndexingFunctions({
   config,
@@ -221,23 +261,22 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const startBlockMaybeNan = source.startBlock;
-    const startBlock = Number.isNaN(startBlockMaybeNan)
-      ? undefined
-      : startBlockMaybeNan;
-    const endBlockMaybeNan = source.endBlock;
-    const endBlock = Number.isNaN(endBlockMaybeNan)
-      ? undefined
-      : endBlockMaybeNan;
+    const blockRanges: BlockRange[] =
+      source.blocks === undefined ? [[0, "realtime"]] : source.blocks;
+    for (const [rawStartBlock, rawEndBlock] of blockRanges) {
+      const startBlock = Number.isNaN(rawStartBlock) ? 0 : rawStartBlock;
+      const endBlock = Number.isNaN(rawEndBlock) ? "realtime" : rawEndBlock;
+      if (typeof endBlock !== "string" && endBlock < startBlock) {
+        throw new Error(
+          `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
+        );
+      }
 
-    if (
-      startBlock !== undefined &&
-      endBlock !== undefined &&
-      endBlock < startBlock
-    ) {
-      throw new Error(
-        `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
-      );
+      if (typeof endBlock === "string" && endBlock !== "realtime") {
+        throw new Error(
+          `Validation failed: End block for '${source.name}' is ${endBlock}. Expected number or "realtime"`,
+        );
+      }
     }
 
     const network = networks.find((n) => n.name === source.network);
@@ -322,32 +361,25 @@ export async function buildConfigAndIndexingFunctions({
         registeredFunctionSelectors.push(abiFunction.selector);
       }
 
-      let topic0: LogTopic = registeredEventSelectors;
-      let topic1: LogTopic = null;
-      let topic2: LogTopic = null;
-      let topic3: LogTopic = null;
+      const topicsArray: {
+        topic0: LogTopic;
+        topic1: LogTopic;
+        topic2: LogTopic;
+        topic3: LogTopic;
+      }[] = [];
 
       if (source.filter !== undefined) {
-        if (
-          Array.isArray(source.filter.event) &&
-          source.filter.args !== undefined
-        ) {
-          throw new Error(
-            `Validation failed: Event filter for contract '${source.name}' cannot contain indexed argument values if multiple events are provided.`,
-          );
-        }
+        const eventFilters = Array.isArray(source.filter)
+          ? source.filter
+          : [source.filter];
 
-        const filterSafeEventNames = Array.isArray(source.filter.event)
-          ? source.filter.event
-          : [source.filter.event];
-
-        for (const filterSafeEventName of filterSafeEventNames) {
-          const abiEvent = abiEvents.bySafeName[filterSafeEventName];
+        for (const filter of eventFilters) {
+          const abiEvent = abiEvents.bySafeName[filter.event];
           if (!abiEvent) {
             throw new Error(
               `Validation failed: Invalid filter for contract '${
                 source.name
-              }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
+              }'. Got event name '${filter.event}', expected one of [${Object.keys(
                 abiEvents.bySafeName,
               )
                 .map((n) => `'${n}'`)
@@ -356,51 +388,39 @@ export async function buildConfigAndIndexingFunctions({
           }
         }
 
-        // TODO: Explicit validation of indexed argument value format (array or object).
-        // The first element of the array return from `buildTopics` being defined
-        // is an invariant of the current filter design.
-        // Note: This can throw.
+        topicsArray.push(...buildTopics(source.abi, eventFilters));
 
-        const topics = buildTopics(source.abi, source.filter);
-        const topic0FromFilter = topics.topic0;
-        topic1 = topics.topic1;
-        topic2 = topics.topic2;
-        topic3 = topics.topic3;
+        // event selectors that have a filter
+        const filteredEventSelectors: Hex[] = topicsArray.map(
+          (t) => t.topic0 as Hex,
+        );
+        // event selectors that are registered but don't have a filter
+        const excludedRegisteredEventSelectors =
+          registeredEventSelectors.filter(
+            (s) => filteredEventSelectors.includes(s) === false,
+          );
 
-        const filteredEventSelectors = Array.isArray(topic0FromFilter)
-          ? topic0FromFilter
-          : [topic0FromFilter];
+        // TODO(kyle) should we throw an error when an event selector has
+        // a filter but is not registered?
 
-        // Validate that the topic0 value defined by the `eventFilter` is a superset of the
-        // registered indexing functions. Simply put, confirm that no indexing function is
-        // defined for a log event that is excluded by the filter.
-        for (const registeredEventSelector of registeredEventSelectors) {
-          if (!filteredEventSelectors.includes(registeredEventSelector)) {
-            const logEventName =
-              abiEvents.bySelector[registeredEventSelector]!.safeName;
-
-            throw new Error(
-              `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
-                source.name
-              }'. Got '${logEventName}', expected one of [${filteredEventSelectors
-                .map((s) => abiEvents.bySelector[s]!.safeName)
-                .map((eventName) => `'${eventName}'`)
-                .join(", ")}].`,
-            );
-          }
+        if (excludedRegisteredEventSelectors.length > 0) {
+          topicsArray.push({
+            topic0: excludedRegisteredEventSelectors,
+            topic1: null,
+            topic2: null,
+            topic3: null,
+          });
         }
-
-        topic0 = registeredEventSelectors;
+      } else {
+        topicsArray.push({
+          topic0: registeredEventSelectors,
+          topic1: null,
+          topic2: null,
+          topic3: null,
+        });
       }
 
-      const startBlockMaybeNan = source.startBlock;
-      const fromBlock = Number.isNaN(startBlockMaybeNan)
-        ? undefined
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = source.endBlock;
-      const toBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
 
       const contractMetadata = {
         type: "contract",
@@ -423,52 +443,59 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        const logSource = {
-          ...contractMetadata,
-          filter: {
-            type: "log",
-            chainId: network.chainId,
-            address: logFactory,
-            topic0,
-            topic1,
-            topic2,
-            topic3,
-            fromBlock,
-            toBlock,
-            include: defaultLogFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies ContractSource;
+        const logSources = topicsArray.flatMap((topics) =>
+          resolvedBlockRanges.map(
+            ([fromBlock, toBlock]) =>
+              ({
+                ...contractMetadata,
+                filter: {
+                  type: "log",
+                  chainId: network.chainId,
+                  address: logFactory,
+                  topic0: topics.topic0,
+                  topic1: topics.topic1,
+                  topic2: topics.topic2,
+                  topic3: topics.topic3,
+                  fromBlock,
+                  toBlock: toBlock === "realtime" ? undefined : toBlock,
+                  include: defaultLogFilterInclude.concat(
+                    source.includeTransactionReceipts
+                      ? defaultTransactionReceiptInclude
+                      : [],
+                  ),
+                },
+              }) satisfies ContractSource,
+          ),
+        );
 
         if (source.includeCallTraces) {
-          return [
-            logSource,
-            {
-              ...contractMetadata,
-              filter: {
-                type: "trace",
-                chainId: network.chainId,
-                fromAddress: undefined,
-                toAddress: logFactory,
-                callType: "CALL",
-                functionSelector: registeredFunctionSelectors,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTraceFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            } satisfies ContractSource,
-          ];
+          const callTraceSources = resolvedBlockRanges.map(
+            ([fromBlock, toBlock]) =>
+              ({
+                ...contractMetadata,
+                filter: {
+                  type: "trace",
+                  chainId: network.chainId,
+                  fromAddress: undefined,
+                  toAddress: logFactory,
+                  callType: "CALL",
+                  functionSelector: registeredFunctionSelectors,
+                  includeReverted: false,
+                  fromBlock,
+                  toBlock: toBlock === "realtime" ? undefined : toBlock,
+                  include: defaultTraceFilterInclude.concat(
+                    source.includeTransactionReceipts
+                      ? defaultTransactionReceiptInclude
+                      : [],
+                  ),
+                },
+              }) satisfies ContractSource,
+          );
+
+          return [...logSources, ...callTraceSources];
         }
 
-        return [logSource];
+        return logSources;
       } else if (resolvedAddress !== undefined) {
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
@@ -493,63 +520,70 @@ export async function buildConfigAndIndexingFunctions({
           ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
-      const logSource = {
-        ...contractMetadata,
-        filter: {
-          type: "log",
-          chainId: network.chainId,
-          address: validatedAddress,
-          topic0,
-          topic1,
-          topic2,
-          topic3,
-          fromBlock,
-          toBlock,
-          include: defaultLogFilterInclude.concat(
-            source.includeTransactionReceipts
-              ? defaultTransactionReceiptInclude
-              : [],
-          ),
-        },
-      } satisfies ContractSource;
+      const logSources = topicsArray.flatMap((topics) =>
+        resolvedBlockRanges.map(
+          ([fromBlock, toBlock]) =>
+            ({
+              ...contractMetadata,
+              filter: {
+                type: "log",
+                chainId: network.chainId,
+                address: validatedAddress,
+                topic0: topics.topic0,
+                topic1: topics.topic1,
+                topic2: topics.topic2,
+                topic3: topics.topic3,
+                fromBlock,
+                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                include: defaultLogFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            }) satisfies ContractSource,
+        ),
+      );
 
       if (source.includeCallTraces) {
-        return [
-          logSource,
-          {
-            ...contractMetadata,
-            filter: {
-              type: "trace",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: Array.isArray(validatedAddress)
-                ? validatedAddress
-                : validatedAddress === undefined
-                  ? undefined
-                  : [validatedAddress],
-              callType: "CALL",
-              functionSelector: registeredFunctionSelectors,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTraceFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies ContractSource,
-        ];
-      } else return [logSource];
+        const callTraceSources = resolvedBlockRanges.map(
+          ([fromBlock, toBlock]) =>
+            ({
+              ...contractMetadata,
+              filter: {
+                type: "trace",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: Array.isArray(validatedAddress)
+                  ? validatedAddress
+                  : validatedAddress === undefined
+                    ? undefined
+                    : [validatedAddress],
+                callType: "CALL",
+                functionSelector: registeredFunctionSelectors,
+                includeReverted: false,
+                fromBlock,
+                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                include: defaultTraceFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            }) satisfies ContractSource,
+        );
+
+        return [...logSources, ...callTraceSources];
+      } else return logSources;
     }) // Remove sources with no registered indexing functions
     .filter((source) => {
-      const hasRegisteredIndexingFunctions =
+      const hasNoRegisteredIndexingFunctions =
         source.filter.type === "trace"
           ? Array.isArray(source.filter.functionSelector) &&
-            source.filter.functionSelector.length > 0
+            source.filter.functionSelector.length === 0
           : Array.isArray(source.filter.topic0) &&
-            source.filter.topic0?.length > 0;
-      if (!hasRegisteredIndexingFunctions) {
+            source.filter.topic0?.length === 0;
+      if (hasNoRegisteredIndexingFunctions) {
         logs.push({
           level: "debug",
           msg: `No indexing functions were registered for '${
@@ -557,21 +591,14 @@ export async function buildConfigAndIndexingFunctions({
           }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
         });
       }
-      return hasRegisteredIndexingFunctions;
+      return hasNoRegisteredIndexingFunctions === false;
     });
 
   const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
     .flatMap((source): AccountSource[] => {
       const network = networks.find((n) => n.name === source.network)!;
 
-      const startBlockMaybeNan = source.startBlock;
-      const fromBlock = Number.isNaN(startBlockMaybeNan)
-        ? undefined
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = source.endBlock;
-      const toBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
 
       const resolvedAddress = source?.address;
 
@@ -591,76 +618,80 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        return [
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transaction",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: logFactory,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransactionFilterInclude,
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transaction",
-              chainId: network.chainId,
-              fromAddress: logFactory,
-              toAddress: undefined,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransactionFilterInclude,
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transfer",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: logFactory,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransferFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            networkName: source.network,
-            filter: {
-              type: "transfer",
-              chainId: network.chainId,
-              fromAddress: logFactory,
-              toAddress: undefined,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransferFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies AccountSource,
-        ];
+        const accountSources = resolvedBlockRanges.flatMap(
+          ([fromBlock, toBlock]) => [
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transaction",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: logFactory,
+                includeReverted: false,
+                fromBlock,
+                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                include: defaultTransactionFilterInclude,
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transaction",
+                chainId: network.chainId,
+                fromAddress: logFactory,
+                toAddress: undefined,
+                includeReverted: false,
+                fromBlock,
+                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                include: defaultTransactionFilterInclude,
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transfer",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: logFactory,
+                includeReverted: false,
+                fromBlock,
+                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                include: defaultTransferFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              networkName: source.network,
+              filter: {
+                type: "transfer",
+                chainId: network.chainId,
+                fromAddress: logFactory,
+                toAddress: undefined,
+                includeReverted: false,
+                fromBlock,
+                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                include: defaultTransferFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            } satisfies AccountSource,
+          ],
+        );
+
+        return accountSources;
       }
 
       for (const address of Array.isArray(resolvedAddress)
@@ -685,77 +716,81 @@ export async function buildConfigAndIndexingFunctions({
           ? (toLowerCase(resolvedAddress) as Address)
           : undefined;
 
-      return [
-        {
-          type: "account",
-          name: source.name,
+      const accountSources = resolvedBlockRanges.flatMap(
+        ([fromBlock, toBlock]) => [
+          {
+            type: "account",
+            name: source.name,
 
-          networkName: source.network,
-          filter: {
-            type: "transaction",
-            chainId: network.chainId,
-            fromAddress: undefined,
-            toAddress: validatedAddress,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransactionFilterInclude,
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          networkName: source.network,
-          filter: {
-            type: "transaction",
-            chainId: network.chainId,
-            fromAddress: validatedAddress,
-            toAddress: undefined,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransactionFilterInclude,
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          networkName: source.network,
-          filter: {
-            type: "transfer",
-            chainId: network.chainId,
-            fromAddress: undefined,
-            toAddress: validatedAddress,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransferFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          networkName: source.network,
-          filter: {
-            type: "transfer",
-            chainId: network.chainId,
-            fromAddress: validatedAddress,
-            toAddress: undefined,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransferFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies AccountSource,
-      ];
+            networkName: source.network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: validatedAddress,
+              includeReverted: false,
+              fromBlock,
+              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: validatedAddress,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: validatedAddress,
+              includeReverted: false,
+              fromBlock,
+              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: validatedAddress,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+        ],
+      );
+
+      return accountSources;
     })
     .filter((source) => {
       const eventName =
@@ -779,7 +814,7 @@ export async function buildConfigAndIndexingFunctions({
     });
 
   const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
-    .map((source) => {
+    .flatMap((source) => {
       const network = networks.find((n) => n.name === source.network)!;
 
       const intervalMaybeNan = source.interval ?? 1;
@@ -791,29 +826,25 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const startBlockMaybeNan = source.startBlock;
-      const fromBlock = Number.isNaN(startBlockMaybeNan)
-        ? undefined
-        : startBlockMaybeNan;
-      const endBlockMaybeNan = source.endBlock;
-      const toBlock = Number.isNaN(endBlockMaybeNan)
-        ? undefined
-        : endBlockMaybeNan;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
 
-      return {
-        type: "block",
-        name: source.name,
-        networkName: source.network,
-        filter: {
-          type: "block",
-          chainId: network.chainId,
-          interval: interval,
-          offset: (fromBlock ?? 0) % interval,
-          fromBlock,
-          toBlock,
-          include: defaultBlockFilterInclude,
-        },
-      } satisfies BlockSource;
+      return resolvedBlockRanges.map(
+        ([fromBlock, toBlock]) =>
+          ({
+            type: "block",
+            name: source.name,
+            networkName: source.network,
+            filter: {
+              type: "block",
+              chainId: network.chainId,
+              interval: interval,
+              offset: fromBlock % interval,
+              fromBlock,
+              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              include: defaultBlockFilterInclude,
+            },
+          }) satisfies BlockSource,
+      );
     })
     .filter((blockSource) => {
       const hasRegisteredIndexingFunction =
