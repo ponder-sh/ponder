@@ -316,8 +316,10 @@ export function encodeTrace({
     input: trace.input,
     functionSelector: trace.input.slice(0, 10) as Hex,
     output: trace.output ?? null,
-    revertReason: trace.revertReason ?? null,
-    error: trace.error ?? null,
+    revertReason: trace.revertReason
+      ? trace.revertReason.replace(/\0/g, "")
+      : null,
+    error: trace.error ? trace.error.replace(/\0/g, "") : null,
     value: trace.value ? hexToBigInt(trace.value) : null,
     index: trace.index,
     subcalls: trace.subcalls,
