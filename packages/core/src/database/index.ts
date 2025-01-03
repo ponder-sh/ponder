@@ -1213,11 +1213,6 @@ $$ LANGUAGE plpgsql
     async kill() {
       isKilled = true;
 
-      await qb.internal.destroy();
-      await qb.user.destroy();
-      await qb.readonly.destroy();
-      await qb.sync.destroy();
-
       if (dialect === "pglite") {
         const d = driver as PGliteDriver;
         await d.instance.close();
@@ -1228,11 +1223,10 @@ $$ LANGUAGE plpgsql
       }
 
       if (dialect === "postgres") {
-        const d = driver as PostgresDriver;
-        await d.internal.end();
-        await d.user.end();
-        await d.readonly.end();
-        await d.sync.end();
+        await qb.internal.destroy();
+        await qb.user.destroy();
+        await qb.readonly.destroy();
+        await qb.sync.destroy();
       }
 
       common.logger.debug({
