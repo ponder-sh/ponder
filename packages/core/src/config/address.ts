@@ -1,4 +1,19 @@
-import type { AbiEvent } from "viem";
+import type { AbiEvent, AbiParameter } from "viem";
+
+// Add a type helper to handle nested parameters
+type NestedParameter<T extends AbiParameter> = T extends {
+  components: readonly AbiParameter[];
+}
+  ? `${Exclude<T["name"], undefined>}.${NestedParameterNames<T["components"]>}`
+  : Exclude<T["name"], undefined>;
+
+type NestedParameterNames<T extends readonly AbiParameter[]> =
+  T extends readonly [
+    infer First extends AbiParameter,
+    ...infer Rest extends AbiParameter[],
+  ]
+    ? NestedParameter<First> | NestedParameterNames<Rest>
+    : never;
 
 export type Factory<event extends AbiEvent = AbiEvent> = {
   /** Address of the factory contract that creates this contract. */
@@ -6,7 +21,7 @@ export type Factory<event extends AbiEvent = AbiEvent> = {
   /** ABI event that announces the creation of a new instance of this contract. */
   event: event;
   /** Name of the factory event parameter that contains the new child contract address. */
-  parameter: Exclude<event["inputs"][number]["name"], undefined>;
+  parameter: NestedParameterNames<event["inputs"]>;
 };
 
 export const factory = <event extends AbiEvent>(factory: Factory<event>) =>
