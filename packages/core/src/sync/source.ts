@@ -40,7 +40,16 @@ export type Filter =
   | TransferFilter
   | TransactionFilter
   | TraceFilter;
+export type FilterWithoutBlocks =
+  | Omit<BlockFilter, "fromBlock" | "toBlock">
+  | Omit<TransactionFilter, "fromBlock" | "toBlock">
+  | Omit<TraceFilter, "fromBlock" | "toBlock">
+  | Omit<LogFilter, "fromBlock" | "toBlock">
+  | Omit<TransferFilter, "fromBlock" | "toBlock">;
 export type Factory = LogFactory;
+export type FilterAddress<
+  factory extends Factory | undefined = Factory | undefined,
+> = factory extends Factory ? factory : Address | Address[] | undefined;
 
 export type ContractMetadata = {
   type: "contract";
@@ -66,11 +75,11 @@ export type LogFilter<
 > = {
   type: "log";
   chainId: number;
-  address: factory extends Factory ? factory : Address | Address[] | undefined;
-  topic0: LogTopic | undefined;
-  topic1: LogTopic | undefined;
-  topic2: LogTopic | undefined;
-  topic3: LogTopic | undefined;
+  address: FilterAddress<factory>;
+  topic0: LogTopic;
+  topic1: LogTopic;
+  topic2: LogTopic;
+  topic3: LogTopic;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   include:
@@ -99,12 +108,8 @@ export type TransferFilter<
 > = {
   type: "transfer";
   chainId: number;
-  fromAddress: fromFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
-  toAddress: toFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
@@ -124,12 +129,8 @@ export type TransactionFilter<
 > = {
   type: "transaction";
   chainId: number;
-  fromAddress: fromFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
-  toAddress: toFactory extends Factory
-    ? toFactory
-    : Address | Address[] | undefined;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
@@ -148,12 +149,8 @@ export type TraceFilter<
 > = {
   type: "trace";
   chainId: number;
-  fromAddress: fromFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
-  toAddress: toFactory extends Factory
-    ? toFactory
-    : Address | Address[] | undefined;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
   functionSelector: Hex | Hex[] | undefined;
   callType: Trace["result"]["type"] | undefined;
   includeReverted: boolean;

@@ -166,6 +166,19 @@ export function intervalDifference(
   return result;
 }
 
+/**
+ * Return an interval that encompasses all the intervals in the list.
+ *
+ * @param intervals List of numeric intervals to find the bounds of.
+ * @returns Bounds of the intervals.
+ */
+export function intervalBounds(intervals: Interval[]): Interval {
+  const start = Math.min(...intervals.map((interval) => interval[0]));
+  const end = Math.max(...intervals.map((interval) => interval[1]));
+
+  return [start, end];
+}
+
 export function sortIntervals(intervals: Interval[]) {
   return intervals.sort((a, b) => (a[0] < b[0] ? -1 : 1));
 }
