@@ -83,15 +83,15 @@ export const getFragments = (
 ): FragmentReturnType => {
   switch (filter.type) {
     case "block":
-      return getBlockFilterFragmentId(filter as BlockFilter);
+      return getBlockFilterFragment(filter as BlockFilter);
     case "transaction":
-      return getTransactionFilterFragmentIds(filter as TransactionFilter);
+      return getTransactionFilterFragments(filter as TransactionFilter);
     case "trace":
-      return getTraceFilterFragmentIds(filter as TraceFilter);
+      return getTraceFilterFragments(filter as TraceFilter);
     case "log":
-      return getLogFilterFragmentIds(filter as LogFilter);
+      return getLogFilterFragments(filter as LogFilter);
     case "transfer":
-      return getTransferFilterFragmentIds(filter as TransferFilter);
+      return getTransferFilterFragments(filter as TransferFilter);
   }
 };
 
@@ -141,7 +141,7 @@ const getAddressFragments = (
   return fragments;
 };
 
-export const getBlockFilterFragmentId = ({
+export const getBlockFilterFragment = ({
   chainId,
   interval,
   offset,
@@ -159,7 +159,7 @@ export const getBlockFilterFragmentId = ({
   ];
 };
 
-export const getTransactionFilterFragmentIds = ({
+export const getTransactionFilterFragments = ({
   chainId,
   fromAddress,
   toAddress,
@@ -196,7 +196,7 @@ export const getTransactionFilterFragmentIds = ({
   return fragments;
 };
 
-export const getTraceFilterFragmentIds = ({
+export const getTraceFilterFragments = ({
   chainId,
   fromAddress,
   toAddress,
@@ -251,7 +251,7 @@ export const getTraceFilterFragmentIds = ({
   return fragments;
 };
 
-export const getLogFilterFragmentIds = ({
+export const getLogFilterFragments = ({
   chainId,
   address,
   topic0,
@@ -322,7 +322,7 @@ export const getLogFilterFragmentIds = ({
   return fragments;
 };
 
-export const getTransferFilterFragmentIds = ({
+export const getTransferFilterFragments = ({
   chainId,
   fromAddress,
   toAddress,

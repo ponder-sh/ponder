@@ -46,7 +46,7 @@ import {
 } from "viem";
 
 export type HistoricalSync = {
-  intervalsCache: Map<Filter, [Fragment, Interval[]][]>;
+  intervalsCache: Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>;
   /**
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
@@ -102,7 +102,10 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  let intervalsCache: Map<Filter, [Fragment, Interval[]][]>;
+  let intervalsCache: Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >;
   if (args.network.disableCache) {
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
@@ -619,10 +622,13 @@ export const createHistoricalSync = async (
         const completedIntervals = intervalsCache.get(filter)!;
         const requiredIntervals: [Fragment, Interval[]][] = [];
 
-        for (const [fragment, fragmentInterval] of completedIntervals) {
+        for (const {
+          fragment,
+          intervals: fragmentIntervals,
+        } of completedIntervals) {
           const requiredFragmentIntervals = intervalDifference(
             [interval],
-            fragmentInterval,
+            fragmentIntervals,
           );
 
           if (requiredFragmentIntervals.length > 0) {

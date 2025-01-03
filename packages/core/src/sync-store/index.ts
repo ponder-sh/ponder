@@ -60,7 +60,7 @@ export type SyncStore = {
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
-  }): Promise<Map<Filter, [Fragment, Interval[]][]>>;
+  }): Promise<Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>>;
   getChildAddresses(args: {
     filter: Factory;
     limit?: number;
@@ -248,7 +248,10 @@ export const createSyncStore = ({
 
       const rows = await query!.execute();
 
-      const result: Map<Filter, [Fragment, Interval[]][]> = new Map();
+      const result = new Map<
+        Filter,
+        { fragment: Fragment; intervals: Interval[] }[]
+      >();
 
       // NOTE: `interval[1]` must be rounded down in order to offset the previous
       // rounding.
@@ -271,7 +274,7 @@ export const createSyncStore = ({
               ).map((interval) => [interval[0], interval[1] - 1] as Interval),
             )[0]!;
 
-          result.get(filter)!.push([fragment.fragment, intervals]);
+          result.get(filter)!.push({ fragment: fragment.fragment, intervals });
         }
       }
 

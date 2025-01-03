@@ -100,15 +100,15 @@ test("getIntervals() empty", async (context) => {
         "toBlock": undefined,
         "type": "block",
       } => [
-        [
-          {
+        {
+          "fragment": {
             "chainId": 1,
             "interval": 1,
             "offset": 0,
             "type": "block",
           },
-          [],
-        ],
+          "intervals": [],
+        },
       ],
     }
   `);
@@ -154,20 +154,20 @@ test("getIntervals() returns intervals", async (context) => {
         "toBlock": undefined,
         "type": "block",
       } => [
-        [
-          {
+        {
+          "fragment": {
             "chainId": 1,
             "interval": 1,
             "offset": 0,
             "type": "block",
           },
-          [
+          "intervals": [
             [
               0,
               4,
             ],
           ],
-        ],
+        },
       ],
     }
   `);
@@ -222,20 +222,20 @@ test("getIntervals() merges intervals", async (context) => {
         "toBlock": undefined,
         "type": "block",
       } => [
-        [
-          {
+        {
+          "fragment": {
             "chainId": 1,
             "interval": 1,
             "offset": 0,
             "type": "block",
           },
-          [
+          "intervals": [
             [
               0,
               8,
             ],
           ],
-        ],
+        },
       ],
     }
   `);
@@ -299,8 +299,8 @@ test("getIntervals() adjacent intervals", async (context) => {
         "topic3": null,
         "type": "log",
       } => [
-        [
-          {
+        {
+          "fragment": {
             "address": "0x0000000000000000000000000000000000000000",
             "chainId": 1,
             "includeTransactionReceipts": false,
@@ -310,13 +310,13 @@ test("getIntervals() adjacent intervals", async (context) => {
             "topic3": null,
             "type": "log",
           },
-          [
+          "intervals": [
             [
               0,
               8,
             ],
           ],
-        ],
+        },
       ],
     }
   `);
@@ -376,20 +376,20 @@ test("insertIntervals() merges duplicates", async (context) => {
         "toBlock": undefined,
         "type": "block",
       } => [
-        [
-          {
+        {
+          "fragment": {
             "chainId": 1,
             "interval": 1,
             "offset": 0,
             "type": "block",
           },
-          [
+          "intervals": [
             [
               0,
               8,
             ],
           ],
-        ],
+        },
       ],
     }
   `);
@@ -444,8 +444,8 @@ test("insertIntervals() preserves fragments", async (context) => {
         "topic3": null,
         "type": "log",
       } => [
-        [
-          {
+        {
+          "fragment": {
             "address": "0x0000000000000000000000000000000000000000",
             "chainId": 1,
             "includeTransactionReceipts": false,
@@ -455,15 +455,15 @@ test("insertIntervals() preserves fragments", async (context) => {
             "topic3": null,
             "type": "log",
           },
-          [
+          "intervals": [
             [
               0,
               4,
             ],
           ],
-        ],
-        [
-          {
+        },
+        {
+          "fragment": {
             "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             "chainId": 1,
             "includeTransactionReceipts": false,
@@ -473,13 +473,13 @@ test("insertIntervals() preserves fragments", async (context) => {
             "topic3": null,
             "type": "log",
           },
-          [
+          "intervals": [
             [
               0,
               4,
             ],
           ],
-        ],
+        },
       ],
     }
   `);

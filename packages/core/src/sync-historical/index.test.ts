@@ -25,7 +25,12 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { encodeFunctionData, encodeFunctionResult, toHex } from "viem";
+import {
+  encodeFunctionData,
+  encodeFunctionResult,
+  toHex,
+  zeroAddress,
+} from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
@@ -623,7 +628,7 @@ test("sync() with cache", async (context) => {
   await cleanup();
 });
 
-test.todo("sync() with partial cache", async (context) => {
+test("sync() with partial cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -663,6 +668,9 @@ test.todo("sync() with partial cache", async (context) => {
 
   const spy = vi.spyOn(requestQueue, "request");
 
+  // @ts-ignore
+  sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
+
   historicalSync = await createHistoricalSync({
     common: context.common,
     network,
@@ -673,7 +681,23 @@ test.todo("sync() with partial cache", async (context) => {
   });
 
   await historicalSync.sync([1, 2]);
-  expect(spy).toHaveBeenCalledTimes(0);
+  expect(spy).toHaveBeenCalledTimes(2);
+
+  expect(spy).toHaveBeenCalledWith({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: [zeroAddress],
+        fromBlock: "0x1",
+        toBlock: "0x2",
+        topics: [
+          [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        ],
+      },
+    ],
+  });
 
   await cleanup();
 });

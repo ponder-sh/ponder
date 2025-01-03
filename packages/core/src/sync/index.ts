@@ -983,7 +983,7 @@ export const getCachedBlock = ({
       intervalIntersection(
         [requiredInterval],
         intervalIntersectionMany(
-          fragmentIntervals.map(([_, interval]) => interval),
+          fragmentIntervals.map(({ intervals }) => intervals),
         ),
       ),
     );
@@ -1088,7 +1088,7 @@ export async function* localHistoricalSyncGenerator({
         ],
       ],
       intervalIntersectionMany(
-        fragmentIntervals.map(([_, interval]) => interval),
+        fragmentIntervals.map(({ intervals }) => intervals),
       ),
     ),
   );
