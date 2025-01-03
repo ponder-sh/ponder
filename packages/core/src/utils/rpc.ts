@@ -147,6 +147,20 @@ export const _eth_getTransactionReceipt = (
     });
 
 /**
+ * Helper function for "eth_getBlockReceipts" request.
+ */
+export const _eth_getBlockReceipts = (
+  requestQueue: RequestQueue,
+  { blockHash }: { blockHash: Hash },
+): Promise<SyncTransactionReceipt[]> =>
+  requestQueue
+    .request({
+      method: "eth_getBlockReceipts",
+      params: [blockHash],
+    } as any)
+    .then((receipts) => receipts as unknown as SyncTransactionReceipt[]);
+
+/**
  * Helper function for "debug_traceBlockByNumber" request.
  */
 export const _debug_traceBlockByNumber = (
