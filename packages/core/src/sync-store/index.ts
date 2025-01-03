@@ -571,6 +571,10 @@ export const createSyncStore = ({
       filterQuery = filterQuery.with(`filter_${i}`, (db) => filterCte(db, i));
     }
 
+    const shouldJoinReceipts = filters.some((filter) =>
+      shouldGetTransactionReceipt(filter),
+    );
+
     const query = filterQuery
       .with("event", (db) => {
         let subquery = db.selectFrom("filter_0").selectAll();
@@ -583,6 +587,64 @@ export const createSyncStore = ({
       })
       .selectFrom("event")
       .selectAll()
+      // Join blocks and transactions
+      // Blocks
+      .$call((qb) =>
+        qb
+          .leftJoin("blocks", (join) =>
+            join.onRef("event.block_number", "=", "blocks.number"),
+          )
+          .select([
+            "blocks.number as block_number",
+            "blocks.hash as block_hash",
+            "blocks.parentHash as block_parentHash",
+            "blocks.timestamp as block_timestamp",
+            // "blocks.body as block_body",
+          ]),
+      )
+      // Transactions
+      .$call((qb) =>
+        qb
+          .leftJoin("transactions", (join) =>
+            join
+              .onRef("event.block_number", "=", "transactions.blockNumber")
+              .onRef("event.tx_index", "=", "transactions.transactionIndex"),
+          )
+          .select([
+            "transactions.transactionIndex as tx_index",
+            "transactions.hash as tx_hash",
+            "transactions.from as tx_from",
+            "transactions.to as tx_to",
+            // "transactions.body as tx_body",
+          ]),
+      )
+      // Transaction receipts
+      .$if(shouldJoinReceipts, (qb) =>
+        qb
+          .leftJoin("transactionReceipts", (join) =>
+            join
+              .onRef(
+                "event.block_number",
+                "=",
+                "transactionReceipts.blockNumber",
+              )
+              .onRef(
+                "event.tx_index",
+                "=",
+                "transactionReceipts.transactionIndex",
+              ),
+          )
+          .select([
+            "transactionReceipts.status as tx_receipt_status",
+            // "transactionReceipts.body as tx_receipt_body",
+          ]),
+      )
+      .$if(!shouldJoinReceipts, (qb) =>
+        qb.select([
+          ksql`null::text`.as("tx_receipt_status"),
+          // ksql`null::jsonb`.as("tx_receipt_body"),
+        ]),
+      )
       .where("event.checkpoint", ">", from)
       .where("event.checkpoint", "<=", to)
       .orderBy("event.checkpoint", "asc");
@@ -655,6 +717,10 @@ export const createSyncStore = ({
       filterQuery = filterQuery.with(`filter_${i}`, (db) => filterCte(db, i));
     }
 
+    const shouldJoinReceipts = filters.some((filter) =>
+      shouldGetTransactionReceipt(filter),
+    );
+
     const query = filterQuery
       .with("event", (db) => {
         let subquery = db.selectFrom("filter_0").selectAll();
@@ -667,10 +733,68 @@ export const createSyncStore = ({
       })
       .selectFrom("event")
       .selectAll()
+      // Join blocks and transactions
+      // Blocks
+      .$call((qb) =>
+        qb
+          .leftJoin("blocks", (join) =>
+            join.onRef("event.block_number", "=", "blocks.number"),
+          )
+          .select([
+            "blocks.number as block_number",
+            "blocks.hash as block_hash",
+            "blocks.parentHash as block_parentHash",
+            "blocks.timestamp as block_timestamp",
+            // "blocks.body as block_body",
+          ]),
+      )
+      // Transactions
+      .$call((qb) =>
+        qb
+          .leftJoin("transactions", (join) =>
+            join
+              .onRef("event.block_number", "=", "transactions.blockNumber")
+              .onRef("event.tx_index", "=", "transactions.transactionIndex"),
+          )
+          .select([
+            "transactions.transactionIndex as tx_index",
+            "transactions.hash as tx_hash",
+            "transactions.from as tx_from",
+            "transactions.to as tx_to",
+            // "transactions.body as tx_body",
+          ]),
+      )
+      // Transaction receipts
+      .$if(shouldJoinReceipts, (qb) =>
+        qb
+          .leftJoin("transactionReceipts", (join) =>
+            join
+              .onRef(
+                "event.block_number",
+                "=",
+                "transactionReceipts.blockNumber",
+              )
+              .onRef(
+                "event.tx_index",
+                "=",
+                "transactionReceipts.transactionIndex",
+              ),
+          )
+          .select([
+            "transactionReceipts.status as tx_receipt_status",
+            // "transactionReceipts.body as tx_receipt_body",
+          ]),
+      )
+      .$if(!shouldJoinReceipts, (qb) =>
+        qb.select([
+          ksql`null::text`.as("tx_receipt_status"),
+          // ksql`null::jsonb`.as("tx_receipt_body"),
+        ]),
+      )
       .where("event.checkpoint", ">", from)
       .where("event.checkpoint", "<=", to)
       .orderBy("event.checkpoint", "asc")
-      .orderBy("event.filter_index", "asc")
+      // .orderBy("event.filter_index", "asc")
       // .orderBy("event.block_number", "asc")
       // .orderBy("event.tx_index", "asc")
       // .orderBy("event.trace_index", "asc")
@@ -945,64 +1069,67 @@ const logSQL = (
       ksql`${index.toString()}::integer`.$castTo<number>().as("filter_index"),
       "logs.checkpoint as checkpoint",
       "logs.chainId as chain_id",
+
+      "logs.blockNumber as block_number",
+      "logs.transactionIndex as tx_index",
     ])
-    // Blocks
-    .$call((qb) =>
-      qb
-        .leftJoin("blocks", (join) =>
-          join.onRef("logs.blockNumber", "=", "blocks.number"),
-        )
-        .select([
-          "blocks.number as block_number",
-          "blocks.hash as block_hash",
-          "blocks.parentHash as block_parentHash",
-          "blocks.timestamp as block_timestamp",
-          // "blocks.body as block_body",
-        ]),
-    )
-    // Transactions
-    .$call((qb) =>
-      qb
-        .leftJoin("transactions", (join) =>
-          join
-            .onRef("logs.blockNumber", "=", "transactions.blockNumber")
-            .onRef(
-              "logs.transactionIndex",
-              "=",
-              "transactions.transactionIndex",
-            ),
-        )
-        .select([
-          "transactions.transactionIndex as tx_index",
-          "transactions.hash as tx_hash",
-          "transactions.from as tx_from",
-          "transactions.to as tx_to",
-          // "transactions.body as tx_body",
-        ]),
-    )
-    // Transaction receipts
-    .$if(shouldGetTransactionReceipt(filter), (qb) =>
-      qb
-        .leftJoin("transactionReceipts", (join) =>
-          join
-            .onRef("logs.blockNumber", "=", "transactionReceipts.blockNumber")
-            .onRef(
-              "logs.transactionIndex",
-              "=",
-              "transactionReceipts.transactionIndex",
-            ),
-        )
-        .select([
-          "transactionReceipts.status as tx_receipt_status",
-          // "transactionReceipts.body as tx_receipt_body",
-        ]),
-    )
-    .$if(!shouldGetTransactionReceipt(filter), (qb) =>
-      qb.select([
-        ksql`null::text`.as("tx_receipt_status"),
-        // ksql`null::jsonb`.as("tx_receipt_body"),
-      ]),
-    )
+    // // Blocks
+    // .$call((qb) =>
+    //   qb
+    //     .leftJoin("blocks", (join) =>
+    //       join.onRef("logs.blockNumber", "=", "blocks.number"),
+    //     )
+    //     .select([
+    //       "blocks.number as block_number",
+    //       "blocks.hash as block_hash",
+    //       "blocks.parentHash as block_parentHash",
+    //       "blocks.timestamp as block_timestamp",
+    //       // "blocks.body as block_body",
+    //     ]),
+    // )
+    // // Transactions
+    // .$call((qb) =>
+    //   qb
+    //     .leftJoin("transactions", (join) =>
+    //       join
+    //         .onRef("logs.blockNumber", "=", "transactions.blockNumber")
+    //         .onRef(
+    //           "logs.transactionIndex",
+    //           "=",
+    //           "transactions.transactionIndex",
+    //         ),
+    //     )
+    //     .select([
+    //       "transactions.transactionIndex as tx_index",
+    //       "transactions.hash as tx_hash",
+    //       "transactions.from as tx_from",
+    //       "transactions.to as tx_to",
+    //       // "transactions.body as tx_body",
+    //     ]),
+    // )
+    // // Transaction receipts
+    // .$if(shouldGetTransactionReceipt(filter), (qb) =>
+    //   qb
+    //     .leftJoin("transactionReceipts", (join) =>
+    //       join
+    //         .onRef("logs.blockNumber", "=", "transactionReceipts.blockNumber")
+    //         .onRef(
+    //           "logs.transactionIndex",
+    //           "=",
+    //           "transactionReceipts.transactionIndex",
+    //         ),
+    //     )
+    //     .select([
+    //       "transactionReceipts.status as tx_receipt_status",
+    //       // "transactionReceipts.body as tx_receipt_body",
+    //     ]),
+    // )
+    // .$if(!shouldGetTransactionReceipt(filter), (qb) =>
+    //   qb.select([
+    //     ksql`null::text`.as("tx_receipt_status"),
+    //     // ksql`null::jsonb`.as("tx_receipt_body"),
+    //   ]),
+    // )
     // Logs
     .$call((qb) =>
       qb.select([

@@ -475,90 +475,90 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           getOmnichainCheckpoint("current"),
         );
 
-        const stream = args.syncStore.getEventsStream({
-          filters: args.sources.map(({ filter }) => filter),
-          from,
-          to,
-        });
+        // const stream = args.syncStore.getEventsStream({
+        //   filters: args.sources.map(({ filter }) => filter),
+        //   from,
+        //   to,
+        // });
 
-        for await (const { events, cursor } of stream) {
-          args.common.logger.debug({
-            service: "sync",
-            msg: `Fetched ${events.length} events from the database`,
-          });
-
-          for (const network of args.networks) {
-            updateHistoricalStatus({ events, checkpoint: cursor, network });
-          }
-
-          yield { events, checkpoint: cursor };
-        }
-
-        // /*
-        //  * Extract events with `syncStore.getEvents()`, paginating to
-        //  * avoid loading too many events into memory.
-        //  */
-        // while (true) {
-        //   if (isKilled) return;
-        //   if (from >= to) break;
-        //   const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
-        //   let consecutiveErrors = 0;
-
-        //   // convert `estimateSeconds` to checkpoint
-        //   const estimatedTo = encodeCheckpoint({
-        //     ...zeroCheckpoint,
-        //     blockTimestamp: Math.min(
-        //       decodeCheckpoint(from).blockTimestamp + estimateSeconds,
-        //       maxCheckpoint.blockTimestamp,
-        //     ),
+        // for await (const { events, cursor } of stream) {
+        //   args.common.logger.debug({
+        //     service: "sync",
+        //     msg: `Fetched ${events.length} events from the database`,
         //   });
 
-        //   try {
-        //     const { events, cursor } = await args.syncStore.getEvents({
-        //       filters: args.sources.map(({ filter }) => filter),
-        //       from,
-        //       to: to < estimatedTo ? to : estimatedTo,
-        //       limit: getEventsMaxBatchSize,
-        //     });
-        //     consecutiveErrors = 0;
-
-        //     args.common.logger.debug({
-        //       service: "sync",
-        //       msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from ${decodeCheckpoint(from).blockTimestamp}`,
-        //     });
-
-        //     for (const network of args.networks) {
-        //       updateHistoricalStatus({ events, checkpoint: cursor, network });
-        //     }
-
-        //     estimateSeconds = estimate({
-        //       from: decodeCheckpoint(from).blockTimestamp,
-        //       to: decodeCheckpoint(cursor).blockTimestamp,
-        //       target: getEventsMaxBatchSize,
-        //       result: events.length,
-        //       min: 10,
-        //       max: 86_400,
-        //       prev: estimateSeconds,
-        //       maxIncrease: 1.08,
-        //     });
-
-        //     yield { events, checkpoint: to };
-        //     from = cursor;
-        //   } catch (e) {
-        //     const error = e as Error;
-
-        //     // Handle errors by reducing the requested range by 10x
-        //     estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
-
-        //     args.common.logger.warn({
-        //       service: "sync",
-        //       msg: `Failed to fetch events from the database, retrying with a ${formatEta(estimateSeconds * 1000)} range`,
-        //       error,
-        //     });
-
-        //     if (++consecutiveErrors > 4) throw error;
+        //   for (const network of args.networks) {
+        //     updateHistoricalStatus({ events, checkpoint: cursor, network });
         //   }
+
+        //   yield { events, checkpoint: cursor };
         // }
+
+        /*
+         * Extract events with `syncStore.getEvents()`, paginating to
+         * avoid loading too many events into memory.
+         */
+        while (true) {
+          if (isKilled) return;
+          if (from >= to) break;
+          const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
+          let consecutiveErrors = 0;
+
+          // convert `estimateSeconds` to checkpoint
+          const estimatedTo = encodeCheckpoint({
+            ...zeroCheckpoint,
+            blockTimestamp: Math.min(
+              decodeCheckpoint(from).blockTimestamp + estimateSeconds,
+              maxCheckpoint.blockTimestamp,
+            ),
+          });
+
+          try {
+            const { events, cursor } = await args.syncStore.getEvents({
+              filters: args.sources.map(({ filter }) => filter),
+              from,
+              to: to < estimatedTo ? to : estimatedTo,
+              limit: getEventsMaxBatchSize,
+            });
+            consecutiveErrors = 0;
+
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from ${decodeCheckpoint(from).blockTimestamp}`,
+            });
+
+            for (const network of args.networks) {
+              updateHistoricalStatus({ events, checkpoint: cursor, network });
+            }
+
+            estimateSeconds = estimate({
+              from: decodeCheckpoint(from).blockTimestamp,
+              to: decodeCheckpoint(cursor).blockTimestamp,
+              target: getEventsMaxBatchSize,
+              result: events.length,
+              min: 10,
+              max: 86_400,
+              prev: estimateSeconds,
+              maxIncrease: 1.08,
+            });
+
+            yield { events, checkpoint: to };
+            from = cursor;
+          } catch (e) {
+            const error = e as Error;
+
+            // Handle errors by reducing the requested range by 10x
+            estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+
+            args.common.logger.warn({
+              service: "sync",
+              msg: `Failed to fetch events from the database, retrying with a ${formatEta(estimateSeconds * 1000)} range`,
+              error,
+            });
+
+            if (++consecutiveErrors > 4) throw error;
+          }
+        }
       }
 
       /** `true` if all networks have synced all known finalized blocks.  */
