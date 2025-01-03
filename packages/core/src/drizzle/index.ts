@@ -1,26 +1,7 @@
+import type { Schema } from "@/internal/types.js";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { type PgColumn, PgTable, getTableConfig } from "drizzle-orm/pg-core";
-import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { getColumnCasing, sqlToReorgTableName } from "./kit/index.js";
-
-export type Drizzle<TSchema extends Schema = { [name: string]: never }> =
-  | NodePgDatabase<TSchema>
-  | PgliteDatabase<TSchema>;
-
-export type ReadonlyDrizzle<
-  TSchema extends Schema = { [name: string]: never },
-> = Omit<
-  Drizzle<TSchema>,
-  | "insert"
-  | "update"
-  | "delete"
-  | "transaction"
-  | "refreshMaterializedView"
-  | "_"
->;
-
-export type Schema = { [name: string]: unknown };
 
 export const getTableNames = (schema: Schema) => {
   const tableNames = Object.entries(schema)

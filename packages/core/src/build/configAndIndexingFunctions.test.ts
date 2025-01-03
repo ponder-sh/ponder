@@ -1,10 +1,6 @@
 import { factory } from "@/config/address.js";
-import {
-  type LogFactory,
-  type LogFilter,
-  type TraceFilter,
-  shouldGetTransactionReceipt,
-} from "@/sync/source.js";
+import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
   http,
   type Address,
@@ -14,7 +10,7 @@ import {
   zeroAddress,
 } from "viem";
 import { expect, test } from "vitest";
-import { type Config, createConfig } from "../config/config.js";
+import { type Config, createConfig } from "../config/index.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
@@ -276,7 +272,7 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(sources[0]!.networkName).toBe("mainnet");
+  expect(sources[0]!.network.name).toBe("mainnet");
 });
 
 test("buildConfigAndIndexingFunctions() validates network name", async () => {
@@ -637,8 +633,8 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
 
   expect(sources).toHaveLength(2);
 
-  expect(sources[0]?.networkName).toBe("mainnet");
-  expect(sources[1]?.networkName).toBe("mainnet");
+  expect(sources[0]?.network.name).toBe("mainnet");
+  expect(sources[1]?.network.name).toBe("mainnet");
 
   expect(sources[0]?.name).toBe("a");
   expect(sources[1]?.name).toBe("a");
@@ -674,7 +670,7 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
 
   expect(sources).toHaveLength(1);
 
-  expect(sources[0]?.networkName).toBe("mainnet");
+  expect(sources[0]?.network.name).toBe("mainnet");
   expect(sources[0]?.name).toBe("a");
   expect(sources[0]?.filter.type).toBe("block");
   // @ts-ignore

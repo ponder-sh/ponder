@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { Options } from "@/common/options.js";
+import type { Options } from "@/internal/options.js";
 import { codeFrameColumns } from "@babel/code-frame";
 import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 

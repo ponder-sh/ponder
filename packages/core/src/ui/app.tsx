@@ -2,7 +2,7 @@ import type {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
-} from "@/common/metrics.js";
+} from "@/internal/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";

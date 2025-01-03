@@ -1,33 +1,16 @@
-import type { Address, Hex } from "viem";
-import {
-  type BlockFilter,
-  type Factory,
-  type Filter,
-  type LogFilter,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
-  isAddressFactory,
-  shouldGetTransactionReceipt,
-} from "./source.js";
-
-type FragmentAddress =
-  | Address
-  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
-  | null;
-type FragmentTopic = Hex | null;
-
-export type FragmentId =
-  /** block_{chainId}_{interval}_{offset} */
-  | `block_${number}_${number}_${number}`
-  /** transaction_{chainId}_{fromAddress}_{toAddress} */
-  | `transaction_${number}_${FragmentAddress}_${FragmentAddress}`
-  /** trace_{chainId}_{fromAddress}_{toAddress}_{functionSelector}_{includeReceipts} */
-  | `trace_${number}_${FragmentAddress}_${FragmentAddress}_${Hex | null}_${0 | 1}`
-  /** log_{chainId}_{address}_{topic0}_{topic1}_{topic2}_{topic3}_{includeReceipts} */
-  | `log_${number}_${FragmentAddress}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
-  /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
-  | `transfer_${number}_${FragmentAddress}_${FragmentAddress}_${0 | 1}`;
+import type {
+  BlockFilter,
+  Factory,
+  Filter,
+  FragmentAddress,
+  FragmentId,
+  LogFilter,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
+import type { Address } from "viem";
+import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 
 export const getFragmentIds = (
   filter: Omit<Filter, "startBlock" | "endBlock">,

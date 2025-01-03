@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
+import type { Schema } from "@/internal/types.js";
+import type { ReadonlyDrizzle } from "@/types/db.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
@@ -46,7 +47,7 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
-  const graphqlSchema = buildGraphQLSchema(schema);
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
   fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
   fs.writeFileSync(

@@ -4,8 +4,8 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
   getBaseError,
-} from "@/common/errors.js";
-import type { Schema } from "@/drizzle/index.js";
+} from "@/internal/errors.js";
+import type { Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
 
 export type IndexingStore<policy extends "historical" | "realtime"> =

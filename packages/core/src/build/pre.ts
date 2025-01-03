@@ -1,8 +1,8 @@
 import path from "node:path";
-import { BuildError } from "@/common/errors.js";
-import type { Options } from "@/common/options.js";
-import type { Config } from "@/config/config.js";
-import type { DatabaseConfig } from "@/config/database.js";
+import type { Config } from "@/config/index.js";
+import { BuildError } from "@/internal/errors.js";
+import type { Options } from "@/internal/options.js";
+import type { DatabaseConfig } from "@/internal/types.js";
 import parse from "pg-connection-string";
 
 function getDatabaseName(connectionString: string) {

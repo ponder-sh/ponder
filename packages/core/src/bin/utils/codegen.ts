@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import type { Common } from "@/common/common.js";
+import type { Common } from "@/internal/common.js";
 
 export const ponderEnv = `/// <reference types="ponder/virtual" />
 

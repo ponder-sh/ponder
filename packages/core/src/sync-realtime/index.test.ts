@@ -24,7 +24,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type { LogFactory, LogFilter } from "@/sync/source.js";
+import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import {

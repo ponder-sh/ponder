@@ -1,8 +1,8 @@
 import path from "node:path";
-import type { Options } from "@/common/options.js";
+import type { Options } from "@/internal/options.js";
 import { http } from "viem";
 import { expect, test, vi } from "vitest";
-import { createConfig } from "../config/config.js";
+import { createConfig } from "../config/index.js";
 import { buildPre } from "./pre.js";
 
 const options = {

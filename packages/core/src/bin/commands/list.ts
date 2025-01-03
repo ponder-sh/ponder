@@ -1,13 +1,13 @@
 import { createBuild } from "@/build/index.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { createTelemetry } from "@/common/telemetry.js";
 import {
   type PonderApp,
   type PonderInternalSchema,
   createDatabase,
 } from "@/database/index.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createTelemetry } from "@/internal/telemetry.js";
 import { printTable } from "@/ui/Table.js";
 import { formatEta } from "@/utils/format.js";
 import { type SelectQueryBuilder, sql } from "kysely";

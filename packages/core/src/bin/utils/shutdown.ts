@@ -1,7 +1,7 @@
 import os from "node:os";
 import readline from "node:readline";
-import type { Common } from "@/common/common.js";
-import { IgnorableError } from "@/common/errors.js";
+import type { Common } from "@/internal/common.js";
+import { IgnorableError } from "@/internal/errors.js";
 
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 

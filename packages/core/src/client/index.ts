@@ -1,4 +1,5 @@
-import type { ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
+import type { Schema } from "@/internal/types.js";
+import type { ReadonlyDrizzle } from "@/types/db.js";
 import { createMiddleware } from "hono/factory";
 
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {

@@ -14,7 +14,7 @@ import {
   toEventSelector,
   toFunctionSelector,
 } from "viem";
-import type { Config } from "../config/config.js";
+import type { Config } from "../config/index.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays

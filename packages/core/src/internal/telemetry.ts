@@ -4,15 +4,15 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { PreBuild, SchemaBuild } from "@/build/index.js";
-import type { IndexingBuild } from "@/build/index.js";
-import type { Options } from "@/common/options.js";
+import type { Options } from "@/internal/options.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import type { Logger } from "./logger.js";
+import type { IndexingBuild } from "./types.js";
+import type { PreBuild, SchemaBuild } from "./types.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 

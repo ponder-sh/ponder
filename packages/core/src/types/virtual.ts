@@ -1,4 +1,4 @@
-import type { Config } from "@/config/config.js";
+import type { Config } from "@/config/index.js";
 import type {
   FormatEventArgs,
   FormatFunctionArgs,
@@ -6,8 +6,8 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { Schema } from "@/internal/types.js";
 import type {
   Block,
   Log,

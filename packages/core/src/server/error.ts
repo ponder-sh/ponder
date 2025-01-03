@@ -1,6 +1,6 @@
-import type { Common } from "@/common/common.js";
-import type { BaseError } from "@/common/errors.js";
 import { addStackTrace } from "@/indexing/addStackTrace.js";
+import type { Common } from "@/internal/common.js";
+import type { BaseError } from "@/internal/errors.js";
 import { prettyPrint } from "@/utils/print.js";
 import type { Context, HonoRequest } from "hono";
 import { html } from "hono/html";

@@ -3,12 +3,12 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NotNullConstraintError,
   UniqueConstraintError,
-} from "@/common/errors.js";
-import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+} from "@/internal/errors.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";

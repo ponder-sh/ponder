@@ -1,11 +1,11 @@
-import type { Common } from "@/common/common.js";
-import {
-  isBlockFilterMatched,
-  isLogFilterMatched,
-  isTraceFilterMatched,
-  isTransactionFilterMatched,
-  isTransferFilterMatched,
-} from "@/sync-realtime/filter.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  BlockFilter,
+  Event,
+  Factory,
+  RawEvent,
+  Source,
+} from "@/internal/types.js";
 import type { BlockWithEventData } from "@/sync-realtime/index.js";
 import type {
   Block,
@@ -13,7 +13,6 @@ import type {
   Trace,
   Transaction,
   TransactionReceipt,
-  Transfer,
 } from "@/types/eth.js";
 import type {
   SyncBlock,
@@ -45,122 +44,13 @@ import {
   hexToNumber,
 } from "viem";
 import {
-  type BlockFilter,
-  type Factory,
-  type Source,
-  isAddressFactory,
-  shouldGetTransactionReceipt,
-} from "./source.js";
-
-export type RawEvent = {
-  chainId: number;
-  sourceIndex: number;
-  checkpoint: string;
-  log?: Log;
-  block: Block;
-  transaction?: Transaction;
-  transactionReceipt?: TransactionReceipt;
-  trace?: Trace;
-};
-
-export type Event =
-  | LogEvent
-  | BlockEvent
-  | TransactionEvent
-  | TransferEvent
-  | TraceEvent;
-
-export type SetupEvent = {
-  type: "setup";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:setup` */
-  name: string;
-
-  block: bigint;
-};
-
-export type LogEvent = {
-  type: "log";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:${safeName}` */
-  name: string;
-
-  event: {
-    name: string;
-    args: any;
-    log: Log;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
-
-export type BlockEvent = {
-  type: "block";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:block` */
-  name: string;
-
-  event: {
-    block: Block;
-  };
-};
-
-export type TransactionEvent = {
-  type: "transaction";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}.{safeName}()` */
-  name: string;
-
-  event: {
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
-
-export type TransferEvent = {
-  type: "transfer";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
-
-  event: {
-    transfer: Transfer;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-    trace: Trace;
-  };
-};
-
-export type TraceEvent = {
-  type: "trace";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
-
-  event: {
-    args: any;
-    result: any;
-    trace: Trace;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
+  isBlockFilterMatched,
+  isLogFilterMatched,
+  isTraceFilterMatched,
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
+} from "./filter.js";
+import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 
 /**
  * Create `RawEvent`s from raw data types

@@ -28,7 +28,7 @@ import type {
   Factory,
   LogFactory,
   LogFilter,
-} from "@/sync/source.js";
+} from "@/internal/types.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
   decodeCheckpoint,

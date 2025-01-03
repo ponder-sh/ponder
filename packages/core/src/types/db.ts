@@ -1,6 +1,6 @@
-import type { Drizzle, Schema } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/onchain.js";
+import type { Schema } from "@/internal/types.js";
 import type {
   Column,
   GetColumnData,
@@ -8,8 +8,26 @@ import type {
   InferSelectModel,
   Table,
 } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgTableExtraConfig, TableConfig } from "drizzle-orm/pg-core";
+import type { PgliteDatabase } from "drizzle-orm/pglite";
 import type { PonderTypeError, Prettify } from "./utils.js";
+
+export type Drizzle<TSchema extends Schema = { [name: string]: never }> =
+  | NodePgDatabase<TSchema>
+  | PgliteDatabase<TSchema>;
+
+export type ReadonlyDrizzle<
+  TSchema extends Schema = { [name: string]: never },
+> = Omit<
+  Drizzle<TSchema>,
+  | "insert"
+  | "update"
+  | "delete"
+  | "transaction"
+  | "refreshMaterializedView"
+  | "_"
+>;
 
 export type Db<schema extends Schema> = {
   /**

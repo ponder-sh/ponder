@@ -1,4 +1,4 @@
-import type { Common } from "@/common/common.js";
+import type { Common } from "@/internal/common.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 

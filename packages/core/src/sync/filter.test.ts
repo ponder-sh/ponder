@@ -24,8 +24,8 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/sync/source.js";
-import type { SyncTrace } from "@/types/sync.js";
+} from "@/internal/types.js";
+import type { SyncLog, SyncTrace } from "@/types/sync.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import {
@@ -38,6 +38,7 @@ import {
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
+  getChildAddress,
   isBlockFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
@@ -48,6 +49,37 @@ import {
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
+
+test("getChildAddress() topics", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "topic1",
+  } as unknown as LogFactory;
+  const log = {
+    topics: [
+      null,
+      "0x000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+    ],
+  } as unknown as SyncLog;
+
+  expect(getChildAddress({ log, factory })).toBe(
+    "0xa21a16ec22a940990922220e4ab5bf4c2310f556",
+  );
+});
+
+test("getChildAddress() offset", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "offset32",
+  } as unknown as LogFactory;
+  const log = {
+    data: "0x0000000000000000000000000000000000000000000000000000000017d435c9000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+  } as unknown as SyncLog;
+
+  expect(getChildAddress({ log, factory })).toBe(
+    "0xa21a16ec22a940990922220e4ab5bf4c2310f556",
+  );
+});
 
 test("isLogFactoryMatched()", async (context) => {
   const network = getNetwork();
