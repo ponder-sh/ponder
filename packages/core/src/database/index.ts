@@ -13,7 +13,6 @@ import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
 } from "@/sync-store/migrations.js";
-import type { Status } from "@/sync/index.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -78,9 +77,13 @@ export type PonderApp = {
 };
 
 export type PonderInternalSchema = {
-  _ponder_meta:
-    | { key: "app"; value: PonderApp }
-    | { key: "status"; value: Status | null };
+  _ponder_meta: { key: "app"; value: PonderApp };
+  _ponder_status: {
+    chain_id: number;
+    block_number: number | null;
+    block_timestamp: number | null;
+    ready: boolean;
+  };
 } & {
   [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
 } & {
@@ -110,7 +113,7 @@ type QueryBuilder = {
   /** Used to interact with the sync-store */
   sync: HeadlessKysely<PonderSyncSchema>;
   /** Used in api functions */
-  readonly: HeadlessKysely<unknown>;
+  readonly: HeadlessKysely<any>;
   /** Used in client queries */
   // client: HeadlessKysely<unknown>;
   drizzle: Drizzle<Schema>;
@@ -682,6 +685,19 @@ export const createDatabase = async ({
         );
       }
 
+      // 0.9 migration
+
+      await qb.internal.schema
+        .createTable("_ponder_status")
+        .addColumn("chain_id", "bigint", (col) => col.primaryKey())
+        .addColumn("block_number", "bigint")
+        .addColumn("block_timestamp", "bigint")
+        .addColumn("ready", "boolean", (col) => col.notNull())
+        .ifNotExists()
+        .execute();
+
+      // TODO(kyle) drop `status` from `_ponder_meta`
+
       await qb.internal.wrap({ method: "setup" }, async () => {
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
@@ -777,12 +793,7 @@ export const createDatabase = async ({
             };
 
             // If schema is empty, create tables
-            // If schema is empty, create tables
             if (previousApp === undefined) {
-              await tx
-                .insertInto("_ponder_meta")
-                .values({ key: "status", value: null })
-                .execute();
               await tx
                 .insertInto("_ponder_meta")
                 .values({
@@ -814,9 +825,12 @@ export const createDatabase = async ({
                 previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint))
             ) {
               await tx
-                .updateTable("_ponder_meta")
-                .set({ value: null })
-                .where("key", "=", "status")
+                .updateTable("_ponder_status")
+                .set({
+                  block_number: null,
+                  block_timestamp: null,
+                  ready: false,
+                })
                 .execute();
               await tx
                 .updateTable("_ponder_meta")
@@ -873,9 +887,12 @@ export const createDatabase = async ({
 
             if (previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)) {
               await tx
-                .updateTable("_ponder_meta")
-                .set({ value: null })
-                .where("key", "=", "status")
+                .updateTable("_ponder_status")
+                .set({
+                  block_number: null,
+                  block_timestamp: null,
+                  ready: false,
+                })
                 .execute();
               await tx
                 .updateTable("_ponder_meta")
@@ -904,9 +921,8 @@ export const createDatabase = async ({
             newApp.checkpoint = checkpoint;
 
             await tx
-              .updateTable("_ponder_meta")
-              .set({ value: null })
-              .where("key", "=", "status")
+              .updateTable("_ponder_status")
+              .set({ block_number: null, block_timestamp: null, ready: false })
               .execute();
             await tx
               .updateTable("_ponder_meta")
