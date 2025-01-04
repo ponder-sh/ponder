@@ -597,7 +597,16 @@ export const createRealtimeSync = (
       blockReceipts = await _eth_getBlockReceipts(args.requestQueue, {
         blockHash,
       });
-    } catch {
+    } catch (_error) {
+      const error = _error as Error;
+      args.common.logger.warn({
+        service: "realtime",
+        msg: `Caught eth_getBlockReceipts error on '${
+          args.network.name
+        }', switching to eth_getTransactionReceipt method.`,
+        error,
+      });
+
       isBlockReceipts = false;
       return syncTransactionReceipts(blockHash, transactionHashes);
     }

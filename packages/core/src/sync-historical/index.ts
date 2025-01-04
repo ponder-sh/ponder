@@ -328,7 +328,16 @@ export const createHistoricalSync = async (
     let blockReceipts: SyncTransactionReceipt[];
     try {
       blockReceipts = await syncBlockReceipts(block);
-    } catch {
+    } catch (_error) {
+      const error = _error as Error;
+      args.common.logger.warn({
+        service: "sync",
+        msg: `Caught eth_getBlockReceipts error on '${
+          args.network.name
+        }', switching to eth_getTransactionReceipt method.`,
+        error,
+      });
+
       isBlockReceipts = false;
       return syncTransactionReceipts(block, transactionHashes);
     }
