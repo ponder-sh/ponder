@@ -1,3 +1,4 @@
+import { pgTable } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 
 type Schema = { [name: string]: unknown };
@@ -19,6 +20,24 @@ export type Client<schema extends Schema = Schema> = {
     >
   >;
 };
+
+/**
+ * A table that tracks the status of each chain.
+ *
+ * @property {number} chainId - The chain ID.
+ * @property {number} blockNumber - The closest-to-tip indexed block number.
+ * @property {number} blockTimestamp - The closest-to-tip indexed block timestamp.
+ * @property {boolean} ready - `true` if the chain has completed the historical backfill.
+ */
+export const status = pgTable("_ponder_status", (t) => ({
+  chainId: t.bigint({ mode: "number" }).primaryKey(),
+  blockNumber: t.bigint({ mode: "number" }),
+  blockTimestamp: t.bigint({ mode: "number" }),
+  ready: t.boolean().notNull(),
+}));
+
+// @ts-ignore
+status[Symbol.for("ponder:onchain")] = true;
 
 export const createClient = <schema extends Schema>(
   url: string,
