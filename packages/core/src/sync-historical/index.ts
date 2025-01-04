@@ -620,7 +620,10 @@ export const createHistoricalSync = async (
         ];
 
         const completedIntervals = intervalsCache.get(filter)!;
-        const requiredIntervals: [Fragment, Interval[]][] = [];
+        const requiredIntervals: {
+          fragment: Fragment;
+          intervals: Interval[];
+        }[] = [];
 
         for (const {
           fragment,
@@ -632,18 +635,21 @@ export const createHistoricalSync = async (
           );
 
           if (requiredFragmentIntervals.length > 0) {
-            requiredIntervals.push([fragment, requiredFragmentIntervals]);
+            requiredIntervals.push({
+              fragment,
+              intervals: requiredFragmentIntervals,
+            });
           }
         }
 
         if (requiredIntervals.length > 0) {
           const requiredInterval = intervalBounds(
-            requiredIntervals.flatMap(([_, interval]) => interval),
+            requiredIntervals.flatMap(({ intervals }) => intervals),
           );
 
           const requiredFilter = recoverFilter(
             filter,
-            requiredIntervals.map(([fragmentId]) => fragmentId),
+            requiredIntervals.map(({ fragment }) => fragment),
           );
 
           syncedIntervals.push({
@@ -707,6 +713,8 @@ export const createHistoricalSync = async (
         }),
       );
 
+      if (isKilled) return;
+
       const blocks = await Promise.all(blockCache.values());
 
       await Promise.all([
@@ -723,6 +731,8 @@ export const createHistoricalSync = async (
           chainId: args.network.chainId,
         }),
       ]);
+
+      if (isKilled) return;
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted

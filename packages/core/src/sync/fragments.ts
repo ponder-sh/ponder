@@ -1,3 +1,4 @@
+import { dedupe } from "@ponder/common";
 import type { Address, Hex } from "viem";
 import {
   type BlockFilter,
@@ -393,21 +394,22 @@ const recoverAddress = (
 ): FilterAddress => {
   if (baseAddress === undefined) return undefined;
   if (typeof baseAddress === "string") return baseAddress;
-  if (Array.isArray(baseAddress)) return fragmentAddresses as Address[];
+  if (Array.isArray(baseAddress)) return dedupe(fragmentAddresses) as Address[];
   if (typeof baseAddress.address === "string") return baseAddress;
 
   const address = {
     type: "log",
     chainId: baseAddress.chainId,
-    address: [],
+    address: [] as Address[],
     eventSelector: baseAddress.eventSelector,
     childAddressLocation: baseAddress.childAddressLocation,
   } satisfies Factory;
 
-  for (const fragmentAddress of fragmentAddresses) {
-    // @ts-ignore
-    address.address.push(fragmentAddress.address);
-  }
+  address.address = dedupe(
+    (fragmentAddresses as Extract<FragmentAddress, { address: Address }>[]).map(
+      ({ address }) => address,
+    ),
+  );
 
   return address;
 };
@@ -418,7 +420,7 @@ const recoverSelector = (
 ): Hex | Hex[] | undefined => {
   if (base === undefined) return undefined;
   if (typeof base === "string") return base;
-  return fragments as Hex[];
+  return dedupe(fragments) as Hex[];
 };
 
 const recoverTopic = (
@@ -427,7 +429,7 @@ const recoverTopic = (
 ): Hex | Hex[] | null => {
   if (base === null) return null;
   if (typeof base === "string") return base;
-  return fragments as Hex[];
+  return dedupe(fragments) as Hex[];
 };
 
 export const recoverFilter = (
