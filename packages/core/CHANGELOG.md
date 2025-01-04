@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.11
+
+### Patch Changes
+
+- [#1394](https://github.com/ponder-sh/ponder/pull/1394) [`4ea0ef5f055e38e60f59ea4a03046b64100d92bc`](https://github.com/ponder-sh/ponder/commit/4ea0ef5f055e38e60f59ea4a03046b64100d92bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added trace level logs for rpc requests.
+
 ## 0.8.10
 
 ### Patch Changes
