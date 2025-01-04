@@ -523,7 +523,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.34.1
-        version: 0.34.1(@electric-sql/pglite@0.2.15)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
+        version: 0.34.1(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       pg:
         specifier: ^8.11.3
         version: 8.11.3
@@ -754,8 +754,8 @@ importers:
         specifier: ^12.0.1
         version: 12.0.1(commander@12.0.0)
       '@electric-sql/pglite':
-        specifier: ^0.2.15
-        version: 0.2.15
+        specifier: 0.2.13
+        version: 0.2.13
       '@escape.tech/graphql-armor-max-aliases':
         specifier: ^2.3.0
         version: 2.4.0
@@ -791,7 +791,7 @@ importers:
         version: 16.4.5
       drizzle-orm:
         specifier: 0.36.4
-        version: 0.36.4(@electric-sql/pglite@0.2.15)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
+        version: 0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       glob:
         specifier: ^10.3.10
         version: 10.3.10
@@ -812,7 +812,7 @@ importers:
         version: 0.26.3
       kysely-pglite:
         specifier: ^0.6.0
-        version: 0.6.1(@electric-sql/pglite@0.2.15)(kysely@0.26.3)(pg@8.11.3)
+        version: 0.6.1(@electric-sql/pglite@0.2.13)(kysely@0.26.3)(pg@8.11.3)
       pg:
         specifier: ^8.11.3
         version: 8.11.3
@@ -1745,8 +1745,8 @@ packages:
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
 
-  '@electric-sql/pglite@0.2.15':
-    resolution: {integrity: sha512-Jiq31Dnk+rg8rMhcSxs4lQvHTyizNo5b269c1gCC3ldQ0sCLrNVPGzy+KnmonKy1ZArTUuXZf23/UamzFMKVaA==}
+  '@electric-sql/pglite@0.2.13':
+    resolution: {integrity: sha512-YRY806NnScVqa21/1L1vaysSQ+0/cAva50z7vlwzaGiBOTS9JhdzIRHN0KfgMhobFAphbznZJ7urMso4RtMBIQ==}
 
   '@envelop/core@5.0.2':
     resolution: {integrity: sha512-tVL6OrMe6UjqLosiE+EH9uxh2TQC0469GwF4tE014ugRaDDKKVWwFwZe0TBMlcyHKh5MD4ZxktWo/1hqUxIuhw==}
@@ -9824,7 +9824,7 @@ snapshots:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
 
-  '@electric-sql/pglite@0.2.15': {}
+  '@electric-sql/pglite@0.2.13': {}
 
   '@envelop/core@5.0.2':
     dependencies:
@@ -12613,9 +12613,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.34.1(@electric-sql/pglite@0.2.15)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
+  drizzle-orm@0.34.1(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
     optionalDependencies:
-      '@electric-sql/pglite': 0.2.15
+      '@electric-sql/pglite': 0.2.13
       '@opentelemetry/api': 1.7.0
       '@types/pg': 8.10.9
       '@types/react': 18.2.46
@@ -12623,9 +12623,9 @@ snapshots:
       pg: 8.11.3
       react: 18.2.0
 
-  drizzle-orm@0.36.4(@electric-sql/pglite@0.2.15)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
+  drizzle-orm@0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
     optionalDependencies:
-      '@electric-sql/pglite': 0.2.15
+      '@electric-sql/pglite': 0.2.13
       '@opentelemetry/api': 1.7.0
       '@types/pg': 8.10.9
       '@types/react': 18.2.46
@@ -14512,9 +14512,9 @@ snapshots:
     optionalDependencies:
       pg: 8.11.3
 
-  kysely-pglite@0.6.1(@electric-sql/pglite@0.2.15)(kysely@0.26.3)(pg@8.11.3):
+  kysely-pglite@0.6.1(@electric-sql/pglite@0.2.13)(kysely@0.26.3)(pg@8.11.3):
     dependencies:
-      '@electric-sql/pglite': 0.2.15
+      '@electric-sql/pglite': 0.2.13
       '@oclif/core': 4.0.27
       '@repeaterjs/repeater': 3.0.6
       '@sindresorhus/is': 7.0.1
