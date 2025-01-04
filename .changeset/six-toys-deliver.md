@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Updated @electric-sql/pglite dependency.
+Pinned @electric-sql/pglite dependency to v0.2.13gi.
