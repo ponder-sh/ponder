@@ -1170,7 +1170,7 @@ const transferSQL = (
     // Traces
     .$call((qb) =>
       qb.select([
-        "traces.trace_index as trace_index",
+        "traces.index as trace_index",
         "traces.type as trace_callType",
         "traces.from as trace_from",
         "traces.to as trace_to",
@@ -1241,7 +1241,7 @@ const traceSQL = (
     // Traces
     .$call((qb) =>
       qb.select([
-        "traces.trace_index as trace_index",
+        "traces.index as trace_index",
         "traces.type as trace_callType",
         "traces.from as trace_from",
         "traces.to as trace_to",

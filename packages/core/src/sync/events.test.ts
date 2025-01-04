@@ -37,6 +37,7 @@ import {
 import {
   type Hex,
   encodeEventTopics,
+  hexToBigInt,
   padHex,
   parseEther,
   toHex,
@@ -53,7 +54,7 @@ import {
   buildEvents,
   decodeEvents,
 } from "./events.js";
-import type { LogFactory, LogFilter } from "./source.js";
+import { type LogFactory, type LogFilter, getChildAddress } from "./source.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -388,7 +389,6 @@ test("buildEvents() matches getEvents() log", async (context) => {
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -457,11 +457,17 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
     fromBlock: 2,
     toBlock: 2,
   });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
+
+  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const factory = filter.address;
+  const log = rpcLogs[0]!;
+  const data = [
+    {
+      address: getChildAddress({ log, factory }),
+      blockNumber: hexToBigInt(log.blockNumber),
+    },
+  ];
+  await syncStore.insertChildAddresses({ factory, data, chainId: 1 });
 
   // insert block 3
 
@@ -481,7 +487,6 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -491,8 +496,6 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
     to: encodeCheckpoint(maxCheckpoint),
     limit: 10,
   });
-
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
 
   const events2 = buildEvents({
     sources,

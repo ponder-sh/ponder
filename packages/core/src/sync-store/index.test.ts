@@ -23,11 +23,12 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type {
-  BlockFilter,
-  Factory,
-  LogFactory,
-  LogFilter,
+import {
+  type BlockFilter,
+  type Factory,
+  type LogFactory,
+  type LogFilter,
+  getChildAddress,
 } from "@/sync/source.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
@@ -46,6 +47,7 @@ import {
   type Address,
   encodeFunctionData,
   encodeFunctionResult,
+  hexToBigInt,
   hexToNumber,
   parseEther,
   zeroAddress,
@@ -286,18 +288,18 @@ test("getChildAddresses()", async (context) => {
     rawIndexingFunctions,
   });
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
+  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const factory = filter.address;
+  const log = rpcLogs[0]!;
+  const data = [
+    {
+      address: getChildAddress({ log, factory }),
+      blockNumber: hexToBigInt(log.blockNumber),
+    },
+  ];
+  await syncStore.insertChildAddresses({ factory, data, chainId: 1 });
 
-  const filter = sources[0]!.filter as LogFilter<Factory>;
-
-  const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
-    limit: 10,
-  });
+  const addresses = await syncStore.getChildAddresses({ factory, limit: 10 });
 
   expect(addresses).toHaveLength(1);
   expect(addresses[0]).toBe(result);
@@ -320,11 +322,9 @@ test("getChildAddresses() empty", async (context) => {
   });
 
   const filter = sources[0]!.filter as LogFilter<Factory>;
+  const factory = filter.address;
 
-  const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
-    limit: 10,
-  });
+  const addresses = await syncStore.getChildAddresses({ factory, limit: 10 });
 
   expect(addresses).toHaveLength(0);
 
@@ -356,16 +356,19 @@ test("filterChildAddresses()", async (context) => {
     rawIndexingFunctions,
   });
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  const filter = sources[0]!.filter as LogFilter<Factory>;
+  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const factory = filter.address;
+  const log = rpcLogs[0]!;
+  const data = [
+    {
+      address: getChildAddress({ log, factory }),
+      blockNumber: hexToBigInt(log.blockNumber),
+    },
+  ];
+  await syncStore.insertChildAddresses({ factory, data, chainId: 1 });
 
   const addresses = await syncStore.filterChildAddresses({
-    filter: filter.address,
+    factory,
     addresses: [address, result, zeroAddress],
   });
 
@@ -394,10 +397,12 @@ test("insertLogs()", async (context) => {
     fromBlock: 2,
     toBlock: 2,
   });
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 2,
+  });
 
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
     chainId: 1,
   });
 
@@ -427,16 +432,17 @@ test("insertLogs() with duplicates", async (context) => {
     fromBlock: 2,
     toBlock: 2,
   });
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 2,
+  });
 
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
     chainId: 1,
   });
 
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
     chainId: 1,
   });
 
@@ -472,7 +478,6 @@ test("insertLogs() creates checkpoint", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -485,60 +490,6 @@ test("insertLogs() creates checkpoint", async (context) => {
   expect(checkpoint.transactionIndex).toBe(0n);
   expect(checkpoint.eventType).toBe(5);
   expect(checkpoint.eventIndex).toBe(0n);
-
-  await cleanup();
-});
-
-test("insertLogs() upserts checkpoint", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  let logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs[0]!.checkpoint).toBe(null);
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs[0]!.checkpoint).not.toBe(null);
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs[0]!.checkpoint).not.toBe(null);
 
   await cleanup();
 });
@@ -1117,7 +1068,6 @@ test("getEvents() returns events", async (context) => {
 
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
   await syncStore.insertTransactions({
@@ -1196,7 +1146,6 @@ test("getEvents() handles log filter logic", async (context) => {
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -1218,7 +1167,6 @@ test("getEvents() handles log filter logic", async (context) => {
   });
   syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -1278,9 +1226,18 @@ test("getEvents() handles log factory", async (context) => {
     fromBlock: 2,
     toBlock: 2,
   });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+
+  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const log = rpcLogs[0]!;
+  const data = [
+    {
+      address: getChildAddress({ log, factory: filter.address }),
+      blockNumber: hexToBigInt(log.blockNumber),
+    },
+  ];
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    data,
     chainId: 1,
   });
 
@@ -1302,7 +1259,6 @@ test("getEvents() handles log factory", async (context) => {
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -1362,9 +1318,18 @@ test("getEvents() handles multiple log factories", async (context) => {
     fromBlock: 2,
     toBlock: 2,
   });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+
+  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const log = rpcLogs[0]!;
+  const data = [
+    {
+      address: getChildAddress({ log, factory: filter.address }),
+      blockNumber: hexToBigInt(log.blockNumber),
+    },
+  ];
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    data,
     chainId: 1,
   });
 
@@ -1386,11 +1351,8 @@ test("getEvents() handles multiple log factories", async (context) => {
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
-
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
 
   filter.address.address = [
     filter.address.address as Address,
@@ -1711,7 +1673,6 @@ test("getEvents() handles block bounds", async (context) => {
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -1864,7 +1825,6 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
@@ -1930,7 +1890,6 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   });
   await syncStore.insertLogs({
     logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
     chainId: 1,
   });
 
