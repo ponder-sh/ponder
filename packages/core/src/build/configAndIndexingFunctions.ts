@@ -63,18 +63,22 @@ const flattenSources = <
   );
 };
 
-function resolveBlockRanges(blocks: BlockRange[] | undefined): BlockRange[] {
-  const blockRanges: BlockRange[] =
+function resolveBlockRanges(
+  blocks: BlockRange[] | undefined,
+): [number, number][] {
+  const blockRanges: [number, number][] =
     blocks === undefined || blocks.length === 0
-      ? [[0, "realtime"]]
+      ? [[0, Number.MAX_SAFE_INTEGER]]
       : blocks.map(([rawStartBlock, rawEndBlock]) => [
           Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
-          Number.isNaN(rawEndBlock) ? "realtime" : rawEndBlock,
+          Number.isNaN(rawEndBlock)
+            ? Number.MAX_SAFE_INTEGER
+            : (rawEndBlock as number),
         ]);
 
   blockRanges.sort((a, b) => a[0] - b[0]);
 
-  const resolvedBlockRanges: BlockRange[] = [];
+  const resolvedBlockRanges: [number, number][] = [];
 
   for (const [curStartBlock, curEndBlock] of blockRanges) {
     if (resolvedBlockRanges.length === 0) {
@@ -84,16 +88,14 @@ function resolveBlockRanges(blocks: BlockRange[] | undefined): BlockRange[] {
 
     const last = resolvedBlockRanges[resolvedBlockRanges.length - 1]!;
     const [lastStartBlock, lastEndBlock] = last;
-    if (lastEndBlock === "realtime") {
+    if (lastEndBlock === Number.MAX_SAFE_INTEGER) {
       break;
     }
     // Check for overlapping block ranges
-    if (curStartBlock === undefined || curStartBlock <= lastEndBlock) {
+    if (curStartBlock <= lastEndBlock) {
       resolvedBlockRanges[resolvedBlockRanges.length - 1] = [
         lastStartBlock,
-        curEndBlock === "realtime" || curEndBlock >= lastEndBlock
-          ? curEndBlock
-          : lastEndBlock,
+        curEndBlock >= lastEndBlock ? curEndBlock : lastEndBlock,
       ];
     } else {
       resolvedBlockRanges.push([curStartBlock, curEndBlock]);
@@ -457,7 +459,7 @@ export async function buildConfigAndIndexingFunctions({
                   topic2: topics.topic2,
                   topic3: topics.topic3,
                   fromBlock,
-                  toBlock: toBlock === "realtime" ? undefined : toBlock,
+                  toBlock,
                   include: defaultLogFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude
@@ -482,7 +484,7 @@ export async function buildConfigAndIndexingFunctions({
                   functionSelector: registeredFunctionSelectors,
                   includeReverted: false,
                   fromBlock,
-                  toBlock: toBlock === "realtime" ? undefined : toBlock,
+                  toBlock,
                   include: defaultTraceFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude
@@ -534,7 +536,7 @@ export async function buildConfigAndIndexingFunctions({
                 topic2: topics.topic2,
                 topic3: topics.topic3,
                 fromBlock,
-                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                toBlock,
                 include: defaultLogFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude
@@ -563,7 +565,7 @@ export async function buildConfigAndIndexingFunctions({
                 functionSelector: registeredFunctionSelectors,
                 includeReverted: false,
                 fromBlock,
-                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                toBlock,
                 include: defaultTraceFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude
@@ -631,7 +633,7 @@ export async function buildConfigAndIndexingFunctions({
                 toAddress: logFactory,
                 includeReverted: false,
                 fromBlock,
-                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                toBlock,
                 include: defaultTransactionFilterInclude,
               },
             } satisfies AccountSource,
@@ -646,7 +648,7 @@ export async function buildConfigAndIndexingFunctions({
                 toAddress: undefined,
                 includeReverted: false,
                 fromBlock,
-                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                toBlock,
                 include: defaultTransactionFilterInclude,
               },
             } satisfies AccountSource,
@@ -661,7 +663,7 @@ export async function buildConfigAndIndexingFunctions({
                 toAddress: logFactory,
                 includeReverted: false,
                 fromBlock,
-                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                toBlock,
                 include: defaultTransferFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude
@@ -680,7 +682,7 @@ export async function buildConfigAndIndexingFunctions({
                 toAddress: undefined,
                 includeReverted: false,
                 fromBlock,
-                toBlock: toBlock === "realtime" ? undefined : toBlock,
+                toBlock,
                 include: defaultTransferFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude
@@ -730,7 +732,7 @@ export async function buildConfigAndIndexingFunctions({
               toAddress: validatedAddress,
               includeReverted: false,
               fromBlock,
-              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              toBlock,
               include: defaultTransactionFilterInclude,
             },
           } satisfies AccountSource,
@@ -745,7 +747,7 @@ export async function buildConfigAndIndexingFunctions({
               toAddress: undefined,
               includeReverted: false,
               fromBlock,
-              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              toBlock,
               include: defaultTransactionFilterInclude,
             },
           } satisfies AccountSource,
@@ -760,7 +762,7 @@ export async function buildConfigAndIndexingFunctions({
               toAddress: validatedAddress,
               includeReverted: false,
               fromBlock,
-              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              toBlock,
               include: defaultTransferFilterInclude.concat(
                 source.includeTransactionReceipts
                   ? defaultTransactionReceiptInclude
@@ -779,7 +781,7 @@ export async function buildConfigAndIndexingFunctions({
               toAddress: undefined,
               includeReverted: false,
               fromBlock,
-              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              toBlock,
               include: defaultTransferFilterInclude.concat(
                 source.includeTransactionReceipts
                   ? defaultTransactionReceiptInclude
@@ -840,7 +842,7 @@ export async function buildConfigAndIndexingFunctions({
               interval: interval,
               offset: fromBlock % interval,
               fromBlock,
-              toBlock: toBlock === "realtime" ? undefined : toBlock,
+              toBlock,
               include: defaultBlockFilterInclude,
             },
           }) satisfies BlockSource,

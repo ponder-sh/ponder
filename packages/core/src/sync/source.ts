@@ -72,7 +72,7 @@ export type LogFilter<
   topic2: LogTopic | undefined;
   topic3: LogTopic | undefined;
   fromBlock: number;
-  toBlock: number | undefined;
+  toBlock: number;
   include:
     | (
         | `block.${keyof Block}`
@@ -89,7 +89,7 @@ export type BlockFilter = {
   interval: number;
   offset: number;
   fromBlock: number;
-  toBlock: number | undefined;
+  toBlock: number;
   include: `block.${keyof Block}`[] | undefined;
 };
 
@@ -107,7 +107,7 @@ export type TransferFilter<
     : Address | Address[] | undefined;
   includeReverted: boolean;
   fromBlock: number;
-  toBlock: number | undefined;
+  toBlock: number;
   include:
     | (
         | `block.${keyof Block}`
@@ -132,7 +132,7 @@ export type TransactionFilter<
     : Address | Address[] | undefined;
   includeReverted: boolean;
   fromBlock: number;
-  toBlock: number | undefined;
+  toBlock: number;
   include:
     | (
         | `block.${keyof Block}`
@@ -158,7 +158,7 @@ export type TraceFilter<
   callType: Trace["result"]["type"] | undefined;
   includeReverted: boolean;
   fromBlock: number;
-  toBlock: number | undefined;
+  toBlock: number;
   include:
     | (
         | `block.${keyof Block}`

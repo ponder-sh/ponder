@@ -42,8 +42,8 @@ export function isFilterInBloom({
 }): boolean {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > filter.toBlock
   ) {
     return false;
   }

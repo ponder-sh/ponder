@@ -80,7 +80,7 @@ export type Status = {
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
-  end: SyncBlock | LightBlock | undefined;
+  end: SyncBlock | LightBlock;
   cached: SyncBlock | LightBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
@@ -117,7 +117,7 @@ export const blockToCheckpoint = (
  * sync progress has reached the final end block.
  */
 const isSyncEnd = (syncProgress: SyncProgress) => {
-  if (syncProgress.end === undefined || syncProgress.current === undefined) {
+  if (syncProgress.current === undefined) {
     return false;
   }
 
@@ -143,12 +143,10 @@ const isSyncFinalized = (syncProgress: SyncProgress) => {
 const getHistoricalLast = (
   syncProgress: Pick<SyncProgress, "finalized" | "end">,
 ) => {
-  return syncProgress.end === undefined
+  return hexToNumber(syncProgress.end.number) >
+    hexToNumber(syncProgress.finalized.number)
     ? syncProgress.finalized
-    : hexToNumber(syncProgress.end.number) >
-        hexToNumber(syncProgress.finalized.number)
-      ? syncProgress.finalized
-      : syncProgress.end;
+    : syncProgress.end;
 };
 
 /** Compute the minimum checkpoint, filtering out undefined */
@@ -187,10 +185,6 @@ export const getChainCheckpoint = ({
   network: Network;
   tag: "start" | "current" | "finalized" | "end";
 }): string | undefined => {
-  if (tag === "end" && syncProgress.end === undefined) {
-    return undefined;
-  }
-
   if (tag === "current" && isSyncEnd(syncProgress)) {
     return undefined;
   }
@@ -344,10 +338,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       ([network, { syncProgress }]) =>
         getChainCheckpoint({ syncProgress, network, tag }),
     );
-
-    if (tag === "end" && checkpoints.some((c) => c === undefined)) {
-      return undefined;
-    }
 
     if (tag === "current" && checkpoints.every((c) => c === undefined)) {
       return undefined;
@@ -921,13 +911,8 @@ export const syncDiagnostic = async ({
 }) => {
   /** Earliest `startBlock` among all `filters` */
   const start = Math.min(...sources.map(({ filter }) => filter.fromBlock));
-  /**
-   * Latest `endBlock` among all filters. `undefined` if at least one
-   * of the filters doesn't have an `endBlock`.
-   */
-  const end = sources.some(({ filter }) => filter.toBlock === undefined)
-    ? undefined
-    : Math.max(...sources.map(({ filter }) => filter.toBlock!));
+  /** Latest `endBlock` among all `filters`. */
+  const end = Math.max(...sources.map(({ filter }) => filter.toBlock));
 
   const [remoteChainId, startBlock, latestBlock] = await Promise.all([
     requestQueue.request({ method: "eth_chainId" }),
@@ -936,16 +921,14 @@ export const syncDiagnostic = async ({
   ]);
 
   const endBlock =
-    end === undefined
-      ? undefined
-      : end > hexToBigInt(latestBlock.number)
-        ? ({
-            number: toHex(end),
-            hash: "0x",
-            parentHash: "0x",
-            timestamp: toHex(maxCheckpoint.blockTimestamp),
-          } as LightBlock)
-        : await _eth_getBlockByNumber(requestQueue, { blockNumber: end });
+    end > hexToBigInt(latestBlock.number)
+      ? ({
+          number: toHex(end),
+          hash: "0x",
+          parentHash: "0x",
+          timestamp: toHex(maxCheckpoint.blockTimestamp),
+        } as LightBlock)
+      : await _eth_getBlockByNumber(requestQueue, { blockNumber: end });
 
   // Warn if the config has a different chainId than the remote.
   if (hexToNumber(remoteChainId) !== network.chainId) {
@@ -984,7 +967,7 @@ export const getCachedBlock = ({
   const latestCompletedBlocks = sources.map(({ filter }) => {
     const requiredInterval = [
       filter.fromBlock,
-      filter.toBlock ?? Number.POSITIVE_INFINITY,
+      filter.toBlock,
     ] satisfies Interval;
     const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
 
@@ -1081,15 +1064,7 @@ export async function* localHistoricalSyncGenerator({
     historicalSync.intervalsCache.entries(),
   ).flatMap(([filter, interval]) =>
     intervalDifference(
-      [
-        [
-          filter.fromBlock,
-          Math.min(
-            filter.toBlock ?? Number.POSITIVE_INFINITY,
-            totalInterval[1],
-          ),
-        ],
-      ],
+      [[filter.fromBlock, Math.min(filter.toBlock, totalInterval[1])]],
       interval,
     ),
   );

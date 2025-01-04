@@ -604,15 +604,14 @@ export const createHistoricalSync = async (
           // Skip sync if the interval is after the `toBlock` or before
           // the `fromBlock`.
           if (
-            (filter.fromBlock !== undefined &&
-              filter.fromBlock > _interval[1]) ||
-            (filter.toBlock !== undefined && filter.toBlock < _interval[0])
+            filter.fromBlock > _interval[1] ||
+            filter.toBlock < _interval[0]
           ) {
             return;
           }
           const interval: Interval = [
-            Math.max(filter.fromBlock ?? 0, _interval[0]),
-            Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
+            Math.max(filter.fromBlock, _interval[0]),
+            Math.min(filter.toBlock, _interval[1]),
           ];
           const completedIntervals = intervalsCache.get(filter)!;
           const requiredIntervals = intervalDifference(

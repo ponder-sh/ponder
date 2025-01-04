@@ -551,12 +551,8 @@ export const createSyncStore = ({
           return qb;
         })
         .$call((qb) => addressSQL(qb as any, filter.address, "address"))
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
+        .where("blockNumber", ">=", filter.fromBlock.toString())
+        .where("blockNumber", "<=", filter.toBlock.toString());
 
     const blockSQL = (
       filter: BlockFilter,
@@ -578,12 +574,8 @@ export const createSyncStore = ({
         .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
           qb.where(ksql`(number - ${filter.offset}) % ${filter.interval} = 0`),
         )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("number", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("number", "<=", filter.toBlock!.toString()),
-        );
+        .where("number", ">=", filter.fromBlock.toString())
+        .where("number", "<=", filter.toBlock.toString());
 
     const transactionSQL = (
       filter: TransactionFilter,
@@ -618,12 +610,8 @@ export const createSyncStore = ({
             "0x1",
           ),
         )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
+        .where("blockNumber", ">=", filter.fromBlock.toString())
+        .where("blockNumber", "<=", filter.toBlock.toString());
 
     const transferSQL = (
       filter: TransferFilter,
@@ -648,12 +636,8 @@ export const createSyncStore = ({
         .$if(filter.includeReverted === false, (qb) =>
           qb.where("isReverted", "=", 0),
         )
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
+        .where("blockNumber", ">=", filter.fromBlock.toString())
+        .where("blockNumber", "<=", filter.toBlock.toString());
 
     const traceSQL = (
       filter: TraceFilter,
@@ -687,12 +671,8 @@ export const createSyncStore = ({
             return qb.where("functionSelector", "=", filter.functionSelector!);
           }
         })
-        .$if(filter.fromBlock !== undefined, (qb) =>
-          qb.where("blockNumber", ">=", filter.fromBlock!.toString()),
-        )
-        .$if(filter.toBlock !== undefined, (qb) =>
-          qb.where("blockNumber", "<=", filter.toBlock!.toString()),
-        );
+        .where("blockNumber", ">=", filter.fromBlock.toString())
+        .where("blockNumber", "<=", filter.toBlock.toString());
 
     const rows = await db.wrap(
       {

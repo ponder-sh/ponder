@@ -84,8 +84,8 @@ export const isLogFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > filter.toBlock
   ) {
     return false;
   }
@@ -136,8 +136,8 @@ export const isTransactionFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > filter.toBlock
   ) {
     return false;
   }
@@ -220,8 +220,8 @@ export const isTraceFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > filter.toBlock
   ) {
     return false;
   }
@@ -305,8 +305,8 @@ export const isTransferFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > filter.toBlock
   ) {
     return false;
   }
@@ -382,8 +382,8 @@ export const isBlockFilterMatched = ({
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filter.fromBlock ||
+    hexToNumber(block.number) > filter.toBlock
   ) {
     return false;
   }
