@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.12
+
+### Patch Changes
+
+- [#1389](https://github.com/ponder-sh/ponder/pull/1389) [`f78e29ace56bdf2746a452c113e88cba5172401c`](https://github.com/ponder-sh/ponder/commit/f78e29ace56bdf2746a452c113e88cba5172401c) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned @electric-sql/pglite dependency to v0.2.13. Fixed `"information_schema.schemata" does not exist` error.
+
 ## 0.8.11
 
 ### Patch Changes
