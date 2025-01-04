@@ -245,21 +245,21 @@ export const createDatabase = async ({
       .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
       .then(({ rows }) => rows[0]);
     if (hasRole) {
-      await internal.query(`DROP OWNED BY ${role}`);
-      await internal.query(`DROP ROLE IF EXISTS ${role}`);
+      await internal.query(`DROP OWNED BY "${role}"`);
+      await internal.query(`DROP ROLE IF EXISTS "${role}"`);
     }
-    await internal.query(`CREATE ROLE ${role} WITH LOGIN PASSWORD 'pw'`);
+    await internal.query(`CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`);
     await internal.query(
-      `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
+      `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
     );
     await internal.query(
-      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO ${role}`,
+      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO "${role}"`,
     );
     await internal.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO ${role}`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO "${role}"`,
     );
     await internal.query(
-      `ALTER ROLE ${role} SET search_path TO "${preBuild.namespace}"`,
+      `ALTER ROLE "${role}" SET search_path TO "${preBuild.namespace}"`,
     );
     await internal.query(`ALTER ROLE ${role} SET statement_timeout TO '1s'`);
     await internal.query(`ALTER ROLE ${role} SET work_mem TO '1MB'`);
