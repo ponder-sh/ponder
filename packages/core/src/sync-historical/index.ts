@@ -189,7 +189,7 @@ export const createHistoricalSync = async (
         addressBatches.push(address.slice(i, i + 50));
       }
     }
-
+    g;
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
@@ -243,7 +243,7 @@ export const createHistoricalSync = async (
       if (logIds.has(id)) {
         args.common.logger.warn({
           service: "sync",
-          msg: `Detected invalid eth_getLogs response. Duplicate log for block ${log.blockHash} with index ${log.logIndex}`,
+          msg: `Detected invalid eth_getLogs response. Duplicate log for block ${log.blockHash} with index ${log.logIndex}.`,
         });
       } else {
         logIds.add(id);
