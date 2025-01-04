@@ -189,7 +189,7 @@ export const createHistoricalSync = async (
         addressBatches.push(address.slice(i, i + 50));
       }
     }
-    g;
+
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
