@@ -1,6 +1,7 @@
 import type { Common } from "@/common/common.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
+import type { Hex } from "viem";
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -1310,6 +1311,242 @@ GROUP BY fragment_id, chain_id
         .createIndex("traces_ordering_index")
         .on("traces")
         .columns(["blockNumber asc", "transactionIndex asc", "index asc"])
+        .execute();
+    },
+  },
+  "2025_01_02_1_join_optimizations_2": {
+    async up(db) {
+      await db.schema.dropIndex("blockNumberIndex").execute();
+      await db.schema
+        .createIndex("blocks_ordering_index")
+        .on("blocks")
+        .columns(["number asc"])
+        .execute();
+
+      await db.schema
+        .createIndex("logs_filtering_topic0_index")
+        .on("logs")
+        .columns(["checkpoint asc", "topic0 asc", "address asc"])
+        .execute();
+      await db.schema
+        .createIndex("logs_filtering_address_index")
+        .on("logs")
+        .columns(["checkpoint asc", "address asc", "topic0 asc"])
+        .execute();
+    },
+  },
+  "2025_01_02_2_join_optimizations_3": {
+    async up(db) {
+      await db.schema.dropIndex("logAddressIndex").execute();
+      await db.schema.dropIndex("logTopic0Index").execute();
+      await db.schema.dropIndex("logBlockHashIndex").execute();
+      await db.schema.dropIndex("log_transaction_hash_index").execute();
+      await db.schema.dropIndex("logs_checkpoint_index").execute();
+    },
+  },
+  "2025_01_02_3_join_optimizations_4": {
+    async up(db) {
+      await db.schema
+        .createIndex("logs_topic0_index")
+        .on("logs")
+        .columns(["topic0 asc", "checkpoint asc"])
+        .execute();
+      await db.schema
+        .createIndex("logs_address_index")
+        .on("logs")
+        .columns(["address asc", "checkpoint asc"])
+        .execute();
+    },
+  },
+  "2025_01_02_4_join_optimizations_5": {
+    async up(db) {
+      await db.schema.dropIndex("logs_filtering_topic0_index").execute();
+      await db.schema.dropIndex("logs_filtering_address_index").execute();
+    },
+  },
+  "2025_01_03_0_factory_redesign": {
+    async up(db) {
+      // Create factory table
+      await db.schema
+        .createTable("factory")
+        .addColumn("integer_id", "integer", (col) =>
+          col.primaryKey().generatedAlwaysAsIdentity(),
+        )
+        .addColumn("factory_id", "text", (col) => col.notNull().unique())
+        .execute();
+
+      // Create factory_address table
+      await db.schema
+        .createTable("factory_address")
+        .addColumn("id", "integer", (col) =>
+          col.primaryKey().generatedAlwaysAsIdentity(),
+        )
+        .addColumn("factory_integer_id", "integer", (col) => col.notNull())
+        .addColumn("address", "text", (col) => col.notNull())
+        .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factory_address_factory_integer_id_index")
+        .on("factory_address")
+        .columns(["factory_integer_id", "address"])
+        .execute();
+
+      // Data migration to move factory logs from `logs` to `factory_address`
+      // 1) Find factory IDs from `intervals` table
+      const factoryIdSet = new Set<string>();
+      const fragmentRows = await db
+        .selectFrom("intervals")
+        .select("fragment_id")
+        .execute();
+      for (const row of fragmentRows) {
+        const fragmentId = row.fragment_id as string;
+        // Find all occurrences of _offset and _topic in the fragment ID
+        const matches = [...fragmentId.matchAll(/_(?:offset|topic)([^_]*)/g)];
+
+        // For each match, extract the preceding 110 characters to get the factory ID
+        for (const match of matches) {
+          const factoryId = fragmentId.substring(
+            Math.max(0, match.index! - 109),
+            match.index! + match[0].length,
+          );
+          factoryIdSet.add(factoryId);
+        }
+      }
+
+      // 2) Copy factory logs from the `logs` table into `factory_address`
+      // Also write any required factory IDs into `factory` table
+      for (const factoryId of [...factoryIdSet]) {
+        const [address, eventSelector, childAddressLocation] =
+          factoryId.split("_");
+        if (
+          typeof address !== "string" ||
+          address.length !== 42 ||
+          typeof eventSelector !== "string" ||
+          eventSelector.length !== 66 ||
+          typeof childAddressLocation !== "string" ||
+          !(
+            childAddressLocation.startsWith("offset") ||
+            childAddressLocation.startsWith("topic")
+          )
+        ) {
+          console.warn(
+            `Migration warning: Invalid factory ID, skipping it (${factoryId})`,
+          );
+          continue;
+        }
+
+        await db
+          .with("factory_insert", (db) =>
+            db
+              .insertInto("factory")
+              .values({ factory_id: factoryId })
+              .onConflict((oc) =>
+                oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
+              )
+              .returning("integer_id"),
+          )
+          .insertInto("factory_address")
+          .columns(["factory_integer_id", "address", "block_number"])
+          .expression((db) =>
+            db
+              .selectFrom("logs")
+              .select([
+                sql`(SELECT integer_id FROM factory_insert)`.as(
+                  "factory_integer_id",
+                ),
+                (() => {
+                  if (childAddressLocation.startsWith("offset")) {
+                    const childAddressOffset = Number(
+                      childAddressLocation.substring(6),
+                    );
+                    const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
+                    const length = 20 * 2;
+                    return sql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
+                  } else {
+                    const start = 2 + 12 * 2 + 1;
+                    const length = 20 * 2;
+                    return sql<Hex>`'0x' || substring(${sql.ref(
+                      childAddressLocation,
+                    )} from ${start}::integer for ${length}::integer)`;
+                  }
+                })().as("address"),
+                "blockNumber as block_number",
+              ])
+              .where("address", "=", address)
+              .where("topic0", "=", eventSelector),
+          )
+          .execute();
+      }
+
+      // 3) Delete any log rows that are missing a checkpoint and make it not null
+      // Any factory logs that had a checkpoint added after the fact will remain,
+      // but won't cause any issues.
+      await db.deleteFrom("logs").where("checkpoint", "is", null).execute();
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("checkpoint", (col) => col.setNotNull())
+        .execute();
+    },
+  },
+  "2025_01_03_1_transaction_checkpoint_backfill": {
+    async up(db) {
+      // Backfill `checkpoint` column in `transactions`
+
+      const q = db
+        .updateTable("transactions")
+        .from("blocks")
+        .whereRef("transactions.blockNumber", "=", "blocks.number")
+        .where("transactions.checkpoint", "is", null)
+        .set({
+          checkpoint: sql`(
+          lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(blocks."chainId"::text, 16, '0') ||
+          lpad(blocks.number::text, 16, '0') ||
+          lpad(transactions."transactionIndex"::text, 16, '0') ||
+          '2' ||
+          '0000000000000000'
+        )`,
+        });
+
+      const planText = await q.explain("text");
+      const prettyPlanText = planText
+        .map((line) => line["QUERY PLAN"])
+        .join("\n");
+      console.log(prettyPlanText);
+
+      await db
+        .updateTable("transactions")
+        .from("blocks")
+        .whereRef("transactions.blockNumber", "=", "blocks.number")
+        .where("transactions.checkpoint", "is", null)
+        .set({
+          checkpoint: sql`(
+            lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(blocks."chainId"::text, 16, '0') ||
+            lpad(blocks.number::text, 16, '0') ||
+            lpad(transactions."transactionIndex"::text, 16, '0') ||
+            '2' ||
+            '0000000000000000'
+          )`,
+        })
+        .execute();
+
+      // If there are any transactions still without a checkpoint, delete and return them
+      const rows = await db
+        .deleteFrom("transactions")
+        .where("checkpoint", "is", null)
+        .returning(["hash", "blockNumber"])
+        .execute();
+      if (rows.length > 0) {
+        console.warn(
+          `Migration warning: ${rows.length} transaction rows still missing a checkpoint, removing them`,
+        );
+      }
+
+      // Set the checkpoint column to not null
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("checkpoint", (col) => col.setNotNull())
         .execute();
     },
   },

@@ -13,7 +13,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { ColumnType, Insertable } from "kysely";
+import type { ColumnType, Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
@@ -87,7 +87,7 @@ export const encodeBlock = ({
 type LogsTable = {
   id: string;
   chainId: number;
-  checkpoint: string | null;
+  checkpoint: string;
   blockHash: Hash;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   logIndex: number;
@@ -107,23 +107,20 @@ export const encodeLog = ({
   chainId,
 }: {
   log: SyncLog;
-  block?: SyncBlock;
+  block: SyncBlock;
   chainId: number;
 }): Insertable<LogsTable> => {
   return {
     id: `${log.blockHash}-${log.logIndex}`,
     chainId,
-    checkpoint:
-      block === undefined
-        ? null
-        : encodeCheckpoint({
-            blockTimestamp: hexToNumber(block.timestamp),
-            chainId: BigInt(chainId),
-            blockNumber: hexToBigInt(log.blockNumber),
-            transactionIndex: hexToBigInt(log.transactionIndex),
-            eventType: EVENT_TYPES.logs,
-            eventIndex: hexToBigInt(log.logIndex),
-          }),
+    checkpoint: encodeCheckpoint({
+      blockTimestamp: hexToNumber(block.timestamp),
+      chainId: BigInt(chainId),
+      blockNumber: hexToBigInt(log.blockNumber),
+      transactionIndex: hexToBigInt(log.transactionIndex),
+      eventType: EVENT_TYPES.logs,
+      eventIndex: hexToBigInt(log.logIndex),
+    }),
     blockHash: log.blockHash,
     blockNumber: hexToBigInt(log.blockNumber),
     logIndex: hexToNumber(log.logIndex),
@@ -345,6 +342,18 @@ type IntervalTable = {
   blocks: string;
 };
 
+type FactoryTable = {
+  integer_id: Generated<number>;
+  factory_id: string;
+};
+
+type FactoryAddressTable = {
+  id: Generated<number>;
+  factory_integer_id: number;
+  address: string;
+  block_number: ColumnType<string, string | bigint, string | bigint>;
+};
+
 export type PonderSyncSchema = {
   blocks: BlocksTable;
   logs: LogsTable;
@@ -352,7 +361,10 @@ export type PonderSyncSchema = {
   transactionReceipts: TransactionReceiptsTable;
   traces: TracesTable;
 
-  rpc_request_results: RpcRequestResultsTable;
+  factory: FactoryTable;
+  factory_address: FactoryAddressTable;
 
   intervals: IntervalTable;
+
+  rpc_request_results: RpcRequestResultsTable;
 };

@@ -14,6 +14,7 @@ import {
   type LogFilter,
   type TraceFilter,
   type TransferFilter,
+  getChildAddress,
   isAddressFactory,
   shouldGetTransactionReceipt,
 } from "@/sync/source.js";
@@ -314,10 +315,14 @@ export const createHistoricalSync = async (
 
     if (isKilled) return;
 
-    // Insert `logs` into the sync-store
-    await args.syncStore.insertLogs({
-      logs: logs.map((log) => ({ log })),
-      shouldUpdateCheckpoint: false,
+    // Insert child addresses into the sync-store
+    const data = logs.map((log) => ({
+      address: getChildAddress({ log, factory: filter }),
+      blockNumber: hexToBigInt(log.blockNumber),
+    }));
+    await args.syncStore.insertChildAddresses({
+      factory: filter,
+      data,
       chainId: args.network.chainId,
     });
   };
@@ -335,7 +340,7 @@ export const createHistoricalSync = async (
 
     // Query the sync-store for all addresses that match `filter`.
     const addresses = await args.syncStore.getChildAddresses({
-      filter,
+      factory: filter,
       limit: args.common.options.factoryAddressCountThreshold,
     });
 
@@ -396,7 +401,6 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
-      shouldUpdateCheckpoint: true,
       chainId: args.network.chainId,
     });
 

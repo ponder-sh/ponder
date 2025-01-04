@@ -755,16 +755,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             logs: finalizedBlocks.flatMap(({ logs, block }) =>
               logs.map((log) => ({ log, block })),
             ),
-            shouldUpdateCheckpoint: true,
             chainId: network.chainId,
           }),
-          args.syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
-              factoryLogs.map((log) => ({ log })),
-            ),
-            shouldUpdateCheckpoint: false,
-            chainId: network.chainId,
-          }),
+          // TODO: Include which filter each log belongs to in the event coming from
+          // the realtime service.
+          // args.syncStore.insertChildAddresses({
+          //   factoryLogs: finalizedBlocks.flatMap(
+          //     ({ factoryLogs }) => factoryLogs,
+          //   ),
+          //   chainId: network.chainId,
+          // }),
           args.syncStore.insertTransactions({
             transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
               transactions.map((transaction) => ({
@@ -893,7 +893,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               isAddressFactory(filter.address)
             ) {
               const addresses = await args.syncStore.getChildAddresses({
-                filter: filter.address,
+                factory: filter.address,
               });
 
               initialChildAddresses.set(filter.address, new Set(addresses));
