@@ -237,6 +237,19 @@ export const createHistoricalSync = async (
       ),
     ).then((logs) => logs.flat());
 
+    const logIds = new Set<string>();
+    for (const log of logs) {
+      const id = `${log.blockHash}-${log.logIndex}`;
+      if (logIds.has(id)) {
+        args.common.logger.warn({
+          service: "sync",
+          msg: `Detected invalid eth_getLogs response. Duplicate log for block ${log.blockHash} with index ${log.logIndex}.`,
+        });
+      } else {
+        logIds.add(id);
+      }
+    }
+
     /**
      * Dynamically increase the range used in "eth_getLogs" if an
      * error has been received but the error didn't suggest a range.
