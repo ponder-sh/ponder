@@ -160,6 +160,14 @@ export const onchainTable = <
   return table;
 };
 
+/**
+ * A table that tracks the status of each chain.
+ *
+ * @property {number} chainId - The chain ID.
+ * @property {number} blockNumber - The closest-to-tip indexed block number.
+ * @property {number} blockTimestamp - The closest-to-tip indexed block timestamp.
+ * @property {boolean} ready - `true` if the chain has completed the historical backfill.
+ */
 export const status = onchainTable("_ponder_status", (t) => ({
   chainId: t.int8({ mode: "number" }).primaryKey(),
   blockNumber: t.int8({ mode: "number" }),
