@@ -468,7 +468,7 @@ test("sql followed by find", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 

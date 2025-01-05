@@ -1,4 +1,4 @@
-import type { Logger } from "@/common/logger.js";
+import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
 
