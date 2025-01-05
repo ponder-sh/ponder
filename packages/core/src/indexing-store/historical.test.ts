@@ -31,8 +31,8 @@ test("find", async (context) => {
 
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
+    schemaBuild: { schema },
     database,
-    schema,
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -72,7 +72,7 @@ test("insert", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -219,7 +219,7 @@ test("update", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -285,7 +285,7 @@ test("delete", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -333,7 +333,7 @@ test("flush", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -390,7 +390,7 @@ test("sql", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -466,7 +466,7 @@ test("onchain table", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -495,7 +495,7 @@ test("missing rows", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -525,7 +525,7 @@ test("notNull", async (context) => {
   let indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -552,7 +552,7 @@ test("notNull", async (context) => {
   indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -586,7 +586,7 @@ test("default", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -614,7 +614,7 @@ test("$default", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -645,7 +645,7 @@ test("$onUpdateFn", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -679,7 +679,7 @@ test("array", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -717,7 +717,7 @@ test("enum", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -753,7 +753,7 @@ test("json bigint", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 

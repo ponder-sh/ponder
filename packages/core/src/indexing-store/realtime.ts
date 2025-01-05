@@ -7,7 +7,7 @@ import {
   RecordNotFoundError,
   UndefinedTableError,
 } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type QueryWithTypings,
@@ -44,12 +44,12 @@ const checkOnchainTable = (
 };
 
 export const createRealtimeIndexingStore = ({
+  schemaBuild: { schema },
   database,
-  schema,
 }: {
   common: Common;
+  schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  schema: Schema;
 }): IndexingStore<"realtime"> => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({

@@ -3,6 +3,7 @@ import type { Common } from "@/internal/common.js";
 import type {
   ContractSource,
   Event,
+  IndexingBuild,
   IndexingFunctions,
   Network,
   Schema,
@@ -71,16 +72,15 @@ export type Service = {
 };
 
 export const create = ({
-  indexingFunctions,
   common,
-  sources,
-  networks,
+  indexingBuild: { sources, networks, indexingFunctions },
   sync,
 }: {
-  indexingFunctions: IndexingFunctions;
   common: Common;
-  sources: Source[];
-  networks: Network[];
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "networks" | "indexingFunctions"
+  >;
   sync: Sync;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {

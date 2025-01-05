@@ -208,8 +208,8 @@ export async function setupDatabaseServices(
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: config.schema },
     database,
-    schema: config.schema,
   });
 
   const metadataStore = getMetadataStore({ database });

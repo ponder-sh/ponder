@@ -12,7 +12,7 @@ import {
   UndefinedTableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
@@ -144,13 +144,13 @@ export const normalizeColumn = (
 
 export const createHistoricalIndexingStore = ({
   common,
+  schemaBuild: { schema },
   database,
-  schema,
   initialCheckpoint,
 }: {
   common: Common;
+  schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  schema: Schema;
   initialCheckpoint: string;
 }): IndexingStore<"historical"> => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions

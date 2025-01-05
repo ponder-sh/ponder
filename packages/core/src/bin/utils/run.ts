@@ -113,17 +113,15 @@ export async function run({
   });
 
   const indexingService = createIndexingService({
-    indexingFunctions: indexingBuild.indexingFunctions,
     common,
-    sources: indexingBuild.sources,
-    networks: indexingBuild.networks,
+    indexingBuild,
     sync,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
     common,
+    schemaBuild,
     database,
-    schema: schemaBuild.schema,
     initialCheckpoint,
   });
 
@@ -230,9 +228,9 @@ export async function run({
 
     indexingService.setIndexingStore(
       createRealtimeIndexingStore({
-        database,
-        schema: schemaBuild.schema,
         common,
+        schemaBuild,
+        database,
       }),
     );
 

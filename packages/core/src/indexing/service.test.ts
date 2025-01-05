@@ -66,10 +66,12 @@ test("createIndexing()", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -101,10 +103,12 @@ test("processSetupEvents() empty", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -144,10 +148,12 @@ test("processSetupEvents()", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -207,10 +213,12 @@ test("processEvent()", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -309,10 +317,12 @@ test("processEvents killed", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -383,10 +393,12 @@ test("processEvents eventCount", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -457,10 +469,12 @@ test("executeSetup() context.client", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -514,10 +528,12 @@ test("executeSetup() context.db", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -563,12 +579,14 @@ test("executeSetup() metrics", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:setup": vi.fn(),
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:setup": vi.fn(),
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -610,10 +628,12 @@ test("executeSetup() error", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -658,13 +678,15 @@ test("processEvents() context.client", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        clientCall,
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          clientCall,
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -742,13 +764,15 @@ test("processEvents() context.db", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        dbCall,
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          dbCall,
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -815,13 +839,15 @@ test("processEvents() metrics", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        vi.fn(),
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          vi.fn(),
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -887,10 +913,12 @@ test("processEvents() error", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -968,10 +996,12 @@ test("execute() error after killed", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -1033,10 +1063,12 @@ test("ponderActions getBalance()", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1073,10 +1105,12 @@ test("ponderActions getCode()", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1119,10 +1153,12 @@ test("ponderActions getStorageAt()", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1167,10 +1203,12 @@ test("ponderActions readContract()", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1215,10 +1253,12 @@ test("ponderActions readContract() blockNumber", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1265,10 +1305,12 @@ test.skip("ponderActions multicall()", async (context) => {
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
