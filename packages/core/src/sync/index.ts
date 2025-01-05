@@ -410,7 +410,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
    * used to determine `to` passed to `getEvents`
    */
   let estimateSeconds = 1_000;
-
   /**
    * Omnichain `getEvents`
    *
@@ -474,25 +473,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           getOmnichainCheckpoint("finalized"),
           getOmnichainCheckpoint("current"),
         );
-
-        // const stream = args.syncStore.getEventsStream({
-        //   filters: args.sources.map(({ filter }) => filter),
-        //   from,
-        //   to,
-        // });
-
-        // for await (const { events, cursor } of stream) {
-        //   args.common.logger.debug({
-        //     service: "sync",
-        //     msg: `Fetched ${events.length} events from the database`,
-        //   });
-
-        //   for (const network of args.networks) {
-        //     updateHistoricalStatus({ events, checkpoint: cursor, network });
-        //   }
-
-        //   yield { events, checkpoint: cursor };
-        // }
 
         /*
          * Extract events with `syncStore.getEvents()`, paginating to
