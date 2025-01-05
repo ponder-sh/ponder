@@ -246,7 +246,6 @@ export const createDatabase = ({
           ...preBuild.databaseConfig.poolConfig,
           application_name: "ponder_sync",
           max: syncMax,
-          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
         },
         common.logger,
       ),
