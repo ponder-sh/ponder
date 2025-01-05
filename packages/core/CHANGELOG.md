@@ -1,5 +1,25 @@
 # ponder
 
+## 0.8.10
+
+### Patch Changes
+
+- [#1370](https://github.com/ponder-sh/ponder/pull/1370) [`61b0b04c3306929bf2ff1ef781be874f561d8e11`](https://github.com/ponder-sh/ponder/commit/61b0b04c3306929bf2ff1ef781be874f561d8e11) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed a bug causing future end blocks to error.
+
+## 0.8.9
+
+### Patch Changes
+
+- [#1381](https://github.com/ponder-sh/ponder/pull/1381) [`dae8801ea3ddf732d8284ff84bc7dc21ada22f0e`](https://github.com/ponder-sh/ponder/commit/dae8801ea3ddf732d8284ff84bc7dc21ada22f0e) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where data inserted using raw SQL near the beginning of historical indexing was not found by subsequent `find`, `update`, or `delete` operations using the store/in-memory API.
+
+- [#1375](https://github.com/ponder-sh/ponder/pull/1375) [`1687033a74fb8e7a7d843b4fe1f7f1cd4cf866a9`](https://github.com/ponder-sh/ponder/commit/1687033a74fb8e7a7d843b4fe1f7f1cd4cf866a9) Thanks [@typedarray](https://github.com/typedarray)! - Improved logs for Postgres pool errors.
+
+## 0.8.8
+
+### Patch Changes
+
+- [#1368](https://github.com/ponder-sh/ponder/pull/1368) [`492d7e7744dbddede2e72b0649cd7dffb96173cd`](https://github.com/ponder-sh/ponder/commit/492d7e7744dbddede2e72b0649cd7dffb96173cd) Thanks [@typedarray](https://github.com/typedarray)! - Improved debug-level logs for historical indexing observability.
+
 ## 0.8.7
 
 ### Patch Changes

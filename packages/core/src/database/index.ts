@@ -224,12 +224,15 @@ export const createDatabase = async ({
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
-    const internal = createPool({
-      ...preBuild.databaseConfig.poolConfig,
-      application_name: `${preBuild.namespace}_internal`,
-      max: internalMax,
-      statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-    });
+    const internal = createPool(
+      {
+        ...preBuild.databaseConfig.poolConfig,
+        application_name: `${preBuild.namespace}_internal`,
+        max: internalMax,
+        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+      },
+      common.logger,
+    );
 
     const connection = (parse as unknown as typeof parse.parse)(
       preBuild.databaseConfig.poolConfig.connectionString!,
@@ -266,27 +269,36 @@ export const createDatabase = async ({
 
     driver = {
       internal,
-      user: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_user`,
-        max: userMax,
-      }),
-      readonly: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        connectionString: undefined,
-        application_name: `${preBuild.namespace}_readonly`,
-        max: readonlyMax,
-        user: role,
-        password: "pw",
-        host: connection.host ?? undefined,
-        port: Number(connection.port!),
-        database: connection.database ?? undefined,
-      }),
-      sync: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: "ponder_sync",
-        max: syncMax,
-      }),
+      user: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${preBuild.namespace}_user`,
+          max: userMax,
+        },
+        common.logger,
+      ),
+      readonly: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          connectionString: undefined,
+          application_name: `${preBuild.namespace}_readonly`,
+          max: readonlyMax,
+          user: role,
+          password: "pw",
+          host: connection.host ?? undefined,
+          port: Number(connection.port!),
+          database: connection.database ?? undefined,
+        },
+        common.logger,
+      ),
+      sync: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: "ponder_sync",
+          max: syncMax,
+        },
+        common.logger,
+      ),
     };
 
     qb = {

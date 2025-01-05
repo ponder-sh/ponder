@@ -1,6 +1,5 @@
-import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type { IndexingFunctions, Network } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Sync } from "@/sync/index.js";

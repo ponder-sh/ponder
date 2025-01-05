@@ -1,6 +1,5 @@
+import type { Network } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
-import { getAppProgress } from "@/common/metrics.js";
-import type { Network } from "@/config/networks.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -39,6 +38,7 @@ import {
   type Transport,
   hexToBigInt,
   hexToNumber,
+  toHex,
 } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
 import { type RawEvent, buildEvents } from "./events.js";
@@ -502,6 +502,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             });
             consecutiveErrors = 0;
 
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from ${decodeCheckpoint(from).blockTimestamp}`,
+            });
+
             for (const network of args.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });
             }
@@ -519,27 +524,15 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
             yield { events, checkpoint: to };
             from = cursor;
-
-            // underlying metrics collection is actually synchronous
-            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-            const { eta, progress } = await getAppProgress(args.common.metrics);
-
-            if (events.length > 0) {
-              if (eta === undefined || progress === undefined) {
-                args.common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} events`,
-                });
-              } else {
-                args.common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
-                });
-              }
-            }
           } catch (error) {
             // Handle errors by reducing the requested range by 10x
             estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+
+            args.common.logger.debug({
+              service: "sync",
+              msg: `Failed to fetch events from the database, retrying with a ${formatEta(estimateSeconds * 1000)} range`,
+            });
+
             if (++consecutiveErrors > 4) throw error;
           }
         }
@@ -936,14 +929,23 @@ export const syncDiagnostic = async ({
     ? undefined
     : Math.max(...sources.map(({ filter }) => filter.toBlock!));
 
-  const [remoteChainId, startBlock, endBlock, latestBlock] = await Promise.all([
+  const [remoteChainId, startBlock, latestBlock] = await Promise.all([
     requestQueue.request({ method: "eth_chainId" }),
     _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
-    end === undefined
-      ? undefined
-      : _eth_getBlockByNumber(requestQueue, { blockNumber: end }),
     _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }),
   ]);
+
+  const endBlock =
+    end === undefined
+      ? undefined
+      : end > hexToBigInt(latestBlock.number)
+        ? ({
+            number: toHex(end),
+            hash: "0x",
+            parentHash: "0x",
+            timestamp: toHex(maxCheckpoint.blockTimestamp),
+          } as LightBlock)
+        : await _eth_getBlockByNumber(requestQueue, { blockNumber: end });
 
   // Warn if the config has a different chainId than the remote.
   if (hexToNumber(remoteChainId) !== network.chainId) {
