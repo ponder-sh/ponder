@@ -347,8 +347,8 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
       a: {
         network: "mainnet",
         abi: [event0],
+        // @ts-expect-error
         filter: {
-          // @ts-expect-error
           event: "Event2",
           args: {
             arg: "0x",
