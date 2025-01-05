@@ -184,6 +184,7 @@ export const createHistoricalSync = async (
       return [];
     } else {
       // many addresses
+      // Note: it is assumed that `address` is deduplicated
       addressBatches = [];
       for (let i = 0; i < address.length; i += 50) {
         addressBatches.push(address.slice(i, i + 50));
@@ -236,6 +237,19 @@ export const createHistoricalSync = async (
         ),
       ),
     ).then((logs) => logs.flat());
+
+    const logIds = new Set<string>();
+    for (const log of logs) {
+      const id = `${log.blockHash}-${log.logIndex}`;
+      if (logIds.has(id)) {
+        args.common.logger.warn({
+          service: "sync",
+          msg: `Detected invalid eth_getLogs response. Duplicate log for block ${log.blockHash} with index ${log.logIndex}.`,
+        });
+      } else {
+        logIds.add(id);
+      }
+    }
 
     /**
      * Dynamically increase the range used in "eth_getLogs" if an
