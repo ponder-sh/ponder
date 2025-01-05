@@ -370,8 +370,8 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -549,8 +549,8 @@ test("finalize()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -693,8 +693,8 @@ test("createTriggers()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -738,8 +738,8 @@ test("complete()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -789,8 +789,8 @@ test("revert()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore

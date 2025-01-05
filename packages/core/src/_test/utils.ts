@@ -1,8 +1,7 @@
 import { type AddressInfo, createServer } from "node:net";
-import type { Network } from "@/build/index.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { Status } from "@/sync/index.js";
+import type { Network, Status } from "@/internal/types.js";
 import type { Address, Chain } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";

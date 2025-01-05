@@ -1,23 +1,24 @@
-import type { Network } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  BlockFilter,
+  Factory,
+  Filter,
+  LogFactory,
+  LogFilter,
+  Network,
+  Source,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import {
+  isAddressFactory,
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-} from "@/sync-realtime/filter.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import {
-  type BlockFilter,
-  type Factory,
-  type Filter,
-  type LogFactory,
-  type LogFilter,
-  type TraceFilter,
-  type TransferFilter,
-  isAddressFactory,
   shouldGetTransactionReceipt,
-} from "@/sync/source.js";
-import type { Source, TransactionFilter } from "@/sync/source.js";
+} from "@/sync/filter.js";
 import type {
   SyncBlock,
   SyncLog,

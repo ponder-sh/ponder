@@ -1,19 +1,27 @@
-import type { Network } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
-import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  BlockFilter,
+  Factory,
+  Filter,
+  LogFilter,
+  Network,
+  Source,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
 import {
-  type BlockFilter,
-  type Factory,
-  type Filter,
-  type LogFilter,
-  type Source,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
   getChildAddress,
   isAddressFactory,
+  isBlockFilterMatched,
+  isLogFactoryMatched,
+  isLogFilterMatched,
+  isTraceFilterMatched,
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
   shouldGetTransactionReceipt,
-} from "@/sync/source.js";
+} from "@/sync/filter.js";
+import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import type {
   LightBlock,
   SyncBlock,
@@ -36,14 +44,6 @@ import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hash, hexToNumber } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
-import {
-  isBlockFilterMatched,
-  isLogFactoryMatched,
-  isLogFilterMatched,
-  isTraceFilterMatched,
-  isTransactionFilterMatched,
-  isTransferFilterMatched,
-} from "./filter.js";
 
 export type RealtimeSync = {
   start(args: {
