@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.14
+
+### Patch Changes
+
+- [#1342](https://github.com/ponder-sh/ponder/pull/1342) [`f49e62d888cd1e9ed2555331b84701ad8b0e8604`](https://github.com/ponder-sh/ponder/commit/f49e62d888cd1e9ed2555331b84701ad8b0e8604) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for "eth_getBlockReceipts" request for better performance and cost.
+
 ## 0.8.13
 
 ### Patch Changes
