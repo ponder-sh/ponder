@@ -3,7 +3,6 @@ import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
 import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
-import type { NonStrictPick } from "./utilityTypes.js";
 
 export type Config = {
   networks: { [networkName: string]: NetworkConfig<unknown> };
@@ -126,7 +125,6 @@ type AbiConfig<abi extends Abi | readonly unknown[]> = {
 
 type GetContractNetwork<
   networks,
-  contract,
   abi extends Abi,
   ///
   allNetworkNames extends string = [keyof networks] extends [never]
@@ -142,7 +140,7 @@ type GetContractNetwork<
     | {
         [name in allNetworkNames]?: Prettify<
           AddressConfig &
-            GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+            GetEventFilter<abi> &
             TransactionReceiptConfig &
             FunctionCallConfig &
             BlockConfig
@@ -150,11 +148,11 @@ type GetContractNetwork<
       };
 };
 
-type ContractConfig<networks, contract, abi extends Abi> = Prettify<
+type ContractConfig<networks, abi extends Abi> = Prettify<
   AbiConfig<abi> &
-    GetContractNetwork<networks, NonStrictPick<contract, "network">, abi> &
+    GetContractNetwork<networks, abi> &
     AddressConfig &
-    GetEventFilter<abi, NonStrictPick<contract, "filter">> &
+    GetEventFilter<abi> &
     TransactionReceiptConfig &
     FunctionCallConfig &
     BlockConfig
@@ -164,9 +162,9 @@ type GetContract<networks = unknown, contract = unknown> = contract extends {
   abi: infer abi extends Abi;
 }
   ? // 1. Contract has a valid abi
-    ContractConfig<networks, contract, abi>
+    ContractConfig<networks, abi>
   : // 2. Contract has an invalid abi
-    ContractConfig<networks, contract, Abi>;
+    ContractConfig<networks, Abi>;
 
 type ContractsConfig<networks, contracts> = {} extends contracts
   ? // contracts empty, return empty

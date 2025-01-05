@@ -1,7 +1,6 @@
 import { BuildError } from "@/common/errors.js";
-import type { BlockRange, Config } from "@/config/config.js";
+import type { BlockRange, Config } from "@/config/index.js";
 import {
-  type Network,
   getFinalityBlockCount,
   getRpcUrlsForClient,
   isRpcUrlPublic,
@@ -23,15 +22,11 @@ import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Address, Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
-
-export type RawIndexingFunctions = {
-  name: string;
-  fn: (...args: any) => any;
-}[];
-
-export type IndexingFunctions = {
-  [eventName: string]: (...args: any) => any;
-};
+import type {
+  IndexingFunctions,
+  Network,
+  RawIndexingFunctions,
+} from "./index.js";
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],

@@ -1,5 +1,5 @@
+import type { Network } from "@/build/index.js";
 import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
 import {
   type HistoricalSync,
   createHistoricalSync,

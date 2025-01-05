@@ -1,4 +1,5 @@
-import type { Drizzle, OnchainTable, Schema } from "@/drizzle/index.js";
+import type { Drizzle, ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
+import type { OnchainTable } from "@/drizzle/onchain.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
@@ -957,7 +958,7 @@ function buildCursorCondition(
 
 export function buildDataLoaderCache({
   drizzle,
-}: { drizzle: Drizzle<Schema> }) {
+}: { drizzle: ReadonlyDrizzle<Schema> }) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
     DataLoader<string, any> | undefined

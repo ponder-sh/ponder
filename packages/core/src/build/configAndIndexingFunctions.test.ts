@@ -14,7 +14,7 @@ import {
   zeroAddress,
 } from "viem";
 import { expect, test } from "vitest";
-import { type Config, createConfig } from "../config/config.js";
+import { type Config, createConfig } from "../config/index.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
@@ -347,8 +347,8 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
       a: {
         network: "mainnet",
         abi: [event0],
+        // @ts-expect-error
         filter: {
-          // @ts-expect-error
           event: "Event2",
           args: {
             arg: "0x",

@@ -1,17 +1,6 @@
 import { chains } from "@/utils/chains.js";
 import type { Chain, Client, Transport } from "viem";
 
-export type Network = {
-  name: string;
-  chainId: number;
-  chain: Chain;
-  transport: ReturnType<Transport>;
-  pollingInterval: number;
-  maxRequestsPerSecond: number;
-  finalityBlockCount: number;
-  disableCache: boolean;
-};
-
 /**
  * Returns the number of blocks that must pass before a block is considered final.
  * Note that a value of `0` indicates that blocks are considered final immediately.

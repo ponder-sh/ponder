@@ -8,7 +8,7 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/common/errors.js";
-import { onchainEnum, onchainTable } from "@/drizzle/index.js";
+import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";

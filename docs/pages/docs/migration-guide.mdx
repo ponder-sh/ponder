@@ -7,6 +7,90 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 # Migration guide
 
+## 0.9.0-next.0
+
+### API functions
+
+This release makes Ponder's API layer less opinionated. Now, you just need to default export a Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
+
+Copy the following code into `src/api/index.ts` to achieve the same functionality as `<=0.8`.
+
+```ts filename="src/api/index.ts"
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+import { graphql } from "ponder";
+
+const app = new Hono();
+
+app.use("/", graphql({ db, schema }));
+app.use("/graphql", graphql({ db, schema }));
+
+export default app;
+```
+
+#### Removed `ponder.get()`, `post()`, `use()`
+
+Now, simply use Hono's built-in routing system.
+
+<div className="code-columns">
+
+```ts filename="src/api/index.ts (<=0.8)"
+import { ponder } from "ponder:registry";
+
+ponder.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+```
+
+```ts filename="src/api/index.ts (0.9)"
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+
+export default app;
+```
+
+</div>
+
+#### `import { db } from "ponder:api"`
+
+The `c.db` object was removed from the Hono context. Now, use the `"ponder:api"` virtual module to access a readonly Drizzle database object.
+
+```ts filename="src/api/index.ts" {1,10}
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const account = await db
+    .select()
+    .from(schema.accounts)
+    .where(eq(schema.accounts.address, address))
+    .limit(1);
+
+  return c.json(account);
+});
+
+export default app;
+```
+
+### `@ponder/client`
+
+A new package for querying Ponder apps. [Read more](/docs/query/client).
+
+### Event filters
+
+The `contracts.filter` property now supports multiple filters, and requires argument values. [Read more](/docs/contracts-and-networks#event-filter).
+
 ## 0.8
 
 <Callout type="warning">

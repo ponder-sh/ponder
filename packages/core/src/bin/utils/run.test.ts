@@ -11,8 +11,7 @@ import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFuncti
 import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
-import { onchainTable } from "@/drizzle/index.js";
-import { buildGraphQLSchema } from "@/graphql/index.js";
+import { onchainTable } from "@/drizzle/onchain.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -27,7 +26,6 @@ const account = onchainTable("account", (p) => ({
 }));
 
 const schema = { account };
-const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() setup", async (context) => {
   const network = getNetwork();
@@ -54,7 +52,6 @@ test("run() setup", async (context) => {
   const schemaBuild: SchemaBuild = {
     schema,
     statements,
-    graphqlSchema,
   };
 
   const indexingBuild: IndexingBuild = {
@@ -64,7 +61,7 @@ test("run() setup", async (context) => {
     indexingFunctions,
   };
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -118,7 +115,6 @@ test("run() setup error", async (context) => {
   const schemaBuild: SchemaBuild = {
     schema,
     statements,
-    graphqlSchema,
   };
 
   const indexingBuild: IndexingBuild = {
@@ -128,7 +124,7 @@ test("run() setup error", async (context) => {
     indexingFunctions,
   };
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,

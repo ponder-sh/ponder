@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { onchainTable, primaryKey } from "./index.js";
 import { getPrimaryKeyColumns } from "./index.js";
+import { onchainTable, primaryKey } from "./onchain.js";
 
 test("getPrimaryKeyColumns()", () => {
   const table = onchainTable("table", (p) => ({

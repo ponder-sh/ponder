@@ -1,7 +1,7 @@
 import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import { factory } from "./address.js";
-import { createConfig } from "./config.js";
+import { createConfig } from "./index.js";
 
 const event0 = parseAbiItem(
   "event Event0(bytes32 indexed arg, bytes32 indexed arg1)",
@@ -105,31 +105,7 @@ test("createConfig factory", () => {
   });
 });
 
-test("createConfig filter", () => {
-  createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
-    },
-    contracts: {
-      c2: {
-        abi: [event1],
-        network: "mainnet",
-        filter: {
-          event: "Event1",
-        },
-      },
-    },
-  });
-});
-
-test("createConfig filter with args", () => {
+test("createConfig with filter", () => {
   createConfig({
     networks: {
       mainnet: {
@@ -147,8 +123,10 @@ test("createConfig filter with args", () => {
         network: "mainnet",
         filter: {
           event: "Event0",
+          //^?
           args: {
             arg: ["0x"],
+            //^?
           },
         },
       },
@@ -156,7 +134,7 @@ test("createConfig filter with args", () => {
   });
 });
 
-test("createConfig filter multiple events", () => {
+test("createConfig with multiple filters", () => {
   createConfig({
     networks: {
       mainnet: {
@@ -172,9 +150,20 @@ test("createConfig filter multiple events", () => {
       c2: {
         abi: [event0, event1],
         network: "mainnet",
-        filter: {
-          event: ["Event0", "Event1"],
-        },
+        filter: [
+          {
+            event: "Event0",
+            //^?
+            args: {
+              arg: ["0x"],
+              //^?
+            },
+          },
+          {
+            event: "Event1",
+            args: [],
+          },
+        ],
       },
     },
   });
@@ -199,12 +188,15 @@ test("createConfig network overrides", () => {
         startBlock: 0,
       },
       c2: {
-        abi: [event1],
+        abi: [event0, event1],
         network: {
           optimism: {
             address: "0x",
             filter: {
-              event: "Event1",
+              event: "Event0",
+              args: {
+                arg: ["0x"],
+              },
             },
           },
         },
@@ -232,6 +224,12 @@ test("createConfig weak Abi", () => {
       c2: {
         abi,
         network: "mainnet",
+        filter: {
+          event: "event0",
+          //^?
+          args: {},
+          //^?
+        },
       },
     },
   });
@@ -255,7 +253,10 @@ test("createConfig strict return type", () => {
         abi: [event0, event1],
         network: "mainnet",
         filter: {
-          event: "Event1",
+          event: "Event0",
+          args: {
+            arg: ["0x"],
+          },
         },
       },
     },
@@ -269,7 +270,10 @@ test("createConfig strict return type", () => {
       abi: readonly [typeof event0, typeof event1];
       network: "mainnet";
       filter: {
-        event: "Event1";
+        event: "Event0";
+        args: {
+          arg: ["0x"];
+        };
       };
     };
   }>(config.contracts);

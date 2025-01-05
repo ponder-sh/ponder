@@ -1,10 +1,10 @@
+import type { DatabaseConfig } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import type { Common } from "@/common/common.js";
 import { createLogger } from "@/common/logger.js";
 import { MetricsService } from "@/common/metrics.js";
 import { buildOptions } from "@/common/options.js";
 import { createTelemetry } from "@/common/telemetry.js";
-import type { DatabaseConfig } from "@/config/database.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
@@ -194,7 +194,7 @@ export async function setupDatabaseServices(
     schema: config.schema,
   });
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
@@ -206,7 +206,7 @@ export async function setupDatabaseServices(
     },
   });
 
-  await database.setup({ buildId: config.buildId });
+  await database.prepareNamespace({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -225,7 +225,7 @@ export async function setupDatabaseServices(
   });
 
   const metadataStore = getMetadataStore({
-    db: database.qb.readonly,
+    db: database.qb.user,
   });
 
   const cleanup = () => database.kill();
