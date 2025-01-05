@@ -184,6 +184,7 @@ export const createHistoricalSync = async (
       return [];
     } else {
       // many addresses
+      // Note: it is assumed that `address` is deduplicated
       addressBatches = [];
       for (let i = 0; i < address.length; i += 50) {
         addressBatches.push(address.slice(i, i + 50));
