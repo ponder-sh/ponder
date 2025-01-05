@@ -609,7 +609,9 @@ export const createSyncStore = ({
   getEvents: async ({ filters, from, to, limit }) => {
     const joinInfo = {
       logs: filters.some((filter) => filter.type === "log"),
-      traces: filters.some((filter) => filter.type === "trace"),
+      traces: filters.some(
+        (filter) => filter.type === "trace" || filter.type === "transfer",
+      ),
       receipts: filters.some((filter) => shouldGetTransactionReceipt(filter)),
     };
 
@@ -770,8 +772,6 @@ export const createSyncStore = ({
         },
       },
       async () => {
-        // console.log(query.compile().sql);
-
         // const planText = await query.explain("text", ksql`analyze, buffers`);
         // const prettyPlanText = planText
         //   .map((line) => line["QUERY PLAN"])
@@ -791,7 +791,7 @@ export const createSyncStore = ({
     const events = rows.map((row_) => {
       const row = row_ as NonNull<RowType>;
 
-      // const filter = filters[row.filter_index]!;
+      const filter = filters[row.filter_index]!;
 
       const hasLog = row.log_index !== null && row.log_index !== undefined;
       const hasTrace =
@@ -799,7 +799,9 @@ export const createSyncStore = ({
       const hasTransaction =
         row.tx_index !== null && row.tx_index !== undefined;
       const hasTransactionReceipt =
-        row.tx_receipt_status !== null && row.tx_receipt_status !== undefined;
+        shouldGetTransactionReceipt(filter) &&
+        row.tx_receipt_status !== null &&
+        row.tx_receipt_status !== undefined;
 
       return {
         chainId: row.chain_id,
@@ -1263,34 +1265,34 @@ const selectLogColumnsAsNull = (
   qb: SelectQueryBuilder<PonderSyncSchema, any, any>,
 ) =>
   qb.select([
-    ksql`null`.$castTo<null>().as("log_index"),
-    ksql`null`.as("log_address"),
-    ksql`null`.as("log_data"),
-    ksql`null`.as("log_topic0"),
-    ksql`null`.as("log_topic1"),
-    ksql`null`.as("log_topic2"),
-    ksql`null`.as("log_topic3"),
+    ksql`null::integer`.as("log_index"),
+    ksql`null::varchar(42)`.as("log_address"),
+    ksql`null::text`.as("log_data"),
+    ksql`null::varchar(66)`.as("log_topic0"),
+    ksql`null::varchar(66)`.as("log_topic1"),
+    ksql`null::varchar(66)`.as("log_topic2"),
+    ksql`null::varchar(66)`.as("log_topic3"),
   ]);
 
 const selectTraceColumnsAsNull = (
   qb: SelectQueryBuilder<PonderSyncSchema, any, any>,
 ) =>
   qb.select([
-    ksql`null`.as("trace_index"),
-    ksql`null`.as("trace_callType"),
-    ksql`null`.as("trace_from"),
-    ksql`null`.as("trace_to"),
-    ksql`null`.as("trace_value"),
-    ksql`null`.as("trace_functionSelector"),
-    ksql`null`.as("trace_isReverted"),
+    ksql`null::integer`.as("trace_index"),
+    ksql`null::text`.as("trace_callType"),
+    ksql`null::varchar(42)`.as("trace_from"),
+    ksql`null::varchar(42)`.as("trace_to"),
+    ksql`null::numeric(78,0)`.as("trace_value"),
+    ksql`null::text`.as("trace_functionSelector"),
+    ksql`null::integer`.as("trace_isReverted"),
 
-    ksql`null`.as("trace_gas"),
-    ksql`null`.as("trace_gasUsed"),
-    ksql`null`.as("trace_input"),
-    ksql`null`.as("trace_output"),
-    ksql`null`.as("trace_error"),
-    ksql`null`.as("trace_revertReason"),
-    ksql`null`.as("trace_subcalls"),
+    ksql`null::numeric(78,0)`.as("trace_gas"),
+    ksql`null::numeric(78,0)`.as("trace_gasUsed"),
+    ksql`null::text`.as("trace_input"),
+    ksql`null::text`.as("trace_output"),
+    ksql`null::text`.as("trace_error"),
+    ksql`null::text`.as("trace_revertReason"),
+    ksql`null::integer`.as("trace_subcalls"),
   ]);
 
 const addressSQL = (

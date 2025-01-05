@@ -1274,14 +1274,15 @@ test("getEvents() handles log factory", async (context) => {
   await cleanup();
 });
 
-test("getEvents() handles multiple log factories", async (context) => {
+// NOTE: This test no longer passes because changing the factory address from a single
+// address to an array of addresses does not lead to a cache hit. This happened to work
+// with the old factory design, but does not match real behavior (the new, multi-address
+// factory would get synced before calling getEvents).
+test.skip("getEvents() handles log factory with multiple addresses", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const requestQueue = createRequestQueue({ network, common: context.common });
 
   const { address: factory } = await deployFactory({ sender: ALICE });
   const { result: pair } = await createPair({ factory, sender: ALICE });

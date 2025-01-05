@@ -257,7 +257,14 @@ test("sync() with log factory", async (context) => {
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
 
-  expect(logs).toHaveLength(2);
+  expect(logs).toHaveLength(1);
+
+  const childAddresses = await database.qb.sync
+    .selectFrom("factory_address")
+    .selectAll()
+    .execute();
+
+  expect(childAddresses).toHaveLength(1);
 
   const intervals = await database.qb.sync
     .selectFrom("intervals")
@@ -718,8 +725,15 @@ test("syncAddress() handles many addresses", async (context) => {
   await historicalSync.sync([1, 13]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  // 11 pair creations and 1 swap
-  expect(logs).toHaveLength(12);
+  // 1 swap
+  expect(logs).toHaveLength(1);
+
+  const childAddresses = await database.qb.sync
+    .selectFrom("factory_address")
+    .selectAll()
+    .execute();
+  // 11 pair creations
+  expect(childAddresses).toHaveLength(11);
 
   await cleanup();
 });

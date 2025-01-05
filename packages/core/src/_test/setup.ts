@@ -32,7 +32,7 @@ export function setupCommon(context: TestContext) {
     command: "start",
     config: "",
     root: "",
-    logLevel: "debug",
+    logLevel: "silent",
     logFormat: "pretty",
   } as const;
   const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
