@@ -1,6 +1,7 @@
 import type { LogFactory } from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
+import { dedupe } from "@ponder/common";
 import type { AbiEvent } from "abitype";
 import { type Address, toEventSelector } from "viem";
 
@@ -16,7 +17,7 @@ export function buildLogFactory({
   chainId: number;
 }): LogFactory {
   const address = Array.isArray(_address)
-    ? _address.map(toLowerCase)
+    ? dedupe(_address).map(toLowerCase)
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
 

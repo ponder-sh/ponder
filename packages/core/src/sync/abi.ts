@@ -92,22 +92,14 @@ export function buildTopics(
   abi: Abi,
   filter: NonNullable<Config["contracts"][string]["filter"]>,
 ): {
-  topic0: Hex | Hex[];
+  topic0: Hex;
   topic1: Hex | Hex[] | null;
   topic2: Hex | Hex[] | null;
   topic3: Hex | Hex[] | null;
-} {
-  if (Array.isArray(filter.event)) {
-    // List of event signatures
-    return {
-      topic0: filter.event.map((event) =>
-        toEventSelector(findAbiEvent(abi, event)),
-      ),
-      topic1: null,
-      topic2: null,
-      topic3: null,
-    };
-  } else {
+}[] {
+  const filters = Array.isArray(filter) ? filter : [filter];
+
+  const topics = filters.map((filter) => {
     // Single event with args
     const topics = encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
@@ -120,7 +112,9 @@ export function buildTopics(
       topic2: topics[2] ?? null,
       topic3: topics[3] ?? null,
     };
-  }
+  });
+
+  return topics;
 }
 
 /**

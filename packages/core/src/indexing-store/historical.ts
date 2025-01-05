@@ -728,6 +728,7 @@ export const createHistoricalIndexingStore = ({
         await database.createTriggers();
         await indexingStore.flush();
         await database.removeTriggers();
+        isDatabaseEmpty = false;
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 

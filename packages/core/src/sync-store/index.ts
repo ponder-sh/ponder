@@ -144,6 +144,7 @@ const logFactorySQL = (
         }
       })().as("childAddress"),
     )
+    .distinct()
     .$call((qb) => {
       if (Array.isArray(factory.address)) {
         return qb.where("address", "in", factory.address);
@@ -273,7 +274,6 @@ export const createSyncStore = ({
       return await database.qb.sync
         .selectFrom("logs")
         .$call((qb) => logFactorySQL(qb, filter))
-        .orderBy("id asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!))
         .execute()
         .then((addresses) => addresses.map(({ childAddress }) => childAddress));

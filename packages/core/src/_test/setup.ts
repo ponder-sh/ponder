@@ -71,6 +71,14 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
     const client = new pg.Client({ connectionString });
     await client.connect();
+    await client.query(
+      `
+      SELECT pg_terminate_backend(pg_stat_activity.pid)
+      FROM pg_stat_activity
+      WHERE pg_stat_activity.datname = $1 AND pid <> pg_backend_pid()
+      `,
+      [databaseName],
+    );
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();

@@ -331,6 +331,50 @@ test("getChildAddresses() empty", async (context) => {
   await cleanup();
 });
 
+test("getChildAddresses() distinct", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { result } = await createPair({ factory: address, sender: ALICE });
+  const rpcLogs = await _eth_getLogs(requestQueue, {
+    fromBlock: 2,
+    toBlock: 2,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getPairWithFactoryConfigAndIndexingFunctions({
+      address,
+    });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  await syncStore.insertLogs({
+    logs: [{ log: rpcLogs[0]! }, { log: { ...rpcLogs[0]!, logIndex: "0x1" } }],
+    shouldUpdateCheckpoint: false,
+    chainId: 1,
+  });
+
+  const filter = sources[0]!.filter as LogFilter<Factory>;
+
+  const addresses = await syncStore.getChildAddresses({
+    filter: filter.address,
+    limit: 10,
+  });
+
+  expect(addresses).toHaveLength(1);
+  expect(addresses[0]).toBe(result);
+
+  await cleanup();
+});
+
 test("filterChildAddresses()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
