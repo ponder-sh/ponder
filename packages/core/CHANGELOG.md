@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.15
+
+### Patch Changes
+
+- [#1403](https://github.com/ponder-sh/ponder/pull/1403) [`95aa8102cb44c4628dc89634724fd6432cb4f93f`](https://github.com/ponder-sh/ponder/commit/95aa8102cb44c4628dc89634724fd6432cb4f93f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where a reorg sometimes caused events to be skipped. This does not affect the rpc cache.
+
 ## 0.8.14
 
 ### Patch Changes
