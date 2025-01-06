@@ -10,7 +10,6 @@
     "@ponder/client": "workspace:*"
   },
   "devDependencies": {
-    "@types/pg": "^8.10.9",
-    "tsx": "^4.19.2"
+    "@types/pg": "^8.10.9"
   }
 }
