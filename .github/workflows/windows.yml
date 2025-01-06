@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database: [Postgres, PGLite]
+        database: [Postgres, PGlite]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
