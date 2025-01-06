@@ -161,17 +161,27 @@ const min = (...checkpoints: (string | undefined)[]) => {
   })!;
 };
 
-export const splitEvents = (events: RawEvent[]): RawEvent[][] => {
+export const splitEvents = (
+  events: RawEvent[],
+): { checkpoint: string; events: RawEvent[] }[] => {
   let prevHash: Hash | undefined;
-  const result: RawEvent[][] = [];
+  const result: { checkpoint: string; events: RawEvent[] }[] = [];
 
   for (const event of events) {
     if (prevHash === undefined || prevHash !== event.block.hash) {
-      result.push([]);
+      result.push({
+        checkpoint: encodeCheckpoint({
+          ...maxCheckpoint,
+          blockTimestamp: Number(event.block.timestamp),
+          chainId: BigInt(event.chainId),
+          blockNumber: event.block.number,
+        }),
+        events: [],
+      });
       prevHash = event.block.hash;
     }
 
-    result[result.length - 1]!.push(event);
+    result[result.length - 1]!.events.push(event);
   }
 
   return result;
