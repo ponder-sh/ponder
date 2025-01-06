@@ -975,7 +975,7 @@ export const createDatabase = ({
             })
             .execute();
 
-          common.logger.debug({
+          common.logger.trace({
             service: "database",
             msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${buildId})`,
           });
