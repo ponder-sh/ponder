@@ -770,7 +770,13 @@ export const createDatabase = async ({
         .ifNotExists()
         .execute();
 
-      // TODO(kyle) drop `status` from `_ponder_meta`
+      if (hasPonderMetaTable) {
+        await qb.internal
+          .deleteFrom("_ponder_meta")
+          // @ts-ignore
+          .where("key", "=", "status")
+          .execute();
+      }
 
       await this.wrap({ method: "setup" }, async () => {
         // Create "_ponder_meta" table if it doesn't exist
