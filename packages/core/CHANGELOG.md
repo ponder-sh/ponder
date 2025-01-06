@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.17
+
+### Patch Changes
+
+- [#1411](https://github.com/ponder-sh/ponder/pull/1411) [`60704d3974387cb625c8fe2e45026fc2235622b9`](https://github.com/ponder-sh/ponder/commit/60704d3974387cb625c8fe2e45026fc2235622b9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where ZKsync system logs failed with the error `Detected inconsistent RPC responses. 'log.transactionHash' 0x0000000000000000000000000000000000000000000000000000000000000000 not found in 'block.transactions' (...)`.
+
 ## 0.8.16
 
 ### Patch Changes
