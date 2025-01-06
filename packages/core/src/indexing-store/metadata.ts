@@ -1,5 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { Status } from "@/internal/types.js";
+import { sql } from "kysely";
 
 export type MetadataStore = {
   setStatus: (status: Status) => Promise<void>;
@@ -54,11 +55,8 @@ export const getMetadataStore = ({
         )
         .onConflict((oc) =>
           oc.column("chain_id").doUpdateSet({
-            // @ts-ignore
             block_number: sql`excluded.block_number`,
-            // @ts-ignore
             block_timestamp: sql`excluded.block_timestamp`,
-            // @ts-ignore
             ready: sql`excluded.ready`,
           }),
         )
