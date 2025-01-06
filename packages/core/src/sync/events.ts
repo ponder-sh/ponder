@@ -231,9 +231,11 @@ export const buildEvents = ({
                   }),
                   log: convertLog(log),
                   block: convertBlock(block),
-                  transaction: convertTransaction(
-                    transactionCache.get(log.transactionHash)!,
-                  ),
+                  transaction: transactionCache.has(log.transactionHash)
+                    ? convertTransaction(
+                        transactionCache.get(log.transactionHash)!,
+                      )
+                    : undefined,
                   transactionReceipt: shouldGetTransactionReceipt(filter)
                     ? convertTransactionReceipt(
                         transactionReceiptCache.get(log.transactionHash)!,

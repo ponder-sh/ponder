@@ -34,7 +34,7 @@ import {
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Address, type Hash, hexToNumber } from "viem";
+import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 import {
   isBlockFilterMatched,
@@ -658,11 +658,20 @@ export const createRealtimeSync = (
         );
       }
 
-      // Check that logs refer to the correct block
       for (const log of logs) {
         if (log.blockHash !== block.hash) {
           throw new Error(
             `Detected invalid eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match requested block hash ${block.hash}`,
+          );
+        }
+
+        if (
+          log.transactionHash !== zeroHash &&
+          block.transactions.find((t) => t.hash === log.transactionHash) ===
+            undefined
+        ) {
+          throw new Error(
+            `Detected invalid eth_getLogs response. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
           );
         }
       }

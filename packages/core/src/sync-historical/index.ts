@@ -47,6 +47,7 @@ import {
   hexToBigInt,
   hexToNumber,
   toHex,
+  zeroHash,
 } from "viem";
 
 export type HistoricalSync = {
@@ -490,8 +491,9 @@ export const createHistoricalSync = async (
       }
 
       if (
+        log.transactionHash !== zeroHash &&
         block.transactions.find((t) => t.hash === log.transactionHash) ===
-        undefined
+          undefined
       ) {
         throw new Error(
           `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
