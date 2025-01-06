@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.16
+
+### Patch Changes
+
+- [#1407](https://github.com/ponder-sh/ponder/pull/1407) [`bfc51efc1e767ff2670494ecbb14b332bc2d3d05`](https://github.com/ponder-sh/ponder/commit/bfc51efc1e767ff2670494ecbb14b332bc2d3d05) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a Windows bug introduced in `0.8.0` where the build would fail with the error "Failed to load url (...) in ponder:schema". Fixed a Windows bug where the build would fail when using an in-memory PGlite database with the error "Path contains invalid characters: memory://".
+
 ## 0.8.15
 
 ### Patch Changes
