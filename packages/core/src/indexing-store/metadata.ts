@@ -1,7 +1,5 @@
-import type { PonderInternalSchema } from "@/database/index.js";
-import type { HeadlessKysely } from "@/database/kysely.js";
-import type { Status } from "@/sync/index.js";
-import { sql } from "kysely";
+import type { Database } from "@/database/index.js";
+import type { Status } from "@/internal/types.js";
 
 export type MetadataStore = {
   setStatus: (status: Status) => Promise<void>;
@@ -9,13 +7,13 @@ export type MetadataStore = {
 };
 
 export const getMetadataStore = ({
-  db,
+  database,
 }: {
-  db: HeadlessKysely<PonderInternalSchema>;
+  database: Database;
 }): MetadataStore => ({
   getStatus: async () => {
-    return db.wrap({ method: "_ponder_status.get()" }, async () => {
-      const result = await db
+    return database.wrap({ method: "_ponder_status.get()" }, async () => {
+      const result = await database.qb.readonly
         .selectFrom("_ponder_status")
         .selectAll()
         .execute();
@@ -43,8 +41,8 @@ export const getMetadataStore = ({
     });
   },
   setStatus: (status: Status) => {
-    return db.wrap({ method: "_ponder_status.set()" }, async () => {
-      await db
+    return database.wrap({ method: "_ponder_status.set()" }, async () => {
+      await database.qb.user
         .insertInto("_ponder_status")
         .values(
           Object.entries(status).map(([chainId, value]) => ({

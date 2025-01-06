@@ -1,4 +1,4 @@
-import type { Config } from "@/config/config.js";
+import type { Config } from "@/config/index.js";
 import type {
   FormatEventArgs,
   FormatFunctionArgs,
@@ -6,8 +6,8 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { Schema } from "@/internal/types.js";
 import type {
   Block,
   Log,
@@ -26,17 +26,7 @@ export namespace Virtual {
     contract extends Config["contracts"][string],
     ///
     safeEventNames = SafeEventNames<contract["abi"]>,
-  > = string extends safeEventNames
-    ? never
-    : contract extends {
-          filter: { event: infer event extends string | readonly string[] };
-        }
-      ? event extends safeEventNames
-        ? event
-        : event[number] extends safeEventNames
-          ? event[number]
-          : safeEventNames
-      : safeEventNames;
+  > = string extends safeEventNames ? never : safeEventNames;
 
   type _FormatFunctionNames<
     contract extends Config["contracts"][string],

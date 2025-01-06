@@ -1,5 +1,49 @@
 # ponder
 
+## 0.8.14
+
+### Patch Changes
+
+- [#1342](https://github.com/ponder-sh/ponder/pull/1342) [`f49e62d888cd1e9ed2555331b84701ad8b0e8604`](https://github.com/ponder-sh/ponder/commit/f49e62d888cd1e9ed2555331b84701ad8b0e8604) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for "eth_getBlockReceipts" request for better performance and cost.
+
+## 0.8.13
+
+### Patch Changes
+
+- [#1397](https://github.com/ponder-sh/ponder/pull/1397) [`787a8dc1d92b08ed85ee9762ef41fd0918f163ef`](https://github.com/ponder-sh/ponder/commit/787a8dc1d92b08ed85ee9762ef41fd0918f163ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug resulting in `error: ON CONFLICT DO UPDATE command cannot affect row a second time`.
+
+## 0.8.12
+
+### Patch Changes
+
+- [#1389](https://github.com/ponder-sh/ponder/pull/1389) [`f78e29ace56bdf2746a452c113e88cba5172401c`](https://github.com/ponder-sh/ponder/commit/f78e29ace56bdf2746a452c113e88cba5172401c) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned @electric-sql/pglite dependency to v0.2.13. Fixed `"information_schema.schemata" does not exist` error.
+
+## 0.8.11
+
+### Patch Changes
+
+- [#1394](https://github.com/ponder-sh/ponder/pull/1394) [`4ea0ef5f055e38e60f59ea4a03046b64100d92bc`](https://github.com/ponder-sh/ponder/commit/4ea0ef5f055e38e60f59ea4a03046b64100d92bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added trace level logs for rpc requests.
+
+## 0.8.10
+
+### Patch Changes
+
+- [#1370](https://github.com/ponder-sh/ponder/pull/1370) [`61b0b04c3306929bf2ff1ef781be874f561d8e11`](https://github.com/ponder-sh/ponder/commit/61b0b04c3306929bf2ff1ef781be874f561d8e11) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed a bug causing future end blocks to error.
+
+## 0.8.9
+
+### Patch Changes
+
+- [#1381](https://github.com/ponder-sh/ponder/pull/1381) [`dae8801ea3ddf732d8284ff84bc7dc21ada22f0e`](https://github.com/ponder-sh/ponder/commit/dae8801ea3ddf732d8284ff84bc7dc21ada22f0e) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where data inserted using raw SQL near the beginning of historical indexing was not found by subsequent `find`, `update`, or `delete` operations using the store/in-memory API.
+
+- [#1375](https://github.com/ponder-sh/ponder/pull/1375) [`1687033a74fb8e7a7d843b4fe1f7f1cd4cf866a9`](https://github.com/ponder-sh/ponder/commit/1687033a74fb8e7a7d843b4fe1f7f1cd4cf866a9) Thanks [@typedarray](https://github.com/typedarray)! - Improved logs for Postgres pool errors.
+
+## 0.8.8
+
+### Patch Changes
+
+- [#1368](https://github.com/ponder-sh/ponder/pull/1368) [`492d7e7744dbddede2e72b0649cd7dffb96173cd`](https://github.com/ponder-sh/ponder/commit/492d7e7744dbddede2e72b0649cd7dffb96173cd) Thanks [@typedarray](https://github.com/typedarray)! - Improved debug-level logs for historical indexing observability.
+
 ## 0.8.7
 
 ### Patch Changes

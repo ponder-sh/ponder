@@ -1,18 +1,19 @@
-import type { IndexingBuild, PreBuild, SchemaBuild } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
-import {
-  type Drizzle,
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-} from "@/drizzle/index.js";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import type { Common } from "@/internal/common.js";
+import { IgnorableError, NonRetryableError } from "@/internal/errors.js";
+import type {
+  IndexingBuild,
+  PreBuild,
+  Schema,
+  SchemaBuild,
+} from "@/internal/types.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
 } from "@/sync-store/migrations.js";
+import type { Drizzle } from "@/types/db.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -22,6 +23,7 @@ import {
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import { getTableColumns } from "drizzle-orm";
@@ -29,6 +31,7 @@ import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import {
+  Kysely,
   Migrator,
   PostgresDialect,
   type Transaction,
@@ -39,10 +42,16 @@ import { KyselyPGlite } from "kysely-pglite";
 import type { Pool } from "pg";
 import parse from "pg-connection-string";
 import prometheus from "prom-client";
-import { HeadlessKysely } from "./kysely.js";
 
 export type Database = {
   qb: QueryBuilder;
+  wrap: <T>(
+    options: {
+      method: string;
+      shouldRetry?: (error: Error) => boolean;
+    },
+    fn: () => Promise<T>,
+  ) => Promise<T>;
   migrateSync(): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
@@ -107,15 +116,13 @@ type PostgresDriver = {
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
-  internal: HeadlessKysely<PonderInternalSchema>;
+  internal: Kysely<PonderInternalSchema>;
   /** For indexing-store methods in user code */
-  user: HeadlessKysely<any>;
+  user: Kysely<any>;
   /** Used to interact with the sync-store */
-  sync: HeadlessKysely<PonderSyncSchema>;
+  sync: Kysely<PonderSyncSchema>;
   /** Used in api functions */
-  readonly: HeadlessKysely<any>;
-  /** Used in client queries */
-  // client: HeadlessKysely<unknown>;
+  readonly: Kysely<any>;
   drizzle: Drizzle<Schema>;
   drizzleReadonly: Drizzle<Schema>;
 };
@@ -130,6 +137,7 @@ export const createDatabase = async ({
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
+  let isKilled = false;
 
   ////////
   // Create drivers and orms
@@ -156,9 +164,7 @@ export const createDatabase = async ({
     await driver.instance.query(`SET search_path TO "${preBuild.namespace}"`);
 
     qb = {
-      internal: new HeadlessKysely({
-        name: "internal",
-        common,
+      internal: new Kysely({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -169,9 +175,7 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
-      user: new HeadlessKysely({
-        name: "user",
-        common: common,
+      user: new Kysely({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -182,9 +186,7 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
-      readonly: new HeadlessKysely({
-        name: "readonly",
-        common: common,
+      readonly: new Kysely({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -195,9 +197,7 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
-      sync: new HeadlessKysely<PonderSyncSchema>({
-        name: "sync",
-        common: common,
+      sync: new Kysely<PonderSyncSchema>({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -227,12 +227,15 @@ export const createDatabase = async ({
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
-    const internal = createPool({
-      ...preBuild.databaseConfig.poolConfig,
-      application_name: `${preBuild.namespace}_internal`,
-      max: internalMax,
-      statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-    });
+    const internal = createPool(
+      {
+        ...preBuild.databaseConfig.poolConfig,
+        application_name: `${preBuild.namespace}_internal`,
+        max: internalMax,
+        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+      },
+      common.logger,
+    );
 
     const connection = (parse as unknown as typeof parse.parse)(
       preBuild.databaseConfig.poolConfig.connectionString!,
@@ -248,54 +251,61 @@ export const createDatabase = async ({
       .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
       .then(({ rows }) => rows[0]);
     if (hasRole) {
-      await internal.query(`DROP OWNED BY ${role}`);
-      await internal.query(`DROP ROLE IF EXISTS ${role}`);
+      await internal.query(`DROP OWNED BY "${role}"`);
+      await internal.query(`DROP ROLE IF EXISTS "${role}"`);
     }
-    await internal.query(`CREATE ROLE ${role} WITH LOGIN PASSWORD 'pw'`);
+    await internal.query(`CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`);
     await internal.query(
-      `GRANT CONNECT ON DATABASE "${connection.database}" TO ${role}`,
+      `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
     );
     await internal.query(
-      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO ${role}`,
+      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO "${role}"`,
     );
     await internal.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO ${role}`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO "${role}"`,
     );
     await internal.query(
-      `ALTER ROLE ${role} SET search_path TO "${preBuild.namespace}"`,
+      `ALTER ROLE "${role}" SET search_path TO "${preBuild.namespace}"`,
     );
-    await internal.query(`ALTER ROLE ${role} SET statement_timeout TO '1s'`);
-    await internal.query(`ALTER ROLE ${role} SET work_mem TO '1MB'`);
+    await internal.query(`ALTER ROLE "${role}" SET statement_timeout TO '1s'`);
+    await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
 
     driver = {
       internal,
-      user: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_user`,
-        max: userMax,
-      }),
-      readonly: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        connectionString: undefined,
-        application_name: `${preBuild.namespace}_readonly`,
-        max: readonlyMax,
-        user: role,
-        password: "pw",
-        host: connection.host ?? undefined,
-        port: Number(connection.port!),
-        database: connection.database ?? undefined,
-      }),
-      sync: createPool({
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: "ponder_sync",
-        max: syncMax,
-      }),
+      user: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${preBuild.namespace}_user`,
+          max: userMax,
+        },
+        common.logger,
+      ),
+      readonly: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          connectionString: undefined,
+          application_name: `${preBuild.namespace}_readonly`,
+          max: readonlyMax,
+          user: role,
+          password: "pw",
+          host: connection.host ?? undefined,
+          port: Number(connection.port!),
+          database: connection.database ?? undefined,
+        },
+        common.logger,
+      ),
+      sync: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: "ponder_sync",
+          max: syncMax,
+        },
+        common.logger,
+      ),
     };
 
     qb = {
-      internal: new HeadlessKysely({
-        name: "internal",
-        common: common,
+      internal: new Kysely({
         dialect: new PostgresDialect({ pool: driver.internal }),
         log(event) {
           if (event.level === "query") {
@@ -306,9 +316,7 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
-      user: new HeadlessKysely({
-        name: "user",
-        common: common,
+      user: new Kysely({
         dialect: new PostgresDialect({ pool: driver.user }),
         log(event) {
           if (event.level === "query") {
@@ -319,9 +327,7 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
-      readonly: new HeadlessKysely({
-        name: "readonly",
-        common: common,
+      readonly: new Kysely({
         dialect: new PostgresDialect({ pool: driver.readonly }),
         log(event) {
           if (event.level === "query") {
@@ -332,9 +338,7 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(preBuild.namespace)],
       }),
-      sync: new HeadlessKysely<PonderSyncSchema>({
-        name: "sync",
-        common: common,
+      sync: new Kysely<PonderSyncSchema>({
         dialect: new PostgresDialect({ pool: driver.sync }),
         log(event) {
           if (event.level === "query") {
@@ -492,13 +496,83 @@ export const createDatabase = async ({
 
   const database = {
     qb,
+    // @ts-ignore
+    async wrap(options, fn) {
+      const RETRY_COUNT = 9;
+      const BASE_DURATION = 125;
+
+      // First error thrown is often the most useful
+      let firstError: any;
+      let hasError = false;
+
+      for (let i = 0; i <= RETRY_COUNT; i++) {
+        const endClock = startClock();
+        try {
+          const result = await fn();
+          common.metrics.ponder_database_method_duration.observe(
+            { method: options.method },
+            endClock(),
+          );
+          return result;
+        } catch (_error) {
+          const error = _error as Error;
+
+          common.metrics.ponder_database_method_duration.observe(
+            { method: options.method },
+            endClock(),
+          );
+          common.metrics.ponder_database_method_error_total.inc({
+            method: options.method,
+          });
+
+          if (isKilled) {
+            common.logger.trace({
+              service: "database",
+              msg: `Ignored error during '${options.method}' database method (service is killed)`,
+            });
+            throw new IgnorableError();
+          }
+
+          if (!hasError) {
+            hasError = true;
+            firstError = error;
+          }
+
+          if (
+            error instanceof NonRetryableError ||
+            options.shouldRetry?.(error) === false
+          ) {
+            common.logger.warn({
+              service: "database",
+              msg: `Failed '${options.method}' database method `,
+            });
+            throw error;
+          }
+
+          if (i === RETRY_COUNT) {
+            common.logger.warn({
+              service: "database",
+              msg: `Failed '${options.method}' database method after '${i + 1}' attempts`,
+              error,
+            });
+            throw firstError;
+          }
+
+          const duration = BASE_DURATION * 2 ** i;
+          common.logger.debug({
+            service: "database",
+            msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds`,
+            error,
+          });
+          await wait(duration);
+        }
+      }
+    },
     async migrateSync() {
-      await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
+      await this.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
-        // TODO(kevin) is the `WithSchemaPlugin` going to break this?
         await moveLegacyTables({
           common: common,
-          // @ts-expect-error
           db: qb.internal,
           newSchemaName: "ponder_sync",
         });
@@ -551,7 +625,7 @@ export const createDatabase = async ({
           .then((table) => table !== undefined);
 
         if (hasNamespaceLockTable) {
-          await qb.internal.wrap({ method: "migrate" }, async () => {
+          await this.wrap({ method: "migrate" }, async () => {
             const namespaceCount = await qb.internal
               .withSchema("ponder")
               // @ts-ignore
@@ -625,7 +699,7 @@ export const createDatabase = async ({
         .then((table) => table !== undefined);
 
       if (hasPonderMetaTable) {
-        await qb.internal.wrap({ method: "migrate" }, () =>
+        await this.wrap({ method: "migrate" }, () =>
           qb.internal.transaction().execute(async (tx) => {
             const previousApps = await tx
               .selectFrom("_ponder_meta")
@@ -698,7 +772,7 @@ export const createDatabase = async ({
 
       // TODO(kyle) drop `status` from `_ponder_meta`
 
-      await qb.internal.wrap({ method: "setup" }, async () => {
+      await this.wrap({ method: "setup" }, async () => {
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
           .createTable("_ponder_meta")
@@ -709,7 +783,7 @@ export const createDatabase = async ({
       });
 
       const attempt = () =>
-        qb.internal.wrap({ method: "setup" }, () =>
+        this.wrap({ method: "setup" }, () =>
           qb.internal.transaction().execute(async (tx) => {
             const previousApp = await tx
               .selectFrom("_ponder_meta")
@@ -1044,7 +1118,7 @@ export const createDatabase = async ({
       }
     },
     async createTriggers() {
-      await qb.internal.wrap({ method: "createTriggers" }, async () => {
+      await this.wrap({ method: "createTriggers" }, async () => {
         for (const tableName of getTableNames(schemaBuild.schema)) {
           const columns = getTableColumns(
             schemaBuild.schema[tableName.js]! as PgTable,
@@ -1086,7 +1160,7 @@ $$ LANGUAGE plpgsql
       });
     },
     async removeTriggers() {
-      await qb.internal.wrap({ method: "removeTriggers" }, async () => {
+      await this.wrap({ method: "removeTriggers" }, async () => {
         for (const tableName of getTableNames(schemaBuild.schema)) {
           await sql
             .raw(
@@ -1097,7 +1171,7 @@ $$ LANGUAGE plpgsql
       });
     },
     async revert({ checkpoint }) {
-      await qb.internal.wrap({ method: "revert" }, () =>
+      await this.wrap({ method: "revert" }, () =>
         Promise.all(
           getTableNames(schemaBuild.schema).map((tableName) =>
             qb.internal.transaction().execute((tx) =>
@@ -1112,7 +1186,7 @@ $$ LANGUAGE plpgsql
       );
     },
     async finalize({ checkpoint }) {
-      await qb.internal.wrap({ method: "finalize" }, async () => {
+      await this.wrap({ method: "finalize" }, async () => {
         await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
@@ -1141,7 +1215,7 @@ $$ LANGUAGE plpgsql
     async complete({ checkpoint }) {
       await Promise.all(
         getTableNames(schemaBuild.schema).map((tableName) =>
-          qb.internal.wrap({ method: "complete" }, async () => {
+          this.wrap({ method: "complete" }, async () => {
             await qb.internal
               .updateTable(tableName.reorg)
               .set({ checkpoint })
@@ -1154,7 +1228,7 @@ $$ LANGUAGE plpgsql
     async unlock() {
       clearInterval(heartbeatInterval);
 
-      await qb.internal.wrap({ method: "unlock" }, async () => {
+      await this.wrap({ method: "unlock" }, async () => {
         await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
@@ -1165,10 +1239,7 @@ $$ LANGUAGE plpgsql
       });
     },
     async kill() {
-      await qb.internal.destroy();
-      await qb.user.destroy();
-      await qb.readonly.destroy();
-      await qb.sync.destroy();
+      isKilled = true;
 
       if (dialect === "pglite") {
         const d = driver as PGliteDriver;
@@ -1194,5 +1265,6 @@ $$ LANGUAGE plpgsql
     },
   } satisfies Database;
 
+  // @ts-ignore
   return database;
 };

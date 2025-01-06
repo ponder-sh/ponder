@@ -1,6 +1,6 @@
-import type { ApiBuild } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
+import type { Common } from "@/internal/common.js";
+import type { ApiBuild } from "@/internal/types.js";
 import { createServer } from "@/server/index.js";
 
 /**

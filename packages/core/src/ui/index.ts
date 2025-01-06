@@ -1,9 +1,9 @@
-import type { Common } from "@/common/common.js";
+import type { Common } from "@/internal/common.js";
 import {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
-} from "@/common/metrics.js";
+} from "@/internal/metrics.js";
 import { buildUiState, setupInkApp } from "./app.js";
 
 export function createUi({ common }: { common: Common }) {

@@ -1,16 +1,13 @@
-import type { Common } from "@/common/common.js";
+import type { Database } from "@/database/index.js";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
+import { onchain } from "@/drizzle/onchain.js";
+import type { Common } from "@/internal/common.js";
 import {
   InvalidStoreMethodError,
   RecordNotFoundError,
   UndefinedTableError,
-} from "@/common/errors.js";
-import type { Database } from "@/database/index.js";
-import {
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-} from "@/drizzle/index.js";
-import { onchain } from "@/drizzle/onchain.js";
+} from "@/internal/errors.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type QueryWithTypings,
@@ -47,12 +44,12 @@ const checkOnchainTable = (
 };
 
 export const createRealtimeIndexingStore = ({
+  schemaBuild: { schema },
   database,
-  schema,
 }: {
   common: Common;
+  schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  schema: Schema;
 }): IndexingStore<"realtime"> => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
@@ -118,7 +115,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
@@ -136,7 +133,7 @@ export const createRealtimeIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -180,7 +177,7 @@ export const createRealtimeIndexingStore = ({
               ),
             onConflictDoUpdate: (valuesU: any) =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -274,7 +271,7 @@ export const createRealtimeIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               queue
                 .add(() =>
-                  database.qb.user.wrap(
+                  database.wrap(
                     {
                       method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
@@ -322,7 +319,7 @@ export const createRealtimeIndexingStore = ({
       return {
         set: (values: any) =>
           queue.add(() =>
-            database.qb.user.wrap(
+            database.wrap(
               { method: `${getTableName(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table, "update");
@@ -370,7 +367,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
@@ -391,18 +388,15 @@ export const createRealtimeIndexingStore = ({
         queue.add(async () => {
           const query: QueryWithTypings = { sql: _sql, params, typings };
 
-          const res = await database.qb.user.wrap(
-            { method: "sql" },
-            async () => {
-              try {
-                return await database.qb.drizzle._.session
-                  .prepareQuery(query, undefined, undefined, method === "all")
-                  .execute();
-              } catch (e) {
-                throw parseSqlError(e);
-              }
-            },
-          );
+          const res = await database.wrap({ method: "sql" }, async () => {
+            try {
+              return await database.qb.drizzle._.session
+                .prepareQuery(query, undefined, undefined, method === "all")
+                .execute();
+            } catch (e) {
+              throw parseSqlError(e);
+            }
+          });
 
           // @ts-ignore
           return { rows: res.rows.map((row) => Object.values(row)) };

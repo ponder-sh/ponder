@@ -90,7 +90,7 @@ test("ready", async (context) => {
   });
 
   await getMetadataStore({
-    db: database.qb.user,
+    database,
   }).setStatus({
     1: {
       ready: true,

@@ -1,8 +1,8 @@
-import { runCodegen } from "@/common/codegen.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { createTelemetry } from "@/common/telemetry.js";
+import { runCodegen } from "@/bin/utils/codegen.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createTelemetry } from "@/internal/telemetry.js";
 import type { CliOptions } from "../ponder.js";
 import { setupShutdown } from "../utils/shutdown.js";
 
