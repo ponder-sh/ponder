@@ -3,6 +3,14 @@ import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 import type { Hex } from "viem";
 
+class StaticMigrationProvider implements MigrationProvider {
+  async getMigrations() {
+    return migrations;
+  }
+}
+
+export const migrationProvider = new StaticMigrationProvider();
+
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
     async up(db: Kysely<any>) {
@@ -1491,29 +1499,6 @@ GROUP BY fragment_id, chain_id
   "2025_01_03_1_transaction_checkpoint_backfill": {
     async up(db) {
       // Backfill `checkpoint` column in `transactions`
-
-      const q = db
-        .updateTable("transactions")
-        .from("blocks")
-        .whereRef("transactions.blockNumber", "=", "blocks.number")
-        .where("transactions.checkpoint", "is", null)
-        .set({
-          checkpoint: sql`(
-          lpad(blocks.timestamp::text, 10, '0') ||
-          lpad(blocks."chainId"::text, 16, '0') ||
-          lpad(blocks.number::text, 16, '0') ||
-          lpad(transactions."transactionIndex"::text, 16, '0') ||
-          '2' ||
-          '0000000000000000'
-        )`,
-        });
-
-      const planText = await q.explain("text");
-      const prettyPlanText = planText
-        .map((line) => line["QUERY PLAN"])
-        .join("\n");
-      console.log(prettyPlanText);
-
       await db
         .updateTable("transactions")
         .from("blocks")
@@ -1550,15 +1535,516 @@ GROUP BY fragment_id, chain_id
         .execute();
     },
   },
+  "2025_01_05_1_chain_specific_tables": {
+    async up(db) {
+      /// BLOCKS ///
+
+      // Get distinct chain IDs from blocks table
+      const blockChainIds = await db
+        .selectFrom("blocks")
+        .select("chainId")
+        .distinct()
+        .execute()
+        .then((rows) => rows.map((row) => row.chainId));
+
+      for (const chainId of blockChainIds) {
+        await db.schema
+          .createTable(`block_${chainId}`)
+          // ID columns
+          .addColumn("checkpoint", "varchar(75)", (col) =>
+            col.notNull().primaryKey(),
+          )
+          .addColumn("number", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("parent_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("timestamp", "numeric(78, 0)", (col) => col.notNull())
+          // Extra columns
+          .addColumn("base_fee_per_gas", "numeric(78, 0)")
+          .addColumn("difficulty", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("extra_data", "text", (col) => col.notNull())
+          .addColumn("gas_limit", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("gas_used", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("logs_bloom", "varchar(514)", (col) => col.notNull())
+          .addColumn("miner", "varchar(42)", (col) => col.notNull())
+          .addColumn("mix_hash", "varchar(66)")
+          .addColumn("nonce", "varchar(18)")
+          .addColumn("receipts_root", "varchar(66)", (col) => col.notNull())
+          .addColumn("sha3_uncles", "varchar(66)")
+          .addColumn("size", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("state_root", "varchar(66)", (col) => col.notNull())
+          .addColumn("total_difficulty", "numeric(78, 0)")
+          .addColumn("transactions_root", "varchar(66)", (col) => col.notNull())
+
+          .execute();
+
+        // Move data from old table to new chain-specific table
+        await db
+          .with("moved_blocks", (db) =>
+            db
+              .deleteFrom("blocks")
+              .where("chainId", "=", chainId)
+              .returningAll(),
+          )
+          .insertInto(`block_${chainId}`)
+          .columns([
+            "checkpoint",
+            "number",
+            "hash",
+            "parent_hash",
+            "timestamp",
+            "base_fee_per_gas",
+            "difficulty",
+            "extra_data",
+            "gas_limit",
+            "gas_used",
+            "logs_bloom",
+            "miner",
+            "mix_hash",
+            "nonce",
+            "receipts_root",
+            "sha3_uncles",
+            "size",
+            "state_root",
+            "total_difficulty",
+            "transactions_root",
+          ])
+          .expression(
+            db
+              .selectFrom("moved_blocks")
+              .select([
+                "checkpoint",
+                "number",
+                "hash",
+                "parent_hash",
+                "timestamp",
+                "base_fee_per_gas",
+                "difficulty",
+                "extra_data",
+                "gas_limit",
+                "gas_used",
+                "logs_bloom",
+                "miner",
+                "mix_hash",
+                "nonce",
+                "receipts_root",
+                "sha3_uncles",
+                "size",
+                "state_root",
+                "total_difficulty",
+                "transactions_root",
+              ]),
+          )
+          .execute();
+
+        // Create indexes on new table
+        await db.schema
+          .createIndex(`blocks_${chainId}_ordering_index`)
+          .on(`blocks_${chainId}`)
+          .columns(["number asc"])
+          .execute();
+        await db.schema
+          .createIndex(`blocks_${chainId}_hash_index`)
+          .on(`blocks_${chainId}`)
+          .columns(["hash asc"])
+          .execute();
+      }
+
+      // Drop old blocks table
+      await db.schema.dropTable("blocks").execute();
+
+      /// LOGS ///
+
+      // Get distinct chain IDs from logs table
+      const chainIds = await db
+        .selectFrom("logs")
+        .select("chainId")
+        .distinct()
+        .execute()
+        .then((rows) => rows.map((row) => row.chainId));
+
+      for (const chainId of chainIds) {
+        await db.schema
+          .createTable(`log_${chainId}`)
+          // ID columns
+          .addColumn("checkpoint", "varchar(75)", (col) =>
+            col.notNull().primaryKey(),
+          )
+          .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("transaction_index", "integer", (col) => col.notNull())
+          .addColumn("transaction_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("log_index", "integer", (col) => col.notNull())
+          // Filter columns
+          .addColumn("address", "varchar(42)", (col) => col.notNull())
+          .addColumn("data", "text", (col) => col.notNull())
+          .addColumn("topic0", "varchar(66)")
+          .addColumn("topic1", "varchar(66)")
+          .addColumn("topic2", "varchar(66)")
+          .addColumn("topic3", "varchar(66)")
+          .execute();
+
+        // Move data from logs table to new chain-specific table
+        await db
+          .with("moved_logs", (db) =>
+            db.deleteFrom("logs").where("chainId", "=", chainId).returningAll(),
+          )
+          .insertInto(`log_${chainId}`)
+          .columns([
+            "checkpoint",
+            "block_number",
+            "block_hash",
+            "transaction_index",
+            "transaction_hash",
+            "log_index",
+            "address",
+            "data",
+            "topic0",
+            "topic1",
+            "topic2",
+            "topic3",
+          ])
+          .expression(
+            db
+              .selectFrom("moved_logs")
+              .select([
+                "checkpoint",
+                "blockNumber",
+                "blockHash",
+                "transactionIndex",
+                "transactionHash",
+                "logIndex",
+                "address",
+                "data",
+                "topic0",
+                "topic1",
+                "topic2",
+                "topic3",
+              ]),
+          )
+          .execute();
+
+        // Create indexes on new logs table
+        await db.schema
+          .createIndex(`logs_${chainId}_ordering_index`)
+          .on(`logs_${chainId}`)
+          .columns(["block_number asc", "transaction_index asc"])
+          .execute();
+        await db.schema
+          .createIndex(`logs_${chainId}_topic0_index`)
+          .on(`logs_${chainId}`)
+          .columns(["topic0 asc", "checkpoint asc"])
+          .execute();
+        await db.schema
+          .createIndex(`logs_${chainId}_address_index`)
+          .on(`logs_${chainId}`)
+          .columns(["address asc", "checkpoint asc"])
+          .execute();
+      }
+
+      // Drop old blocks table
+      await db.schema.dropTable("blocks").execute();
+
+      /// TRANSACTIONS ///
+
+      // Get distinct chain IDs from transactions table
+      const transactionChainIds = await db
+        .selectFrom("transactions")
+        .select("chainId")
+        .distinct()
+        .execute()
+        .then((rows) => rows.map((row) => row.chainId));
+
+      for (const chainId of transactionChainIds) {
+        await db.schema
+          .createTable(`transaction_${chainId}`)
+          // ID columns
+          .addColumn("checkpoint", "varchar(75)", (col) =>
+            col.notNull().primaryKey(),
+          )
+          .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("transaction_index", "integer", (col) => col.notNull())
+          .addColumn("transaction_hash", "varchar(66)", (col) => col.notNull())
+          // Filter columns
+          .addColumn("from", "varchar(42)", (col) => col.notNull())
+          .addColumn("to", "varchar(42)", (col) => col.notNull())
+          // Extra columns
+          .addColumn("type", "text", (col) => col.notNull())
+          .addColumn("value", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("input", "text", (col) => col.notNull())
+          .addColumn("nonce", "integer", (col) => col.notNull())
+          .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("gas_price", "numeric(78, 0)")
+          .addColumn("max_fee_per_gas", "numeric(78, 0)")
+          .addColumn("max_priority_fee_per_gas", "numeric(78, 0)")
+          .addColumn("access_list", "text")
+          .addColumn("r", "varchar(66)")
+          .addColumn("s", "varchar(66)")
+          .addColumn("v", "numeric(78, 0)")
+          .execute();
+
+        // Move data from old table to new chain-specific table
+        await db
+          .with("moved_transactions", (db) =>
+            db
+              .deleteFrom("transactions")
+              .where("chainId", "=", chainId)
+              .returningAll(),
+          )
+          .insertInto(`block_${chainId}`)
+          .columns([
+            "checkpoint",
+            "block_number",
+            "block_hash",
+            "transaction_index",
+            "hash",
+            "from",
+            "to",
+            "type",
+            "value",
+            "input",
+            "nonce",
+            "gas",
+            "gas_price",
+            "max_fee_per_gas",
+            "max_priority_fee_per_gas",
+            "access_list",
+            "r",
+            "s",
+            "v",
+          ])
+          .expression(
+            db
+              .selectFrom("moved_blocks")
+              .select([
+                "checkpoint",
+                "blockNumber",
+                "blockHash",
+                "transactionIndex",
+                "hash",
+                "from",
+                "to",
+                "type",
+                "value",
+                "input",
+                "nonce",
+                "gas",
+                "gasPrice",
+                "maxFeePerGas",
+                "maxPriorityFeePerGas",
+                "accessList",
+                "r",
+                "s",
+                "v",
+              ]),
+          )
+          .execute();
+
+        // Create indexes on new table
+        await db.schema
+          .createIndex(`transaction_${chainId}_ordering_index`)
+          .on(`transaction_${chainId}`)
+          .columns(["block_number asc", "transaction_index asc"])
+          .execute();
+        await db.schema
+          .createIndex(`transaction_${chainId}_hash_index`)
+          .on(`transaction_${chainId}`)
+          .columns(["hash asc"])
+          .execute();
+        await db.schema
+          .createIndex(`transaction_${chainId}_from_index`)
+          .on(`transaction_${chainId}`)
+          .columns(["from asc", "checkpoint asc"])
+          .execute();
+        await db.schema
+          .createIndex(`transaction_${chainId}_to_index`)
+          .on(`transaction_${chainId}`)
+          .columns(["to asc", "checkpoint asc"])
+          .execute();
+      }
+
+      // Drop old transactions table
+      await db.schema.dropTable("transactions").execute();
+
+      /// TRACES ///
+
+      // Get distinct chain IDs from traces table
+      const traceChainIds = await db
+        .selectFrom("traces")
+        .select("chainId")
+        .distinct()
+        .execute()
+        .then((rows) => rows.map((row) => row.chainId));
+
+      for (const chainId of traceChainIds) {
+        await db.schema
+          .createTable(`trace_${chainId}`)
+          // ID columns
+          .addColumn("checkpoint", "varchar(75)", (col) =>
+            col.notNull().primaryKey(),
+          )
+          .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("transaction_index", "integer", (col) => col.notNull())
+          .addColumn("transaction_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("trace_index", "integer", (col) => col.notNull())
+          // Filter columns
+          .addColumn("from", "varchar(42)", (col) => col.notNull())
+          .addColumn("to", "varchar(42)")
+          .addColumn("value", "numeric(78, 0)")
+          .addColumn("type", "text", (col) => col.notNull())
+          .addColumn("function_selector", "text", (col) => col.notNull())
+          .addColumn("is_reverted", "integer", (col) => col.notNull())
+          // Extra columns
+          .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("gas_used", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("input", "text", (col) => col.notNull())
+          .addColumn("output", "text")
+          .addColumn("error", "text")
+          .addColumn("revert_reason", "text")
+          .addColumn("subcalls", "integer", (col) => col.notNull())
+          .execute();
+
+        // Move data from old table to new chain-specific table
+        await db
+          .with("moved_traces", (db) =>
+            db
+              .deleteFrom("traces")
+              .where("chainId", "=", chainId)
+              .returningAll(),
+          )
+          .insertInto(`trace_${chainId}`)
+          .columns([
+            "checkpoint",
+            "block_number",
+            "block_hash",
+            "transaction_index",
+            "transaction_hash",
+            "trace_index",
+            "type",
+            "from",
+            "to",
+            "value",
+            "function_selector",
+            "is_reverted",
+            "gas",
+            "gas_used",
+            "input",
+            "output",
+            "error",
+            "revert_reason",
+            "subcalls",
+          ])
+          .expression(
+            db
+              .selectFrom("moved_traces")
+              .select([
+                "checkpoint",
+                "blockNumber",
+                "blockHash",
+                "transactionIndex",
+                "transactionHash",
+                "index",
+                "type",
+                "from",
+                "to",
+                "value",
+                "functionSelector",
+                "isReverted",
+                "gas",
+                "gasUsed",
+                "input",
+                "output",
+                "error",
+                "revertReason",
+                "subcalls",
+              ]),
+          )
+          .execute();
+
+        // Create indexes on new table
+        await db.schema
+          .createIndex(`trace_${chainId}_ordering_index`)
+          .on(`trace_${chainId}`)
+          .columns(["block_number asc", "transaction_index asc"])
+          .execute();
+        await db.schema
+          .createIndex(`trace_${chainId}_from_index`)
+          .on(`trace_${chainId}`)
+          .columns(["from asc", "checkpoint asc"])
+          .execute();
+        await db.schema
+          .createIndex(`trace_${chainId}_to_index`)
+          .on(`trace_${chainId}`)
+          .columns(["to asc", "checkpoint asc"])
+          .execute();
+        await db.schema
+          .createIndex(`trace_${chainId}_function_selector_index`)
+          .on(`trace_${chainId}`)
+          .columns(["function_selector asc", "checkpoint asc"])
+          .execute();
+        await db.schema
+          .createIndex(`trace_${chainId}_type_index`)
+          .on(`trace_${chainId}`)
+          .columns(["type asc", "checkpoint asc"])
+          .execute();
+      }
+
+      // Drop old traces table
+      await db.schema.dropTable("traces").execute();
+
+      /// RPC REQUESTS ///
+
+      // Get distinct chain IDs from rpc_request_results table
+      const rpcRequestChainIds = await db
+        .selectFrom("rpc_request_results")
+        .select("chain_id")
+        .distinct()
+        .execute()
+        .then((rows) => rows.map((row) => row.chain_id));
+
+      for (const chainId of rpcRequestChainIds) {
+        await db.schema
+          .createTable(`rpc_request_${chainId}`)
+          .addColumn("request_hash", "text", (col) =>
+            col
+              .generatedAlwaysAs(sql`MD5(request)`)
+              .stored()
+              .notNull()
+              .primaryKey(),
+          )
+          .addColumn("request", "text", (col) => col.notNull())
+          .addColumn("result", "text", (col) => col.notNull())
+          .addColumn("block_number", "numeric(78, 0)")
+          .execute();
+
+        // Move data from old table to new chain-specific table
+        await db
+          .with("moved_rpc_requests", (db) =>
+            db
+              .deleteFrom("rpc_request_results")
+              .where("chain_id", "=", chainId)
+              .returningAll(),
+          )
+          .insertInto(`rpc_request_${chainId}`)
+          .columns(["request_hash", "request", "result", "block_number"])
+          .expression(
+            db
+              .selectFrom("moved_rpc_requests")
+              .select(["request_hash", "request", "result", "block_number"]),
+          )
+          .execute();
+      }
+
+      // Drop old rpc_request_results table
+      await db.schema.dropTable("rpc_request_results").execute();
+    },
+  },
 };
 
-class StaticMigrationProvider implements MigrationProvider {
-  async getMigrations() {
-    return migrations;
-  }
+export async function createTablesForChainId(db: Kysely<any>, chainId: number) {
+  await db.schema.createTable(`chain_${chainId}`).ifNotExists().execute();
 }
-
-export const migrationProvider = new StaticMigrationProvider();
 
 export async function moveLegacyTables({
   common,

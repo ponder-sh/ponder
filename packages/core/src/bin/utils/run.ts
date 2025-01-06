@@ -51,7 +51,8 @@ export async function run({
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
-  await database.migrateSync();
+  const chainIds = [...new Set(indexingBuild.networks.map((n) => n.chainId))];
+  await database.migrateSync({ chainIds });
 
   runCodegen({ common, graphqlSchema: schemaBuild.graphqlSchema });
 

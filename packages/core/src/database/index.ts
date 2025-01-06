@@ -44,7 +44,7 @@ import { HeadlessKysely } from "./kysely.js";
 export type Database = {
   qb: QueryBuilder;
   drizzle: Drizzle<Schema>;
-  migrateSync(): Promise<void>;
+  migrateSync(args: { chainIds: number[] }): Promise<void>;
   /**
    * Prepare the database environment for a Ponder app.
    *
@@ -455,7 +455,7 @@ export const createDatabase = ({
   const database = {
     qb,
     drizzle,
-    async migrateSync() {
+    async migrateSync({ chainIds }) {
       await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
         // TODO: Probably remove this at 1.0 to speed up startup time.
         // TODO(kevin) is the `WithSchemaPlugin` going to break this?
@@ -474,6 +474,14 @@ export const createDatabase = ({
 
         const { error } = await migrator.migrateToLatest();
         if (error) throw error;
+
+        // Create chain-specific tables (if not exists)
+        for (const chainId of chainIds) {
+          await qb.sync.schema
+            .createTable(`chain_${chainId}`)
+            .ifNotExists()
+            .execute();
+        }
       });
     },
     async setup({ buildId }) {

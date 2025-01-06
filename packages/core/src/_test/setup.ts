@@ -208,7 +208,8 @@ export async function setupDatabaseServices(
 
   await database.setup({ buildId: config.buildId });
 
-  await database.migrateSync().catch((err) => {
+  const chainIds = [1];
+  await database.migrateSync({ chainIds }).catch((err) => {
     console.log(err);
     throw err;
   });
