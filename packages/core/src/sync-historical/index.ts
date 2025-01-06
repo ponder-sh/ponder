@@ -491,13 +491,19 @@ export const createHistoricalSync = async (
       }
 
       if (
-        log.transactionHash !== zeroHash &&
         block.transactions.find((t) => t.hash === log.transactionHash) ===
-          undefined
+        undefined
       ) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
-        );
+        if (log.transactionHash === zeroHash) {
+          args.common.logger.warn({
+            service: "sync",
+            msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+          });
+        } else {
+          throw new Error(
+            `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+          );
+        }
       }
     }
 
