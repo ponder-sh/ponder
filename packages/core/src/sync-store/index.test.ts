@@ -89,29 +89,7 @@ test("getIntervals() empty", async (context) => {
     filters: [filter],
   });
 
-  expect(intervals).toMatchInlineSnapshot(`
-    Map {
-      {
-        "chainId": 1,
-        "fromBlock": undefined,
-        "include": [],
-        "interval": 1,
-        "offset": 0,
-        "toBlock": undefined,
-        "type": "block",
-      } => [
-        {
-          "fragment": {
-            "chainId": 1,
-            "interval": 1,
-            "offset": 0,
-            "type": "block",
-          },
-          "intervals": [],
-        },
-      ],
-    }
-  `);
+  expect(Array.from(intervals.values())[0]).toHaveLength(0);
 
   await cleanup();
 });
@@ -143,34 +121,8 @@ test("getIntervals() returns intervals", async (context) => {
     filters: [filter],
   });
 
-  expect(intervals).toMatchInlineSnapshot(`
-    Map {
-      {
-        "chainId": 1,
-        "fromBlock": undefined,
-        "include": [],
-        "interval": 1,
-        "offset": 0,
-        "toBlock": undefined,
-        "type": "block",
-      } => [
-        {
-          "fragment": {
-            "chainId": 1,
-            "interval": 1,
-            "offset": 0,
-            "type": "block",
-          },
-          "intervals": [
-            [
-              0,
-              4,
-            ],
-          ],
-        },
-      ],
-    }
-  `);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 4]);
 
   await cleanup();
 });
@@ -211,34 +163,8 @@ test("getIntervals() merges intervals", async (context) => {
     filters: [filter],
   });
 
-  expect(intervals).toMatchInlineSnapshot(`
-    Map {
-      {
-        "chainId": 1,
-        "fromBlock": undefined,
-        "include": [],
-        "interval": 1,
-        "offset": 0,
-        "toBlock": undefined,
-        "type": "block",
-      } => [
-        {
-          "fragment": {
-            "chainId": 1,
-            "interval": 1,
-            "offset": 0,
-            "type": "block",
-          },
-          "intervals": [
-            [
-              0,
-              8,
-            ],
-          ],
-        },
-      ],
-    }
-  `);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
 
   await cleanup();
 });
@@ -272,7 +198,6 @@ test("getIntervals() adjacent intervals", async (context) => {
   await syncStore.insertIntervals({
     intervals: [
       {
-        // @ts-ignore
         filter: { ...filter, address: undefined },
         interval: [5, 8],
       },
@@ -283,43 +208,8 @@ test("getIntervals() adjacent intervals", async (context) => {
     filters: [filter],
   });
 
-  expect(intervals).toMatchInlineSnapshot(`
-    Map {
-      {
-        "address": [
-          "0x0000000000000000000000000000000000000000",
-        ],
-        "chainId": 1,
-        "fromBlock": undefined,
-        "include": [],
-        "toBlock": undefined,
-        "topic0": null,
-        "topic1": null,
-        "topic2": null,
-        "topic3": null,
-        "type": "log",
-      } => [
-        {
-          "fragment": {
-            "address": "0x0000000000000000000000000000000000000000",
-            "chainId": 1,
-            "includeTransactionReceipts": false,
-            "topic0": null,
-            "topic1": null,
-            "topic2": null,
-            "topic3": null,
-            "type": "log",
-          },
-          "intervals": [
-            [
-              0,
-              8,
-            ],
-          ],
-        },
-      ],
-    }
-  `);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
 
   await cleanup();
 });
@@ -365,124 +255,8 @@ test("insertIntervals() merges duplicates", async (context) => {
     filters: [filter],
   });
 
-  expect(intervals).toMatchInlineSnapshot(`
-    Map {
-      {
-        "chainId": 1,
-        "fromBlock": undefined,
-        "include": [],
-        "interval": 1,
-        "offset": 0,
-        "toBlock": undefined,
-        "type": "block",
-      } => [
-        {
-          "fragment": {
-            "chainId": 1,
-            "interval": 1,
-            "offset": 0,
-            "type": "block",
-          },
-          "intervals": [
-            [
-              0,
-              8,
-            ],
-          ],
-        },
-      ],
-    }
-  `);
-
-  await cleanup();
-});
-
-test("insertIntervals() preserves fragments", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const filter = {
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    address: [zeroAddress, ALICE],
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies LogFilter;
-
-  await syncStore.insertIntervals({
-    intervals: [
-      {
-        filter,
-        interval: [0, 4],
-      },
-    ],
-    chainId: 1,
-  });
-
-  const intervals = await syncStore.getIntervals({
-    filters: [filter],
-  });
-
-  expect(intervals).toMatchInlineSnapshot(`
-    Map {
-      {
-        "address": [
-          "0x0000000000000000000000000000000000000000",
-          "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        ],
-        "chainId": 1,
-        "fromBlock": undefined,
-        "include": [],
-        "toBlock": undefined,
-        "topic0": null,
-        "topic1": null,
-        "topic2": null,
-        "topic3": null,
-        "type": "log",
-      } => [
-        {
-          "fragment": {
-            "address": "0x0000000000000000000000000000000000000000",
-            "chainId": 1,
-            "includeTransactionReceipts": false,
-            "topic0": null,
-            "topic1": null,
-            "topic2": null,
-            "topic3": null,
-            "type": "log",
-          },
-          "intervals": [
-            [
-              0,
-              4,
-            ],
-          ],
-        },
-        {
-          "fragment": {
-            "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-            "chainId": 1,
-            "includeTransactionReceipts": false,
-            "topic0": null,
-            "topic1": null,
-            "topic2": null,
-            "topic3": null,
-            "type": "log",
-          },
-          "intervals": [
-            [
-              0,
-              4,
-            ],
-          ],
-        },
-      ],
-    }
-  `);
+  expect(Array.from(intervals.values())[0]).toHaveLength(1);
+  expect(Array.from(intervals.values())[0]![0]).toStrictEqual([0, 8]);
 
   await cleanup();
 });
