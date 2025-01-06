@@ -1,6 +1,6 @@
-import { BuildError } from "@/common/errors.js";
-import type { Schema } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
+import { BuildError } from "@/internal/errors.js";
+import type { Schema } from "@/internal/types.js";
 import { SQL, getTableColumns, is } from "drizzle-orm";
 import {
   PgBigSerial53,

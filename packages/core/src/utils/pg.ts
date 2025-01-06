@@ -1,3 +1,4 @@
+import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
 
@@ -60,20 +61,49 @@ class ReadonlyClient extends pg.Client {
   }
 }
 
-export function createPool(config: PoolConfig) {
-  return new pg.Pool({
+function createErrorHandler(logger: Logger) {
+  return (error: Error) => {
+    const client = (error as any).client as any | undefined;
+    const pid = (client?.processID as number | undefined) ?? "unknown";
+    const applicationName =
+      (client?.connectionParameters?.application_name as string | undefined) ??
+      "unknown";
+
+    logger.error({
+      service: "postgres",
+      msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
+      error,
+    });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  };
+}
+
+export function createPool(config: PoolConfig, logger: Logger) {
+  const pool = new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 2 * 60 * 1000, // 2 minutes
     ...config,
   });
+
+  const onError = createErrorHandler(logger);
+  pool.on("error", onError);
+
+  return pool;
 }
 
-export function createReadonlyPool(config: PoolConfig) {
-  return new pg.Pool({
+export function createReadonlyPool(config: PoolConfig, logger: Logger) {
+  const pool = new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 2 * 60 * 1000, // 2 minutes
     // @ts-expect-error: The custom Client is an undocumented option.
     Client: ReadonlyClient,
     ...config,
   });
+
+  const onError = createErrorHandler(logger);
+  pool.on("error", onError);
+
+  return pool;
 }

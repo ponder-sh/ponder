@@ -1,0 +1,21 @@
+name: Feature request
+description: Request new features or improvements.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for completing this feature request form! The more info you provide, the faster we can help you. Before you proceed, please confirm that there isn't [already an issue](https://github.com/ponder-sh/ponder/issues) for this feature request.
+
+  - type: textarea
+    attributes:
+      label: Problem / use case
+      description: A description of the problem that the new feature would solve. Please include a real-world example or use case.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: A description of the proposed solution.
+    validations:
+      required: false

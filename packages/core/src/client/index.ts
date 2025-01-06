@@ -1,7 +1,6 @@
-import type { ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
-import { hash } from "@/utils/hash.js";
+import type { Schema } from "@/internal/types.js";
+import type { ReadonlyDrizzle } from "@/types/db.js";
 import type { QueryWithTypings } from "drizzle-orm";
-import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 

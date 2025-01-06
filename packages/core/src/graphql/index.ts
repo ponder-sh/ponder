@@ -1,6 +1,7 @@
-import type { Drizzle, ReadonlyDrizzle, Schema } from "@/drizzle/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import type { MetadataStore } from "@/indexing-store/metadata.js";
+import type { Schema } from "@/internal/types.js";
+import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
@@ -80,7 +81,9 @@ type PluralArgs = {
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1000 as const;
 
-export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
+export function buildGraphQLSchema({
+  schema,
+}: { schema: Schema }): GraphQLSchema {
   const tablesConfig = extractTablesRelationalConfig(
     schema,
     createTableRelationsHelpers,

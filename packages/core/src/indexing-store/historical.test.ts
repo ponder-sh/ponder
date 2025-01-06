@@ -3,12 +3,12 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NotNullConstraintError,
   UniqueConstraintError,
-} from "@/common/errors.js";
-import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+} from "@/internal/errors.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
@@ -31,8 +31,8 @@ test("find", async (context) => {
 
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
+    schemaBuild: { schema },
     database,
-    schema,
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -72,7 +72,7 @@ test("insert", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -219,7 +219,7 @@ test("update", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -285,7 +285,7 @@ test("delete", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -333,7 +333,7 @@ test("flush", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -390,7 +390,7 @@ test("sql", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -453,6 +453,41 @@ test("sql", async (context) => {
   await cleanup();
 });
 
+test("sql followed by find", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema,
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await indexingStore.sql
+    .insert(schema.account)
+    .values({ address: zeroAddress, balance: 10n });
+
+  const row = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(row).toStrictEqual({
+    address: zeroAddress,
+    balance: 10n,
+  });
+
+  await cleanup();
+});
+
 test("onchain table", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
@@ -466,7 +501,7 @@ test("onchain table", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -495,7 +530,7 @@ test("missing rows", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -525,7 +560,7 @@ test("notNull", async (context) => {
   let indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -552,7 +587,7 @@ test("notNull", async (context) => {
   indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -586,7 +621,7 @@ test("default", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -614,7 +649,7 @@ test("$default", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -645,7 +680,7 @@ test("$onUpdateFn", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -679,7 +714,7 @@ test("array", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -717,7 +752,7 @@ test("enum", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
@@ -753,7 +788,7 @@ test("json bigint", async (context) => {
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 

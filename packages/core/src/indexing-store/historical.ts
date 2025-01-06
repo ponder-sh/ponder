@@ -1,4 +1,8 @@
-import type { Common } from "@/common/common.js";
+import type { Database } from "@/database/index.js";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
+import { getColumnCasing } from "@/drizzle/kit/index.js";
+import { onchain } from "@/drizzle/onchain.js";
+import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
   FlushError,
@@ -7,15 +11,8 @@ import {
   RecordNotFoundError,
   UndefinedTableError,
   UniqueConstraintError,
-} from "@/common/errors.js";
-import type { Database } from "@/database/index.js";
-import {
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-} from "@/drizzle/index.js";
-import { getColumnCasing } from "@/drizzle/kit/index.js";
-import { onchain } from "@/drizzle/onchain.js";
+} from "@/internal/errors.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
@@ -147,13 +144,13 @@ export const normalizeColumn = (
 
 export const createHistoricalIndexingStore = ({
   common,
+  schemaBuild: { schema },
   database,
-  schema,
   initialCheckpoint,
 }: {
   common: Common;
+  schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  schema: Schema;
   initialCheckpoint: string;
 }): IndexingStore<"historical"> => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
@@ -344,7 +341,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
@@ -385,7 +382,7 @@ export const createHistoricalIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -438,7 +435,7 @@ export const createHistoricalIndexingStore = ({
               ),
             onConflictDoUpdate: (valuesU: any) =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -535,7 +532,7 @@ export const createHistoricalIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               queue
                 .add(() =>
-                  database.qb.user.wrap(
+                  database.wrap(
                     {
                       method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
@@ -627,7 +624,7 @@ export const createHistoricalIndexingStore = ({
       return {
         set: (values: any) =>
           queue.add(() =>
-            database.qb.user.wrap(
+            database.wrap(
               { method: `${getTableName(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table, "update");
@@ -692,7 +689,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
@@ -731,10 +728,11 @@ export const createHistoricalIndexingStore = ({
         await database.createTriggers();
         await indexingStore.flush();
         await database.removeTriggers();
+        isDatabaseEmpty = false;
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
-        const res = await database.qb.user.wrap({ method: "sql" }, async () => {
+        const res = await database.wrap({ method: "sql" }, async () => {
           try {
             return await database.qb.drizzle._.session
               .prepareQuery(query, undefined, undefined, method === "all")
@@ -797,7 +795,7 @@ export const createHistoricalIndexingStore = ({
             while (insertValues.length > 0) {
               const values = insertValues.splice(0, batchSize);
               promises.push(
-                database.qb.user.wrap(
+                database.wrap(
                   { method: `${getTableName(table)}.flush()` },
                   async () => {
                     await database.qb.drizzle
@@ -837,7 +835,7 @@ export const createHistoricalIndexingStore = ({
             while (updateValues.length > 0) {
               const values = updateValues.splice(0, batchSize);
               promises.push(
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table)}.flush()`,
                   },
