@@ -196,11 +196,15 @@ export function getFreePort(): Promise<number> {
   });
 }
 
-export async function waitForIndexedBlock(
-  port: number,
-  networkName: string,
-  blockNumber: number,
-) {
+export async function waitForIndexedBlock({
+  port,
+  chainId,
+  block,
+}: {
+  port: number;
+  chainId: number;
+  block: { number: number };
+}) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       clearInterval(interval);
@@ -211,11 +215,11 @@ export async function waitForIndexedBlock(
       if (response.status === 200) {
         const status = (await response.json()) as Status | null;
         const statusBlockNumber = status
-          ? status[networkName]?.block?.number
+          ? status[chainId]?.block?.number
           : undefined;
         if (
           statusBlockNumber !== undefined &&
-          statusBlockNumber >= blockNumber
+          statusBlockNumber >= block.number
         ) {
           clearTimeout(timeout);
           clearInterval(interval);

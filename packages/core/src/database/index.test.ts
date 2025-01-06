@@ -123,7 +123,7 @@ test("prepareNamespace() succeeds with empty schema", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(1);
 
   await database.unlock();
   await database.kill();
@@ -208,7 +208,7 @@ test("prepareNamespace() succeeds with crash recovery", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(1);
 
   const tableNames = await getUserTableNames(databaseTwo, "public");
   expect(tableNames).toContain("account");
@@ -425,7 +425,7 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(1);
 
   await databaseTwo.kill();
 });

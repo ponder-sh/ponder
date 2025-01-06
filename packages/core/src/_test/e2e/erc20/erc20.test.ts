@@ -56,7 +56,11 @@ test(
       sender: ALICE,
     });
 
-    await waitForIndexedBlock(port, "mainnet", 2);
+    await waitForIndexedBlock({
+      port,
+      chainId: 1,
+      block: { number: 2 },
+    });
 
     const result = await client.db.select().from(schema.account);
 

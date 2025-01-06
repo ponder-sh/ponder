@@ -329,7 +329,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         realtimeSync,
         unfinalizedBlocks: [],
       });
-      status[network.name] = { block: null, ready: false };
+      status[network.chainId] = { block: null, ready: false };
     }),
   );
 
@@ -361,7 +361,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     network,
   }: { events: RawEvent[]; checkpoint: string; network: Network }) => {
     if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
-      status[network.name]!.block = {
+      status[network.chainId]!.block = {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
@@ -371,7 +371,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         const event = events[i]!;
 
         if (network.chainId === event.chainId) {
-          status[network.name]!.block = {
+          status[network.chainId]!.block = {
             timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
             number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
           };
@@ -397,7 +397,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           checkpoint,
       );
     if (localBlock !== undefined) {
-      status[network.name]!.block = {
+      status[network.chainId]!.block = {
         timestamp: hexToNumber(localBlock.timestamp),
         number: hexToNumber(localBlock.number),
       };
@@ -843,11 +843,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       for (const network of args.indexingBuild.networks) {
         const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
-        status[network.name]!.block = {
+        status[network.chainId]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
         };
-        status[network.name]!.ready = true;
+        status[network.chainId]!.ready = true;
 
         if (isSyncEnd(syncProgress)) {
           args.common.metrics.ponder_sync_is_complete.set(
