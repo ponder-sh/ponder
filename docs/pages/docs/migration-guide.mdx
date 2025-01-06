@@ -287,6 +287,8 @@ Key changes:
 2. Export all table objects from `ponder.schema.ts`
 3. Use `.primaryKey()` to mark the primary key column
 4. Columns are nullable by default, use `.notNull()` to add the constraint
+5. The `hex` column type now uses `TEXT` instead of `BYTEA`
+6. `p.float()` (`DOUBLE PRECISION`) was removed, use `t.doublePrecision()` or `t.real()` instead
 
 The new `onchainTable` function adds several new capabilities.
 
@@ -448,9 +450,19 @@ await context.db
 await context.db.Account.delete({ id: event.args.from });
 await context.db.delete(account, { address: event.args.from });
 
-// findMany -> select
+// findMany -> raw SQL select, see below
 await context.db.Account.findMany({ where: { balance: { gt: 100n } } });
 await context.db.sql.select().from(account).where(eq(account.balance, 100n));
+
+// updateMany -> raw SQL update, see below
+await context.db.Player.updateMany({
+  where: { id: { startsWith: "J" } },
+  data: { age: 50 },
+});
+await context.db.sql
+  .update(player)
+  .set({ age: 50 })
+  .where(like(player.id, "J%"));
 ```
 
 Finally, another migration example for an ERC20 Transfer indexing function using `upsert`.
