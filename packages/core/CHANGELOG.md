@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.18
+
+### Patch Changes
+
+- [#1414](https://github.com/ponder-sh/ponder/pull/1414) [`3aa89415a528152c32cd5d9fea0f4b65061bb232`](https://github.com/ponder-sh/ponder/commit/3aa89415a528152c32cd5d9fea0f4b65061bb232) Thanks [@typedarray](https://github.com/typedarray)! - Fixed the `FlushError: invalid byte sequence for encoding "UTF8": 0x00` error by removing null characters from decoded ABI parameters.
+
 ## 0.8.17
 
 ### Patch Changes
