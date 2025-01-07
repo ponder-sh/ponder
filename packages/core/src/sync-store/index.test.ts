@@ -17,8 +17,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
@@ -264,7 +264,7 @@ test("insertIntervals() merges duplicates", async (context) => {
 test("getChildAddresses()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -334,7 +334,7 @@ test("getChildAddresses() empty", async (context) => {
 test("getChildAddresses() distinct", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -378,7 +378,7 @@ test("getChildAddresses() distinct", async (context) => {
 test("filterChildAddresses()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -421,7 +421,7 @@ test("filterChildAddresses()", async (context) => {
 test("insertLogs()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -454,7 +454,7 @@ test("insertLogs()", async (context) => {
 test("insertLogs() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -493,7 +493,7 @@ test("insertLogs() with duplicates", async (context) => {
 test("insertLogs() creates checkpoint", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -536,7 +536,7 @@ test("insertLogs() creates checkpoint", async (context) => {
 test("insertLogs() upserts checkpoint", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -590,7 +590,7 @@ test("insertLogs() upserts checkpoint", async (context) => {
 test("insertBlocks()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -615,7 +615,7 @@ test("insertBlocks()", async (context) => {
 test("insertBlocks() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -641,7 +641,7 @@ test("insertBlocks() with duplicates", async (context) => {
 test("insertBlocks() creates checkpoint", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -673,7 +673,7 @@ test("insertBlocks() creates checkpoint", async (context) => {
 test("hasBlock()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -702,7 +702,7 @@ test("hasBlock()", async (context) => {
 test("insertTransactions()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -736,7 +736,7 @@ test("insertTransactions()", async (context) => {
 test("insertTransactions() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -774,7 +774,7 @@ test("insertTransactions() with duplicates", async (context) => {
 test("hasTransaction()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -812,7 +812,7 @@ test("hasTransaction()", async (context) => {
 test("insertTransactionReceipts()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -847,7 +847,7 @@ test("insertTransactionReceipts()", async (context) => {
 test("insertTransactionReceipts() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -886,7 +886,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
 test("hasTransactionReceipt()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -925,7 +925,7 @@ test("hasTransactionReceipt()", async (context) => {
 test("insertTraces()", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -990,7 +990,7 @@ test("insertTraces()", async (context) => {
 test("insertTraces() creates checkpoint", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1062,7 +1062,7 @@ test("insertTraces() creates checkpoint", async (context) => {
 test("insertTraces() with duplicates", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1137,7 +1137,7 @@ test("insertTraces() with duplicates", async (context) => {
 test("getEvents() returns events", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1198,7 +1198,7 @@ test("getEvents() returns events", async (context) => {
 test("getEvents() handles log filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1281,7 +1281,7 @@ test("getEvents() handles log filter logic", async (context) => {
 test("getEvents() handles log factory", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1365,7 +1365,7 @@ test("getEvents() handles log factory", async (context) => {
 test("getEvents() handles multiple log factories", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1457,7 +1457,7 @@ test("getEvents() handles multiple log factories", async (context) => {
 test("getEvents() handles block filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1498,7 +1498,7 @@ test("getEvents() handles block filter logic", async (context) => {
 test("getEvents() handles trace filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1581,7 +1581,7 @@ test("getEvents() handles trace filter logic", async (context) => {
 test("getEvents() handles transaction filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1635,7 +1635,7 @@ test("getEvents() handles transaction filter logic", async (context) => {
 test("getEvents() handles transfer filter logic", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1717,7 +1717,7 @@ test("getEvents() handles transfer filter logic", async (context) => {
 test("getEvents() handles block bounds", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1777,7 +1777,7 @@ test("getEvents() handles block bounds", async (context) => {
 test("getEvents() pagination", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -1870,7 +1870,7 @@ test("pruneRpcRequestResult", async (context) => {
 test("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
   const { syncStore, database, cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,

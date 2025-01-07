@@ -13,7 +13,14 @@ import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Hono } from "hono";
 import type { PoolConfig } from "pg";
-import type { Abi, Address, Chain, Hex, LogTopic, Transport } from "viem";
+import type {
+  Abi,
+  Address,
+  Hex,
+  LogTopic,
+  Transport,
+  Chain as ViemChain,
+} from "viem";
 
 // Database
 
@@ -222,30 +229,29 @@ export type ContractMetadata = {
   abiEvents: AbiEvents;
   abiFunctions: AbiFunctions;
   name: string;
-  network: Network;
+  chain: Chain;
 };
 export type AccountMetadata = {
   type: "account";
   name: string;
-  network: Network;
+  chain: Chain;
 };
 export type BlockMetadata = {
   type: "block";
   name: string;
-  network: Network;
+  chain: Chain;
 };
 
-// Network
+// Chain
 
-export type Network = {
-  name: string;
-  chainId: number;
-  chain: Chain;
-  transport: ReturnType<Transport>;
+export type Chain = {
+  chain: ViemChain;
+  // TODO(kyle) rpc?
+  rpcUrls: string | string[] | Transport;
   pollingInterval: number;
   maxRequestsPerSecond: number;
-  finalityBlockCount: number;
   disableCache: boolean;
+  finalityBlockCount: number;
 };
 
 // Schema
@@ -274,8 +280,8 @@ export type IndexingBuild = {
   buildId: string;
   /** Sources to index. */
   sources: Source[];
-  /** Networks to index. */
-  networks: Network[];
+  /** Chains to index. */
+  chains: Chain[];
   /** Event callbacks for all `sources`.  */
   indexingFunctions: IndexingFunctions;
 };
@@ -291,7 +297,7 @@ export type ApiBuild = {
 
 // Status
 
-/** Closest-to-tip indexed block per network. */
+/** Closest-to-tip indexed block per chain. */
 export type Status = {
   [chainId: number]: {
     block: { number: number; timestamp: number } | null;

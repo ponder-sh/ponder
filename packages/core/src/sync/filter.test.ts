@@ -12,8 +12,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
@@ -82,7 +82,7 @@ test("getChildAddress() offset", () => {
 });
 
 test("isLogFactoryMatched()", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -135,7 +135,7 @@ test("isLogFactoryMatched()", async (context) => {
 });
 
 test("isLogFilterMatched()", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -196,7 +196,7 @@ test("isLogFilterMatched()", async (context) => {
 });
 
 test("isBlockFilterMatched", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -234,7 +234,7 @@ test("isBlockFilterMatched", async (context) => {
 });
 
 test("isTransactionFilterMatched()", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -281,7 +281,7 @@ test("isTransactionFilterMatched()", async (context) => {
 });
 
 test("isTransferFilterMatched()", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -344,7 +344,7 @@ test("isTransferFilterMatched()", async (context) => {
 });
 
 test("isTraceFilterMatched()", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,

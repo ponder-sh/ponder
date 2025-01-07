@@ -1,5 +1,5 @@
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
-import { getNetwork } from "@/_test/utils.js";
+import { getChain } from "@/_test/utils.js";
 import type { Common } from "@/internal/common.js";
 import type { Network } from "@/internal/types.js";
 import { beforeEach, expect, test } from "vitest";
@@ -17,7 +17,7 @@ const getQueue = (network: Network, common: Common) => {
 };
 
 test("requests", async ({ common }) => {
-  const network = getNetwork();
+  const network = getChain();
 
   const queue = getQueue(network, common);
   queue.start();

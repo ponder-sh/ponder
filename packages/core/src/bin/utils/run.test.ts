@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
-import { getNetwork } from "@/_test/utils.js";
+import { getChain } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
@@ -29,7 +29,7 @@ const account = onchainTable("account", (p) => ({
 const schema = { account };
 
 test("run() setup", async (context) => {
-  const network = getNetwork();
+  const chain = getChain();
 
   const { address } = await deployErc20({ sender: ALICE });
 
@@ -57,7 +57,7 @@ test("run() setup", async (context) => {
 
   const indexingBuild: IndexingBuild = {
     buildId: "buildId",
-    networks: [network],
+    chains: [chain],
     sources,
     indexingFunctions,
   };
@@ -91,7 +91,7 @@ test("run() setup", async (context) => {
 });
 
 test("run() setup error", async (context) => {
-  const network = getNetwork();
+  const chain = getChain();
 
   const { address } = await deployErc20({ sender: ALICE });
 
@@ -120,7 +120,7 @@ test("run() setup error", async (context) => {
 
   const indexingBuild: IndexingBuild = {
     buildId: "buildId",
-    networks: [network],
+    chains: [chain],
     sources,
     indexingFunctions,
   };

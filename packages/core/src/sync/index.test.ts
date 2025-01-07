@@ -6,7 +6,7 @@ import {
 } from "@/_test/setup.js";
 import {
   getBlocksConfigAndIndexingFunctions,
-  getNetwork,
+  getChain,
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
@@ -41,7 +41,7 @@ async function drainAsyncGenerator(
 test("createSync()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -53,7 +53,7 @@ test("createSync()", async (context) => {
 
   const sync = await createSync({
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -70,7 +70,7 @@ test("createSync()", async (context) => {
 test("getEvents() returns events", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -83,13 +83,13 @@ test("getEvents() returns events", async (context) => {
   await testClient.mine({ blocks: 1 });
 
   // finalized block: 1
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -109,7 +109,7 @@ test("getEvents() returns events", async (context) => {
 test("getEvents() with cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -122,13 +122,13 @@ test("getEvents() with cache", async (context) => {
   await testClient.mine({ blocks: 1 });
 
   // finalized block: 1
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   let sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -143,7 +143,7 @@ test("getEvents() with cache", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -165,7 +165,7 @@ test("getEvents() with cache", async (context) => {
 test("getEvents() end block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -178,7 +178,7 @@ test("getEvents() end block", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   sources[0]!.filter.toBlock = 1;
 
@@ -186,7 +186,7 @@ test("getEvents() end block", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -218,13 +218,13 @@ test.skip("getEvents() multichain", async (context) => {
     interval: 1,
   });
 
-  const { sources: sources1, networks: networks1 } =
+  const { sources: sources1, chains: chains1 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
     });
 
-  const { sources: sources2, networks: networks2 } =
+  const { sources: sources2, chains: chains2 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
@@ -233,18 +233,18 @@ test.skip("getEvents() multichain", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  networks1[0]!.finalityBlockCount = 0;
-  networks2[0]!.finalityBlockCount = 0;
+  chains1[0]!.finalityBlockCount = 0;
+  chains2[0]!.finalityBlockCount = 0;
 
   sources2[0]!.filter.chainId = 2;
   sources2[0]!.filter.toBlock = 1;
-  networks2[0]!.chainId = 2;
+  chains2[0]!.chain.id = 2;
 
   const sync = await createSync({
     syncStore,
     indexingBuild: {
       sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
+      chains: [...chains1, ...chains2],
     },
     common: context.common,
     onRealtimeEvent: async () => {},
@@ -265,7 +265,7 @@ test.skip("getEvents() multichain", async (context) => {
 test("getEvents() updates status", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -278,13 +278,13 @@ test("getEvents() updates status", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -295,8 +295,8 @@ test("getEvents() updates status", async (context) => {
 
   const status = sync.getStatus();
 
-  expect(status[network.chainId]?.ready).toBe(false);
-  expect(status[network.chainId]?.block?.number).toBe(2);
+  expect(status[chain.chain.id]?.ready).toBe(false);
+  expect(status[chain.chain.id]?.block?.number).toBe(2);
 
   await sync.kill();
 
@@ -306,7 +306,7 @@ test("getEvents() updates status", async (context) => {
 test("getEvents() pagination", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -319,7 +319,7 @@ test("getEvents() pagination", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   context.common.options.syncEventsQuerySize = 1;
 
@@ -327,7 +327,7 @@ test("getEvents() pagination", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -345,7 +345,7 @@ test("getEvents() pagination", async (context) => {
 test("getEvents() initialCheckpoint", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -358,13 +358,13 @@ test("getEvents() initialCheckpoint", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -384,7 +384,7 @@ test("getEvents() initialCheckpoint", async (context) => {
 test("getEvents() refetches finalized block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -397,7 +397,7 @@ test("getEvents() refetches finalized block", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  network.finalityBlockCount = 0;
+  chain.finalityBlockCount = 0;
 
   context.common.options.syncHandoffStaleSeconds = 0.5;
 
@@ -405,7 +405,7 @@ test("getEvents() refetches finalized block", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -427,7 +427,7 @@ test("getEvents() refetches finalized block", async (context) => {
 test("startRealtime()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -443,7 +443,7 @@ test("startRealtime()", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -456,8 +456,8 @@ test("startRealtime()", async (context) => {
 
   const status = sync.getStatus();
 
-  expect(status[network.chainId]?.ready).toBe(true);
-  expect(status[network.chainId]?.block?.number).toBe(1);
+  expect(status[chain.chain.id]?.ready).toBe(true);
+  expect(status[chain.chain.id]?.block?.number).toBe(1);
 
   await sync.kill();
 
@@ -467,7 +467,7 @@ test("startRealtime()", async (context) => {
 test("onEvent() handles block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -486,7 +486,7 @@ test("onEvent() handles block", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
@@ -514,7 +514,7 @@ test("onEvent() handles block", async (context) => {
 test("onEvent() handles finalize", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -529,13 +529,13 @@ test("onEvent() handles finalize", async (context) => {
 
   // finalized block: 0
 
-  network.finalityBlockCount = 2;
+  chain.finalityBlockCount = 2;
 
   const sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
@@ -570,13 +570,13 @@ test("onEvent() multichain gets all events", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources: sources1, networks: networks1 } =
+  const { sources: sources1, chains: chains1 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
     });
 
-  const { sources: sources2, networks: networks2 } =
+  const { sources: sources2, chains: chains2 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
@@ -585,7 +585,7 @@ test("onEvent() multichain gets all events", async (context) => {
   // finalized block: 0
 
   sources2[0]!.filter.chainId = 2;
-  networks2[0]!.chainId = 2;
+  chains2[0]!.chain.id = 2;
 
   const promise = promiseWithResolvers<void>();
 
@@ -593,7 +593,7 @@ test("onEvent() multichain gets all events", async (context) => {
     common: context.common,
     indexingBuild: {
       sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
+      chains: [...chains1, ...chains2],
     },
     syncStore,
     onRealtimeEvent: async (event) => {
@@ -624,13 +624,13 @@ test("onEvent() multichain end block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources: sources1, networks: networks1 } =
+  const { sources: sources1, chains: chains1 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
     });
 
-  const { sources: sources2, networks: networks2 } =
+  const { sources: sources2, chains: chains2 } =
     await buildConfigAndIndexingFunctions({
       config,
       rawIndexingFunctions,
@@ -640,7 +640,7 @@ test("onEvent() multichain end block", async (context) => {
 
   sources2[0]!.filter.chainId = 2;
   sources2[0]!.filter.toBlock = 0;
-  networks2[0]!.chainId = 2;
+  chains2[0]!.chain.id = 2;
 
   const promise = promiseWithResolvers<void>();
 
@@ -648,7 +648,7 @@ test("onEvent() multichain end block", async (context) => {
     common: context.common,
     indexingBuild: {
       sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
+      chains: [...chains1, ...chains2],
     },
     syncStore,
     onRealtimeEvent: async (event) => {
@@ -676,7 +676,7 @@ test("onEvent() multichain end block", async (context) => {
 test("onEvent() handles endBlock finalization", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -692,7 +692,7 @@ test("onEvent() handles endBlock finalization", async (context) => {
 
   await testClient.mine({ blocks: 2 });
 
-  network.finalityBlockCount = 2;
+  chain.finalityBlockCount = 2;
 
   sources[0]!.filter.toBlock = 1;
 
@@ -700,7 +700,7 @@ test("onEvent() handles endBlock finalization", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
@@ -727,7 +727,7 @@ test("onEvent() handles endBlock finalization", async (context) => {
 test("onEvent() handles errors", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -745,7 +745,7 @@ test("onEvent() handles errors", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, networks: [network] },
+    indexingBuild: { sources, chains: [chain] },
 
     onRealtimeEvent: async () => {},
     onFatalError: () => {

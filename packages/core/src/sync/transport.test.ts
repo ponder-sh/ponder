@@ -6,7 +6,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
-import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
+import { anvil, getChain, publicClient } from "@/_test/utils.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { type Transport, parseEther } from "viem";
 import { toHex } from "viem";
@@ -18,7 +18,7 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 test("default", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -53,7 +53,7 @@ test("default", async (context) => {
 });
 
 test("request() block dependent method", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -93,7 +93,7 @@ test("request() block dependent method", async (context) => {
 });
 
 test("request() non-block dependent method", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -142,7 +142,7 @@ test("request() non-block dependent method", async (context) => {
 });
 
 test("request() non-cached method", async (context) => {
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,

@@ -1,8 +1,8 @@
 import { type AddressInfo, createServer } from "node:net";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { Network, Status } from "@/internal/types.js";
-import type { Address, Chain } from "viem";
+import type { Chain, Status } from "@/internal/types.js";
+import type { Address, Chain as ViemChain } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
@@ -26,7 +26,7 @@ export const anvil = {
       webSocket: [`ws://127.0.0.1:8545/${poolId}`],
     },
   },
-} as const satisfies Chain;
+} as const satisfies ViemChain;
 
 export const testClient = createTestClient({
   chain: anvil,
@@ -171,19 +171,17 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
   return { config, rawIndexingFunctions };
 };
 
-export const getNetwork = (params?: {
+export const getChain = (params?: {
   finalityBlockCount?: number;
 }) => {
   return {
-    name: "mainnet",
-    chainId: 1,
     chain: anvil,
-    transport: http(`http://127.0.0.1:8545/${poolId}`)({ chain: anvil }),
+    rpcUrls: `http://127.0.0.1:8545/${poolId}`,
     maxRequestsPerSecond: 50,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
     disableCache: false,
-  } satisfies Network;
+  } satisfies Chain;
 };
 
 export function getFreePort(): Promise<number> {

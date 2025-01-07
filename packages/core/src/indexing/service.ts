@@ -1,11 +1,11 @@
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
+  Chain,
   ContractSource,
   Event,
   IndexingBuild,
   IndexingFunctions,
-  Network,
   Schema,
   SetupEvent,
   Source,
@@ -66,20 +66,20 @@ export type Service = {
   };
 
   // static cache
-  networkByChainId: { [chainId: number]: Network };
+  chainById: { [chainId: number]: Chain };
   clientByChainId: { [chainId: number]: Context["client"] };
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
 
 export const create = ({
   common,
-  indexingBuild: { sources, networks, indexingFunctions },
+  indexingBuild: { sources, chains, indexingFunctions },
   sync,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "networks" | "indexingFunctions"
+    "sources" | "chains" | "indexingFunctions"
   >;
   sync: Sync;
 }): Service => {
@@ -89,13 +89,10 @@ export const create = ({
   const clientByChainId: Service["clientByChainId"] = {};
   const contractsByChainId: Service["contractsByChainId"] = {};
 
-  const networkByChainId = networks.reduce<Service["networkByChainId"]>(
-    (acc, cur) => {
-      acc[cur.chainId] = cur;
-      return acc;
-    },
-    {},
-  );
+  const chainById = chains.reduce<Service["chainById"]>((acc, cur) => {
+    acc[cur.chain.id] = cur;
+    return acc;
+  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -137,11 +134,11 @@ export const create = ({
   }
 
   // build clientByChainId
-  for (const network of networks) {
-    const transport = sync.getCachedTransport(network);
-    clientByChainId[network.chainId] = createClient({
+  for (const chain of chains) {
+    const transport = sync.getCachedTransport(chain);
+    clientByChainId[chain.chain.id] = createClient({
       transport,
-      chain: network.chain,
+      chain: chain.chain,
       // @ts-ignore
     }).extend(getPonderActions(contextState));
   }
@@ -167,7 +164,7 @@ export const create = ({
         db: undefined!,
       },
     },
-    networkByChainId,
+    chainById,
     clientByChainId,
     contractsByChainId,
   };
@@ -177,10 +174,10 @@ export const processSetupEvents = async (
   indexingService: Service,
   {
     sources,
-    networks,
+    chains,
   }: {
     sources: Source[];
-    networks: Network[];
+    chains: Chain[];
   },
 ): Promise<
   | { status: "error"; error: Error }
@@ -192,12 +189,12 @@ export const processSetupEvents = async (
 
     const [contractName] = eventName.split(":");
 
-    for (const network of networks) {
+    for (const chain of chains) {
       const source = sources.find(
         (s) =>
           s.type === "contract" &&
           s.name === contractName &&
-          s.filter.chainId === network.chainId,
+          s.filter.chainId === chain.chain.id,
       )! as ContractSource;
 
       if (indexingService.isKilled) return { status: "killed" };
@@ -206,10 +203,10 @@ export const processSetupEvents = async (
       const result = await executeSetup(indexingService, {
         event: {
           type: "setup",
-          chainId: network.chainId,
+          chainId: chain.chain.id,
           checkpoint: encodeCheckpoint({
             ...zeroCheckpoint,
-            chainId: BigInt(network.chainId),
+            chainId: BigInt(chain.chain.id),
             blockNumber: BigInt(source.filter.fromBlock ?? 0),
           }),
 
@@ -351,7 +348,7 @@ const executeSetup = async (
     common,
     indexingFunctions,
     currentEvent,
-    networkByChainId,
+    chainById,
     contractsByChainId,
     clientByChainId,
   } = indexingService;
@@ -361,7 +358,8 @@ const executeSetup = async (
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    // TODO(kyle): update user types
+    currentEvent.context.network.name = chainById[event.chainId]!.chain.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.blockNumber = event.block;
@@ -388,7 +386,7 @@ const executeSetup = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.chain.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -438,7 +436,7 @@ const executeEvent = async (
     common,
     indexingFunctions,
     currentEvent,
-    networkByChainId,
+    chainById,
     contractsByChainId,
     clientByChainId,
   } = indexingService;
@@ -448,7 +446,7 @@ const executeEvent = async (
   try {
     // set currentEvent
     currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.network.name = chainById[event.chainId]!.chain.name;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.blockNumber = event.event.block.number;
@@ -479,7 +477,7 @@ const executeEvent = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.chain.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 

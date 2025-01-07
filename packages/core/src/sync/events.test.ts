@@ -17,8 +17,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
@@ -347,7 +347,7 @@ test("decodeEvents() trace error", async (context) => {
 test("buildEvents() matches getEvents() log", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -422,7 +422,7 @@ test("buildEvents() matches getEvents() log", async (context) => {
 test("buildEvents() matches getEvents() log factory", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -517,7 +517,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
 test("buildEvents() matches getEvents() block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -569,7 +569,7 @@ test("buildEvents() matches getEvents() block", async (context) => {
 test("buildEvents() matches getEvents() transfer", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -666,7 +666,7 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
 test("buildEvents() matches getEvents() transaction", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
@@ -736,7 +736,7 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
 test("buildEvents() matches getEvents() trace", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const network = getChain();
   const requestQueue = createRequestQueue({
     network,
     common: context.common,

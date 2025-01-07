@@ -41,7 +41,7 @@ const schema = { account };
 const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
   address: zeroAddress,
 });
-const { sources, networks } = await buildConfigAndIndexingFunctions({
+const { sources, chains } = await buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
 });
@@ -58,7 +58,7 @@ test("createIndexing()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -69,7 +69,7 @@ test("createIndexing()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -95,7 +95,7 @@ test("processSetupEvents() empty", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -106,7 +106,7 @@ test("processSetupEvents() empty", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -116,7 +116,7 @@ test("processSetupEvents() empty", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -136,7 +136,7 @@ test("processSetupEvents()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -151,7 +151,7 @@ test("processSetupEvents()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -161,7 +161,7 @@ test("processSetupEvents()", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -199,7 +199,7 @@ test("processEvent()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -216,7 +216,7 @@ test("processEvent()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -303,7 +303,7 @@ test("processEvents killed", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -320,7 +320,7 @@ test("processEvents killed", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -380,7 +380,7 @@ test("processEvents eventCount", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -396,7 +396,7 @@ test("processEvents eventCount", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -453,7 +453,7 @@ test("executeSetup() context.client", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -472,7 +472,7 @@ test("executeSetup() context.client", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -487,7 +487,7 @@ test("executeSetup() context.client", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -512,7 +512,7 @@ test("executeSetup() context.db", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -531,7 +531,7 @@ test("executeSetup() context.db", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -543,7 +543,7 @@ test("executeSetup() context.db", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -571,7 +571,7 @@ test("executeSetup() metrics", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -585,7 +585,7 @@ test("executeSetup() metrics", async (context) => {
         "Erc20:setup": vi.fn(),
       },
       sources,
-      networks,
+      chains,
     },
     sync,
   });
@@ -594,7 +594,7 @@ test("executeSetup() metrics", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
   expect(result).toStrictEqual({ status: "success" });
 
@@ -616,7 +616,7 @@ test("executeSetup() error", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -631,7 +631,7 @@ test("executeSetup() error", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -643,7 +643,7 @@ test("executeSetup() error", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
   expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
 
@@ -664,7 +664,7 @@ test("processEvents() context.client", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -685,7 +685,7 @@ test("processEvents() context.client", async (context) => {
           clientCall,
       },
       sources,
-      networks,
+      chains,
     },
     sync,
   });
@@ -747,7 +747,7 @@ test("processEvents() context.db", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -771,7 +771,7 @@ test("processEvents() context.db", async (context) => {
           dbCall,
       },
       sources,
-      networks,
+      chains,
     },
     sync,
   });
@@ -831,7 +831,7 @@ test("processEvents() metrics", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -846,7 +846,7 @@ test("processEvents() metrics", async (context) => {
           vi.fn(),
       },
       sources,
-      networks,
+      chains,
     },
     sync,
   });
@@ -900,7 +900,7 @@ test("processEvents() error", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -916,7 +916,7 @@ test("processEvents() error", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -982,7 +982,7 @@ test("execute() error after killed", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -999,7 +999,7 @@ test("execute() error after killed", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
     sync,
@@ -1055,7 +1055,7 @@ test("ponderActions getBalance()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1066,7 +1066,7 @@ test("ponderActions getBalance()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -1097,7 +1097,7 @@ test("ponderActions getCode()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1108,7 +1108,7 @@ test("ponderActions getCode()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -1145,7 +1145,7 @@ test("ponderActions getStorageAt()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1156,7 +1156,7 @@ test("ponderActions getStorageAt()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -1195,7 +1195,7 @@ test("ponderActions readContract()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1206,7 +1206,7 @@ test("ponderActions readContract()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -1245,7 +1245,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1256,7 +1256,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,
@@ -1297,7 +1297,7 @@ test.skip("ponderActions multicall()", async (context) => {
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1308,7 +1308,7 @@ test.skip("ponderActions multicall()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
     sync,

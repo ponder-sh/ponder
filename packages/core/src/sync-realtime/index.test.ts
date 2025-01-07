@@ -18,8 +18,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
@@ -44,9 +44,9 @@ test("createRealtimeSyncService()", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -60,7 +60,7 @@ test("createRealtimeSyncService()", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),
@@ -76,9 +76,9 @@ test("start() handles block", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -98,7 +98,7 @@ test("start() handles block", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),
@@ -122,9 +122,9 @@ test("start() no-op when receiving same block twice", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -144,7 +144,7 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),
@@ -175,9 +175,9 @@ test("start() gets missing block", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -197,7 +197,7 @@ test("start() gets missing block", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),
@@ -222,9 +222,9 @@ test("start() retries on error", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -246,7 +246,7 @@ test("start() retries on error", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),
@@ -273,9 +273,9 @@ test("kill()", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -295,7 +295,7 @@ test("kill()", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),
@@ -318,9 +318,9 @@ test("handleBlock() block event with log", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -352,7 +352,7 @@ test("handleBlock() block event with log", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent,
@@ -393,9 +393,9 @@ test("handleBlock() block event with log factory", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -435,7 +435,7 @@ test("handleBlock() block event with log factory", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent,
@@ -486,9 +486,9 @@ test("handleBlock() block event with block", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -512,7 +512,7 @@ test("handleBlock() block event with block", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent,
@@ -555,9 +555,9 @@ test("handleBlock() block event with transaction", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -588,7 +588,7 @@ test("handleBlock() block event with transaction", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     onEvent,
@@ -630,9 +630,9 @@ test("handleBlock() block event with transfer", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -685,7 +685,7 @@ test("handleBlock() block event with transfer", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue: {
       ...requestQueue,
       // @ts-ignore
@@ -731,9 +731,9 @@ test("handleBlock() block event with trace", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -830,7 +830,7 @@ test("handleBlock() block event with trace", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue: {
       ...requestQueue,
       // @ts-ignore
@@ -885,9 +885,9 @@ test("handleBlock() finalize event", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -911,7 +911,7 @@ test("handleBlock() finalize event", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent,
@@ -944,9 +944,9 @@ test("handleReorg() finds common ancestor", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -966,7 +966,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent,
@@ -1003,9 +1003,9 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   const { common } = context;
   const { cleanup } = await setupDatabaseServices(context);
 
-  const network = getNetwork({ finalityBlockCount: 2 });
+  const chain = getChain({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -1023,7 +1023,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
 
   const realtimeSync = createRealtimeSync({
     common,
-    network,
+    chain,
     requestQueue,
     sources,
     onEvent: vi.fn(),

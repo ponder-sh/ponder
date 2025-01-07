@@ -18,8 +18,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
@@ -37,9 +37,9 @@ beforeEach(setupIsolatedDatabase);
 test("createHistoricalSync()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -53,7 +53,7 @@ test("createHistoricalSync()", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -68,9 +68,9 @@ test("createHistoricalSync()", async (context) => {
 test("sync() with log filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -92,7 +92,7 @@ test("sync() with log filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -118,9 +118,9 @@ test("sync() with log filter", async (context) => {
 test("sync() with log filter and transaction receipts", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -143,7 +143,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -172,9 +172,9 @@ test("sync() with log filter and transaction receipts", async (context) => {
 test("sync() with block filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -190,7 +190,7 @@ test("sync() with block filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -219,9 +219,9 @@ test("sync() with block filter", async (context) => {
 test("sync() with log factory", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -246,7 +246,7 @@ test("sync() with log factory", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -272,9 +272,9 @@ test("sync() with log factory", async (context) => {
 test("sync() with trace filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -337,7 +337,7 @@ test("sync() with trace filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "trace"),
     syncStore,
     requestQueue: {
@@ -370,9 +370,9 @@ test("sync() with trace filter", async (context) => {
 test("sync() with transaction filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -394,7 +394,7 @@ test("sync() with transaction filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     syncStore,
     requestQueue,
@@ -431,9 +431,9 @@ test("sync() with transaction filter", async (context) => {
 test("sync() with transfer filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -479,7 +479,7 @@ test("sync() with transfer filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "transfer"),
     syncStore,
     requestQueue: {
@@ -513,9 +513,9 @@ test("sync() with transfer filter", async (context) => {
 test("sync() with many filters", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -540,7 +540,7 @@ test("sync() with many filters", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
     requestQueue,
@@ -571,9 +571,9 @@ test("sync() with many filters", async (context) => {
 test("sync() with cache hit", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -595,7 +595,7 @@ test("sync() with cache hit", async (context) => {
 
   let historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -610,7 +610,7 @@ test("sync() with cache hit", async (context) => {
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,
@@ -626,9 +626,9 @@ test("sync() with cache hit", async (context) => {
 test("syncBlock() with cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -653,7 +653,7 @@ test("syncBlock() with cache", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
     requestQueue,
@@ -674,9 +674,9 @@ test("syncBlock() with cache", async (context) => {
 test("syncAddress() handles many addresses", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
+  const chain = getChain();
   const requestQueue = createRequestQueue({
-    network,
+    chain,
     common: context.common,
   });
 
@@ -708,7 +708,7 @@ test("syncAddress() handles many addresses", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
     requestQueue,

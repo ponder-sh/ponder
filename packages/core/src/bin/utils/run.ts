@@ -136,7 +136,7 @@ export async function run({
     if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
       const result = await indexingService.processSetupEvents({
         sources: indexingBuild.sources,
-        networks: indexingBuild.networks,
+        chains: indexingBuild.chains,
       });
       if (result.status === "killed") {
         return;

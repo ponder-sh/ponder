@@ -8,9 +8,9 @@ import { BuildError } from "@/internal/errors.js";
 import type {
   AccountSource,
   BlockSource,
+  Chain,
   ContractSource,
   IndexingFunctions,
-  Network,
   RawIndexingFunctions,
   Source,
 } from "@/internal/types.js";
@@ -66,7 +66,7 @@ export async function buildConfigAndIndexingFunctions({
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
 }): Promise<{
-  networks: Network[];
+  chains: Chain[];
   sources: Source[];
   indexingFunctions: IndexingFunctions;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
