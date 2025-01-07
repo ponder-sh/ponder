@@ -11,6 +11,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type { RPC } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   isAddressFactory,
@@ -32,7 +33,6 @@ import {
   intervalRange,
 } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _debug_traceBlockByNumber,
   _eth_getBlockByNumber,
@@ -65,7 +65,7 @@ type CreateHistoricalSyncParameters = {
   sources: Source[];
   syncStore: SyncStore;
   chain: Chain;
-  requestQueue: RequestQueue;
+  rpc: RPC;
   onFatalError: (error: Error) => void;
 };
 
@@ -218,7 +218,7 @@ export const createHistoricalSync = async (
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
-          _eth_getLogs(args.requestQueue, {
+          _eth_getLogs(args.rpc, {
             address,
             topics,
             fromBlock: interval[0],
@@ -313,7 +313,7 @@ export const createHistoricalSync = async (
     if (blockCache.has(number)) {
       block = await blockCache.get(number)!;
     } else {
-      const _block = _eth_getBlockByNumber(args.requestQueue, {
+      const _block = _eth_getBlockByNumber(args.rpc, {
         blockNumber: toHex(number),
       });
       blockCache.set(number, _block);
@@ -334,7 +334,7 @@ export const createHistoricalSync = async (
     if (traceCache.has(block)) {
       return await traceCache.get(block)!;
     } else {
-      const traces = _debug_traceBlockByNumber(args.requestQueue, {
+      const traces = _debug_traceBlockByNumber(args.rpc, {
         blockNumber: block,
       });
       traceCache.set(block, traces);
@@ -395,7 +395,7 @@ export const createHistoricalSync = async (
     if (transactionReceiptsCache.has(transaction)) {
       return await transactionReceiptsCache.get(transaction)!;
     } else {
-      const receipt = _eth_getTransactionReceipt(args.requestQueue, {
+      const receipt = _eth_getTransactionReceipt(args.rpc, {
         hash: transaction,
       });
       transactionReceiptsCache.set(transaction, receipt);
@@ -407,7 +407,7 @@ export const createHistoricalSync = async (
     if (blockReceiptsCache.has(block)) {
       return await blockReceiptsCache.get(block)!;
     } else {
-      const blockReceipts = _eth_getBlockReceipts(args.requestQueue, {
+      const blockReceipts = _eth_getBlockReceipts(args.rpc, {
         blockHash: block,
       });
       blockReceiptsCache.set(block, blockReceipts);

@@ -25,8 +25,8 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import type { SyncLog, SyncTrace } from "@/types/sync.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import {
   type Address,
@@ -82,11 +82,8 @@ test("getChildAddress() offset", () => {
 });
 
 test("isLogFactoryMatched()", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
   await createPair({
@@ -106,7 +103,7 @@ test("isLogFactoryMatched()", async (context) => {
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -135,11 +132,8 @@ test("isLogFactoryMatched()", async (context) => {
 });
 
 test("isLogFilterMatched()", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -160,12 +154,12 @@ test("isLogFilterMatched()", async (context) => {
 
   const filter = sources[0]!.filter as LogFilter<undefined>;
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
 
@@ -196,11 +190,8 @@ test("isLogFilterMatched()", async (context) => {
 });
 
 test("isBlockFilterMatched", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -213,7 +204,7 @@ test("isBlockFilterMatched", async (context) => {
 
   const filter = sources[0]!.filter as BlockFilter;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 0,
   });
 
@@ -234,11 +225,8 @@ test("isBlockFilterMatched", async (context) => {
 });
 
 test("isTransactionFilterMatched()", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   await transferEth({
     to: BOB,
@@ -259,7 +247,7 @@ test("isTransactionFilterMatched()", async (context) => {
   // transaction:from
   const filter = sources[1]!.filter as TransactionFilter<undefined, undefined>;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -281,11 +269,8 @@ test("isTransactionFilterMatched()", async (context) => {
 });
 
 test("isTransferFilterMatched()", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { hash } = await transferEth({
     to: BOB,
@@ -306,7 +291,7 @@ test("isTransferFilterMatched()", async (context) => {
   // transfer:from
   const filter = sources[3]!.filter as TransferFilter<undefined, undefined>;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -344,11 +329,8 @@ test("isTransferFilterMatched()", async (context) => {
 });
 
 test("isTraceFilterMatched()", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -400,7 +382,7 @@ test("isTraceFilterMatched()", async (context) => {
     transactionHash: hash,
   } satisfies SyncTrace;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 3,
   });
 

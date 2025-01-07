@@ -7,7 +7,7 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { anvil, getChain, publicClient } from "@/_test/utils.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+import { createRpc } from "@/rpc/index.js";
 import { type Transport, parseEther } from "viem";
 import { toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
@@ -18,16 +18,13 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 
 test("default", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { syncStore, cleanup } = await setupDatabaseServices(context);
 
   const transport = cachedTransport({
-    requestQueue,
+    rpc,
     syncStore,
   });
 
@@ -53,17 +50,14 @@ test("default", async (context) => {
 });
 
 test("request() block dependent method", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
-    requestQueue,
+    rpc,
     syncStore,
   })({
     chain: anvil,
@@ -93,11 +87,8 @@ test("request() block dependent method", async (context) => {
 });
 
 test("request() non-block dependent method", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -112,7 +103,7 @@ test("request() non-block dependent method", async (context) => {
   const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
   const transport = cachedTransport({
-    requestQueue,
+    rpc,
     syncStore,
   })({
     chain: anvil,
@@ -142,15 +133,12 @@ test("request() non-block dependent method", async (context) => {
 });
 
 test("request() non-cached method", async (context) => {
-  const network = getChain();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { syncStore, cleanup } = await setupDatabaseServices(context);
   const transport = cachedTransport({
-    requestQueue,
+    rpc,
     syncStore,
   })({
     chain: anvil,

@@ -24,7 +24,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+import { createRpc } from "@/rpc/index.js";
 import { encodeFunctionData, encodeFunctionResult, toHex } from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -38,10 +38,7 @@ test("createHistoricalSync()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -56,7 +53,7 @@ test("createHistoricalSync()", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -69,10 +66,7 @@ test("sync() with log filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -95,7 +89,7 @@ test("sync() with log filter", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -119,10 +113,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -146,7 +137,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -173,10 +164,7 @@ test("sync() with block filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -193,7 +181,7 @@ test("sync() with block filter", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -220,10 +208,7 @@ test("sync() with log factory", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployFactory({ sender: ALICE });
   const { result } = await createPair({ factory: address, sender: ALICE });
@@ -249,7 +234,7 @@ test("sync() with log factory", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -273,10 +258,7 @@ test("sync() with trace filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -332,7 +314,7 @@ test("sync() with trace filter", async (context) => {
       }
     }
 
-    return requestQueue.request(request);
+    return rpc.request(request);
   };
 
   const historicalSync = await createHistoricalSync({
@@ -340,8 +322,8 @@ test("sync() with trace filter", async (context) => {
     chain,
     sources: sources.filter(({ filter }) => filter.type === "trace"),
     syncStore,
-    requestQueue: {
-      ...requestQueue,
+    rpc: {
+      ...rpc,
       // @ts-ignore
       request,
     },
@@ -371,10 +353,7 @@ test("sync() with transaction filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   await transferEth({
     to: BOB,
@@ -397,7 +376,7 @@ test("sync() with transaction filter", async (context) => {
     chain,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -432,10 +411,7 @@ test("sync() with transfer filter", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { hash } = await transferEth({
     to: BOB,
@@ -474,7 +450,7 @@ test("sync() with transfer filter", async (context) => {
       }
     }
 
-    return requestQueue.request(request);
+    return rpc.request(request);
   };
 
   const historicalSync = await createHistoricalSync({
@@ -482,8 +458,8 @@ test("sync() with transfer filter", async (context) => {
     chain,
     sources: sources.filter(({ filter }) => filter.type === "transfer"),
     syncStore,
-    requestQueue: {
-      ...requestQueue,
+    rpc: {
+      ...rpc,
       // @ts-ignore
       request,
     },
@@ -514,10 +490,7 @@ test("sync() with many filters", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -543,7 +516,7 @@ test("sync() with many filters", async (context) => {
     chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -572,10 +545,7 @@ test("sync() with cache hit", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -598,7 +568,7 @@ test("sync() with cache hit", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -606,14 +576,14 @@ test("sync() with cache hit", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(requestQueue, "request");
+  const spy = vi.spyOn(rpc, "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -627,10 +597,7 @@ test("syncBlock() with cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -656,11 +623,11 @@ test("syncBlock() with cache", async (context) => {
     chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
-  const spy = vi.spyOn(requestQueue, "request");
+  const spy = vi.spyOn(rpc, "request");
 
   await historicalSync.sync([1, 2]);
 
@@ -675,10 +642,7 @@ test("syncAddress() handles many addresses", async (context) => {
   const { cleanup, syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const requestQueue = createRequestQueue({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   context.common.options.factoryAddressCountThreshold = 10;
 
@@ -711,7 +675,7 @@ test("syncAddress() handles many addresses", async (context) => {
     chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 

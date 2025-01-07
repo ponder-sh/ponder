@@ -10,6 +10,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type { RPC } from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -31,7 +32,6 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import { range } from "@/utils/range.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _debug_traceBlockByHash,
   _eth_getBlockByHash,
@@ -59,7 +59,7 @@ export type RealtimeSync = {
 type CreateRealtimeSyncParameters = {
   common: Common;
   chain: Chain;
-  requestQueue: RequestQueue;
+  rpc: RPC;
   sources: Source[];
   onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
@@ -533,7 +533,7 @@ export const createRealtimeSync = (
 
         throw new Error(msg);
       } else {
-        remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
+        remoteBlock = await _eth_getBlockByHash(args.rpc, {
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
@@ -584,7 +584,7 @@ export const createRealtimeSync = (
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
-          _eth_getTransactionReceipt(args.requestQueue, { hash }),
+          _eth_getTransactionReceipt(args.rpc, { hash }),
         ),
       );
 
@@ -593,7 +593,7 @@ export const createRealtimeSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await _eth_getBlockReceipts(args.requestQueue, {
+      blockReceipts = await _eth_getBlockReceipts(args.rpc, {
         blockHash,
       });
     } catch (_error) {
@@ -649,7 +649,7 @@ export const createRealtimeSync = (
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      logs = await _eth_getLogs(args.requestQueue, { blockHash: block.hash });
+      logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
 
       // Protect against RPCs returning empty logs. Known to happen near chain tip.
       if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
@@ -687,7 +687,7 @@ export const createRealtimeSync = (
 
     let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _debug_traceBlockByHash(args.requestQueue, {
+      traces = await _debug_traceBlockByHash(args.rpc, {
         hash: block.hash,
       });
 
@@ -909,7 +909,7 @@ export const createRealtimeSync = (
 
               const pendingBlocks = await Promise.all(
                 missingBlockRange.map((blockNumber) =>
-                  _eth_getBlockByNumber(args.requestQueue, {
+                  _eth_getBlockByNumber(args.rpc, {
                     blockNumber,
                   }).then((block) => fetchBlockEventData(block)),
                 ),
@@ -999,7 +999,7 @@ export const createRealtimeSync = (
 
       const enqueue = async () => {
         try {
-          const block = await _eth_getBlockByNumber(args.requestQueue, {
+          const block = await _eth_getBlockByNumber(args.rpc, {
             blockTag: "latest",
           });
 
