@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.19
+
+### Patch Changes
+
+- [#1416](https://github.com/ponder-sh/ponder/pull/1416) [`7234384afb6d18e1ca3d6c291ebe7db111773c06`](https://github.com/ponder-sh/ponder/commit/7234384afb6d18e1ca3d6c291ebe7db111773c06) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing the error: `trigger "_reorg__xyz" for relation "xyz" already exists`.
+
 ## 0.8.18
 
 ### Patch Changes
