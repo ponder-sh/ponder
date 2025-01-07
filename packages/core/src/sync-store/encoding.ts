@@ -17,7 +17,7 @@ import type { ColumnType, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
-type BlocksTable = {
+export type BlocksTable = {
   hash: Hash;
   chainId: number;
   checkpoint: string;
@@ -84,7 +84,7 @@ export const encodeBlock = ({
   };
 };
 
-type LogsTable = {
+export type LogsTable = {
   id: string;
   chainId: number;
   checkpoint: string | null;
@@ -138,7 +138,7 @@ export const encodeLog = ({
   };
 };
 
-type TransactionsTable = {
+export type TransactionsTable = {
   hash: Hash;
   chainId: number;
   /** `checkpoint` will be null for transactions inserted before 0.8. This is to avoid a very slow migration. */
@@ -212,7 +212,7 @@ export const encodeTransaction = ({
   };
 };
 
-type TransactionReceiptsTable = {
+export type TransactionReceiptsTable = {
   transactionHash: Hash;
   chainId: number;
   blockHash: Hash;
@@ -256,7 +256,7 @@ export const encodeTransactionReceipt = ({
   };
 };
 
-type TracesTable = {
+export type TracesTable = {
   id: string;
   chainId: number;
   checkpoint: string;
