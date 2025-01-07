@@ -1032,7 +1032,7 @@ $$ LANGUAGE plpgsql
 
           await sql
             .raw(`
-          CREATE TRIGGER "${tableName.trigger}"
+          CREATE OR REPLACE TRIGGER "${tableName.trigger}"
           AFTER INSERT OR UPDATE OR DELETE ON "${preBuild.namespace}"."${tableName.sql}"
           FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
           `)
