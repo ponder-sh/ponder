@@ -500,7 +500,7 @@ export const decodeEvents = (
 
                 event: {
                   name: safeName,
-                  args,
+                  args: removeNullCharacters(args),
                   log: event.log!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -556,8 +556,8 @@ export const decodeEvents = (
                 name: `${source.name}.${safeName}`,
 
                 event: {
-                  args,
-                  result,
+                  args: removeNullCharacters(args),
+                  result: removeNullCharacters(result),
                   trace: event.trace!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -716,10 +716,7 @@ export function decodeEventLog({
     }
   }
 
-  // Remove null bytes from any string values present in the decoded args.
-  return Object.values(args).length > 0
-    ? removeNullCharacters(args)
-    : undefined;
+  return Object.values(args).length > 0 ? args : undefined;
 }
 
 function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
@@ -734,7 +731,7 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
   return decodedArg[0];
 }
 
-function removeNullCharacters(obj: unknown): unknown {
+export function removeNullCharacters(obj: unknown): unknown {
   if (typeof obj === "string") {
     return obj.replace(/\0/g, "");
   }

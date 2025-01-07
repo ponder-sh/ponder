@@ -53,6 +53,7 @@ import {
   buildEvents,
   decodeEventLog,
   decodeEvents,
+  removeNullCharacters,
 } from "./events.js";
 import type { LogFactory, LogFilter } from "./source.js";
 
@@ -834,7 +835,7 @@ test("buildEvents() matches getEvents() trace", async (context) => {
   await cleanup();
 });
 
-test("decodeEventLog removes null characters", () => {
+test("removeNullCharacters removes null characters", () => {
   // NameRegistered event from this transaction contains null characters:
   // https://etherscan.io/tx/0x2e67be22d5e700e61e102b926f28ba451c53a6cd6438c53b43dbb783c2081a12#eventlog
   const log = {
@@ -890,6 +891,9 @@ test("decodeEventLog removes null characters", () => {
     data: log.data,
   });
 
-  // Failing test: 'tencentclub\x00\x00\x00\x00\x00\x00'
-  expect(args.name).toBe("tencentclub");
+  expect(args.name).toBe("tencentclub\x00\x00\x00\x00\x00\x00");
+
+  const cleanedArgs = removeNullCharacters(args);
+
+  expect((cleanedArgs as any).name).toBe("tencentclub");
 });
