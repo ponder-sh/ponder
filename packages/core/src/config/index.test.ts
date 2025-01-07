@@ -1,4 +1,5 @@
-import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
+import { type Abi, parseAbiItem } from "viem";
+import { mainnet, optimism } from "viem/chains";
 import { assertType, test } from "vitest";
 import { factory } from "./address.js";
 import { createConfig } from "./index.js";
@@ -11,25 +12,20 @@ const func = parseAbiItem("function func()");
 
 test("createConfig basic", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c1: {
         abi: [event1],
-        network: "mainnet",
+        chain: mainnet.id,
         startBlock: 0,
       },
       c2: {
         abi: [event1],
-        network: "optimism",
+        chain: optimism.id,
         startBlock: 0,
       },
     },
@@ -38,18 +34,17 @@ test("createConfig basic", () => {
 
 test("createConfig no extra properties", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-        // @ts-expect-error
-        a: 0,
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
+      // @ts-expect-error
+      b: "hi",
     },
     contracts: {
       c2: {
         abi: [event0],
-        network: "mainnet",
+        chain: mainnet.id,
         // @ts-expect-error
         a: 0,
       },
@@ -59,20 +54,15 @@ test("createConfig no extra properties", () => {
 
 test("createConfig address", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c2: {
         abi: [event1],
-        network: "mainnet",
+        chain: mainnet.id,
         address: "0x1",
       },
     },
@@ -81,20 +71,15 @@ test("createConfig address", () => {
 
 test("createConfig factory", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c2: {
         abi: [event1],
-        network: "mainnet",
+        chain: mainnet.id,
         address: factory({
           address: "0x",
           event: event0,
@@ -107,20 +92,15 @@ test("createConfig factory", () => {
 
 test("createConfig with filter", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c2: {
         abi: [event0, event1],
-        network: "mainnet",
+        chain: mainnet.id,
         filter: {
           event: "Event0",
           //^?
@@ -136,20 +116,15 @@ test("createConfig with filter", () => {
 
 test("createConfig with multiple filters", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c2: {
         abi: [event0, event1],
-        network: "mainnet",
+        chain: mainnet.id,
         filter: [
           {
             event: "Event0",
@@ -171,26 +146,21 @@ test("createConfig with multiple filters", () => {
 
 test("createConfig network overrides", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c1: {
         abi: [event1],
-        network: "mainnet",
+        chain: mainnet.id,
         startBlock: 0,
       },
       c2: {
         abi: [event0, event1],
-        network: {
-          optimism: {
+        chain: {
+          [optimism.id]: {
             address: "0x",
             filter: {
               event: "Event0",
@@ -210,20 +180,15 @@ test("createConfig weak Abi", () => {
   const abi = [event0, func] as Abi;
 
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c2: {
         abi,
-        network: "mainnet",
+        chain: mainnet.id,
         filter: {
           event: "event0",
           //^?
@@ -238,20 +203,15 @@ test("createConfig weak Abi", () => {
 test("createConfig strict return type", () => {
   const config = createConfig({
     //  ^?
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     contracts: {
       c2: {
         abi: [event0, event1],
-        network: "mainnet",
+        chain: mainnet.id,
         filter: {
           event: "Event0",
           args: {
@@ -262,13 +222,11 @@ test("createConfig strict return type", () => {
     },
   });
 
-  assertType<{ mainnet: { chainId: 1; transport: HttpTransport } }>(
-    config.networks,
-  );
+  assertType<readonly [typeof mainnet, typeof optimism]>(config.chains);
   assertType<{
     c2: {
       abi: readonly [typeof event0, typeof event1];
-      network: "mainnet";
+      chain: typeof mainnet.id;
       filter: {
         event: "Event0";
         args: {
@@ -281,19 +239,14 @@ test("createConfig strict return type", () => {
 
 test("createConfig accounts", () => {
   createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(),
-      },
-      optimism: {
-        chainId: 10,
-        transport: http(),
-      },
+    chains: [mainnet, optimism],
+    rpcUrls: {
+      [mainnet.id]: "https://rpc.com",
+      [optimism.id]: "https://rpc.com",
     },
     accounts: {
       me: {
-        network: "mainnet",
+        chain: mainnet.id,
         address: ["0x"],
       },
     },

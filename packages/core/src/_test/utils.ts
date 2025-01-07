@@ -48,16 +48,14 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
   includeTransactionReceipts?: boolean;
 }) => {
   const config = createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
-      },
+    chains: [anvil],
+    rpcUrls: {
+      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
     },
     contracts: {
       Erc20: {
+        chain: anvil.id,
         abi: erc20ABI,
-        network: "mainnet",
         address: params.address,
         includeCallTraces: params.includeCallTraces,
         includeTransactionReceipts: params.includeTransactionReceipts,
@@ -89,16 +87,14 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
   includeTransactionReceipts?: boolean;
 }) => {
   const config = createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
-      },
+    chains: [anvil],
+    rpcUrls: {
+      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
     },
     contracts: {
       Pair: {
         abi: pairABI,
-        network: "mainnet",
+        chain: anvil.id,
         address: factory({
           address: params.address,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
@@ -124,15 +120,13 @@ export const getBlocksConfigAndIndexingFunctions = (params: {
   interval: number;
 }) => {
   const config = createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
-      },
+    chains: [anvil],
+    rpcUrls: {
+      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
     },
     blocks: {
       Blocks: {
-        network: "mainnet",
+        chain: anvil.id,
         interval: params.interval,
       },
     },
@@ -147,15 +141,13 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
   address: Address;
 }) => {
   const config = createConfig({
-    networks: {
-      mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
-      },
+    chains: [anvil],
+    rpcUrls: {
+      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
     },
     accounts: {
       Accounts: {
-        network: "mainnet",
+        chain: anvil.id,
         address: params.address,
       },
     },
@@ -176,7 +168,7 @@ export const getChain = (params?: {
 }) => {
   return {
     chain: anvil,
-    rpcUrls: `http://127.0.0.1:8545/${poolId}`,
+    rpcUrl: `http://127.0.0.1:8545/${poolId}`,
     maxRequestsPerSecond: 50,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,

@@ -1,4 +1,4 @@
-import { http } from "viem";
+import { anvil } from "@/_test/utils.js";
 import { createConfig } from "../../../config/index.js";
 import { erc20ABI } from "../../generated.js";
 
@@ -17,15 +17,13 @@ function getDatabase() {
 
 export default createConfig({
   database: getDatabase(),
-  networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(`http://127.0.0.1:8545/${poolId}`),
-    },
+  chains: [anvil],
+  rpcUrls: {
+    [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
   },
   contracts: {
     Erc20: {
-      network: "mainnet",
+      chain: anvil.id,
       abi: erc20ABI,
       address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
     },

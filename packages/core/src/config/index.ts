@@ -1,21 +1,30 @@
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
+import type { Chain } from "viem";
 import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 
 export type Config = {
-  networks: { [networkName: string]: NetworkConfig<unknown> };
-  contracts: { [contractName: string]: GetContract };
-  accounts: { [accountName: string]: AccountConfig<unknown> };
+  chains: readonly Chain[];
+  rpcUrls: { [chainId: Chain["id"]]: string | string[] | Transport };
+  pollingInterval?: { [chainId: Chain["id"]]: number };
+  maxRequestsPerSecond?: { [chainId: Chain["id"]]: number };
+  disableCache?: { [chainId: Chain["id"]]: boolean };
+  contracts: { [contractName: string]: GetContract<readonly Chain[]> };
+  accounts: { [accountName: string]: AccountConfig<readonly Chain[]> };
   database?: DatabaseConfig;
   blocks: {
-    [sourceName: string]: GetBlockFilter<unknown>;
+    [sourceName: string]: GetBlockFilter<readonly Chain[]>;
   };
 };
 
-export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
-  networks: networks;
+export type CreateConfigReturnType<chains, contracts, accounts, blocks> = {
+  chains: chains;
+  rpcUrls: Config["rpcUrls"];
+  pollingInterval: Config["pollingInterval"];
+  maxRequestsPerSecond: Config["maxRequestsPerSecond"];
+  disableCache: Config["disableCache"];
   contracts: contracts;
   accounts: accounts;
   database?: DatabaseConfig;
@@ -23,20 +32,23 @@ export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
 };
 
 export const createConfig = <
-  const networks,
+  const chains extends readonly Chain[],
   const contracts = {},
   const accounts = {},
   const blocks = {},
 >(config: {
   database?: DatabaseConfig;
   // TODO: add jsdoc to these properties.
-  networks: NetworksConfig<Narrow<networks>>;
-  contracts?: ContractsConfig<networks, Narrow<contracts>>;
-  accounts?: AccountsConfig<networks, Narrow<accounts>>;
-  blocks?: BlockFiltersConfig<networks, blocks>;
-}): CreateConfigReturnType<networks, contracts, accounts, blocks> =>
+  chains: chains;
+  rpcUrls: {
+    [chainId in chains[number]["id"]]: Config["rpcUrls"][keyof Config["rpcUrls"]];
+  };
+  contracts?: ContractsConfig<chains, Narrow<contracts>>;
+  accounts?: AccountsConfig<chains, Narrow<accounts>>;
+  blocks?: BlockFiltersConfig<chains, blocks>;
+}): CreateConfigReturnType<chains, contracts, accounts, blocks> =>
   config as Prettify<
-    CreateConfigReturnType<networks, contracts, accounts, blocks>
+    CreateConfigReturnType<chains, contracts, accounts, blocks>
   >;
 
 // database
@@ -80,42 +92,6 @@ type FunctionCallConfig = {
   includeCallTraces?: boolean;
 };
 
-// network
-
-type NetworkConfig<network> = {
-  /** Chain ID of the network. */
-  chainId: network extends { chainId: infer chainId extends number }
-    ? chainId | number
-    : number;
-  /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
-   *
-   * __To avoid rate limiting, include a custom RPC URL.__ Usage:
-   *
-   * ```ts
-   * import { http } from "viem";
-   *
-   * const network = {
-   *    name: "mainnet",
-   *    chainId: 1,
-   *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
-   * }
-   * ```
-   */
-  transport: Transport;
-  /** Polling interval (in ms). Default: `1_000`. */
-  pollingInterval?: number;
-  /** Maximum number of RPC requests per second. Default: `50`. */
-  maxRequestsPerSecond?: number;
-  /** Disable RPC request caching. Default: `false`. */
-  disableCache?: boolean;
-};
-
-type NetworksConfig<networks> = {} extends networks
-  ? {}
-  : {
-      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
-    };
-
 // contracts
 
 type AbiConfig<abi extends Abi | readonly unknown[]> = {
@@ -123,22 +99,20 @@ type AbiConfig<abi extends Abi | readonly unknown[]> = {
   abi: abi;
 };
 
-type GetContractNetwork<
-  networks,
+type GetContractChain<
+  chains extends readonly Chain[],
   abi extends Abi,
   ///
-  allNetworkNames extends string = [keyof networks] extends [never]
-    ? string
-    : keyof networks & string,
+  allChainIds extends number = chains[number]["id"],
 > = {
   /**
-   * Network that this contract is deployed to. Must match a network name in `networks`.
+   * Chain that this contract is deployed to. Must match a chain id in `chains`.
    * Any filter information overrides the values in the higher level "contracts" property.
    */
-  network:
-    | allNetworkNames
+  chain:
+    | allChainIds
     | {
-        [name in allNetworkNames]?: Prettify<
+        [id in allChainIds]?: Prettify<
           AddressConfig &
             GetEventFilter<abi> &
             TransactionReceiptConfig &
@@ -148,9 +122,12 @@ type GetContractNetwork<
       };
 };
 
-type ContractConfig<networks, abi extends Abi> = Prettify<
+type ContractConfig<
+  chains extends readonly Chain[],
+  abi extends Abi,
+> = Prettify<
   AbiConfig<abi> &
-    GetContractNetwork<networks, abi> &
+    GetContractChain<chains, abi> &
     AddressConfig &
     GetEventFilter<abi> &
     TransactionReceiptConfig &
@@ -158,54 +135,61 @@ type ContractConfig<networks, abi extends Abi> = Prettify<
     BlockConfig
 >;
 
-type GetContract<networks = unknown, contract = unknown> = contract extends {
+type GetContract<
+  chains extends readonly Chain[],
+  contract = unknown,
+> = contract extends {
   abi: infer abi extends Abi;
 }
   ? // 1. Contract has a valid abi
-    ContractConfig<networks, abi>
+    ContractConfig<chains, abi>
   : // 2. Contract has an invalid abi
-    ContractConfig<networks, Abi>;
+    ContractConfig<chains, Abi>;
 
-type ContractsConfig<networks, contracts> = {} extends contracts
+type ContractsConfig<
+  chains extends readonly Chain[],
+  contracts,
+> = {} extends contracts
   ? // contracts empty, return empty
     {}
   : {
-      [name in keyof contracts]: GetContract<networks, contracts[name]>;
+      [name in keyof contracts]: GetContract<chains, contracts[name]>;
     };
 
 // accounts
 
-type GetAccountNetwork<
-  networks,
+type GetAccountChain<
+  chains extends readonly Chain[],
   ///
-  allNetworkNames extends string = [keyof networks] extends [never]
-    ? string
-    : keyof networks & string,
+  allChainIds extends number = chains[number]["id"],
 > = {
   /**
-   * Network that this account is deployed to. Must match a network name in `networks`.
+   * Chain that this account is deployed to. Must match a chain id in `chains`.
    * Any filter information overrides the values in the higher level "accounts" property.
    */
-  network:
-    | allNetworkNames
+  chain:
+    | allChainIds
     | {
-        [name in allNetworkNames]?: Prettify<
+        [id in allChainIds]?: Prettify<
           AddressConfig & TransactionReceiptConfig & BlockConfig
         >;
       };
 };
 
-type AccountConfig<networks> = Prettify<
-  GetAccountNetwork<networks> &
+type AccountConfig<chains extends readonly Chain[]> = Prettify<
+  GetAccountChain<chains> &
     Required<AddressConfig> &
     TransactionReceiptConfig &
     BlockConfig
 >;
 
-type AccountsConfig<networks, accounts> = {} extends accounts
+type AccountsConfig<
+  chains extends readonly Chain[],
+  accounts,
+> = {} extends accounts
   ? {}
   : {
-      [name in keyof accounts]: AccountConfig<networks>;
+      [name in keyof accounts]: AccountConfig<chains>;
     };
 
 // blocks
@@ -219,24 +203,22 @@ type BlockFilterConfig = {
 };
 
 type GetBlockFilter<
-  networks,
+  chains extends readonly Chain[],
   ///
-  allNetworkNames extends string = [keyof networks] extends [never]
-    ? string
-    : keyof networks & string,
+  allChainIds extends number = chains[number]["id"],
 > = BlockFilterConfig & {
-  network:
-    | allNetworkNames
+  chain:
+    | allChainIds
     | {
-        [name in allNetworkNames]?: BlockFilterConfig;
+        [id in allChainIds]?: BlockFilterConfig;
       };
 };
 
 type BlockFiltersConfig<
-  networks = unknown,
+  chains extends readonly Chain[],
   blocks = unknown,
 > = {} extends blocks
   ? {}
   : {
-      [name in keyof blocks]: GetBlockFilter<networks>;
+      [name in keyof blocks]: GetBlockFilter<chains>;
     };

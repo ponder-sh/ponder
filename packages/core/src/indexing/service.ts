@@ -21,13 +21,13 @@ import {
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import type { Abi, Address } from "viem";
+import type { Abi, Address, Chain as ViemChain } from "viem";
 import { checksumAddress, createClient } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
 import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
 
 export type Context = {
-  network: { chainId: number; name: string };
+  chain: ViemChain;
   client: ReadOnlyClient;
   db: Db<Schema>;
   contracts: Record<
@@ -158,7 +158,7 @@ export const create = ({
     currentEvent: {
       contextState,
       context: {
-        network: { name: undefined!, chainId: undefined! },
+        chain: undefined!,
         contracts: undefined!,
         client: undefined!,
         db: undefined!,
@@ -357,9 +357,7 @@ const executeSetup = async (
 
   try {
     // set currentEvent
-    currentEvent.context.network.chainId = event.chainId;
-    // TODO(kyle): update user types
-    currentEvent.context.network.name = chainById[event.chainId]!.chain.name;
+    currentEvent.context.chain = chainById[event.chainId]!.chain;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.blockNumber = event.block;
@@ -445,8 +443,7 @@ const executeEvent = async (
 
   try {
     // set currentEvent
-    currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = chainById[event.chainId]!.chain.name;
+    currentEvent.context.chain = chainById[event.chainId]!.chain;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.blockNumber = event.event.block.number;

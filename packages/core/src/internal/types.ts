@@ -247,7 +247,7 @@ export type BlockMetadata = {
 export type Chain = {
   chain: ViemChain;
   // TODO(kyle) rpc?
-  rpcUrls: string | string[] | Transport;
+  rpcUrl: string | string[] | Transport;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   disableCache: boolean;

@@ -1,5 +1,6 @@
+import { anvil } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
-import { http, getAbiItem } from "viem";
+import { getAbiItem } from "viem";
 import { createConfig } from "../../../config/index.js";
 import { factoryABI, pairABI } from "../../generated.js";
 
@@ -18,15 +19,13 @@ function getDatabase() {
 
 export default createConfig({
   database: getDatabase(),
-  networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(`http://127.0.0.1:8545/${poolId}`),
-    },
+  chains: [anvil],
+  rpcUrls: {
+    [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
   },
   contracts: {
     Pair: {
-      network: "mainnet",
+      chain: anvil.id,
       abi: pairABI,
       address: factory({
         address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
