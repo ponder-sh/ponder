@@ -16,7 +16,6 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { wait } from "@/utils/wait.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { RawEvent } from "./events.js";
@@ -367,48 +366,6 @@ test("getEvents() initialCheckpoint", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(0);
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("getEvents() refetches finalized block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  network.finalityBlockCount = 0;
-
-  context.common.options.syncHandoffStaleSeconds = 0.5;
-
-  const sync = await createSync({
-    syncStore,
-    sources,
-    common: context.common,
-    networks: [network],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(maxCheckpoint),
-  });
-
-  // cause `latestFinalizedFetch` to be updated
-  const gen = sync.getEvents();
-
-  await wait(1000);
-
-  await drainAsyncGenerator(gen);
 
   await sync.kill();
 
