@@ -661,7 +661,7 @@ export const decodeEvents = (
 };
 
 /** @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99 */
-function decodeEventLog({
+export function decodeEventLog({
   abiItem,
   topics,
   data,
@@ -716,7 +716,10 @@ function decodeEventLog({
     }
   }
 
-  return Object.values(args).length > 0 ? args : undefined;
+  // Remove null bytes from any string values present in the decoded args.
+  return Object.values(args).length > 0
+    ? removeNullCharacters(args)
+    : undefined;
 }
 
 function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
@@ -729,6 +732,26 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
     return value;
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
+}
+
+function removeNullCharacters(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    return obj.replace(/\0/g, "");
+  }
+  if (Array.isArray(obj)) {
+    // Recursively handle array elements
+    return obj.map(removeNullCharacters);
+  }
+  if (obj && typeof obj === "object") {
+    // Recursively handle object properties
+    const newObj: { [key: string]: unknown } = {};
+    for (const [key, val] of Object.entries(obj)) {
+      newObj[key] = removeNullCharacters(val);
+    }
+    return newObj;
+  }
+  // For other types (number, boolean, null, undefined, etc.), return as-is
+  return obj;
 }
 
 const convertBlock = (block: SyncBlock): Block => ({
