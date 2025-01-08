@@ -346,6 +346,10 @@ export const createHistoricalSync = async (
     block: Hash,
     transactionHashes: Set<Hash>,
   ): Promise<SyncTransactionReceipt[]> => {
+    if (transactionHashes.size === 0) {
+      return [];
+    }
+
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map((hash) =>
