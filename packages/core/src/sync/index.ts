@@ -235,12 +235,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
-      unfinalizedBlocks: (Omit<
+      unfinalizedBlocks: Omit<
         Extract<RealtimeSyncEvent, { type: "block" }>,
         "type"
-      > & { events: RawEvent[] })[];
+      >[];
     }
   >();
+  let unfinalizedEvents: RawEvent[] = [];
+  let pendingEvents: RawEvent[] = [];
   const status: Status = {};
   let isKilled = false;
   // Realtime events across all chains that can't be passed to the parent function
@@ -570,38 +572,32 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        const blockWithEventData = event;
-
-        const events = buildEvents({
+        const newEvents = buildEvents({
           sources: args.sources,
           chainId: network.chainId,
-          blockWithEventData,
+          blockWithEventData: event,
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
 
-        unfinalizedBlocks.push({ ...blockWithEventData, events });
+        unfinalizedBlocks.push(event);
+        pendingEvents.push(...newEvents);
 
         if (to > from) {
           for (const network of args.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          const pendingEvents: RawEvent[] = [];
+          // Move events from pending to unfinalized
 
-          for (const { unfinalizedBlocks } of perNetworkSync.values()) {
-            for (const { events } of unfinalizedBlocks) {
-              for (const event of events) {
-                if (event.checkpoint > from && event.checkpoint <= to) {
-                  pendingEvents.push(event);
-                }
-              }
-            }
-          }
+          const events = pendingEvents
+            .filter((event) => event.checkpoint < to)
+            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
 
-          const events = pendingEvents.sort((a, b) =>
-            a.checkpoint < b.checkpoint ? -1 : 1,
+          pendingEvents = pendingEvents.filter(
+            ({ checkpoint }) => checkpoint > to,
           );
+          unfinalizedEvents.push(...events);
 
           args
             .onRealtimeEvent({
@@ -650,8 +646,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             service: "sync",
             msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
           });
-          // exit early because we need to keep `unfinalizedBlocks.events`
-          return;
         }
 
         const finalizedBlocks = unfinalizedBlocks.filter(
@@ -664,6 +658,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ({ block }) =>
               hexToNumber(block.number) > hexToNumber(event.block.number),
           );
+
+        unfinalizedEvents = unfinalizedEvents.filter(
+          (e) => e.checkpoint > checkpoint,
+        );
 
         // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
@@ -763,15 +761,38 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
+        // Remove all reorged data
+
         perNetworkSync.get(network)!.unfinalizedBlocks =
           unfinalizedBlocks.filter(
             ({ block }) =>
               hexToNumber(block.number) <= hexToNumber(event.block.number),
           );
 
+        const isReorgedEvent = ({ chainId, block }: RawEvent) =>
+          chainId === network.chainId &&
+          Number(block.number) > hexToNumber(event.block.number);
+
+        pendingEvents = pendingEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
+        unfinalizedEvents = unfinalizedEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
+
+        // Move events from unfinalized to pending
+
+        const events = unfinalizedEvents.filter(
+          (e) => e.checkpoint > checkpoint,
+        );
+        unfinalizedEvents = unfinalizedEvents.filter(
+          (e) => e.checkpoint < checkpoint,
+        );
+        pendingEvents.push(...events);
+
         await args.syncStore.pruneRpcRequestResult({
-          blocks: event.reorgedBlocks,
           chainId: network.chainId,
+          blocks: event.reorgedBlocks,
         });
 
         // Raise event to parent function (runtime)
@@ -790,11 +811,32 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       for (const network of args.networks) {
         const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
+        const filters = args.sources
+          .filter(({ filter }) => filter.chainId === network.chainId)
+          .map(({ filter }) => filter);
+
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
         };
         status[network.name]!.ready = true;
+
+        const from = getOmnichainCheckpoint("finalized")!;
+        const to = getChainCheckpoint({
+          syncProgress,
+          network,
+          tag: "finalized",
+        })!;
+        const end = getChainCheckpoint({
+          syncProgress,
+          network,
+          tag: "end",
+        })!;
+
+        if (end === undefined || end > to) {
+          const events = await args.syncStore.getEvents({ filters, from, to });
+          pendingEvents.push(...events.events);
+        }
 
         if (isSyncEnd(syncProgress)) {
           args.common.metrics.ponder_sync_is_complete.set(
@@ -809,12 +851,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
           const initialChildAddresses = new Map<Factory, Set<Address>>();
 
-          for (const { filter } of args.sources) {
-            if (
-              filter.chainId === network.chainId &&
-              "address" in filter &&
-              isAddressFactory(filter.address)
-            ) {
+          for (const filter of filters) {
+            if ("address" in filter && isAddressFactory(filter.address)) {
               const addresses = await args.syncStore.getChildAddresses({
                 filter: filter.address,
               });
