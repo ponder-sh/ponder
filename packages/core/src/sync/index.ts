@@ -241,7 +241,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       >[];
     }
   >();
-  let unfinalizedEvents: RawEvent[] = [];
+  /** Events that have been executed but not finalized. */
+  let executedEvents: RawEvent[] = [];
+  /** Events that have not been executed yet. */
   let pendingEvents: RawEvent[] = [];
   const status: Status = {};
   let isKilled = false;
@@ -597,7 +599,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           pendingEvents = pendingEvents.filter(
             ({ checkpoint }) => checkpoint > to,
           );
-          unfinalizedEvents.push(...events);
+          executedEvents.push(...events);
 
           args
             .onRealtimeEvent({
@@ -648,6 +650,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           });
         }
 
+        // Remove all finalized data
+
         const finalizedBlocks = unfinalizedBlocks.filter(
           ({ block }) =>
             hexToNumber(block.number) <= hexToNumber(event.block.number),
@@ -659,7 +663,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               hexToNumber(block.number) > hexToNumber(event.block.number),
           );
 
-        unfinalizedEvents = unfinalizedEvents.filter(
+        executedEvents = executedEvents.filter(
           (e) => e.checkpoint > checkpoint,
         );
 
@@ -753,6 +757,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       case "reorg": {
         syncProgress.current = event.block;
+        // Note: this checkpoint is <= the previous checkpoint
         const checkpoint = getOmnichainCheckpoint("current")!;
 
         // Update "ponder_sync_block" metric
@@ -776,16 +781,14 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         pendingEvents = pendingEvents.filter(
           (e) => isReorgedEvent(e) === false,
         );
-        unfinalizedEvents = unfinalizedEvents.filter(
+        executedEvents = executedEvents.filter(
           (e) => isReorgedEvent(e) === false,
         );
 
         // Move events from unfinalized to pending
 
-        const events = unfinalizedEvents.filter(
-          (e) => e.checkpoint > checkpoint,
-        );
-        unfinalizedEvents = unfinalizedEvents.filter(
+        const events = executedEvents.filter((e) => e.checkpoint > checkpoint);
+        executedEvents = executedEvents.filter(
           (e) => e.checkpoint < checkpoint,
         );
         pendingEvents.push(...events);
@@ -821,8 +824,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         };
         status[network.name]!.ready = true;
 
-        const from = getOmnichainCheckpoint("finalized")!;
-        const to = getChainCheckpoint({
+        const finalized = getChainCheckpoint({
           syncProgress,
           network,
           tag: "finalized",
@@ -833,7 +835,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           tag: "end",
         })!;
 
-        if (end === undefined || end > to) {
+        const from = getOmnichainCheckpoint("finalized")!;
+        const to = min(finalized, end);
+
+        if (to > from) {
           const events = await args.syncStore.getEvents({ filters, from, to });
           pendingEvents.push(...events.events);
         }
