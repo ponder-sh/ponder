@@ -890,10 +890,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         // Fetch any events between the omnichain finalized checkpoint and the single-chain
         // finalized checkpoint and add them to pendingEvents. These events are synced during
-        // the historical phase, but must be indexed in the realtime phase because events 
+        // the historical phase, but must be indexed in the realtime phase because events
         // synced in realtime on other chains might be ordered before them.
         const from = getOmnichainCheckpoint("finalized")!;
-        
+
         const finalized = getChainCheckpoint({
           syncProgress,
           network,
