@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.21
+
+### Patch Changes
+
+- [#1424](https://github.com/ponder-sh/ponder/pull/1424) [`60e7b6a33f3280eb08412cbec742e3d23d0d4404`](https://github.com/ponder-sh/ponder/commit/60e7b6a33f3280eb08412cbec742e3d23d0d4404) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where indexing errors did not include the block number and transaction hash of the event being indexed.
+
 ## 0.8.20
 
 ### Patch Changes
