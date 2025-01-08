@@ -1,25 +1,37 @@
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
+import { PGlite } from "@electric-sql/pglite";
+import { promiseWithResolvers } from "@ponder/common";
 import type { QueryWithTypings } from "drizzle-orm";
+import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 
-const POLL_INTERVAL = 500;
-
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
-  let id = 0;
+  // @ts-ignore
+  const session: PgSession = db._.session;
+  const listenConnection = global.PONDER_LISTEN_CONNECTION;
+  let statusResolver = promiseWithResolvers<void>();
+
+  let queryPromise: Promise<any>;
+
+  if (listenConnection instanceof PGlite) {
+    queryPromise = listenConnection.query("LISTEN status_update_channel");
+
+    listenConnection.onNotification(() => {
+      statusResolver.resolve();
+      statusResolver = promiseWithResolvers();
+    });
+  } else {
+    queryPromise = listenConnection.query("LISTEN status_update_channel");
+
+    listenConnection.on("notification", () => {
+      statusResolver.resolve();
+      statusResolver = promiseWithResolvers();
+    });
+  }
 
   return createMiddleware(async (c, next) => {
-    // @ts-ignore
-    const session: PgSession = db._.session;
-    const liveQueries = new Map<
-      number,
-      {
-        queryHash: string;
-        resultHash: string;
-      }
-    >();
-
     // TODO(kyle) method?
 
     if (c.req.path === "/client/db") {
@@ -49,7 +61,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
-      const streamId = id++;
+      await queryPromise;
 
       return streamSSE(
         c,
@@ -65,36 +77,14 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
               .prepareQuery(query, undefined, undefined, false)
               .execute();
 
-            // no-op if result is the same
-
-            if (
-              liveQueries.has(streamId) &&
-              // @ts-ignore
-              hash(result.rows) === liveQueries.get(streamId)!.resultHash
-            ) {
-              await stream.sleep(POLL_INTERVAL);
-              continue;
-            }
-
-            liveQueries.set(streamId, {
-              // @ts-ignore
-              queryHash: hash(query),
-              // @ts-ignore
-              resultHash: hash(result.rows),
-            });
-
             // TODO(kyle) close stream if unsuccessful
             await stream.writeSSE({
-              data: JSON.stringify({
-                // @ts-ignore
-                rows: result.rows,
-              }),
+              // @ts-ignore
+              data: JSON.stringify({ rows: result.rows }),
             });
 
-            await stream.sleep(POLL_INTERVAL);
+            await statusResolver.promise;
           }
-
-          liveQueries.delete(streamId);
         },
         async () => {
           // TODO(kyle) send error to client?
@@ -102,8 +92,6 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
         },
       );
     }
-
-    // Live query event loop
 
     return next();
   });

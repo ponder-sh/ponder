@@ -205,7 +205,7 @@ export async function setupDatabaseServices(
     },
   });
 
-  await database.prepareNamespace({ buildId: config.buildId });
+  await database.migrate({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);

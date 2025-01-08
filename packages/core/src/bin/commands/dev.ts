@@ -8,7 +8,9 @@ import { buildOptions } from "@/internal/options.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
+import type { PGlite } from "@electric-sql/pglite";
 import { createQueue } from "@ponder/common";
+import type { PoolClient } from "pg";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
@@ -135,12 +137,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const [preBuild, schemaBuild] = buildResult1.result;
 
-        database = await createDatabase({
-          common,
-          preBuild,
-          schemaBuild,
-        });
-
         const indexingResult = await build.executeIndexingFunctions();
         if (indexingResult.status === "error") {
           buildQueue.add({
@@ -151,7 +147,34 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const apiResult = await build.executeApi({ database });
+        const indexingBuildResult = await build.compileIndexing({
+          configResult: configResult.result,
+          schemaResult: schemaResult.result,
+          indexingResult: indexingResult.result,
+        });
+
+        if (indexingBuildResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: indexingBuildResult.error,
+          });
+          return;
+        }
+
+        database = await createDatabase({
+          common,
+          preBuild,
+          schemaBuild,
+        });
+
+        await database.migrate(indexingBuildResult.result);
+        listenConnection = await database.getListenStatusConnection();
+
+        const apiResult = await build.executeApi({
+          database,
+          listenConnection,
+        });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -161,25 +184,18 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const buildResult2 = mergeResults([
-          await build.compileIndexing({
-            configResult: configResult.result,
-            schemaResult: schemaResult.result,
-            indexingResult: indexingResult.result,
-          }),
-          await build.compileApi({ apiResult: apiResult.result }),
-        ]);
+        const apiBuildResult = await build.compileApi({
+          apiResult: apiResult.result,
+        });
 
-        if (buildResult2.status === "error") {
+        if (apiBuildResult.status === "error") {
           buildQueue.add({
             status: "error",
             kind: "indexing",
-            error: buildResult2.error,
+            error: apiBuildResult.error,
           });
           return;
         }
-
-        const [indexingBuild, apiBuild] = buildResult2.result;
 
         if (isInitialBuild) {
           isInitialBuild = false;
@@ -191,7 +207,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               ...buildPayload({
                 preBuild,
                 schemaBuild,
-                indexingBuild,
+                indexingBuild: indexingBuildResult.result,
               }),
             },
           });
@@ -201,7 +217,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           common,
           database,
           schemaBuild,
-          indexingBuild,
+          indexingBuild: indexingBuildResult.result,
           onFatalError: () => {
             shutdown({ reason: "Received fatal error", code: 1 });
           },
@@ -216,12 +232,15 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         apiCleanupReloadable = await runServer({
           common,
           database,
-          apiBuild,
+          apiBuild: apiBuildResult.result,
         });
       } else {
         metrics.resetApiMetrics();
 
-        const apiResult = await build.executeApi({ database: database! });
+        const apiResult = await build.executeApi({
+          database: database!,
+          listenConnection: listenConnection!,
+        });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -255,7 +274,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   let database: Database | undefined;
+  let listenConnection: PoolClient | PGlite | undefined;
 
+  build.initNamespace({ isSchemaRequired: false });
   build.initNamespace({ isSchemaRequired: false });
 
   build.startDev({

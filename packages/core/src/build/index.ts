@@ -18,8 +18,10 @@ import type { Drizzle } from "@/types/db.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
+import type { PGlite } from "@electric-sql/pglite";
 import { glob } from "glob";
 import { Hono } from "hono";
+import type { PoolClient } from "pg";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -35,6 +37,7 @@ import { parseViteNodeError } from "./stacktrace.js";
 declare global {
   var PONDER_DATABASE_SCHEMA: string | undefined;
   var PONDER_READONLY_DB: Drizzle<Schema>;
+  var PONDER_LISTEN_CONNECTION: PoolClient | PGlite;
 }
 
 const BUILD_ID_VERSION = "1";
@@ -52,7 +55,10 @@ export type Build = {
   executeConfig: () => Promise<ConfigResult>;
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
-  executeApi: (params: { database: Database }) => Promise<ApiResult>;
+  executeApi: (params: {
+    database: Database;
+    listenConnection: PoolClient | PGlite;
+  }) => Promise<ApiResult>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexing: (params: {
@@ -292,8 +298,9 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi({ database }): Promise<ApiResult> {
+    async executeApi({ database, listenConnection }): Promise<ApiResult> {
       global.PONDER_READONLY_DB = database.qb.drizzleReadonly;
+      global.PONDER_LISTEN_CONNECTION = listenConnection;
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(
