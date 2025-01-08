@@ -62,7 +62,6 @@ export type SyncStore = {
   insertChildAddresses(args: {
     factory: Factory;
     data: { address: Address; blockNumber: bigint }[];
-    chainId: number;
   }): Promise<void>;
   getChildAddresses(args: {
     factory: Factory;
@@ -78,19 +77,22 @@ export type SyncStore = {
   }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   /** Return true if the block receipt is present in the database. */
-  hasBlock(args: { hash: Hash }): Promise<boolean>;
+  hasBlock(args: { hash: Hash; chainId: number }): Promise<boolean>;
   insertTransactions(args: {
     transactions: { transaction: SyncTransaction; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
-  hasTransaction(args: { hash: Hash }): Promise<boolean>;
+  hasTransaction(args: { hash: Hash; chainId: number }): Promise<boolean>;
   insertTransactionReceipts(args: {
     transactionReceipts: SyncTransactionReceipt[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction receipt is present in the database. */
-  hasTransactionReceipt(args: { hash: Hash }): Promise<boolean>;
+  hasTransactionReceipt(args: {
+    hash: Hash;
+    chainId: number;
+  }): Promise<boolean>;
   insertTraces(args: {
     traces: {
       trace: SyncTrace;
@@ -241,23 +243,24 @@ export const createSyncStore = ({
 
       return result;
     }),
-  insertChildAddresses: async ({ factory, data, chainId }) =>
+  insertChildAddresses: async ({ factory, data }) =>
     db.wrap({ method: "insertChildAddresses" }, async () => {
       if (data.length === 0) return;
 
+      const chainId = factory.chainId;
       const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
 
       await db
         .with("factory_insert", (db) =>
           db
-            .insertInto("factory")
+            .insertInto(`factory_${chainId}`)
             .values({ factory_id: factoryId })
             .onConflict((oc) =>
               oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
             )
             .returning("integer_id"),
         )
-        .insertInto("factory_address")
+        .insertInto(`factory_address_${chainId}`)
         .values(
           data.map(({ address, blockNumber }) => ({
             factory_integer_id: ksql`(SELECT integer_id FROM factory_insert)`,
@@ -269,22 +272,23 @@ export const createSyncStore = ({
     }),
   getChildAddresses: ({ factory, limit }) =>
     db.wrap({ method: "getChildAddresses" }, async () => {
+      const chainId = factory.chainId;
       const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
 
       const rows = await db
         .with("factory_insert", (db) =>
           db
-            .insertInto("factory")
+            .insertInto(`factory_${chainId}`)
             .values({ factory_id: factoryId })
             .onConflict((oc) =>
               oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
             )
             .returning("integer_id"),
         )
-        .selectFrom("factory_address")
+        .selectFrom(`factory_address_${chainId}`)
         .select(["address"])
         .where(
-          "factory_address.factory_integer_id",
+          ksql.ref(`factory_address_${chainId}.factory_integer_id`),
           "=",
           ksql`(SELECT integer_id FROM factory_insert)`,
         )
@@ -296,12 +300,13 @@ export const createSyncStore = ({
     }),
   filterChildAddresses: ({ factory, addresses }) =>
     db.wrap({ method: "filterChildAddresses" }, async () => {
+      const chainId = factory.chainId;
       const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
 
       const result = await db
         .with("factory_insert", (db) =>
           db
-            .insertInto("factory")
+            .insertInto(`factory_${chainId}`)
             .values({ factory_id: factoryId })
             .onConflict((oc) =>
               oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
@@ -310,10 +315,10 @@ export const createSyncStore = ({
         )
         .with("child_address", (db) =>
           db
-            .selectFrom("factory_address")
+            .selectFrom(`factory_address_${chainId}`)
             .select(["address"])
             .where(
-              "factory_address.factory_integer_id",
+              ksql.ref(`factory_address_${chainId}.factory_integer_id`),
               "=",
               ksql`(SELECT integer_id FROM factory_insert)`,
             ),
@@ -346,27 +351,15 @@ export const createSyncStore = ({
           ).length,
       );
 
-      // As an optimization, logs that are matched by a factory do
-      // not contain a checkpoint, because not corresponding block is
-      // fetched (no block.timestamp). However, when a log is matched by
-      // both a log filter and a factory, the checkpoint must be included
-      // in the db.
-
       for (let i = 0; i < logs.length; i += batchSize) {
         await db
-          .insertInto("logs")
+          .insertInto(`log_${chainId}`)
           .values(
             logs
               .slice(i, i + batchSize)
               .map(({ log, block }) => encodeLog({ log, block, chainId })),
           )
-          .onConflict((oc) =>
-            oc.column("id").$call((qb) =>
-              qb.doUpdateSet((eb) => ({
-                checkpoint: eb.ref("excluded.checkpoint"),
-              })),
-            ),
-          )
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
           .execute();
       }
     });
@@ -383,21 +376,21 @@ export const createSyncStore = ({
 
       for (let i = 0; i < blocks.length; i += batchSize) {
         await db
-          .insertInto("blocks")
+          .insertInto(`block_${chainId}`)
           .values(
             blocks
               .slice(i, i + batchSize)
               .map((block) => encodeBlock({ block, chainId })),
           )
-          .onConflict((oc) => oc.column("hash").doNothing())
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
           .execute();
       }
     });
   },
-  hasBlock: async ({ hash }) =>
+  hasBlock: async ({ hash, chainId }) =>
     db.wrap({ method: "hasBlock" }, async () => {
       return await db
-        .selectFrom("blocks")
+        .selectFrom(`block_${chainId}`)
         .select("hash")
         .where("hash", "=", hash)
         .executeTakeFirst()
@@ -425,7 +418,7 @@ export const createSyncStore = ({
 
       for (let i = 0; i < transactions.length; i += batchSize) {
         await db
-          .insertInto("transactions")
+          .insertInto(`transaction_${chainId}`)
           .values(
             transactions
               .slice(i, i + batchSize)
@@ -433,19 +426,15 @@ export const createSyncStore = ({
                 encodeTransaction({ transaction, block, chainId }),
               ),
           )
-          .onConflict((oc) =>
-            oc.column("hash").doUpdateSet((eb) => ({
-              checkpoint: eb.ref("excluded.checkpoint"),
-            })),
-          )
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
           .execute();
       }
     });
   },
-  hasTransaction: async ({ hash }) =>
+  hasTransaction: async ({ hash, chainId }) =>
     db.wrap({ method: "hasTransaction" }, async () => {
       return await db
-        .selectFrom("transactions")
+        .selectFrom(`transaction_${chainId}`)
         .select("hash")
         .where("hash", "=", hash)
         .executeTakeFirst()
@@ -468,7 +457,7 @@ export const createSyncStore = ({
 
       for (let i = 0; i < transactionReceipts.length; i += batchSize) {
         await db
-          .insertInto("transactionReceipts")
+          .insertInto(`transaction_receipt_${chainId}`)
           .values(
             transactionReceipts
               .slice(i, i + batchSize)
@@ -479,15 +468,17 @@ export const createSyncStore = ({
                 }),
               ),
           )
-          .onConflict((oc) => oc.column("transactionHash").doNothing())
+          .onConflict((oc) =>
+            oc.columns(["block_number", "transaction_index"]).doNothing(),
+          )
           .execute();
       }
     });
   },
-  hasTransactionReceipt: async ({ hash }) =>
+  hasTransactionReceipt: async ({ hash, chainId }) =>
     db.wrap({ method: "hasTransactionReceipt" }, async () => {
       return await db
-        .selectFrom("transactionReceipts")
+        .selectFrom(`transaction_receipt_${chainId}`)
         .select("transactionHash")
         .where("transactionHash", "=", hash)
         .executeTakeFirst()
@@ -512,7 +503,7 @@ export const createSyncStore = ({
 
       for (let i = 0; i < traces.length; i += batchSize) {
         await db
-          .insertInto("traces")
+          .insertInto(`trace_${chainId}`)
           .values(
             traces
               .slice(i, i + batchSize)
@@ -525,7 +516,7 @@ export const createSyncStore = ({
                 }),
               ),
           )
-          .onConflict((oc) => oc.column("id").doNothing())
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
           .execute();
       }
     });
@@ -533,29 +524,25 @@ export const createSyncStore = ({
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     db.wrap({ method: "insertRpcRequestResult" }, async () => {
       await db
-        .insertInto("rpc_request_results")
+        .insertInto(`rpc_request_${chainId}`)
         .values({
           request,
           block_number: blockNumber,
           chain_id: chainId,
           result,
         })
-        .onConflict((oc) =>
-          oc.columns(["request_hash", "chain_id"]).doUpdateSet({ result }),
-        )
+        .onConflict((oc) => oc.column("request_hash").doUpdateSet({ result }))
         .execute();
     }),
   getRpcRequestResult: async ({ request, chainId }) =>
     db.wrap({ method: "getRpcRequestResult" }, async () => {
-      const result = await db
-        .selectFrom("rpc_request_results")
+      const row = await db
+        .selectFrom(`rpc_request_${chainId}`)
         .select("result")
-
         .where("request_hash", "=", ksql`MD5(${request})`)
-        .where("chain_id", "=", chainId)
         .executeTakeFirst();
 
-      return result?.result;
+      return row?.result;
     }),
   pruneRpcRequestResult: async ({ blocks, chainId }) =>
     db.wrap({ method: "pruneRpcRequestResult" }, async () => {
@@ -566,8 +553,7 @@ export const createSyncStore = ({
       );
 
       await db
-        .deleteFrom("rpc_request_results")
-        .where("chain_id", "=", chainId)
+        .deleteFrom(`rpc_request_${chainId}`)
         .where("block_number", "in", numbers)
         .execute();
     }),
@@ -575,33 +561,27 @@ export const createSyncStore = ({
     db.wrap({ method: "pruneByChain" }, () =>
       db.transaction().execute(async (tx) => {
         await tx
-          .deleteFrom("logs")
-          .where("chainId", "=", chainId)
+          .deleteFrom(`log_${chainId}`)
           .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
+          .deleteFrom(`block_${chainId}`)
           .where("number", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("rpc_request_results")
-          .where("chain_id", "=", chainId)
+          .deleteFrom(`rpc_request_${chainId}`)
           .where("block_number", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("traces")
-          .where("chainId", "=", chainId)
+          .deleteFrom(`trace_${chainId}`)
           .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
+          .deleteFrom(`transaction_${chainId}`)
           .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
-          .deleteFrom("transactionReceipts")
-          .where("chainId", "=", chainId)
+          .deleteFrom(`transaction_receipt_${chainId}`)
           .where("blockNumber", ">=", fromBlock.toString())
           .execute();
       }),
@@ -1001,9 +981,10 @@ const logSQL = (
   db: QueryCreator<PonderSyncSchema>,
   index: number,
   joinInfo: { logs: boolean; traces: boolean },
-) =>
-  db
-    .selectFrom("logs")
+) => {
+  const table = `log_${filter.chainId}` as const;
+  const result = db
+    .selectFrom(table)
     // Filters
     .$call((qb) => {
       for (const idx of [0, 1, 2, 3] as const) {
@@ -1012,53 +993,56 @@ const logSQL = (
         if (raw === null) continue;
         const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
         if (Array.isArray(topic)) {
-          qb = qb.where(`logs.topic${idx}`, "in", topic);
+          qb = qb.where(`${table}.topic${idx}`, "in", topic);
         } else {
-          qb = qb.where(`logs.topic${idx}`, "=", topic);
+          qb = qb.where(`${table}.topic${idx}`, "=", topic);
         }
       }
       return qb;
     })
-    .$call((qb) => addressSQL(db, qb, filter.address, "logs.address"))
+    .$call((qb) => addressSQL(db, qb, filter.address, `${table}.address`))
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("logs.blockNumber", ">=", filter.fromBlock!.toString()),
+      qb.where(`${table}.blockNumber`, ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("logs.blockNumber", "<=", filter.toBlock!.toString()),
+      qb.where(`${table}.blockNumber`, "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      "logs.checkpoint as checkpoint",
-      "logs.chainId as chain_id",
+      `${table}.checkpoint as checkpoint`,
+      `${table}.chainId as chain_id`,
 
-      "logs.blockNumber as block_number",
-      "logs.transactionIndex as tx_index",
+      `${table}.blockNumber as block_number`,
+      `${table}.transactionIndex as tx_index`,
     ])
     // Logs
     .$call((qb) =>
       qb.select([
-        "logs.logIndex as log_index",
-        "logs.address as log_address",
-        "logs.data as log_data",
-        "logs.topic0 as log_topic0",
-        "logs.topic1 as log_topic1",
-        "logs.topic2 as log_topic2",
-        "logs.topic3 as log_topic3",
+        `${table}.logIndex as log_index`,
+        `${table}.address as log_address`,
+        `${table}.data as log_data`,
+        `${table}.topic0 as log_topic0`,
+        `${table}.topic1 as log_topic1`,
+        `${table}.topic2 as log_topic2`,
+        `${table}.topic3 as log_topic3`,
       ]),
     )
     // Traces
     .$if(joinInfo.traces, (qb) => selectTraceColumnsAsNull(qb))
-    .orderBy("checkpoint", "asc") as FilterQb;
+    .orderBy("checkpoint", "asc");
+
+  return result as FilterQb;
+};
 
 const blockSQL = (
   filter: BlockFilter,
   db: QueryCreator<PonderSyncSchema>,
   index: number,
   joinInfo: { logs: boolean; traces: boolean },
-) =>
-  db
+) => {
+  const result = db
     .selectFrom("blocks")
     // Filters
     .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
@@ -1085,7 +1069,10 @@ const blockSQL = (
     // Logs
     .$if(joinInfo.logs, (qb) => selectLogColumnsAsNull(qb))
     // Traces
-    .$if(joinInfo.traces, (qb) => selectTraceColumnsAsNull(qb)) as FilterQb;
+    .$if(joinInfo.traces, (qb) => selectTraceColumnsAsNull(qb));
+
+  return result as FilterQb;
+};
 
 const transactionSQL = (
   filter: TransactionFilter,

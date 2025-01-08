@@ -320,11 +320,7 @@ export const createHistoricalSync = async (
       address: getChildAddress({ log, factory: filter }),
       blockNumber: hexToBigInt(log.blockNumber),
     }));
-    await args.syncStore.insertChildAddresses({
-      factory: filter,
-      data,
-      chainId: args.network.chainId,
-    });
+    await args.syncStore.insertChildAddresses({ factory: filter, data });
   };
 
   /**

@@ -297,7 +297,7 @@ test("getChildAddresses()", async (context) => {
       blockNumber: hexToBigInt(log.blockNumber),
     },
   ];
-  await syncStore.insertChildAddresses({ factory, data, chainId: 1 });
+  await syncStore.insertChildAddresses({ factory, data });
 
   const addresses = await syncStore.getChildAddresses({ factory, limit: 10 });
 
@@ -365,7 +365,7 @@ test("filterChildAddresses()", async (context) => {
       blockNumber: hexToBigInt(log.blockNumber),
     },
   ];
-  await syncStore.insertChildAddresses({ factory, data, chainId: 1 });
+  await syncStore.insertChildAddresses({ factory, data });
 
   const addresses = await syncStore.filterChildAddresses({
     factory,
@@ -1235,11 +1235,7 @@ test("getEvents() handles log factory", async (context) => {
       blockNumber: hexToBigInt(log.blockNumber),
     },
   ];
-  await syncStore.insertChildAddresses({
-    factory: filter.address,
-    data,
-    chainId: 1,
-  });
+  await syncStore.insertChildAddresses({ factory: filter.address, data });
 
   // pair
 
@@ -1328,11 +1324,7 @@ test.skip("getEvents() handles log factory with multiple addresses", async (cont
       blockNumber: hexToBigInt(log.blockNumber),
     },
   ];
-  await syncStore.insertChildAddresses({
-    factory: filter.address,
-    data,
-    chainId: 1,
-  });
+  await syncStore.insertChildAddresses({ factory: filter.address, data });
 
   // pair
 

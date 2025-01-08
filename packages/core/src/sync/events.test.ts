@@ -467,7 +467,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
       blockNumber: hexToBigInt(log.blockNumber),
     },
   ];
-  await syncStore.insertChildAddresses({ factory, data, chainId: 1 });
+  await syncStore.insertChildAddresses({ factory, data });
 
   // insert block 3
 

@@ -355,16 +355,13 @@ type FactoryAddressTable = {
 };
 
 export type PonderSyncSchema = {
-  blocks: BlocksTable;
-  logs: LogsTable;
-  transactions: TransactionsTable;
-  transactionReceipts: TransactionReceiptsTable;
-  traces: TracesTable;
-
-  factory: FactoryTable;
-  factory_address: FactoryAddressTable;
-
   intervals: IntervalTable;
-
-  rpc_request_results: RpcRequestResultsTable;
+  [key: `block_${number}`]: BlocksTable;
+  [key: `log_${number}`]: LogsTable;
+  [key: `transaction_${number}`]: TransactionsTable;
+  [key: `transaction_receipt_${number}`]: TransactionReceiptsTable;
+  [key: `trace_${number}`]: TracesTable;
+  [key: `rpc_request_${number}`]: RpcRequestResultsTable;
+  [key: `factory_${number}`]: FactoryTable;
+  [key: `factory_address_${number}`]: FactoryAddressTable;
 };
