@@ -581,6 +581,10 @@ export const createRealtimeSync = (
     blockHash: Hash,
     transactionHashes: Set<Hash>,
   ): Promise<SyncTransactionReceipt[]> => {
+    if (transactionHashes.size === 0) {
+      return [];
+    }
+
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
