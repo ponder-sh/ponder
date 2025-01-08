@@ -379,25 +379,25 @@ const executeSetup = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error & { meta?: string[] };
-
-    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+    const error = _error instanceof Error ? _error : new Error(String(_error));
 
     addStackTrace(error, common.options);
 
     if (error instanceof BaseError) {
       error.meta.push(toErrorMeta(event));
     } else {
+      // @ts-expect-error
       error.meta = [toErrorMeta(event)];
     }
 
-    common.metrics.ponder_indexing_has_error.set(1);
-
+    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing event '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
+
+    common.metrics.ponder_indexing_has_error.set(1);
 
     return { status: "error", error: error };
   }
@@ -445,17 +445,18 @@ const executeEvent = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error & { meta?: string[] };
-
-    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+    const error = _error instanceof Error ? _error : new Error(String(_error));
 
     addStackTrace(error, common.options);
 
     if (error instanceof BaseError) {
       error.meta.push(toErrorMeta(event));
     } else {
+      // @ts-expect-error
       error.meta = [toErrorMeta(event)];
     }
+
+    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
     common.logger.error({
       service: "indexing",
@@ -487,14 +488,12 @@ const transactionText = (transaction: Transaction) =>
 
 const logText = (log: Log) =>
   `Log:\n${prettyPrint({
-    id: log.id,
     index: log.logIndex,
     address: log.address,
   })}`;
 
 const traceText = (trace: Trace) =>
   `Trace:\n${prettyPrint({
-    id: trace.id,
     traceIndex: trace.traceIndex,
     from: trace.from,
     to: trace.to,
@@ -510,7 +509,7 @@ const toErrorMeta = (event: Event | SetupEvent) => {
 
     case "log": {
       return [
-        `Log event arguments:\n${prettyPrint(event.event.args)}`,
+        `Event arguments:\n${prettyPrint(event.event.args)}`,
         logText(event.event.log),
         transactionText(event.event.transaction),
         blockText(event.event.block),
