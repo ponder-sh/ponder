@@ -3,6 +3,7 @@ import { BuildError } from "@/common/errors.js";
 import type { Options } from "@/common/options.js";
 import type { Config } from "@/config/config.js";
 import type { DatabaseConfig } from "@/config/database.js";
+import type { PGliteOptions } from "@/utils/pglite.js";
 import parse from "pg-connection-string";
 
 function getDatabaseName(connectionString: string) {
@@ -15,7 +16,7 @@ export function buildPre({
   options,
 }: {
   config: Config;
-  options: Pick<Options, "rootDir" | "ponderDir">;
+  options: Pick<Options, "rootDir" | "ponderDir" | "logLevel">;
 }): {
   databaseConfig: DatabaseConfig;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
@@ -75,7 +76,12 @@ export function buildPre({
         msg: `Using PGlite database in '${pglitePrintPath}' (from ponder.config.ts)`,
       });
 
-      databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
+      const pgliteOptions: PGliteOptions = {
+        dataDir: pgliteDir,
+        debug: options.logLevel === "trace" ? 5 : undefined,
+      };
+
+      databaseConfig = { kind: "pglite", options: pgliteOptions };
     }
   } else {
     let connectionString: string | undefined = undefined;
@@ -120,7 +126,7 @@ export function safeBuildPre({
   options,
 }: {
   config: Config;
-  options: Pick<Options, "rootDir" | "ponderDir">;
+  options: Pick<Options, "rootDir" | "ponderDir" | "logLevel">;
 }) {
   try {
     const result = buildPre({

@@ -8,7 +8,8 @@ import { buildPre } from "./pre.js";
 const options = {
   ponderDir: ".ponder",
   rootDir: "rootDir",
-} as const satisfies Pick<Options, "rootDir" | "ponderDir">;
+  logLevel: "info",
+} as const satisfies Pick<Options, "rootDir" | "ponderDir" | "logLevel">;
 
 test("buildPre() database uses pglite by default", () => {
   const config = createConfig({
