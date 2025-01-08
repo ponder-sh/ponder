@@ -1,5 +1,13 @@
 # ponder
 
+## 0.8.20
+
+### Patch Changes
+
+- [`85c9b3247bcb52c8d567f93ab19aee5746d8923d`](https://github.com/ponder-sh/ponder/commit/85c9b3247bcb52c8d567f93ab19aee5746d8923d) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug introduced in 0.8.14 which caused unnecessary `eth_getBlockReceipts` requests.
+
+- [#1421](https://github.com/ponder-sh/ponder/pull/1421) [`de4b398fba7c1d93e12e5500fcc598239b04597a`](https://github.com/ponder-sh/ponder/commit/de4b398fba7c1d93e12e5500fcc598239b04597a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where events between the historical backfill and live indexing were skipped. This does not affect the rpc cache.
+
 ## 0.8.19
 
 ### Patch Changes
