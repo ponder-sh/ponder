@@ -1,5 +1,6 @@
 import type { IndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { Common } from "@/common/common.js";
+import { BaseError } from "@/common/errors.js";
 import type { Network } from "@/config/networks.js";
 import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
@@ -10,6 +11,7 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type { Db } from "@/types/db.js";
+import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -377,17 +379,23 @@ const executeSetup = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error;
+    const error = _error as Error & { meta?: string[] };
 
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
     addStackTrace(error, common.options);
 
+    if (error instanceof BaseError) {
+      error.meta.push(toErrorMeta(event));
+    } else {
+      error.meta = [toErrorMeta(event)];
+    }
+
     common.metrics.ponder_indexing_has_error.set(1);
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing event '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -395,34 +403,6 @@ const executeSetup = async (
   }
 
   return { status: "success" };
-};
-
-const toErrorMeta = (event: Event) => {
-  switch (event.type) {
-    case "log":
-    case "trace": {
-      return `Event arguments:\n${prettyPrint(event.event.args)}`;
-    }
-
-    case "transfer": {
-      return `Event arguments:\n${prettyPrint(event.event.transfer)}`;
-    }
-
-    case "block": {
-      return `Block:\n${prettyPrint({
-        hash: event.event.block.hash,
-        number: event.event.block.number,
-        timestamp: event.event.block.timestamp,
-      })}`;
-    }
-
-    case "transaction": {
-      return `Transaction:\n${prettyPrint({
-        hash: event.event.transaction.hash,
-        block: event.event.block.number,
-      })}`;
-    }
-  }
 };
 
 const executeEvent = async (
@@ -471,9 +451,10 @@ const executeEvent = async (
 
     addStackTrace(error, common.options);
 
-    error.meta = Array.isArray(error.meta) ? error.meta : [];
-    if (error.meta.length === 0) {
+    if (error instanceof BaseError) {
       error.meta.push(toErrorMeta(event));
+    } else {
+      error.meta = [toErrorMeta(event)];
     }
 
     common.logger.error({
@@ -488,4 +469,81 @@ const executeEvent = async (
   }
 
   return { status: "success" };
+};
+
+const blockText = (block: Block) =>
+  `Block:\n${prettyPrint({
+    hash: block.hash,
+    number: block.number,
+    timestamp: block.timestamp,
+  })}`;
+
+const transactionText = (transaction: Transaction) =>
+  `Transaction:\n${prettyPrint({
+    hash: transaction.hash,
+    from: transaction.from,
+    to: transaction.to,
+  })}`;
+
+const logText = (log: Log) =>
+  `Log:\n${prettyPrint({
+    id: log.id,
+    index: log.logIndex,
+    address: log.address,
+  })}`;
+
+const traceText = (trace: Trace) =>
+  `Trace:\n${prettyPrint({
+    id: trace.id,
+    traceIndex: trace.traceIndex,
+    from: trace.from,
+    to: trace.to,
+  })}`;
+
+const toErrorMeta = (event: Event | SetupEvent) => {
+  switch (event.type) {
+    case "setup": {
+      return `Block:\n${prettyPrint({
+        number: event.block,
+      })}`;
+    }
+
+    case "log": {
+      return [
+        `Log event arguments:\n${prettyPrint(event.event.args)}`,
+        logText(event.event.log),
+        transactionText(event.event.transaction),
+        blockText(event.event.block),
+      ].join("\n");
+    }
+
+    case "trace": {
+      return [
+        `Call trace arguments:\n${prettyPrint(event.event.args)}`,
+        traceText(event.event.trace),
+        transactionText(event.event.transaction),
+        blockText(event.event.block),
+      ].join("\n");
+    }
+
+    case "transfer": {
+      return [
+        `Transfer arguments:\n${prettyPrint(event.event.transfer)}`,
+        traceText(event.event.trace),
+        transactionText(event.event.transaction),
+        blockText(event.event.block),
+      ].join("\n");
+    }
+
+    case "block": {
+      return blockText(event.event.block);
+    }
+
+    case "transaction": {
+      return [
+        transactionText(event.event.transaction),
+        blockText(event.event.block),
+      ].join("\n");
+    }
+  }
 };
