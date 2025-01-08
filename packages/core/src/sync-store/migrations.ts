@@ -1283,130 +1283,19 @@ GROUP BY fragment_id, chain_id
         .execute();
     },
   },
-  "2025_01_02_0_join_optimizations": {
+  "2025_01_08_0_factory_redesign": {
     async up(db) {
-      await db.schema
-        .createIndex("transactions_ordering_index")
-        .on("transactions")
-        .columns(["blockNumber asc", "transactionIndex asc"])
-        .execute();
-
-      await db.schema
-        .createIndex("logs_ordering_index")
-        .on("logs")
-        .columns(["blockNumber asc", "transactionIndex asc", "logIndex asc"])
-        .execute();
-
-      // Add `transactionIndex` column to `traces`
-      await db.schema
-        .alterTable("traces")
-        .addColumn("transactionIndex", "integer")
-        .execute();
-      await db
-        .updateTable("traces")
-        .from("transactions")
-        .set((eb: any) => ({
-          transactionIndex: eb.ref("transactions.transactionIndex"),
-        }))
-        .whereRef("traces.transactionHash", "=", "transactions.hash")
-        .execute();
-      await db.schema
-        .alterTable("traces")
-        .alterColumn("transactionIndex", (ac) => ac.setNotNull())
-        .execute();
-
-      await db.schema
-        .createIndex("traces_ordering_index")
-        .on("traces")
-        .columns(["blockNumber asc", "transactionIndex asc", "index asc"])
-        .execute();
-    },
-  },
-  "2025_01_02_1_join_optimizations_2": {
-    async up(db) {
-      await db.schema.dropIndex("blockNumberIndex").execute();
-      await db.schema
-        .createIndex("blocks_ordering_index")
-        .on("blocks")
-        .columns(["number asc"])
-        .execute();
-
-      await db.schema
-        .createIndex("logs_filtering_topic0_index")
-        .on("logs")
-        .columns(["checkpoint asc", "topic0 asc", "address asc"])
-        .execute();
-      await db.schema
-        .createIndex("logs_filtering_address_index")
-        .on("logs")
-        .columns(["checkpoint asc", "address asc", "topic0 asc"])
-        .execute();
-    },
-  },
-  "2025_01_02_2_join_optimizations_3": {
-    async up(db) {
-      await db.schema.dropIndex("logAddressIndex").execute();
-      await db.schema.dropIndex("logTopic0Index").execute();
-      await db.schema.dropIndex("logBlockHashIndex").execute();
-      await db.schema.dropIndex("log_transaction_hash_index").execute();
-      await db.schema.dropIndex("logs_checkpoint_index").execute();
-    },
-  },
-  "2025_01_02_3_join_optimizations_4": {
-    async up(db) {
-      await db.schema
-        .createIndex("logs_topic0_index")
-        .on("logs")
-        .columns(["topic0 asc", "checkpoint asc"])
-        .execute();
-      await db.schema
-        .createIndex("logs_address_index")
-        .on("logs")
-        .columns(["address asc", "checkpoint asc"])
-        .execute();
-    },
-  },
-  "2025_01_02_4_join_optimizations_5": {
-    async up(db) {
-      await db.schema.dropIndex("logs_filtering_topic0_index").execute();
-      await db.schema.dropIndex("logs_filtering_address_index").execute();
-    },
-  },
-  "2025_01_03_0_factory_redesign": {
-    async up(db) {
-      // Create factory table
-      await db.schema
-        .createTable("factory")
-        .addColumn("integer_id", "integer", (col) =>
-          col.primaryKey().generatedAlwaysAsIdentity(),
-        )
-        .addColumn("factory_id", "text", (col) => col.notNull().unique())
-        .execute();
-
-      // Create factory_address table
-      await db.schema
-        .createTable("factory_address")
-        .addColumn("id", "integer", (col) =>
-          col.primaryKey().generatedAlwaysAsIdentity(),
-        )
-        .addColumn("factory_integer_id", "integer", (col) => col.notNull())
-        .addColumn("address", "text", (col) => col.notNull())
-        .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
-        .execute();
-      await db.schema
-        .createIndex("factory_address_factory_integer_id_index")
-        .on("factory_address")
-        .columns(["factory_integer_id", "address"])
-        .execute();
-
-      // Data migration to move factory logs from `logs` to `factory_address`
-      // 1) Find factory IDs from `intervals` table
-      const factoryIdSet = new Set<string>();
+      // Data migration to move factory logs from `logs` to `factory`
+      // and `factory_address` tables
       const fragmentRows = await db
         .selectFrom("intervals")
-        .select("fragment_id")
+        .select(["fragment_id", "chain_id"])
         .execute();
+
+      const factoryIdMap = new Map<number, Set<string>>();
+
       for (const row of fragmentRows) {
+        const chainId = row.chain_id as number;
         const fragmentId = row.fragment_id as string;
         // Find all occurrences of _offset and _topic in the fragment ID
         const matches = [...fragmentId.matchAll(/_(?:offset|topic)([^_]*)/g)];
@@ -1417,73 +1306,104 @@ GROUP BY fragment_id, chain_id
             Math.max(0, match.index! - 109),
             match.index! + match[0].length,
           );
-          factoryIdSet.add(factoryId);
+
+          if (!factoryIdMap.has(chainId)) factoryIdMap.set(chainId, new Set());
+          factoryIdMap.get(chainId)!.add(factoryId);
         }
       }
 
-      // 2) Copy factory logs from the `logs` table into `factory_address`
-      // Also write any required factory IDs into `factory` table
-      for (const factoryId of [...factoryIdSet]) {
-        const [address, eventSelector, childAddressLocation] =
-          factoryId.split("_");
-        if (
-          typeof address !== "string" ||
-          address.length !== 42 ||
-          typeof eventSelector !== "string" ||
-          eventSelector.length !== 66 ||
-          typeof childAddressLocation !== "string" ||
-          !(
-            childAddressLocation.startsWith("offset") ||
-            childAddressLocation.startsWith("topic")
+      for (const [chainId, factoryIdSet] of factoryIdMap) {
+        // Create factory table
+        await db.schema
+          .createTable(`factory_${chainId}`)
+          .addColumn("integer_id", "integer", (col) =>
+            col.primaryKey().generatedAlwaysAsIdentity(),
           )
-        ) {
-          console.warn(
-            `Migration warning: Invalid factory ID, skipping it (${factoryId})`,
-          );
-          continue;
-        }
-
-        await db
-          .with("factory_insert", (db) =>
-            db
-              .insertInto("factory")
-              .values({ factory_id: factoryId })
-              .onConflict((oc) =>
-                oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
-              )
-              .returning("integer_id"),
-          )
-          .insertInto("factory_address")
-          .columns(["factory_integer_id", "address", "block_number"])
-          .expression((db) =>
-            db
-              .selectFrom("logs")
-              .select([
-                sql`(SELECT integer_id FROM factory_insert)`.as(
-                  "factory_integer_id",
-                ),
-                (() => {
-                  if (childAddressLocation.startsWith("offset")) {
-                    const childAddressOffset = Number(
-                      childAddressLocation.substring(6),
-                    );
-                    const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
-                    const length = 20 * 2;
-                    return sql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
-                  } else {
-                    const start = 2 + 12 * 2 + 1;
-                    const length = 20 * 2;
-                    return sql<Hex>`'0x' || substring(${sql.ref(
-                      childAddressLocation,
-                    )} from ${start}::integer for ${length}::integer)`;
-                  }
-                })().as("address"),
-                "blockNumber as block_number",
-              ])
-              .where("address", "=", address)
-              .where("topic0", "=", eventSelector),
-          )
+          .addColumn("factory_id", "text", (col) => col.notNull().unique())
           .execute();
+
+        // Create factory_address table
+        await db.schema
+          .createTable(`factory_address_${chainId}`)
+          .addColumn("id", "integer", (col) =>
+            col.primaryKey().generatedAlwaysAsIdentity(),
+          )
+          .addColumn("factory_integer_id", "integer", (col) => col.notNull())
+          .addColumn("address", "text", (col) => col.notNull())
+          .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+          .execute();
+        await db.schema
+          .createIndex(`factory_address_${chainId}_factory_integer_id_index`)
+          .on(`factory_address_${chainId}`)
+          .columns(["factory_integer_id", "address"])
+          .execute();
+
+        // 2) Copy factory logs from the `logs` table into `factory_address`
+        // Also write any required factory IDs into `factory` table
+        for (const factoryId of [...factoryIdSet]) {
+          const [address, eventSelector, childAddressLocation] =
+            factoryId.split("_");
+          if (
+            typeof address !== "string" ||
+            address.length !== 42 ||
+            typeof eventSelector !== "string" ||
+            eventSelector.length !== 66 ||
+            typeof childAddressLocation !== "string" ||
+            !(
+              childAddressLocation.startsWith("offset") ||
+              childAddressLocation.startsWith("topic")
+            )
+          ) {
+            console.warn(
+              `Migration warning: Invalid factory ID, skipping it (${factoryId})`,
+            );
+            continue;
+          }
+
+          await db
+            .with("factory_insert", (db) =>
+              db
+                .insertInto(`factory_${chainId}`)
+                .values({ factory_id: factoryId })
+                .onConflict((oc) =>
+                  oc
+                    .column("factory_id")
+                    .doUpdateSet({ factory_id: factoryId }),
+                )
+                .returning("integer_id"),
+            )
+            .insertInto(`factory_address_${chainId}`)
+            .columns(["factory_integer_id", "address", "block_number"])
+            .expression((db) =>
+              db
+                .selectFrom(`log_${chainId}`)
+                .select([
+                  sql`(SELECT integer_id FROM factory_insert)`.as(
+                    "factory_integer_id",
+                  ),
+                  (() => {
+                    if (childAddressLocation.startsWith("offset")) {
+                      const childAddressOffset = Number(
+                        childAddressLocation.substring(6),
+                      );
+                      const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
+                      const length = 20 * 2;
+                      return sql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
+                    } else {
+                      const start = 2 + 12 * 2 + 1;
+                      const length = 20 * 2;
+                      return sql<Hex>`'0x' || substring(${sql.ref(
+                        childAddressLocation,
+                      )} from ${start}::integer for ${length}::integer)`;
+                    }
+                  })().as("address"),
+                  "blockNumber as block_number",
+                ])
+                .where("address", "=", address)
+                .where("topic0", "=", eventSelector),
+            )
+            .execute();
+        }
       }
 
       // 3) Delete any log rows that are missing a checkpoint and make it not null
@@ -1498,12 +1418,25 @@ GROUP BY fragment_id, chain_id
   },
   "2025_01_03_1_transaction_checkpoint_backfill": {
     async up(db) {
-      // Backfill `checkpoint` column in `transactions`
+      const transactionHashesMissingCheckpoint = await db
+        .selectFrom("transactions")
+        .select(["hash"]) // we'll use this in our whereIn below
+        .where("checkpoint", "is", null)
+        .execute()
+        .then((rows) => rows.map((row) => row.hash));
+
+      console.log(
+        `Migration: Found ${transactionHashesMissingCheckpoint.length} transaction rows without checkpoint, backfilling`,
+      );
+
+      // 2. Do the UPDATE in a chunk
       await db
         .updateTable("transactions")
+        // join blocks to get the block data
         .from("blocks")
         .whereRef("transactions.blockNumber", "=", "blocks.number")
-        .where("transactions.checkpoint", "is", null)
+        // only update the specific rows we selected in this chunk
+        .where("transactions.hash", "in", transactionHashesMissingCheckpoint)
         .set({
           checkpoint: sql`(
             lpad(blocks.timestamp::text, 10, '0') ||
@@ -1524,7 +1457,7 @@ GROUP BY fragment_id, chain_id
         .execute();
       if (rows.length > 0) {
         console.warn(
-          `Migration warning: ${rows.length} transaction rows still missing a checkpoint, removing them`,
+          `Migration warning: ${rows.length} transaction rows still missing a checkpoint, deleting them`,
         );
       }
 
@@ -1532,6 +1465,27 @@ GROUP BY fragment_id, chain_id
       await db.schema
         .alterTable("transactions")
         .alterColumn("checkpoint", (col) => col.setNotNull())
+        .execute();
+    },
+  },
+  "2025_01_08_1_add_transaction_index_to_traces": {
+    async up(db) {
+      // Add `transactionIndex` column to `traces`
+      await db.schema
+        .alterTable("traces")
+        .addColumn("transactionIndex", "integer")
+        .execute();
+      await db
+        .updateTable("traces")
+        .from("transactions")
+        .set((eb: any) => ({
+          transactionIndex: eb.ref("transactions.transactionIndex"),
+        }))
+        .whereRef("traces.transactionHash", "=", "transactions.hash")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("transactionIndex", (ac) => ac.setNotNull())
         .execute();
     },
   },
@@ -1638,13 +1592,13 @@ GROUP BY fragment_id, chain_id
 
         // Create indexes on new table
         await db.schema
-          .createIndex(`blocks_${chainId}_ordering_index`)
-          .on(`blocks_${chainId}`)
+          .createIndex(`block_${chainId}_ordering_index`)
+          .on(`block_${chainId}`)
           .columns(["number asc"])
           .execute();
         await db.schema
-          .createIndex(`blocks_${chainId}_hash_index`)
-          .on(`blocks_${chainId}`)
+          .createIndex(`block_${chainId}_hash_index`)
+          .on(`block_${chainId}`)
           .columns(["hash asc"])
           .execute();
       }
@@ -1725,18 +1679,18 @@ GROUP BY fragment_id, chain_id
 
         // Create indexes on new logs table
         await db.schema
-          .createIndex(`logs_${chainId}_ordering_index`)
-          .on(`logs_${chainId}`)
+          .createIndex(`log_${chainId}_ordering_index`)
+          .on(`log_${chainId}`)
           .columns(["block_number asc", "transaction_index asc"])
           .execute();
         await db.schema
-          .createIndex(`logs_${chainId}_topic0_index`)
-          .on(`logs_${chainId}`)
+          .createIndex(`log_${chainId}_topic0_index`)
+          .on(`log_${chainId}`)
           .columns(["topic0 asc", "checkpoint asc"])
           .execute();
         await db.schema
-          .createIndex(`logs_${chainId}_address_index`)
-          .on(`logs_${chainId}`)
+          .createIndex(`log_${chainId}_address_index`)
+          .on(`log_${chainId}`)
           .columns(["address asc", "checkpoint asc"])
           .execute();
       }
@@ -1791,7 +1745,7 @@ GROUP BY fragment_id, chain_id
               .where("chainId", "=", chainId)
               .returningAll(),
           )
-          .insertInto(`block_${chainId}`)
+          .insertInto(`transaction_${chainId}`)
           .columns([
             "checkpoint",
             "block_number",
@@ -1840,7 +1794,6 @@ GROUP BY fragment_id, chain_id
           )
           .execute();
 
-        // Create indexes on new table
         await db.schema
           .createIndex(`transaction_${chainId}_ordering_index`)
           .on(`transaction_${chainId}`)
@@ -1865,6 +1818,97 @@ GROUP BY fragment_id, chain_id
 
       // Drop old transactions table
       await db.schema.dropTable("transactions").execute();
+
+      /// TRANSACTION RECEIPTS ///
+
+      // Get distinct chain IDs from transactionReceipts table
+      const transactionReceiptChainIds = await db
+        .selectFrom("transactionReceipts")
+        .select("chainId")
+        .distinct()
+        .execute()
+        .then((rows) => rows.map((row) => row.chainId));
+
+      for (const chainId of transactionReceiptChainIds) {
+        await db.schema
+          .createTable(`transaction_receipt_${chainId}`)
+          // ID columns
+          .addColumn("block_number", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("block_hash", "varchar(66)", (col) => col.notNull())
+          .addColumn("transaction_index", "integer", (col) => col.notNull())
+          .addColumn("transaction_hash", "varchar(66)", (col) =>
+            col.notNull().primaryKey(),
+          )
+          // Extra columns
+          .addColumn("from", "varchar(42)", (col) => col.notNull())
+          .addColumn("to", "varchar(42)")
+          .addColumn("contract_address", "varchar(66)")
+          .addColumn("status", "text", (col) => col.notNull())
+          .addColumn("type", "text", (col) => col.notNull())
+          .addColumn("gas_used", "numeric(78, 0)", (col) => col.notNull())
+          .addColumn("cumulative_gas_used", "numeric(78, 0)", (col) =>
+            col.notNull(),
+          )
+          .addColumn("effective_gas_price", "numeric(78, 0)", (col) =>
+            col.notNull(),
+          )
+          .addColumn("logs_bloom", "varchar(514)", (col) => col.notNull())
+          .execute();
+
+        // Move data from old table to new chain-specific table
+        await db
+          .with("moved_receipts", (db) =>
+            db
+              .deleteFrom("transactionReceipts")
+              .where("chainId", "=", chainId)
+              .returningAll(),
+          )
+          .insertInto(`transaction_receipt_${chainId}`)
+          .columns([
+            "block_number",
+            "block_hash",
+            "transaction_index",
+            "transaction_hash",
+            "from",
+            "to",
+            "contract_address",
+            "status",
+            "type",
+            "gas_used",
+            "cumulative_gas_used",
+            "effective_gas_price",
+            "logs_bloom",
+          ])
+          .expression(
+            db
+              .selectFrom("moved_receipts")
+              .select([
+                "blockNumber",
+                "blockHash",
+                "transactionIndex",
+                "transactionHash",
+                "from",
+                "to",
+                "contractAddress",
+                "status",
+                "type",
+                "gasUsed",
+                "cumulativeGasUsed",
+                "effectiveGasPrice",
+                "logsBloom",
+              ]),
+          )
+          .execute();
+
+        await db.schema
+          .createIndex(`transaction_receipt_${chainId}_ordering_index`)
+          .on(`transaction_receipt_${chainId}`)
+          .columns(["block_number asc", "transaction_index asc"])
+          .execute();
+      }
+
+      // Drop old transactionReceipts table
+      await db.schema.dropTable("transactionReceipts").execute();
 
       /// TRACES ///
 
@@ -1977,16 +2021,6 @@ GROUP BY fragment_id, chain_id
           .createIndex(`trace_${chainId}_to_index`)
           .on(`trace_${chainId}`)
           .columns(["to asc", "checkpoint asc"])
-          .execute();
-        await db.schema
-          .createIndex(`trace_${chainId}_function_selector_index`)
-          .on(`trace_${chainId}`)
-          .columns(["function_selector asc", "checkpoint asc"])
-          .execute();
-        await db.schema
-          .createIndex(`trace_${chainId}_type_index`)
-          .on(`trace_${chainId}`)
-          .columns(["type asc", "checkpoint asc"])
           .execute();
       }
 
