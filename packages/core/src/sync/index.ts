@@ -1177,8 +1177,18 @@ export async function* localHistoricalSyncGenerator({
 
   /**
    * Handle a cache hit by fast forwarding and potentially exiting.
+   * A cache hit can either be: (listed by priority)
+   *   1) recovering progress from earlier invocations with different `finalized` blocks
+   *   2) recovering progress from the interval cache
    */
-  if (syncProgress.cached !== undefined) {
+  if (
+    syncProgress.current !== undefined &&
+    (syncProgress.cached === undefined ||
+      hexToNumber(syncProgress.current.number) >
+        hexToNumber(syncProgress.cached.number))
+  ) {
+    fromBlock = hexToNumber(syncProgress.current.number) + 1;
+  } else if (syncProgress.cached !== undefined) {
     // `getEvents` can make progress without calling `sync`, so immediately "yield"
     yield;
 
