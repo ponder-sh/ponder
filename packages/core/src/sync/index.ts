@@ -654,7 +654,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          // Move events from pending to unfinalized
+          // Move events from pending to executed
 
           const events = pendingEvents
             .filter((event) => event.checkpoint < to)
@@ -849,7 +849,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           (e) => isReorgedEvent(e) === false,
         );
 
-        // Move events from unfinalized to pending
+        // Move events from executed to pending
 
         const events = executedEvents.filter((e) => e.checkpoint > checkpoint);
         executedEvents = executedEvents.filter(
@@ -888,6 +888,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         };
         status[network.name]!.ready = true;
 
+        // Fetch any events between the omnichain finalized checkpoint and the single-chain
+        // finalized checkpoint and add them to pendingEvents. These events are synced during
+        // the historical phase, but must be indexed in the realtime phase because events 
+        // synced in realtime on other chains might be ordered before them.
+        const from = getOmnichainCheckpoint("finalized")!;
+        
         const finalized = getChainCheckpoint({
           syncProgress,
           network,
@@ -898,8 +904,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           network,
           tag: "end",
         })!;
-
-        const from = getOmnichainCheckpoint("finalized")!;
         const to = min(finalized, end);
 
         if (to > from) {
