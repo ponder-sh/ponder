@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import {
+  type Database,
+  type ListenConnection,
+  createDatabase,
+} from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -61,6 +65,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await indexingCleanupReloadable();
     await apiCleanupReloadable();
+    if (listenConnection) {
+      if (listenConnection.dialect === "postgres") {
+        listenConnection.connection.release();
+      }
+    }
     if (database) {
       await database.kill();
     }
@@ -160,15 +169,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        database = await createDatabase({
-          common,
-          preBuild,
-          schemaBuild,
-        });
-
+        database = await createDatabase({ common, preBuild, schemaBuild });
         await database.migrate(indexingBuildResult.result);
+        listenConnection = await database.getListenConnection();
 
-        const apiResult = await build.executeApi({ database });
+        const apiResult = await build.executeApi({
+          database,
+          listenConnection,
+        });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -231,7 +239,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       } else {
         metrics.resetApiMetrics();
 
-        const apiResult = await build.executeApi({ database: database! });
+        const apiResult = await build.executeApi({
+          database: database!,
+          listenConnection: listenConnection!,
+        });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -265,6 +276,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   let database: Database | undefined;
+  let listenConnection: ListenConnection | undefined;
 
   build.initNamespace({ isSchemaRequired: false });
   build.initNamespace({ isSchemaRequired: false });

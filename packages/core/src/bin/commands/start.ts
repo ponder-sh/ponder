@@ -52,9 +52,16 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await cleanupReloadable();
     await cleanupReloadableServer();
+    if (listenConnection) {
+      if (listenConnection.dialect === "postgres") {
+        listenConnection.connection.release();
+      }
+    }
+
     if (database) {
       await database.kill();
     }
+
     await telemetry.kill();
   };
 
@@ -107,15 +114,11 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  database = await createDatabase({
-    common,
-    preBuild,
-    schemaBuild,
-  });
-
+  database = await createDatabase({ common, preBuild, schemaBuild });
   await database.migrate(indexingBuildResult.result);
+  const listenConnection = await database.getListenConnection();
 
-  const apiResult = await build.executeApi({ database });
+  const apiResult = await build.executeApi({ database, listenConnection });
   if (apiResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;

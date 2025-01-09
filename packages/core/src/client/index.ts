@@ -1,6 +1,5 @@
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
-import { PGlite } from "@electric-sql/pglite";
 import { promiseWithResolvers } from "@ponder/common";
 import type { QueryWithTypings } from "drizzle-orm";
 import { type PgSession, pgTable } from "drizzle-orm/pg-core";
@@ -40,18 +39,20 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
 
   let queryPromise: Promise<any>;
 
-  if (listenConnection instanceof PGlite) {
-    queryPromise = listenConnection.query("LISTEN status_update_channel");
+  const channel = `${global.PONDER_DATABASE_SCHEMA}_status_channel`;
 
-    listenConnection.onNotification(async () => {
+  if (listenConnection.dialect === "pglite") {
+    queryPromise = listenConnection.connection.query(`LISTEN ${channel}`);
+
+    listenConnection.connection.onNotification(async () => {
       const result = await db.select().from(status);
       statusResolver.resolve(result);
       statusResolver = promiseWithResolvers();
     });
   } else {
-    queryPromise = listenConnection.query("LISTEN status_update_channel");
+    queryPromise = listenConnection.connection.query(`LISTEN ${channel}`);
 
-    listenConnection.on("notification", async () => {
+    listenConnection.connection.on("notification", async () => {
       const result = await db.select().from(status);
       statusResolver.resolve(result);
       statusResolver = promiseWithResolvers();

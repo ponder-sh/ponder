@@ -89,14 +89,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const database = await createDatabase({
-    common,
-    preBuild,
-    schemaBuild,
-  });
-
+  const database = await createDatabase({ common, preBuild, schemaBuild });
   // Note: this assumes that the _ponder_status table exists
-  const apiResult = await build.executeApi({ database });
+  const listenConnection = await database.getListenConnection();
+
+  const apiResult = await build.executeApi({ database, listenConnection });
   if (apiResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
@@ -132,6 +129,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   cleanupReloadable = async () => {
     await server.kill();
+
+    if (listenConnection.dialect === "postgres") {
+      listenConnection.connection.release();
+    }
+
     await database.kill();
   };
 

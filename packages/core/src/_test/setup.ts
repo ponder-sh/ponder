@@ -1,5 +1,9 @@
 import { buildSchema } from "@/build/schema.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import {
+  type Database,
+  type ListenConnection,
+  createDatabase,
+} from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import {
   type MetadataStore,
@@ -182,6 +186,7 @@ export async function setupDatabaseServices(
   overrides: Partial<DatabaseServiceSetup> = {},
 ): Promise<{
   database: Database;
+  listenConnection: ListenConnection;
   syncStore: SyncStore;
   indexingStore: IndexingStore<"realtime">;
   metadataStore: MetadataStore;
@@ -206,6 +211,7 @@ export async function setupDatabaseServices(
   });
 
   await database.migrate({ buildId: config.buildId });
+  const listenConnection = await database.getListenConnection();
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -222,10 +228,16 @@ export async function setupDatabaseServices(
 
   const metadataStore = getMetadataStore({ database });
 
-  const cleanup = () => database.kill();
+  const cleanup = async () => {
+    if (listenConnection.dialect === "postgres") {
+      listenConnection.connection.release();
+    }
+    await database.kill();
+  };
 
   return {
     database,
+    listenConnection,
     indexingStore,
     syncStore,
     metadataStore,
