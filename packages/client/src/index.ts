@@ -34,7 +34,9 @@ type ClientDb<schema extends Schema = Schema> = Prettify<
 >;
 
 export type Client<schema extends Schema = Schema> = {
+  /** Query the database. */
   db: ClientDb<schema>;
+  /** Subscribe to live updates. */
   live: <result>(
     query: (db: ClientDb<schema>) => Promise<result>,
     onData: (result: result) => void,
@@ -74,6 +76,20 @@ export const status = pgTable("_ponder_status", (t) => ({
 // @ts-ignore
 status[Symbol.for("ponder:onchain")] = true;
 
+/**
+ * Create a client for querying Ponder apps.
+ *
+ * @param baseUrl - The URL of the Ponder app.
+ * @param schema - The schema of the Ponder app.
+ *
+ * @example
+ * ```ts
+ * import { createClient } from "@ponder/client";
+ * import * as schema from "../ponder.schema";
+ *
+ * const client = createClient("https://...", { schema });
+ * ```
+ */
 export const createClient = <schema extends Schema>(
   baseUrl: string,
   { schema }: { schema: schema },

@@ -14,6 +14,24 @@ const status = pgTable("_ponder_status", (t) => ({
   ready: t.boolean().notNull(),
 }));
 
+/**
+ * Middleware for `@ponder/client`.
+ *
+ * @param db - Drizzle database instance
+ *
+ * @example
+ * ```ts
+ * import { db } from "ponder:api";
+ * import { Hono } from "hono";
+ * import { client } from "ponder";
+ *
+ * const app = new Hono();
+ *
+ * app.use(client({ db }));
+ *
+ * export default app;
+ * ```
+ */
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
