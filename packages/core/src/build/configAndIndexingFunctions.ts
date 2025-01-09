@@ -75,7 +75,7 @@ function resolveBlockRanges(
   const blockRanges: Interval[] = rawBlockRanges.map(
     ([rawStartBlock, rawEndBlock]) => [
       Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
-      Number.isNaN(rawEndBlock)
+      Number.isNaN(rawEndBlock) || rawEndBlock === "realtime"
         ? Number.MAX_SAFE_INTEGER
         : (rawEndBlock as number),
     ],
