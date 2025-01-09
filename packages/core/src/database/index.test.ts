@@ -729,7 +729,7 @@ test("createTriggers() duplicate", async (context) => {
     },
   });
 
-  await database.prepareNamespace({ buildId: "abc" });
+  await database.migrate({ buildId: "abc" });
   await database.createTriggers();
   await database.createTriggers();
 
