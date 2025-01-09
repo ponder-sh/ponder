@@ -1,4 +1,4 @@
-import { type SQLWrapper, sql } from "drizzle-orm";
+import { type QueryWithTypings, type SQLWrapper, sql } from "drizzle-orm";
 import { type PgDialect, type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 import { EventSource } from "undici";
@@ -25,10 +25,21 @@ export type Client<schema extends Schema = Schema> = {
   db: ClientDb<schema>;
   live: <result>(
     query: (db: ClientDb<schema>) => Promise<result>,
-    callback: (result: result) => void,
+    onData: (result: result) => void,
+    onError?: (error: Error) => void,
   ) => {
     unsubscribe: () => void;
   };
+};
+
+const getUrl = (
+  baseUrl: string,
+  method: "live" | "db",
+  query: QueryWithTypings,
+) => {
+  const url = new URL(`${baseUrl}/client/${method}`);
+  url.searchParams.set("sql", JSON.stringify(query));
+  return url;
 };
 
 /**
@@ -50,35 +61,43 @@ export const status = pgTable("_ponder_status", (t) => ({
 status[Symbol.for("ponder:onchain")] = true;
 
 export const createClient = <schema extends Schema>(
-  url: string,
+  baseUrl: string,
   { schema }: { schema: schema },
 ): Client<schema> => {
-  const noopDatabase = drizzle(
-    () => {
-      return Promise.resolve({ rows: [] });
-    },
-    { schema, casing: "snake_case" },
-  );
+  const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
+    schema,
+    casing: "snake_case",
+  });
 
   // @ts-ignore
   const dialect: PgDialect = noopDatabase.dialect;
-
   // @ts-ignore
   const session: PgSession = noopDatabase.session;
 
   return {
     db: drizzle(
-      async (sql, params, method, typings) => {
-        const result = await fetch(`${url}/client/db`, {
+      async (sql, params, _, typings) => {
+        const builtQuery = { sql, params, typings };
+        const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
           method: "POST",
-          body: JSON.stringify({ sql, params, method, typings }),
         });
 
-        return await result.json();
+        if (response.ok === false) {
+          const error = new Error(await response.text());
+          error.stack = undefined;
+          throw error;
+        }
+
+        const result = await response.json();
+
+        return {
+          ...result,
+          rows: result.rows.map((row: object) => Object.values(row)),
+        };
       },
       { schema, casing: "snake_case" },
     ),
-    live: (_query, callback) => {
+    live: (_query, onData, onError) => {
       // https://github.com/drizzle-team/drizzle-orm/blob/04c91434c7ac10aeb2923efd1d19a7ebf10ea9d4/drizzle-orm/src/pg-core/db.ts#L602-L621
 
       const query = _query(noopDatabase) as unknown as SQLWrapper | string;
@@ -93,19 +112,26 @@ export const createClient = <schema extends Schema>(
         false,
       );
 
-      const sse = new EventSource(
-        `${url}/client/live?${new URLSearchParams({
-          query: JSON.stringify(builtQuery),
-        }).toString()}`,
-      );
+      const sse = new EventSource(getUrl(baseUrl, "live", builtQuery));
 
       sse.onmessage = (event) => {
-        // @ts-ignore
-        callback(prepared.mapResult(JSON.parse(event.data), true).rows);
+        const data = JSON.parse(event.data) as
+          | { status: "success"; result: unknown }
+          | { status: "error"; error: string };
+
+        if (data.status === "error") {
+          const error = new Error(data.error);
+          error.stack = undefined;
+          onError?.(error);
+        } else {
+          // @ts-ignore
+          onData(prepared.mapResult(data.result, true).rows);
+        }
       };
 
       sse.onerror = () => {
         sse.close();
+        throw new Error("server disconnected");
       };
 
       return {

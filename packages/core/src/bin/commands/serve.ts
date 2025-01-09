@@ -96,9 +96,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   // Note: this assumes that the _ponder_status table exists
-  const listenConnection = await database.getListenStatusConnection();
-
-  const apiResult = await build.executeApi({ database, listenConnection });
+  const apiResult = await build.executeApi({ database });
   if (apiResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;

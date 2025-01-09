@@ -32,65 +32,59 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   }
 
   return createMiddleware(async (c, next) => {
-    // TODO(kyle) method?
-
     if (c.req.path === "/client/db") {
-      const body = await c.req.json();
+      const queryString = c.req.query("sql");
+      if (queryString === undefined) {
+        return c.text('Missing "sql" query parameter', 400);
+      }
+      const query = JSON.parse(queryString) as QueryWithTypings;
 
-      // @ts-ignore
-      const res = await session
-        .prepareQuery(
-          {
-            sql: body.sql,
-            params: body.params,
-            // @ts-ignore
-            typings: body.typings,
-          },
-          undefined,
-          undefined,
-          body.method === "all",
-        )
-        .execute();
+      try {
+        const result = await session
+          .prepareQuery(query, undefined, undefined, false)
+          .execute();
 
-      // @ts-ignore
-      return c.json({ rows: res.rows.map((row) => Object.values(row)) });
+        return c.json(result as object);
+      } catch (error) {
+        return c.text((error as Error).message, 500);
+      }
     }
 
     if (c.req.path === "/client/live") {
+      const queryString = c.req.query("sql");
+      if (queryString === undefined) {
+        return c.text('Missing "sql" query parameter', 400);
+      }
+      const query = JSON.parse(queryString) as QueryWithTypings;
+
+      // TODO(kyle) live queries only availble in realtime mode
+
       c.header("Content-Type", "text/event-stream");
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
       await queryPromise;
 
-      return streamSSE(
-        c,
-        async (stream) => {
-          stream.onAbort(() => {
-            stream.close();
-          });
-
-          while (stream.closed === false) {
-            const query = JSON.parse(c.req.query("query")!) as QueryWithTypings;
-
+      return streamSSE(c, async (stream) => {
+        while (stream.closed === false) {
+          try {
             const result = await session
               .prepareQuery(query, undefined, undefined, false)
               .execute();
-
-            // TODO(kyle) close stream if unsuccessful
             await stream.writeSSE({
-              // @ts-ignore
-              data: JSON.stringify({ rows: result.rows }),
+              data: JSON.stringify({ status: "success", result }),
             });
-
-            await statusResolver.promise;
+          } catch (error) {
+            await stream.writeSSE({
+              data: JSON.stringify({
+                status: "error",
+                error: (error as Error).message,
+              }),
+            });
           }
-        },
-        async () => {
-          // TODO(kyle) send error to client?
-          // TODO(kyle) log error
-        },
-      );
+          await statusResolver.promise;
+        }
+      });
     }
 
     return next();

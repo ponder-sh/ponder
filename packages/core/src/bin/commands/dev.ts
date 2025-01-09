@@ -8,9 +8,7 @@ import { buildOptions } from "@/internal/options.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
-import type { PGlite } from "@electric-sql/pglite";
 import { createQueue } from "@ponder/common";
-import type { PoolClient } from "pg";
 import type { CliOptions } from "../ponder.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
@@ -169,12 +167,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         });
 
         await database.migrate(indexingBuildResult.result);
-        listenConnection = await database.getListenStatusConnection();
 
-        const apiResult = await build.executeApi({
-          database,
-          listenConnection,
-        });
+        const apiResult = await build.executeApi({ database });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -237,10 +231,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       } else {
         metrics.resetApiMetrics();
 
-        const apiResult = await build.executeApi({
-          database: database!,
-          listenConnection: listenConnection!,
-        });
+        const apiResult = await build.executeApi({ database: database! });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -274,7 +265,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   let database: Database | undefined;
-  let listenConnection: PoolClient | PGlite | undefined;
 
   build.initNamespace({ isSchemaRequired: false });
   build.initNamespace({ isSchemaRequired: false });

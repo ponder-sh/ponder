@@ -44,6 +44,7 @@ import parse from "pg-connection-string";
 import prometheus from "prom-client";
 
 export type Database = {
+  driver: PGliteDriver | PostgresDriver;
   qb: QueryBuilder;
   wrap: <T>(
     options: {
@@ -56,10 +57,8 @@ export type Database = {
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
   migrate({ buildId }: Pick<IndexingBuild, "buildId">): Promise<void>;
-  /** ... , possibly reverting unfinalized rows. */
+  /** Determine the app checkpoint , possibly reverting unfinalized rows. */
   recoverCheckpoint(): Promise<string>;
-  /** Create a connection to be used for listening to notifications from the status channel. */
-  getListenStatusConnection(): Promise<PoolClient | PGlite>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
@@ -106,6 +105,7 @@ type PostgresDriver = {
   user: Pool;
   sync: Pool;
   readonly: Pool;
+  listen: PoolClient;
 };
 
 type QueryBuilder = {
@@ -301,7 +301,7 @@ export const createDatabase = async ({
         },
         common.logger,
       ),
-    };
+    } as PostgresDriver;
 
     qb = {
       internal: new Kysely({
@@ -496,6 +496,7 @@ export const createDatabase = async ({
   let checkpoint: string | undefined;
 
   const database = {
+    driver,
     qb,
     // @ts-ignore
     async wrap(options, fn) {
@@ -974,6 +975,35 @@ export const createDatabase = async ({
         }
       }
 
+      // Setup status notification
+
+      await sql
+        .raw(`
+CREATE OR REPLACE FUNCTION notify_${preBuild.namespace}_status_update()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+NOTIFY status_update_channel;
+RETURN NULL;
+END;
+$$;`)
+        .execute(qb.internal);
+
+      await sql
+        .raw(`
+CREATE OR REPLACE TRIGGER status_update_trigger
+AFTER INSERT OR UPDATE OR DELETE
+ON "${preBuild.namespace}"._ponder_status
+FOR EACH STATEMENT
+EXECUTE PROCEDURE notify_${preBuild.namespace}_status_update();`)
+        .execute(qb.internal);
+
+      if (dialect === "postgres") {
+        // @ts-ignore
+        driver.listen = await driver.internal.connect();
+      }
+
       heartbeatInterval = setInterval(async () => {
         try {
           const heartbeat = Date.now();
@@ -1070,35 +1100,6 @@ export const createDatabase = async ({
           return app.checkpoint;
         }),
       );
-    },
-    async prepareLiveConnection() {
-      await sql
-        .raw(`
-CREATE OR REPLACE FUNCTION notify_status_update()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  NOTIFY status_update_channel;
-  RETURN NULL;
-END;
-$$;`)
-        .execute(qb.internal);
-
-      await sql
-        .raw(`
-CREATE OR REPLACE TRIGGER status_update_trigger
-AFTER INSERT OR UPDATE OR DELETE
-ON "${preBuild.namespace}"._ponder_status
-FOR EACH STATEMENT
-EXECUTE PROCEDURE notify_status_update();`)
-        .execute(qb.internal);
-
-      if (dialect === "postgres") {
-        return (driver as PostgresDriver).internal.connect();
-      } else {
-        return (driver as PGliteDriver).instance;
-      }
     },
     async createIndexes() {
       for (const statement of schemaBuild.statements.indexes.sql) {
@@ -1240,6 +1241,7 @@ $$ LANGUAGE plpgsql
 
       if (dialect === "postgres") {
         const d = driver as PostgresDriver;
+        d.listen.release();
         await d.internal.end();
         await d.user.end();
         await d.readonly.end();

@@ -55,10 +55,7 @@ export type Build = {
   executeConfig: () => Promise<ConfigResult>;
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
-  executeApi: (params: {
-    database: Database;
-    listenConnection: PoolClient | PGlite;
-  }) => Promise<ApiResult>;
+  executeApi: (params: { database: Database }) => Promise<ApiResult>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexing: (params: {
@@ -298,9 +295,11 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi({ database, listenConnection }): Promise<ApiResult> {
+    async executeApi({ database }): Promise<ApiResult> {
       global.PONDER_READONLY_DB = database.qb.drizzleReadonly;
-      global.PONDER_LISTEN_CONNECTION = listenConnection;
+      global.PONDER_LISTEN_CONNECTION =
+        // @ts-ignore
+        database.driver.listen ?? database.driver.instance;
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(
