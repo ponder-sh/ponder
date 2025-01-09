@@ -16,7 +16,10 @@
  * ) // [{a: 1, b: 2}, {a: 2, b: 2}]
  *
  */
-export function dedupe<item, id>(arr: item[], getId?: (x: item) => id): item[] {
+export function dedupe<item, id>(
+  arr: item[] | readonly item[],
+  getId?: (x: item) => id,
+): item[] {
   const seen = new Set<id | item>();
 
   return arr.filter((x) => {

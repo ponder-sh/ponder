@@ -96,7 +96,7 @@ export type SyncStore = {
     filters: Filter[];
     from: string;
     to: string;
-    limit: number;
+    limit?: number;
   }): Promise<{ events: RawEvent[]; cursor: string }>;
   insertRpcRequestResult(args: {
     request: string;
@@ -141,6 +141,7 @@ const logFactorySQL = (
         }
       })().as("childAddress"),
     )
+    .distinct()
     .$call((qb) => {
       if (Array.isArray(factory.address)) {
         return qb.where("address", "in", factory.address);
@@ -270,7 +271,6 @@ export const createSyncStore = ({
       return await db
         .selectFrom("logs")
         .$call((qb) => logFactorySQL(qb, filter))
-        .orderBy("id asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!))
         .execute()
         .then((addresses) => addresses.map(({ childAddress }) => childAddress));
@@ -836,7 +836,7 @@ export const createSyncStore = ({
           .where("event.checkpoint", "<=", to)
           .orderBy("event.checkpoint", "asc")
           .orderBy("event.filterIndex", "asc")
-          .limit(limit)
+          .$if(limit !== undefined, (qb) => qb.limit(limit!))
           .execute();
       },
     );

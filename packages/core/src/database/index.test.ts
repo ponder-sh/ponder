@@ -648,6 +648,27 @@ test("createTriggers()", async (context) => {
   await database.kill();
 });
 
+test("createTriggers() duplicate", async (context) => {
+  const database = createDatabase({
+    common: context.common,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.setup({ buildId: "abc" });
+  await database.createTriggers();
+  await database.createTriggers();
+
+  await database.unlock();
+  await database.kill();
+});
+
 test("complete()", async (context) => {
   const database = createDatabase({
     common: context.common,

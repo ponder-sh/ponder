@@ -1,5 +1,73 @@
 # ponder
 
+## 0.8.21
+
+### Patch Changes
+
+- [#1424](https://github.com/ponder-sh/ponder/pull/1424) [`60e7b6a33f3280eb08412cbec742e3d23d0d4404`](https://github.com/ponder-sh/ponder/commit/60e7b6a33f3280eb08412cbec742e3d23d0d4404) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where indexing errors did not include the block number and transaction hash of the event being indexed.
+
+## 0.8.20
+
+### Patch Changes
+
+- [`85c9b3247bcb52c8d567f93ab19aee5746d8923d`](https://github.com/ponder-sh/ponder/commit/85c9b3247bcb52c8d567f93ab19aee5746d8923d) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug introduced in 0.8.14 which caused unnecessary `eth_getBlockReceipts` requests.
+
+- [#1421](https://github.com/ponder-sh/ponder/pull/1421) [`de4b398fba7c1d93e12e5500fcc598239b04597a`](https://github.com/ponder-sh/ponder/commit/de4b398fba7c1d93e12e5500fcc598239b04597a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where events between the historical backfill and live indexing were skipped. This does not affect the rpc cache.
+
+## 0.8.19
+
+### Patch Changes
+
+- [#1416](https://github.com/ponder-sh/ponder/pull/1416) [`7234384afb6d18e1ca3d6c291ebe7db111773c06`](https://github.com/ponder-sh/ponder/commit/7234384afb6d18e1ca3d6c291ebe7db111773c06) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing the error: `trigger "_reorg__xyz" for relation "xyz" already exists`.
+
+## 0.8.18
+
+### Patch Changes
+
+- [#1414](https://github.com/ponder-sh/ponder/pull/1414) [`3aa89415a528152c32cd5d9fea0f4b65061bb232`](https://github.com/ponder-sh/ponder/commit/3aa89415a528152c32cd5d9fea0f4b65061bb232) Thanks [@typedarray](https://github.com/typedarray)! - Fixed the `FlushError: invalid byte sequence for encoding "UTF8": 0x00` error by removing null characters from decoded ABI parameters.
+
+## 0.8.17
+
+### Patch Changes
+
+- [#1411](https://github.com/ponder-sh/ponder/pull/1411) [`60704d3974387cb625c8fe2e45026fc2235622b9`](https://github.com/ponder-sh/ponder/commit/60704d3974387cb625c8fe2e45026fc2235622b9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where ZKsync system logs failed with the error `Detected inconsistent RPC responses. 'log.transactionHash' 0x0000000000000000000000000000000000000000000000000000000000000000 not found in 'block.transactions' (...)`.
+
+## 0.8.16
+
+### Patch Changes
+
+- [#1407](https://github.com/ponder-sh/ponder/pull/1407) [`bfc51efc1e767ff2670494ecbb14b332bc2d3d05`](https://github.com/ponder-sh/ponder/commit/bfc51efc1e767ff2670494ecbb14b332bc2d3d05) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a Windows bug introduced in `0.8.0` where the build would fail with the error "Failed to load url (...) in ponder:schema". Fixed a Windows bug where the build would fail when using an in-memory PGlite database with the error "Path contains invalid characters: memory://".
+
+## 0.8.15
+
+### Patch Changes
+
+- [#1403](https://github.com/ponder-sh/ponder/pull/1403) [`95aa8102cb44c4628dc89634724fd6432cb4f93f`](https://github.com/ponder-sh/ponder/commit/95aa8102cb44c4628dc89634724fd6432cb4f93f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where a reorg sometimes caused events to be skipped. This does not affect the rpc cache.
+
+## 0.8.14
+
+### Patch Changes
+
+- [#1342](https://github.com/ponder-sh/ponder/pull/1342) [`f49e62d888cd1e9ed2555331b84701ad8b0e8604`](https://github.com/ponder-sh/ponder/commit/f49e62d888cd1e9ed2555331b84701ad8b0e8604) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for "eth_getBlockReceipts" request for better performance and cost.
+
+## 0.8.13
+
+### Patch Changes
+
+- [#1397](https://github.com/ponder-sh/ponder/pull/1397) [`787a8dc1d92b08ed85ee9762ef41fd0918f163ef`](https://github.com/ponder-sh/ponder/commit/787a8dc1d92b08ed85ee9762ef41fd0918f163ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug resulting in `error: ON CONFLICT DO UPDATE command cannot affect row a second time`.
+
+## 0.8.12
+
+### Patch Changes
+
+- [#1389](https://github.com/ponder-sh/ponder/pull/1389) [`f78e29ace56bdf2746a452c113e88cba5172401c`](https://github.com/ponder-sh/ponder/commit/f78e29ace56bdf2746a452c113e88cba5172401c) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned @electric-sql/pglite dependency to v0.2.13. Fixed `"information_schema.schemata" does not exist` error.
+
+## 0.8.11
+
+### Patch Changes
+
+- [#1394](https://github.com/ponder-sh/ponder/pull/1394) [`4ea0ef5f055e38e60f59ea4a03046b64100d92bc`](https://github.com/ponder-sh/ponder/commit/4ea0ef5f055e38e60f59ea4a03046b64100d92bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added trace level logs for rpc requests.
+
 ## 0.8.10
 
 ### Patch Changes

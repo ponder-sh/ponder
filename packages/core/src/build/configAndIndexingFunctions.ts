@@ -21,7 +21,8 @@ import {
 } from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { Address, Hex, LogTopic } from "viem";
+import { dedupe } from "@ponder/common";
+import type { Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
 
 export type RawIndexingFunctions = {
@@ -488,9 +489,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
+        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
         : resolvedAddress !== undefined
-          ? (toLowerCase(resolvedAddress) as Address)
+          ? toLowerCase(resolvedAddress)
           : undefined;
 
       const logSource = {
@@ -680,9 +681,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
+        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
         : resolvedAddress !== undefined
-          ? (toLowerCase(resolvedAddress) as Address)
+          ? toLowerCase(resolvedAddress)
           : undefined;
 
       return [

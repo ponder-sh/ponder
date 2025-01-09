@@ -39,11 +39,15 @@ export default schema;
 `;
 
 export const vitePluginPonder = (options: Common["options"]): Plugin => {
+  // On Windows, options.schemaFile is a Windows-style path. We need to convert it to a
+  // Unix-style path for codegen, because TS import paths are Unix-style even on Windows.
+  const schemaPath = options.schemaFile.replace(/\\/g, "/");
+
   return {
     name: "ponder",
     load: (id) => {
       if (id === "ponder:registry") return virtualModule();
-      if (id === "ponder:schema") return schemaModule(options.schemaFile);
+      if (id === "ponder:schema") return schemaModule(schemaPath);
       return null;
     },
   };
