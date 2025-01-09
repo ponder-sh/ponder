@@ -95,7 +95,7 @@ const result = await client.db.select().from(schema.account).limit(10);
 
 ### `client.live`
 
-Coming soon.
+Subscribe to live updates.
 
 ```ts
 import { createClient } from "@ponder/client";
@@ -106,6 +106,9 @@ const client = createClient("https://...", { schema });
 const { unsubscribe } = client.live(
   (db) => db.select().from(schema.account),
   (result) => {
+    // ...
+  },
+  (error) => {
     // ...
   }
 );
