@@ -9,12 +9,12 @@ import { BuildError } from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
+  NamespaceBuild,
   PreBuild,
   RawIndexingFunctions,
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import type { Drizzle } from "@/types/db.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
@@ -33,8 +33,9 @@ import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 declare global {
-  var PONDER_DATABASE_SCHEMA: string | undefined;
-  var PONDER_READONLY_DB: Drizzle<Schema>;
+  var PONDER_NAMESPACE_BUILD: NamespaceBuild;
+  var PONDER_INDEXING_BUILD: IndexingBuild;
+  var PONDER_DATABASE: Database;
   var PONDER_LISTEN_CONNECTION: ListenConnection;
 }
 
@@ -49,14 +50,17 @@ type IndexingResult = Result<{
 type ApiResult = Result<{ app: Hono }>;
 
 export type Build = {
-  initNamespace: (params: { isSchemaRequired: boolean }) => Result<never>;
   executeConfig: () => Promise<ConfigResult>;
-  executeSchema: () => Promise<SchemaResult>;
+  executeSchema: (params: {
+    namespace: NamespaceBuild;
+  }) => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
   executeApi: (params: {
+    indexingBuild: IndexingBuild;
     database: Database;
     listenConnection: ListenConnection;
   }) => Promise<ApiResult>;
+  namespaceCompile: () => Result<NamespaceBuild>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexing: (params: {
@@ -80,8 +84,6 @@ export const createBuild = async ({
   common: Common;
   cliOptions: CliOptions;
 }): Promise<Build> => {
-  let namespace: string | undefined;
-
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
 
   const escapedIndexingDir = common.options.indexingDir
@@ -159,34 +161,6 @@ export const createBuild = async ({
   };
 
   const build = {
-    initNamespace: ({ isSchemaRequired }) => {
-      if (isSchemaRequired) {
-        if (
-          cliOptions.schema === undefined &&
-          process.env.DATABASE_SCHEMA === undefined
-        ) {
-          const error = new BuildError(
-            "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/getting-started/database#database-schema",
-          );
-          error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
-          return { status: "error", error } as const;
-        }
-
-        namespace = cliOptions.schema ?? process.env.DATABASE_SCHEMA;
-      } else {
-        namespace =
-          cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
-      }
-
-      global.PONDER_DATABASE_SCHEMA = namespace;
-
-      return { status: "success" } as const;
-    },
     async executeConfig(): Promise<ConfigResult> {
       const executeResult = await executeFile({
         file: common.options.configFile,
@@ -214,7 +188,8 @@ export const createBuild = async ({
         result: { config, contentHash },
       } as const;
     },
-    async executeSchema(): Promise<SchemaResult> {
+    async executeSchema({ namespace }): Promise<SchemaResult> {
+      global.PONDER_NAMESPACE_BUILD = namespace;
       const executeResult = await executeFile({
         file: common.options.schemaFile,
       });
@@ -296,8 +271,13 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi({ database, listenConnection }): Promise<ApiResult> {
-      global.PONDER_READONLY_DB = database.qb.drizzleReadonly;
+    async executeApi({
+      indexingBuild,
+      database,
+      listenConnection,
+    }): Promise<ApiResult> {
+      global.PONDER_INDEXING_BUILD = indexingBuild;
+      global.PONDER_DATABASE = database;
       global.PONDER_LISTEN_CONNECTION = listenConnection;
 
       if (!fs.existsSync(common.options.apiFile)) {
@@ -352,6 +332,27 @@ export const createBuild = async ({
         result: { app },
       };
     },
+    namespaceCompile() {
+      if (
+        cliOptions.schema === undefined &&
+        process.env.DATABASE_SCHEMA === undefined
+      ) {
+        const error = new BuildError(
+          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/getting-started/database#database-schema",
+        );
+        error.stack = undefined;
+        common.logger.error({
+          service: "build",
+          msg: "Failed build",
+          error,
+        });
+        return { status: "error", error } as const;
+      }
+      return {
+        status: "success",
+        result: cliOptions.schema ?? process.env.DATABASE_SCHEMA!,
+      } as const;
+    },
     preCompile({ config }): Result<PreBuild> {
       const preBuild = safeBuildPre({
         config,
@@ -375,7 +376,6 @@ export const createBuild = async ({
         status: "success",
         result: {
           databaseConfig: preBuild.databaseConfig,
-          namespace: namespace!,
         },
       } as const;
     },

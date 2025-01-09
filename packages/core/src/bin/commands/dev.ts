@@ -10,6 +10,7 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
+import type { IndexingBuild } from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
@@ -118,7 +119,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const schemaResult = await build.executeSchema();
+        const schemaResult = await build.executeSchema({ namespace });
         if (schemaResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -168,12 +169,19 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
           return;
         }
+        indexingBuild = indexingBuildResult.result;
 
-        database = await createDatabase({ common, preBuild, schemaBuild });
+        database = await createDatabase({
+          common,
+          namespace,
+          preBuild,
+          schemaBuild,
+        });
         await database.migrate(indexingBuildResult.result);
         listenConnection = await database.getListenConnection();
 
         const apiResult = await build.executeApi({
+          indexingBuild,
           database,
           listenConnection,
         });
@@ -240,6 +248,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         metrics.resetApiMetrics();
 
         const apiResult = await build.executeApi({
+          indexingBuild: indexingBuild!,
           database: database!,
           listenConnection: listenConnection!,
         });
@@ -275,11 +284,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
+  let indexingBuild: IndexingBuild | undefined;
   let database: Database | undefined;
   let listenConnection: ListenConnection | undefined;
 
-  build.initNamespace({ isSchemaRequired: false });
-  build.initNamespace({ isSchemaRequired: false });
+  const namespace =
+    cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
 
   build.startDev({
     onReload: (kind) => {

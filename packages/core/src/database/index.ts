@@ -4,6 +4,7 @@ import type { Common } from "@/internal/common.js";
 import { IgnorableError, NonRetryableError } from "@/internal/errors.js";
 import type {
   IndexingBuild,
+  NamespaceBuild,
   PreBuild,
   Schema,
   SchemaBuild,
@@ -127,10 +128,12 @@ type QueryBuilder = {
 
 export const createDatabase = async ({
   common,
+  namespace,
   preBuild,
   schemaBuild,
 }: {
   common: Common;
+  namespace: NamespaceBuild;
   preBuild: PreBuild;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Promise<Database> => {
@@ -148,7 +151,7 @@ export const createDatabase = async ({
 
   common.logger.info({
     service: "database",
-    msg: `Using database schema '${preBuild.namespace}'`,
+    msg: `Using database schema '${namespace}'`,
   });
 
   if (dialect === "pglite" || dialect === "pglite_test") {
@@ -161,10 +164,8 @@ export const createDatabase = async ({
 
     const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
 
-    await driver.instance.query(
-      `CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`,
-    );
-    await driver.instance.query(`SET search_path TO "${preBuild.namespace}"`);
+    await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
+    await driver.instance.query(`SET search_path TO "${namespace}"`);
 
     qb = {
       internal: new Kysely({
@@ -176,7 +177,7 @@ export const createDatabase = async ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       user: new Kysely({
         dialect: kyselyDialect,
@@ -187,7 +188,7 @@ export const createDatabase = async ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       readonly: new Kysely({
         dialect: kyselyDialect,
@@ -198,7 +199,7 @@ export const createDatabase = async ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       sync: new Kysely<PonderSyncSchema>({
         dialect: kyselyDialect,
@@ -233,7 +234,7 @@ export const createDatabase = async ({
     const internal = createPool(
       {
         ...preBuild.databaseConfig.poolConfig,
-        application_name: `${preBuild.namespace}_internal`,
+        application_name: `${namespace}_internal`,
         max: internalMax,
         statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
       },
@@ -246,10 +247,10 @@ export const createDatabase = async ({
 
     const role =
       connection.database === undefined
-        ? `ponder_readonly_${preBuild.namespace}`
-        : `ponder_readonly_${connection.database}_${preBuild.namespace}`;
+        ? `ponder_readonly_${namespace}`
+        : `ponder_readonly_${connection.database}_${namespace}`;
 
-    await internal.query(`CREATE SCHEMA IF NOT EXISTS "${preBuild.namespace}"`);
+    await internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     const hasRole = await internal
       .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
       .then(({ rows }) => rows[0]);
@@ -261,17 +262,15 @@ export const createDatabase = async ({
     await internal.query(
       `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
     );
+    await internal.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`);
     await internal.query(
-      `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO "${role}"`,
+      `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
     );
     await internal.query(
-      `GRANT SELECT ON ALL TABLES IN SCHEMA "${preBuild.namespace}" TO "${role}"`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
     );
     await internal.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO "${role}"`,
-    );
-    await internal.query(
-      `ALTER ROLE "${role}" SET search_path TO "${preBuild.namespace}"`,
+      `ALTER ROLE "${role}" SET search_path TO "${namespace}"`,
     );
     await internal.query(`ALTER ROLE "${role}" SET statement_timeout TO '1s'`);
     await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
@@ -281,7 +280,7 @@ export const createDatabase = async ({
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${preBuild.namespace}_user`,
+          application_name: `${namespace}_user`,
           max: userMax,
         },
         common.logger,
@@ -290,7 +289,7 @@ export const createDatabase = async ({
         {
           ...preBuild.databaseConfig.poolConfig,
           connectionString: undefined,
-          application_name: `${preBuild.namespace}_readonly`,
+          application_name: `${namespace}_readonly`,
           max: readonlyMax,
           user: role,
           password: "pw",
@@ -320,7 +319,7 @@ export const createDatabase = async ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       user: new Kysely({
         dialect: new PostgresDialect({ pool: driver.user }),
@@ -331,7 +330,7 @@ export const createDatabase = async ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       readonly: new Kysely({
         dialect: new PostgresDialect({ pool: driver.readonly }),
@@ -342,7 +341,7 @@ export const createDatabase = async ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
       sync: new Kysely<PonderSyncSchema>({
         dialect: new PostgresDialect({ pool: driver.sync }),
@@ -643,7 +642,7 @@ export const createDatabase = async ({
               // @ts-ignore
               .select("schema")
               // @ts-ignore
-              .where("namespace", "=", preBuild.namespace)
+              .where("namespace", "=", namespace)
               .executeTakeFirst()
               .then((schema: any | undefined) =>
                 schema === undefined
@@ -664,7 +663,7 @@ export const createDatabase = async ({
                 // @ts-ignore
                 .deleteFrom("namespace_lock")
                 // @ts-ignore
-                .where("namespace", "=", preBuild.namespace)
+                .where("namespace", "=", namespace)
                 .execute();
 
               if (namespaceCount!.count === 1) {
@@ -697,7 +696,7 @@ export const createDatabase = async ({
         // @ts-ignore
         .where("table_name", "=", "_ponder_meta")
         // @ts-ignore
-        .where("table_schema", "=", preBuild.namespace)
+        .where("table_schema", "=", namespace)
         .executeTakeFirst()
         .then((table) => table !== undefined);
 
@@ -721,7 +720,7 @@ export const createDatabase = async ({
               )
             ) {
               throw new NonRetryableError(
-                `Migration failed: Schema '${preBuild.namespace}' has an active app`,
+                `Migration failed: Schema '${namespace}' has an active app`,
               );
             }
 
@@ -806,7 +805,7 @@ export const createDatabase = async ({
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     const e = new NonRetryableError(
-                      `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                      `Unable to create table '${namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
                     );
                     e.stack = undefined;
                     throw e;
@@ -827,7 +826,7 @@ export const createDatabase = async ({
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     const e = new NonRetryableError(
-                      `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                      `Unable to create enum '${namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
                     e.stack = undefined;
                     throw e;
@@ -917,7 +916,7 @@ export const createDatabase = async ({
                 previousApp!.build_id !== buildId
               ) {
                 const error = new NonRetryableError(
-                  `Schema '${preBuild.namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+                  `Schema '${namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
                 );
                 error.stack = undefined;
                 throw error;
@@ -944,7 +943,7 @@ export const createDatabase = async ({
 
               common.logger.info({
                 service: "database",
-                msg: `Detected crash recovery for build '${buildId}' in schema '${preBuild.namespace}' last active ${formatEta(Date.now() - previousApp!.heartbeat_at)} ago`,
+                msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp!.heartbeat_at)} ago`,
               });
             }
 
@@ -962,11 +961,11 @@ export const createDatabase = async ({
         const duration = result.expiry - Date.now();
         common.logger.warn({
           service: "database",
-          msg: `Schema '${preBuild.namespace}' is locked by a different Ponder app`,
+          msg: `Schema '${namespace}' is locked by a different Ponder app`,
         });
         common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${preBuild.namespace} to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace} to expire...`,
         });
 
         await wait(duration);
@@ -974,7 +973,7 @@ export const createDatabase = async ({
         result = await attempt();
         if (result.status === "locked") {
           const error = new NonRetryableError(
-            `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this schema.`,
+            `Failed to acquire lock on schema '${namespace}'. A different Ponder app is actively using this schema.`,
           );
           error.stack = undefined;
           throw error;
@@ -1011,8 +1010,8 @@ export const createDatabase = async ({
     },
     async getListenConnection() {
       const trigger = "status_trigger";
-      const notification = `${preBuild.namespace}_status_notify()`;
-      const channel = `${preBuild.namespace}_status_channel`;
+      const notification = `${namespace}_status_notify()`;
+      const channel = `${namespace}_status_channel`;
 
       await this.wrap({ method: "getListenConnection" }, async () => {
         await sql
@@ -1032,7 +1031,7 @@ export const createDatabase = async ({
           .raw(`
       CREATE OR REPLACE TRIGGER ${trigger}
       AFTER INSERT OR UPDATE OR DELETE
-      ON "${preBuild.namespace}"._ponder_status
+      ON "${namespace}"._ponder_status
       FOR EACH STATEMENT
       EXECUTE PROCEDURE ${notification};`)
           .execute(qb.internal);
@@ -1068,7 +1067,7 @@ export const createDatabase = async ({
             for (const tableName of getTableNames(schemaBuild.schema)) {
               await sql
                 .raw(
-                  `TRUNCATE TABLE "${preBuild.namespace}"."${tableName.sql}", "${preBuild.namespace}"."${tableName.reorg}" CASCADE`,
+                  `TRUNCATE TABLE "${namespace}"."${tableName.sql}", "${namespace}"."${tableName.reorg}" CASCADE`,
                 )
                 .execute(tx);
             }
@@ -1090,7 +1089,7 @@ export const createDatabase = async ({
             for (const tableName of getTableNames(schemaBuild.schema)) {
               await sql
                 .raw(
-                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
+                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
                 )
                 .execute(tx);
             }
@@ -1104,7 +1103,7 @@ export const createDatabase = async ({
                 .execute();
               common.logger.info({
                 service: "database",
-                msg: `Dropped index '${indexStatement.data.name}' in schema '${preBuild.namespace}'`,
+                msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
               });
             }
 
@@ -1141,13 +1140,13 @@ CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
   END IF;
   RETURN NULL;
@@ -1159,7 +1158,7 @@ $$ LANGUAGE plpgsql
           await sql
             .raw(`
           CREATE OR REPLACE TRIGGER "${tableName.trigger}"
-          AFTER INSERT OR UPDATE OR DELETE ON "${preBuild.namespace}"."${tableName.sql}"
+          AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName.sql}"
           FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
           `)
             .execute(qb.internal);
@@ -1171,7 +1170,7 @@ $$ LANGUAGE plpgsql
         for (const tableName of getTableNames(schemaBuild.schema)) {
           await sql
             .raw(
-              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
+              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
             )
             .execute(qb.internal);
         }

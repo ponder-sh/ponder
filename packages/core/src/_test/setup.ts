@@ -200,9 +200,9 @@ export async function setupDatabaseServices(
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
       schema: config.schema,

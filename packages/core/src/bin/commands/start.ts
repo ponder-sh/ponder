@@ -67,7 +67,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  const namespaceResult = build.initNamespace({ isSchemaRequired: true });
+  const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
     await shutdown({ reason: "Failed to initialize namespace", code: 1 });
     return cleanup;
@@ -79,7 +79,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  const schemaResult = await build.executeSchema();
+  const schemaResult = await build.executeSchema({
+    namespace: namespaceResult.result,
+  });
   if (schemaResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
@@ -114,11 +116,20 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return cleanup;
   }
 
-  database = await createDatabase({ common, preBuild, schemaBuild });
+  database = await createDatabase({
+    common,
+    namespace: namespaceResult.result,
+    preBuild,
+    schemaBuild,
+  });
   await database.migrate(indexingBuildResult.result);
   const listenConnection = await database.getListenConnection();
 
-  const apiResult = await build.executeApi({ database, listenConnection });
+  const apiResult = await build.executeApi({
+    indexingBuild: indexingBuildResult.result,
+    database,
+    listenConnection,
+  });
   if (apiResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
     return cleanup;
