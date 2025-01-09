@@ -44,7 +44,6 @@ import parse from "pg-connection-string";
 import prometheus from "prom-client";
 
 export type Database = {
-  driver: PGliteDriver | PostgresDriver;
   qb: QueryBuilder;
   wrap: <T>(
     options: {
@@ -504,7 +503,6 @@ export const createDatabase = async ({
   let checkpoint: string | undefined;
 
   const database = {
-    driver,
     qb,
     // @ts-ignore
     async wrap(options, fn) {
