@@ -65,9 +65,9 @@ test("createDatabase() readonly", async (context) => {
 });
 
 test("createDatabase() search path", async (context) => {
-  // create table in "ponder" schema
+  // create table in "Ponder" schema
 
-  const schemaAccount = pgSchema("ponder").table("account", {
+  const schemaAccount = pgSchema("Ponder").table("account", {
     address: hex().primaryKey(),
     balance: bigint(),
   });
@@ -76,7 +76,7 @@ test("createDatabase() search path", async (context) => {
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "ponder",
+      namespace: "Ponder",
     },
     schemaBuild: {
       schema: { account: schemaAccount },
@@ -87,7 +87,7 @@ test("createDatabase() search path", async (context) => {
   await database.migrate({ buildId: "abc" });
 
   // using bare "account" will leave schema empty, and the search_path
-  // will then use the "ponder" schema
+  // will then use the "Ponder" schema
 
   const rows = await database.qb.drizzleReadonly.select().from(account);
 

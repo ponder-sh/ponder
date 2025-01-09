@@ -1241,7 +1241,7 @@ $$ LANGUAGE plpgsql
 
       if (dialect === "postgres") {
         const d = driver as PostgresDriver;
-        d.listen.release();
+        d.listen?.release();
         await d.internal.end();
         await d.user.end();
         await d.readonly.end();
