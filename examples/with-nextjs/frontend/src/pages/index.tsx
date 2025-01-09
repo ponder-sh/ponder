@@ -38,10 +38,11 @@ function Table({ deposits }: { deposits: Deposit[] }) {
         <p>Amount</p>
         <p className="hidden sm:flex">Timestamp</p>
       </li>
-      {deposits.map(({ account, timestamp, amount }) => (
+      {deposits.map(({ account, timestamp, amount }, i) => (
         <li
           className="grid grid-cols-2 py-2 w-full text-lg font-semibold sm:grid-cols-3"
-          key={`${account}-${timestamp}`}
+          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+          key={`${account}-${timestamp}-${amount}-${i}`}
         >
           <a
             className="text-sm font-semibold text-blue-500 underline"

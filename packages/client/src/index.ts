@@ -1,7 +1,19 @@
 import { type QueryWithTypings, type SQLWrapper, sql } from "drizzle-orm";
 import { type PgDialect, type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
-import { EventSource } from "undici";
+
+const getEventSource = async () => {
+  let SSE: typeof EventSource;
+  if (typeof window === "undefined") {
+    const undici = await import("undici");
+    // @ts-ignore
+    SSE = undici.EventSource;
+  } else {
+    SSE = window.EventSource;
+  }
+
+  return SSE;
+};
 
 type Schema = { [name: string]: unknown };
 
@@ -112,27 +124,31 @@ export const createClient = <schema extends Schema>(
         false,
       );
 
-      const sse = new EventSource(getUrl(baseUrl, "live", builtQuery));
+      let sse: EventSource;
 
-      sse.onmessage = (event) => {
-        const data = JSON.parse(event.data) as
-          | { status: "success"; result: unknown }
-          | { status: "error"; error: string };
+      getEventSource().then((SSE) => {
+        sse = new SSE(getUrl(baseUrl, "live", builtQuery));
 
-        if (data.status === "error") {
-          const error = new Error(data.error);
-          error.stack = undefined;
-          onError?.(error);
-        } else {
-          // @ts-ignore
-          onData(prepared.mapResult(data.result, true).rows);
-        }
-      };
+        sse.onmessage = (event) => {
+          const data = JSON.parse(event.data) as
+            | { status: "success"; result: unknown }
+            | { status: "error"; error: string };
 
-      sse.onerror = () => {
-        sse.close();
-        throw new Error("server disconnected");
-      };
+          if (data.status === "error") {
+            const error = new Error(data.error);
+            error.stack = undefined;
+            onError?.(error);
+          } else {
+            // @ts-ignore
+            onData(prepared.mapResult(data.result, true).rows);
+          }
+        };
+
+        sse.onerror = () => {
+          sse.close();
+          throw new Error("server disconnected");
+        };
+      });
 
       return {
         unsubscribe: () => {

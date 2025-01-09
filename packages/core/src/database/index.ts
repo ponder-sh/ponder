@@ -261,6 +261,9 @@ export const createDatabase = async ({
       `GRANT USAGE ON SCHEMA "${preBuild.namespace}" TO "${role}"`,
     );
     await internal.query(
+      `GRANT SELECT ON ALL TABLES IN SCHEMA "${preBuild.namespace}" TO "${role}"`,
+    );
+    await internal.query(
       `ALTER DEFAULT PRIVILEGES IN SCHEMA "${preBuild.namespace}" GRANT SELECT ON TABLES TO "${role}"`,
     );
     await internal.query(
