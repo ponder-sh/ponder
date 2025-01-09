@@ -62,10 +62,8 @@ type DatabaseConfig =
 
 type BlockConfig = {
   /** Block intervals with startBlock (inclusive) and endBlock (inclusive). If `undefined`, events will be processed from block 0 and in real-time. */
-  blocks?: BlockRange[];
+  blocks?: [number, number | "realtime"][] | [number, number | "realtime"];
 };
-
-export type BlockRange = [number, number | "realtime"];
 
 type TransactionReceiptConfig = {
   includeTransactionReceipts?: boolean;

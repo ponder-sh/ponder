@@ -1,5 +1,5 @@
 import { BuildError } from "@/common/errors.js";
-import type { BlockRange, Config } from "@/config/index.js";
+import type { Config } from "@/config/index.js";
 import {
   getFinalityBlockCount,
   getRpcUrlsForClient,
@@ -19,6 +19,7 @@ import {
   defaultTransferFilterInclude,
 } from "@/sync/source.js";
 import { chains } from "@/utils/chains.js";
+import { type Interval, intervalUnion } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { Address, Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
@@ -27,6 +28,8 @@ import type {
   Network,
   RawIndexingFunctions,
 } from "./index.js";
+
+type BlockRange = [number, number | "realtime"];
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
@@ -59,45 +62,25 @@ const flattenSources = <
 };
 
 function resolveBlockRanges(
-  blocks: BlockRange[] | undefined,
-): [number, number][] {
-  const blockRanges: [number, number][] =
+  blocks: BlockRange[] | BlockRange | undefined,
+): Interval[] {
+  const rawBlockRanges: BlockRange[] =
     blocks === undefined || blocks.length === 0
-      ? [[0, Number.MAX_SAFE_INTEGER]]
-      : blocks.map(([rawStartBlock, rawEndBlock]) => [
-          Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
-          Number.isNaN(rawEndBlock)
-            ? Number.MAX_SAFE_INTEGER
-            : (rawEndBlock as number),
-        ]);
+      ? [[0, "realtime"]]
+      : blocks.every((b) => Array.isArray(b))
+        ? blocks
+        : [blocks];
 
-  blockRanges.sort((a, b) => a[0] - b[0]);
+  const blockRanges: Interval[] = rawBlockRanges.map(
+    ([rawStartBlock, rawEndBlock]) => [
+      Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
+      Number.isNaN(rawEndBlock)
+        ? Number.MAX_SAFE_INTEGER
+        : (rawEndBlock as number),
+    ],
+  );
 
-  const resolvedBlockRanges: [number, number][] = [];
-
-  for (const [curStartBlock, curEndBlock] of blockRanges) {
-    if (resolvedBlockRanges.length === 0) {
-      resolvedBlockRanges.push([curStartBlock, curEndBlock]);
-      continue;
-    }
-
-    const last = resolvedBlockRanges[resolvedBlockRanges.length - 1]!;
-    const [lastStartBlock, lastEndBlock] = last;
-    if (lastEndBlock === Number.MAX_SAFE_INTEGER) {
-      break;
-    }
-    // Check for overlapping block ranges
-    if (curStartBlock <= lastEndBlock) {
-      resolvedBlockRanges[resolvedBlockRanges.length - 1] = [
-        lastStartBlock,
-        curEndBlock >= lastEndBlock ? curEndBlock : lastEndBlock,
-      ];
-    } else {
-      resolvedBlockRanges.push([curStartBlock, curEndBlock]);
-    }
-  }
-
-  return resolvedBlockRanges;
+  return intervalUnion(blockRanges);
 }
 
 export async function buildConfigAndIndexingFunctions({
@@ -259,7 +242,12 @@ export async function buildConfigAndIndexingFunctions({
     }
 
     const blockRanges: BlockRange[] =
-      source.blocks === undefined ? [[0, "realtime"]] : source.blocks;
+      source.blocks === undefined
+        ? [[0, "realtime"]]
+        : source.blocks.every((b) => Array.isArray(b))
+          ? source.blocks
+          : [source.blocks];
+
     for (const [rawStartBlock, rawEndBlock] of blockRanges) {
       const startBlock = Number.isNaN(rawStartBlock) ? 0 : rawStartBlock;
       const endBlock = Number.isNaN(rawEndBlock) ? "realtime" : rawEndBlock;
