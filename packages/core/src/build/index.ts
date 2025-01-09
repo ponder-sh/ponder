@@ -2,23 +2,24 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { CliOptions } from "@/bin/ponder.js";
-import type { Common } from "@/common/common.js";
-import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
-import type { SqlStatements } from "@/drizzle/kit/index.js";
-import type { Source } from "@/sync/source.js";
-import type { Prettify } from "@/types/utils.js";
-import type { PGliteOptions } from "@/utils/pglite.js";
+import type { Common } from "@/internal/common.js";
+import { BuildError } from "@/internal/errors.js";
+import type {
+  ApiBuild,
+  IndexingBuild,
+  PreBuild,
+  RawIndexingFunctions,
+  Schema,
+  SchemaBuild,
+} from "@/internal/types.js";
+import type { Drizzle } from "@/types/db.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
-import type { PGlite } from "@electric-sql/pglite";
 import { glob } from "glob";
 import { Hono } from "hono";
-import type { PoolConfig as RawPoolConfig } from "pg";
-import type { Chain, Transport } from "viem";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -37,54 +38,6 @@ declare global {
 }
 
 const BUILD_ID_VERSION = "1";
-
-export type DatabaseConfig =
-  | { kind: "pglite"; options: PGliteOptions }
-  | { kind: "pglite_test"; instance: PGlite }
-  | { kind: "postgres"; poolConfig: Prettify<RawPoolConfig & { max: number }> };
-
-export type RawIndexingFunctions = {
-  name: string;
-  fn: (...args: any) => any;
-}[];
-
-export type IndexingFunctions = {
-  [eventName: string]: (...args: any) => any;
-};
-
-export type Network = {
-  name: string;
-  chainId: number;
-  chain: Chain;
-  transport: ReturnType<Transport>;
-  pollingInterval: number;
-  maxRequestsPerSecond: number;
-  finalityBlockCount: number;
-  disableCache: boolean;
-};
-
-export type PreBuild = {
-  databaseConfig: DatabaseConfig;
-  namespace: string;
-};
-
-export type SchemaBuild = {
-  schema: Schema;
-  statements: SqlStatements;
-};
-
-export type IndexingBuild = {
-  buildId: string;
-  sources: Source[];
-  networks: Network[];
-  indexingFunctions: IndexingFunctions;
-};
-
-export type ApiBuild = {
-  hostname?: string;
-  port: number;
-  app: Hono;
-};
 
 type ConfigResult = Result<{ config: Config; contentHash: string }>;
 type SchemaResult = Result<{ schema: Schema; contentHash: string }>;

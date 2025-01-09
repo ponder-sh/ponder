@@ -10,13 +10,14 @@ import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import type { RawEvent } from "@/internal/types.js";
+import { decodeEvents } from "@/sync/events.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
-import { type RawEvent, decodeEvents } from "../sync/events.js";
 import {
   type Context,
   create,
@@ -55,18 +56,22 @@ test("createIndexing()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -88,18 +93,22 @@ test("processSetupEvents() empty", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -125,8 +134,10 @@ test("processSetupEvents()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -137,10 +148,12 @@ test("processSetupEvents()", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -184,8 +197,10 @@ test("processEvent()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -198,10 +213,12 @@ test("processEvent()", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -284,8 +301,10 @@ test("processEvents killed", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -298,10 +317,12 @@ test("processEvents killed", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -357,8 +378,10 @@ test("processEvents eventCount", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -370,10 +393,12 @@ test("processEvents eventCount", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -426,8 +451,10 @@ test("executeSetup() context.client", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -442,10 +469,12 @@ test("executeSetup() context.client", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -481,8 +510,10 @@ test("executeSetup() context.db", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -497,10 +528,12 @@ test("executeSetup() context.db", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -536,20 +569,24 @@ test("executeSetup() metrics", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:setup": vi.fn(),
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:setup": vi.fn(),
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -577,8 +614,10 @@ test("executeSetup() error", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -589,10 +628,12 @@ test("executeSetup() error", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -621,8 +662,10 @@ test("processEvents() context.client", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -635,13 +678,15 @@ test("processEvents() context.client", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        clientCall,
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          clientCall,
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -700,8 +745,10 @@ test("processEvents() context.db", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -717,13 +764,15 @@ test("processEvents() context.db", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        dbCall,
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          dbCall,
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -780,21 +829,25 @@ test("processEvents() metrics", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-        vi.fn(),
-    },
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      indexingFunctions: {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          vi.fn(),
+      },
+      sources,
+      networks,
+    },
     sync,
   });
 
@@ -845,8 +898,10 @@ test("processEvents() error", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -858,10 +913,12 @@ test("processEvents() error", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -923,8 +980,10 @@ test("execute() error after killed", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -937,10 +996,12 @@ test("execute() error after killed", async (context) => {
   };
 
   const indexingService = create({
-    indexingFunctions,
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions,
+    },
     sync,
   });
 
@@ -992,18 +1053,22 @@ test("ponderActions getBalance()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1030,18 +1095,22 @@ test("ponderActions getCode()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1074,18 +1143,22 @@ test("ponderActions getStorageAt()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1120,18 +1193,22 @@ test("ponderActions readContract()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1166,18 +1243,22 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 
@@ -1214,18 +1295,22 @@ test.skip("ponderActions multicall()", async (context) => {
   const sync = await createSync({
     common,
     syncStore,
-    networks,
-    sources,
+    indexingBuild: {
+      sources,
+      networks,
+    },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
   const indexingService = create({
-    indexingFunctions: {},
     common,
-    sources,
-    networks,
+    indexingBuild: {
+      sources,
+      networks,
+      indexingFunctions: {},
+    },
     sync,
   });
 

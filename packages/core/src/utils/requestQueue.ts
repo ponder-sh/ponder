@@ -1,5 +1,5 @@
-import type { Network } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
+import type { Common } from "@/internal/common.js";
+import type { Network } from "@/internal/types.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
   type GetLogsRetryHelperParameters,
@@ -55,7 +55,15 @@ export const createRequestQueue = ({
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
         const stopClock = startClock();
+        common.logger.trace({
+          service: "rpc",
+          msg: `Sent ${request.method} request (params=${JSON.stringify(request.params)})`,
+        });
         const response = await network.transport.request(request);
+        common.logger.trace({
+          service: "rpc",
+          msg: `Received ${request.method} response (duration=${stopClock()}, params=${JSON.stringify(request.params)})`,
+        });
         common.metrics.ponder_rpc_request_duration.observe(
           { method: request.method, network: network.name },
           stopClock(),
@@ -80,16 +88,16 @@ export const createRequestQueue = ({
 
         if (shouldRetry(error) === false) {
           common.logger.warn({
-            service: "sync",
-            msg: `Failed '${request.method}' RPC request`,
+            service: "rpc",
+            msg: `Failed ${request.method} request`,
           });
           throw error;
         }
 
         if (i === RETRY_COUNT) {
           common.logger.warn({
-            service: "sync",
-            msg: `Failed '${request.method}' RPC request after ${i + 1} attempts`,
+            service: "rpc",
+            msg: `Failed ${request.method} request after ${i + 1} attempts`,
             error,
           });
           throw error;
@@ -97,8 +105,8 @@ export const createRequestQueue = ({
 
         const duration = BASE_DURATION * 2 ** i;
         common.logger.debug({
-          service: "sync",
-          msg: `Failed '${request.method}' RPC request, retrying after ${duration} milliseconds`,
+          service: "rpc",
+          msg: `Failed ${request.method} request, retrying after ${duration} milliseconds`,
           error,
         });
         await wait(duration);

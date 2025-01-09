@@ -123,7 +123,7 @@ test("prepareNamespace() succeeds with empty schema", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(1);
 
   await database.unlock();
   await database.kill();
@@ -208,7 +208,7 @@ test("prepareNamespace() succeeds with crash recovery", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(1);
 
   const tableNames = await getUserTableNames(databaseTwo, "public");
   expect(tableNames).toContain("account");
@@ -370,8 +370,8 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -425,7 +425,7 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
     .selectAll()
     .execute();
 
-  expect(metadata).toHaveLength(2);
+  expect(metadata).toHaveLength(1);
 
   await databaseTwo.kill();
 });
@@ -549,8 +549,8 @@ test("finalize()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -693,8 +693,8 @@ test("createTriggers()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -738,8 +738,8 @@ test("complete()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore
@@ -789,8 +789,8 @@ test("revert()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: { account } },
     database,
-    schema: { account },
   });
 
   await indexingStore

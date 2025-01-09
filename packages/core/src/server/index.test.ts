@@ -90,8 +90,16 @@ test("ready", async (context) => {
   });
 
   await getMetadataStore({
-    db: database.qb.user,
-  }).setStatus({});
+    database,
+  }).setStatus({
+    1: {
+      ready: true,
+      block: {
+        number: 1,
+        timestamp: 1,
+      },
+    },
+  });
 
   const response = await server.hono.request("/ready");
 

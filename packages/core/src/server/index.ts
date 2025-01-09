@@ -1,8 +1,8 @@
 import http from "node:http";
-import type { ApiBuild } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
+import type { Common } from "@/internal/common.js";
+import type { ApiBuild } from "@/internal/types.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -11,7 +11,7 @@ import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
 import { onError } from "./error.js";
 
-type Server = {
+export type Server = {
   hono: Hono;
   kill: () => Promise<void>;
 };
@@ -27,9 +27,7 @@ export async function createServer({
 }): Promise<Server> {
   // Create hono app
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.readonly,
-  });
+  const metadataStore = getMetadataStore({ database });
 
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes

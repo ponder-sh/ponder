@@ -193,8 +193,6 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   return e;
 };
 
-const InlineForeignKeys = Symbol.for("drizzle:PgInlineForeignKeys");
-
 /** @see https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-orm/src/pg-core/table.ts#L51 */
 function pgTableWithSchema<
   name extends string,
@@ -231,13 +229,13 @@ function pgTableWithSchema<
   const builtColumns = Object.fromEntries(
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase;
-      //@ts-ignore
+      // @ts-ignore
       colBuilder.setName(name);
-      //@ts-ignore
+      // @ts-ignore
       const column = colBuilder.build(rawTable);
       // @ts-ignore
-      rawTable[InlineForeignKeys].push(
-        //@ts-ignore
+      rawTable[Symbol.for("drizzle:PgInlineForeignKeys")].push(
+        // @ts-ignore
         ...colBuilder.buildForeignKeys(column, rawTable),
       );
       return [name, column];

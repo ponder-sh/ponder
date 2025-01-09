@@ -103,12 +103,27 @@ import * as schema from "../../ponder/ponder.schema";
 
 const client = createClient("https://...", { schema });
 
-client.live(
+const { unsubscribe } = client.live(
   (db) => db.select().from(schema.account),
   (result) => {
     // ...
   }
 );
+```
+
+### Status
+
+The `status` table contains information about the indexing status of each chain.
+
+```ts {7}
+import { createClient, status } from "@ponder/client";
+
+const client = createClient("https://...");
+
+const mainnetStatus = client.db
+  .select()
+  .from(status)
+  .where(eq(status.chainId, 1));
 ```
 
 ### `@ponder/react`

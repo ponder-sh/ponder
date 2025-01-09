@@ -10,6 +10,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type { RawEvent } from "@/internal/types.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -19,7 +20,6 @@ import {
 import { wait } from "@/utils/wait.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
-import type { RawEvent } from "./events.js";
 import { type Sync, createSync } from "./index.js";
 
 beforeEach(setupCommon);
@@ -52,10 +52,9 @@ test("createSync()", async (context) => {
   });
 
   const sync = await createSync({
-    syncStore,
-    sources,
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+    syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -88,9 +87,10 @@ test("getEvents() returns events", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -126,9 +126,10 @@ test("getEvents() with cache", async (context) => {
 
   let sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -140,9 +141,10 @@ test("getEvents() with cache", async (context) => {
 
   sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -182,9 +184,10 @@ test("getEvents() end block", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -239,9 +242,11 @@ test.skip("getEvents() multichain", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources: [...sources1, ...sources2],
+    indexingBuild: {
+      sources: [...sources1, ...sources2],
+      networks: [...networks1, ...networks2],
+    },
     common: context.common,
-    networks: [...networks1, ...networks2],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -277,9 +282,10 @@ test("getEvents() updates status", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -289,8 +295,8 @@ test("getEvents() updates status", async (context) => {
 
   const status = sync.getStatus();
 
-  expect(status[network.name]?.ready).toBe(false);
-  expect(status[network.name]?.block?.number).toBe(2);
+  expect(status[network.chainId]?.ready).toBe(false);
+  expect(status[network.chainId]?.block?.number).toBe(2);
 
   await sync.kill();
 
@@ -319,9 +325,10 @@ test("getEvents() pagination", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -355,9 +362,10 @@ test("getEvents() initialCheckpoint", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(maxCheckpoint),
@@ -395,9 +403,10 @@ test("getEvents() refetches finalized block", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(maxCheckpoint),
@@ -432,9 +441,10 @@ test("startRealtime()", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -446,8 +456,8 @@ test("startRealtime()", async (context) => {
 
   const status = sync.getStatus();
 
-  expect(status[network.name]?.ready).toBe(true);
-  expect(status[network.name]?.block?.number).toBe(1);
+  expect(status[network.chainId]?.ready).toBe(true);
+  expect(status[network.chainId]?.block?.number).toBe(1);
 
   await sync.kill();
 
@@ -474,9 +484,10 @@ test("onEvent() handles block", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
@@ -522,9 +533,10 @@ test("onEvent() handles finalize", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -578,10 +590,12 @@ test("onEvent() multichain gets all events", async (context) => {
   const promise = promiseWithResolvers<void>();
 
   const sync = await createSync({
-    syncStore,
-    sources: [...sources1, ...sources2],
     common: context.common,
-    networks: [...networks1, ...networks2],
+    indexingBuild: {
+      sources: [...sources1, ...sources2],
+      networks: [...networks1, ...networks2],
+    },
+    syncStore,
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         promise.resolve();
@@ -631,10 +645,12 @@ test("onEvent() multichain end block", async (context) => {
   const promise = promiseWithResolvers<void>();
 
   const sync = await createSync({
-    syncStore,
-    sources: [...sources1, ...sources2],
     common: context.common,
-    networks: [...networks1, ...networks2],
+    indexingBuild: {
+      sources: [...sources1, ...sources2],
+      networks: [...networks1, ...networks2],
+    },
+    syncStore,
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         promise.resolve();
@@ -682,9 +698,10 @@ test("onEvent() handles endBlock finalization", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         promise.resolve();
@@ -726,9 +743,10 @@ test("onEvent() handles errors", async (context) => {
 
   const sync = await createSync({
     syncStore,
-    sources,
+
     common: context.common,
-    networks: [network],
+    indexingBuild: { sources, networks: [network] },
+
     onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();

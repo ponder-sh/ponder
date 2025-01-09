@@ -22,6 +22,14 @@ import {
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type {
+  BlockEvent,
+  LogEvent,
+  RawEvent,
+  TraceEvent,
+  TransferEvent,
+} from "@/internal/types.js";
+import type { LogFactory, LogFilter } from "@/internal/types.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
   encodeCheckpoint,
@@ -44,16 +52,7 @@ import {
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
 import { beforeEach, expect, test } from "vitest";
-import {
-  type BlockEvent,
-  type LogEvent,
-  type RawEvent,
-  type TraceEvent,
-  type TransferEvent,
-  buildEvents,
-  decodeEvents,
-} from "./events.js";
-import type { LogFactory, LogFilter } from "./source.js";
+import { buildEvents, decodeEvents } from "./events.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);

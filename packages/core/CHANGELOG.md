@@ -1,5 +1,29 @@
 # ponder
 
+## 0.8.14
+
+### Patch Changes
+
+- [#1342](https://github.com/ponder-sh/ponder/pull/1342) [`f49e62d888cd1e9ed2555331b84701ad8b0e8604`](https://github.com/ponder-sh/ponder/commit/f49e62d888cd1e9ed2555331b84701ad8b0e8604) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for "eth_getBlockReceipts" request for better performance and cost.
+
+## 0.8.13
+
+### Patch Changes
+
+- [#1397](https://github.com/ponder-sh/ponder/pull/1397) [`787a8dc1d92b08ed85ee9762ef41fd0918f163ef`](https://github.com/ponder-sh/ponder/commit/787a8dc1d92b08ed85ee9762ef41fd0918f163ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug resulting in `error: ON CONFLICT DO UPDATE command cannot affect row a second time`.
+
+## 0.8.12
+
+### Patch Changes
+
+- [#1389](https://github.com/ponder-sh/ponder/pull/1389) [`f78e29ace56bdf2746a452c113e88cba5172401c`](https://github.com/ponder-sh/ponder/commit/f78e29ace56bdf2746a452c113e88cba5172401c) Thanks [@kyscott18](https://github.com/kyscott18)! - Pinned @electric-sql/pglite dependency to v0.2.13. Fixed `"information_schema.schemata" does not exist` error.
+
+## 0.8.11
+
+### Patch Changes
+
+- [#1394](https://github.com/ponder-sh/ponder/pull/1394) [`4ea0ef5f055e38e60f59ea4a03046b64100d92bc`](https://github.com/ponder-sh/ponder/commit/4ea0ef5f055e38e60f59ea4a03046b64100d92bc) Thanks [@kyscott18](https://github.com/kyscott18)! - Added trace level logs for rpc requests.
+
 ## 0.8.10
 
 ### Patch Changes

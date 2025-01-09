@@ -1,18 +1,17 @@
-import type { DatabaseConfig } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
-import type { Common } from "@/common/common.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { createTelemetry } from "@/common/telemetry.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import {
   type MetadataStore,
   getMetadataStore,
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import type { Common } from "@/internal/common.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createTelemetry } from "@/internal/telemetry.js";
+import type { DatabaseConfig, Schema } from "@/internal/types.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -213,20 +212,15 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const syncStore = createSyncStore({
-    common: context.common,
-    db: database.qb.sync,
-  });
+  const syncStore = createSyncStore({ common: context.common, database });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: config.schema },
     database,
-    schema: config.schema,
   });
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.user,
-  });
+  const metadataStore = getMetadataStore({ database });
 
   const cleanup = () => database.kill();
 

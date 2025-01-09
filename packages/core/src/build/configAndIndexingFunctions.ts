@@ -1,33 +1,34 @@
-import { BuildError } from "@/common/errors.js";
 import type { Config } from "@/config/index.js";
 import {
   getFinalityBlockCount,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import { BuildError } from "@/internal/errors.js";
+import type {
+  AccountSource,
+  BlockSource,
+  ContractSource,
+  IndexingFunctions,
+  Network,
+  RawIndexingFunctions,
+  Source,
+} from "@/internal/types.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
-  type AccountSource,
-  type BlockSource,
-  type ContractSource,
-  type Source,
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
   defaultTraceFilterInclude,
   defaultTransactionFilterInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-} from "@/sync/source.js";
+} from "@/sync/filter.js";
 import { chains } from "@/utils/chains.js";
 import { type Interval, intervalUnion } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { Address, Hex, LogTopic } from "viem";
+import { dedupe } from "@ponder/common";
+import type { Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
-import type {
-  IndexingFunctions,
-  Network,
-  RawIndexingFunctions,
-} from "./index.js";
 
 type BlockRange = [number, number | "realtime"];
 
@@ -413,7 +414,7 @@ export async function buildConfigAndIndexingFunctions({
         abiEvents,
         abiFunctions,
         name: source.name,
-        networkName: source.network,
+        network,
       } as const;
 
       const resolvedAddress = source?.address;
@@ -500,9 +501,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
+        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
         : resolvedAddress !== undefined
-          ? (toLowerCase(resolvedAddress) as Address)
+          ? toLowerCase(resolvedAddress)
           : undefined;
 
       const logSources = topicsArray.flatMap((topics) =>
@@ -608,7 +609,7 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              networkName: source.network,
+              network,
               filter: {
                 type: "transaction",
                 chainId: network.chainId,
@@ -623,7 +624,7 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              networkName: source.network,
+              network,
               filter: {
                 type: "transaction",
                 chainId: network.chainId,
@@ -638,7 +639,7 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              networkName: source.network,
+              network,
               filter: {
                 type: "transfer",
                 chainId: network.chainId,
@@ -657,7 +658,7 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              networkName: source.network,
+              network,
               filter: {
                 type: "transfer",
                 chainId: network.chainId,
@@ -696,9 +697,9 @@ export async function buildConfigAndIndexingFunctions({
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
-        ? (resolvedAddress.map((r) => toLowerCase(r)) as Address[])
+        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
         : resolvedAddress !== undefined
-          ? (toLowerCase(resolvedAddress) as Address)
+          ? toLowerCase(resolvedAddress)
           : undefined;
 
       const accountSources = resolvedBlockRanges.flatMap(
@@ -706,8 +707,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-
-            networkName: source.network,
+            network,
             filter: {
               type: "transaction",
               chainId: network.chainId,
@@ -722,7 +722,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transaction",
               chainId: network.chainId,
@@ -737,7 +737,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transfer",
               chainId: network.chainId,
@@ -756,7 +756,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transfer",
               chainId: network.chainId,
@@ -818,7 +818,7 @@ export async function buildConfigAndIndexingFunctions({
           ({
             type: "block",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "block",
               chainId: network.chainId,
@@ -848,7 +848,7 @@ export async function buildConfigAndIndexingFunctions({
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
     const hasSources = sources.some(
-      (source) => source.networkName === network.name,
+      (source) => source.network.name === network.name,
     );
     if (!hasSources) {
       logs.push({
