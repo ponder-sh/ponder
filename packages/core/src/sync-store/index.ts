@@ -99,7 +99,7 @@ export type SyncStore = {
     filters: Filter[];
     from: string;
     to: string;
-    limit: number;
+    limit?: number;
   }): Promise<{ events: RawEvent[]; cursor: string }>;
   insertRpcRequestResult(args: {
     request: string;
@@ -841,7 +841,7 @@ export const createSyncStore = ({
           .where("event.checkpoint", "<=", to)
           .orderBy("event.checkpoint", "asc")
           .orderBy("event.filterIndex", "asc")
-          .limit(limit)
+          .$if(limit !== undefined, (qb) => qb.limit(limit!))
           .execute();
       },
     );
