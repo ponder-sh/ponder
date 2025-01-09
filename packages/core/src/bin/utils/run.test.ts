@@ -74,6 +74,8 @@ test("run() setup", async (context) => {
     },
   });
 
+  await database.migrate({ buildId: "buildId" });
+
   const kill = await run({
     common: context.common,
     database,
@@ -136,6 +138,8 @@ test("run() setup error", async (context) => {
       statements,
     },
   });
+
+  await database.migrate({ buildId: "buildId" });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
