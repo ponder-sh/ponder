@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.22
+
+### Patch Changes
+
+- [#1426](https://github.com/ponder-sh/ponder/pull/1426) [`bd52302092d5393012a100617541d533362ac927`](https://github.com/ponder-sh/ponder/commit/bd52302092d5393012a100617541d533362ac927) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with traces containing invalid byte sequences.
+
 ## 0.8.21
 
 ### Patch Changes
