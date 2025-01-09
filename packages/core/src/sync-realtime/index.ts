@@ -115,7 +115,7 @@ export const createRealtimeSync = (
   let unfinalizedBlocks: LightBlock[] = [];
   let queue: Queue<void, BlockWithEventData>;
   let consecutiveErrors = 0;
-  let interval: NodeJS.Timeout | undefined;
+  let cleanup: (() => Promise<void>) | undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -853,7 +853,7 @@ export const createRealtimeSync = (
   };
 
   return {
-    start(startArgs) {
+    async start(startArgs) {
       finalizedBlock = startArgs.syncProgress.finalized;
       finalizedChildAddresses = startArgs.initialChildAddresses;
       /**
@@ -997,22 +997,40 @@ export const createRealtimeSync = (
         },
       });
 
-      const enqueue = async () => {
+      const enqueue = async (hash?: Hash) => {
         try {
-          const block = await _eth_getBlockByNumber(args.rpc, {
-            blockTag: "latest",
-          });
+          let block: SyncBlock;
 
           const latestBlock = getLatestUnfinalizedBlock();
 
-          // We already saw and handled this block. No-op.
-          if (latestBlock.hash === block.hash) {
-            args.common.logger.trace({
-              service: "realtime",
-              msg: `Skipped processing '${args.chain.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+          if (hash === undefined) {
+            block = await _eth_getBlockByNumber(args.rpc, {
+              blockTag: "latest",
             });
 
-            return;
+            // We already saw and handled this block. No-op.
+            if (latestBlock.hash === block.hash) {
+              args.common.logger.trace({
+                service: "realtime",
+                msg: `Skipped processing '${args.chain.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+              });
+
+              return;
+            }
+          } else {
+            // We already saw and handled this block. No-op.
+            if (latestBlock.hash === hash) {
+              args.common.logger.trace({
+                service: "realtime",
+                msg: `Skipped processing '${args.chain.chain.name}' block ${hexToNumber(latestBlock.number)}, already synced`,
+              });
+
+              return;
+            }
+
+            block = await _eth_getBlockByHash(args.rpc, {
+              hash,
+            });
           }
 
           const blockWithEventData = await fetchBlockEventData(block);
@@ -1044,13 +1062,42 @@ export const createRealtimeSync = (
         }
       };
 
-      interval = setInterval(enqueue, args.chain.pollingInterval);
+      if (args.rpc.supports("eth_subscribe")) {
+        args.common.logger.info({
+          service: "realtime",
+          msg: `Subscribing to '${args.chain.chain.name}' network via websocket`,
+        });
+
+        try {
+          const connection = await args.rpc.subscribe({
+            params: ["newHeads"],
+            onData: (data) => {
+              // TODO(kyle) handle data.error
+
+              enqueue(data.result.hash);
+            },
+            onError: () => {
+              // TODO(kyle) handle error
+            },
+          });
+          cleanup = () => connection.unsubscribe().then(() => {});
+        } catch {
+          // TODO(kyle) handle error
+        }
+      } else {
+        args.common.logger.info({
+          service: "realtime",
+          msg: `Subscribing to '${args.chain.chain.name}' network via polling`,
+        });
+        const interval = setInterval(enqueue, args.chain.pollingInterval);
+        cleanup = () => Promise.resolve(clearInterval(interval));
+      }
 
       // Note: this is done just for testing.
       return enqueue().then(() => queue);
     },
     async kill() {
-      clearInterval(interval);
+      await cleanup?.();
       isKilled = true;
       queue?.pause();
       queue?.clear();
