@@ -18,22 +18,24 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
   const listenConnection = global.PONDER_LISTEN_CONNECTION;
-  let statusResolver = promiseWithResolvers<void>();
+  let statusResolver = promiseWithResolvers<(typeof status.$inferSelect)[]>();
 
   let queryPromise: Promise<any>;
 
   if (listenConnection instanceof PGlite) {
     queryPromise = listenConnection.query("LISTEN status_update_channel");
 
-    listenConnection.onNotification(() => {
-      statusResolver.resolve();
+    listenConnection.onNotification(async () => {
+      const result = await db.select().from(status);
+      statusResolver.resolve(result);
       statusResolver = promiseWithResolvers();
     });
   } else {
     queryPromise = listenConnection.query("LISTEN status_update_channel");
 
-    listenConnection.on("notification", () => {
-      statusResolver.resolve();
+    listenConnection.on("notification", async () => {
+      const result = await db.select().from(status);
+      statusResolver.resolve(result);
       statusResolver = promiseWithResolvers();
     });
   }
@@ -66,12 +68,13 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
 
       await queryPromise;
 
+      let statusResult = await db.select().from(status);
+
       return streamSSE(c, async (stream) => {
         while (stream.closed === false) {
           try {
-            const result = await db.select().from(status);
             await stream.writeSSE({
-              data: JSON.stringify({ status: "success", result }),
+              data: JSON.stringify({ status: "success", result: statusResult }),
             });
           } catch (error) {
             await stream.writeSSE({
@@ -81,7 +84,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
               }),
             });
           }
-          await statusResolver.promise;
+          statusResult = await statusResolver.promise;
         }
       });
     }
