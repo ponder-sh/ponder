@@ -150,11 +150,10 @@ export const createClient = <schema extends Schema>(
 
         liveCount++;
         if (sse === undefined) {
-          getEventSource()
-            .then((SSE) => {
-              sse = new SSE(getUrl(baseUrl, "live"));
-            })
-            .then(addEventListeners);
+          getEventSource().then((SSE) => {
+            sse = new SSE(getUrl(baseUrl, "live"));
+            addEventListeners();
+          });
         } else {
           addEventListeners();
         }
