@@ -14,12 +14,12 @@ export const useDeposits = () => {
   useEffect(() => {
     const { unsubscribe } = client.live(
       (db) => db.select().from(status).limit(10),
-      () => {
-        queryClient.invalidateQueries({ queryKey });
+      () => queryClient.invalidateQueries({ queryKey }),
+      (error) => {
+        console.error(error);
       },
     );
-
-    return () => unsubscribe();
+    return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryClient]);
 

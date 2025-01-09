@@ -3,9 +3,16 @@ import type { ReadonlyDrizzle } from "@/types/db.js";
 import { PGlite } from "@electric-sql/pglite";
 import { promiseWithResolvers } from "@ponder/common";
 import type { QueryWithTypings } from "drizzle-orm";
-import type { PgSession } from "drizzle-orm/pg-core";
+import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+
+const status = pgTable("_ponder_status", (t) => ({
+  chainId: t.bigint({ mode: "number" }).primaryKey(),
+  blockNumber: t.bigint({ mode: "number" }),
+  blockTimestamp: t.bigint({ mode: "number" }),
+  ready: t.boolean().notNull(),
+}));
 
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   // @ts-ignore
@@ -51,12 +58,6 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
     }
 
     if (c.req.path === "/client/live") {
-      const queryString = c.req.query("sql");
-      if (queryString === undefined) {
-        return c.text('Missing "sql" query parameter', 400);
-      }
-      const query = JSON.parse(queryString) as QueryWithTypings;
-
       // TODO(kyle) live queries only availble in realtime mode
 
       c.header("Content-Type", "text/event-stream");
@@ -68,9 +69,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       return streamSSE(c, async (stream) => {
         while (stream.closed === false) {
           try {
-            const result = await session
-              .prepareQuery(query, undefined, undefined, false)
-              .execute();
+            const result = await db.select().from(status);
             await stream.writeSSE({
               data: JSON.stringify({ status: "success", result }),
             });
