@@ -15,10 +15,14 @@ export function prettyPrint(
       return [key, trimmedValue];
     })
     .filter(Boolean) as [string, string][];
+
+  if (entries.length === 0) return "  (empty object)";
+
   const maxLength = entries.reduce(
     (acc, [key]) => Math.max(acc, key.length),
     0,
   );
+
   return entries
     .map(([key, value]) => `  ${`${key}`.padEnd(maxLength + 1)}  ${value}`)
     .join("\n");
