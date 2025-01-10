@@ -3,6 +3,7 @@
 import { type Client, status } from "@ponder/client";
 import { compileQuery } from "@ponder/client";
 import {
+  type UseQueryOptions,
   type UseQueryResult,
   useQuery,
   useQueryClient,
@@ -10,12 +11,10 @@ import {
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
 
-/**
- *
- */
 export function usePonderQuery<result>(
-  // TODO(kyle) react-query arguments
-  queryFn: (db: Client["db"]) => Promise<result>,
+  params: {
+    queryFn: (db: Client["db"]) => Promise<result>;
+  } & Omit<UseQueryOptions<result>, "queryFn" | "queryKey">,
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();
 
@@ -24,8 +23,7 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
-  // TODO(kyle) handle error
-  const queryPromise = queryFn(client.db);
+  const queryPromise = params.queryFn(client.db);
   // @ts-ignore
   const query = compileQuery(queryPromise);
   const queryKey = useMemo(() => [query.sql, ...query.params], [query]);
@@ -39,6 +37,7 @@ export function usePonderQuery<result>(
   }, [queryClient, client, queryKey]);
 
   return useQuery({
+    ...params,
     queryKey,
     queryFn: () => queryPromise,
   });

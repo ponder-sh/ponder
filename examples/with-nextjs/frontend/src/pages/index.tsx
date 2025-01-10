@@ -8,13 +8,14 @@ import { schema } from "./_app";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Home() {
-  const depositsQuery = usePonderQuery((db) =>
-    db
-      .select()
-      .from(schema.depositEvent)
-      .orderBy(desc(schema.depositEvent.timestamp))
-      .limit(10),
-  );
+  const depositsQuery = usePonderQuery({
+    queryFn: (db) =>
+      db
+        .select()
+        .from(schema.depositEvent)
+        .orderBy(desc(schema.depositEvent.timestamp))
+        .limit(10),
+  });
 
   return (
     <main
