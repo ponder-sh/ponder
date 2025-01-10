@@ -1,6 +1,6 @@
 export default {
   "api-functions": "API functions",
-  "client": "@ponder/client",
+  "client": "Client",
   "graphql": "GraphQL",
   "direct-sql": "Direct SQL",
 };
