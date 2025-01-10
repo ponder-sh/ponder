@@ -32,13 +32,15 @@ export default app;
 
 ## `@ponder/client`
 
-### Get started
+The `@ponder/client` package works in any JavaScript environment, including the browser, server-side scripts, and both client and server code from web frameworks like Next.js. If you're using a React framework, use the [`@ponder/react`](#query-from-react) package instead.
+
+### Guide
 
 <Steps>
 
 #### Installation
 
-Install the `@ponder/client` package in your client project. This package works in any JavaScript environment, including the browser, server-side scripts, and both client and server code from web frameworks like Next.js.
+Install the `@ponder/client` package in your client project.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
@@ -129,7 +131,7 @@ const { unsubscribe } = client.live(
 
 #### Status
 
-The `status` table contains information about the indexing status of each chain.
+The `status` object is a Drizzle table object which contains information about the indexing status of each chain. You can query it just like any other table exported by `ponder.schema.ts`.
 
 ```ts {7}
 import { createClient, status } from "@ponder/client";
@@ -142,11 +144,11 @@ const mainnetStatus = client.db
   .where(eq(status.chainId, 1));
 ```
 
-## `@ponder/react`
+## Query from React
 
-The `@ponder/react` package includes React hooks for subscribing to live updates from your database.
+The `@ponder/react` package includes React hooks for subscribing to live updates from your database. It uses `@ponder/client` and Tanstack Query under the hood.
 
-```ts
+```ts filename="components/Deposits.tsx"
 import { usePonderQuery } from "@ponder/react";
 
 const { data, isError, isPending } = usePonderQuery({
@@ -156,7 +158,7 @@ const { data, isError, isPending } = usePonderQuery({
 
 `usePonderQuery` uses [TanStack Query](https://tanstack.com/query) for async state management. `queryFn` is overriden to include a database object, similar to the [`client.db`](#clientdb) method, and `queryKey` is automatically generated. All other options are preserved.
 
-### Get started
+### Guide
 
 <Steps>
 
