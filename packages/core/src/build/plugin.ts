@@ -23,7 +23,7 @@ const clients = {};
 for (const network of global.PONDER_INDEXING_BUILD.networks) {
   clients[network.chainId] = createPublicClient({
     chain: network.chain,
-    transport: network.transport
+    transport: () => network.transport
   })
 }
 
