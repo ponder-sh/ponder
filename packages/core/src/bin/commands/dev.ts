@@ -104,6 +104,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       if (result.kind === "indexing") {
         metrics.resetIndexingMetrics();
 
+        if (listenConnection) {
+          if (listenConnection.dialect === "postgres") {
+            listenConnection.connection.release();
+          }
+        }
         if (database) {
           await database.kill();
         }
