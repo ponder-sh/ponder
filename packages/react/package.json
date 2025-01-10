@@ -44,10 +44,12 @@
     }
   },
   "devDependencies": {
-    "@ponder/client": "workspace:*",
     "@tanstack/react-query": "^5.12.2",
     "@types/react": "^18.2.0",
     "react": "^18.2.0",
     "tsup": "^8.0.1"
+  },
+  "imports": {
+    "@ponder/client": "../client/index.ts"
   }
 }

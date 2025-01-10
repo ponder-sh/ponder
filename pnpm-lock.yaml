@@ -953,9 +953,6 @@ importers:
 
   packages/react:
     devDependencies:
-      '@ponder/client':
-        specifier: workspace:*
-        version: link:../client
       '@tanstack/react-query':
         specifier: ^5.12.2
         version: 5.12.2(react@18.2.0)
