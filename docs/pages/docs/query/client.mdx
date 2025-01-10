@@ -7,7 +7,7 @@ import { Callout, Steps, Tabs } from "nextra/components";
 
 # Client queries
 
-The `@ponder/client` package is a TypeScript client for querying a Ponder app with end-to-end type safety.
+`@ponder/client` and `@ponder/react` are TypeScript client packages for querying a Ponder app with end-to-end type safety and live updates.
 
 ## Enable on the server
 
@@ -30,119 +30,13 @@ app.use(client({ db }));
 export default app;
 ```
 
-## Query from React
+## `@ponder/client`
 
-The `@ponder/react` package includes React hooks for subscribing to live updates from your database.
-
-<Callout type="default">
-  For an example of how to use `@ponder/client` with `@tanstack/react-query` for
-  an automatically updating React hook, see the [Next.js
-  example](https://github.com/ponder-sh/ponder/blob/af25a96b44c0d76e6e4e62557125fe50bc0cad8a/examples/with-nextjs/frontend/src/hooks/useDeposits.ts).
-</Callout>
+### Get started
 
 <Steps>
 
-### Installation
-
-Install `@ponder/react` and `@tanstack/react-query` in your React project.
-
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
-pnpm add @ponder/react @tanstack/react-query
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-yarn add @ponder/react @tanstack/react-query
-```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm add @ponder/react @tanstack/react-query
-```
-</Tabs.Tab>
-</Tabs>
-
-### Create client
-
-Create a client using the URL of your Ponder server. Import your Ponder schema into the same file.
-
-```ts filename="lib/ponder.ts"
-import { createClient } from "@ponder/client";
-import * as schema from "../../ponder/ponder.schema";
-
-export const client = createClient("http://localhost:42069", { schema });
-```
-
-### Wrap app in provider
-
-Wrap your app with the `PonderProvider` React Context Provider and include the client object you just created.
-
-```ts filename="app.tsx" {6-8}
-import { PonderProvider } from '@ponder/react'
-import { client } from './lib/ponder'
-
-function App() {
-  return (
-    <PonderProvider client={client}>
-      {/** ... */}
-    </PonderProvider>
-  )
-}
-```
-
-### Setup TanStack Query
-
-Inside the `PonderProvider`, wrap your app in a TanStack Query React Context Provider. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
-
-```ts filename="app.tsx" {5, 10-12}
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { PonderProvider } from '@ponder/react'
-import { client } from './lib/ponder'
-
-const queryClient = new QueryClient()
-
-function App() {
-  return (
-    <PonderProvider client={client}>
-      <QueryClientProvider client={queryClient}>
-        {/** ... */}
-      </QueryClientProvider>
-    </PonderProvider>
-  )
-}
-```
-
-### Use the hook
-
-```ts filename="components/Deposits.tsx"
-import { usePonderQuery } from '@ponder/react'
-import { schema } from '../lib/ponder'
-
-export function Deposits() {
-  const { data, isError, isPending } = usePonderQuery({
-    queryFn: (db) =>
-      db.select()
-        .from(schema.depositEvent)
-        .orderBy(desc(schema.depositEvent.timestamp))
-        .limit(10),
-  });
-
-  if (isPending) return <div>Loading deposits</div>
-  if (isError) return <div>Error fetching deposits</div>
-  return <div>Deposits: {data}</div>
-}
-```
-
-</Steps>
-
-## Query from Node.js
-
-<Steps>
-
-### Install `@ponder/client`
+#### Installation
 
 Install the `@ponder/client` package in your client project. This package works in any JavaScript environment, including the browser, server-side scripts, and both client and server code from web frameworks like Next.js.
 
@@ -165,7 +59,7 @@ Install the `@ponder/client` package in your client project. This package works 
   </Tabs.Tab>
 </Tabs>
 
-### Setup client
+#### Setup client
 
 Create a client using the URL of your Ponder server. Import your Ponder schema into the same file.
 
@@ -178,7 +72,7 @@ const client = createClient("http://localhost:42069", { schema });
 export { client, schema };
 ```
 
-### Run a query
+#### Run a query
 
 Use the `client.db` method to execute a `SELECT` statement using Drizzle. The query builder is fully type-safe to provide static query validation and inferred result types.
 
@@ -193,9 +87,9 @@ const result = await client.db.select().from(schema.account).limit(10);
 
 </Steps>
 
-## API reference
+### API Reference
 
-### `client.db`
+#### `client.db`
 
 This method uses a readonly database role, with strict query limits. It provides a Drizzle query builder, similar to [API functions](/docs/query/api-functions#query-the-database).
 
@@ -208,7 +102,7 @@ const client = createClient("https://...", { schema });
 const result = await client.db.select().from(schema.account).limit(10);
 ```
 
-### `client.live`
+#### `client.live`
 
 Subscribe to live updates.
 
@@ -233,7 +127,7 @@ const { unsubscribe } = client.live(
 );
 ```
 
-### Status
+#### Status
 
 The `status` table contains information about the indexing status of each chain.
 
@@ -248,9 +142,124 @@ const mainnetStatus = client.db
   .where(eq(status.chainId, 1));
 ```
 
+## `@ponder/react`
+
+The `@ponder/react` package includes React hooks for subscribing to live updates from your database.
+
+```ts
+import { usePonderQuery } from "@ponder/react";
+
+const { data, isError, isPending } = usePonderQuery({
+  queryFn: (db) => db.select().from(schema.depositEvent).limit(10),
+});
+```
+
+`usePonderQuery` uses [TanStack Query](https://tanstack.com/query) for async state management. `queryFn` is overriden to include a database object, similar to the [`client.db`](#clientdb) method, and `queryKey` is automatically generated. All other options are preserved.
+
+### Get started
+
+<Steps>
+
+#### Installation
+
+Install `@ponder/react` and peer dependencies
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tabs.Tab>
+```bash filename="shell"
+pnpm add @ponder/react @ponder/client @tanstack/react-query
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+yarn add @ponder/react @ponder/client @tanstack/react-query
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash filename="shell"
+npm add @ponder/react @ponder/client @tanstack/react-query
+```
+</Tabs.Tab>
+</Tabs>
+
+#### Create client
+
+Create a client using the URL of your Ponder server. Import your Ponder schema into the same file.
+
+```ts filename="lib/ponder.ts"
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+export const client = createClient("http://localhost:42069", { schema });
+```
+
+#### Wrap app in provider
+
+Wrap your app with the `PonderProvider` React Context Provider and include the client object you just created.
+
+```ts filename="app.tsx" {6-8}
+import { PonderProvider } from '@ponder/react'
+import { client } from './lib/ponder'
+
+function App() {
+  return (
+    <PonderProvider client={client}>
+      {/** ... */}
+    </PonderProvider>
+  )
+}
+```
+
+#### Setup TanStack Query
+
+Inside the `PonderProvider`, wrap your app in a TanStack Query React Context Provider. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
+
+```ts filename="app.tsx" {5, 10-12}
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { PonderProvider } from '@ponder/react'
+import { client } from './lib/ponder'
+
+const queryClient = new QueryClient()
+
+function App() {
+  return (
+    <PonderProvider client={client}>
+      <QueryClientProvider client={queryClient}>
+        {/** ... */}
+      </QueryClientProvider>
+    </PonderProvider>
+  )
+}
+```
+
+#### Use the hook
+
+```ts filename="components/Deposits.tsx"
+import { usePonderQuery } from '@ponder/react'
+import { schema } from '../lib/ponder'
+
+export function Deposits() {
+  const { data, isError, isPending } = usePonderQuery({
+    queryFn: (db) =>
+      db.select()
+        .from(schema.depositEvent)
+        .orderBy(schema.depositEvent.timestamp)
+        .limit(10),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  if (isPending) return <div>Loading deposits</div>
+  if (isError) return <div>Error fetching deposits</div>
+  return <div>Deposits: {data}</div>
+}
+```
+
+</Steps>
+
 ## Example projects
 
 These example apps demonstrate how to use `@ponder/client`.
 
-- [**Basic**](https://github.com/ponder-sh/ponder/blob/v0.9/examples/with-client/client/src/index.ts)
-- [**NextJs**](https://github.com/ponder-sh/ponder/blob/v0.9/examples/with-nextjs/frontend/src/hooks/useDeposits.ts)
+- [**Basic**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-client/client/src/index.ts)
+- [**NextJs**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-nextjs/frontend/src/hooks/useDeposits.ts)
