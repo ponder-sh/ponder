@@ -601,6 +601,9 @@ importers:
       '@ponder/client':
         specifier: workspace:*
         version: link:../../../packages/client
+      '@ponder/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
       '@tanstack/react-query':
         specifier: ^5.12.2
         version: 5.12.2(react@18.2.0)
@@ -947,6 +950,21 @@ importers:
         version: 1.0.2(@types/node@20.11.24)
 
   packages/eslint-config-ponder: {}
+
+  packages/react:
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: ^5.12.2
+        version: 5.12.2(react@18.2.0)
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.2.46
+      react:
+        specifier: ^18.2.0
+        version: 18.2.0
+      tsup:
+        specifier: ^8.0.1
+        version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
 
   packages/utils:
     devDependencies:

@@ -1,13 +1,21 @@
+import { desc } from "@ponder/client";
+import { usePonderQuery } from "@ponder/react";
 import { Inter } from "next/font/google";
 import CountUp from "react-countup";
 import { formatEther } from "viem";
-
-import { type Deposit, useDeposits } from "../hooks/useDeposits";
+import { schema } from "./_app";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Home() {
-  const deposits = useDeposits();
+  const depositsQuery = usePonderQuery({
+    queryFn: (db) =>
+      db
+        .select()
+        .from(schema.depositEvent)
+        .orderBy(desc(schema.depositEvent.timestamp))
+        .limit(10),
+  });
 
   return (
     <main
@@ -17,12 +25,12 @@ export default function Home() {
         <h1 className="text-2xl font-bold">10 latest WETH mints</h1>
 
         <div className="flex flex-col gap-1 justify-between items-center w-full">
-          {deposits.status === "pending" ? (
+          {depositsQuery.status === "pending" ? (
             <p className="font-semibold">Loading...</p>
-          ) : deposits.status === "error" ? (
+          ) : depositsQuery.status === "error" ? (
             <p className="font-semibold text-red-500">Error fetching mints</p>
           ) : (
-            <Table deposits={deposits.data} />
+            <Table deposits={depositsQuery.data} />
           )}
         </div>
       </div>
@@ -30,7 +38,9 @@ export default function Home() {
   );
 }
 
-function Table({ deposits }: { deposits: Deposit[] }) {
+function Table({
+  deposits,
+}: { deposits: (typeof schema.depositEvent.$inferSelect)[] }) {
   return (
     <ul className="w-full">
       <li className="grid grid-cols-2 w-full text-lg font-semibold sm:grid-cols-3">
@@ -38,11 +48,10 @@ function Table({ deposits }: { deposits: Deposit[] }) {
         <p>Amount</p>
         <p className="hidden sm:flex">Timestamp</p>
       </li>
-      {deposits.map(({ account, timestamp, amount }, i) => (
+      {deposits.map(({ account, timestamp, amount, id }) => (
         <li
           className="grid grid-cols-2 py-2 w-full text-lg font-semibold sm:grid-cols-3"
-          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
-          key={`${account}-${timestamp}-${amount}-${i}`}
+          key={id}
         >
           <a
             className="text-sm font-semibold text-blue-500 underline"
