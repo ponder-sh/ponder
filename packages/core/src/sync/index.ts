@@ -514,7 +514,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               to: to < estimatedTo ? to : estimatedTo,
               limit: getEventsMaxBatchSize,
             });
-            consecutiveErrors = 0;
 
             args.common.logger.debug({
               service: "sync",
@@ -536,6 +535,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               maxIncrease: 1.08,
             });
 
+            consecutiveErrors = 0;
             yield { events, checkpoint: to };
             from = cursor;
           } catch (error) {

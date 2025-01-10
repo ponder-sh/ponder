@@ -852,7 +852,8 @@ export const createSyncStore = ({
       const hasLog = row.log_id !== null;
       const hasTransaction = row.tx_hash !== null;
       const hasTrace = row.trace_id !== null;
-      const hasTransactionReceipt = shouldGetTransactionReceipt(filter);
+      const hasTransactionReceipt =
+        shouldGetTransactionReceipt(filter) && row.txr_from !== null;
 
       return {
         chainId: filter.chainId,
