@@ -8,9 +8,9 @@ import {
   isAddressFactory,
 } from "@/sync/source.js";
 import type {
+  LightSyncTrace,
   SyncBlock,
   SyncLog,
-  SyncTrace,
   SyncTransaction,
 } from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -214,7 +214,7 @@ export const isTraceFilterMatched = ({
 }: {
   filter: TraceFilter;
   block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  trace: LightSyncTrace["trace"];
   fromChildAddresses?: Set<Address> | Set<Address>[];
   toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
@@ -299,7 +299,7 @@ export const isTransferFilterMatched = ({
 }: {
   filter: TransferFilter;
   block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  trace: LightSyncTrace["trace"];
   fromChildAddresses?: Set<Address> | Set<Address>[];
   toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {

@@ -17,6 +17,7 @@ import {
 import type { Log, Trace } from "@/types/eth.js";
 import type {
   LightBlock,
+  LightSyncBlock,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -64,7 +65,7 @@ export type SyncStore = {
     addresses: Address[];
   }): Promise<Set<Address>>;
   insertLogs(args: {
-    logs: { log: SyncLog; block?: SyncBlock }[];
+    logs: { log: SyncLog; block?: LightSyncBlock }[];
     shouldUpdateCheckpoint: boolean;
     chainId: number;
   }): Promise<void>;
@@ -86,7 +87,7 @@ export type SyncStore = {
   insertTraces(args: {
     traces: {
       trace: SyncTrace;
-      block: SyncBlock;
+      block: LightSyncBlock;
       transaction: SyncTransaction;
     }[];
     chainId: number;

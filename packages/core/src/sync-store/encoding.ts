@@ -1,5 +1,6 @@
 import type { FragmentId } from "@/sync/fragments.js";
 import type {
+  LightSyncBlock,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -107,7 +108,7 @@ export const encodeLog = ({
   chainId,
 }: {
   log: SyncLog;
-  block?: SyncBlock;
+  block?: LightSyncBlock;
   chainId: number;
 }): Insertable<LogsTable> => {
   return {
