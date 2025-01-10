@@ -38,7 +38,7 @@ export type Client<schema extends Schema = Schema> = {
   db: ClientDb<schema>;
   /** Subscribe to live updates. */
   live: <result>(
-    query: (db: ClientDb<schema>) => Promise<result>,
+    queryFn: (db: ClientDb<schema>) => Promise<result>,
     onData: (result: result) => void,
     onError?: (error: Error) => void,
   ) => {
@@ -76,6 +76,20 @@ export const status = pgTable("_ponder_status", (t) => ({
 // @ts-ignore
 status[Symbol.for("ponder:onchain")] = true;
 
+const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
+  casing: "snake_case",
+});
+
+// @ts-ignore
+const dialect: PgDialect = noopDatabase.dialect;
+// @ts-ignore
+const session: PgSession = noopDatabase.session;
+
+export const compileQuery = (query: SQLWrapper | string) => {
+  const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
+  return dialect.sqlToQuery(sequel);
+};
+
 /**
  * Create a client for querying Ponder apps.
  *
@@ -94,16 +108,6 @@ export const createClient = <schema extends Schema>(
   baseUrl: string,
   { schema }: { schema: schema },
 ): Client<schema> => {
-  const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
-    schema,
-    casing: "snake_case",
-  });
-
-  // @ts-ignore
-  const dialect: PgDialect = noopDatabase.dialect;
-  // @ts-ignore
-  const session: PgSession = noopDatabase.session;
-
   let sse: EventSource | undefined;
   let liveCount = 0;
 
@@ -130,13 +134,11 @@ export const createClient = <schema extends Schema>(
       },
       { schema, casing: "snake_case" },
     ),
-    live: (_query, onData, onError) => {
+    live: (queryFn, onData, onError) => {
       // https://github.com/drizzle-team/drizzle-orm/blob/04c91434c7ac10aeb2923efd1d19a7ebf10ea9d4/drizzle-orm/src/pg-core/db.ts#L602-L621
 
-      const query = _query(noopDatabase) as unknown as SQLWrapper | string;
-      const sequel =
-        typeof query === "string" ? sql.raw(query) : query.getSQL();
-      const builtQuery = dialect.sqlToQuery(sequel);
+      // @ts-ignore
+      const builtQuery = compileQuery(queryFn(noopDatabase));
 
       if (
         builtQuery.sql ===
@@ -183,7 +185,7 @@ export const createClient = <schema extends Schema>(
         return client.live(
           (db) => db.select().from(status),
           () => {
-            _query(client.db).then(onData).catch(onError);
+            queryFn(client.db).then(onData).catch(onError);
           },
           onError,
         );

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ponder/client": "workspace:*",
+    "@ponder/react": "workspace:*",
     "@tanstack/react-query": "^5.12.2",
     "next": "14.0.3",
     "react": "^18",
