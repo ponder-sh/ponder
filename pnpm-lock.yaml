@@ -722,7 +722,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.36.4
-        version: 0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@19.0.4)(kysely@0.26.3)(pg@8.11.3)(react@19.0.0)
+        version: 0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       undici:
         specifier: ^7.2.0
         version: 7.2.0
@@ -958,13 +958,13 @@ importers:
         version: link:../client
       '@tanstack/react-query':
         specifier: ^5.12.2
-        version: 5.12.2(react@19.0.0)
+        version: 5.12.2(react@18.2.0)
       '@types/react':
-        specifier: ^19.0.4
-        version: 19.0.4
+        specifier: ^18.2.0
+        version: 18.2.46
       react:
-        specifier: ^19.0.0
-        version: 19.0.0
+        specifier: ^18.2.0
+        version: 18.2.0
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
@@ -3181,9 +3181,6 @@ packages:
 
   '@types/react@18.2.46':
     resolution: {integrity: sha512-nNCvVBcZlvX4NU1nRRNV/mFl1nNRuTuslAJglQsq+8ldXe5Xv0Wd2f7WTE3jOxhLH2BFfiZGC6GCp+kHQbgG+w==}
-
-  '@types/react@19.0.4':
-    resolution: {integrity: sha512-3O4QisJDYr1uTUMZHA2YswiQZRq+Pd8D+GdVFYikTutYsTz+QZgWkAPnP7rx9txoI6EXKcPiluMqWPFV3tT9Wg==}
 
   '@types/scheduler@0.16.8':
     resolution: {integrity: sha512-WZLiwShhwLRmeV6zH+GkbOFT6Z6VklCItrDioxUnv+u4Ll+8vKeFySoFyK/0ctcRpOmwAicELfmys1sDc/Rw+A==}
@@ -7331,10 +7328,6 @@ packages:
     resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
     engines: {node: '>=0.10.0'}
 
-  react@19.0.0:
-    resolution: {integrity: sha512-V8AVnmPIICiWpGfm6GLzCR/W5FXLchHop40W4nXBmdlEceh16rCN8O8LNWm5bh5XUX91fh7KpA+W0TgMKmgTpQ==}
-    engines: {node: '>=0.10.0'}
-
   read-cache@1.0.0:
     resolution: {integrity: sha512-Owdv/Ft7IjOgm/i0xvNDZ1LrRANRfew4b2prF3OWMQLxLfu3bS8FVhCsrSCMK4lR56Y9ya+AThoTpDCTxCmpRA==}
 
@@ -10946,11 +10939,6 @@ snapshots:
       '@tanstack/query-core': 5.12.1
       react: 18.2.0
 
-  '@tanstack/react-query@5.12.2(react@19.0.0)':
-    dependencies:
-      '@tanstack/query-core': 5.12.1
-      react: 19.0.0
-
   '@theguild/remark-mermaid@0.0.5(react@18.2.0)':
     dependencies:
       mermaid: 10.6.1
@@ -11116,10 +11104,6 @@ snapshots:
     dependencies:
       '@types/prop-types': 15.7.11
       '@types/scheduler': 0.16.8
-      csstype: 3.1.3
-
-  '@types/react@19.0.4':
-    dependencies:
       csstype: 3.1.3
 
   '@types/scheduler@0.16.8': {}
@@ -12558,16 +12542,6 @@ snapshots:
       kysely: 0.26.3
       pg: 8.11.3
       react: 18.2.0
-
-  drizzle-orm@0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@19.0.4)(kysely@0.26.3)(pg@8.11.3)(react@19.0.0):
-    optionalDependencies:
-      '@electric-sql/pglite': 0.2.13
-      '@opentelemetry/api': 1.7.0
-      '@types/pg': 8.10.9
-      '@types/react': 19.0.4
-      kysely: 0.26.3
-      pg: 8.11.3
-      react: 19.0.0
 
   dset@3.1.3: {}
 
@@ -16255,8 +16229,6 @@ snapshots:
   react@18.2.0:
     dependencies:
       loose-envify: 1.4.0
-
-  react@19.0.0: {}
 
   read-cache@1.0.0:
     dependencies:

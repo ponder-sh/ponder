@@ -1,3 +1,5 @@
+"use client";
+
 import { type Client, status } from "@ponder/client";
 import { compileQuery } from "@ponder/client";
 import {
@@ -8,7 +10,11 @@ import {
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
 
+/**
+ *
+ */
 export function usePonderQuery<result>(
+  // TODO(kyle) react-query arguments
   queryFn: (db: Client["db"]) => Promise<result>,
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();

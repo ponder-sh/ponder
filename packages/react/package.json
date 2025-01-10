@@ -43,12 +43,11 @@
       "optional": true
     }
   },
-  "dependencies": {},
   "devDependencies": {
     "@ponder/client": "workspace:*",
     "@tanstack/react-query": "^5.12.2",
-    "@types/react": "^19.0.4",
-    "react": "^19.0.0",
+    "@types/react": "^18.2.0",
+    "react": "^18.2.0",
     "tsup": "^8.0.1"
   }
 }

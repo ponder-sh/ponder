@@ -15,7 +15,7 @@ export default createConfig({
       network: "base",
       abi: Weth9Abi,
       address: "0x4200000000000000000000000000000000000006",
-      startBlock: 24826800,
+      startBlock: 24867800,
     },
   },
 });

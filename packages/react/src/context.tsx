@@ -1,7 +1,7 @@
 "use client";
 
 import type { Client } from "@ponder/client";
-// biome-ignore lint/style/useImportType: <explanation>
+// biome-ignore lint/style/useImportType: "React" is needed
 import React, { createContext } from "react";
 
 export const PonderContext = createContext<Client | undefined>(undefined);
