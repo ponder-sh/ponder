@@ -621,7 +621,7 @@ export const createRealtimeSync = (
     for (const hash of Array.from(transactionHashes)) {
       if (blockReceiptsTransactionHashes.has(hash) === false) {
         throw new Error(
-          `Detected inconsistent RPC responses. Transaction receipt with transactionHash ${hash} is missing in \`blockReceipts\`.`,
+          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${blockHash}'`,
         );
       }
     }
@@ -763,12 +763,20 @@ export const createRealtimeSync = (
 
       for (const filter of logFilters) {
         if (isLogFilterMatched({ filter, block, log })) {
-          requiredTransactions.add(log.transactionHash);
           isMatched = true;
-          if (shouldGetTransactionReceipt(filter)) {
-            requiredTransactionReceipts.add(log.transactionHash);
-            // skip to next log
-            break;
+          if (log.transactionHash === zeroHash) {
+            args.common.logger.warn({
+              service: "sync",
+              msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+            });
+          } else {
+            requiredTransactions.add(log.transactionHash);
+            if (shouldGetTransactionReceipt(filter)) {
+              requiredTransactionReceipts.add(log.transactionHash);
+
+              // skip to next log
+              break;
+            }
           }
         }
       }
