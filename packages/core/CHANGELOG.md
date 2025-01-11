@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.24
+
+### Patch Changes
+
+- [#1435](https://github.com/ponder-sh/ponder/pull/1435) [`d891abaf25a939684f473cc2df90e3c89cfe6f2d`](https://github.com/ponder-sh/ponder/commit/d891abaf25a939684f473cc2df90e3c89cfe6f2d) Thanks [@tk-o](https://github.com/tk-o)! - Fixed a bug causing setup function with multiple networks to error.
+
 ## 0.8.23
 
 ### Patch Changes
