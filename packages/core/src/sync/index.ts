@@ -673,6 +673,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               events,
             })
             .then(() => {
+              console.log("block processed", event.endClock?.());
               if (events.length > 0 && isKilled === false) {
                 args.common.logger.info({
                   service: "app",
@@ -680,6 +681,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
                 });
               }
             });
+        } else {
+          console.log("block processed", event.endClock?.());
         }
 
         break;
