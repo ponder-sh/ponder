@@ -78,40 +78,22 @@ export const createHistoricalSync = async (
    */
   let isBlockReceipts = true;
   /**
-   * Blocks that have already been extracted and inserted into syncStore.
+   * Data that has already been extracted and inserted into the sync-store.
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
   const insertedBlocks = new Map<number, Promise<LightSyncBlock>>();
-  /**
-   * Traces that have already been extracted and inserted into syncStore.
-   * Note: All entries are deleted at the end of each call to `sync()`.
-   */
-  const insertedTraces = new Map<number, Promise<LightSyncTrace[]>>();
-  /**
-   * Block receipts that have already been extracted and inserted into syncStore.
-   * Note: All entries are deleted at the end of each call to `sync()`.
-   */
   const insertedBlockReceipts = new Map<Hash, Promise<Set<Hash>>>();
-  /**
-   * Transaction receipts that have already been extracted and inserted into syncStore.
-   * Note: All entries are deleted at the end of each call to `sync()`.
-   */
   const insertedTransactionReceipts = new Set<Hash>();
+  const insertedTraces = new Map<number, Promise<LightSyncTrace[]>>();
+
   /**
-   * Traces that need to be saved permanently into syncStore.
+   * Data that is required to be in the sync-store.
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
-  const traceCache = new Set<Hash>();
-  /**
-   * Transactions that need to be saved permanently into syncStore.
-   * Note: All entries are deleted at the end of each call to `sync()`.
-   */
-  const transactionsCache = new Set<Hash>();
-  /**
-   * Transactions receipts that need to be saved permanently into syncStore.
-   * Note: All entries are deleted at the end of each call to `sync()`.
-   */
-  const transactionReceiptsCache = new Set<Hash>();
+  const requiredTransactions = new Set<Hash>();
+  const requiredTransactionReceipts = new Set<Hash>();
+  const requiredTraces = new Set<string>();
+
   /**
    * Data about the range passed to "eth_getLogs" for all log
    *  filters and log factories.
@@ -350,6 +332,7 @@ export const createHistoricalSync = async (
           hash: block.hash,
           number: block.number,
           timestamp: block.number,
+          // TODO(kyle) transation to light transaction
           transactions: block.transactions,
         };
       })();
@@ -609,7 +592,7 @@ export const createHistoricalSync = async (
 
     const transactionHashes = new Set(logs.map((l) => l.transactionHash));
     for (const hash of Array.from(transactionHashes)) {
-      transactionsCache.add(hash);
+      requiredTransactions.add(hash);
     }
 
     if (isKilled) return;
@@ -643,7 +626,7 @@ export const createHistoricalSync = async (
           await syncTransactionReceipts(blockHash, blockTransactionHashes);
 
           for (const hash of Array.from(blockTransactionHashes)) {
-            transactionReceiptsCache.add(hash);
+            requiredTransactionReceipts.add(hash);
           }
         }),
       );
@@ -710,7 +693,7 @@ export const createHistoricalSync = async (
     }
 
     for (const hash of Array.from(transactionHashes)) {
-      transactionsCache.add(hash);
+      requiredTransactions.add(hash);
     }
 
     if (isKilled) return;
@@ -726,7 +709,7 @@ export const createHistoricalSync = async (
         await syncTransactionReceipts(block.hash, blockTransactionHashes);
 
         for (const hash of Array.from(blockTransactionHashes)) {
-          transactionReceiptsCache.add(hash);
+          requiredTransactionReceipts.add(hash);
         }
       }),
     );
@@ -777,8 +760,8 @@ export const createHistoricalSync = async (
         if (traces.length === 0) return;
 
         for (const trace of traces) {
-          traceCache.add(`${trace.transactionHash}-${trace.trace.index}`);
-          transactionsCache.add(trace.transactionHash);
+          requiredTraces.add(`${trace.transactionHash}-${trace.trace.index}`);
+          requiredTransactions.add(trace.transactionHash);
         }
 
         const block = await syncBlock(number);
@@ -791,7 +774,7 @@ export const createHistoricalSync = async (
           await syncTransactionReceipts(block.hash, blockTransactionHashes);
 
           for (const hash of Array.from(blockTransactionHashes)) {
-            transactionReceiptsCache.add(hash);
+            requiredTransactionReceipts.add(hash);
           }
         }
       }),
@@ -896,18 +879,18 @@ export const createHistoricalSync = async (
         args.syncStore.deleteTransactions({
           transactions: blocks
             .flatMap(({ transactions }) => transactions.map((t) => t.hash))
-            .filter((hash) => transactionsCache.has(hash) === false),
+            .filter((hash) => requiredTraces.has(hash) === false),
           chainId: args.network.chainId,
         }),
         args.syncStore.deleteTransactionReceipts({
           transactionReceipts: blockReceipts
             .flatMap((receipts) => Array.from(receipts))
-            .filter((hash) => transactionReceiptsCache.has(hash) === false),
+            .filter((hash) => requiredTransactionReceipts.has(hash) === false),
           chainId: args.network.chainId,
         }),
         args.syncStore.deleteTransactionReceipts({
           transactionReceipts: Array.from(insertedTransactionReceipts).filter(
-            (hash) => transactionReceiptsCache.has(hash) === false,
+            (hash) => requiredTransactionReceipts.has(hash) === false,
           ),
           chainId: args.network.chainId,
         }),
@@ -916,7 +899,7 @@ export const createHistoricalSync = async (
             .flat()
             .filter(
               (trace) =>
-                traceCache.has(
+                requiredTraces.has(
                   `${trace.transactionHash}-${trace.trace.index}`,
                 ) === false,
             ),
@@ -938,9 +921,9 @@ export const createHistoricalSync = async (
       insertedBlockReceipts.clear();
       insertedTransactionReceipts.clear();
 
-      traceCache.clear();
-      transactionsCache.clear();
-      transactionReceiptsCache.clear();
+      requiredTraces.clear();
+      requiredTransactions.clear();
+      requiredTransactionReceipts.clear();
 
       return latestBlock;
     },
