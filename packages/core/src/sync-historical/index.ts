@@ -597,7 +597,7 @@ export const createHistoricalSync = async (
   return {
     intervalsCache,
     async sync(_interval) {
-      const syncedIntervals: {
+      const intervalsToSync: {
         interval: Interval;
         filter: FilterWithoutBlocks;
       }[] = [];
@@ -652,7 +652,7 @@ export const createHistoricalSync = async (
             requiredIntervals.map(({ fragment }) => fragment),
           );
 
-          syncedIntervals.push({
+          intervalsToSync.push({
             filter: requiredFilter,
             interval: requiredInterval,
           });
@@ -660,7 +660,7 @@ export const createHistoricalSync = async (
       }
 
       await Promise.all(
-        syncedIntervals.map(async ({ filter, interval }) => {
+        intervalsToSync.map(async ({ filter, interval }) => {
           // Request last block of interval
           const blockPromise = syncBlock(interval[1]);
 
@@ -738,7 +738,7 @@ export const createHistoricalSync = async (
       // Note: this should happen after so the database doesn't become corrupted
       if (args.network.disableCache === false) {
         await args.syncStore.insertIntervals({
-          intervals: syncedIntervals,
+          intervals: intervalsToSync,
           chainId: args.network.chainId,
         });
       }
