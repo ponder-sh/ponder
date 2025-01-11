@@ -299,7 +299,7 @@ export const createHistoricalSync = async (
   };
 
   /**
-   * Extract block, using `blockCache` to avoid fetching
+   * Extract block, using `insertedBlocks` to avoid fetching
    * the same block twice. Also, update `latestBlock`.
    *
    * @param number Block to be extracted
@@ -311,9 +311,9 @@ export const createHistoricalSync = async (
     let lightBlock: LightSyncBlock;
 
     /**
-     * `blockCache` contains all blocks that have been extracted during the
-     * current call to `sync()`. If `number` is present in `blockCache` use it,
-     * otherwise, request the block and add it to `blockCache` and the sync-store.
+     * `insertedBlocks` contains all blocks that have been extracted during the
+     * current call to `sync()`. If `number` is present in `insertedBlocks` use it,
+     * otherwise, request the block and add it to `insertedBlocks` and the sync-store.
      */
 
     if (insertedBlocks.has(number)) {
@@ -925,13 +925,13 @@ export const createHistoricalSync = async (
       }
 
       insertedBlocks.clear();
-      traceCache.clear();
-      transactionsCache.clear();
-      transactionReceiptsCache.clear();
-
       insertedTraces.clear();
       insertedBlockReceipts.clear();
       insertedTransactionReceipts.clear();
+
+      traceCache.clear();
+      transactionsCache.clear();
+      transactionReceiptsCache.clear();
 
       return latestBlock;
     },
