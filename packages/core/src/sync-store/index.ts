@@ -420,17 +420,12 @@ export const createSyncStore = ({
       }
     });
   },
-  deleteTransactions: async ({ transactions, chainId }) => {
+  deleteTransactions: async ({ transactions }) => {
     if (transactions.length === 0) return;
     await db.wrap({ method: "deleteTransactions" }, async () => {
       return await db
         .deleteFrom("transactions")
-        .where((eb) =>
-          eb.and([
-            eb("hash", "in", transactions),
-            eb("chainId", "==", chainId),
-          ]),
-        )
+        .where("hash", "in", transactions)
         .execute();
     });
   },
@@ -484,7 +479,7 @@ export const createSyncStore = ({
         .where((eb) =>
           eb.and([
             eb("transactionHash", "in", transactionReceipts),
-            eb("chainId", "==", chainId),
+            eb("chainId", "=", chainId),
           ]),
         )
         .execute();
@@ -548,7 +543,7 @@ export const createSyncStore = ({
               "in",
               traces.map((t) => `${t.transactionHash}-${t.trace.index}`),
             ),
-            eb("chainId", "==", chainId),
+            eb("chainId", "=", chainId),
           ]),
         )
         .execute();

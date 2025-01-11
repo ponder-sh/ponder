@@ -331,7 +331,7 @@ export const createHistoricalSync = async (
         return {
           hash: block.hash,
           number: block.number,
-          timestamp: block.number,
+          timestamp: block.timestamp,
           // TODO(kyle) transation to light transaction
           transactions: block.transactions,
         };
