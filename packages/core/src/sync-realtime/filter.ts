@@ -130,7 +130,7 @@ export const isTransactionFilterMatched = ({
 }: {
   filter: TransactionFilter;
   block: Pick<SyncBlock, "number">;
-  transaction: SyncTransaction;
+  transaction: Pick<SyncTransaction, "from" | "to">;
   fromChildAddresses?: Set<Address> | Set<Address>[];
   toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {

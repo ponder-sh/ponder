@@ -11,14 +11,20 @@ import type {
 export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
 export type LightSyncBlock = Pick<
   SyncBlock,
-  "hash" | "number" | "timestamp" | "transactions"
->;
+  "hash" | "number" | "timestamp"
+> & {
+  transactions: Array<LightSyncTransaction>;
+};
 export type LightSyncTrace = {
-  trace: Pick<Trace["result"], "from" | "to" | "type" | "input" | "value"> & {
+  trace: Pick<Trace["result"], "type" | "from" | "to" | "input" | "value"> & {
     index: number;
   };
   transactionHash: Trace["txHash"];
 };
+export type LightSyncTransaction = Pick<
+  SyncTransaction,
+  "hash" | "transactionIndex" | "from" | "to"
+>;
 export type SyncLog = Log<Hex, Hex, false>;
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;

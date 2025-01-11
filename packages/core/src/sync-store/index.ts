@@ -18,6 +18,8 @@ import type { Log, Trace } from "@/types/eth.js";
 import type {
   LightBlock,
   LightSyncBlock,
+  LightSyncTrace,
+  LightSyncTransaction,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -76,10 +78,18 @@ export type SyncStore = {
     transactions: { transaction: SyncTransaction; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
+  deleteTransactions(args: {
+    transactions: Hash[];
+    chainId: number;
+  }): Promise<void>;
   /** Return true if the transaction is present in the database. */
   hasTransaction(args: { hash: Hash }): Promise<boolean>;
   insertTransactionReceipts(args: {
     transactionReceipts: SyncTransactionReceipt[];
+    chainId: number;
+  }): Promise<void>;
+  deleteTransactionReceipts(args: {
+    transactionReceipts: Hash[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction receipt is present in the database. */
@@ -88,8 +98,12 @@ export type SyncStore = {
     traces: {
       trace: SyncTrace;
       block: LightSyncBlock;
-      transaction: SyncTransaction;
+      transaction: LightSyncTransaction;
     }[];
+    chainId: number;
+  }): Promise<void>;
+  deleteTraces(args: {
+    traces: LightSyncTrace[];
     chainId: number;
   }): Promise<void>;
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
@@ -406,6 +420,20 @@ export const createSyncStore = ({
       }
     });
   },
+  deleteTransactions: async ({ transactions, chainId }) => {
+    if (transactions.length === 0) return;
+    await db.wrap({ method: "deleteTransactions" }, async () => {
+      return await db
+        .deleteFrom("transactions")
+        .where((eb) =>
+          eb.and([
+            eb("hash", "in", transactions),
+            eb("chainId", "==", chainId),
+          ]),
+        )
+        .execute();
+    });
+  },
   hasTransaction: async ({ hash }) =>
     db.wrap({ method: "hasTransaction" }, async () => {
       return await db
@@ -446,6 +474,20 @@ export const createSyncStore = ({
           .onConflict((oc) => oc.column("transactionHash").doNothing())
           .execute();
       }
+    });
+  },
+  deleteTransactionReceipts: async ({ transactionReceipts, chainId }) => {
+    if (transactionReceipts.length === 0) return;
+    await db.wrap({ method: "deleteTransactionReceipts" }, async () => {
+      return await db
+        .deleteFrom("transactionReceipts")
+        .where((eb) =>
+          eb.and([
+            eb("transactionHash", "in", transactionReceipts),
+            eb("chainId", "==", chainId),
+          ]),
+        )
+        .execute();
     });
   },
   hasTransactionReceipt: async ({ hash }) =>
@@ -492,6 +534,24 @@ export const createSyncStore = ({
           .onConflict((oc) => oc.column("id").doNothing())
           .execute();
       }
+    });
+  },
+  deleteTraces: async ({ traces, chainId }) => {
+    if (traces.length === 0) return;
+    db.wrap({ method: "deleteTraces" }, async () => {
+      return await db
+        .deleteFrom("traces")
+        .where((eb) =>
+          eb.and([
+            eb(
+              "id",
+              "in",
+              traces.map((t) => `${t.transactionHash}-${t.trace.index}`),
+            ),
+            eb("chainId", "==", chainId),
+          ]),
+        )
+        .execute();
     });
   },
   getEvents: async ({ filters, from, to, limit }) => {

@@ -101,7 +101,7 @@ export const createHistoricalSync = async (
    * Traces that need to be saved permanently into syncStore.
    * Note: All entries are deleted at the end of each call to `sync()`.
    */
-  const traceCache = new Set<LightSyncTrace>();
+  const traceCache = new Set<Hash>();
   /**
    * Transactions that need to be saved permanently into syncStore.
    * Note: All entries are deleted at the end of each call to `sync()`.
@@ -768,7 +768,7 @@ export const createHistoricalSync = async (
         if (traces.length === 0) return;
 
         for (const trace of traces) {
-          traceCache.add(trace);
+          traceCache.add(`${trace.transactionHash}-${trace.trace.index}`);
           transactionsCache.add(trace.transactionHash);
         }
 
@@ -879,7 +879,41 @@ export const createHistoricalSync = async (
         }),
       );
 
-      //TODO: Delete transactions and blocks from database
+      const blocks = await Promise.all(insertedBlocks.values());
+      const blockReceipts = await Promise.all(insertedBlockReceipts.values());
+      const blockTraces = await Promise.all(insertedTraces.values());
+
+      await Promise.all([
+        args.syncStore.deleteTransactions({
+          transactions: blocks
+            .flatMap(({ transactions }) => transactions.map((t) => t.hash))
+            .filter((hash) => transactionsCache.has(hash) === false),
+          chainId: args.network.chainId,
+        }),
+        args.syncStore.deleteTransactionReceipts({
+          transactionReceipts: blockReceipts
+            .flatMap((receipts) => Array.from(receipts))
+            .filter((hash) => transactionReceiptsCache.has(hash) === false),
+          chainId: args.network.chainId,
+        }),
+        args.syncStore.deleteTransactionReceipts({
+          transactionReceipts: Array.from(insertedTransactionReceipts).filter(
+            (hash) => transactionReceiptsCache.has(hash) === false,
+          ),
+          chainId: args.network.chainId,
+        }),
+        args.syncStore.deleteTraces({
+          traces: blockTraces
+            .flat()
+            .filter(
+              (trace) =>
+                traceCache.has(
+                  `${trace.transactionHash}-${trace.trace.index}`,
+                ) === false,
+            ),
+          chainId: args.network.chainId,
+        }),
+      ]);
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
