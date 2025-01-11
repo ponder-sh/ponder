@@ -2,7 +2,7 @@ import type { LogFactory } from "@/sync/source.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
-import { type Address, getEventSelector } from "viem";
+import { type Address, toEventSelector } from "viem";
 
 export function buildLogFactory({
   address: _address,
@@ -18,7 +18,7 @@ export function buildLogFactory({
   const address = Array.isArray(_address)
     ? _address.map(toLowerCase)
     : toLowerCase(_address);
-  const eventSelector = getEventSelector(event);
+  const eventSelector = toEventSelector(event);
 
   // Check if the provided parameter is present in the list of indexed inputs.
   const indexedInputPosition = event.inputs

@@ -666,7 +666,7 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(requestQueue, "request");
+  let spy = vi.spyOn(requestQueue, "request");
 
   // @ts-ignore
   sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
@@ -690,6 +690,40 @@ test("sync() with partial cache", async (context) => {
         address: [zeroAddress],
         fromBlock: "0x1",
         toBlock: "0x2",
+        topics: [
+          [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        ],
+      },
+    ],
+  });
+
+  // re-instantiate `historicalSync` to reset the cached intervals
+
+  spy = vi.spyOn(requestQueue, "request");
+
+  historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  await historicalSync.sync([1, 3]);
+  expect(spy).toHaveBeenCalledTimes(2);
+
+  expect(spy).toHaveBeenCalledWith({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: [address, zeroAddress],
+        fromBlock: "0x3",
+        toBlock: "0x3",
         topics: [
           [
             "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
