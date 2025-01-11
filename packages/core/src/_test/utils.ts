@@ -54,22 +54,11 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
         chainId: 1,
         transport: http(`http://127.0.0.1:8545/${poolId}`),
       },
-      base: {
-        chainId: 8453,
-        transport: http(`http://127.0.0.2:8545/${poolId}`),
-      },
     },
     contracts: {
       Erc20: {
         abi: erc20ABI,
         network: "mainnet",
-        address: params.address,
-        includeCallTraces: params.includeCallTraces,
-        includeTransactionReceipts: params.includeTransactionReceipts,
-      },
-      OtherErc20: {
-        abi: erc20ABI,
-        network: "base",
         address: params.address,
         includeCallTraces: params.includeCallTraces,
         includeTransactionReceipts: params.includeTransactionReceipts,

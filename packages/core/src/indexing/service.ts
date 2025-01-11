@@ -199,14 +199,11 @@ export const processSetupEvents = async (
           s.type === "contract" &&
           s.name === contractName &&
           s.filter.chainId === network.chainId,
-      )! as ContractSource;
+      ) as ContractSource | undefined;
+
+      if (source === undefined) continue;
 
       if (indexingService.isKilled) return { status: "killed" };
-
-      if (!source) {
-        // setup event on the contract was not found for the current network
-        continue;
-      }
 
       indexingService.eventCount[eventName]!++;
 

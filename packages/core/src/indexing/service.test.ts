@@ -134,7 +134,6 @@ test("processSetupEvents()", async (context) => {
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
-    "OtherErc20:setup": vi.fn(),
   };
 
   const indexingService = create({
