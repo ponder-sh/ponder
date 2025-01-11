@@ -202,6 +202,12 @@ export const processSetupEvents = async (
       )! as ContractSource;
 
       if (indexingService.isKilled) return { status: "killed" };
+
+      if (!source) {
+        // setup event on the contract was not found for the current network
+        continue;
+      }
+
       indexingService.eventCount[eventName]!++;
 
       const result = await executeSetup(indexingService, {
