@@ -673,7 +673,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               events,
             })
             .then(() => {
-              console.log("block processed", event.endClock?.());
+              if (event.endClock) {
+                args.common.metrics.ponder_realtime_latency.observe(
+                  { network: network.name },
+                  event.endClock(),
+                );
+              }
               if (events.length > 0 && isKilled === false) {
                 args.common.logger.info({
                   service: "app",
@@ -682,7 +687,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               }
             });
         } else {
-          console.log("block processed", event.endClock?.());
+          if (event.endClock) {
+            args.common.metrics.ponder_realtime_latency.observe(
+              { network: network.name },
+              event.endClock(),
+            );
+          }
         }
 
         break;
@@ -1256,7 +1266,7 @@ export async function* localHistoricalSyncGenerator({
 
       // Update "ponder_sync_block" metric
       common.metrics.ponder_sync_block.set(
-        { network: network.name },
+        label,
         hexToNumber(syncProgress.current.number),
       );
 

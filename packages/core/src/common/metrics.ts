@@ -38,6 +38,7 @@ export class MetricsService {
   ponder_historical_completed_blocks: prometheus.Gauge<"network">;
 
   ponder_realtime_reorg_total: prometheus.Counter<"network">;
+  ponder_realtime_latency: prometheus.Histogram<"network">;
 
   ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
   ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
@@ -151,8 +152,15 @@ export class MetricsService {
 
     this.ponder_realtime_reorg_total = new prometheus.Counter({
       name: "ponder_realtime_reorg_total",
-      help: "Count of how many re-orgs have occurred.",
+      help: "Count of how many re-orgs have occurred",
       labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_realtime_latency = new prometheus.Histogram({
+      name: "ponder_realtime_latency",
+      help: "Duration between receiving a block and processing it",
+      labelNames: ["network"] as const,
+      buckets: httpRequestDurationMs,
       registers: [this.registry],
     });
 

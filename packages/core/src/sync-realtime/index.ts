@@ -73,13 +73,13 @@ export type BlockWithEventData = {
   traces: SyncTrace[];
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
-  endClock?: () => number;
 };
 
 export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
+      endClock?: () => number;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -89,6 +89,7 @@ export type RealtimeSyncEvent =
       type: "reorg";
       block: LightBlock;
       reorgedBlocks: LightBlock[];
+      // TODO(kyle) add endClock
     };
 
 const ERROR_TIMEOUT = [
@@ -115,7 +116,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<void, BlockWithEventData>;
+  let queue: Queue<void, BlockWithEventData & { endClock?: () => number }>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -191,7 +192,7 @@ export const createRealtimeSync = (
     transactions,
     transactionReceipts,
     endClock,
-  }: BlockWithEventData) => {
+  }: BlockWithEventData & { endClock?: () => number }) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
