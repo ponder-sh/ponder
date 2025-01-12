@@ -20,9 +20,9 @@ export function buildLogFactory({
 
   let offset = 0;
 
-  parameter = parameterParts[0]!;
+  const firstParameterSegment = parameterParts[0];
 
-  if (parameter === undefined) {
+  if (firstParameterSegment === undefined) {
     throw new Error("No parameter provided.");
   }
 
@@ -34,7 +34,7 @@ export function buildLogFactory({
   // Check if the provided parameter is present in the list of indexed inputs.
   const indexedInputPosition = event.inputs
     .filter((x) => "indexed" in x && x.indexed)
-    .findIndex((input) => input.name === parameter);
+    .findIndex((input) => input.name === firstParameterSegment);
 
   if (indexedInputPosition > -1) {
     return {
@@ -51,12 +51,12 @@ export function buildLogFactory({
     (x) => !("indexed" in x && x.indexed),
   );
   const nonIndexedInputPosition = nonIndexedInputs.findIndex(
-    (input) => input.name === parameter,
+    (input) => input.name === firstParameterSegment,
   );
 
   if (nonIndexedInputPosition === -1) {
     throw new Error(
-      `Factory event parameter not found in factory event signature. Got '${parameter}', expected one of [${event.inputs
+      `Factory event parameter not found in factory event signature. Got '${firstParameterSegment}', expected one of [${event.inputs
         .map((i) => `'${i.name}'`)
         .join(", ")}].`,
     );
@@ -70,7 +70,9 @@ export function buildLogFactory({
 
   for (let i = 1; i < parameterParts.length; i++) {
     if (!("components" in prvInput)) {
-      throw new Error(`Parameter ${parameter} is not a tuple or struct type`);
+      throw new Error(
+        `Parameter ${firstParameterSegment} is not a tuple or struct type`,
+      );
     }
 
     const dynamicChildFlag = hasDynamicChild(prvInput);
@@ -84,14 +86,14 @@ export function buildLogFactory({
 
     const components = prvInput.components;
 
-    parameter = parameterParts[i]!;
+    const nextParameterSegment = parameterParts[i]!;
 
     const inputIndex = components.findIndex(
-      (input) => input.name === parameter,
+      (input) => input.name === nextParameterSegment,
     );
     if (inputIndex === -1) {
       throw new Error(
-        `Factory event parameter not found in factory event signature. Got '${parameter}', expected one of [${components
+        `Factory event parameter not found in factory event signature. Got '${nextParameterSegment}', expected one of [${components
           .map((i) => `'${i.name}'`)
           .join(", ")}].`,
       );

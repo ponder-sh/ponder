@@ -68,7 +68,7 @@ test("buildLogFactory throws if provided parameter not found in inputs", () => {
   expect(() =>
     buildLogFactory({
       address: "0xa",
-      event: FactoryEventSimpleParamsAbiItem,
+      event: factoryEventSimpleParamsAbiItem,
       parameter: "marketParams.fake",
       chainId: 1,
     }),
