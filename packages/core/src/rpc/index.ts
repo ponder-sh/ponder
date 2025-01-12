@@ -1,14 +1,20 @@
 import type { Common } from "@/internal/common.js";
 import type { Chain } from "@/internal/types.js";
+import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
+import { createQueue } from "@ponder/common";
 import {
+  http,
   BlockNotFoundError,
   type EIP1193Parameters,
   HttpRequestError,
+  type HttpTransport,
   InternalRpcError,
   InvalidInputRpcError,
   LimitExceededRpcError,
   type PublicRpcSchema,
   type WebSocketTransport,
+  webSocket,
 } from "viem";
 import type { DebugRpcSchema } from "../utils/debug.js";
 
@@ -45,71 +51,170 @@ export const createRpc = ({
   common: Common;
   chain: Omit<Chain, "rpc">;
 }): RPC => {
-  // @ts-ignore
-  // const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
-  //   for (let i = 0; i <= RETRY_COUNT; i++) {
-  //     try {
-  //       const stopClock = startClock();
-  //       common.logger.trace({
-  //         service: "rpc",
-  //         msg: `Sent ${request.method} request (params=${JSON.stringify(request.params)})`,
-  //       });
-  //       const response = await network.transport.request(request);
-  //       common.logger.trace({
-  //         service: "rpc",
-  //         msg: `Received ${request.method} response (duration=${stopClock()}, params=${JSON.stringify(request.params)})`,
-  //       });
-  //       common.metrics.ponder_rpc_request_duration.observe(
-  //         { method: request.method, network: network.name },
-  //         stopClock(),
-  //       );
+  let httpIndex = 0;
+  let wsIndex = 0;
+  const httpTransports: ReturnType<HttpTransport>[] = [];
+  const wsTransports: ReturnType<WebSocketTransport>[] = [];
 
-  //       return response;
-  //     } catch (_error) {
-  //       const error = _error as Error;
+  if (typeof chain.rpcUrl === "string") {
+    if (
+      new URL(chain.rpcUrl).protocol === "http" ||
+      new URL(chain.rpcUrl).protocol === "https"
+    ) {
+      httpTransports.push(http(chain.rpcUrl)({ chain: chain.chain }));
+    } else if (
+      new URL(chain.rpcUrl).protocol === "ws" ||
+      new URL(chain.rpcUrl).protocol === "wss"
+    ) {
+      wsTransports.push(webSocket(chain.rpcUrl)({ chain: chain.chain }));
+    }
+  } else if (Array.isArray(chain.rpcUrl)) {
+    for (const url of chain.rpcUrl) {
+      if (
+        new URL(url).protocol === "http:" ||
+        new URL(url).protocol === "https:"
+      ) {
+        httpTransports.push(http(url)({ chain: chain.chain }));
+      } else if (
+        new URL(url).protocol === "ws:" ||
+        new URL(url).protocol === "wss:"
+      ) {
+        wsTransports.push(webSocket(url)({ chain: chain.chain }));
+      }
+    }
+  }
 
-  //       if (
-  //         request.method === "eth_getLogs" &&
-  //         isHex(request.params[0].fromBlock) &&
-  //         isHex(request.params[0].toBlock)
-  //       ) {
-  //         const getLogsErrorResponse = getLogsRetryHelper({
-  //           params: request.params as GetLogsRetryHelperParameters["params"],
-  //           error: error as RpcError,
-  //         });
+  const requestQueue = createQueue<
+    Awaited<ReturnType<RPC["request"]>>,
+    Parameters<RPC["request"]>[0]
+  >({
+    frequency: chain.maxRequestsPerSecond,
+    concurrency: Math.ceil(chain.maxRequestsPerSecond / 4),
+    initialStart: true,
+    browser: false,
+    // @ts-ignore
+    worker: async (request) => {
+      for (let i = 0; i <= RETRY_COUNT; i++) {
+        try {
+          const stopClock = startClock();
+          common.logger.trace({
+            service: "rpc",
+            msg: `Sent ${request.method} request (params=${JSON.stringify(request.params)})`,
+          });
 
-  //         if (getLogsErrorResponse.shouldRetry === true) throw error;
-  //       }
+          const responsePromise = httpTransports[httpIndex++]!.request(request);
+          if (httpIndex === httpTransports.length) httpIndex = 0;
+          const response = await responsePromise;
 
-  //       if (shouldRetry(error) === false) {
-  //         common.logger.warn({
-  //           service: "rpc",
-  //           msg: `Failed ${request.method} request`,
-  //         });
-  //         throw error;
-  //       }
+          common.logger.trace({
+            service: "rpc",
+            msg: `Received ${request.method} response (duration=${stopClock()}, params=${JSON.stringify(request.params)})`,
+          });
+          common.metrics.ponder_rpc_request_duration.observe(
+            { method: request.method, network: chain.chain.name },
+            stopClock(),
+          );
 
-  //       if (i === RETRY_COUNT) {
-  //         common.logger.warn({
-  //           service: "rpc",
-  //           msg: `Failed ${request.method} request after ${i + 1} attempts`,
-  //           error,
-  //         });
-  //         throw error;
-  //       }
+          return response as RequestReturnType<typeof request.method>;
+        } catch (_error) {
+          const error = _error as Error;
 
-  //       const duration = BASE_DURATION * 2 ** i;
-  //       common.logger.debug({
-  //         service: "rpc",
-  //         msg: `Failed ${request.method} request, retrying after ${duration} milliseconds`,
-  //         error,
-  //       });
-  //       await wait(duration);
-  //     }
-  //   }
-  // };
+          // TODO(kyle) log ranges
 
-  return {} as RPC;
+          if (shouldRetry(error) === false) {
+            common.logger.warn({
+              service: "rpc",
+              msg: `Failed ${request.method} request`,
+            });
+            throw error;
+          }
+
+          if (i === RETRY_COUNT) {
+            common.logger.warn({
+              service: "rpc",
+              msg: `Failed ${request.method} request after ${i + 1} attempts`,
+              error,
+            });
+            throw error;
+          }
+
+          const duration = BASE_DURATION * 2 ** i;
+          common.logger.debug({
+            service: "rpc",
+            msg: `Failed ${request.method} request, retrying after ${duration} milliseconds`,
+            error,
+          });
+          await wait(duration);
+        }
+      }
+    },
+  });
+
+  return {
+    // @ts-ignore
+    request: requestQueue.add,
+    // @ts-ignore
+    subscribe: async (request) => {
+      for (let i = 0; i <= RETRY_COUNT; i++) {
+        try {
+          const stopClock = startClock();
+          common.logger.trace({
+            service: "rpc",
+            msg: `Sent eth_subscribe request (params=${JSON.stringify(request.params)})`,
+          });
+
+          const responsePromise =
+            wsTransports[wsIndex++]!.value!.subscribe(request);
+          if (wsIndex === wsTransports.length) wsIndex = 0;
+          const response = await responsePromise;
+
+          common.logger.trace({
+            service: "rpc",
+            msg: `Received eth_subscribe response (duration=${stopClock()}, params=${JSON.stringify(request.params)})`,
+          });
+          common.metrics.ponder_rpc_request_duration.observe(
+            { method: "eth_subscribe", network: chain.chain.name },
+            stopClock(),
+          );
+
+          return response;
+        } catch (_error) {
+          const error = _error as Error;
+
+          // TODO(kyle) log ranges
+
+          if (shouldRetry(error) === false) {
+            common.logger.warn({
+              service: "rpc",
+              msg: "Failed eth_subscribe request",
+            });
+            throw error;
+          }
+
+          if (i === RETRY_COUNT) {
+            common.logger.warn({
+              service: "rpc",
+              msg: `Failed eth_subscribe request after ${i + 1} attempts`,
+              error,
+            });
+            throw error;
+          }
+
+          const duration = BASE_DURATION * 2 ** i;
+          common.logger.debug({
+            service: "rpc",
+            msg: `Failed eth_subscribe request, retrying after ${duration} milliseconds`,
+            error,
+          });
+          await wait(duration);
+        }
+      }
+    },
+    supports: (method) => {
+      if (method === "eth_subscribe" && wsTransports.length === 0) return false;
+      return true;
+    },
+  };
 };
 
 /**

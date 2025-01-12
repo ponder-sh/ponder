@@ -216,7 +216,7 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const chain = chains.find((c) => c.chain.id === source.chain);
+    const chain = chains.find((c) => c.chain.id === Number(source.chain));
     if (chain === undefined) {
       throw new Error(
         `Validation failed: Invalid chain for '${
@@ -232,7 +232,7 @@ export async function buildConfigAndIndexingFunctions({
     config.contracts ?? {},
   )
     .flatMap((source): ContractSource[] => {
-      const chain = chains.find((c) => c.chain.id === source.chain)!;
+      const chain = chains.find((c) => c.chain.id === Number(source.chain))!;
 
       // Get indexing function that were registered for this contract
       const registeredLogEvents: string[] = [];
@@ -532,7 +532,7 @@ export async function buildConfigAndIndexingFunctions({
 
   const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
     .flatMap((source): AccountSource[] => {
-      const chain = chains.find((c) => c.chain.id === source.chain)!;
+      const chain = chains.find((c) => c.chain.id === Number(source.chain))!;
 
       const startBlockMaybeNan = source.startBlock;
       const fromBlock = Number.isNaN(startBlockMaybeNan)
@@ -749,7 +749,7 @@ export async function buildConfigAndIndexingFunctions({
 
   const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
     .map((source) => {
-      const chain = chains.find((c) => c.chain.id === source.chain)!;
+      const chain = chains.find((c) => c.chain.id === Number(source.chain))!;
 
       const intervalMaybeNan = source.interval ?? 1;
       const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
