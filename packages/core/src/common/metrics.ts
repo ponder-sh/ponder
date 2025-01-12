@@ -158,7 +158,7 @@ export class MetricsService {
     });
     this.ponder_realtime_latency = new prometheus.Histogram({
       name: "ponder_realtime_latency",
-      help: "Duration between receiving a block and processing it",
+      help: "Duration of block processing",
       labelNames: ["network"] as const,
       buckets: httpRequestDurationMs,
       registers: [this.registry],

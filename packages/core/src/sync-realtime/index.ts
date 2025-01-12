@@ -89,7 +89,6 @@ export type RealtimeSyncEvent =
       type: "reorg";
       block: LightBlock;
       reorgedBlocks: LightBlock[];
-      // TODO(kyle) add endClock
     };
 
 const ERROR_TIMEOUT = [
