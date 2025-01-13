@@ -255,12 +255,13 @@ export type Schema = { [name: string]: unknown };
 
 // Build artifacts
 
+/** Database schema name. */
+export type NamespaceBuild = string;
+
 /** Consolidated CLI, env vars, and config. */
 export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
-  /** Database schema */
-  namespace: string;
 };
 
 export type SchemaBuild = {

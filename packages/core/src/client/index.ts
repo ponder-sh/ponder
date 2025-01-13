@@ -39,7 +39,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
 
   let queryPromise: Promise<any>;
 
-  const channel = `${global.PONDER_DATABASE_SCHEMA}_status_channel`;
+  const channel = `${global.PONDER_NAMESPACE_BUILD}_status_channel`;
 
   if (listenConnection.dialect === "pglite") {
     queryPromise = listenConnection.connection.query(`LISTEN ${channel}`);
