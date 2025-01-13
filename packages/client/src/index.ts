@@ -1,5 +1,5 @@
 import { type QueryWithTypings, type SQLWrapper, sql } from "drizzle-orm";
-import { type PgDialect, type PgSession, pgTable } from "drizzle-orm/pg-core";
+import { type PgDialect, pgTable } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 
 const getEventSource = async () => {
@@ -38,7 +38,7 @@ export type Client<schema extends Schema = Schema> = {
   db: ClientDb<schema>;
   /** Subscribe to live updates. */
   live: <result>(
-    queryFn: (db: ClientDb<schema>) => Promise<result>,
+    queryFn: (db: ClientDb<schema>) => Promise<result> & SQLWrapper,
     onData: (result: result) => void,
     onError?: (error: Error) => void,
   ) => {
@@ -76,16 +76,12 @@ export const status = pgTable("_ponder_status", (t) => ({
 // @ts-ignore
 status[Symbol.for("ponder:onchain")] = true;
 
-// TODO(kyle) can we clean this up?
-
 const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
   casing: "snake_case",
 });
 
 // @ts-ignore
 const dialect: PgDialect = noopDatabase.dialect;
-// @ts-ignore
-const session: PgSession = noopDatabase.session;
 
 export const compileQuery = (query: SQLWrapper | string) => {
   const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
@@ -117,7 +113,6 @@ export const createClient = <schema extends Schema>(
     db: drizzle(
       async (sql, params, _, typings) => {
         const builtQuery = { sql, params, typings };
-        // TODO(kyle) error handling
         const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
           method: "POST",
         });
@@ -143,10 +138,9 @@ export const createClient = <schema extends Schema>(
       // @ts-ignore
       const builtQuery = compileQuery(queryFn(noopDatabase));
 
-      // TODO(kyle) use a better check
+      const statusQuery = compileQuery(noopDatabase.select().from(status));
       if (
-        builtQuery.sql ===
-          'select "chain_id", "block_number", "block_timestamp", "ready" from "_ponder_status"' &&
+        statusQuery.sql === builtQuery.sql &&
         builtQuery.params.length === 0
       ) {
         const addEventListeners = () => {

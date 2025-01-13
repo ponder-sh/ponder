@@ -11,9 +11,11 @@ import {
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
 
+type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
+
 export function usePonderQuery<result>(
   params: {
-    queryFn: (db: Client["db"]) => Promise<result>;
+    queryFn: (db: Client["db"]) => Promise<result> & SQLWrapper;
   } & Omit<UseQueryOptions<result>, "queryFn" | "queryKey">,
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();
@@ -23,9 +25,12 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
-  // TODO(kyle) make sure it returns the drizzle object type
   const queryPromise = params.queryFn(client.db);
-  // @ts-ignore
+
+  if ("getSQL" in queryPromise === false) {
+    throw new Error('"queryFn" must return SQL');
+  }
+
   const query = compileQuery(queryPromise);
   const queryKey = useMemo(() => [query.sql, ...query.params], [query]);
 
