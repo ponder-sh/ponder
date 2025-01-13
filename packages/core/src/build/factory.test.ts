@@ -21,6 +21,11 @@ const factoryEventWithDynamicChildParamsAbiItem2 = parseAbiItem([
   "struct ChildInfo { address childAddress; string name; uint256 initialValue; uint256 creationTime; address creator; }",
 ]);
 
+const factoryEventWithIndexedDynamicChildParamsAbiItem = parseAbiItem([
+  "event ChildCreated(address indexed creator, ChildInfo indexed child, uint256 timestamp)",
+  "struct ChildInfo { address childAddress; string name; uint256 initialValue; uint256 creationTime; address creator; }",
+]);
+
 test("buildLogFactory throws if provided parameter not found in inputs", () => {
   expect(() =>
     buildLogFactory({
@@ -120,4 +125,15 @@ test("buildLogFactory handles ChildCreated", () => {
     eventSelector: getEventSelector(factoryEventWithDynamicChildParamsAbiItem2),
     childAddressLocation: "offset96",
   });
+});
+
+test("buildLogFactory handles indexed ChildCreated", () => {
+  expect(() =>
+    buildLogFactory({
+      address: "0xa",
+      event: factoryEventWithIndexedDynamicChildParamsAbiItem,
+      parameter: "child.childAddress",
+      chainId: 1,
+    }),
+  ).toThrowError("Child parameters of indexed parameters are not accessible");
 });

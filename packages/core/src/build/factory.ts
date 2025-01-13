@@ -1,7 +1,7 @@
 import type { LogFactory } from "@/sync/source.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { dedupe } from "@ponder/common";
 import { getBytesConsumedByParam, hasDynamicChild } from "@/utils/offset.js";
+import { dedupe } from "@ponder/common";
 import type { AbiEvent } from "abitype";
 import { type Address, toEventSelector } from "viem";
 
@@ -37,6 +37,11 @@ export function buildLogFactory({
     .findIndex((input) => input.name === firstParameterSegment);
 
   if (indexedInputPosition > -1) {
+    if (parameterParts.length !== 1) {
+      throw new Error(
+        "Child parameters of indexed parameters are not accessible",
+      );
+    }
     return {
       type: "log",
       chainId,
