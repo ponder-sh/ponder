@@ -1,5 +1,17 @@
 # ponder
 
+## 0.8.24
+
+### Patch Changes
+
+- [#1435](https://github.com/ponder-sh/ponder/pull/1435) [`d891abaf25a939684f473cc2df90e3c89cfe6f2d`](https://github.com/ponder-sh/ponder/commit/d891abaf25a939684f473cc2df90e3c89cfe6f2d) Thanks [@tk-o](https://github.com/tk-o)! - Fixed a bug causing setup function with multiple networks to error.
+
+## 0.8.23
+
+### Patch Changes
+
+- [#1430](https://github.com/ponder-sh/ponder/pull/1430) [`b3ec95059103c7bcc2babd9ff5f7d6dbdb239982`](https://github.com/ponder-sh/ponder/commit/b3ec95059103c7bcc2babd9ff5f7d6dbdb239982) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where ZKsync system logs with transaction receipts failed with the error `Detected inconsistent RPC responses. 'transaction.hash' 0x0000000000000000000000000000000000000000000000000000000000000000 not found in eth_getBlockReceipts response for block (...)`.
+
 ## 0.8.22
 
 ### Patch Changes

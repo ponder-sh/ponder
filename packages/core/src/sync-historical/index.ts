@@ -530,11 +530,21 @@ export const createHistoricalSync = async (
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
         Array.from(requiredBlocks).map((blockHash) => {
-          const blockTransactionHashes = new Set(
-            logs
-              .filter((l) => l.blockHash === blockHash)
-              .map((l) => l.transactionHash),
-          );
+          const blockTransactionHashes = new Set<Hash>();
+
+          for (const log of logs) {
+            if (log.blockHash === blockHash) {
+              if (log.transactionHash === zeroHash) {
+                args.common.logger.warn({
+                  service: "sync",
+                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+                });
+              } else {
+                blockTransactionHashes.add(log.transactionHash);
+              }
+            }
+          }
+
           return syncTransactionReceipts(blockHash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());

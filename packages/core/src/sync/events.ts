@@ -126,11 +126,13 @@ export const buildEvents = ({
                         transactionCache.get(log.transactionHash)!,
                       )
                     : undefined,
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
-                    ? convertTransactionReceipt(
-                        transactionReceiptCache.get(log.transactionHash)!,
-                      )
-                    : undefined,
+                  transactionReceipt:
+                    transactionReceiptCache.has(log.transactionHash) &&
+                    shouldGetTransactionReceipt(filter)
+                      ? convertTransactionReceipt(
+                          transactionReceiptCache.get(log.transactionHash)!,
+                        )
+                      : undefined,
                   trace: undefined,
                 });
               }
