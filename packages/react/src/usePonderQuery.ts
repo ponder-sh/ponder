@@ -30,7 +30,6 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
-  // TODO(kyle) potentialy use a different db instance that doesn't decode
   const queryPromise = params.queryFn(client.db);
 
   if ("getSQL" in queryPromise === false) {
@@ -48,8 +47,6 @@ export function usePonderQuery<result>(
     );
     return unsubscribe;
   }, [queryKey]);
-
-  // TODO(kyle) use select() to decode
 
   return useQuery({
     ...params,
