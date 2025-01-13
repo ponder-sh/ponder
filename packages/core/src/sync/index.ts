@@ -673,26 +673,29 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               events,
             })
             .then(() => {
-              if (event.endClock) {
-                args.common.metrics.ponder_realtime_latency.observe(
-                  { network: network.name },
-                  event.endClock(),
-                );
-              }
               if (events.length > 0 && isKilled === false) {
                 args.common.logger.info({
                   service: "app",
                   msg: `Indexed ${events.length} events`,
                 });
               }
+
+              // update `ponder_realtime_latency` metric
+              for (const network of args.networks) {
+                for (const { block, endClock } of perNetworkSync.get(network)!
+                  .unfinalizedBlocks) {
+                  const checkpoint = encodeCheckpoint(
+                    blockToCheckpoint(block, network.chainId, "up"),
+                  );
+                  if (checkpoint > from && checkpoint <= to && endClock) {
+                    args.common.metrics.ponder_realtime_latency.observe(
+                      { network: network.name },
+                      endClock(),
+                    );
+                  }
+                }
+              }
             });
-        } else {
-          if (event.endClock) {
-            args.common.metrics.ponder_realtime_latency.observe(
-              { network: network.name },
-              event.endClock(),
-            );
-          }
         }
 
         break;
