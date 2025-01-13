@@ -25,7 +25,12 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { encodeFunctionData, encodeFunctionResult, toHex } from "viem";
+import {
+  encodeFunctionData,
+  encodeFunctionResult,
+  toHex,
+  zeroAddress,
+} from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
@@ -568,7 +573,7 @@ test("sync() with many filters", async (context) => {
   await cleanup();
 });
 
-test("sync() with cache hit", async (context) => {
+test("sync() with cache", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -619,6 +624,114 @@ test("sync() with cache hit", async (context) => {
 
   await historicalSync.sync([1, 2]);
   expect(spy).toHaveBeenCalledTimes(0);
+
+  await cleanup();
+});
+
+test("sync() with partial cache", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  let historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 2]);
+
+  // re-instantiate `historicalSync` to reset the cached intervals
+
+  let spy = vi.spyOn(requestQueue, "request");
+
+  // @ts-ignore
+  sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
+
+  historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 2]);
+  expect(spy).toHaveBeenCalledTimes(2);
+
+  expect(spy).toHaveBeenCalledWith({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: [zeroAddress],
+        fromBlock: "0x1",
+        toBlock: "0x2",
+        topics: [
+          [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        ],
+      },
+    ],
+  });
+
+  // re-instantiate `historicalSync` to reset the cached intervals
+
+  spy = vi.spyOn(requestQueue, "request");
+
+  historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  await historicalSync.sync([1, 3]);
+  expect(spy).toHaveBeenCalledTimes(2);
+
+  expect(spy).toHaveBeenCalledWith({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: [address, zeroAddress],
+        fromBlock: "0x3",
+        toBlock: "0x3",
+        topics: [
+          [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        ],
+      },
+    ],
+  });
 
   await cleanup();
 });

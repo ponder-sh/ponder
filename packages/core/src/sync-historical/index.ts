@@ -6,10 +6,12 @@ import {
   isTransferFilterMatched,
 } from "@/sync-realtime/filter.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { type Fragment, recoverFilter } from "@/sync/fragments.js";
 import {
   type BlockFilter,
   type Factory,
   type Filter,
+  type FilterWithoutBlocks,
   type LogFactory,
   type LogFilter,
   type TraceFilter,
@@ -27,10 +29,10 @@ import type {
 import {
   type Interval,
   getChunks,
+  intervalBounds,
   intervalDifference,
   intervalRange,
 } from "@/utils/interval.js";
-import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _debug_traceBlockByNumber,
@@ -51,7 +53,7 @@ import {
 } from "viem";
 
 export type HistoricalSync = {
-  intervalsCache: Map<Filter, Interval[]>;
+  intervalsCache: Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>;
   /**
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
@@ -124,7 +126,10 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  let intervalsCache: Map<Filter, Interval[]>;
+  let intervalsCache: Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >;
   if (args.network.disableCache) {
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
@@ -741,71 +746,102 @@ export const createHistoricalSync = async (
   return {
     intervalsCache,
     async sync(_interval) {
-      const syncedIntervals: { filter: Filter; interval: Interval }[] = [];
+      const intervalsToSync: {
+        interval: Interval;
+        filter: FilterWithoutBlocks;
+      }[] = [];
 
-      await Promise.all(
-        args.sources.map(async (source) => {
-          const filter = source.filter;
+      // Determine the requests that need to be made, and which intervals need to be inserted.
+      // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
+      // is only partially synced.
 
-          // Compute the required interval to sync, accounting for cached
-          // intervals and start + end block.
+      for (const { filter } of args.sources) {
+        if (
+          (filter.fromBlock !== undefined && filter.fromBlock > _interval[1]) ||
+          (filter.toBlock !== undefined && filter.toBlock < _interval[0])
+        ) {
+          continue;
+        }
 
-          // Skip sync if the interval is after the `toBlock` or before
-          // the `fromBlock`.
-          if (
-            (filter.fromBlock !== undefined &&
-              filter.fromBlock > _interval[1]) ||
-            (filter.toBlock !== undefined && filter.toBlock < _interval[0])
-          ) {
-            return;
-          }
-          const interval: Interval = [
-            Math.max(filter.fromBlock ?? 0, _interval[0]),
-            Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
-          ];
-          const completedIntervals = intervalsCache.get(filter)!;
-          const requiredIntervals = intervalDifference(
+        const interval: Interval = [
+          Math.max(filter.fromBlock ?? 0, _interval[0]),
+          Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
+        ];
+
+        const completedIntervals = intervalsCache.get(filter)!;
+        const requiredIntervals: {
+          fragment: Fragment;
+          intervals: Interval[];
+        }[] = [];
+
+        for (const {
+          fragment,
+          intervals: fragmentIntervals,
+        } of completedIntervals) {
+          const requiredFragmentIntervals = intervalDifference(
             [interval],
-            completedIntervals,
+            fragmentIntervals,
           );
 
-          // Skip sync if the interval is already complete.
-          if (requiredIntervals.length === 0) return;
+          if (requiredFragmentIntervals.length > 0) {
+            requiredIntervals.push({
+              fragment,
+              intervals: requiredFragmentIntervals,
+            });
+          }
+        }
 
+        if (requiredIntervals.length > 0) {
+          const requiredInterval = intervalBounds(
+            requiredIntervals.flatMap(({ intervals }) => intervals),
+          );
+
+          const requiredFilter = recoverFilter(
+            filter,
+            requiredIntervals.map(({ fragment }) => fragment),
+          );
+
+          intervalsToSync.push({
+            filter: requiredFilter,
+            interval: requiredInterval,
+          });
+        }
+      }
+
+      await Promise.all(
+        intervalsToSync.map(async ({ filter, interval }) => {
           // Request last block of interval
           const blockPromise = syncBlock(interval[1]);
 
           try {
-            // sync required intervals, account for chunk sizes
-            await Promise.all(
-              requiredIntervals.map(async (interval) => {
-                switch (filter.type) {
-                  case "log": {
-                    await syncLogFilter(filter, interval);
-                    break;
-                  }
+            switch (filter.type) {
+              case "log": {
+                await syncLogFilter(filter as LogFilter, interval);
+                break;
+              }
 
-                  case "block": {
-                    await syncBlockFilter(filter, interval);
-                    break;
-                  }
+              case "block": {
+                await syncBlockFilter(filter as BlockFilter, interval);
+                break;
+              }
 
-                  case "transaction": {
-                    await syncTransactionFilter(filter, interval);
-                    break;
-                  }
+              case "transaction": {
+                await syncTransactionFilter(
+                  filter as TransactionFilter,
+                  interval,
+                );
+                break;
+              }
 
-                  case "trace":
-                  case "transfer": {
-                    await syncTraceOrTransferFilter(filter, interval);
-                    break;
-                  }
-
-                  default:
-                    never(filter);
-                }
-              }),
-            );
+              case "trace":
+              case "transfer": {
+                await syncTraceOrTransferFilter(
+                  filter as TraceFilter | TransferFilter,
+                  interval,
+                );
+                break;
+              }
+            }
           } catch (_error) {
             const error = _error as Error;
 
@@ -823,10 +859,10 @@ export const createHistoricalSync = async (
           if (isKilled) return;
 
           await blockPromise;
-
-          syncedIntervals.push({ filter, interval });
         }),
       );
+
+      if (isKilled) return;
 
       const blocks = await Promise.all(blockCache.values());
 
@@ -845,11 +881,13 @@ export const createHistoricalSync = async (
         }),
       ]);
 
+      if (isKilled) return;
+
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
       if (args.network.disableCache === false) {
         await args.syncStore.insertIntervals({
-          intervals: syncedIntervals,
+          intervals: intervalsToSync,
           chainId: args.network.chainId,
         });
       }
