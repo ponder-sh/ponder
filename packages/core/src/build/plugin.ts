@@ -18,17 +18,17 @@ export default schema;
 
 const apiModule = () => `import { createPublicClient } from "viem";
 
-const clients = {};
+const publicClients = {};
 
 for (const network of global.PONDER_INDEXING_BUILD.networks) {
-  clients[network.chainId] = createPublicClient({
+  publicClients[network.chainId] = createPublicClient({
     chain: network.chain,
     transport: () => network.transport
   })
 }
 
 export const db = global.PONDER_DATABASE.qb.drizzleReadonly;
-export { clients };
+export { publicClients };
 `;
 
 export const vitePluginPonder = (options: Common["options"]): Plugin => {

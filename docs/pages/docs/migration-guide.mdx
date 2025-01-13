@@ -83,6 +83,33 @@ app.get("/account/:address", async (c) => {
 export default app;
 ```
 
+#### `import { publicClients } from "ponder:api"`
+
+[Viem Public Clients](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts` are injected into `src/api/index.ts`.
+
+```ts filename="src/api/index.ts" {1,11}
+import { publicClients, db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:chainId/:address", async (c) => {
+  const chainId = c.req.param("chainId");
+  const address = c.req.param("address");
+
+  const balance = await publicClients[chainId].getBalance({ address });
+
+  const account = await db.query.accounts.findFirst({
+    where: eq(schema.accounts.address, address),
+  });
+
+  return c.json({ balance, account });
+});
+
+export default app;
+```
+
 ### `@ponder/client` and `@ponder/react`
 
 Two new packages for querying Ponder apps. [Read more](/docs/query/client).

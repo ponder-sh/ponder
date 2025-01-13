@@ -32,7 +32,7 @@ declare module "ponder:api" {
   type config = typeof import("ponder:internal").config;
 
   export const db: ReadonlyDrizzle<schema>;
-  export const clients: {
+  export const publicClients: {
     [chainId in config["default"]["networks"][keyof config["default"]["networks"]]["chainId"]]: PublicClient;
   };
 }

@@ -138,6 +138,33 @@ app.get("/hot-trades", async (c) => {
 export default app;
 ```
 
+### Send RPC requests
+
+The API function context also includes a [Viem client](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts`.
+
+```ts filename="src/api/index.ts" {1,11}
+import { publicClients, db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:chainId/:address", async (c) => {
+  const chainId = c.req.param("chainId");
+  const address = c.req.param("address");
+
+  const balance = await publicClients[chainId].getBalance({ address });
+
+  const account = await db.query.accounts.findFirst({
+    where: eq(schema.accounts.address, address),
+  });
+
+  return c.json({ balance, account });
+});
+
+export default app;
+```
+
 ## Reserved routes
 
 If you register API functions that conflict with these internal routes, the build will fail.
