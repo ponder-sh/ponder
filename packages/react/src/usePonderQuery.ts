@@ -13,6 +13,11 @@ import { PonderContext } from "./context.js";
 
 type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
 
+export function getQueryKey(query: SQLWrapper) {
+  const sql = compileQuery(query);
+  return [sql.sql, ...sql.params];
+}
+
 export function usePonderQuery<result>(
   params: {
     queryFn: (db: Client["db"]) => Promise<result> & SQLWrapper;
@@ -25,6 +30,7 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
+  // TODO(kyle) potentialy use a different db instance that doesn't decode
   const queryPromise = params.queryFn(client.db);
 
   if ("getSQL" in queryPromise === false) {
@@ -42,6 +48,8 @@ export function usePonderQuery<result>(
     );
     return unsubscribe;
   }, [queryKey]);
+
+  // TODO(kyle) use select() to decode
 
   return useQuery({
     ...params,

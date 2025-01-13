@@ -1,2 +1,2 @@
-export { usePonderQuery } from "./usePonderQuery.js";
+export { usePonderQuery, getQueryKey } from "./usePonderQuery.js";
 export { PonderProvider } from "./context.js";
