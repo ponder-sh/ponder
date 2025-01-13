@@ -21,13 +21,10 @@ test("client.db", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database, cleanup, listenConnection } = await setupDatabaseServices(
-    context,
-    {
-      schema: { account },
-    },
-  );
-  global.PONDER_LISTEN_CONNECTION = listenConnection;
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema: { account },
+  });
+  global.PONDER_DATABASE = database;
 
   const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
 
@@ -45,9 +42,8 @@ test("client.db", async (context) => {
 });
 
 test("client.db error", async (context) => {
-  const { database, cleanup, listenConnection } =
-    await setupDatabaseServices(context);
-  global.PONDER_LISTEN_CONNECTION = listenConnection;
+  const { database, cleanup } = await setupDatabaseServices(context);
+  global.PONDER_DATABASE = database;
 
   const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
 

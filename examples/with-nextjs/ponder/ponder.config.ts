@@ -1,7 +1,11 @@
 import { createConfig } from "ponder";
-import { http } from "viem";
+import { http, createPublicClient } from "viem";
 
-import { Weth9Abi } from "./abis/Weth9Abi";
+import { weth9Abi } from "./abis/weth9Abi";
+
+const latestBlockBase = await createPublicClient({
+  transport: http(process.env.PONDER_RPC_URL_8453),
+}).getBlock();
 
 export default createConfig({
   networks: {
@@ -11,11 +15,11 @@ export default createConfig({
     },
   },
   contracts: {
-    WETH: {
+    weth9: {
+      abi: weth9Abi,
       network: "base",
-      abi: Weth9Abi,
       address: "0x4200000000000000000000000000000000000006",
-      startBlock: 24867800,
+      startBlock: Number(latestBlockBase.number),
     },
   },
 });

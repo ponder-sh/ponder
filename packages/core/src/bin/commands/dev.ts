@@ -1,11 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import {
-  type Database,
-  type ListenConnection,
-  createDatabase,
-} from "@/database/index.js";
+import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -66,11 +62,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await indexingCleanupReloadable();
     await apiCleanupReloadable();
-    if (listenConnection) {
-      if (listenConnection.dialect === "postgres") {
-        listenConnection.connection.release();
-      }
-    }
+
     if (database) {
       await database.kill();
     }
@@ -105,11 +97,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       if (result.kind === "indexing") {
         metrics.resetIndexingMetrics();
 
-        if (listenConnection) {
-          if (listenConnection.dialect === "postgres") {
-            listenConnection.connection.release();
-          }
-        }
         if (database) {
           await database.kill();
         }
@@ -183,12 +170,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           schemaBuild,
         });
         await database.migrate(indexingBuildResult.result);
-        listenConnection = await database.getListenConnection();
 
         const apiResult = await build.executeApi({
           indexingBuild,
           database,
-          listenConnection,
         });
         if (apiResult.status === "error") {
           buildQueue.add({
@@ -255,7 +240,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         const apiResult = await build.executeApi({
           indexingBuild: indexingBuild!,
           database: database!,
-          listenConnection: listenConnection!,
         });
         if (apiResult.status === "error") {
           buildQueue.add({
@@ -291,7 +275,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   let indexingBuild: IndexingBuild | undefined;
   let database: Database | undefined;
-  let listenConnection: ListenConnection | undefined;
 
   const namespace =
     cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";

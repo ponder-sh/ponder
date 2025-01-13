@@ -61,6 +61,8 @@ test("createDatabase() readonly", async (context) => {
   expect(error).toBeDefined();
   expect(error?.message).toContain("permission denied for table");
 
+  // TODO(kyle) test query complexity limit
+
   await database.kill();
 });
 

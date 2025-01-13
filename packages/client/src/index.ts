@@ -76,6 +76,8 @@ export const status = pgTable("_ponder_status", (t) => ({
 // @ts-ignore
 status[Symbol.for("ponder:onchain")] = true;
 
+// TODO(kyle) can we clean this up?
+
 const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
   casing: "snake_case",
 });
@@ -115,6 +117,7 @@ export const createClient = <schema extends Schema>(
     db: drizzle(
       async (sql, params, _, typings) => {
         const builtQuery = { sql, params, typings };
+        // TODO(kyle) error handling
         const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
           method: "POST",
         });
@@ -140,6 +143,7 @@ export const createClient = <schema extends Schema>(
       // @ts-ignore
       const builtQuery = compileQuery(queryFn(noopDatabase));
 
+      // TODO(kyle) use a better check
       if (
         builtQuery.sql ===
           'select "chain_id", "block_number", "block_timestamp", "ready" from "_ponder_status"' &&

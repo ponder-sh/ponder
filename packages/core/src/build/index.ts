@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
-import type { Database, ListenConnection } from "@/database/index.js";
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { BuildError } from "@/internal/errors.js";
 import type {
@@ -36,7 +36,6 @@ declare global {
   var PONDER_NAMESPACE_BUILD: NamespaceBuild;
   var PONDER_INDEXING_BUILD: IndexingBuild;
   var PONDER_DATABASE: Database;
-  var PONDER_LISTEN_CONNECTION: ListenConnection;
 }
 
 const BUILD_ID_VERSION = "1";
@@ -58,7 +57,6 @@ export type Build = {
   executeApi: (params: {
     indexingBuild: IndexingBuild;
     database: Database;
-    listenConnection: ListenConnection;
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
@@ -271,14 +269,9 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi({
-      indexingBuild,
-      database,
-      listenConnection,
-    }): Promise<ApiResult> {
+    async executeApi({ indexingBuild, database }): Promise<ApiResult> {
       global.PONDER_INDEXING_BUILD = indexingBuild;
       global.PONDER_DATABASE = database;
-      global.PONDER_LISTEN_CONNECTION = listenConnection;
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(

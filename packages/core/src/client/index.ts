@@ -34,29 +34,40 @@ const status = pgTable("_ponder_status", (t) => ({
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
-  const listenConnection = global.PONDER_LISTEN_CONNECTION;
+  const driver = global.PONDER_DATABASE.driver;
   let statusResolver = promiseWithResolvers<(typeof status.$inferSelect)[]>();
-
-  let queryPromise: Promise<any>;
 
   const channel = `${global.PONDER_NAMESPACE_BUILD}_status_channel`;
 
-  if (listenConnection.dialect === "pglite") {
-    queryPromise = listenConnection.connection.query(`LISTEN ${channel}`);
-
-    listenConnection.connection.onNotification(async () => {
-      const result = await db.select().from(status);
-      statusResolver.resolve(result);
-      statusResolver = promiseWithResolvers();
+  if ("instance" in driver) {
+    driver.instance.query(`LISTEN ${channel}`).then(() => {
+      driver.instance.onNotification(async () => {
+        const result = await db.select().from(status);
+        statusResolver.resolve(result);
+        statusResolver = promiseWithResolvers();
+      });
     });
   } else {
-    queryPromise = listenConnection.connection.query(`LISTEN ${channel}`);
+    const pool = driver.internal;
 
-    listenConnection.connection.on("notification", async () => {
-      const result = await db.select().from(status);
-      statusResolver.resolve(result);
-      statusResolver = promiseWithResolvers();
-    });
+    const connectAndListen = async () => {
+      driver.listen = await pool.connect();
+
+      await driver.listen.query(`LISTEN ${channel}`);
+
+      driver.listen.on("error", async () => {
+        driver.listen?.release();
+        connectAndListen();
+      });
+
+      driver.listen.on("notification", async () => {
+        const result = await db.select().from(status);
+        statusResolver.resolve(result);
+        statusResolver = promiseWithResolvers();
+      });
+    };
+
+    connectAndListen();
   }
 
   return createMiddleware(async (c, next) => {
@@ -74,6 +85,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
 
         return c.json(result as object);
       } catch (error) {
+        (error as Error).stack = undefined;
         return c.text((error as Error).message, 500);
       }
     }
@@ -85,24 +97,15 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
-      await queryPromise;
-
       let statusResult = await db.select().from(status);
 
       return streamSSE(c, async (stream) => {
-        while (stream.closed === false) {
+        while (stream.closed === false && stream.aborted === false) {
           try {
             await stream.writeSSE({
               data: JSON.stringify({ status: "success", result: statusResult }),
             });
-          } catch (error) {
-            await stream.writeSSE({
-              data: JSON.stringify({
-                status: "error",
-                error: (error as Error).message,
-              }),
-            });
-          }
+          } catch {}
           statusResult = await statusResolver.promise;
         }
       });

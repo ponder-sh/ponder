@@ -23,18 +23,20 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
+  // TODO(kyle) make sure it returns the drizzle object type
   const queryPromise = params.queryFn(client.db);
   // @ts-ignore
   const query = compileQuery(queryPromise);
   const queryKey = useMemo(() => [query.sql, ...query.params], [query]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     const { unsubscribe } = client.live(
       (db) => db.select().from(status),
       () => queryClient.invalidateQueries({ queryKey }),
     );
     return unsubscribe;
-  }, [queryClient, client, queryKey]);
+  }, [queryKey]);
 
   return useQuery({
     ...params,

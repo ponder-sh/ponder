@@ -45,6 +45,7 @@ import parse from "pg-connection-string";
 import prometheus from "prom-client";
 
 export type Database = {
+  driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
   wrap: <T>(
     options: {
@@ -57,8 +58,6 @@ export type Database = {
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
   migrate({ buildId }: Pick<IndexingBuild, "buildId">): Promise<void>;
-  /** ... */
-  getListenConnection(): Promise<ListenConnection>;
   /** Determine the app checkpoint , possibly reverting unfinalized rows. */
   recoverCheckpoint(): Promise<string>;
   createIndexes(): Promise<void>;
@@ -70,10 +69,6 @@ export type Database = {
   unlock(): Promise<void>;
   kill(): Promise<void>;
 };
-
-export type ListenConnection =
-  | { dialect: "pglite"; connection: PGlite }
-  | { dialect: "postgres"; connection: PoolClient };
 
 export type PonderApp = {
   is_locked: 0 | 1;
@@ -111,6 +106,7 @@ type PostgresDriver = {
   user: Pool;
   sync: Pool;
   readonly: Pool;
+  listen: PoolClient | undefined;
 };
 
 type QueryBuilder = {
@@ -307,6 +303,7 @@ export const createDatabase = async ({
         },
         common.logger,
       ),
+      listen: undefined,
     } as PostgresDriver;
 
     qb = {
@@ -502,6 +499,7 @@ export const createDatabase = async ({
   let checkpoint: string | undefined;
 
   const database = {
+    driver,
     qb,
     // @ts-ignore
     async wrap(options, fn) {
@@ -787,6 +785,32 @@ export const createDatabase = async ({
           .addColumn("ready", "boolean", (col) => col.notNull())
           .ifNotExists()
           .execute();
+
+        const trigger = "status_trigger";
+        const notification = `${namespace}_status_notify()`;
+        const channel = `${namespace}_status_channel`;
+
+        await sql
+          .raw(`
+        CREATE OR REPLACE FUNCTION ${notification}
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+        NOTIFY ${channel};
+        RETURN NULL;
+        END;
+        $$;`)
+          .execute(qb.internal);
+
+        await sql
+          .raw(`
+        CREATE OR REPLACE TRIGGER ${trigger}
+        AFTER INSERT OR UPDATE OR DELETE
+        ON "${namespace}"._ponder_status
+        FOR EACH STATEMENT
+        EXECUTE PROCEDURE ${notification};`)
+          .execute(qb.internal);
       });
 
       const attempt = () =>
@@ -869,6 +893,10 @@ export const createDatabase = async ({
               for (const enumName of schemaBuild.statements.enums.json) {
                 await tx.schema.dropType(enumName.name).ifExists().execute();
               }
+
+              await sql
+                .raw(`TRUNCATE TABLE "${namespace}"."_ponder_status" CASCADE`)
+                .execute(tx);
 
               await createEnums();
               await createTables();
@@ -1007,47 +1035,6 @@ export const createDatabase = async ({
           });
         }
       }, common.options.databaseHeartbeatInterval);
-    },
-    async getListenConnection() {
-      const trigger = "status_trigger";
-      const notification = `${namespace}_status_notify()`;
-      const channel = `${namespace}_status_channel`;
-
-      await this.wrap({ method: "getListenConnection" }, async () => {
-        await sql
-          .raw(`
-      CREATE OR REPLACE FUNCTION ${notification}
-      RETURNS trigger
-      LANGUAGE plpgsql
-      AS $$
-      BEGIN
-      NOTIFY ${channel};
-      RETURN NULL;
-      END;
-      $$;`)
-          .execute(qb.internal);
-
-        await sql
-          .raw(`
-      CREATE OR REPLACE TRIGGER ${trigger}
-      AFTER INSERT OR UPDATE OR DELETE
-      ON "${namespace}"._ponder_status
-      FOR EACH STATEMENT
-      EXECUTE PROCEDURE ${notification};`)
-          .execute(qb.internal);
-      });
-
-      if (dialect === "postgres") {
-        return {
-          dialect: "postgres",
-          connection: await (driver as PostgresDriver).internal.connect(),
-        };
-      }
-
-      return {
-        dialect: "pglite",
-        connection: (driver as PGliteDriver).instance,
-      };
     },
     async recoverCheckpoint() {
       if (checkpoint !== undefined) {
@@ -1258,6 +1245,7 @@ $$ LANGUAGE plpgsql
 
       if (dialect === "postgres") {
         const d = driver as PostgresDriver;
+        d.listen?.release();
         await d.internal.end();
         await d.user.end();
         await d.readonly.end();
