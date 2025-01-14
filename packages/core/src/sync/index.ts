@@ -551,6 +551,22 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
                   msg: `Indexed ${events.length} events`,
                 });
               }
+
+              // update `ponder_realtime_latency` metric
+              for (const network of args.networks) {
+                for (const { block, endClock } of perNetworkSync.get(network)!
+                  .unfinalizedBlocks) {
+                  const checkpoint = encodeCheckpoint(
+                    blockToCheckpoint(block, network.chainId, "up"),
+                  );
+                  if (checkpoint > from && checkpoint <= to && endClock) {
+                    args.common.metrics.ponder_realtime_latency.observe(
+                      { network: network.name },
+                      endClock(),
+                    );
+                  }
+                }
+              }
             });
         }
 
