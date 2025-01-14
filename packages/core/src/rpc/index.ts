@@ -181,8 +181,6 @@ export const createRpc = ({
         } catch (_error) {
           const error = _error as Error;
 
-          // TODO(kyle) log ranges
-
           if (shouldRetry(error) === false) {
             common.logger.warn({
               service: "rpc",
