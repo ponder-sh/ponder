@@ -1,10 +1,5 @@
 import type { Common } from "@/internal/common.js";
-import type {
-  Factory,
-  IndexingBuild,
-  Network,
-  Status,
-} from "@/internal/types.js";
+import type { Factory, Network, Source, Status } from "@/internal/types.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import { createRealtimeSync } from "@/sync-realtime/index.js";
 import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
@@ -18,12 +13,13 @@ import {
 import { bufferAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { type Address, hexToNumber } from "viem";
 import { buildEvents } from "./events.js";
 import { isAddressFactory } from "./filter.js";
 import {
   type RealtimeEvent,
+  type Seconds,
   type Sync,
   getChainCheckpoint,
   getLocalEventGenerator,
@@ -31,50 +27,40 @@ import {
   getLocalSyncProgress,
   isSyncEnd,
 } from "./index.js";
-import { cachedTransport } from "./transport.js";
 
 export const createSyncMultichain = async (params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "networks">;
+  network: Network;
+  requestQueue: RequestQueue;
+  sources: Source[];
   syncStore: SyncStore;
-
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
   initialCheckpoint: string;
-
-  network: Network;
 }): Promise<Sync> => {
-  const sources = params.indexingBuild.sources.filter(
-    ({ filter }) => filter.chainId === params.network.chainId,
-  );
-  const filters = sources.map(({ filter }) => filter);
-
-  const requestQueue = createRequestQueue({
-    network: params.network,
-    common: params.common,
-  });
+  const filters = params.sources.map(({ filter }) => filter);
 
   const syncProgress = await getLocalSyncProgress({
     common: params.common,
     network: params.network,
-    sources,
-    requestQueue,
+    sources: params.sources,
+    requestQueue: params.requestQueue,
   });
 
   const historicalSync = await createHistoricalSync({
     common: params.common,
-    sources,
-    syncStore: params.syncStore,
-    requestQueue,
     network: params.network,
+    sources: params.sources,
+    syncStore: params.syncStore,
+    requestQueue: params.requestQueue,
     onFatalError: params.onFatalError,
   });
 
   const realtimeSync = createRealtimeSync({
     common: params.common,
-    sources,
-    requestQueue,
     network: params.network,
+    sources: params.sources,
+    requestQueue: params.requestQueue,
     onEvent: (event) =>
       onRealtimeSyncEvent(event).catch((error) => {
         params.common.logger.error({
@@ -110,6 +96,14 @@ export const createSyncMultichain = async (params: {
   const status: Status = {
     [params.network.chainId]: { block: null, ready: false },
   };
+
+  const seconds: Seconds = {
+    start: decodeCheckpoint(getMultichainCheckpoint("start")!).blockTimestamp,
+    end: decodeCheckpoint(
+      min(getMultichainCheckpoint("end"), getMultichainCheckpoint("finalized")),
+    ).blockTimestamp,
+  };
+
   let isKilled = false;
 
   async function* getEvents() {
@@ -122,8 +116,8 @@ export const createSyncMultichain = async (params: {
       common: params.common,
       syncStore: params.syncStore,
       network: params.network,
-      requestQueue,
-      sources,
+      sources: params.sources,
+      requestQueue: params.requestQueue,
       filters,
       syncProgress,
       historicalSync,
@@ -150,7 +144,7 @@ export const createSyncMultichain = async (params: {
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
 
-      yield { events, checkpoint: to };
+      yield events;
     }
   }
 
@@ -166,7 +160,7 @@ export const createSyncMultichain = async (params: {
         );
 
         const events = buildEvents({
-          sources,
+          sources: params.sources,
           chainId: params.network.chainId,
           blockWithEventData: event,
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
@@ -177,6 +171,8 @@ export const createSyncMultichain = async (params: {
           timestamp: hexToNumber(event.block.timestamp),
           number: hexToNumber(event.block.number),
         };
+
+        seconds.end = hexToNumber(event.block.timestamp);
 
         params
           .onRealtimeEvent({
@@ -378,14 +374,11 @@ export const createSyncMultichain = async (params: {
         realtimeSync.start({ syncProgress, initialChildAddresses });
       }
     },
-    getStartCheckpoint() {
-      return getMultichainCheckpoint("start")!;
-    },
     getStatus() {
       return status;
     },
-    getCachedTransport() {
-      return cachedTransport({ requestQueue, syncStore: params.syncStore });
+    getSeconds() {
+      return seconds;
     },
     async kill() {
       isKilled = true;

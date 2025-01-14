@@ -17,10 +17,12 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 import { wait } from "@/utils/wait.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
-import { type Sync, createSync } from "./index.js";
+import type { Sync } from "./index.js";
+import { createSyncOmnichain } from "./omnichain.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -31,14 +33,14 @@ async function drainAsyncGenerator(
 ) {
   const result: RawEvent[] = [];
 
-  for await (const { events } of asyncGenerator) {
+  for await (const events of asyncGenerator) {
     result.push(...events);
   }
 
   return result;
 }
 
-test("createSync()", async (context) => {
+test("createSyncOmnichain()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -51,9 +53,10 @@ test("createSync()", async (context) => {
     rawIndexingFunctions,
   });
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     common: context.common,
     indexingBuild: { sources, networks: [network] },
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -85,12 +88,11 @@ test("getEvents() returns events", async (context) => {
   // finalized block: 1
   network.finalityBlockCount = 0;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
-
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -124,12 +126,12 @@ test("getEvents() with cache", async (context) => {
   // finalized block: 1
   network.finalityBlockCount = 0;
 
-  let sync = await createSync({
+  let sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -139,12 +141,12 @@ test("getEvents() with cache", async (context) => {
 
   const spy = vi.spyOn(syncStore, "insertIntervals");
 
-  sync = await createSync({
+  sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -182,12 +184,12 @@ test("getEvents() end block", async (context) => {
 
   sources[0]!.filter.toBlock = 1;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -240,12 +242,16 @@ test.skip("getEvents() multichain", async (context) => {
   sources2[0]!.filter.toBlock = 1;
   networks2[0]!.chainId = 2;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
     indexingBuild: {
       sources: [...sources1, ...sources2],
       networks: [...networks1, ...networks2],
     },
+    requestQueues: [
+      createRequestQueue({ network: networks1[0]!, common: context.common }),
+      createRequestQueue({ network: networks2[0]!, common: context.common }),
+    ],
     common: context.common,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -280,12 +286,12 @@ test("getEvents() updates status", async (context) => {
   // finalized block: 2
   network.finalityBlockCount = 0;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -323,12 +329,12 @@ test("getEvents() pagination", async (context) => {
 
   context.common.options.syncEventsQuerySize = 1;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -360,12 +366,12 @@ test("getEvents() initialCheckpoint", async (context) => {
   // finalized block: 2
   network.finalityBlockCount = 0;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(maxCheckpoint),
@@ -401,12 +407,12 @@ test("getEvents() refetches finalized block", async (context) => {
 
   context.common.options.syncHandoffStaleSeconds = 0.5;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(maxCheckpoint),
@@ -439,12 +445,12 @@ test("startRealtime()", async (context) => {
 
   await testClient.mine({ blocks: 2 });
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
@@ -482,12 +488,12 @@ test("onEvent() handles block", async (context) => {
 
   await testClient.mine({ blocks: 1 });
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
@@ -531,12 +537,12 @@ test("onEvent() handles finalize", async (context) => {
 
   network.finalityBlockCount = 2;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -589,12 +595,16 @@ test("onEvent() multichain gets all events", async (context) => {
 
   const promise = promiseWithResolvers<void>();
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     common: context.common,
     indexingBuild: {
       sources: [...sources1, ...sources2],
       networks: [...networks1, ...networks2],
     },
+    requestQueues: [
+      createRequestQueue({ network: networks1[0]!, common: context.common }),
+      createRequestQueue({ network: networks2[0]!, common: context.common }),
+    ],
     syncStore,
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
@@ -644,12 +654,16 @@ test("onEvent() multichain end block", async (context) => {
 
   const promise = promiseWithResolvers<void>();
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     common: context.common,
     indexingBuild: {
       sources: [...sources1, ...sources2],
       networks: [...networks1, ...networks2],
     },
+    requestQueues: [
+      createRequestQueue({ network: networks1[0]!, common: context.common }),
+      createRequestQueue({ network: networks2[0]!, common: context.common }),
+    ],
     syncStore,
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
@@ -696,12 +710,12 @@ test("onEvent() handles endBlock finalization", async (context) => {
 
   sources[0]!.filter.toBlock = 1;
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         promise.resolve();
@@ -741,12 +755,12 @@ test("onEvent() handles errors", async (context) => {
 
   // finalized block: 0
 
-  const sync = await createSync({
+  const sync = await createSyncOmnichain({
     syncStore,
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-
+    requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();

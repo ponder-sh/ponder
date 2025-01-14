@@ -32,20 +32,13 @@ import { intervalUnion } from "@/utils/interval.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
-import {
-  type Hash,
-  type Transport,
-  hexToBigInt,
-  hexToNumber,
-  toHex,
-} from "viem";
+import { type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
 
 export type Sync = {
-  getEvents(): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }>;
+  getEvents(): AsyncGenerator<RawEvent[]>;
   startRealtime(): Promise<void>;
   getStatus(): Status;
-  getStartCheckpoint(): string;
-  getCachedTransport(network: Network): Transport;
+  getSeconds(): Seconds;
   kill(): Promise<void>;
 };
 
@@ -70,6 +63,11 @@ export type SyncProgress = {
   end: SyncBlock | LightBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
+};
+
+export type Seconds = {
+  start: number;
+  end: number;
 };
 
 export const syncBlockToLightBlock = ({

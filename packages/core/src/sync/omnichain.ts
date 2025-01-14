@@ -20,11 +20,12 @@ import {
 import { bufferAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
-import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { type Address, hexToNumber } from "viem";
 import { buildEvents } from "./events.js";
 import { isAddressFactory } from "./filter.js";
 import {
+  type Seconds,
   type Sync,
   type SyncProgress,
   blockToCheckpoint,
@@ -35,11 +36,11 @@ import {
   isSyncEnd,
 } from "./index.js";
 import type { RealtimeEvent } from "./index.js";
-import { cachedTransport } from "./transport.js";
 
 export const createSyncOmnichain = async (params: {
   common: Common;
   indexingBuild: Pick<IndexingBuild, "sources" | "networks">;
+  requestQueues: RequestQueue[];
   syncStore: SyncStore;
 
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
@@ -61,11 +62,8 @@ export const createSyncOmnichain = async (params: {
   >();
 
   await Promise.all(
-    params.indexingBuild.networks.map(async (network) => {
-      const requestQueue = createRequestQueue({
-        network,
-        common: params.common,
-      });
+    params.indexingBuild.networks.map(async (network, index) => {
+      const requestQueue = params.requestQueues[index]!;
 
       const sources = params.indexingBuild.sources.filter(
         ({ filter }) => filter.chainId === network.chainId,
@@ -203,6 +201,13 @@ export const createSyncOmnichain = async (params: {
     status[network.chainId] = { block: null, ready: false };
   }
 
+  const seconds: Seconds = {
+    start: decodeCheckpoint(getOmnichainCheckpoint("start")!).blockTimestamp,
+    end: decodeCheckpoint(
+      min(getOmnichainCheckpoint("end"), getOmnichainCheckpoint("finalized")),
+    ).blockTimestamp,
+  };
+
   let isKilled = false;
 
   async function* getEvents() {
@@ -289,7 +294,7 @@ export const createSyncOmnichain = async (params: {
       cursor = supremum;
       // NOTE: `checkpoint` is only used for metrics, and therefore should reflect the furthest
       // known checkpoint.
-      yield { events, checkpoint: to };
+      yield events;
     }
   }
 
@@ -326,6 +331,8 @@ export const createSyncOmnichain = async (params: {
           for (const network of params.indexingBuild.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
+
+          seconds.end = decodeCheckpoint(to).blockTimestamp;
 
           // Move events from pending to executed
 
@@ -626,15 +633,11 @@ export const createSyncOmnichain = async (params: {
         }
       }
     },
-    getStartCheckpoint() {
-      return getOmnichainCheckpoint("start")!;
-    },
     getStatus() {
       return status;
     },
-    getCachedTransport(network) {
-      const { requestQueue } = perNetworkSync.get(network)!;
-      return cachedTransport({ requestQueue, syncStore: params.syncStore });
+    getSeconds() {
+      return seconds;
     },
     async kill() {
       isKilled = true;

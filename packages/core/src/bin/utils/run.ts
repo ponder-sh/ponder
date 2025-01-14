@@ -12,13 +12,10 @@ import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, splitEvents } from "@/sync/index.js";
 import { createSyncMultichain } from "@/sync/multichain.js";
 import { createSyncOmnichain } from "@/sync/omnichain.js";
-import {
-  decodeCheckpoint,
-  encodeCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
+import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 import { createQueue } from "@ponder/common";
 
 /** Starts the sync and indexing services for the specified build. */
@@ -38,6 +35,10 @@ export async function run({
   onReloadableError: (error: Error) => void;
 }) {
   let isKilled = false;
+
+  const requestQueues = indexingBuild.networks.map((network) =>
+    createRequestQueue({ network, common }),
+  );
 
   const { checkpoint: initialCheckpoint } =
     await database.prepareNamespace(indexingBuild);
@@ -60,31 +61,29 @@ export async function run({
 
   if (common.options.ordering === "multichain") {
     const perNetworkSync = await Promise.all(
-      indexingBuild.networks.map((network) =>
+      indexingBuild.networks.map((network, index) =>
         createSyncMultichain({
           common,
-          indexingBuild,
+          network,
+          requestQueue: requestQueues[index]!,
+          sources: indexingBuild.sources.filter(
+            ({ filter }) => filter.chainId === network.chainId,
+          ),
           syncStore,
           onRealtimeEvent: (realtimeEvent) => {
             return realtimeQueue.add(realtimeEvent);
           },
           onFatalError,
           initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-          network,
         }),
-      ),
-    );
-
-    const startTimestamp = Math.min(
-      ...perNetworkSync.map(
-        (sync) => decodeCheckpoint(sync.getStartCheckpoint()).blockTimestamp,
       ),
     );
 
     const indexingService = createIndexingService({
       common,
       indexingBuild,
-      startTimestamp,
+      requestQueues,
+      syncStore,
     });
 
     const historicalIndexingStore = createHistoricalIndexingStore({
@@ -104,7 +103,14 @@ export async function run({
       return status;
     };
 
+    const getTotalSeconds = () => {
+      return perNetworkSync
+        .map((sync) => sync.getSeconds())
+        .reduce((acc, cur) => acc + (cur.end - cur.start), 0);
+    };
+
     await metadataStore.setStatus(getStatus());
+    common.metrics.ponder_indexing_total_seconds.set(getTotalSeconds());
 
     const realtimeQueue = createQueue({
       initialStart: true,
@@ -116,14 +122,17 @@ export async function run({
             // Events must be run block-by-block, so that `database.complete` can accurately
             // update the temporary `checkpoint` value set in the trigger.
             for (const { checkpoint, events } of splitEvents(event.events)) {
-              if (events.length > 0) {
-              }
-              // TODO(kyle) metrics
-              // indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
+              common.metrics.ponder_indexing_total_seconds.set(
+                getTotalSeconds(),
+              );
 
               const result = await indexingService.processEvents({
                 events: decodeEvents(common, indexingBuild.sources, events),
               });
+
+              common.metrics.ponder_indexing_completed_seconds.set(
+                getTotalSeconds(),
+              );
 
               if (result.status === "error") onReloadableError(result.error);
 
@@ -165,14 +174,11 @@ export async function run({
 
       await Promise.all(
         perNetworkSync.map(async (sync) => {
-          // Track the last processed checkpoint, used to set metrics
-          let end: string | undefined;
           let lastFlush = Date.now();
 
           // Run historical indexing until complete.
-          for await (const { events, checkpoint } of sync.getEvents()) {
-            end = checkpoint;
-
+          for await (const events of sync.getEvents()) {
+            // TODO(kyle) batch events to update metrics
             const result = await indexingService.processEvents({
               events: decodeEvents(common, indexingBuild.sources, events),
             });
@@ -270,18 +276,12 @@ export async function run({
           // Manually update metrics to fix a UI bug that occurs when the end
           // checkpoint is between the last processed event and the finalized
           // checkpoint.
-          const start = sync.getStartCheckpoint();
+
+          common.metrics.ponder_indexing_total_seconds.set(getTotalSeconds());
           common.metrics.ponder_indexing_completed_seconds.set(
-            decodeCheckpoint(end ?? start).blockTimestamp -
-              decodeCheckpoint(start).blockTimestamp,
+            getTotalSeconds(),
           );
-          common.metrics.ponder_indexing_total_seconds.set(
-            decodeCheckpoint(end ?? start).blockTimestamp -
-              decodeCheckpoint(start).blockTimestamp,
-          );
-          common.metrics.ponder_indexing_completed_timestamp.set(
-            decodeCheckpoint(end ?? start).blockTimestamp,
-          );
+
           // Become healthy
           common.logger.info({
             service: "indexing",
@@ -327,6 +327,7 @@ export async function run({
     const sync = await createSyncOmnichain({
       common,
       indexingBuild,
+      requestQueues,
       syncStore,
       onRealtimeEvent: (realtimeEvent) => {
         return realtimeQueue.add(realtimeEvent);
@@ -335,14 +336,11 @@ export async function run({
       initialCheckpoint,
     });
 
-    const startTimestamp = decodeCheckpoint(
-      sync.getStartCheckpoint(),
-    ).blockTimestamp;
-
     const indexingService = createIndexingService({
       common,
       indexingBuild,
-      startTimestamp,
+      requestQueues,
+      syncStore,
     });
 
     const historicalIndexingStore = createHistoricalIndexingStore({
@@ -366,14 +364,17 @@ export async function run({
             // Events must be run block-by-block, so that `database.complete` can accurately
             // update the temporary `checkpoint` value set in the trigger.
             for (const { checkpoint, events } of splitEvents(event.events)) {
-              if (events.length > 0) {
-              }
-              // TODO(kyle) metrics
-              // indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
+              common.metrics.ponder_indexing_total_seconds.set(
+                sync.getSeconds().end - sync.getSeconds().start,
+              );
 
               const result = await indexingService.processEvents({
                 events: decodeEvents(common, indexingBuild.sources, events),
               });
+
+              common.metrics.ponder_indexing_completed_seconds.set(
+                sync.getSeconds().end - sync.getSeconds().start,
+              );
 
               if (result.status === "error") onReloadableError(result.error);
 
@@ -418,13 +419,14 @@ export async function run({
       }
 
       // Track the last processed checkpoint, used to set metrics
-      let end: string | undefined;
+      // let end: string | undefined;
       let lastFlush = Date.now();
 
       // Run historical indexing until complete.
-      for await (const { events, checkpoint } of sync.getEvents()) {
-        end = checkpoint;
+      for await (const events of sync.getEvents()) {
+        // end = checkpoint;
 
+        // TODO(kyle) batch events to update metrics
         const result = await indexingService.processEvents({
           events: decodeEvents(common, indexingBuild.sources, events),
         });
@@ -516,17 +518,12 @@ export async function run({
       // Manually update metrics to fix a UI bug that occurs when the end
       // checkpoint is between the last processed event and the finalized
       // checkpoint.
-      const start = sync.getStartCheckpoint();
-      common.metrics.ponder_indexing_completed_seconds.set(
-        decodeCheckpoint(end ?? start).blockTimestamp -
-          decodeCheckpoint(start).blockTimestamp,
-      );
+
       common.metrics.ponder_indexing_total_seconds.set(
-        decodeCheckpoint(end ?? start).blockTimestamp -
-          decodeCheckpoint(start).blockTimestamp,
+        sync.getSeconds().end - sync.getSeconds().start,
       );
-      common.metrics.ponder_indexing_completed_timestamp.set(
-        decodeCheckpoint(end ?? start).blockTimestamp,
+      common.metrics.ponder_indexing_completed_seconds.set(
+        sync.getSeconds().end - sync.getSeconds().start,
       );
 
       // Become healthy
