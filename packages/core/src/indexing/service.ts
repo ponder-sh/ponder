@@ -200,9 +200,12 @@ export const processSetupEvents = async (
           s.type === "contract" &&
           s.name === contractName &&
           s.filter.chainId === network.chainId,
-      )! as ContractSource;
+      ) as ContractSource | undefined;
+
+      if (source === undefined) continue;
 
       if (indexingService.isKilled) return { status: "killed" };
+
       indexingService.eventCount[eventName]!++;
 
       const result = await executeSetup(indexingService, {
