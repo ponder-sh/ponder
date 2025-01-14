@@ -798,6 +798,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           const initialChildAddresses = new Map<Factory, Set<Address>>();
 
           for (const filter of filters) {
+            // TODO(kyle) this is a bug for accounts sources
             if ("address" in filter && isAddressFactory(filter.address)) {
               const addresses = await args.syncStore.getChildAddresses({
                 filter: filter.address,
