@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.25
+
+### Patch Changes
+
+- [#1437](https://github.com/ponder-sh/ponder/pull/1437) [`229419634521e287dd7f642f8b08dfe16cd17653`](https://github.com/ponder-sh/ponder/commit/229419634521e287dd7f642f8b08dfe16cd17653) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved the granularity of rpc cache.
+
 ## 0.8.24
 
 ### Patch Changes
