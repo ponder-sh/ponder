@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.26
+
+### Patch Changes
+
+- [#1438](https://github.com/ponder-sh/ponder/pull/1438) [`c4e17d9ac89e01c2591c49af486417131a59369b`](https://github.com/ponder-sh/ponder/commit/c4e17d9ac89e01c2591c49af486417131a59369b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added "ponder_realtime_latency" metric.
+
 ## 0.8.25
 
 ### Patch Changes
