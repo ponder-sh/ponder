@@ -284,8 +284,8 @@ export type BlockMetadata = {
 export type Network = {
   name: string;
   chainId: number;
-  chain: Chain;
   transport: ReturnType<Transport>;
+  chain: Chain;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
