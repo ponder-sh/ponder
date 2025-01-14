@@ -371,6 +371,7 @@ test("handleBlock() block event with log", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
     hasMatchedFilter: true,
+    endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -454,6 +455,7 @@ test("handleBlock() block event with log factory", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
     hasMatchedFilter: true,
+    endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -533,6 +535,7 @@ test("handleBlock() block event with block", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
     hasMatchedFilter: true,
+    endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -607,6 +610,7 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
     hasMatchedFilter: true,
+    endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -708,6 +712,7 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
     hasMatchedFilter: true,
+    endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),
@@ -853,6 +858,7 @@ test("handleBlock() block event with trace", async (context) => {
   expect(onEvent).toHaveBeenCalledWith({
     type: "block",
     hasMatchedFilter: true,
+    endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
     factoryLogs: expect.any(Object),

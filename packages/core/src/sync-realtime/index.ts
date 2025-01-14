@@ -32,6 +32,7 @@ import {
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
@@ -78,6 +79,7 @@ export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
+      endClock?: () => number;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -113,7 +115,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<void, BlockWithEventData>;
+  let queue: Queue<void, BlockWithEventData & { endClock?: () => number }>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -188,7 +190,8 @@ export const createRealtimeSync = (
     traces,
     transactions,
     transactionReceipts,
-  }: BlockWithEventData) => {
+    endClock,
+  }: BlockWithEventData & { endClock?: () => number }) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
@@ -409,6 +412,7 @@ export const createRealtimeSync = (
       traces,
       transactions,
       transactionReceipts,
+      endClock,
     });
 
     // Determine if a new range has become finalized by evaluating if the
@@ -1042,11 +1046,13 @@ export const createRealtimeSync = (
             return;
           }
 
+          const endClock = startClock();
+
           const blockWithEventData = await fetchBlockEventData(block);
 
           consecutiveErrors = 0;
 
-          return queue.add(blockWithEventData);
+          return queue.add({ ...blockWithEventData, endClock });
         } catch (_error) {
           if (isKilled) return;
 
