@@ -32,6 +32,7 @@ import {
   type Interval,
   intervalDifference,
   intervalIntersection,
+  intervalIntersectionMany,
   intervalSum,
   sortIntervals,
 } from "@/utils/interval.js";
@@ -1042,10 +1043,15 @@ export const getCachedBlock = ({
       filter.fromBlock ?? 0,
       filter.toBlock ?? Number.POSITIVE_INFINITY,
     ] satisfies Interval;
-    const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
+    const fragmentIntervals = historicalSync.intervalsCache.get(filter)!;
 
     const completedIntervals = sortIntervals(
-      intervalIntersection([requiredInterval], cachedIntervals),
+      intervalIntersection(
+        [requiredInterval],
+        intervalIntersectionMany(
+          fragmentIntervals.map(({ intervals }) => intervals),
+        ),
+      ),
     );
 
     if (completedIntervals.length === 0) return undefined;
@@ -1136,7 +1142,7 @@ export async function* localHistoricalSyncGenerator({
 
   const requiredIntervals = Array.from(
     historicalSync.intervalsCache.entries(),
-  ).flatMap(([filter, interval]) =>
+  ).flatMap(([filter, fragmentIntervals]) =>
     intervalDifference(
       [
         [
@@ -1147,7 +1153,9 @@ export async function* localHistoricalSyncGenerator({
           ),
         ],
       ],
-      interval,
+      intervalIntersectionMany(
+        fragmentIntervals.map(({ intervals }) => intervals),
+      ),
     ),
   );
 

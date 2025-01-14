@@ -46,20 +46,29 @@ export type Filter =
   | TransferFilter
   | TransactionFilter
   | TraceFilter;
+export type FilterWithoutBlocks =
+  | Omit<BlockFilter, "fromBlock" | "toBlock">
+  | Omit<TransactionFilter, "fromBlock" | "toBlock">
+  | Omit<TraceFilter, "fromBlock" | "toBlock">
+  | Omit<LogFilter, "fromBlock" | "toBlock">
+  | Omit<TransferFilter, "fromBlock" | "toBlock">;
 
 /** Filter that matches addresses. */
 export type Factory = LogFactory;
+export type FilterAddress<
+  factory extends Factory | undefined = Factory | undefined,
+> = factory extends Factory ? factory : Address | Address[] | undefined;
 
 export type LogFilter<
   factory extends Factory | undefined = Factory | undefined,
 > = {
   type: "log";
   chainId: number;
-  address: factory extends Factory ? factory : Address | Address[] | undefined;
-  topic0: LogTopic | undefined;
-  topic1: LogTopic | undefined;
-  topic2: LogTopic | undefined;
-  topic3: LogTopic | undefined;
+  address: FilterAddress<factory>;
+  topic0: LogTopic;
+  topic1: LogTopic;
+  topic2: LogTopic;
+  topic3: LogTopic;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   include:
@@ -88,12 +97,8 @@ export type TransferFilter<
 > = {
   type: "transfer";
   chainId: number;
-  fromAddress: fromFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
-  toAddress: toFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
@@ -113,12 +118,8 @@ export type TransactionFilter<
 > = {
   type: "transaction";
   chainId: number;
-  fromAddress: fromFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
-  toAddress: toFactory extends Factory
-    ? toFactory
-    : Address | Address[] | undefined;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
@@ -137,12 +138,8 @@ export type TraceFilter<
 > = {
   type: "trace";
   chainId: number;
-  fromAddress: fromFactory extends Factory
-    ? fromFactory
-    : Address | Address[] | undefined;
-  toAddress: toFactory extends Factory
-    ? toFactory
-    : Address | Address[] | undefined;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
   functionSelector: Hex | Hex[] | undefined;
   callType: Trace["type"] | undefined;
   includeReverted: boolean;
@@ -170,23 +167,70 @@ export type LogFactory = {
 
 export type FragmentAddress =
   | Address
-  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | {
+      address: Address;
+      eventSelector: Factory["eventSelector"];
+      childAddressLocation: Factory["childAddressLocation"];
+    }
   | null;
 
+export type FragmentAddressId =
+  | Address
+  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | null;
 export type FragmentTopic = Hex | null;
+
+export type Fragment =
+  | {
+      type: "block";
+      chainId: number;
+      interval: number;
+      offset: number;
+    }
+  | {
+      type: "transaction";
+      chainId: number;
+      fromAddress: FragmentAddress;
+      toAddress: FragmentAddress;
+    }
+  | {
+      type: "trace";
+      chainId: number;
+      fromAddress: FragmentAddress;
+      toAddress: FragmentAddress;
+      functionSelector: Hex | null;
+      includeTransactionReceipts: boolean;
+    }
+  | {
+      type: "log";
+      chainId: number;
+      address: FragmentAddress;
+      topic0: FragmentTopic;
+      topic1: FragmentTopic;
+      topic2: FragmentTopic;
+      topic3: FragmentTopic;
+      includeTransactionReceipts: boolean;
+    }
+  | {
+      type: "transfer";
+      chainId: number;
+      fromAddress: FragmentAddress;
+      toAddress: FragmentAddress;
+      includeTransactionReceipts: boolean;
+    };
 
 /** Minimum slice of a {@link Filter} */
 export type FragmentId =
   /** block_{chainId}_{interval}_{offset} */
   | `block_${number}_${number}_${number}`
   /** transaction_{chainId}_{fromAddress}_{toAddress} */
-  | `transaction_${number}_${FragmentAddress}_${FragmentAddress}`
+  | `transaction_${number}_${FragmentAddressId}_${FragmentAddressId}`
   /** trace_{chainId}_{fromAddress}_{toAddress}_{functionSelector}_{includeReceipts} */
-  | `trace_${number}_${FragmentAddress}_${FragmentAddress}_${Hex | null}_${0 | 1}`
+  | `trace_${number}_${FragmentAddressId}_${FragmentAddressId}_${Hex | null}_${0 | 1}`
   /** log_{chainId}_{address}_{topic0}_{topic1}_{topic2}_{topic3}_{includeReceipts} */
-  | `log_${number}_${FragmentAddress}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
+  | `log_${number}_${FragmentAddressId}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
   /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
-  | `transfer_${number}_${FragmentAddress}_${FragmentAddress}_${0 | 1}`;
+  | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`;
 
 // Sources
 
