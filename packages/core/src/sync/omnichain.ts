@@ -213,7 +213,6 @@ export const createSyncOmnichain = async (params: {
   let isKilled = false;
 
   async function* getEvents() {
-    // TODO(kyle) is this correct?
     const to = min(
       getOmnichainCheckpoint("end"),
       getOmnichainCheckpoint("finalized"),

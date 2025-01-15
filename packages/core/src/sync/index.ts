@@ -414,20 +414,16 @@ export async function* getLocalEventGenerator(params: {
   for await (const syncCheckpoint of getNonBlockingAsyncGenerator(
     params.localSyncGenerator,
   )) {
+    let consecutiveErrors = 0;
     while (cursor < min(syncCheckpoint, params.to)) {
-      const to = min(
-        syncCheckpoint,
-        params.to,
-        encodeCheckpoint({
-          ...zeroCheckpoint,
-          blockTimestamp: Math.min(
-            decodeCheckpoint(cursor).blockTimestamp + estimateSeconds,
-            maxCheckpoint.blockTimestamp,
-          ),
-        }),
-      );
-      // TODO(kyle) fix
-      let consecutiveErrors = 0;
+      const estimateCheckpoint = encodeCheckpoint({
+        ...zeroCheckpoint,
+        blockTimestamp: Math.min(
+          decodeCheckpoint(cursor).blockTimestamp + estimateSeconds,
+          maxCheckpoint.blockTimestamp,
+        ),
+      });
+      const to = min(syncCheckpoint, estimateCheckpoint, params.to);
       try {
         const { events, cursor: queryCursor } =
           await params.syncStore.getEvents({
@@ -446,6 +442,7 @@ export async function* getLocalEventGenerator(params: {
           prev: estimateSeconds,
           maxIncrease: 1.08,
         });
+        consecutiveErrors = 0;
         cursor = queryCursor;
         yield { events, checkpoint: cursor };
       } catch (error) {

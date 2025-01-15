@@ -12,7 +12,12 @@ import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, splitEvents } from "@/sync/index.js";
 import { createSyncMultichain } from "@/sync/multichain.js";
 import { createSyncOmnichain } from "@/sync/omnichain.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  decodeCheckpoint,
+  encodeCheckpoint,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
+import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -50,14 +55,6 @@ export async function run({
   await database.migrateSync();
 
   runCodegen({ common });
-
-  // const handleEvents = async (events: Event[], checkpoint: string) => {
-  //   if (events.length === 0) return { status: "success" } as const;
-
-  //   indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
-
-  //   return await indexingService.processEvents({ events });
-  // };
 
   if (common.options.ordering === "multichain") {
     const perNetworkSync = await Promise.all(
@@ -178,10 +175,33 @@ export async function run({
 
           // Run historical indexing until complete.
           for await (const events of sync.getEvents()) {
-            // TODO(kyle) batch events to update metrics
-            const result = await indexingService.processEvents({
-              events: decodeEvents(common, indexingBuild.sources, events),
-            });
+            for (const eventsChunk of chunk(events, 93)) {
+              const result = await indexingService.processEvents({
+                events: decodeEvents(
+                  common,
+                  indexingBuild.sources,
+                  eventsChunk,
+                ),
+              });
+
+              if (result.status === "killed") {
+                return;
+              } else if (result.status === "error") {
+                onReloadableError(result.error);
+                return;
+              }
+
+              const eventTimestamp = decodeCheckpoint(
+                eventsChunk[eventsChunk.length - 1]!.checkpoint,
+              ).blockTimestamp;
+
+              indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+                eventTimestamp - sync.getSeconds().start,
+              );
+
+              // Note: allows for terminal and logs to be updated
+              await new Promise(setImmediate);
+            }
 
             // underlying metrics collection is actually synchronous
             // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -241,12 +261,6 @@ export async function run({
             }
 
             await metadataStore.setStatus(getStatus());
-            if (result.status === "killed") {
-              return;
-            } else if (result.status === "error") {
-              onReloadableError(result.error);
-              return;
-            }
           }
 
           if (isKilled) return;
@@ -418,18 +432,33 @@ export async function run({
         }
       }
 
-      // Track the last processed checkpoint, used to set metrics
-      // let end: string | undefined;
       let lastFlush = Date.now();
 
       // Run historical indexing until complete.
       for await (const events of sync.getEvents()) {
-        // end = checkpoint;
+        for (const eventsChunk of chunk(events, 93)) {
+          const result = await indexingService.processEvents({
+            events: decodeEvents(common, indexingBuild.sources, eventsChunk),
+          });
 
-        // TODO(kyle) batch events to update metrics
-        const result = await indexingService.processEvents({
-          events: decodeEvents(common, indexingBuild.sources, events),
-        });
+          if (result.status === "killed") {
+            return;
+          } else if (result.status === "error") {
+            onReloadableError(result.error);
+            return;
+          }
+
+          const eventTimestamp = decodeCheckpoint(
+            eventsChunk[eventsChunk.length - 1]!.checkpoint,
+          ).blockTimestamp;
+
+          indexingService.common.metrics.ponder_indexing_completed_seconds.set(
+            eventTimestamp - sync.getSeconds().start,
+          );
+
+          // Note: allows for terminal and logs to be updated
+          await new Promise(setImmediate);
+        }
 
         // underlying metrics collection is actually synchronous
         // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -489,12 +518,6 @@ export async function run({
         }
 
         await metadataStore.setStatus(sync.getStatus());
-        if (result.status === "killed") {
-          return;
-        } else if (result.status === "error") {
-          onReloadableError(result.error);
-          return;
-        }
       }
 
       if (isKilled) return;
