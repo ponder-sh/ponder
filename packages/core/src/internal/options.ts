@@ -5,7 +5,6 @@ import type { LevelWithSilent } from "pino";
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list";
-  ordering: "multichain" | "omnichain";
 
   configFile: string;
   schemaFile: string;
@@ -78,7 +77,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   return {
     command: cliOptions.command,
-    ordering: "multichain",
 
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),

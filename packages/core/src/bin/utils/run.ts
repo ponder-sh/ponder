@@ -6,7 +6,12 @@ import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexingService } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { getAppProgress } from "@/internal/metrics.js";
-import type { IndexingBuild, SchemaBuild, Status } from "@/internal/types.js";
+import type {
+  IndexingBuild,
+  PreBuild,
+  SchemaBuild,
+  Status,
+} from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, splitEvents } from "@/sync/index.js";
@@ -26,6 +31,7 @@ import { createQueue } from "@ponder/common";
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
   common,
+  preBuild,
   schemaBuild,
   indexingBuild,
   database,
@@ -33,6 +39,7 @@ export async function run({
   onReloadableError,
 }: {
   common: Common;
+  preBuild: PreBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   database: Database;
@@ -56,7 +63,7 @@ export async function run({
 
   runCodegen({ common });
 
-  if (common.options.ordering === "multichain") {
+  if (preBuild.mode === "multichain") {
     const perNetworkSync = await Promise.all(
       indexingBuild.networks.map((network, index) =>
         createSyncMultichain({

@@ -141,6 +141,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   cleanupReloadable = await run({
     common,
     database,
+    preBuild,
     schemaBuild,
     indexingBuild,
     onFatalError: () => {
