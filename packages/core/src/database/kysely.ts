@@ -10,16 +10,23 @@ const BASE_DURATION = 125;
 export class HeadlessKysely<DB> extends Kysely<DB> {
   private common: Common;
   private name: string;
+  private includeTraceLogs: boolean;
   private isKilled = false;
 
   constructor({
     common,
     name,
+    includeTraceLogs = false,
     ...args
-  }: (KyselyConfig | KyselyProps) & { name: string; common: Common }) {
+  }: (KyselyConfig | KyselyProps) & {
+    name: string;
+    common: Common;
+    includeTraceLogs?: boolean;
+  }) {
     super(args);
     this.common = common;
     this.name = name;
+    this.includeTraceLogs = includeTraceLogs;
   }
 
   override async destroy() {
@@ -27,7 +34,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
   }
 
   wrap = async <T>(
-    options: { method: string; shouldRetry?: (error: Error) => boolean },
+    options: { method: string },
     fn: () => Promise<T>,
     // TypeScript can't infer that we always return or throw.
     // @ts-ignore
@@ -38,6 +45,15 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
 
     for (let i = 0; i <= RETRY_COUNT; i++) {
       const endClock = startClock();
+
+      const id = crypto.randomUUID().slice(0, 8);
+      if (this.includeTraceLogs) {
+        this.common.logger.trace({
+          service: this.name,
+          msg: `Started '${options.method}' database method (id=${id})`,
+        });
+      }
+
       try {
         const result = await fn();
         this.common.metrics.ponder_database_method_duration.observe(
@@ -60,7 +76,7 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         if (this.isKilled) {
           this.common.logger.trace({
             service: this.name,
-            msg: `Ignored error during '${options.method}' database method (service is killed)`,
+            msg: `Ignored error during '${options.method}' database method, service is killed (id=${id})`,
           });
           throw new IgnorableError();
         }
@@ -70,13 +86,11 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
           firstError = error;
         }
 
-        if (
-          error instanceof NonRetryableError ||
-          options.shouldRetry?.(error) === false
-        ) {
+        if (error instanceof NonRetryableError) {
           this.common.logger.warn({
             service: this.name,
-            msg: `Failed '${options.method}' database method `,
+            msg: `Failed '${options.method}' database method (id=${id})`,
+            error,
           });
           throw error;
         }
@@ -84,19 +98,27 @@ export class HeadlessKysely<DB> extends Kysely<DB> {
         if (i === RETRY_COUNT) {
           this.common.logger.warn({
             service: this.name,
-            msg: `Failed '${options.method}' database method after '${i + 1}' attempts`,
+            msg: `Failed '${options.method}' database method after '${i + 1}' attempts (id=${id})`,
             error,
           });
           throw firstError;
         }
 
         const duration = BASE_DURATION * 2 ** i;
+
         this.common.logger.debug({
           service: this.name,
-          msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds`,
+          msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds (id=${id})`,
           error,
         });
         await wait(duration);
+      } finally {
+        if (this.includeTraceLogs) {
+          this.common.logger.trace({
+            service: this.name,
+            msg: `Completed '${options.method}' database method in ${Math.round(endClock())}ms (id=${id})`,
+          });
+        }
       }
     }
   };

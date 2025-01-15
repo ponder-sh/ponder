@@ -489,6 +489,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           getOmnichainCheckpoint("current"),
         );
 
+        let consecutiveErrors = 0;
+
         /*
          * Extract events with `syncStore.getEvents()`, paginating to
          * avoid loading too many events into memory.
@@ -497,7 +499,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           if (isKilled) return;
           if (from >= to) break;
           const getEventsMaxBatchSize = args.common.options.syncEventsQuerySize;
-          let consecutiveErrors = 0;
 
           // convert `estimateSeconds` to checkpoint
           const estimatedTo = encodeCheckpoint({
@@ -518,7 +519,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
             args.common.logger.debug({
               service: "sync",
-              msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from ${decodeCheckpoint(from).blockTimestamp}`,
+              msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from timestamp ${decodeCheckpoint(from).blockTimestamp}`,
             });
 
             for (const network of args.networks) {
