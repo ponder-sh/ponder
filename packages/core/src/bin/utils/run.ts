@@ -63,7 +63,7 @@ export async function run({
 
   runCodegen({ common });
 
-  if (preBuild.mode === "multichain") {
+  if (preBuild.mode === "multichain" || indexingBuild.networks.length === 1) {
     const perNetworkSync = await Promise.all(
       indexingBuild.networks.map((network, index) =>
         createSyncMultichain({
