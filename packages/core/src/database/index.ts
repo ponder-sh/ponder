@@ -155,6 +155,7 @@ export const createDatabase = ({
       internal: new HeadlessKysely({
         name: "internal",
         common,
+        includeTraceLogs: true,
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -194,6 +195,7 @@ export const createDatabase = ({
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: common,
+        includeTraceLogs: true,
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -255,6 +257,7 @@ export const createDatabase = ({
       internal: new HeadlessKysely({
         name: "internal",
         common: common,
+        includeTraceLogs: true,
         dialect: new PostgresDialect({ pool: driver.internal }),
         log(event) {
           if (event.level === "query") {
@@ -294,6 +297,7 @@ export const createDatabase = ({
       sync: new HeadlessKysely<PonderSyncSchema>({
         name: "sync",
         common: common,
+        includeTraceLogs: true,
         dialect: new PostgresDialect({ pool: driver.sync }),
         log(event) {
           if (event.level === "query") {
