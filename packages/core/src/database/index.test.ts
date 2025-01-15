@@ -41,6 +41,7 @@ test("createDatabase() readonly", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -77,6 +78,7 @@ test("createDatabase() search path", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "ponder",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account: schemaAccount },
@@ -102,6 +104,7 @@ test("prepareNamespace() succeeds with empty schema", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -135,6 +138,7 @@ test("prepareNamespace() throws with schema used", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -149,6 +153,7 @@ test("prepareNamespace() throws with schema used", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -171,6 +176,7 @@ test("prepareNamespace() succeeds with crash recovery", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -192,6 +198,7 @@ test("prepareNamespace() succeeds with crash recovery", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -227,6 +234,7 @@ test("prepareNamespace() succeeds with crash recovery after waiting for lock", a
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -241,6 +249,7 @@ test("prepareNamespace() succeeds with crash recovery after waiting for lock", a
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -270,6 +279,7 @@ test("prepareNamespace() throws with schema used after waiting for lock", async 
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -284,6 +294,7 @@ test("prepareNamespace() throws with schema used after waiting for lock", async 
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -326,6 +337,7 @@ test("prepareNamespace() with empty schema creates tables and enums", async (con
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account, kyle, mood, user },
@@ -355,6 +367,7 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -402,6 +415,7 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -447,6 +461,7 @@ test("prepareNamespace() with crash recovery drops indexes and triggers", async 
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -470,6 +485,7 @@ test("prepareNamespace() with crash recovery drops indexes and triggers", async 
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -495,6 +511,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -534,6 +551,7 @@ test("finalize()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -606,6 +624,7 @@ test("unlock()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -622,6 +641,7 @@ test("unlock()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -658,6 +678,7 @@ test("createIndexes()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -681,6 +702,7 @@ test("createTriggers()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -726,6 +748,7 @@ test("createTriggers() duplicate", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -747,6 +770,7 @@ test("complete()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -795,6 +819,7 @@ test("revert()", async (context) => {
     preBuild: {
       databaseConfig: context.databaseConfig,
       namespace: "public",
+      mode: "multichain",
     },
     schemaBuild: {
       schema: { account },
