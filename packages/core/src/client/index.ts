@@ -34,10 +34,10 @@ const status = pgTable("_ponder_status", (t) => ({
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
-  const driver = global.PONDER_DATABASE.driver;
+  const driver = globalThis.PONDER_DATABASE.driver;
   let statusResolver = promiseWithResolvers<(typeof status.$inferSelect)[]>();
 
-  const channel = `${global.PONDER_NAMESPACE_BUILD}_status_channel`;
+  const channel = `${globalThis.PONDER_NAMESPACE_BUILD}_status_channel`;
 
   if ("instance" in driver) {
     driver.instance.query(`LISTEN ${channel}`).then(() => {

@@ -187,7 +187,7 @@ export const createBuild = async ({
       } as const;
     },
     async executeSchema({ namespace }): Promise<SchemaResult> {
-      global.PONDER_NAMESPACE_BUILD = namespace;
+      globalThis.PONDER_NAMESPACE_BUILD = namespace;
       const executeResult = await executeFile({
         file: common.options.schemaFile,
       });
@@ -270,8 +270,8 @@ export const createBuild = async ({
       };
     },
     async executeApi({ indexingBuild, database }): Promise<ApiResult> {
-      global.PONDER_INDEXING_BUILD = indexingBuild;
-      global.PONDER_DATABASE = database;
+      globalThis.PONDER_INDEXING_BUILD = indexingBuild;
+      globalThis.PONDER_DATABASE = database;
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(

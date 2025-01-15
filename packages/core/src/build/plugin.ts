@@ -20,14 +20,14 @@ const apiModule = () => `import { createPublicClient } from "viem";
 
 const publicClients = {};
 
-for (const network of global.PONDER_INDEXING_BUILD.networks) {
+for (const network of globalThis.PONDER_INDEXING_BUILD.networks) {
   publicClients[network.chainId] = createPublicClient({
     chain: network.chain,
     transport: () => network.transport
   })
 }
 
-export const db = global.PONDER_DATABASE.qb.drizzleReadonly;
+export const db = globalThis.PONDER_DATABASE.qb.drizzleReadonly;
 export { publicClients };
 `;
 

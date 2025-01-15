@@ -24,7 +24,7 @@ test("client.db", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context, {
     schema: { account },
   });
-  global.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
 
@@ -43,7 +43,7 @@ test("client.db", async (context) => {
 
 test("client.db error", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
-  global.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
 
