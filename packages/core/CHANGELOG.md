@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.27
+
+### Patch Changes
+
+- [#1443](https://github.com/ponder-sh/ponder/pull/1443) [`595e9684684be414465efb910dc03e0d489c5011`](https://github.com/ponder-sh/ponder/commit/595e9684684be414465efb910dc03e0d489c5011) Thanks [@typedarray](https://github.com/typedarray)! - Improve trace-level logging and retry logic for database operations.
+
 ## 0.8.26
 
 ### Patch Changes
