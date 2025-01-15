@@ -289,10 +289,9 @@ export async function run({
           await database.complete({
             checkpoint: encodeCheckpoint(zeroCheckpoint),
           });
-          // TODO(kyle)
-          // await database.finalize({
-          //   checkpoint: sync.getFinalizedCheckpoint(),
-          // });
+          await database.finalize({
+            checkpoint: sync.getFinalizedCheckpoint(),
+          });
 
           // Manually update metrics to fix a UI bug that occurs when the end
           // checkpoint is between the last processed event and the finalized
@@ -542,8 +541,7 @@ export async function run({
       await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
       await historicalIndexingStore.flush();
       await database.complete({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
-      // TODO(kyle)
-      // await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
+      await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
       // Manually update metrics to fix a UI bug that occurs when the end
       // checkpoint is between the last processed event and the finalized

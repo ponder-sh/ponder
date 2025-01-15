@@ -1,24 +1,28 @@
 import { promiseWithResolvers } from "@ponder/common";
 
-export async function* getNonBlockingAsyncGenerator<T>(
-  generator: AsyncGenerator<T>,
+/**
+ * Merges multiple async generators into a single async generator.
+ *
+ * @param generators - The generators to merge.
+ * @returns A single async generator that yields results from all input generators.
+ */
+export async function* mergeAsyncGenerators<T>(
+  generators: AsyncGenerator<T>[],
 ): AsyncGenerator<T> {
-  // TODO(kyle) merged results
   const results: T[] = [];
-  let done = false;
-
+  let count = generators.length;
   let pwr = promiseWithResolvers<void>();
 
-  (async () => {
+  generators.map(async (generator) => {
     for await (const result of generator) {
       results.push(result);
       pwr.resolve();
     }
-    done = true;
+    count--;
     pwr.resolve();
-  })();
+  });
 
-  while (done === false || results.length > 0) {
+  while (count > 0 || results.length > 0) {
     if (results.length > 0) {
       yield results.shift()!;
     } else {
@@ -28,6 +32,13 @@ export async function* getNonBlockingAsyncGenerator<T>(
   }
 }
 
+/**
+ * Buffers the results of an async generator.
+ *
+ * @param generator - The generator to buffer.
+ * @param size - The size of the buffer.
+ * @returns An async generator that yields results from the input generator.
+ */
 export async function* bufferAsyncGenerator<T>(
   generator: AsyncGenerator<T>,
   size: number,

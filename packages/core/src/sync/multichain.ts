@@ -380,6 +380,9 @@ export const createSyncMultichain = async (params: {
     getSeconds() {
       return seconds;
     },
+    getFinalizedCheckpoint() {
+      return getMultichainCheckpoint("finalized")!;
+    },
     async kill() {
       isKilled = true;
       historicalSync.kill();

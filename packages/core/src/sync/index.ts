@@ -19,7 +19,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
-import { getNonBlockingAsyncGenerator } from "@/utils/generators.js";
+import { bufferAsyncGenerator } from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
@@ -39,6 +39,7 @@ export type Sync = {
   startRealtime(): Promise<void>;
   getStatus(): Status;
   getSeconds(): Seconds;
+  getFinalizedCheckpoint(): string;
   kill(): Promise<void>;
 };
 
@@ -411,8 +412,9 @@ export async function* getLocalEventGenerator(params: {
   // used to determine `to` passed to `getEvents`.
   let estimateSeconds = 1_000;
 
-  for await (const syncCheckpoint of getNonBlockingAsyncGenerator(
+  for await (const syncCheckpoint of bufferAsyncGenerator(
     params.localSyncGenerator,
+    Number.POSITIVE_INFINITY,
   )) {
     let consecutiveErrors = 0;
     while (cursor < min(syncCheckpoint, params.to)) {

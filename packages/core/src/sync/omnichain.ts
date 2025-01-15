@@ -636,6 +636,9 @@ export const createSyncOmnichain = async (params: {
     getSeconds() {
       return seconds;
     },
+    getFinalizedCheckpoint() {
+      return getOmnichainCheckpoint("finalized")!;
+    },
     async kill() {
       isKilled = true;
       const promises: Promise<void>[] = [];
