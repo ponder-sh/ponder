@@ -1,5 +1,73 @@
 # ponder
 
+## 0.8.25
+
+### Patch Changes
+
+- [#1437](https://github.com/ponder-sh/ponder/pull/1437) [`229419634521e287dd7f642f8b08dfe16cd17653`](https://github.com/ponder-sh/ponder/commit/229419634521e287dd7f642f8b08dfe16cd17653) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved the granularity of rpc cache.
+
+## 0.8.24
+
+### Patch Changes
+
+- [#1435](https://github.com/ponder-sh/ponder/pull/1435) [`d891abaf25a939684f473cc2df90e3c89cfe6f2d`](https://github.com/ponder-sh/ponder/commit/d891abaf25a939684f473cc2df90e3c89cfe6f2d) Thanks [@tk-o](https://github.com/tk-o)! - Fixed a bug causing setup function with multiple networks to error.
+
+## 0.8.23
+
+### Patch Changes
+
+- [#1430](https://github.com/ponder-sh/ponder/pull/1430) [`b3ec95059103c7bcc2babd9ff5f7d6dbdb239982`](https://github.com/ponder-sh/ponder/commit/b3ec95059103c7bcc2babd9ff5f7d6dbdb239982) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where ZKsync system logs with transaction receipts failed with the error `Detected inconsistent RPC responses. 'transaction.hash' 0x0000000000000000000000000000000000000000000000000000000000000000 not found in eth_getBlockReceipts response for block (...)`.
+
+## 0.8.22
+
+### Patch Changes
+
+- [#1426](https://github.com/ponder-sh/ponder/pull/1426) [`bd52302092d5393012a100617541d533362ac927`](https://github.com/ponder-sh/ponder/commit/bd52302092d5393012a100617541d533362ac927) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with traces containing invalid byte sequences.
+
+## 0.8.21
+
+### Patch Changes
+
+- [#1424](https://github.com/ponder-sh/ponder/pull/1424) [`60e7b6a33f3280eb08412cbec742e3d23d0d4404`](https://github.com/ponder-sh/ponder/commit/60e7b6a33f3280eb08412cbec742e3d23d0d4404) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where indexing errors did not include the block number and transaction hash of the event being indexed.
+
+## 0.8.20
+
+### Patch Changes
+
+- [`85c9b3247bcb52c8d567f93ab19aee5746d8923d`](https://github.com/ponder-sh/ponder/commit/85c9b3247bcb52c8d567f93ab19aee5746d8923d) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug introduced in 0.8.14 which caused unnecessary `eth_getBlockReceipts` requests.
+
+- [#1421](https://github.com/ponder-sh/ponder/pull/1421) [`de4b398fba7c1d93e12e5500fcc598239b04597a`](https://github.com/ponder-sh/ponder/commit/de4b398fba7c1d93e12e5500fcc598239b04597a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where events between the historical backfill and live indexing were skipped. This does not affect the rpc cache.
+
+## 0.8.19
+
+### Patch Changes
+
+- [#1416](https://github.com/ponder-sh/ponder/pull/1416) [`7234384afb6d18e1ca3d6c291ebe7db111773c06`](https://github.com/ponder-sh/ponder/commit/7234384afb6d18e1ca3d6c291ebe7db111773c06) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing the error: `trigger "_reorg__xyz" for relation "xyz" already exists`.
+
+## 0.8.18
+
+### Patch Changes
+
+- [#1414](https://github.com/ponder-sh/ponder/pull/1414) [`3aa89415a528152c32cd5d9fea0f4b65061bb232`](https://github.com/ponder-sh/ponder/commit/3aa89415a528152c32cd5d9fea0f4b65061bb232) Thanks [@typedarray](https://github.com/typedarray)! - Fixed the `FlushError: invalid byte sequence for encoding "UTF8": 0x00` error by removing null characters from decoded ABI parameters.
+
+## 0.8.17
+
+### Patch Changes
+
+- [#1411](https://github.com/ponder-sh/ponder/pull/1411) [`60704d3974387cb625c8fe2e45026fc2235622b9`](https://github.com/ponder-sh/ponder/commit/60704d3974387cb625c8fe2e45026fc2235622b9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where ZKsync system logs failed with the error `Detected inconsistent RPC responses. 'log.transactionHash' 0x0000000000000000000000000000000000000000000000000000000000000000 not found in 'block.transactions' (...)`.
+
+## 0.8.16
+
+### Patch Changes
+
+- [#1407](https://github.com/ponder-sh/ponder/pull/1407) [`bfc51efc1e767ff2670494ecbb14b332bc2d3d05`](https://github.com/ponder-sh/ponder/commit/bfc51efc1e767ff2670494ecbb14b332bc2d3d05) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a Windows bug introduced in `0.8.0` where the build would fail with the error "Failed to load url (...) in ponder:schema". Fixed a Windows bug where the build would fail when using an in-memory PGlite database with the error "Path contains invalid characters: memory://".
+
+## 0.8.15
+
+### Patch Changes
+
+- [#1403](https://github.com/ponder-sh/ponder/pull/1403) [`95aa8102cb44c4628dc89634724fd6432cb4f93f`](https://github.com/ponder-sh/ponder/commit/95aa8102cb44c4628dc89634724fd6432cb4f93f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where a reorg sometimes caused events to be skipped. This does not affect the rpc cache.
+
 ## 0.8.14
 
 ### Patch Changes

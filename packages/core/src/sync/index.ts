@@ -32,6 +32,7 @@ import {
   type Interval,
   intervalDifference,
   intervalIntersection,
+  intervalIntersectionMany,
   intervalSum,
   sortIntervals,
 } from "@/utils/interval.js";
@@ -159,17 +160,27 @@ const min = (...checkpoints: (string | undefined)[]) => {
   })!;
 };
 
-export const splitEvents = (events: RawEvent[]): RawEvent[][] => {
+export const splitEvents = (
+  events: RawEvent[],
+): { checkpoint: string; events: RawEvent[] }[] => {
   let prevHash: Hash | undefined;
-  const result: RawEvent[][] = [];
+  const result: { checkpoint: string; events: RawEvent[] }[] = [];
 
   for (const event of events) {
     if (prevHash === undefined || prevHash !== event.block.hash) {
-      result.push([]);
+      result.push({
+        checkpoint: encodeCheckpoint({
+          ...maxCheckpoint,
+          blockTimestamp: Number(event.block.timestamp),
+          chainId: BigInt(event.chainId),
+          blockNumber: event.block.number,
+        }),
+        events: [],
+      });
       prevHash = event.block.hash;
     }
 
-    result[result.length - 1]!.push(event);
+    result[result.length - 1]!.events.push(event);
   }
 
   return result;
@@ -218,12 +229,16 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
-      unfinalizedBlocks: (Omit<
+      unfinalizedBlocks: Omit<
         Extract<RealtimeSyncEvent, { type: "block" }>,
         "type"
-      > & { events: RawEvent[] })[];
+      >[];
     }
   >();
+  /** Events that have been executed but not finalized. */
+  let executedEvents: RawEvent[] = [];
+  /** Events that have not been executed yet. */
+  let pendingEvents: RawEvent[] = [];
   const status: Status = {};
   let isKilled = false;
   // Realtime events across all chains that can't be passed to the parent function
@@ -489,7 +504,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               to: to < estimatedTo ? to : estimatedTo,
               limit: getEventsMaxBatchSize,
             });
-            consecutiveErrors = 0;
 
             args.common.logger.debug({
               service: "sync",
@@ -511,6 +525,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               maxIncrease: 1.08,
             });
 
+            consecutiveErrors = 0;
             yield { events, checkpoint: to };
             from = cursor;
           } catch (error) {
@@ -613,38 +628,32 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
-        const blockWithEventData = event;
-
-        const events = buildEvents({
+        const newEvents = buildEvents({
           sources: args.indexingBuild.sources,
           chainId: network.chainId,
-          blockWithEventData,
+          blockWithEventData: event,
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
 
-        unfinalizedBlocks.push({ ...blockWithEventData, events });
+        unfinalizedBlocks.push(event);
+        pendingEvents.push(...newEvents);
 
         if (to > from) {
           for (const network of args.indexingBuild.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
-          const pendingEvents: RawEvent[] = [];
+          // Move events from pending to executed
 
-          for (const { unfinalizedBlocks } of perNetworkSync.values()) {
-            for (const { events } of unfinalizedBlocks) {
-              for (const event of events) {
-                if (event.checkpoint > from && event.checkpoint <= to) {
-                  pendingEvents.push(event);
-                }
-              }
-            }
-          }
+          const events = pendingEvents
+            .filter((event) => event.checkpoint < to)
+            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
 
-          const events = pendingEvents.sort((a, b) =>
-            a.checkpoint < b.checkpoint ? -1 : 1,
+          pendingEvents = pendingEvents.filter(
+            ({ checkpoint }) => checkpoint > to,
           );
+          executedEvents.push(...events);
 
           args
             .onRealtimeEvent({
@@ -693,9 +702,9 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             service: "sync",
             msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
           });
-          // exit early because we need to keep `unfinalizedBlocks.events`
-          return;
         }
+
+        // Remove all finalized data
 
         const finalizedBlocks = unfinalizedBlocks.filter(
           ({ block }) =>
@@ -707,6 +716,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
             ({ block }) =>
               hexToNumber(block.number) > hexToNumber(event.block.number),
           );
+
+        executedEvents = executedEvents.filter(
+          (e) => e.checkpoint > checkpoint,
+        );
 
         // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
@@ -798,6 +811,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
        */
       case "reorg": {
         syncProgress.current = event.block;
+        // Note: this checkpoint is <= the previous checkpoint
         const checkpoint = getOmnichainCheckpoint("current")!;
 
         // Update "ponder_sync_block" metric
@@ -806,15 +820,36 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
           hexToNumber(syncProgress.current.number),
         );
 
+        // Remove all reorged data
+
         perNetworkSync.get(network)!.unfinalizedBlocks =
           unfinalizedBlocks.filter(
             ({ block }) =>
               hexToNumber(block.number) <= hexToNumber(event.block.number),
           );
 
+        const isReorgedEvent = ({ chainId, block }: RawEvent) =>
+          chainId === network.chainId &&
+          Number(block.number) > hexToNumber(event.block.number);
+
+        pendingEvents = pendingEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
+        executedEvents = executedEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
+
+        // Move events from executed to pending
+
+        const events = executedEvents.filter((e) => e.checkpoint > checkpoint);
+        executedEvents = executedEvents.filter(
+          (e) => e.checkpoint < checkpoint,
+        );
+        pendingEvents.push(...events);
+
         await args.syncStore.pruneRpcRequestResult({
-          blocks: event.reorgedBlocks,
           chainId: network.chainId,
+          blocks: event.reorgedBlocks,
         });
 
         // Raise event to parent function (runtime)
@@ -833,11 +868,38 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       for (const network of args.indexingBuild.networks) {
         const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
+        const filters = args.indexingBuild.sources
+          .filter(({ filter }) => filter.chainId === network.chainId)
+          .map(({ filter }) => filter);
+
         status[network.chainId]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
         };
         status[network.chainId]!.ready = true;
+
+        // Fetch any events between the omnichain finalized checkpoint and the single-chain
+        // finalized checkpoint and add them to pendingEvents. These events are synced during
+        // the historical phase, but must be indexed in the realtime phase because events
+        // synced in realtime on other chains might be ordered before them.
+        const from = getOmnichainCheckpoint("finalized")!;
+
+        const finalized = getChainCheckpoint({
+          syncProgress,
+          network,
+          tag: "finalized",
+        })!;
+        const end = getChainCheckpoint({
+          syncProgress,
+          network,
+          tag: "end",
+        })!;
+        const to = min(finalized, end);
+
+        if (to > from) {
+          const events = await args.syncStore.getEvents({ filters, from, to });
+          pendingEvents.push(...events.events);
+        }
 
         if (isSyncEnd(syncProgress)) {
           args.common.metrics.ponder_sync_is_complete.set(
@@ -852,12 +914,8 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
           const initialChildAddresses = new Map<Factory, Set<Address>>();
 
-          for (const { filter } of args.indexingBuild.sources) {
-            if (
-              filter.chainId === network.chainId &&
-              "address" in filter &&
-              isAddressFactory(filter.address)
-            ) {
+          for (const filter of filters) {
+            if ("address" in filter && isAddressFactory(filter.address)) {
               const addresses = await args.syncStore.getChildAddresses({
                 filter: filter.address,
               });
@@ -968,10 +1026,15 @@ export const getCachedBlock = ({
       filter.fromBlock,
       filter.toBlock,
     ] satisfies Interval;
-    const cachedIntervals = historicalSync.intervalsCache.get(filter)!;
+    const fragmentIntervals = historicalSync.intervalsCache.get(filter)!;
 
     const completedIntervals = sortIntervals(
-      intervalIntersection([requiredInterval], cachedIntervals),
+      intervalIntersection(
+        [requiredInterval],
+        intervalIntersectionMany(
+          fragmentIntervals.map(({ intervals }) => intervals),
+        ),
+      ),
     );
 
     if (completedIntervals.length === 0) return undefined;
@@ -1061,10 +1124,12 @@ export async function* localHistoricalSyncGenerator({
 
   const requiredIntervals = Array.from(
     historicalSync.intervalsCache.entries(),
-  ).flatMap(([filter, interval]) =>
+  ).flatMap(([filter, fragmentIntervals]) =>
     intervalDifference(
       [[filter.fromBlock, Math.min(filter.toBlock, totalInterval[1])]],
-      interval,
+      intervalIntersectionMany(
+        fragmentIntervals.map(({ intervals }) => intervals),
+      ),
     ),
   );
 

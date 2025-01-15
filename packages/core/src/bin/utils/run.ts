@@ -81,7 +81,7 @@ export async function run({
         case "block": {
           // Events must be run block-by-block, so that `database.complete` can accurately
           // update the temporary `checkpoint` value set in the trigger.
-          for (const events of splitEvents(event.events)) {
+          for (const { checkpoint, events } of splitEvents(event.events)) {
             const result = await handleEvents(
               decodeEvents(common, indexingBuild.sources, events),
               event.checkpoint,
@@ -90,7 +90,7 @@ export async function run({
             if (result.status === "error") onReloadableError(result.error);
 
             // Set reorg table `checkpoint` column for newly inserted rows.
-            await database.complete({ checkpoint: event.checkpoint });
+            await database.complete({ checkpoint });
           }
 
           await metadataStore.setStatus(event.status);
