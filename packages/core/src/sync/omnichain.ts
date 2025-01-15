@@ -20,7 +20,9 @@ import {
 import { bufferAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
+import { partition } from "@/utils/partition.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { zipperMany } from "@/utils/zipper.js";
 import { type Address, hexToNumber } from "viem";
 import { buildEvents } from "./events.js";
 import { isAddressFactory } from "./filter.js";
@@ -211,7 +213,6 @@ export const createSyncOmnichain = async (params: {
   let isKilled = false;
 
   async function* getEvents() {
-    let cursor: string;
     // TODO(kyle) is this correct?
     const to = min(
       getOmnichainCheckpoint("end"),
@@ -264,23 +265,23 @@ export const createSyncOmnichain = async (params: {
         ),
       );
 
-      let events: RawEvent[] = [];
+      const eventArrays: RawEvent[][] = [];
 
       for (const res of eventResults) {
         if (res.done === false) {
-          events.push(
-            // TODO(kyle) use binary search to find index of supremum
-            ...res.value.events.filter(
-              (event) =>
-                (cursor === undefined ? true : event.checkpoint > cursor) &&
-                event.checkpoint <= supremum,
-            ),
+          const [left, right] = partition(
+            res.value.events,
+            (event) => event.checkpoint <= supremum,
           );
+
+          eventArrays.push(left);
+          res.value.events = right;
         }
       }
 
-      // TODO(kyle) use zipper merge function
-      events = events.sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+      const events = zipperMany(eventArrays).sort((a, b) =>
+        a.checkpoint < b.checkpoint ? -1 : 1,
+      );
 
       const index = eventResults.findIndex(
         (res) => res.done === false && res.value.checkpoint === supremum,
@@ -291,9 +292,6 @@ export const createSyncOmnichain = async (params: {
         updateHistoricalStatus({ events, checkpoint: supremum, network });
       }
 
-      cursor = supremum;
-      // NOTE: `checkpoint` is only used for metrics, and therefore should reflect the furthest
-      // known checkpoint.
       yield events;
     }
   }
