@@ -3,37 +3,40 @@
   "version": "0.9.0-next.4",
   "description": "React hooks for Ponder",
   "license": "MIT",
-  "type": "module",
-  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/ponder-sh/ponder",
     "directory": "packages/react"
   },
+  "scripts": {
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
+    "test": "vitest",
+    "test:typecheck": "vitest --typecheck.only",
+    "typecheck": "tsc --noEmit"
+  },
   "files": [
-    "dist",
+    "dist/**",
+    "!dist/**/*.tsbuildinfo",
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/**/*.test-d.ts",
     "!src/_test/**/*"
   ],
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "typings": "./dist/index.d.ts",
+  "sideEffects": false,
+  "type": "module",
+  "main": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/esm/index.js"
     }
   },
-  "scripts": {
-    "build": "tsup",
-    "test": "vitest",
-    "test:typecheck": "vitest --typecheck.only",
-    "typecheck": "tsc --noEmit"
+  "dependencies": {
+    "@ponder/client": "workspace:*"
   },
   "peerDependencies": {
-    "@ponder/client": ">=0.9.0",
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18",
     "typescript": ">=5.0.4"
@@ -48,8 +51,5 @@
     "@types/react": "^18.2.0",
     "react": "^18.2.0",
     "tsup": "^8.0.1"
-  },
-  "imports": {
-    "@ponder/client": "../client/index.ts"
   }
 }
