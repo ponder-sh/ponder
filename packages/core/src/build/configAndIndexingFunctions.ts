@@ -26,11 +26,12 @@ import {
 import { chains } from "@/utils/chains.js";
 import { type Interval, intervalUnion } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { dedupe } from "@ponder/common";
-import type { Hex, LogTopic } from "viem";
+import { type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 
-type BlockRange = [number, number | "realtime"];
+type BlockRange = [number | "latest", number | "realtime" | "latest"];
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
@@ -64,13 +65,22 @@ const flattenSources = <
 
 function resolveBlockRanges(
   blocks: BlockRange[] | BlockRange | undefined,
+  latest: number,
 ): Interval[] {
-  const rawBlockRanges: BlockRange[] =
+  const rawBlockRanges: [number, number | "realtime"][] =
     blocks === undefined || blocks.length === 0
       ? [[0, "realtime"]]
       : blocks.every((b) => Array.isArray(b))
-        ? blocks
-        : [blocks];
+        ? blocks.map(([fromBlock, toBlock]) => [
+            fromBlock === "latest" ? latest : fromBlock,
+            toBlock === "latest" ? latest : toBlock,
+          ])
+        : [
+            [
+              blocks[0] === "latest" ? latest : blocks[0],
+              blocks[1] === "latest" ? latest : blocks[1],
+            ],
+          ];
 
   const blockRanges: Interval[] = rawBlockRanges.map(
     ([rawStartBlock, rawEndBlock]) => [
@@ -98,7 +108,9 @@ export async function buildConfigAndIndexingFunctions({
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
-  const networks: Network[] = await Promise.all(
+  const latestBlockNumbers = new Map<string, number>();
+
+  const networks = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
       const { chainId, transport } = network;
 
@@ -128,7 +140,7 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      return {
+      const resolvedNetwork = {
         name: networkName,
         chainId,
         chain,
@@ -138,6 +150,14 @@ export async function buildConfigAndIndexingFunctions({
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         disableCache: network.disableCache ?? false,
       } satisfies Network;
+
+      const latest: Hex = await network.transport({ chain }).request({
+        method: "eth_blockNumber",
+      });
+
+      latestBlockNumbers.set(networkName, hexToNumber(latest));
+
+      return resolvedNetwork;
     }),
   );
 
@@ -242,12 +262,33 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const blockRanges: BlockRange[] =
+    const network = networks.find((n) => n.name === source.network);
+    if (!network) {
+      throw new Error(
+        `Validation failed: Invalid network for '${
+          source.name
+        }'. Got '${source.network}', expected one of [${networks
+          .map((n) => `'${n.name}'`)
+          .join(", ")}].`,
+      );
+    }
+
+    const latest = latestBlockNumbers.get(source.network)!;
+
+    const blockRanges: [number, number | "realtime"][] =
       source.blocks === undefined
         ? [[0, "realtime"]]
         : source.blocks.every((b) => Array.isArray(b))
-          ? source.blocks
-          : [source.blocks];
+          ? source.blocks.map(([fromBlock, toBlock]) => [
+              fromBlock === "latest" ? latest : fromBlock,
+              toBlock === "latest" ? latest : toBlock,
+            ])
+          : [
+              [
+                source.blocks[0] === "latest" ? latest : source.blocks[0],
+                source.blocks[1] === "latest" ? latest : source.blocks[1],
+              ],
+            ];
 
     for (const [rawStartBlock, rawEndBlock] of blockRanges) {
       const startBlock = Number.isNaN(rawStartBlock) ? 0 : rawStartBlock;
@@ -263,17 +304,6 @@ export async function buildConfigAndIndexingFunctions({
           `Validation failed: End block for '${source.name}' is ${endBlock}. Expected number or "realtime"`,
         );
       }
-    }
-
-    const network = networks.find((n) => n.name === source.network);
-    if (!network) {
-      throw new Error(
-        `Validation failed: Invalid network for '${
-          source.name
-        }'. Got '${source.network}', expected one of [${networks
-          .map((n) => `'${n.name}'`)
-          .join(", ")}].`,
-      );
     }
   }
 
@@ -406,7 +436,8 @@ export async function buildConfigAndIndexingFunctions({
         });
       }
 
-      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
+      const latest = latestBlockNumbers.get(source.network)!;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks, latest);
 
       const contractMetadata = {
         type: "contract",
@@ -584,7 +615,8 @@ export async function buildConfigAndIndexingFunctions({
     .flatMap((source): AccountSource[] => {
       const network = networks.find((n) => n.name === source.network)!;
 
-      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
+      const latest = latestBlockNumbers.get(source.network)!;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks, latest);
 
       const resolvedAddress = source?.address;
 
@@ -811,7 +843,8 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const resolvedBlockRanges = resolveBlockRanges(source.blocks);
+      const latest = latestBlockNumbers.get(source.network)!;
+      const resolvedBlockRanges = resolveBlockRanges(source.blocks, latest);
 
       return resolvedBlockRanges.map(
         ([fromBlock, toBlock]) =>
