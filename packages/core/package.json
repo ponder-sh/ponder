@@ -32,7 +32,7 @@
     }
   },
   "scripts": {
-    "postinstall": "wagmi generate",
+    "postinstall": "wagmi generate || exit 0",
     "build": "tsup",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",
