@@ -10,13 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
-
-type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
-
-export function getQueryKey(query: SQLWrapper) {
-  const sql = compileQuery(query);
-  return [sql.sql, ...sql.params];
-}
+import type { SQLWrapper } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {

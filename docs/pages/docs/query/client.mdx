@@ -18,13 +18,15 @@ import { Callout, Steps, Tabs } from "nextra/components";
 
 Register the `client` middleware on your Ponder server to enable client queries.
 
-```ts filename="src/api/index.ts" {7}
+```ts filename="src/api/index.ts" {4,9}
 import { db } from "ponder:api";
+import schema from "ponder:schema";
 import { Hono } from "hono";
-import { client } from "ponder";
+import { client, graphql } from "ponder";
 
 const app = new Hono();
 
+app.use("/graphql", graphql({ db, schema }));
 app.use(client({ db }));
 
 export default app;
@@ -164,7 +166,7 @@ const { data, isError, isPending } = usePonderQuery({
 
 #### Installation
 
-Install `@ponder/react` and peer dependencies
+Install `@ponder/react` and peer dependencies in your React project.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
@@ -187,13 +189,15 @@ npm add @ponder/react @ponder/client @tanstack/react-query
 
 #### Create client
 
-Create a client using the URL of your Ponder server. Import your Ponder schema into the same file.
+Create a client object using the URL of your Ponder server. Import your schema into the same file using a relative import from your `ponder.schema.ts` file.
 
 ```ts filename="lib/ponder.ts"
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-export const client = createClient("http://localhost:42069", { schema });
+const client = createClient("http://localhost:42069", { schema });
+
+export { client, schema };
 ```
 
 #### Wrap app in provider
@@ -248,7 +252,6 @@ export function Deposits() {
         .from(schema.depositEvent)
         .orderBy(schema.depositEvent.timestamp)
         .limit(10),
-    staleTime: Number.POSITIVE_INFINITY,
   });
 
   if (isPending) return <div>Loading deposits</div>
@@ -264,4 +267,4 @@ export function Deposits() {
 These example apps demonstrate how to use `@ponder/client`.
 
 - [**Basic**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-client/client/src/index.ts)
-- [**NextJs**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18)
+- [**Next.js**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18)

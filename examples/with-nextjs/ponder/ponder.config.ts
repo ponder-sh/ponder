@@ -1,7 +1,7 @@
 import { createConfig } from "ponder";
 import { http, createPublicClient } from "viem";
 
-import { weth9Abi } from "./abis/weth9Abi";
+import { weth9Abi } from "./abis/Weth9Abi";
 
 const latestBlockBase = await createPublicClient({
   transport: http(process.env.PONDER_RPC_URL_8453),
