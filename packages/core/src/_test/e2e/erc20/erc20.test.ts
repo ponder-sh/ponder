@@ -58,7 +58,7 @@ test(
 
     await waitForIndexedBlock({
       port,
-      chainId: 1,
+      networkName: "mainnet",
       block: { number: 2 },
     });
 

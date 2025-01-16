@@ -1,5 +1,5 @@
 import { type Client, compileQuery } from "@ponder/client";
-import type { UseQueryOptions } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
 
 export type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
 
@@ -11,7 +11,10 @@ export function getQueryKey(query: SQLWrapper) {
 export function getPonderQueryOptions<result>(
   client: Client,
   queryFn: (db: Client["db"]) => Promise<result> & SQLWrapper,
-): Required<Pick<UseQueryOptions<result>, "queryKey" | "queryFn">> {
+): {
+  queryKey: QueryKey;
+  queryFn: () => Promise<result> & SQLWrapper;
+} {
   const queryPromise = queryFn(client.db);
 
   if ("getSQL" in queryPromise === false) {
