@@ -10,14 +10,17 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type { RawEvent } from "@/internal/types.js";
 import {
+  decodeCheckpoint,
   encodeCheckpoint,
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { beforeEach, expect, test } from "vitest";
+import { promiseWithResolvers } from "@ponder/common";
+import { beforeEach, expect, test, vi } from "vitest";
 import { createSyncMultichain } from "./multichain.js";
 
 beforeEach(setupCommon);
@@ -54,8 +57,6 @@ test("createSyncMultichain()", async (context) => {
 
   await cleanup();
 });
-
-test.todo("mergeEventGenerators()", async () => {});
 
 test("getEvents()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
@@ -176,6 +177,196 @@ test("getEvents() with initial checkpoint", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(0);
+
+  await sync.kill();
+
+  await cleanup();
+});
+
+test("startRealtime()", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  await testClient.mine({ blocks: 2 });
+
+  const sync = await createSyncMultichain({
+    syncStore,
+
+    common: context.common,
+    network,
+    sources,
+    requestQueue: createRequestQueue({ network, common: context.common }),
+    onRealtimeEvent: async () => {},
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  await sync.startRealtime();
+
+  const status = sync.getStatus();
+
+  expect(status[network.chainId]?.ready).toBe(true);
+  expect(status[network.chainId]?.block?.number).toBe(1);
+
+  await sync.kill();
+
+  await cleanup();
+});
+
+test("onEvent() handles block", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const promise = promiseWithResolvers<void>();
+  const events: RawEvent[] = [];
+
+  await testClient.mine({ blocks: 1 });
+
+  const sync = await createSyncMultichain({
+    syncStore,
+
+    common: context.common,
+    network,
+    sources,
+    requestQueue: createRequestQueue({ network, common: context.common }),
+    onRealtimeEvent: async (event) => {
+      if (event.type === "block") {
+        events.push(...event.events);
+        promise.resolve();
+      }
+    },
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  await sync.startRealtime();
+
+  await promise.promise;
+
+  expect(events).toHaveLength(1);
+
+  await sync.kill();
+
+  await cleanup();
+});
+
+test("onEvent() handles finalize", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const promise = promiseWithResolvers<void>();
+  let checkpoint: string;
+
+  // finalized block: 0
+
+  network.finalityBlockCount = 2;
+
+  const sync = await createSyncMultichain({
+    syncStore,
+
+    common: context.common,
+    network,
+    sources,
+    requestQueue: createRequestQueue({ network, common: context.common }),
+    onRealtimeEvent: async (event) => {
+      if (event.type === "finalize") {
+        checkpoint = event.checkpoint;
+        promise.resolve();
+      }
+    },
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await testClient.mine({ blocks: 4 });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  await sync.startRealtime();
+
+  await promise.promise;
+
+  expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(2n);
+
+  await sync.kill();
+
+  await cleanup();
+});
+
+test.todo("onEvent() handles reorg");
+
+test("onEvent() handles errors", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const promise = promiseWithResolvers<void>();
+
+  // finalized block: 0
+
+  const sync = await createSyncMultichain({
+    syncStore,
+
+    common: context.common,
+    network,
+    sources,
+    requestQueue: createRequestQueue({ network, common: context.common }),
+    onRealtimeEvent: async () => {},
+    onFatalError: () => {
+      promise.resolve();
+    },
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await testClient.mine({ blocks: 4 });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  const spy = vi.spyOn(syncStore, "insertTransactions");
+  spy.mockRejectedValue(new Error());
+
+  await sync.startRealtime();
+
+  await promise.promise;
 
   await sync.kill();
 

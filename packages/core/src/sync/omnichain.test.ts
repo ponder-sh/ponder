@@ -358,6 +358,64 @@ test("onEvent() handles block", async (context) => {
   await cleanup();
 });
 
+test("onEvent() handles block with multiple chains", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources: sources1, networks: networks1 } =
+    await buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions,
+    });
+
+  const { sources: sources2, networks: networks2 } =
+    await buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions,
+    });
+
+  // finalized block: 0
+
+  sources2[0]!.filter.chainId = 2;
+  networks2[0]!.chainId = 2;
+
+  const promise = promiseWithResolvers<void>();
+
+  const sync = await createSyncOmnichain({
+    common: context.common,
+    indexingBuild: {
+      sources: [...sources1, ...sources2],
+      networks: [...networks1, ...networks2],
+    },
+    requestQueues: [
+      createRequestQueue({ network: networks1[0]!, common: context.common }),
+      createRequestQueue({ network: networks2[0]!, common: context.common }),
+    ],
+    syncStore,
+    onRealtimeEvent: async (event) => {
+      if (event.type === "block") {
+        promise.resolve();
+      }
+    },
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  await sync.startRealtime();
+
+  await promise.promise;
+
+  await sync.kill();
+
+  await cleanup();
+});
+
 test("onEvent() handles finalize", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
@@ -410,174 +468,6 @@ test("onEvent() handles finalize", async (context) => {
 });
 
 test.todo("onEvent() handles reorg");
-
-test("onEvent() multichain gets all events", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources: sources1, networks: networks1 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  const { sources: sources2, networks: networks2 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  // finalized block: 0
-
-  sources2[0]!.filter.chainId = 2;
-  networks2[0]!.chainId = 2;
-
-  const promise = promiseWithResolvers<void>();
-
-  const sync = await createSyncOmnichain({
-    common: context.common,
-    indexingBuild: {
-      sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
-    },
-    requestQueues: [
-      createRequestQueue({ network: networks1[0]!, common: context.common }),
-      createRequestQueue({ network: networks2[0]!, common: context.common }),
-    ],
-    syncStore,
-    onRealtimeEvent: async (event) => {
-      if (event.type === "block") {
-        promise.resolve();
-      }
-    },
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  await testClient.mine({ blocks: 1 });
-
-  await drainAsyncGenerator(sync.getEvents());
-
-  await sync.startRealtime();
-
-  await promise.promise;
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("onEvent() multichain end block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources: sources1, networks: networks1 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  const { sources: sources2, networks: networks2 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  // finalized block: 0
-
-  sources2[0]!.filter.chainId = 2;
-  sources2[0]!.filter.toBlock = 0;
-  networks2[0]!.chainId = 2;
-
-  const promise = promiseWithResolvers<void>();
-
-  const sync = await createSyncOmnichain({
-    common: context.common,
-    indexingBuild: {
-      sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
-    },
-    requestQueues: [
-      createRequestQueue({ network: networks1[0]!, common: context.common }),
-      createRequestQueue({ network: networks2[0]!, common: context.common }),
-    ],
-    syncStore,
-    onRealtimeEvent: async (event) => {
-      if (event.type === "block") {
-        promise.resolve();
-      }
-    },
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  await testClient.mine({ blocks: 1 });
-
-  await drainAsyncGenerator(sync.getEvents());
-
-  await sync.startRealtime();
-
-  await promise.promise;
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("onEvent() handles endBlock finalization", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  const promise = promiseWithResolvers<void>();
-
-  // finalized block: 0
-
-  await testClient.mine({ blocks: 2 });
-
-  network.finalityBlockCount = 2;
-
-  sources[0]!.filter.toBlock = 1;
-
-  const sync = await createSyncOmnichain({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
-    onRealtimeEvent: async (event) => {
-      if (event.type === "finalize") {
-        promise.resolve();
-      }
-    },
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  await drainAsyncGenerator(sync.getEvents());
-
-  await sync.startRealtime();
-
-  await promise.promise;
-
-  await sync.kill();
-
-  await cleanup();
-});
 
 test("onEvent() handles errors", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);

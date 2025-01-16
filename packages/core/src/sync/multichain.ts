@@ -38,6 +38,18 @@ export const createSyncMultichain = async (params: {
   onFatalError(error: Error): void;
   initialCheckpoint: string;
 }): Promise<Sync> => {
+  // Invalidate sync cache for devnet sources
+  if (params.network.disableCache) {
+    params.common.logger.warn({
+      service: "sync",
+      msg: `Deleting cache records for '${params.network.name}'`,
+    });
+
+    await params.syncStore.pruneByChain({
+      chainId: params.network.chainId,
+    });
+  }
+
   const historicalSync = await createHistoricalSync({
     common: params.common,
     network: params.network,
@@ -236,13 +248,40 @@ export const createSyncMultichain = async (params: {
         const initialChildAddresses = new Map<Factory, Set<Address>>();
 
         for (const { filter } of params.sources) {
-          // TODO(kyle) this is a bug for accounts sources
-          if ("address" in filter && isAddressFactory(filter.address)) {
-            const addresses = await params.syncStore.getChildAddresses({
-              filter: filter.address,
-            });
+          switch (filter.type) {
+            case "log":
+              if (isAddressFactory(filter.address)) {
+                const addresses = await params.syncStore.getChildAddresses({
+                  filter: filter.address,
+                });
 
-            initialChildAddresses.set(filter.address, new Set(addresses));
+                initialChildAddresses.set(filter.address, new Set(addresses));
+              }
+              break;
+
+            case "transaction":
+            case "transfer":
+            case "trace":
+              if (isAddressFactory(filter.fromAddress)) {
+                const addresses = await params.syncStore.getChildAddresses({
+                  filter: filter.fromAddress,
+                });
+
+                initialChildAddresses.set(
+                  filter.fromAddress,
+                  new Set(addresses),
+                );
+              }
+
+              if (isAddressFactory(filter.toAddress)) {
+                const addresses = await params.syncStore.getChildAddresses({
+                  filter: filter.toAddress,
+                });
+
+                initialChildAddresses.set(filter.toAddress, new Set(addresses));
+              }
+
+              break;
           }
         }
 

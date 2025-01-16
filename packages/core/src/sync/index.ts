@@ -230,7 +230,7 @@ export const getRealtimeSyncEventHandler = ({
 
       case "finalize": {
         // Newly finalized range
-        const interval = [
+        const finalizedInterval = [
           hexToNumber(syncProgress.finalized.number),
           hexToNumber(event.block.number),
         ] satisfies Interval;
@@ -305,12 +305,29 @@ export const getRealtimeSyncEventHandler = ({
         // Note: this should happen after insertion so the database doesn't become corrupted
 
         if (network.disableCache === false) {
-          // TODO(kyle) inserting intervals for filters that may be outside of range
+          const syncedIntervals: {
+            interval: Interval;
+            filter: Filter;
+          }[] = [];
+
+          for (const { filter } of sources) {
+            const intervals = intervalIntersection(
+              [finalizedInterval],
+              [
+                [
+                  filter.fromBlock ?? 0,
+                  filter.toBlock ?? Number.POSITIVE_INFINITY,
+                ],
+              ],
+            );
+
+            for (const interval of intervals) {
+              syncedIntervals.push({ interval, filter });
+            }
+          }
+
           await syncStore.insertIntervals({
-            intervals: sources.map(({ filter }) => ({
-              filter,
-              interval,
-            })),
+            intervals: syncedIntervals,
             chainId: network.chainId,
           });
         }
@@ -432,19 +449,6 @@ export async function* getLocalSyncGenerator({
   historicalSync: HistoricalSync;
 }): AsyncGenerator<string> {
   const label = { network: network.name };
-
-  // // Invalidate sync cache for devnet sources
-  // if (params.network.disableCache) {
-  //   params.common.logger.warn({
-  //     service: "sync",
-  //     msg: `Deleting cache records for '${params.network.name}' from block ${hexToNumber(params.syncProgress.start.number)}`,
-  //   });
-
-  //   await params.syncStore.pruneByChain({
-  //     fromBlock: hexToNumber(params.syncProgress.start.number),
-  //     chainId: params.network.chainId,
-  //   });
-  // }
 
   let cursor = hexToNumber(syncProgress.start.number);
   const last = getHistoricalLast(syncProgress);

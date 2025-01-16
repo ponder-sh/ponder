@@ -117,10 +117,7 @@ export type SyncStore = {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
-  pruneByChain(args: {
-    fromBlock: number;
-    chainId: number;
-  }): Promise<void>;
+  pruneByChain(args: { chainId: number }): Promise<void>;
 };
 
 const logFactorySQL = (
@@ -1063,38 +1060,23 @@ export const createSyncStore = ({
         .where("block_number", "in", numbers)
         .execute();
     }),
-  pruneByChain: async ({ fromBlock, chainId }) =>
+  pruneByChain: async ({ chainId }) =>
     database.wrap({ method: "pruneByChain" }, () =>
       database.qb.sync.transaction().execute(async (tx) => {
-        await tx
-          .deleteFrom("logs")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom("blocks")
-          .where("chainId", "=", chainId)
-          .where("number", ">=", fromBlock.toString())
-          .execute();
+        await tx.deleteFrom("logs").where("chainId", "=", chainId).execute();
+        await tx.deleteFrom("blocks").where("chainId", "=", chainId).execute();
         await tx
           .deleteFrom("rpc_request_results")
           .where("chain_id", "=", chainId)
-          .where("block_number", ">=", fromBlock.toString())
           .execute();
-        await tx
-          .deleteFrom("traces")
-          .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
+        await tx.deleteFrom("traces").where("chainId", "=", chainId).execute();
         await tx
           .deleteFrom("transactions")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
         await tx
           .deleteFrom("transactionReceipts")
           .where("chainId", "=", chainId)
-          .where("blockNumber", ">=", fromBlock.toString())
           .execute();
       }),
     ),

@@ -104,84 +104,6 @@ export const createSyncOmnichain = async (params: {
     }
   >();
 
-  await Promise.all(
-    params.indexingBuild.networks.map(async (network, index) => {
-      const requestQueue = params.requestQueues[index]!;
-
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === network.chainId,
-      );
-
-      const historicalSync = await createHistoricalSync({
-        common: params.common,
-        sources,
-        syncStore: params.syncStore,
-        requestQueue,
-        network,
-        onFatalError: params.onFatalError,
-      });
-
-      const syncProgress = await getLocalSyncProgress({
-        common: params.common,
-        network,
-        sources,
-        requestQueue,
-        intervalsCache: historicalSync.intervalsCache,
-      });
-
-      const realtimeSync = createRealtimeSync({
-        common: params.common,
-        sources,
-        requestQueue,
-        network,
-        onEvent: (event) =>
-          onRealtimeSyncEventBase(event)
-            .then((event) => onRealtimeSyncEventOmnichain(event))
-            .catch((error) => {
-              params.common.logger.error({
-                service: "sync",
-                msg: `Fatal error: Unable to process ${event.type} event`,
-                error,
-              });
-              params.onFatalError(error);
-            }),
-        onFatalError: params.onFatalError,
-      });
-
-      params.common.metrics.ponder_sync_is_realtime.set(
-        { network: network.name },
-        0,
-      );
-      params.common.metrics.ponder_sync_is_complete.set(
-        { network: network.name },
-        0,
-      );
-
-      const onRealtimeSyncEventBase = getRealtimeSyncEventHandler({
-        common: params.common,
-        network,
-        sources,
-        syncStore: params.syncStore,
-        syncProgress,
-        realtimeSync,
-      });
-
-      const onRealtimeSyncEventOmnichain = getRealtimeSyncEventHandlerOmnichain(
-        {
-          network,
-          syncProgress,
-          realtimeSync,
-        },
-      );
-
-      perNetworkSync.set(network, {
-        syncProgress,
-        historicalSync,
-        realtimeSync,
-      });
-    }),
-  );
-
   /** Returns the minimum checkpoint across all chains. */
   const getOmnichainCheckpoint = (
     tag: "start" | "end" | "current" | "finalized",
@@ -251,71 +173,6 @@ export const createSyncOmnichain = async (params: {
     }
   };
 
-  /** Events that have been executed but not finalized. */
-  let executedEvents: RawEvent[] = [];
-  /** Events that have not been executed yet. */
-  let pendingEvents: RawEvent[] = [];
-
-  const status: Status = {};
-
-  for (const network of params.indexingBuild.networks) {
-    status[network.chainId] = { block: null, ready: false };
-  }
-
-  const seconds: Seconds = {
-    start: decodeCheckpoint(getOmnichainCheckpoint("start")!).blockTimestamp,
-    end: decodeCheckpoint(
-      min(getOmnichainCheckpoint("end"), getOmnichainCheckpoint("finalized")),
-    ).blockTimestamp,
-  };
-
-  let isKilled = false;
-
-  async function* getEvents() {
-    const to = min(
-      getOmnichainCheckpoint("end"),
-      getOmnichainCheckpoint("finalized"),
-    );
-
-    const eventGenerators = Array.from(perNetworkSync.entries()).map(
-      ([network, { syncProgress, historicalSync }]) => {
-        const sources = params.indexingBuild.sources.filter(
-          ({ filter }) => filter.chainId === network.chainId,
-        );
-
-        const localSyncGenerator = getLocalSyncGenerator({
-          common: params.common,
-          network,
-          syncProgress,
-          historicalSync,
-        });
-
-        const localEventGenerator = getLocalEventGenerator({
-          syncStore: params.syncStore,
-          sources,
-          localSyncGenerator,
-          from:
-            params.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
-              ? params.initialCheckpoint
-              : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
-          to,
-          limit: 1000,
-        });
-
-        return bufferAsyncGenerator(localEventGenerator, 2);
-      },
-    );
-
-    for await (const { events, checkpoint } of mergeEventGenerators(
-      eventGenerators,
-    )) {
-      for (const network of params.indexingBuild.networks) {
-        updateHistoricalStatus({ events, checkpoint, network });
-      }
-      yield events;
-    }
-  }
-
   const getRealtimeSyncEventHandlerOmnichain = ({
     network,
     syncProgress,
@@ -326,8 +183,8 @@ export const createSyncOmnichain = async (params: {
     realtimeSync: RealtimeSync;
   }) => {
     const checkpoints = {
-      current: getOmnichainCheckpoint("current")!,
-      finalized: getOmnichainCheckpoint("finalized")!,
+      current: encodeCheckpoint(zeroCheckpoint),
+      finalized: encodeCheckpoint(zeroCheckpoint),
     };
 
     return (event: RealtimeSyncEvent): void => {
@@ -469,6 +326,157 @@ export const createSyncOmnichain = async (params: {
     };
   };
 
+  /** Events that have been executed but not finalized. */
+  let executedEvents: RawEvent[] = [];
+  /** Events that have not been executed yet. */
+  let pendingEvents: RawEvent[] = [];
+
+  await Promise.all(
+    params.indexingBuild.networks.map(async (network, index) => {
+      const requestQueue = params.requestQueues[index]!;
+
+      const sources = params.indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === network.chainId,
+      );
+
+      // Invalidate sync cache for devnet sources
+      if (network.disableCache) {
+        params.common.logger.warn({
+          service: "sync",
+          msg: `Deleting cache records for '${network.name}'`,
+        });
+
+        await params.syncStore.pruneByChain({
+          chainId: network.chainId,
+        });
+      }
+
+      const historicalSync = await createHistoricalSync({
+        common: params.common,
+        sources,
+        syncStore: params.syncStore,
+        requestQueue,
+        network,
+        onFatalError: params.onFatalError,
+      });
+
+      const syncProgress = await getLocalSyncProgress({
+        common: params.common,
+        network,
+        sources,
+        requestQueue,
+        intervalsCache: historicalSync.intervalsCache,
+      });
+
+      const realtimeSync = createRealtimeSync({
+        common: params.common,
+        sources,
+        requestQueue,
+        network,
+        onEvent: (event) =>
+          onRealtimeSyncEventBase(event)
+            .then((event) => onRealtimeSyncEventOmnichain(event))
+            .catch((error) => {
+              params.common.logger.error({
+                service: "sync",
+                msg: `Fatal error: Unable to process ${event.type} event`,
+                error,
+              });
+              params.onFatalError(error);
+            }),
+        onFatalError: params.onFatalError,
+      });
+
+      params.common.metrics.ponder_sync_is_realtime.set(
+        { network: network.name },
+        0,
+      );
+      params.common.metrics.ponder_sync_is_complete.set(
+        { network: network.name },
+        0,
+      );
+
+      const onRealtimeSyncEventBase = getRealtimeSyncEventHandler({
+        common: params.common,
+        network,
+        sources,
+        syncStore: params.syncStore,
+        syncProgress,
+        realtimeSync,
+      });
+
+      perNetworkSync.set(network, {
+        syncProgress,
+        historicalSync,
+        realtimeSync,
+      });
+
+      const onRealtimeSyncEventOmnichain = getRealtimeSyncEventHandlerOmnichain(
+        { network, syncProgress, realtimeSync },
+      );
+    }),
+  );
+
+  const status: Status = {};
+
+  for (const network of params.indexingBuild.networks) {
+    status[network.chainId] = { block: null, ready: false };
+  }
+
+  const seconds: Seconds = {
+    start: decodeCheckpoint(getOmnichainCheckpoint("start")!).blockTimestamp,
+    end: decodeCheckpoint(
+      min(getOmnichainCheckpoint("end"), getOmnichainCheckpoint("finalized")),
+    ).blockTimestamp,
+  };
+
+  let isKilled = false;
+
+  async function* getEvents() {
+    const to = min(
+      getOmnichainCheckpoint("end"),
+      getOmnichainCheckpoint("finalized"),
+    );
+
+    const eventGenerators = Array.from(perNetworkSync.entries()).map(
+      ([network, { syncProgress, historicalSync }]) => {
+        const sources = params.indexingBuild.sources.filter(
+          ({ filter }) => filter.chainId === network.chainId,
+        );
+
+        const localSyncGenerator = getLocalSyncGenerator({
+          common: params.common,
+          network,
+          syncProgress,
+          historicalSync,
+        });
+
+        const localEventGenerator = getLocalEventGenerator({
+          syncStore: params.syncStore,
+          sources,
+          localSyncGenerator,
+          from:
+            params.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
+              ? params.initialCheckpoint
+              : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
+          to,
+          limit: 1000,
+        });
+
+        return bufferAsyncGenerator(localEventGenerator, 2);
+      },
+    );
+
+    for await (const { events, checkpoint } of mergeEventGenerators(
+      eventGenerators,
+    )) {
+      for (const network of params.indexingBuild.networks) {
+        updateHistoricalStatus({ events, checkpoint, network });
+      }
+      yield events;
+    }
+  }
+
   return {
     getEvents,
     async startRealtime() {
@@ -526,13 +534,43 @@ export const createSyncOmnichain = async (params: {
           const initialChildAddresses = new Map<Factory, Set<Address>>();
 
           for (const filter of filters) {
-            // TODO(kyle) this is a bug for accounts sources
-            if ("address" in filter && isAddressFactory(filter.address)) {
-              const addresses = await params.syncStore.getChildAddresses({
-                filter: filter.address,
-              });
+            switch (filter.type) {
+              case "log":
+                if (isAddressFactory(filter.address)) {
+                  const addresses = await params.syncStore.getChildAddresses({
+                    filter: filter.address,
+                  });
 
-              initialChildAddresses.set(filter.address, new Set(addresses));
+                  initialChildAddresses.set(filter.address, new Set(addresses));
+                }
+                break;
+
+              case "transaction":
+              case "transfer":
+              case "trace":
+                if (isAddressFactory(filter.fromAddress)) {
+                  const addresses = await params.syncStore.getChildAddresses({
+                    filter: filter.fromAddress,
+                  });
+
+                  initialChildAddresses.set(
+                    filter.fromAddress,
+                    new Set(addresses),
+                  );
+                }
+
+                if (isAddressFactory(filter.toAddress)) {
+                  const addresses = await params.syncStore.getChildAddresses({
+                    filter: filter.toAddress,
+                  });
+
+                  initialChildAddresses.set(
+                    filter.toAddress,
+                    new Set(addresses),
+                  );
+                }
+
+                break;
             }
           }
 
