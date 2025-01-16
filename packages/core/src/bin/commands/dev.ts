@@ -213,6 +213,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
         }
 
+        metrics.resetApiMetrics();
+
+        apiCleanupReloadable = await runServer({
+          common,
+          database,
+          apiBuild: apiBuildResult.result,
+        });
+
         indexingCleanupReloadable = await run({
           common,
           database,
@@ -225,14 +233,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             buildQueue.clear();
             buildQueue.add({ status: "error", kind: "indexing", error });
           },
-        });
-
-        metrics.resetApiMetrics();
-
-        apiCleanupReloadable = await runServer({
-          common,
-          database,
-          apiBuild: apiBuildResult.result,
         });
       } else {
         metrics.resetApiMetrics();
