@@ -11,7 +11,6 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { bufferAsyncGenerator } from "@/utils/generators.js";
-import type { Interval } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { type Address, hexToNumber } from "viem";
@@ -25,6 +24,7 @@ import {
   getLocalEventGenerator,
   getLocalSyncGenerator,
   getLocalSyncProgress,
+  getRealtimeSyncEventHandler,
   isSyncEnd,
 } from "./index.js";
 
@@ -38,8 +38,6 @@ export const createSyncMultichain = async (params: {
   onFatalError(error: Error): void;
   initialCheckpoint: string;
 }): Promise<Sync> => {
-  // const filters = params.sources.map(({ filter }) => filter);
-
   const historicalSync = await createHistoricalSync({
     common: params.common,
     network: params.network,
@@ -63,21 +61,18 @@ export const createSyncMultichain = async (params: {
     sources: params.sources,
     requestQueue: params.requestQueue,
     onEvent: (event) =>
-      onRealtimeSyncEvent(event).catch((error) => {
-        params.common.logger.error({
-          service: "sync",
-          msg: `Fatal error: Unable to process ${event.type} event`,
-          error,
-        });
-        params.onFatalError(error);
-      }),
+      onRealtimeSyncEventBase(event)
+        .then((event) => onRealtimeSyncEventMultichain(event))
+        .catch((error) => {
+          params.common.logger.error({
+            service: "sync",
+            msg: `Fatal error: Unable to process ${event.type} event`,
+            error,
+          });
+          params.onFatalError(error);
+        }),
     onFatalError: params.onFatalError,
   });
-
-  let unfinalizedBlocks: Omit<
-    Extract<RealtimeSyncEvent, { type: "block" }>,
-    "type"
-  >[] = [];
 
   params.common.metrics.ponder_sync_is_realtime.set(
     { network: params.network.name },
@@ -144,16 +139,19 @@ export const createSyncMultichain = async (params: {
     }
   }
 
-  const onRealtimeSyncEvent = async (event: RealtimeSyncEvent) => {
+  const onRealtimeSyncEventBase = getRealtimeSyncEventHandler({
+    common: params.common,
+    network: params.network,
+    sources: params.sources,
+    syncStore: params.syncStore,
+    syncProgress,
+    realtimeSync,
+  });
+
+  const onRealtimeSyncEventMultichain = (event: RealtimeSyncEvent): void => {
     switch (event.type) {
       case "block": {
-        syncProgress.current = event.block;
         const checkpoint = getMultichainCheckpoint("current")!;
-
-        params.common.metrics.ponder_sync_block.set(
-          { network: params.network.name },
-          hexToNumber(syncProgress.current.number),
-        );
 
         const events = buildEvents({
           sources: params.sources,
@@ -196,139 +194,17 @@ export const createSyncMultichain = async (params: {
 
         break;
       }
+
       case "finalize": {
-        // Newly finalized range
-        const interval = [
-          hexToNumber(syncProgress.finalized.number),
-          hexToNumber(event.block.number),
-        ] satisfies Interval;
-
-        syncProgress.finalized = event.block;
         const checkpoint = getMultichainCheckpoint("finalized")!;
-
         params.onRealtimeEvent({ type: "finalize", checkpoint });
-
-        // Remove all finalized data
-
-        const finalizedBlocks = unfinalizedBlocks.filter(
-          ({ block }) =>
-            hexToNumber(block.number) <= hexToNumber(event.block.number),
-        );
-
-        unfinalizedBlocks = unfinalizedBlocks.filter(
-          ({ block }) =>
-            hexToNumber(block.number) > hexToNumber(event.block.number),
-        );
-
-        // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
-
-        await Promise.all([
-          params.syncStore.insertBlocks({
-            blocks: finalizedBlocks
-              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-              .map(({ block }) => block),
-            chainId: params.network.chainId,
-          }),
-          params.syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ logs, block }) =>
-              logs.map((log) => ({ log, block })),
-            ),
-            shouldUpdateCheckpoint: true,
-            chainId: params.network.chainId,
-          }),
-          params.syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
-              factoryLogs.map((log) => ({ log })),
-            ),
-            shouldUpdateCheckpoint: false,
-            chainId: params.network.chainId,
-          }),
-          params.syncStore.insertTransactions({
-            transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
-              transactions.map((transaction) => ({
-                transaction,
-                block,
-              })),
-            ),
-            chainId: params.network.chainId,
-          }),
-          params.syncStore.insertTransactionReceipts({
-            transactionReceipts: finalizedBlocks.flatMap(
-              ({ transactionReceipts }) => transactionReceipts,
-            ),
-            chainId: params.network.chainId,
-          }),
-          params.syncStore.insertTraces({
-            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
-              traces.map((trace) => ({
-                trace,
-                block,
-                transaction: transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              })),
-            ),
-            chainId: params.network.chainId,
-          }),
-        ]);
-
-        // Add corresponding intervals to the sync-store
-        // Note: this should happen after insertion so the database doesn't become corrupted
-
-        if (params.network.disableCache === false) {
-          await params.syncStore.insertIntervals({
-            intervals: params.sources.map(({ filter }) => ({
-              filter,
-              interval,
-            })),
-            chainId: params.network.chainId,
-          });
-        }
-
-        // The realtime service can be killed if `endBlock` is
-        // defined has become finalized.
-        if (isSyncEnd(syncProgress)) {
-          params.common.metrics.ponder_sync_is_realtime.set(
-            { network: params.network.name },
-            0,
-          );
-          params.common.metrics.ponder_sync_is_complete.set(
-            { network: params.network.name },
-            1,
-          );
-          params.common.logger.info({
-            service: "sync",
-            msg: `Synced final end block for '${params.network.name}' (${hexToNumber(syncProgress.end!.number)}), killing realtime sync service`,
-          });
-          realtimeSync.kill();
-        }
         break;
       }
 
       case "reorg": {
-        syncProgress.current = event.block;
         // Note: this checkpoint is <= the previous checkpoint
         const checkpoint = getMultichainCheckpoint("current")!;
-
-        params.common.metrics.ponder_sync_block.set(
-          { network: params.network.name },
-          hexToNumber(syncProgress.current.number),
-        );
-
-        // Remove all reorged data
-
-        unfinalizedBlocks = unfinalizedBlocks.filter(
-          ({ block }) =>
-            hexToNumber(block.number) <= hexToNumber(event.block.number),
-        );
-
-        await params.syncStore.pruneRpcRequestResult({
-          chainId: params.network.chainId,
-          blocks: event.reorgedBlocks,
-        });
-
         params.onRealtimeEvent({ type: "reorg", checkpoint });
-
         break;
       }
 

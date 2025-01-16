@@ -7,6 +7,7 @@ import type {
   Status,
 } from "@/internal/types.js";
 import type { HistoricalSync } from "@/sync-historical/index.js";
+import type { RealtimeSync, RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { LightBlock, SyncBlock } from "@/types/sync.js";
 import {
@@ -190,6 +191,176 @@ export const getChainCheckpoint = ({
       tag === "start" ? "down" : "up",
     ),
   );
+};
+
+export const getRealtimeSyncEventHandler = ({
+  common,
+  network,
+  sources,
+  syncStore,
+  syncProgress,
+  realtimeSync,
+}: {
+  common: Common;
+  network: Network;
+  sources: Source[];
+  syncStore: SyncStore;
+  syncProgress: SyncProgress;
+  realtimeSync: RealtimeSync;
+}) => {
+  let unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
+
+  return async (event: RealtimeSyncEvent): Promise<RealtimeSyncEvent> => {
+    switch (event.type) {
+      case "block": {
+        syncProgress.current = event.block;
+
+        common.metrics.ponder_sync_block.set(
+          { network: network.name },
+          hexToNumber(syncProgress.current.number),
+        );
+
+        unfinalizedBlocks.push(event);
+
+        return event;
+      }
+
+      case "finalize": {
+        // Newly finalized range
+        const interval = [
+          hexToNumber(syncProgress.finalized.number),
+          hexToNumber(event.block.number),
+        ] satisfies Interval;
+
+        syncProgress.finalized = event.block;
+
+        // Remove all finalized data
+
+        const finalizedBlocks = unfinalizedBlocks.filter(
+          ({ block }) =>
+            hexToNumber(block.number) <= hexToNumber(event.block.number),
+        );
+
+        unfinalizedBlocks = unfinalizedBlocks.filter(
+          ({ block }) =>
+            hexToNumber(block.number) > hexToNumber(event.block.number),
+        );
+
+        // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
+
+        await Promise.all([
+          syncStore.insertBlocks({
+            blocks: finalizedBlocks
+              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+              .map(({ block }) => block),
+            chainId: network.chainId,
+          }),
+          syncStore.insertLogs({
+            logs: finalizedBlocks.flatMap(({ logs, block }) =>
+              logs.map((log) => ({ log, block })),
+            ),
+            shouldUpdateCheckpoint: true,
+            chainId: network.chainId,
+          }),
+          syncStore.insertLogs({
+            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
+              factoryLogs.map((log) => ({ log })),
+            ),
+            shouldUpdateCheckpoint: false,
+            chainId: network.chainId,
+          }),
+          syncStore.insertTransactions({
+            transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
+              transactions.map((transaction) => ({
+                transaction,
+                block,
+              })),
+            ),
+            chainId: network.chainId,
+          }),
+          syncStore.insertTransactionReceipts({
+            transactionReceipts: finalizedBlocks.flatMap(
+              ({ transactionReceipts }) => transactionReceipts,
+            ),
+            chainId: network.chainId,
+          }),
+          syncStore.insertTraces({
+            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+              traces.map((trace) => ({
+                trace,
+                block,
+                transaction: transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              })),
+            ),
+            chainId: network.chainId,
+          }),
+        ]);
+
+        // Add corresponding intervals to the sync-store
+        // Note: this should happen after insertion so the database doesn't become corrupted
+
+        if (network.disableCache === false) {
+          // TODO(kyle) inserting intervals for filters that may be outside of range
+          await syncStore.insertIntervals({
+            intervals: sources.map(({ filter }) => ({
+              filter,
+              interval,
+            })),
+            chainId: network.chainId,
+          });
+        }
+
+        // The realtime service can be killed if `endBlock` is
+        // defined has become finalized.
+
+        if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
+          common.metrics.ponder_sync_is_realtime.set(
+            { network: network.name },
+            0,
+          );
+          common.metrics.ponder_sync_is_complete.set(
+            { network: network.name },
+            1,
+          );
+          common.logger.info({
+            service: "sync",
+            msg: `Synced final end block for '${network.name}' (${hexToNumber(syncProgress.end!.number)}), killing realtime sync service`,
+          });
+          realtimeSync.kill();
+        }
+
+        return event;
+      }
+
+      case "reorg": {
+        syncProgress.current = event.block;
+
+        common.metrics.ponder_sync_block.set(
+          { network: network.name },
+          hexToNumber(syncProgress.current.number),
+        );
+
+        // Remove all reorged data
+
+        unfinalizedBlocks = unfinalizedBlocks.filter(
+          ({ block }) =>
+            hexToNumber(block.number) <= hexToNumber(event.block.number),
+        );
+
+        await syncStore.pruneRpcRequestResult({
+          chainId: network.chainId,
+          blocks: event.reorgedBlocks,
+        });
+
+        return event;
+      }
+    }
+  };
 };
 
 export async function* getLocalEventGenerator(params: {

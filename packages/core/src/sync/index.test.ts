@@ -17,9 +17,11 @@ import type {
   RawEvent,
 } from "@/internal/types.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
+import { createRealtimeSync } from "@/sync-realtime/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { getFragments } from "./fragments.js";
 import {
@@ -28,6 +30,7 @@ import {
   getLocalEventGenerator,
   getLocalSyncGenerator,
   getLocalSyncProgress,
+  getRealtimeSyncEventHandler,
   splitEvents,
 } from "./index.js";
 
@@ -95,6 +98,340 @@ test("splitEvents()", async () => {
       },
     ]
   `);
+});
+
+test("getRealtimeSyncEventHandler() handles block", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({ network, common: context.common });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const intervalsCache = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >();
+  for (const source of sources) {
+    for (const { fragment } of getFragments(source.filter)) {
+      intervalsCache.set(source.filter, [{ fragment, intervals: [] }]);
+    }
+  }
+
+  await testClient.mine({ blocks: 1 });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    network,
+    requestQueue,
+    intervalsCache,
+  });
+
+  const realtimeSync = createRealtimeSync({
+    common: context.common,
+    network,
+    sources,
+    requestQueue,
+    onEvent: async () => {},
+    onFatalError: () => {},
+  });
+
+  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    syncProgress,
+    realtimeSync,
+  });
+
+  const block = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+
+  const event = await onRealtimeSyncEvent({
+    type: "block",
+    hasMatchedFilter: false,
+    block,
+    logs: [],
+    factoryLogs: [],
+    traces: [],
+    transactions: [],
+    transactionReceipts: [],
+  });
+
+  expect(event.type).toBe("block");
+
+  await cleanup();
+});
+
+test("getRealtimeSyncEventHandler() handles finalize", async (context) => {
+  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({ network, common: context.common });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const intervalsCache = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >();
+  for (const source of sources) {
+    for (const { fragment } of getFragments(source.filter)) {
+      intervalsCache.set(source.filter, [{ fragment, intervals: [] }]);
+    }
+  }
+
+  // finalized block: 0
+
+  await testClient.mine({ blocks: 1 });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    network,
+    requestQueue,
+    intervalsCache,
+  });
+
+  const realtimeSync = createRealtimeSync({
+    common: context.common,
+    network,
+    sources,
+    requestQueue,
+    onEvent: async () => {},
+    onFatalError: () => {},
+  });
+
+  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    syncProgress,
+    realtimeSync,
+  });
+
+  const block = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+
+  await onRealtimeSyncEvent({
+    type: "block",
+    hasMatchedFilter: true,
+    block,
+    logs: [],
+    factoryLogs: [],
+    traces: [],
+    transactions: [],
+    transactionReceipts: [],
+  });
+
+  const event = await onRealtimeSyncEvent({
+    type: "finalize",
+    block,
+  });
+
+  expect(event.type).toBe("finalize");
+
+  const blocks = await database.qb.sync
+    .selectFrom("blocks")
+    .selectAll()
+    .execute();
+
+  expect(blocks).toHaveLength(1);
+
+  const intervals = await database.qb.sync
+    .selectFrom("intervals")
+    .selectAll()
+    .execute();
+
+  expect(intervals).toMatchInlineSnapshot(`
+    [
+      {
+        "blocks": "{[0,2]}",
+        "chain_id": 1,
+        "fragment_id": "block_1_1_0",
+      },
+    ]
+  `);
+
+  await cleanup();
+});
+
+test("getRealtimeSyncEventHandler() kills realtime when finalized", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({ network, common: context.common });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+
+  // @ts-ignore
+  config.blocks.Blocks.endBlock = 1;
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const intervalsCache = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >();
+  for (const source of sources) {
+    for (const { fragment } of getFragments(source.filter)) {
+      intervalsCache.set(source.filter, [{ fragment, intervals: [] }]);
+    }
+  }
+
+  // finalized block: 0
+
+  await testClient.mine({ blocks: 1 });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    network,
+    requestQueue,
+    intervalsCache,
+  });
+
+  const realtimeSync = createRealtimeSync({
+    common: context.common,
+    network,
+    sources,
+    requestQueue,
+    onEvent: async () => {},
+    onFatalError: () => {},
+  });
+
+  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    syncProgress,
+    realtimeSync,
+  });
+
+  const block = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+
+  await onRealtimeSyncEvent({
+    type: "block",
+    hasMatchedFilter: false,
+    block,
+    logs: [],
+    factoryLogs: [],
+    traces: [],
+    transactions: [],
+    transactionReceipts: [],
+  });
+
+  const spy = vi.spyOn(realtimeSync, "kill");
+
+  await onRealtimeSyncEvent({
+    type: "finalize",
+    block,
+  });
+
+  expect(spy).toHaveBeenCalled();
+
+  await cleanup();
+});
+
+test("getRealtimeSyncEventHandler() handles reorg", async (context) => {
+  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({ network, common: context.common });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const intervalsCache = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >();
+  for (const source of sources) {
+    for (const { fragment } of getFragments(source.filter)) {
+      intervalsCache.set(source.filter, [{ fragment, intervals: [] }]);
+    }
+  }
+
+  // finalized block: 0
+
+  await testClient.mine({ blocks: 1 });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    network,
+    requestQueue,
+    intervalsCache,
+  });
+
+  const realtimeSync = createRealtimeSync({
+    common: context.common,
+    network,
+    sources,
+    requestQueue,
+    onEvent: async () => {},
+    onFatalError: () => {},
+  });
+
+  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    syncProgress,
+    realtimeSync,
+  });
+
+  const block = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+
+  await onRealtimeSyncEvent({
+    type: "block",
+    hasMatchedFilter: true,
+    block,
+    logs: [],
+    factoryLogs: [],
+    traces: [],
+    transactions: [],
+    transactionReceipts: [],
+  });
+
+  const event = await onRealtimeSyncEvent({
+    type: "reorg",
+    block,
+    reorgedBlocks: [block],
+  });
+
+  expect(event.type).toBe("reorg");
+
+  await cleanup();
 });
 
 test("getLocalEventGenerator()", async (context) => {
