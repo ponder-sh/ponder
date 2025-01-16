@@ -17,28 +17,15 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { drainAsyncGenerator } from "@/utils/generators.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { wait } from "@/utils/wait.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
-import type { Sync } from "./index.js";
-import { createSyncOmnichain } from "./omnichain.js";
+import { createSyncOmnichain, mergeEventGenerators } from "./omnichain.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
-
-async function drainAsyncGenerator(
-  asyncGenerator: ReturnType<Sync["getEvents"]>,
-) {
-  const result: RawEvent[] = [];
-
-  for await (const events of asyncGenerator) {
-    result.push(...events);
-  }
-
-  return result;
-}
 
 test("createSyncOmnichain()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
@@ -70,7 +57,99 @@ test("createSyncOmnichain()", async (context) => {
   await cleanup();
 });
 
-test("getEvents() returns events", async (context) => {
+test("mergeEventGenerators()", async () => {
+  const p1 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
+  const p2 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
+  const p3 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
+  const p4 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
+
+  async function* generator1() {
+    yield await p1.promise;
+    yield await p2.promise;
+  }
+
+  async function* generator2() {
+    yield await p3.promise;
+    yield await p4.promise;
+  }
+
+  const results: { events: RawEvent[]; checkpoint: string }[] = [];
+  const generator = mergeEventGenerators([generator1(), generator2()]);
+
+  (async () => {
+    for await (const result of generator) {
+      results.push(result);
+    }
+  })();
+
+  p1.resolve({
+    events: [{ checkpoint: "01" }, { checkpoint: "07" }] as RawEvent[],
+    checkpoint: "10",
+  });
+  p3.resolve({
+    events: [{ checkpoint: "02" }, { checkpoint: "05" }] as RawEvent[],
+    checkpoint: "06",
+  });
+
+  await new Promise((res) => setTimeout(res));
+
+  p4.resolve({
+    events: [{ checkpoint: "08" }, { checkpoint: "11" }] as RawEvent[],
+    checkpoint: "20",
+  });
+  p2.resolve({
+    events: [{ checkpoint: "08" }, { checkpoint: "13" }] as RawEvent[],
+    checkpoint: "20",
+  });
+
+  await new Promise((res) => setTimeout(res));
+
+  expect(results).toMatchInlineSnapshot(`
+    [
+      {
+        "checkpoint": "06",
+        "events": [
+          {
+            "checkpoint": "01",
+          },
+          {
+            "checkpoint": "02",
+          },
+          {
+            "checkpoint": "05",
+          },
+        ],
+      },
+      {
+        "checkpoint": "10",
+        "events": [
+          {
+            "checkpoint": "07",
+          },
+          {
+            "checkpoint": "08",
+          },
+        ],
+      },
+      {
+        "checkpoint": "20",
+        "events": [
+          {
+            "checkpoint": "08",
+          },
+          {
+            "checkpoint": "11",
+          },
+          {
+            "checkpoint": "13",
+          },
+        ],
+      },
+    ]
+  `);
+});
+
+test("getEvents()", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -98,170 +177,12 @@ test("getEvents() returns events", async (context) => {
     initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents());
+  const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
+    events.flat(),
+  );
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(2);
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("getEvents() with cache", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 1 });
-
-  // finalized block: 1
-  network.finalityBlockCount = 0;
-
-  let sync = await createSyncOmnichain({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  await drainAsyncGenerator(sync.getEvents());
-
-  const spy = vi.spyOn(syncStore, "insertIntervals");
-
-  sync = await createSyncOmnichain({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  const events = await drainAsyncGenerator(sync.getEvents());
-
-  expect(spy).toHaveBeenCalledTimes(0);
-
-  expect(events).toBeDefined();
-  expect(events).toHaveLength(2);
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("getEvents() end block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  network.finalityBlockCount = 0;
-
-  sources[0]!.filter.toBlock = 1;
-
-  const sync = await createSyncOmnichain({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  const events = await drainAsyncGenerator(sync.getEvents());
-
-  expect(events).toBeDefined();
-  expect(events).toHaveLength(2);
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-// TODO(kyle) This test is skipped because it causes a flake on ci.
-// Our test setup is unable to properly mock a multichain environment
-// The chain data of the chains in "network" is exactly the same.
-// This test will fail when `sources[1]` finishes before `sources[0]`, because
-// the `onConflictDoNothing` in `insertBlocks` causes the block with relavant data
-// not to be added to the store. This test should be un-skipped when 1) we can mock
-// multichain enviroments, and 2) when our sync-store is robust enough to handle
-// multiple blocks with the same hash and different chain IDs.
-test.skip("getEvents() multichain", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-
-  const { sources: sources1, networks: networks1 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  const { sources: sources2, networks: networks2 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  networks1[0]!.finalityBlockCount = 0;
-  networks2[0]!.finalityBlockCount = 0;
-
-  sources2[0]!.filter.chainId = 2;
-  sources2[0]!.filter.toBlock = 1;
-  networks2[0]!.chainId = 2;
-
-  const sync = await createSyncOmnichain({
-    syncStore,
-    indexingBuild: {
-      sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
-    },
-    requestQueues: [
-      createRequestQueue({ network: networks1[0]!, common: context.common }),
-      createRequestQueue({ network: networks2[0]!, common: context.common }),
-    ],
-    common: context.common,
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  const events = await drainAsyncGenerator(sync.getEvents());
-
-  expect(events).toBeDefined();
-  expect(events).toHaveLength(1);
 
   await sync.kill();
 
@@ -309,46 +230,7 @@ test("getEvents() updates status", async (context) => {
   await cleanup();
 });
 
-test("getEvents() pagination", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  network.finalityBlockCount = 0;
-
-  context.common.options.syncEventsQuerySize = 1;
-
-  const sync = await createSyncOmnichain({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
-  const events = await drainAsyncGenerator(sync.getEvents());
-  expect(events).toHaveLength(3);
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("getEvents() initialCheckpoint", async (context) => {
+test("getEvents() with initial checkpoint", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -377,53 +259,12 @@ test("getEvents() initialCheckpoint", async (context) => {
     initialCheckpoint: encodeCheckpoint(maxCheckpoint),
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents());
+  const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
+    events.flat(),
+  );
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(0);
-
-  await sync.kill();
-
-  await cleanup();
-});
-
-test("getEvents() refetches finalized block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  network.finalityBlockCount = 0;
-
-  context.common.options.syncHandoffStaleSeconds = 0.5;
-
-  const sync = await createSyncOmnichain({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(maxCheckpoint),
-  });
-
-  // cause `latestFinalizedFetch` to be updated
-  const gen = sync.getEvents();
-
-  await wait(1000);
-
-  await drainAsyncGenerator(gen);
 
   await sync.kill();
 

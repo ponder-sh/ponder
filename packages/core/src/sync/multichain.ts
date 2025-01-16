@@ -38,14 +38,7 @@ export const createSyncMultichain = async (params: {
   onFatalError(error: Error): void;
   initialCheckpoint: string;
 }): Promise<Sync> => {
-  const filters = params.sources.map(({ filter }) => filter);
-
-  const syncProgress = await getLocalSyncProgress({
-    common: params.common,
-    network: params.network,
-    sources: params.sources,
-    requestQueue: params.requestQueue,
-  });
+  // const filters = params.sources.map(({ filter }) => filter);
 
   const historicalSync = await createHistoricalSync({
     common: params.common,
@@ -54,6 +47,14 @@ export const createSyncMultichain = async (params: {
     syncStore: params.syncStore,
     requestQueue: params.requestQueue,
     onFatalError: params.onFatalError,
+  });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: params.common,
+    network: params.network,
+    sources: params.sources,
+    requestQueue: params.requestQueue,
+    intervalsCache: historicalSync.intervalsCache,
   });
 
   const realtimeSync = createRealtimeSync({
@@ -114,26 +115,21 @@ export const createSyncMultichain = async (params: {
 
     const localSyncGenerator = getLocalSyncGenerator({
       common: params.common,
-      syncStore: params.syncStore,
       network: params.network,
-      sources: params.sources,
-      requestQueue: params.requestQueue,
-      filters,
       syncProgress,
       historicalSync,
-      onFatalError: params.onFatalError,
     });
 
     const localEventGenerator = getLocalEventGenerator({
       syncStore: params.syncStore,
-      filters,
+      sources: params.sources,
       localSyncGenerator,
       from:
         params.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
           ? params.initialCheckpoint
           : getMultichainCheckpoint("start")!,
       to,
-      batch: 1000,
+      limit: 1000,
     });
 
     const eventGenerator = bufferAsyncGenerator(localEventGenerator, 2);
@@ -281,7 +277,10 @@ export const createSyncMultichain = async (params: {
 
         if (params.network.disableCache === false) {
           await params.syncStore.insertIntervals({
-            intervals: filters.map((filter) => ({ filter, interval })),
+            intervals: params.sources.map(({ filter }) => ({
+              filter,
+              interval,
+            })),
             chainId: params.network.chainId,
           });
         }
@@ -360,7 +359,7 @@ export const createSyncMultichain = async (params: {
 
         const initialChildAddresses = new Map<Factory, Set<Address>>();
 
-        for (const filter of filters) {
+        for (const { filter } of params.sources) {
           // TODO(kyle) this is a bug for accounts sources
           if ("address" in filter && isAddressFactory(filter.address)) {
             const addresses = await params.syncStore.getChildAddresses({

@@ -39,6 +39,53 @@ import {
 } from "./index.js";
 import type { RealtimeEvent } from "./index.js";
 
+/**
+ * Merges multiple event generators into a single generator while preserving
+ * the order of events.
+ *
+ * @param generators - Generators to merge.
+ * @returns A single generator that yields events from all generators.
+ */
+export async function* mergeEventGenerators(
+  generators: AsyncGenerator<{ events: RawEvent[]; checkpoint: string }>[],
+): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }> {
+  const results = await Promise.all(generators.map((gen) => gen.next()));
+
+  while (results.some((res) => res.done !== true)) {
+    const supremum = min(
+      ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
+    );
+
+    const eventArrays: RawEvent[][] = [];
+
+    for (const result of results) {
+      if (result.done === false) {
+        const [left, right] = partition(
+          result.value.events,
+          (event) => event.checkpoint <= supremum,
+        );
+
+        eventArrays.push(left);
+        result.value.events = right;
+      }
+    }
+
+    const events = zipperMany(eventArrays).sort((a, b) =>
+      a.checkpoint < b.checkpoint ? -1 : 1,
+    );
+
+    const index = results.findIndex(
+      (res) => res.done === false && res.value.checkpoint === supremum,
+    );
+
+    const resultPromise = generators[index]!.next();
+    if (events.length > 0) {
+      yield { events, checkpoint: supremum };
+    }
+    results[index] = await resultPromise;
+  }
+}
+
 export const createSyncOmnichain = async (params: {
   common: Common;
   indexingBuild: Pick<IndexingBuild, "sources" | "networks">;
@@ -52,7 +99,6 @@ export const createSyncOmnichain = async (params: {
   const perNetworkSync = new Map<
     Network,
     {
-      requestQueue: RequestQueue;
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
@@ -71,13 +117,6 @@ export const createSyncOmnichain = async (params: {
         ({ filter }) => filter.chainId === network.chainId,
       );
 
-      const syncProgress = await getLocalSyncProgress({
-        common: params.common,
-        network,
-        sources,
-        requestQueue,
-      });
-
       const historicalSync = await createHistoricalSync({
         common: params.common,
         sources,
@@ -85,6 +124,14 @@ export const createSyncOmnichain = async (params: {
         requestQueue,
         network,
         onFatalError: params.onFatalError,
+      });
+
+      const syncProgress = await getLocalSyncProgress({
+        common: params.common,
+        network,
+        sources,
+        requestQueue,
+        intervalsCache: historicalSync.intervalsCache,
       });
 
       const realtimeSync = createRealtimeSync({
@@ -114,7 +161,6 @@ export const createSyncOmnichain = async (params: {
       );
 
       perNetworkSync.set(network, {
-        requestQueue,
         syncProgress,
         historicalSync,
         realtimeSync,
@@ -219,78 +265,40 @@ export const createSyncOmnichain = async (params: {
     );
 
     const eventGenerators = Array.from(perNetworkSync.entries()).map(
-      ([network, { requestQueue, syncProgress, historicalSync }]) => {
+      ([network, { syncProgress, historicalSync }]) => {
         const sources = params.indexingBuild.sources.filter(
           ({ filter }) => filter.chainId === network.chainId,
         );
-        const filters = sources.map(({ filter }) => filter);
 
         const localSyncGenerator = getLocalSyncGenerator({
           common: params.common,
-          syncStore: params.syncStore,
           network,
-          requestQueue,
-          sources,
-          filters,
           syncProgress,
           historicalSync,
-          onFatalError: params.onFatalError,
         });
 
         const localEventGenerator = getLocalEventGenerator({
           syncStore: params.syncStore,
-          filters,
+          sources,
           localSyncGenerator,
           from:
             params.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
               ? params.initialCheckpoint
               : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
           to,
-          batch: 1000,
+          limit: 1000,
         });
 
         return bufferAsyncGenerator(localEventGenerator, 2);
       },
     );
 
-    const eventResults = await Promise.all(
-      eventGenerators.map((gen) => gen.next()),
-    );
-
-    while (eventResults.some((res) => res.done !== true)) {
-      const supremum = min(
-        ...eventResults.map((res) =>
-          res.done ? undefined : res.value.checkpoint,
-        ),
-      );
-
-      const eventArrays: RawEvent[][] = [];
-
-      for (const res of eventResults) {
-        if (res.done === false) {
-          const [left, right] = partition(
-            res.value.events,
-            (event) => event.checkpoint <= supremum,
-          );
-
-          eventArrays.push(left);
-          res.value.events = right;
-        }
-      }
-
-      const events = zipperMany(eventArrays).sort((a, b) =>
-        a.checkpoint < b.checkpoint ? -1 : 1,
-      );
-
-      const index = eventResults.findIndex(
-        (res) => res.done === false && res.value.checkpoint === supremum,
-      );
-      eventResults[index] = await eventGenerators[index]!.next();
-
+    for await (const { events, checkpoint } of mergeEventGenerators(
+      eventGenerators,
+    )) {
       for (const network of params.indexingBuild.networks) {
-        updateHistoricalStatus({ events, checkpoint: supremum, network });
+        updateHistoricalStatus({ events, checkpoint, network });
       }
-
       yield events;
     }
   }

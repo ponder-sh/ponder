@@ -73,3 +73,21 @@ export async function* bufferAsyncGenerator<T>(
     }
   }
 }
+
+/**
+ * Drains an async generator into an array.
+ *
+ * @param asyncGenerator - The async generator to drain.
+ * @returns An array of results from the input generator.
+ */
+export async function drainAsyncGenerator<T>(
+  asyncGenerator: AsyncGenerator<T>,
+): Promise<T[]> {
+  const result: T[] = [];
+
+  for await (const events of asyncGenerator) {
+    result.push(events);
+  }
+
+  return result;
+}
