@@ -50,6 +50,7 @@ export const graphql = (
   generateSchema({ graphqlSchema }).catch(() => {});
 
   const yoga = createYoga({
+    graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
     schema: graphqlSchema,
     context: () => {
       const getDataLoader = buildDataLoaderCache({ drizzle: db });
