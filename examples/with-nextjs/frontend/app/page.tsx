@@ -3,8 +3,8 @@ import {
   QueryClient,
   dehydrate,
 } from "@tanstack/react-query";
-import { depositsQueryOptions } from "../lib/ponder";
 import DepositsTable from "../components/deposits-table";
+import { depositsQueryOptions } from "../lib/ponder";
 
 export default async function App() {
   const queryClient = new QueryClient();
