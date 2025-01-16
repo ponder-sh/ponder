@@ -1,7 +1,6 @@
 "use client";
 
-import { type Client, status } from "@ponder/client";
-import { compileQuery } from "@ponder/client";
+import type { Client, Status } from "@ponder/client";
 import {
   type UseQueryOptions,
   type UseQueryResult,
@@ -10,7 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
-import type { SQLWrapper } from "./utils.js";
+import { type SQLWrapper, getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {
@@ -24,27 +23,49 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
-  const queryPromise = params.queryFn(client.db);
-
-  if ("getSQL" in queryPromise === false) {
-    throw new Error('"queryFn" must return SQL');
-  }
-
-  const query = compileQuery(queryPromise);
-  const queryKey = useMemo(() => [query.sql, ...query.params], [query]);
+  const { queryFn, queryKey } = getPonderQueryOptions(client, params.queryFn);
+  const memoizedQueryKey = useMemo(() => queryKey, [queryKey]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     const { unsubscribe } = client.live(
-      (db) => db.select().from(status),
+      () => Promise.resolve(),
+      () => queryClient.invalidateQueries({ queryKey: memoizedQueryKey }),
+    );
+    return unsubscribe;
+  }, [memoizedQueryKey]);
+
+  return useQuery({
+    ...params,
+    queryKey: memoizedQueryKey,
+    queryFn,
+  });
+}
+
+export function usePonderStatus(
+  params: Omit<UseQueryOptions<Status>, "queryFn" | "queryKey">,
+): UseQueryResult<Status> {
+  const queryClient = useQueryClient();
+
+  const client = useContext(PonderContext);
+  if (client === undefined) {
+    throw new Error("PonderProvider not found");
+  }
+
+  const queryKey = useMemo(() => ["status"], []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+  useEffect(() => {
+    const { unsubscribe } = client.live(
+      () => Promise.resolve(),
       () => queryClient.invalidateQueries({ queryKey }),
     );
     return unsubscribe;
-  }, [queryKey]);
+  }, []);
 
   return useQuery({
     ...params,
     queryKey,
-    queryFn: () => queryPromise,
+    queryFn: () => client.getStatus(),
   });
 }

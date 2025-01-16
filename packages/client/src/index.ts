@@ -1,5 +1,11 @@
-import { type QueryWithTypings, type SQLWrapper, sql } from "drizzle-orm";
-import { type PgDialect, pgTable } from "drizzle-orm/pg-core";
+import {
+  type QueryWithTypings,
+  type SQLWrapper,
+  Table,
+  is,
+  sql,
+} from "drizzle-orm";
+import type { PgDialect } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 
 const getEventSource = async () => {
@@ -21,6 +27,13 @@ type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
 
+export type Status = {
+  [network: string]: {
+    block: { number: number; timestamp: number } | null;
+    ready: boolean;
+  };
+};
+
 type ClientDb<schema extends Schema = Schema> = Prettify<
   Omit<
     PgRemoteDatabase<schema>,
@@ -38,12 +51,14 @@ export type Client<schema extends Schema = Schema> = {
   db: ClientDb<schema>;
   /** Subscribe to live updates. */
   live: <result>(
-    queryFn: (db: ClientDb<schema>) => Promise<result> & SQLWrapper,
+    queryFn: (db: ClientDb<schema>) => Promise<result>,
     onData: (result: result) => void,
     onError?: (error: Error) => void,
   ) => {
     unsubscribe: () => void;
   };
+  /** Get the status of all chains. */
+  getStatus: () => Promise<Status>;
 };
 
 const getUrl = (
@@ -57,24 +72,6 @@ const getUrl = (
   }
   return url;
 };
-
-/**
- * A table that tracks the status of each chain.
- *
- * @property {number} chainId - The chain ID.
- * @property {number} blockNumber - The closest-to-tip indexed block number.
- * @property {number} blockTimestamp - The closest-to-tip indexed block timestamp.
- * @property {boolean} ready - `true` if the chain has completed the historical backfill.
- */
-export const status = pgTable("_ponder_status", (t) => ({
-  chainId: t.bigint({ mode: "number" }).primaryKey(),
-  blockNumber: t.bigint({ mode: "number" }),
-  blockTimestamp: t.bigint({ mode: "number" }),
-  ready: t.boolean().notNull(),
-}));
-
-// @ts-ignore
-status[Symbol.for("ponder:onchain")] = true;
 
 const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
   casing: "snake_case",
@@ -135,59 +132,48 @@ export const createClient = <schema extends Schema>(
     live: (queryFn, onData, onError) => {
       // https://github.com/drizzle-team/drizzle-orm/blob/04c91434c7ac10aeb2923efd1d19a7ebf10ea9d4/drizzle-orm/src/pg-core/db.ts#L602-L621
 
-      // @ts-ignore
-      const builtQuery = compileQuery(queryFn(noopDatabase));
+      const addEventListeners = () => {
+        sse!.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data) as
+            | { status: "success"; result: unknown }
+            | { status: "error"; error: string };
 
-      const statusQuery = compileQuery(noopDatabase.select().from(status));
-      if (
-        statusQuery.sql === builtQuery.sql &&
-        builtQuery.params.length === 0
-      ) {
-        const addEventListeners = () => {
-          sse!.addEventListener("message", (event) => {
-            const data = JSON.parse(event.data) as
-              | { status: "success"; result: unknown }
-              | { status: "error"; error: string };
-
-            if (data.status === "error") {
-              const error = new Error(data.error);
-              error.stack = undefined;
-              onError?.(error);
-            } else {
-              // @ts-ignore
-              onData(data.result);
-            }
-          });
-
-          sse!.addEventListener("error", () => {
-            onError?.(new Error("server disconnected"));
-          });
-        };
-
-        liveCount++;
-        if (sse === undefined) {
-          getEventSource().then((SSE) => {
-            sse = new SSE(getUrl(baseUrl, "live"));
-            addEventListeners();
-          });
-        } else {
-          addEventListeners();
-        }
-
-        return {
-          unsubscribe: () => {
-            if (--liveCount === 0) sse?.close();
-          },
-        };
-      } else {
-        return client.live(
-          (db) => db.select().from(status),
-          () => {
+          if (data.status === "error") {
+            const error = new Error(data.error);
+            error.stack = undefined;
+            onError?.(error);
+          } else {
             queryFn(client.db).then(onData).catch(onError);
-          },
-          onError,
-        );
+          }
+        });
+
+        sse!.addEventListener("error", () => {
+          onError?.(new Error("server disconnected"));
+        });
+      };
+
+      liveCount++;
+      if (sse === undefined) {
+        getEventSource().then((SSE) => {
+          sse = new SSE(getUrl(baseUrl, "live"));
+          addEventListeners();
+        });
+      } else {
+        addEventListeners();
       }
+
+      return {
+        unsubscribe: () => {
+          if (--liveCount === 0) sse?.close();
+        },
+      };
+    },
+    getStatus: async () => {
+      const response = await fetch(getUrl(baseUrl, "status"), {
+        method: "POST",
+      });
+
+      return response.json();
     },
   };
 
@@ -238,4 +224,17 @@ export {
   exceptAll,
 } from "drizzle-orm/pg-core";
 
-export { setDatabaseSchema } from "./setDatabaseSchema.js";
+const Schema = Symbol.for("drizzle:Schema");
+
+export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
+  schema: T,
+  schemaName: string,
+): T => {
+  for (const table of Object.values(schema)) {
+    if (is(table, Table)) {
+      // @ts-ignore
+      table[Schema] = schemaName;
+    }
+  }
+  return schema;
+};

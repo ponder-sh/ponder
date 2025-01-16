@@ -77,12 +77,15 @@ export type PonderApp = {
   build_id: string;
   checkpoint: string;
   table_names: string[];
+  version: string;
 };
+
+const VERSION = "1";
 
 export type PonderInternalSchema = {
   _ponder_meta: { key: "app"; value: PonderApp };
   _ponder_status: {
-    chain_id: number;
+    network_name: string;
     block_number: number | null;
     block_timestamp: number | null;
     ready: boolean;
@@ -767,6 +770,21 @@ export const createDatabase = async ({
           // @ts-ignore
           .where("key", "=", "status")
           .execute();
+
+        const version: string | undefined = await qb.internal
+          .selectFrom("_ponder_meta")
+          .select("value")
+          .where("key", "=", "app")
+          .executeTakeFirstOrThrow()
+          .then((row) => row.value.version);
+
+        if (version === undefined || Number(version) < Number(VERSION)) {
+          await qb.internal.schema
+            .dropTable("_ponder_status")
+            .ifExists()
+            .cascade()
+            .execute();
+        }
       }
 
       await this.wrap({ method: "migrate" }, async () => {
@@ -779,7 +797,7 @@ export const createDatabase = async ({
 
         await qb.internal.schema
           .createTable("_ponder_status")
-          .addColumn("chain_id", "bigint", (col) => col.primaryKey())
+          .addColumn("network_name", "text", (col) => col.primaryKey())
           .addColumn("block_number", "bigint")
           .addColumn("block_timestamp", "bigint")
           .addColumn("ready", "boolean", (col) => col.notNull())
@@ -924,6 +942,7 @@ export const createDatabase = async ({
                 table_names: getTableNames(schemaBuild.schema).map(
                   ({ sql }) => sql,
                 ),
+                version: VERSION,
               } satisfies PonderApp;
 
               await tx

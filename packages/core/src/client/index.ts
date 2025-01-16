@@ -35,15 +35,14 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
-  let statusResolver = promiseWithResolvers<(typeof status.$inferSelect)[]>();
+  let statusResolver = promiseWithResolvers<void>();
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD}_status_channel`;
 
   if ("instance" in driver) {
     driver.instance.query(`LISTEN ${channel}`).then(() => {
       driver.instance.onNotification(async () => {
-        const result = await db.select().from(status);
-        statusResolver.resolve(result);
+        statusResolver.resolve();
         statusResolver = promiseWithResolvers();
       });
     });
@@ -61,8 +60,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       });
 
       driver.listen.on("notification", async () => {
-        const result = await db.select().from(status);
-        statusResolver.resolve(result);
+        statusResolver.resolve();
         statusResolver = promiseWithResolvers();
       });
     };
@@ -97,18 +95,21 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
-      let statusResult = await db.select().from(status);
-
       return streamSSE(c, async (stream) => {
         while (stream.closed === false && stream.aborted === false) {
           try {
             await stream.writeSSE({
-              data: JSON.stringify({ status: "success", result: statusResult }),
+              data: JSON.stringify({ status: "success" }),
             });
           } catch {}
-          statusResult = await statusResolver.promise;
+          await statusResolver.promise;
         }
       });
+    }
+
+    if (c.req.path === "/client/status") {
+      const statusResult = await db.select().from(status);
+      return c.json(statusResult);
     }
 
     return next();
