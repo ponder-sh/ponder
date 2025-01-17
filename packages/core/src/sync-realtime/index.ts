@@ -666,11 +666,22 @@ export const createRealtimeSync = (
         );
       }
 
+      const logIds = new Set<string>();
       for (const log of logs) {
         if (log.blockHash !== block.hash) {
           throw new Error(
             `Detected invalid eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match requested block hash ${block.hash}`,
           );
+        }
+
+        const id = `${log.blockHash}-${log.logIndex}`;
+        if (logIds.has(id)) {
+          args.common.logger.warn({
+            service: "sync",
+            msg: `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
+          });
+        } else {
+          logIds.add(id);
         }
 
         if (
