@@ -72,8 +72,6 @@ import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
 const client = createClient("http://localhost:42069", { schema });
-
-export { client, schema };
 ```
 
 #### Run a query
@@ -131,19 +129,17 @@ const { unsubscribe } = client.live(
 );
 ```
 
-#### Status
+#### `client.getStatus()`
 
-The `status` object is a Drizzle table object which contains information about the indexing status of each chain. You can query it just like any other table exported by `ponder.schema.ts`.
+Get the indexing progress of each chain.
 
-```ts {7}
-import { createClient, status } from "@ponder/client";
+```ts
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("https://...");
+const client = createClient("https://...", { schema });
 
-const mainnetStatus = client.db
-  .select()
-  .from(status)
-  .where(eq(status.chainId, 1));
+const status = await client.getStatus();
 ```
 
 ## Query from React
@@ -266,5 +262,5 @@ export function Deposits() {
 
 These example apps demonstrate how to use `@ponder/client`.
 
-- [**Basic**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-client/client/src/index.ts)
-- [**Next.js**](https://github.com/ponder-sh/ponder/blob/kjs/live/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18)
+- [**Basic**](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts)
+- [**Next.js**](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18)

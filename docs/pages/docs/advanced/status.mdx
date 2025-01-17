@@ -23,14 +23,14 @@ curl http://localhost:42069/status
 
 ```json filename="Response"
 {
-  "1": {
+  "mainnet": {
     "ready": true,
     "block": {
       "number": 20293450,
       "timestamp": 1720823759
     }
   },
-  "8453": {
+  "base": {
     "ready": true,
     "block": {
       "number": 17017206,
@@ -58,14 +58,14 @@ query {
 {
   "_meta": {
     "status": {
-      "1": {
+      "mainnet": {
         "ready": true,
         "block": {
           "number": 20293464,
           "timestamp": 1720823939
         }
       },
-      "8453": {
+      "base": {
         "ready": false,
         "block": null
       }

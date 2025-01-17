@@ -13,6 +13,11 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 This release makes Ponder's API layer less opinionated. Now, you just need to default export a Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
 
+<Callout type="warning">
+  The `src/api/index.ts` file is now required and no GraphQL endpoint is served
+  by default.
+</Callout>
+
 Copy the following code into `src/api/index.ts` to achieve the same functionality as `<=0.8`.
 
 ```ts filename="src/api/index.ts"
