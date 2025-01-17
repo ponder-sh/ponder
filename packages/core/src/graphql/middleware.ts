@@ -1,3 +1,4 @@
+import { getMetadataStore } from "@/indexing-store/metadata.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
@@ -54,7 +55,10 @@ export const graphql = (
     schema: graphqlSchema,
     context: () => {
       const getDataLoader = buildDataLoaderCache({ drizzle: db });
-      return { drizzle: db, getDataLoader };
+      const metadataStore = getMetadataStore({
+        database: globalThis.PONDER_DATABASE,
+      });
+      return { drizzle: db, metadataStore, getDataLoader };
     },
     maskedErrors: process.env.NODE_ENV === "production",
     logging: false,
