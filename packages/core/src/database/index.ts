@@ -48,10 +48,7 @@ export type Database = {
   driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
   wrap: <T>(
-    options: {
-      method: string;
-      shouldRetry?: (error: Error) => boolean;
-    },
+    options: { method: string; includeTraceLogs?: boolean },
     fn: () => Promise<T>,
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
@@ -273,6 +270,7 @@ export const createDatabase = async ({
     );
     await internal.query(`ALTER ROLE "${role}" SET statement_timeout TO '1s'`);
     await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
+    await internal.query(`ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`);
 
     driver = {
       internal,
@@ -354,11 +352,11 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
-      drizzle: drizzleNodePg((driver as PostgresDriver).user, {
+      drizzle: drizzleNodePg(driver.user, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
-      drizzleReadonly: drizzleNodePg((driver as PostgresDriver).readonly, {
+      drizzleReadonly: drizzleNodePg(driver.readonly, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
@@ -515,6 +513,15 @@ export const createDatabase = async ({
 
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const endClock = startClock();
+
+        const id = crypto.randomUUID().slice(0, 8);
+        if (options.includeTraceLogs) {
+          common.logger.trace({
+            service: "database",
+            msg: `Started '${options.method}' database method (id=${id})`,
+          });
+        }
+
         try {
           const result = await fn();
           common.metrics.ponder_database_method_duration.observe(
@@ -536,7 +543,7 @@ export const createDatabase = async ({
           if (isKilled) {
             common.logger.trace({
               service: "database",
-              msg: `Ignored error during '${options.method}' database method (service is killed)`,
+              msg: `Ignored error during '${options.method}' database method, service is killed (id=${id})`,
             });
             throw new IgnorableError();
           }
@@ -546,13 +553,11 @@ export const createDatabase = async ({
             firstError = error;
           }
 
-          if (
-            error instanceof NonRetryableError ||
-            options.shouldRetry?.(error) === false
-          ) {
+          if (error instanceof NonRetryableError) {
             common.logger.warn({
               service: "database",
-              msg: `Failed '${options.method}' database method `,
+              msg: `Failed '${options.method}' database method (id=${id})`,
+              error,
             });
             throw error;
           }
@@ -560,7 +565,7 @@ export const createDatabase = async ({
           if (i === RETRY_COUNT) {
             common.logger.warn({
               service: "database",
-              msg: `Failed '${options.method}' database method after '${i + 1}' attempts`,
+              msg: `Failed '${options.method}' database method after '${i + 1}' attempts (id=${id})`,
               error,
             });
             throw firstError;
@@ -569,31 +574,41 @@ export const createDatabase = async ({
           const duration = BASE_DURATION * 2 ** i;
           common.logger.debug({
             service: "database",
-            msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds`,
+            msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds (id=${id})`,
             error,
           });
           await wait(duration);
+        } finally {
+          if (options.includeTraceLogs) {
+            common.logger.trace({
+              service: "database",
+              msg: `Completed '${options.method}' database method in ${Math.round(endClock())}ms (id=${id})`,
+            });
+          }
         }
       }
     },
     async migrateSync() {
-      await this.wrap({ method: "migrateSyncStore" }, async () => {
-        // TODO: Probably remove this at 1.0 to speed up startup time.
-        await moveLegacyTables({
-          common: common,
-          db: qb.internal,
-          newSchemaName: "ponder_sync",
-        });
+      await this.wrap(
+        { method: "migrateSyncStore", includeTraceLogs: true },
+        async () => {
+          // TODO: Probably remove this at 1.0 to speed up startup time.
+          await moveLegacyTables({
+            common: common,
+            db: qb.internal,
+            newSchemaName: "ponder_sync",
+          });
 
-        const migrator = new Migrator({
-          db: qb.sync as any,
-          provider: postgresMigrationProvider,
-          migrationTableSchema: "ponder_sync",
-        });
+          const migrator = new Migrator({
+            db: qb.sync as any,
+            provider: postgresMigrationProvider,
+            migrationTableSchema: "ponder_sync",
+          });
 
-        const { error } = await migrator.migrateToLatest();
-        if (error) throw error;
-      });
+          const { error } = await migrator.migrateToLatest();
+          if (error) throw error;
+        },
+      );
     },
     async migrate({ buildId }) {
       ////////
@@ -628,58 +643,61 @@ export const createDatabase = async ({
           .then((table) => table !== undefined);
 
         if (hasNamespaceLockTable) {
-          await this.wrap({ method: "migrate" }, async () => {
-            const namespaceCount = await qb.internal
-              .withSchema("ponder")
-              // @ts-ignore
-              .selectFrom("namespace_lock")
-              .select(sql`count(*)`.as("count"))
-              .executeTakeFirst();
-
-            const tableNames = await qb.internal
-              .withSchema("ponder")
-              // @ts-ignore
-              .selectFrom("namespace_lock")
-              // @ts-ignore
-              .select("schema")
-              // @ts-ignore
-              .where("namespace", "=", namespace)
-              .executeTakeFirst()
-              .then((schema: any | undefined) =>
-                schema === undefined
-                  ? undefined
-                  : Object.keys(schema.schema.tables),
-              );
-            if (tableNames) {
-              for (const tableName of tableNames) {
-                await qb.internal.schema
-                  .dropTable(tableName)
-                  .ifExists()
-                  .cascade()
-                  .execute();
-              }
-
-              await qb.internal
+          await this.wrap(
+            { method: "migrate", includeTraceLogs: true },
+            async () => {
+              const namespaceCount = await qb.internal
                 .withSchema("ponder")
                 // @ts-ignore
-                .deleteFrom("namespace_lock")
-                // @ts-ignore
-                .where("namespace", "=", namespace)
-                .execute();
+                .selectFrom("namespace_lock")
+                .select(sql`count(*)`.as("count"))
+                .executeTakeFirst();
 
-              if (namespaceCount!.count === 1) {
-                await qb.internal.schema
-                  .dropSchema("ponder")
-                  .cascade()
+              const tableNames = await qb.internal
+                .withSchema("ponder")
+                // @ts-ignore
+                .selectFrom("namespace_lock")
+                // @ts-ignore
+                .select("schema")
+                // @ts-ignore
+                .where("namespace", "=", preBuild.namespace)
+                .executeTakeFirst()
+                .then((schema: any | undefined) =>
+                  schema === undefined
+                    ? undefined
+                    : Object.keys(schema.schema.tables),
+                );
+              if (tableNames) {
+                for (const tableName of tableNames) {
+                  await qb.internal.schema
+                    .dropTable(tableName)
+                    .ifExists()
+                    .cascade()
+                    .execute();
+                }
+
+                await qb.internal
+                  .withSchema("ponder")
+                  // @ts-ignore
+                  .deleteFrom("namespace_lock")
+                  // @ts-ignore
+                  .where("namespace", "=", preBuild.namespace)
                   .execute();
 
-                common.logger.debug({
-                  service: "database",
-                  msg: `Removed 'ponder' schema`,
-                });
+                if (namespaceCount!.count === 1) {
+                  await qb.internal.schema
+                    .dropSchema("ponder")
+                    .cascade()
+                    .execute();
+
+                  common.logger.debug({
+                    service: "database",
+                    msg: `Removed 'ponder' schema`,
+                  });
+                }
               }
-            }
-          });
+            },
+          );
         }
       }
 
@@ -702,7 +720,7 @@ export const createDatabase = async ({
         .then((table) => table !== undefined);
 
       if (hasPonderMetaTable) {
-        await this.wrap({ method: "migrate" }, () =>
+        await this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.internal.transaction().execute(async (tx) => {
             const previousApps = await tx
               .selectFrom("_ponder_meta")
@@ -787,29 +805,31 @@ export const createDatabase = async ({
         }
       }
 
-      await this.wrap({ method: "migrate" }, async () => {
-        await qb.internal.schema
-          .createTable("_ponder_meta")
-          .addColumn("key", "text", (col) => col.primaryKey())
-          .addColumn("value", "jsonb")
-          .ifNotExists()
-          .execute();
+      await this.wrap(
+        { method: "migrate", includeTraceLogs: true },
+        async () => {
+          await qb.internal.schema
+            .createTable("_ponder_meta")
+            .addColumn("key", "text", (col) => col.primaryKey())
+            .addColumn("value", "jsonb")
+            .ifNotExists()
+            .execute();
 
-        await qb.internal.schema
-          .createTable("_ponder_status")
-          .addColumn("network_name", "text", (col) => col.primaryKey())
-          .addColumn("block_number", "bigint")
-          .addColumn("block_timestamp", "bigint")
-          .addColumn("ready", "boolean", (col) => col.notNull())
-          .ifNotExists()
-          .execute();
+          await qb.internal.schema
+            .createTable("_ponder_status")
+            .addColumn("network_name", "text", (col) => col.primaryKey())
+            .addColumn("block_number", "bigint")
+            .addColumn("block_timestamp", "bigint")
+            .addColumn("ready", "boolean", (col) => col.notNull())
+            .ifNotExists()
+            .execute();
 
-        const trigger = "status_trigger";
-        const notification = `${namespace}_status_notify()`;
-        const channel = `${namespace}_status_channel`;
+          const trigger = "status_trigger";
+          const notification = `${namespace}_status_notify()`;
+          const channel = `${namespace}_status_channel`;
 
-        await sql
-          .raw(`
+          await sql
+            .raw(`
         CREATE OR REPLACE FUNCTION ${notification}
         RETURNS trigger
         LANGUAGE plpgsql
@@ -819,20 +839,21 @@ export const createDatabase = async ({
         RETURN NULL;
         END;
         $$;`)
-          .execute(qb.internal);
+            .execute(qb.internal);
 
-        await sql
-          .raw(`
+          await sql
+            .raw(`
         CREATE OR REPLACE TRIGGER ${trigger}
         AFTER INSERT OR UPDATE OR DELETE
         ON "${namespace}"._ponder_status
         FOR EACH STATEMENT
         EXECUTE PROCEDURE ${notification};`)
-          .execute(qb.internal);
-      });
+            .execute(qb.internal);
+        },
+      );
 
       const attempt = () =>
-        this.wrap({ method: "migrate" }, () =>
+        this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.internal.transaction().execute(async (tx) => {
             const createTables = async () => {
               for (
@@ -1060,68 +1081,71 @@ export const createDatabase = async ({
         return checkpoint;
       }
 
-      return this.wrap({ method: "recoverCheckpoint" }, () =>
-        qb.internal.transaction().execute(async (tx) => {
-          const app = await tx
-            .selectFrom("_ponder_meta")
-            .where("key", "=", "app")
-            .select("value")
-            .executeTakeFirstOrThrow()
-            .then((row) => row.value);
-
-          if (app.checkpoint === encodeCheckpoint(zeroCheckpoint)) {
-            for (const tableName of getTableNames(schemaBuild.schema)) {
-              await sql
-                .raw(
-                  `TRUNCATE TABLE "${namespace}"."${tableName.sql}", "${namespace}"."${tableName.reorg}" CASCADE`,
-                )
-                .execute(tx);
-            }
-          } else {
-            // Update metadata
-
-            app.is_locked = 1;
-            app.is_dev = common.options.command === "dev" ? 1 : 0;
-
-            await tx
-              .updateTable("_ponder_meta")
-              .set({ value: app })
-
+      return this.wrap(
+        { method: "recoverCheckpoint", includeTraceLogs: true },
+        () =>
+          qb.internal.transaction().execute(async (tx) => {
+            const app = await tx
+              .selectFrom("_ponder_meta")
               .where("key", "=", "app")
-              .execute();
+              .select("value")
+              .executeTakeFirstOrThrow()
+              .then((row) => row.value);
 
-            // Remove triggers
+            if (app.checkpoint === encodeCheckpoint(zeroCheckpoint)) {
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await sql
+                  .raw(
+                    `TRUNCATE TABLE "${namespace}"."${tableName.sql}", "${namespace}"."${tableName.reorg}" CASCADE`,
+                  )
+                  .execute(tx);
+              }
+            } else {
+              // Update metadata
 
-            for (const tableName of getTableNames(schemaBuild.schema)) {
-              await sql
-                .raw(
-                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
-                )
-                .execute(tx);
-            }
+              app.is_locked = 1;
+              app.is_dev = common.options.command === "dev" ? 1 : 0;
 
-            // Remove indexes
+              await tx
+                .updateTable("_ponder_meta")
+                .set({ value: app })
 
-            for (const indexStatement of schemaBuild.statements.indexes.json) {
-              await tx.schema
-                .dropIndex(indexStatement.data.name)
-                .ifExists()
+                .where("key", "=", "app")
                 .execute();
-              common.logger.info({
-                service: "database",
-                msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
-              });
+
+              // Remove triggers
+
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await sql
+                  .raw(
+                    `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
+                  )
+                  .execute(tx);
+              }
+
+              // Remove indexes
+
+              for (const indexStatement of schemaBuild.statements.indexes
+                .json) {
+                await tx.schema
+                  .dropIndex(indexStatement.data.name)
+                  .ifExists()
+                  .execute();
+                common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
+                });
+              }
+
+              // Revert unfinalized data
+
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await revert({ tableName, checkpoint: app.checkpoint, tx });
+              }
             }
 
-            // Revert unfinalized data
-
-            for (const tableName of getTableNames(schemaBuild.schema)) {
-              await revert({ tableName, checkpoint: app.checkpoint, tx });
-            }
-          }
-
-          return app.checkpoint;
-        }),
+            return app.checkpoint;
+          }),
       );
     },
     async createIndexes() {
@@ -1130,18 +1154,20 @@ export const createDatabase = async ({
       }
     },
     async createTriggers() {
-      await this.wrap({ method: "createTriggers" }, async () => {
-        for (const tableName of getTableNames(schemaBuild.schema)) {
-          const columns = getTableColumns(
-            schemaBuild.schema[tableName.js]! as PgTable,
-          );
+      await this.wrap(
+        { method: "createTriggers", includeTraceLogs: true },
+        async () => {
+          for (const tableName of getTableNames(schemaBuild.schema)) {
+            const columns = getTableColumns(
+              schemaBuild.schema[tableName.js]! as PgTable,
+            );
 
-          const columnNames = Object.values(columns).map(
-            (column) => `"${getColumnCasing(column, "snake_case")}"`,
-          );
+            const columnNames = Object.values(columns).map(
+              (column) => `"${getColumnCasing(column, "snake_case")}"`,
+            );
 
-          await sql
-            .raw(`
+            await sql
+              .raw(`
 CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
@@ -1159,31 +1185,35 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 `)
-            .execute(qb.internal);
+              .execute(qb.internal);
 
-          await sql
-            .raw(`
+            await sql
+              .raw(`
           CREATE OR REPLACE TRIGGER "${tableName.trigger}"
           AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName.sql}"
           FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
           `)
-            .execute(qb.internal);
-        }
-      });
+              .execute(qb.internal);
+          }
+        },
+      );
     },
     async removeTriggers() {
-      await this.wrap({ method: "removeTriggers" }, async () => {
-        for (const tableName of getTableNames(schemaBuild.schema)) {
-          await sql
-            .raw(
-              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
-            )
-            .execute(qb.internal);
-        }
-      });
+      await this.wrap(
+        { method: "removeTriggers", includeTraceLogs: true },
+        async () => {
+          for (const tableName of getTableNames(schemaBuild.schema)) {
+            await sql
+              .raw(
+                `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
+              )
+              .execute(qb.internal);
+          }
+        },
+      );
     },
     async revert({ checkpoint }) {
-      await this.wrap({ method: "revert" }, () =>
+      await this.wrap({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           getTableNames(schemaBuild.schema).map((tableName) =>
             qb.internal.transaction().execute((tx) =>
@@ -1198,24 +1228,27 @@ $$ LANGUAGE plpgsql
       );
     },
     async finalize({ checkpoint }) {
-      await this.wrap({ method: "finalize" }, async () => {
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
-          })
-          .execute();
+      await this.wrap(
+        { method: "finalize", includeTraceLogs: true },
+        async () => {
+          await qb.internal
+            .updateTable("_ponder_meta")
+            .where("key", "=", "app")
+            .set({
+              value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
+            })
+            .execute();
 
-        await Promise.all(
-          getTableNames(schemaBuild.schema).map((tableName) =>
-            qb.internal
-              .deleteFrom(tableName.reorg)
-              .where("checkpoint", "<=", checkpoint)
-              .execute(),
-          ),
-        );
-      });
+          await Promise.all(
+            getTableNames(schemaBuild.schema).map((tableName) =>
+              qb.internal
+                .deleteFrom(tableName.reorg)
+                .where("checkpoint", "<=", checkpoint)
+                .execute(),
+            ),
+          );
+        },
+      );
 
       const decoded = decodeCheckpoint(checkpoint);
 
@@ -1227,28 +1260,34 @@ $$ LANGUAGE plpgsql
     async complete({ checkpoint }) {
       await Promise.all(
         getTableNames(schemaBuild.schema).map((tableName) =>
-          this.wrap({ method: "complete" }, async () => {
-            await qb.internal
-              .updateTable(tableName.reorg)
-              .set({ checkpoint })
-              .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
-              .execute();
-          }),
+          this.wrap(
+            { method: "complete", includeTraceLogs: true },
+            async () => {
+              await qb.internal
+                .updateTable(tableName.reorg)
+                .set({ checkpoint })
+                .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
+                .execute();
+            },
+          ),
         ),
       );
     },
     async unlock() {
       clearInterval(heartbeatInterval);
 
-      await this.wrap({ method: "unlock" }, async () => {
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
-          })
-          .execute();
-      });
+      await this.wrap(
+        { method: "unlock", includeTraceLogs: true },
+        async () => {
+          await qb.internal
+            .updateTable("_ponder_meta")
+            .where("key", "=", "app")
+            .set({
+              value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+            })
+            .execute();
+        },
+      );
     },
     async kill() {
       isKilled = true;
