@@ -240,37 +240,38 @@ export const createDatabase = async ({
     const connection = (parse as unknown as typeof parse.parse)(
       preBuild.databaseConfig.poolConfig.connectionString!,
     );
+    if (!connection.database) {
+      throw new NonRetryableError(
+        "postgres connection string did not define a database",
+      );
+    }
 
-    const role =
-      connection.database === undefined
-        ? `ponder_${namespace}`
-        : `ponder_${connection.database}_${namespace}`;
-
+    const role = `ponder_${connection.database}_${namespace}`;
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     const hasRole = await internal
       .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
       .then(({ rows }) => rows[0]);
-    if (hasRole) {
-      await internal.query(`DROP OWNED BY "${role}"`);
-      await internal.query(`DROP ROLE IF EXISTS "${role}"`);
+    if (!hasRole) {
+      await internal.query(`CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`);
+      await internal.query(
+        `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
+      );
+      await internal.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`);
+      await internal.query(
+        `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
+      );
+      await internal.query(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
+      );
+      await internal.query(
+        `ALTER ROLE "${role}" SET search_path TO "${namespace}"`,
+      );
+      await internal.query(
+        `ALTER ROLE "${role}" SET statement_timeout TO '1s'`,
+      );
+      await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
+      await internal.query(`ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`);
     }
-    await internal.query(`CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`);
-    await internal.query(
-      `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
-    );
-    await internal.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`);
-    await internal.query(
-      `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
-    );
-    await internal.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
-    );
-    await internal.query(
-      `ALTER ROLE "${role}" SET search_path TO "${namespace}"`,
-    );
-    await internal.query(`ALTER ROLE "${role}" SET statement_timeout TO '1s'`);
-    await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
-    await internal.query(`ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`);
 
     driver = {
       internal,
