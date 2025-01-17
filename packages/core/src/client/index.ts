@@ -40,7 +40,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD}_status_channel`;
 
   if ("instance" in driver) {
-    driver.instance.query(`LISTEN ${channel}`).then(() => {
+    driver.instance.query(`LISTEN "${channel}"`).then(() => {
       driver.instance.onNotification(async () => {
         statusResolver.resolve();
         statusResolver = promiseWithResolvers();
@@ -52,7 +52,7 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
     const connectAndListen = async () => {
       driver.listen = await pool.connect();
 
-      await driver.listen.query(`LISTEN ${channel}`);
+      await driver.listen.query(`LISTEN "${channel}"`);
 
       driver.listen.on("error", async () => {
         driver.listen?.release();

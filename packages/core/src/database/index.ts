@@ -243,8 +243,8 @@ export const createDatabase = async ({
 
     const role =
       connection.database === undefined
-        ? `ponder_readonly_${namespace}`
-        : `ponder_readonly_${connection.database}_${namespace}`;
+        ? `ponder_${namespace}`
+        : `ponder_${connection.database}_${namespace}`;
 
     await internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     const hasRole = await internal
@@ -793,8 +793,8 @@ export const createDatabase = async ({
           .selectFrom("_ponder_meta")
           .select("value")
           .where("key", "=", "app")
-          .executeTakeFirstOrThrow()
-          .then((row) => row.value.version);
+          .executeTakeFirst()
+          .then((row) => row?.value.version);
 
         if (version === undefined || Number(version) < Number(VERSION)) {
           await qb.internal.schema
@@ -825,17 +825,17 @@ export const createDatabase = async ({
             .execute();
 
           const trigger = "status_trigger";
-          const notification = `${namespace}_status_notify()`;
+          const notification = "status_notify()";
           const channel = `${namespace}_status_channel`;
 
           await sql
             .raw(`
-        CREATE OR REPLACE FUNCTION ${notification}
-        RETURNS trigger
+        CREATE OR REPLACE FUNCTION "${namespace}".${notification}
+        RETURNS TRIGGER
         LANGUAGE plpgsql
         AS $$
         BEGIN
-        NOTIFY ${channel};
+        NOTIFY "${channel}";
         RETURN NULL;
         END;
         $$;`)
@@ -843,11 +843,11 @@ export const createDatabase = async ({
 
           await sql
             .raw(`
-        CREATE OR REPLACE TRIGGER ${trigger}
-        AFTER INSERT OR UPDATE OR DELETE
-        ON "${namespace}"._ponder_status
-        FOR EACH STATEMENT
-        EXECUTE PROCEDURE ${notification};`)
+          CREATE OR REPLACE TRIGGER "${trigger}"
+          AFTER INSERT OR UPDATE OR DELETE
+          ON "${namespace}"._ponder_status
+          FOR EACH STATEMENT
+          EXECUTE PROCEDURE "${namespace}".${notification};`)
             .execute(qb.internal);
         },
       );
