@@ -37,11 +37,8 @@ export async function run({
 }) {
   let isKilled = false;
 
-  const { checkpoint: initialCheckpoint } =
-    await database.prepareNamespace(indexingBuild);
-
+  const initialCheckpoint = await database.recoverCheckpoint();
   const syncStore = createSyncStore({ common, database });
-
   const metadataStore = getMetadataStore({ database });
 
   // This can be a long-running operation, so it's best to do it after
@@ -279,7 +276,7 @@ export async function run({
 
     common.logger.info({
       service: "server",
-      msg: "Started responding as healthy",
+      msg: "Started returning 200 responses from /ready endpoint",
     });
   };
 

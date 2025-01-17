@@ -1,12 +1,10 @@
-import fs from "node:fs";
-import path from "node:path";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
-import { printSchema } from "graphql";
+import { type GraphQLSchema, printSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
@@ -49,19 +47,10 @@ export const graphql = (
 ) => {
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
-  fs.writeFileSync(
-    path.join(process.cwd(), "generated", "schema.graphql"),
-    printSchema(graphqlSchema),
-    "utf-8",
-  );
-
-  // common.logger.debug({
-  //   service: "codegen",
-  //   msg: "Wrote new file at generated/schema.graphql",
-  // });
+  generateSchema({ graphqlSchema }).catch(() => {});
 
   const yoga = createYoga({
+    graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
     schema: graphqlSchema,
     context: () => {
       const getDataLoader = buildDataLoaderCache({ drizzle: db });
@@ -93,3 +82,22 @@ export const graphql = (
     return response;
   });
 };
+
+async function generateSchema({
+  graphqlSchema,
+}: { graphqlSchema: GraphQLSchema }) {
+  const fs = await import(/* webpackIgnore: true */ "node:fs");
+  const path = await import(/* webpackIgnore: true */ "node:path");
+
+  fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
+  fs.writeFileSync(
+    path.join(process.cwd(), "generated", "schema.graphql"),
+    printSchema(graphqlSchema),
+    "utf-8",
+  );
+
+  // common.logger.debug({
+  //   service: "codegen",
+  //   msg: "Wrote new file at generated/schema.graphql",
+  // });
+}

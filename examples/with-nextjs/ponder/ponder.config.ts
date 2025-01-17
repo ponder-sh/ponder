@@ -1,28 +1,25 @@
 import { createConfig } from "ponder";
 import { http, createPublicClient } from "viem";
 
-import { Weth9Abi } from "./abis/Weth9Abi";
+import { weth9Abi } from "./abis/Weth9Abi";
 
-const transport = http(process.env.PONDER_RPC_URL_1);
-
-const latestBlock = await createPublicClient({ transport }).getBlock();
+const latestBlockBase = await createPublicClient({
+  transport: http(process.env.PONDER_RPC_URL_8453),
+}).getBlock();
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport,
+    base: {
+      chainId: 8453,
+      transport: http(process.env.PONDER_RPC_URL_8453),
     },
   },
   contracts: {
-    WETH: {
-      network: "mainnet",
-      abi: Weth9Abi,
-      address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-      startBlock: Number(latestBlock) - 100,
-      filter: {
-        event: "Deposit",
-      },
+    weth9: {
+      abi: weth9Abi,
+      network: "base",
+      address: "0x4200000000000000000000000000000000000006",
+      startBlock: Number(latestBlockBase.number),
     },
   },
 });

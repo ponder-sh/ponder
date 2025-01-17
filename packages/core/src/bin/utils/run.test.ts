@@ -64,15 +64,17 @@ test("run() setup", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
       schema,
       statements,
     },
   });
+
+  await database.migrate({ buildId: "buildId" });
 
   const kill = await run({
     common: context.common,
@@ -127,15 +129,17 @@ test("run() setup error", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
       schema,
       statements,
     },
   });
+
+  await database.migrate({ buildId: "buildId" });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 

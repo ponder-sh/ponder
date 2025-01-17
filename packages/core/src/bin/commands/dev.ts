@@ -6,6 +6,7 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
+import type { IndexingBuild } from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
@@ -61,6 +62,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const cleanup = async () => {
     await indexingCleanupReloadable();
     await apiCleanupReloadable();
+
     if (database) {
       await database.kill();
     }
@@ -109,7 +111,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const schemaResult = await build.executeSchema();
+        const schemaResult = await build.executeSchema({ namespace });
         if (schemaResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -135,12 +137,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const [preBuild, schemaBuild] = buildResult1.result;
 
-        database = await createDatabase({
-          common,
-          preBuild,
-          schemaBuild,
-        });
-
         const indexingResult = await build.executeIndexingFunctions();
         if (indexingResult.status === "error") {
           buildQueue.add({
@@ -151,7 +147,34 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const apiResult = await build.executeApi({ database });
+        const indexingBuildResult = await build.compileIndexing({
+          configResult: configResult.result,
+          schemaResult: schemaResult.result,
+          indexingResult: indexingResult.result,
+        });
+
+        if (indexingBuildResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: indexingBuildResult.error,
+          });
+          return;
+        }
+        indexingBuild = indexingBuildResult.result;
+
+        database = await createDatabase({
+          common,
+          namespace,
+          preBuild,
+          schemaBuild,
+        });
+        await database.migrate(indexingBuildResult.result);
+
+        const apiResult = await build.executeApi({
+          indexingBuild,
+          database,
+        });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -161,25 +184,18 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const buildResult2 = mergeResults([
-          await build.compileIndexing({
-            configResult: configResult.result,
-            schemaResult: schemaResult.result,
-            indexingResult: indexingResult.result,
-          }),
-          await build.compileApi({ apiResult: apiResult.result }),
-        ]);
+        const apiBuildResult = await build.compileApi({
+          apiResult: apiResult.result,
+        });
 
-        if (buildResult2.status === "error") {
+        if (apiBuildResult.status === "error") {
           buildQueue.add({
             status: "error",
             kind: "indexing",
-            error: buildResult2.error,
+            error: apiBuildResult.error,
           });
           return;
         }
-
-        const [indexingBuild, apiBuild] = buildResult2.result;
 
         if (isInitialBuild) {
           isInitialBuild = false;
@@ -191,17 +207,25 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               ...buildPayload({
                 preBuild,
                 schemaBuild,
-                indexingBuild,
+                indexingBuild: indexingBuildResult.result,
               }),
             },
           });
         }
 
+        metrics.resetApiMetrics();
+
+        apiCleanupReloadable = await runServer({
+          common,
+          database,
+          apiBuild: apiBuildResult.result,
+        });
+
         indexingCleanupReloadable = await run({
           common,
           database,
           schemaBuild,
-          indexingBuild,
+          indexingBuild: indexingBuildResult.result,
           onFatalError: () => {
             shutdown({ reason: "Received fatal error", code: 1 });
           },
@@ -210,18 +234,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             buildQueue.add({ status: "error", kind: "indexing", error });
           },
         });
-
-        metrics.resetApiMetrics();
-
-        apiCleanupReloadable = await runServer({
-          common,
-          database,
-          apiBuild,
-        });
       } else {
         metrics.resetApiMetrics();
 
-        const apiResult = await build.executeApi({ database: database! });
+        const apiResult = await build.executeApi({
+          indexingBuild: indexingBuild!,
+          database: database!,
+        });
         if (apiResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -254,9 +273,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
+  let indexingBuild: IndexingBuild | undefined;
   let database: Database | undefined;
 
-  build.initNamespace({ isSchemaRequired: false });
+  const namespace =
+    cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
 
   build.startDev({
     onReload: (kind) => {

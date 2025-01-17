@@ -44,8 +44,6 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const shutdown = setupShutdown({ common, cleanup });
 
-  build.initNamespace({ isSchemaRequired: false });
-
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
     await shutdown({ reason: "Failed intial build", code: 1 });
@@ -61,6 +59,8 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const database = await createDatabase({
     common,
+    // Note: `namespace` is not used in this command
+    namespace: "public",
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });

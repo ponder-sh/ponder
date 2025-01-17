@@ -1,0 +1,58 @@
+{
+  "name": "@ponder/react",
+  "version": "0.9.0-next.5",
+  "description": "React hooks for Ponder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ponder-sh/ponder",
+    "directory": "packages/react"
+  },
+  "scripts": {
+    "build": "tsx build.ts",
+    "test": "vitest",
+    "test:typecheck": "vitest --typecheck.only",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist/**",
+    "!dist/**/*.tsbuildinfo",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/_test/**/*"
+  ],
+  "sideEffects": false,
+  "type": "module",
+  "main": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/esm/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@ponder/client": ">=0.9.0",
+    "@tanstack/react-query": ">=5.0.0",
+    "react": ">=18",
+    "typescript": ">=5.0.4"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ponder/client": "workspace:*",
+    "@tanstack/react-query": "^5.12.2",
+    "@types/node": "^22.10.6",
+    "@types/react": "^18.2.0",
+    "chalk": "^5.4.1",
+    "chokidar": "^4.0.3",
+    "execa": "^8.0.1",
+    "react": "^18.2.0",
+    "tsx": "^4.19.2"
+  }
+}
