@@ -183,6 +183,7 @@ export async function run({
           // Run historical indexing until complete.
           for await (const events of sync.getEvents()) {
             for (const eventsChunk of chunk(events, 93)) {
+              // TODO(kyle) this needs to be pipelined across networks
               const result = await indexingService.processEvents({
                 events: decodeEvents(
                   common,

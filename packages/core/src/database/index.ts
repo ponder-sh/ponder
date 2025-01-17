@@ -69,6 +69,7 @@ export type Database = {
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
+  // TODO(kyle) multichain option
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
