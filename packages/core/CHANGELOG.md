@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.28
+
+### Patch Changes
+
+- [#1448](https://github.com/ponder-sh/ponder/pull/1448) [`fea49c5eac99ad811061ab532021fcbf1869e976`](https://github.com/ponder-sh/ponder/commit/fea49c5eac99ad811061ab532021fcbf1869e976) Thanks [@kyscott18](https://github.com/kyscott18)! - Added more rpc response validation.
+
 ## 0.8.27
 
 ### Patch Changes
