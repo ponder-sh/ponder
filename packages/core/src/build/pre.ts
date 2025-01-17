@@ -64,8 +64,9 @@ export function buildPre({
       });
 
       const poolConfig = {
-        max: config.database.poolConfig?.max ?? 30,
         connectionString,
+        max: config.database.poolConfig?.max ?? 30,
+        ssl: config.database.poolConfig?.ssl ?? false,
       };
 
       databaseConfig = { kind: "postgres", poolConfig };
@@ -95,7 +96,7 @@ export function buildPre({
         msg: `Using Postgres database ${getDatabaseName(connectionString)} (${source})`,
       });
 
-      const poolConfig = { max: 30, connectionString };
+      const poolConfig = { connectionString, max: 30 };
 
       databaseConfig = { kind: "postgres", poolConfig };
     } else {
