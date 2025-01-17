@@ -269,6 +269,7 @@ export const createDatabase = async ({
     );
     await internal.query(`ALTER ROLE "${role}" SET statement_timeout TO '1s'`);
     await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
+    await internal.query(`ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`);
 
     driver = {
       internal,
@@ -349,11 +350,11 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
       }),
-      drizzle: drizzleNodePg((driver as PostgresDriver).user, {
+      drizzle: drizzleNodePg(driver.user, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
-      drizzleReadonly: drizzleNodePg((driver as PostgresDriver).readonly, {
+      drizzleReadonly: drizzleNodePg(driver.readonly, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),

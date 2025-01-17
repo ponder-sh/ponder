@@ -96,6 +96,42 @@ test("createDatabase() search path", async (context) => {
   await database.kill();
 });
 
+test("createDatabase() role limits", async (context) => {
+  if (context.databaseConfig.kind === "pglite_test") return;
+  const database = await createDatabase({
+    common: context.common,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      namespace: "public",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  const error = await ksql`
+WITH RECURSIVE infinite_cte AS (
+  -- Anchor member
+  SELECT 1 AS num
+  UNION ALL
+  -- Recursive member
+  SELECT num + 1
+  FROM infinite_cte
+)
+SELECT *
+FROM infinite_cte;`
+    .execute(database.qb.readonly)
+    .catch((error) => error);
+
+  expect(error).toBeDefined();
+  expect(error?.message).toContain(
+    "temporary file size exceeds temp_file_limit (1024kB)",
+  );
+
+  await database.kill();
+});
+
 test("prepareNamespace() succeeds with empty schema", async (context) => {
   const database = await createDatabase({
     common: context.common,
