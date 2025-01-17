@@ -187,12 +187,23 @@ export const createSyncOmnichain = async (params: {
       finalized: encodeCheckpoint(zeroCheckpoint),
     };
 
+    const latencyTimers = new Map<string, () => number>();
+
     return (event: RealtimeSyncEvent): void => {
       switch (event.type) {
         case "block": {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint("current")!;
           const to = getOmnichainCheckpoint("current")!;
+
+          if (event.endClock !== undefined) {
+            latencyTimers.set(
+              encodeCheckpoint(
+                blockToCheckpoint(event.block, network.chainId, "up"),
+              ),
+              event.endClock,
+            );
+          }
 
           const newEvents = buildEvents({
             sources: params.indexingBuild.sources,
@@ -238,20 +249,20 @@ export const createSyncOmnichain = async (params: {
                 }
 
                 // update `ponder_realtime_latency` metric
-                // for (const network of params.indexingBuild.networks) {
-                //   for (const { block, endClock } of perNetworkSync.get(network)!
-                //     .unfinalizedBlocks) {
-                //     const checkpoint = encodeCheckpoint(
-                //       blockToCheckpoint(block, network.chainId, "up"),
-                //     );
-                //     if (checkpoint > from && checkpoint <= to && endClock) {
-                //       params.common.metrics.ponder_realtime_latency.observe(
-                //         { network: network.name },
-                //         endClock(),
-                //       );
-                //     }
-                //   }
-                // }
+                for (const [checkpoint, timer] of latencyTimers) {
+                  if (checkpoint > from && checkpoint <= to) {
+                    const chainId = Number(
+                      decodeCheckpoint(checkpoint).chainId,
+                    );
+                    const network = params.indexingBuild.networks.find(
+                      (network) => network.chainId === chainId,
+                    )!;
+                    params.common.metrics.ponder_realtime_latency.observe(
+                      { network: network.name },
+                      timer(),
+                    );
+                  }
+                }
               });
           }
 
