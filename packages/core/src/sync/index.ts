@@ -682,7 +682,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               }
 
               // update `ponder_realtime_latency` metric
-              for (const network of args.networks) {
+              for (const network of args.indexingBuild.networks) {
                 for (const { block, endClock } of perNetworkSync.get(network)!
                   .unfinalizedBlocks) {
                   const checkpoint = encodeCheckpoint(
