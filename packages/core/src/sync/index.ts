@@ -33,6 +33,7 @@ import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
+import { type Queue, createQueue } from "@ponder/common";
 import {
   type Address,
   type Hash,
@@ -236,6 +237,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
+      realtimeQueue: Queue<void, RealtimeSyncEvent>;
       unfinalizedBlocks: Omit<
         Extract<RealtimeSyncEvent, { type: "block" }>,
         "type"
@@ -290,13 +292,22 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         network,
         onFatalError: args.onFatalError,
       });
+
+      const realtimeQueue = createQueue({
+        initialStart: true,
+        browser: false,
+        concurrency: 1,
+        worker: async (event: RealtimeSyncEvent) =>
+          onRealtimeSyncEvent({ event, network }),
+      });
+
       const realtimeSync = createRealtimeSync({
         common: args.common,
         sources,
         requestQueue,
         network,
         onEvent: (event) =>
-          onRealtimeSyncEvent({ event, network }).catch((error) => {
+          realtimeQueue.add(event).catch((error) => {
             args.common.logger.error({
               service: "sync",
               msg: `Fatal error: Unable to process ${event.type} event`,
@@ -343,6 +354,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         syncProgress,
         historicalSync,
         realtimeSync,
+        realtimeQueue,
         unfinalizedBlocks: [],
       });
       status[network.name] = { block: null, ready: false };
@@ -717,11 +729,6 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         syncProgress.finalized = event.block;
         const checkpoint = getOmnichainCheckpoint("finalized")!;
 
-        // Raise event to parent function (runtime)
-        if (checkpoint > prev) {
-          args.onRealtimeEvent({ type: "finalize", checkpoint });
-        }
-
         if (
           getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
           getOmnichainCheckpoint("current")!
@@ -811,6 +818,11 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               .map(({ filter }) => ({ filter, interval })),
             chainId: network.chainId,
           });
+        }
+
+        // Raise event to parent function (runtime)
+        if (checkpoint > prev) {
+          args.onRealtimeEvent({ type: "finalize", checkpoint });
         }
 
         /**
@@ -973,8 +985,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
       isKilled = true;
       const promises: Promise<void>[] = [];
       for (const network of args.networks) {
-        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
+        const { historicalSync, realtimeSync, realtimeQueue } =
+          perNetworkSync.get(network)!;
         historicalSync.kill();
+        realtimeQueue.pause();
+        realtimeQueue.clear();
+        promises.push(realtimeQueue.onIdle());
         promises.push(realtimeSync.kill());
       }
       await Promise.all(promises);
