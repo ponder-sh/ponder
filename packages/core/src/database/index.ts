@@ -247,37 +247,51 @@ export const createDatabase = async ({
     }
 
     const role = `ponder_${connection.database}_${namespace}`;
-    await internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
-    const hasRole = await internal
-      .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
-      .then(({ rows }) => rows[0]);
-    if (!hasRole) {
-      await internal.query(`CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`);
-      await internal.query(
-        `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
-      );
-      await internal.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`);
-      await internal.query(
-        `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
-      );
-      await internal.query(
-        `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
-      );
-      await internal.query(
+    const internalConn = await internal.connect();
+    await internalConn.query("BEGIN");
+    try {
+      await internalConn.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
+      const hasRole = await internalConn
+        .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
+        .then(({ rows }) => rows[0]);
+      if (!hasRole) {
+        await internalConn.query(
+          `CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`,
+        );
+        await internalConn.query(
+          `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
+        );
+        await internalConn.query(
+          `GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`,
+        );
+        await internalConn.query(
+          `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
+        );
+        await internalConn.query(
+          `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
+        );
+      }
+      await internalConn.query(
         `ALTER ROLE "${role}" SET search_path TO "${namespace}"`,
       );
-      await internal.query(
+      await internalConn.query(
         `ALTER ROLE "${role}" SET statement_timeout TO '1s'`,
       );
-      await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
+      await internalConn.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
 
-      const isSuperuser = await internal
+      const isSuperuser = await internalConn
         .query("SELECT rolsuper FROM pg_roles WHERE rolname=current_user;")
         .then((res) => !!res.rows[0].rolsuper);
       if (isSuperuser)
-        await internal.query(
+        await internalConn.query(
           `ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`,
         );
+      await internalConn.query("COMMIT");
+    } catch (e) {
+      await internalConn.query("ROLLBACK");
+      throw e;
+    } finally {
+      internalConn.release();
     }
 
     driver = {
