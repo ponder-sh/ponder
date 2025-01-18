@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.29
+
+### Patch Changes
+
+- [#1451](https://github.com/ponder-sh/ponder/pull/1451) [`0cea2677997a24299e62a0dc040ce1f9ba4f4a47`](https://github.com/ponder-sh/ponder/commit/0cea2677997a24299e62a0dc040ce1f9ba4f4a47) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved reorg handling resilience.
+
 ## 0.8.28
 
 ### Patch Changes
