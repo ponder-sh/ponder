@@ -270,7 +270,14 @@ export const createDatabase = async ({
         `ALTER ROLE "${role}" SET statement_timeout TO '1s'`,
       );
       await internal.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
-      await internal.query(`ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`);
+
+      const isSuperuser = await internal
+        .query("SELECT rolsuper FROM pg_roles WHERE rolname=current_user;")
+        .then((res) => !!res.rows[0].rolsuper);
+      if (isSuperuser)
+        await internal.query(
+          `ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`,
+        );
     }
 
     driver = {
