@@ -19,7 +19,7 @@ import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
-import { Hono } from "hono";
+import type { Hono } from "hono";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -306,7 +306,8 @@ export const createBuild = async ({
 
       const app = executeResult.exports.default;
 
-      if (app instanceof Hono === false) {
+      // TODO: Consider a stricter validation here.
+      if (app.constructor.name !== "Hono") {
         const error = new BuildError(
           "API function file does not export a Hono instance as the default export. Read more: https://ponder-docs-git-v09-ponder-sh.vercel.app/docs/query/api-functions",
         );
