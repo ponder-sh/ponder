@@ -388,7 +388,7 @@ export const createHistoricalSync = async (
         )
       : undefined;
 
-    return { filter, interval, fromChildAddresses, toChildAddresses };
+    return { fromChildAddresses, toChildAddresses };
   };
 
   const resolveLogFilter = async (filter: LogFilter, interval: Interval) => {
@@ -482,68 +482,77 @@ export const createHistoricalSync = async (
 
       if (isKilled) return;
 
-      // Resolve logs by interval
-      const resolvedLogIntervals = await Promise.all(
-        intervalsToSync
-          .filter(({ filter }) => filter.type === "log")
-          .map(async ({ filter, interval }) => {
-            const logs = await resolveLogFilter(filter as LogFilter, interval);
-            return {
-              filter,
-              interval,
-              logs,
-            };
-          }),
-      );
-
-      if (isKilled) return;
-
-      // Resolve factory addresses by interval
-      const intervalsWithChildAddresses = await Promise.all(
-        intervalsToSync
-          .filter(
-            ({ filter }) =>
-              filter.type === "trace" ||
-              filter.type === "transaction" ||
-              filter.type === "transfer",
-          )
-          .map(({ filter, interval }) =>
-            resolveChildAddresses(
-              filter as TransactionFilter | TraceFilter | TransferFilter,
-              interval,
-            ),
-          ),
-      );
-
-      if (isKilled) return;
-
       // Collect the blockNumbers to sync
       const blocksToSync: Set<number> = new Set();
+      const resolvedLogIntervals: {
+        interval: Interval;
+        filter: Omit<LogFilter, "fromBlock" | "toBlock">;
+        logs: SyncLog[];
+      }[] = [];
 
-      // Get the required blocks to fetch from blockFilters
-      for (const { interval, filter } of intervalsToSync.filter(
-        ({ filter }) => filter.type === "block",
-      )) {
-        for (const block of resolveBlockFilter(
-          filter as BlockFilter,
-          interval,
-        )) {
-          blocksToSync.add(block);
-        }
-      }
-      // Get the required blocks to fetch from logFilters
-      for (const { logs } of resolvedLogIntervals) {
-        for (const { blockNumber } of logs) {
-          blocksToSync.add(hexToNumber(blockNumber));
-        }
-      }
+      const resolvedChildAddressIntervals: {
+        interval: Interval;
+        filter: Omit<
+          TraceFilter | TransactionFilter | TransferFilter,
+          "fromBlock" | "toBlock"
+        >;
+        fromChildAddresses: Set<Address> | undefined;
+        toChildAddresses: Set<Address> | undefined;
+      }[] = [];
 
-      // Get the required blocks to fetch from other filters
-      for (const { interval } of intervalsWithChildAddresses) {
-        for (const block of intervalRange(interval)) {
-          blocksToSync.add(block);
-        }
-      }
+      await Promise.all(
+        intervalsToSync.map(async ({ filter, interval }) => {
+          switch (filter.type) {
+            case "log": {
+              const logs = await resolveLogFilter(
+                filter as LogFilter,
+                interval,
+              );
+
+              for (const { blockNumber } of logs) {
+                blocksToSync.add(hexToNumber(blockNumber));
+              }
+
+              resolvedLogIntervals.push({
+                filter,
+                interval,
+                logs: await resolveLogFilter(filter as LogFilter, interval),
+              });
+
+              break;
+            }
+            case "trace":
+            case "transaction":
+            case "transfer": {
+              for (const blockNumber of intervalRange(interval)) {
+                blocksToSync.add(blockNumber);
+              }
+
+              resolvedChildAddressIntervals.push({
+                filter,
+                interval,
+                ...(await resolveChildAddresses(
+                  filter as TransactionFilter | TraceFilter | TransferFilter,
+                  interval,
+                )),
+              });
+              break;
+            }
+            case "block": {
+              const requiredBlocks = resolveBlockFilter(
+                filter as BlockFilter,
+                interval,
+              );
+
+              for (const blockNumber of requiredBlocks) {
+                blocksToSync.add(blockNumber);
+              }
+
+              break;
+            }
+          }
+        }),
+      );
 
       await Promise.all(
         [...blocksToSync].map(async (number) => {
@@ -562,15 +571,23 @@ export const createHistoricalSync = async (
               latestBlock = block;
             }
 
-            const transactionsCache = new Set<Hash>();
-            const transactionReceiptsCache = new Set<Hash>();
+            const requiredTransactions = new Set<Hash>();
+            const requiredTransactionReceipts = new Set<Hash>();
 
             const blockLogs = resolvedLogIntervals.flatMap(
-              ({ interval, logs, filter }) => {
+              ({ filter, interval, logs }) => {
                 if (interval[1] < number || interval[0] > number) return [];
 
-                return logs.filter((log) => {
-                  if (log.blockNumber !== toHex(number)) return false;
+                const filteredLogs: SyncLog[] = [];
+
+                let j = 0;
+                logs.forEach((log, i) => {
+                  if (log.blockNumber !== toHex(number)) {
+                    if (i !== j) logs[j] = log;
+                    j++;
+
+                    return;
+                  }
 
                   if (block.hash !== log.blockHash) {
                     throw new Error(
@@ -595,7 +612,7 @@ export const createHistoricalSync = async (
                     }
                   }
 
-                  transactionsCache.add(log.transactionHash);
+                  requiredTransactions.add(log.transactionHash);
 
                   if (shouldGetTransactionReceipt(filter)) {
                     if (log.transactionHash === zeroHash) {
@@ -604,12 +621,15 @@ export const createHistoricalSync = async (
                         msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
                       });
                     } else {
-                      transactionReceiptsCache.add(log.transactionHash);
+                      requiredTransactionReceipts.add(log.transactionHash);
                     }
                   }
 
-                  return true;
+                  filteredLogs.push(log);
                 });
+                logs.length = j;
+
+                return filteredLogs;
               },
             );
 
@@ -623,23 +643,18 @@ export const createHistoricalSync = async (
 
             if (isKilled) return;
 
-            const requiredIntervalsWithChildAddresses =
-              intervalsWithChildAddresses.filter(
+            const requiredChildAddressIntervals =
+              resolvedChildAddressIntervals.filter(
                 ({ interval }) =>
                   interval[0] <= number && interval[1] >= number,
               );
 
-            const traceIntervals = requiredIntervalsWithChildAddresses.filter(
+            const traceIntervals = requiredChildAddressIntervals.filter(
               ({ filter }) => filter.type === "trace",
             );
-            const transferIntervals =
-              requiredIntervalsWithChildAddresses.filter(
-                ({ filter }) => filter.type === "transfer",
-              );
-            const transactionIntervals =
-              requiredIntervalsWithChildAddresses.filter(
-                ({ filter }) => filter.type === "transaction",
-              );
+            const transferIntervals = requiredChildAddressIntervals.filter(
+              ({ filter }) => filter.type === "transfer",
+            );
 
             if (traceIntervals.length > 0 || transferIntervals.length > 0) {
               const traces = await _debug_traceBlockByHash(args.requestQueue, {
@@ -668,7 +683,7 @@ export const createHistoricalSync = async (
                     ) {
                       isMatched = true;
                       if (shouldGetTransactionReceipt(filter)) {
-                        transactionReceiptsCache.add(trace.transactionHash);
+                        requiredTransactionReceipts.add(trace.transactionHash);
                         return true;
                       }
                     }
@@ -690,7 +705,7 @@ export const createHistoricalSync = async (
                     ) {
                       isMatched = true;
                       if (shouldGetTransactionReceipt(filter)) {
-                        transactionReceiptsCache.add(trace.transactionHash);
+                        requiredTransactionReceipts.add(trace.transactionHash);
                         return true;
                       }
                     }
@@ -709,7 +724,7 @@ export const createHistoricalSync = async (
                     );
                   }
 
-                  transactionsCache.add(transaction.hash);
+                  requiredTransactions.add(transaction.hash);
 
                   return { trace, transaction, block };
                 });
@@ -722,11 +737,15 @@ export const createHistoricalSync = async (
               });
             }
 
+            const transactionIntervals = requiredChildAddressIntervals.filter(
+              ({ filter }) => filter.type === "transaction",
+            );
+
             if (transactionIntervals.length > 0) {
               block.transactions.map((transaction) => {
                 if (
-                  transactionsCache.has(transaction.hash) &&
-                  transactionReceiptsCache.has(transaction.hash)
+                  requiredTransactions.has(transaction.hash) &&
+                  requiredTransactionReceipts.has(transaction.hash)
                 )
                   return;
 
@@ -742,8 +761,8 @@ export const createHistoricalSync = async (
                       }),
                   )
                 ) {
-                  transactionsCache.add(transaction.hash);
-                  transactionReceiptsCache.add(transaction.hash);
+                  requiredTransactions.add(transaction.hash);
+                  requiredTransactionReceipts.add(transaction.hash);
                 }
               });
             }
@@ -752,11 +771,12 @@ export const createHistoricalSync = async (
 
             const transactionReceipts = await getTransactionReceipts(
               block.hash,
-              transactionReceiptsCache,
+              requiredTransactionReceipts,
             );
 
             if (isKilled) return;
 
+            // Insert the block, required transactions and transaction receipts into syncStore
             await Promise.all([
               args.syncStore.insertBlocks({
                 blocks: [block],
@@ -764,7 +784,7 @@ export const createHistoricalSync = async (
               }),
               args.syncStore.insertTransactions({
                 transactions: block.transactions
-                  .filter(({ hash }) => transactionsCache.has(hash))
+                  .filter(({ hash }) => requiredTransactions.has(hash))
                   .map((transaction) => ({
                     transaction,
                     block,
