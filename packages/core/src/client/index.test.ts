@@ -58,3 +58,35 @@ test("client.db error", async (context) => {
 
   await cleanup();
 });
+
+test("client.db recursive", async (context) => {
+  const account = onchainTable("account", (p) => ({
+    address: p.hex().primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schema: { account },
+  });
+  globalThis.PONDER_DATABASE = database;
+
+  const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
+
+  const query = {
+    sql: `
+WITH RECURSIVE infinite_cte AS (
+  SELECT 1 AS num
+  UNION ALL
+  SELECT num + 1
+  FROM infinite_cte
+)
+SELECT *
+FROM infinite_cte;`,
+    params: [],
+  };
+
+  const response = await app.request(`/client/db?${queryToParams(query)}`);
+  expect(response.status).toBe(400);
+
+  await cleanup();
+});

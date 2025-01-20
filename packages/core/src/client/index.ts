@@ -76,6 +76,10 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       }
       const query = JSON.parse(queryString) as QueryWithTypings;
 
+      if (query.sql.match(/\brecursive\b/i)) {
+        return c.text("Recursive queries are not allowed", 400);
+      }
+
       try {
         const result = await session
           .prepareQuery(query, undefined, undefined, false)
