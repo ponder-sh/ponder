@@ -12,11 +12,11 @@ import type { SyncStore } from "@/sync-store/index.js";
 import type { LightBlock, SyncBlock } from "@/types/sync.js";
 import {
   type Checkpoint,
+  MAX_CHECKPOINT,
+  ZERO_CHECKPOINT,
   decodeCheckpoint,
   encodeCheckpoint,
-  maxCheckpoint,
   min,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
@@ -91,7 +91,7 @@ export const blockToCheckpoint = (
   rounding: "up" | "down",
 ): Checkpoint => {
   return {
-    ...(rounding === "up" ? maxCheckpoint : zeroCheckpoint),
+    ...(rounding === "up" ? MAX_CHECKPOINT : ZERO_CHECKPOINT),
     blockTimestamp: hexToNumber(block.timestamp),
     chainId: BigInt(chainId),
     blockNumber: hexToBigInt(block.number),
@@ -147,7 +147,7 @@ export const splitEvents = (
     if (prevHash === undefined || prevHash !== event.block.hash) {
       result.push({
         checkpoint: encodeCheckpoint({
-          ...maxCheckpoint,
+          ...MAX_CHECKPOINT,
           blockTimestamp: Number(event.block.timestamp),
           chainId: BigInt(event.chainId),
           blockNumber: event.block.number,
@@ -400,10 +400,10 @@ export async function* getLocalEventGenerator(params: {
     let consecutiveErrors = 0;
     while (cursor < min(syncCheckpoint, params.to)) {
       const estimateCheckpoint = encodeCheckpoint({
-        ...zeroCheckpoint,
+        ...ZERO_CHECKPOINT,
         blockTimestamp: Math.min(
           decodeCheckpoint(cursor).blockTimestamp + estimateSeconds,
-          maxCheckpoint.blockTimestamp,
+          MAX_CHECKPOINT.blockTimestamp,
         ),
       });
       const to = min(syncCheckpoint, estimateCheckpoint, params.to);
@@ -677,7 +677,7 @@ export const getLocalSyncProgress = async ({
       number: toHex(end),
       hash: "0x",
       parentHash: "0x",
-      timestamp: toHex(maxCheckpoint.blockTimestamp),
+      timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
     syncProgress.end = await _eth_getBlockByNumber(requestQueue, {

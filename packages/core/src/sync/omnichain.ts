@@ -12,10 +12,10 @@ import {
 } from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   encodeCheckpoint,
   min,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { bufferAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
@@ -183,8 +183,8 @@ export const createSyncOmnichain = async (params: {
     realtimeSync: RealtimeSync;
   }) => {
     const checkpoints = {
-      current: encodeCheckpoint(zeroCheckpoint),
-      finalized: encodeCheckpoint(zeroCheckpoint),
+      current: ZERO_CHECKPOINT_STRING,
+      finalized: ZERO_CHECKPOINT_STRING,
     };
 
     const latencyTimers = new Map<string, () => number>();
@@ -467,7 +467,7 @@ export const createSyncOmnichain = async (params: {
           sources,
           localSyncGenerator,
           from:
-            params.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
+            params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
               ? params.initialCheckpoint
               : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
           to,

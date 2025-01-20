@@ -5,10 +5,9 @@ import { createRealtimeSync } from "@/sync-realtime/index.js";
 import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
   min,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { bufferAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
@@ -132,7 +131,7 @@ export const createSyncMultichain = async (params: {
       sources: params.sources,
       localSyncGenerator,
       from:
-        params.initialCheckpoint !== encodeCheckpoint(zeroCheckpoint)
+        params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
           ? params.initialCheckpoint
           : getMultichainCheckpoint("start")!,
       to,

@@ -17,9 +17,9 @@ import { cachedTransport } from "@/sync/transport.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import {
+  ZERO_CHECKPOINT,
   decodeCheckpoint,
   encodeCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -217,7 +217,7 @@ export const processSetupEvents = async (
           type: "setup",
           chainId: network.chainId,
           checkpoint: encodeCheckpoint({
-            ...zeroCheckpoint,
+            ...ZERO_CHECKPOINT,
             chainId: BigInt(network.chainId),
             blockNumber: BigInt(source.filter.fromBlock ?? 0),
           }),

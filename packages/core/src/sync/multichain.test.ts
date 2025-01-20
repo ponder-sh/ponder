@@ -12,10 +12,9 @@ import {
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { RawEvent } from "@/internal/types.js";
 import {
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -48,7 +47,7 @@ test("createSyncMultichain()", async (context) => {
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   expect(sync).toBeDefined();
@@ -84,7 +83,7 @@ test("getEvents()", async (context) => {
     requestQueue: createRequestQueue({ network, common: context.common }),
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
@@ -126,7 +125,7 @@ test("getEvents() updates status", async (context) => {
     requestQueue: createRequestQueue({ network, common: context.common }),
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -168,7 +167,7 @@ test("getEvents() with initial checkpoint", async (context) => {
     requestQueue: createRequestQueue({ network, common: context.common }),
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(maxCheckpoint),
+    initialCheckpoint: MAX_CHECKPOINT_STRING,
   });
 
   const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
@@ -207,7 +206,7 @@ test("startRealtime()", async (context) => {
     requestQueue: createRequestQueue({ network, common: context.common }),
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -256,7 +255,7 @@ test("onEvent() handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -306,7 +305,7 @@ test("onEvent() handles finalize", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await testClient.mine({ blocks: 4 });
@@ -354,7 +353,7 @@ test("onEvent() handles errors", async (context) => {
     onFatalError: () => {
       promise.resolve();
     },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await testClient.mine({ blocks: 4 });

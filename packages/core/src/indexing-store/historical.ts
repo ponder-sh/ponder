@@ -13,7 +13,7 @@ import {
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
 import {
@@ -302,7 +302,7 @@ export const createHistoricalIndexingStore = ({
     return size;
   };
 
-  let isDatabaseEmpty = initialCheckpoint === encodeCheckpoint(zeroCheckpoint);
+  let isDatabaseEmpty = initialCheckpoint === ZERO_CHECKPOINT_STRING;
   /** Estimated number of bytes used by cache. */
   let cacheBytes = 0;
   /** LRU counter. */

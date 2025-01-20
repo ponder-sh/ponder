@@ -12,7 +12,7 @@ import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFuncti
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { RawEvent } from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
@@ -194,7 +194,7 @@ test("processEvent()", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -288,7 +288,7 @@ test("processEvents killed", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -352,7 +352,7 @@ test("processEvents eventCount", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -590,7 +590,7 @@ test("processEvents() context.client", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -662,7 +662,7 @@ test("processEvents() context.db", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -724,7 +724,7 @@ test("processEvents() metrics", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -788,7 +788,7 @@ test("processEvents() error", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -856,7 +856,7 @@ test("execute() error after killed", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {

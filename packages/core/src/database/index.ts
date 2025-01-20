@@ -15,10 +15,9 @@ import {
 } from "@/sync-store/migrations.js";
 import type { Drizzle } from "@/types/db.js";
 import {
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool } from "@/utils/pg.js";
@@ -31,6 +30,7 @@ import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import {
+  type ColumnType,
   Kysely,
   Migrator,
   PostgresDialect,
@@ -64,15 +64,24 @@ export type Database = {
    * @returns The progress checkpoint that that app should start from.
    */
   prepareNamespace(args: Pick<IndexingBuild, "buildId">): Promise<{
-    checkpoint: string;
+    checkpoints: { chainId: number; checkpoint: string }[];
   }>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
-  // TODO(kyle) multichain option
-  revert(args: { checkpoint: string }): Promise<void>;
-  finalize(args: { checkpoint: string }): Promise<void>;
-  complete(args: { checkpoint: string }): Promise<void>;
+  revert(args: {
+    /** If defined, revert the checkpoint for this chainId, otherwise revert all chains. */
+    chainId: number | undefined;
+    /** The checkpoint to revert to. */
+    checkpoint: string;
+  }): Promise<void>;
+  finalize(args: {
+    checkpoints: { chainId: number; checkpoint: string }[];
+  }): Promise<void>;
+  complete(args: {
+    chainId: number;
+    checkpoint: string;
+  }): Promise<void>;
   unlock(): Promise<void>;
   kill(): Promise<void>;
 };
@@ -82,14 +91,15 @@ export type PonderApp = {
   is_dev: 0 | 1;
   heartbeat_at: number;
   build_id: string;
-  checkpoint: string;
+  // TODO(kyle) checkpoint === zero vs not in array
+  checkpoints: { chainId: number; checkpoint: string }[];
   table_names: string[];
 };
 
 export type PonderInternalSchema = {
   _ponder_meta: { key: "app"; value: PonderApp };
   _ponder_status: {
-    chain_id: number;
+    chain_id: ColumnType<string, string | number, string | number>;
     block_number: number | null;
     block_timestamp: number | null;
     ready: boolean;
@@ -99,8 +109,9 @@ export type PonderInternalSchema = {
 } & {
   [_: ReturnType<typeof getTableNames>[number]["reorg"]]: unknown & {
     operation_id: number;
-    checkpoint: string;
     operation: 0 | 1 | 2;
+    checkpoint: string;
+    chain_id: ColumnType<string, string | number, string | number>;
   };
 };
 
@@ -403,20 +414,17 @@ export const createDatabase = async ({
   // Helpers
   ////////
 
-  /**
-   * Undo operations in user tables by using the "reorg" tables.
-   *
-   * Note: "reorg" tables may contain operations that have not been applied to the
-   *       underlying tables, but only be 1 operation at most.
-   */
+  /** Undo operations in user tables by using the "reorg" tables. */
   const revert = async ({
+    tx,
     tableName,
     checkpoint,
-    tx,
+    chainId,
   }: {
-    tableName: ReturnType<typeof getTableNames>[number];
-    checkpoint: string;
     tx: Transaction<PonderInternalSchema>;
+    tableName: ReturnType<typeof getTableNames>[number];
+    chainId: number | undefined;
+    checkpoint: string;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
       schemaBuild.schema[tableName.js] as PgTable,
@@ -426,6 +434,9 @@ export const createDatabase = async ({
       .deleteFrom(tableName.reorg)
       .returningAll()
       .where("checkpoint", ">", checkpoint)
+      .$if(chainId !== undefined, (qb) =>
+        qb.where("chain_id", "=", String(chainId)),
+      )
       .execute();
 
     const reversed = rows.sort((a, b) => b.operation_id - a.operation_id);
@@ -454,6 +465,8 @@ export const createDatabase = async ({
         log.checkpoint = undefined;
         // @ts-ignore
         log.operation = undefined;
+        // @ts-ignore
+        log.chain_id = undefined;
         await tx
           // @ts-ignore
           .updateTable(tableName.sql)
@@ -475,6 +488,8 @@ export const createDatabase = async ({
         log.checkpoint = undefined;
         // @ts-ignore
         log.operation = undefined;
+        // @ts-ignore
+        log.chain_id = undefined;
         await tx
           // @ts-ignore
           .insertInto(tableName.sql)
@@ -779,6 +794,8 @@ export const createDatabase = async ({
           .execute();
       }
 
+      // TODO(kyle) convert to multichain checkpoint
+
       await this.wrap({ method: "setup" }, async () => {
         // Create "_ponder_meta" table if it doesn't exist
         await qb.internal.schema
@@ -804,7 +821,7 @@ export const createDatabase = async ({
               is_dev: common.options.command === "dev" ? 1 : 0,
               heartbeat_at: Date.now(),
               build_id: buildId,
-              checkpoint: encodeCheckpoint(zeroCheckpoint),
+              checkpoints: [] as PonderApp["checkpoints"],
               table_names: getTableNames(schemaBuild.schema).map(
                 (tableName) => tableName.sql,
               ),
@@ -893,7 +910,7 @@ export const createDatabase = async ({
 
               return {
                 status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
+                checkpoints: [] as PonderApp["checkpoints"],
               } as const;
             }
 
@@ -903,7 +920,9 @@ export const createDatabase = async ({
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
                 previousApp.build_id !== newApp.build_id) ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint))
+                previousApp.checkpoints.every(
+                  ({ checkpoint }) => checkpoint === ZERO_CHECKPOINT_STRING,
+                ))
             ) {
               await tx
                 .updateTable("_ponder_status")
@@ -932,7 +951,7 @@ export const createDatabase = async ({
 
               return {
                 status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
+                checkpoints: [] as PonderApp["checkpoints"],
               } as const;
             }
 
@@ -966,7 +985,11 @@ export const createDatabase = async ({
 
             // Crash recovery is possible, recover
 
-            if (previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)) {
+            if (
+              previousApp.checkpoints.every(
+                ({ checkpoint }) => checkpoint === ZERO_CHECKPOINT_STRING,
+              )
+            ) {
               await tx
                 .updateTable("_ponder_status")
                 .set({
@@ -994,12 +1017,12 @@ export const createDatabase = async ({
 
               return {
                 status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
+                checkpoints: [] as PonderApp["checkpoints"],
               } as const;
             }
 
-            const checkpoint = previousApp.checkpoint;
-            newApp.checkpoint = checkpoint;
+            const checkpoints = previousApp.checkpoints;
+            newApp.checkpoints = checkpoints;
 
             await tx
               .updateTable("_ponder_status")
@@ -1042,26 +1065,27 @@ export const createDatabase = async ({
 
             // Revert unfinalized data
 
-            const { blockTimestamp, chainId, blockNumber } =
-              decodeCheckpoint(checkpoint);
+            for (const checkpoint of checkpoints) {
+              const { blockTimestamp, blockNumber } = decodeCheckpoint(
+                checkpoint.checkpoint,
+              );
 
-            common.logger.info({
-              service: "database",
-              msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
-            });
-
-            for (const tableName of getTableNames(schemaBuild.schema)) {
-              await revert({
-                tableName,
-                checkpoint,
-                tx,
+              common.logger.info({
+                service: "database",
+                msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${checkpoint.chainId} block=${blockNumber})`,
               });
+
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await revert({
+                  tableName,
+                  checkpoint: checkpoint.checkpoint,
+                  chainId: checkpoint.chainId,
+                  tx,
+                });
+              }
             }
 
-            return {
-              status: "success",
-              checkpoint,
-            } as const;
+            return { status: "success", checkpoints } as const;
           }),
         );
 
@@ -1117,7 +1141,7 @@ export const createDatabase = async ({
         }
       }, common.options.databaseHeartbeatInterval);
 
-      return { checkpoint: result.checkpoint };
+      return { checkpoints: result.checkpoints };
     },
     async createIndexes() {
       for (const statement of schemaBuild.statements.indexes.sql) {
@@ -1141,14 +1165,14 @@ CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint, chain_id)
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}', 0);
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint, chain_id)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}', 0);
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint, chain_id)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}', 0);
   END IF;
   RETURN NULL;
 END;
@@ -1177,56 +1201,79 @@ $$ LANGUAGE plpgsql
         }
       });
     },
-    async revert({ checkpoint }) {
+    async revert({ chainId, checkpoint }) {
       await this.wrap({ method: "revert" }, () =>
         Promise.all(
           getTableNames(schemaBuild.schema).map((tableName) =>
-            qb.internal.transaction().execute((tx) =>
-              revert({
-                tableName,
-                checkpoint,
-                tx,
-              }),
-            ),
+            qb.internal
+              .transaction()
+              .execute((tx) => revert({ tx, tableName, chainId, checkpoint })),
           ),
         ),
       );
     },
-    async finalize({ checkpoint }) {
+    async finalize({ checkpoints }) {
       await this.wrap({ method: "finalize" }, async () => {
+        const app = await qb.internal
+          .selectFrom("_ponder_meta")
+          .select("value")
+          .where("key", "=", "app")
+          .executeTakeFirstOrThrow()
+          .then(({ value }) => value);
+
+        for (const checkpoint of checkpoints) {
+          app.checkpoints = app.checkpoints.filter(
+            ({ chainId }) => chainId !== checkpoint.chainId,
+          );
+          app.checkpoints.push(checkpoint);
+        }
+
         await qb.internal
           .updateTable("_ponder_meta")
           .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
-          })
+          .set({ value: app })
           .execute();
 
         await Promise.all(
           getTableNames(schemaBuild.schema).map((tableName) =>
             qb.internal
               .deleteFrom(tableName.reorg)
-              .where("checkpoint", "<=", checkpoint)
+              .where((eb) => {
+                return eb.or(
+                  checkpoints.map((checkpoint) =>
+                    eb.and([
+                      eb("checkpoint", "<=", checkpoint.checkpoint),
+                      eb(
+                        sql.raw("substring(checkpoint from 11 for 16)"),
+                        "=",
+                        sql.raw(`lpad(${checkpoint.chainId}::text, 16, '0')`),
+                      ),
+                    ]),
+                  ),
+                );
+              })
               .execute(),
           ),
         );
       });
 
-      const decoded = decodeCheckpoint(checkpoint);
+      for (const checkpoint of checkpoints) {
+        const decoded = decodeCheckpoint(checkpoint.checkpoint);
 
-      common.logger.debug({
-        service: "database",
-        msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
-      });
+        common.logger.debug({
+          service: "database",
+          msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
+        });
+      }
     },
-    async complete({ checkpoint }) {
+    async complete({ chainId, checkpoint }) {
       await Promise.all(
         getTableNames(schemaBuild.schema).map((tableName) =>
           this.wrap({ method: "complete" }, async () => {
             await qb.internal
               .updateTable(tableName.reorg)
-              .set({ checkpoint })
-              .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
+              .set({ checkpoint, chain_id: chainId })
+              .where("checkpoint", "=", MAX_CHECKPOINT_STRING)
               .execute();
           }),
         ),

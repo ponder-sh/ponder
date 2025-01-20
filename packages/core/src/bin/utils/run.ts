@@ -17,11 +17,7 @@ import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, splitEvents } from "@/sync/index.js";
 import { createSyncMultichain } from "@/sync/multichain.js";
 import { createSyncOmnichain } from "@/sync/omnichain.js";
-import {
-  decodeCheckpoint,
-  encodeCheckpoint,
-  zeroCheckpoint,
-} from "@/utils/checkpoint.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
@@ -78,7 +74,7 @@ export async function run({
             return realtimeQueue.add(realtimeEvent);
           },
           onFatalError,
-          initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+          initialCheckpoint: ZERO_CHECKPOINT_STRING,
         }),
       ),
     );
@@ -167,7 +163,7 @@ export async function run({
 
     const start = async () => {
       // If the initial checkpoint is zero, we need to run setup events.
-      if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
+      if (ZERO_CHECKPOINT_STRING === initialCheckpoint) {
         const result = await indexingService.processSetupEvents(indexingBuild);
         if (result.status === "killed") return;
         else if (result.status === "error") {
@@ -251,11 +247,11 @@ export async function run({
               }
 
               await database.finalize({
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
+                checkpoint: ZERO_CHECKPOINT_STRING,
               });
               await historicalIndexingStore.flush();
               await database.complete({
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
+                checkpoint: ZERO_CHECKPOINT_STRING,
               });
               await database.finalize({
                 checkpoint: events[events.length - 1]!.checkpoint,
@@ -284,11 +280,11 @@ export async function run({
           });
 
           await database.finalize({
-            checkpoint: encodeCheckpoint(zeroCheckpoint),
+            checkpoint: ZERO_CHECKPOINT_STRING,
           });
           await historicalIndexingStore.flush();
           await database.complete({
-            checkpoint: encodeCheckpoint(zeroCheckpoint),
+            checkpoint: ZERO_CHECKPOINT_STRING,
           });
           await database.finalize({
             checkpoint: sync.getFinalizedCheckpoint(),
@@ -426,7 +422,7 @@ export async function run({
 
     const start = async () => {
       // If the initial checkpoint is zero, we need to run setup events.
-      if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
+      if (ZERO_CHECKPOINT_STRING === initialCheckpoint) {
         const result = await indexingService.processSetupEvents({
           sources: indexingBuild.sources,
           networks: indexingBuild.networks,
@@ -507,11 +503,11 @@ export async function run({
           }
 
           await database.finalize({
-            checkpoint: encodeCheckpoint(zeroCheckpoint),
+            checkpoint: ZERO_CHECKPOINT_STRING,
           });
           await historicalIndexingStore.flush();
           await database.complete({
-            checkpoint: encodeCheckpoint(zeroCheckpoint),
+            checkpoint: ZERO_CHECKPOINT_STRING,
           });
           await database.finalize({
             checkpoint: events[events.length - 1]!.checkpoint,
@@ -539,9 +535,13 @@ export async function run({
         msg: "Completed all historical events, starting final flush",
       });
 
-      await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
+      await database.finalize({
+        checkpoint: ZERO_CHECKPOINT_STRING,
+      });
       await historicalIndexingStore.flush();
-      await database.complete({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
+      await database.complete({
+        checkpoint: ZERO_CHECKPOINT_STRING,
+      });
       await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
       // Manually update metrics to fix a UI bug that occurs when the end

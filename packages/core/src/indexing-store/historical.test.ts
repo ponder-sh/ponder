@@ -9,7 +9,7 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
@@ -33,7 +33,7 @@ test("find", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     database,
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // empty
@@ -73,7 +73,7 @@ test("insert", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // single
@@ -220,7 +220,7 @@ test("update", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // setup
@@ -286,7 +286,7 @@ test("delete", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // no entry
@@ -334,7 +334,7 @@ test("flush", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // insert
@@ -391,7 +391,7 @@ test("sql", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // setup
@@ -469,7 +469,7 @@ test("sql followed by find", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await indexingStore.sql
@@ -502,7 +502,7 @@ test("onchain table", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // check error
@@ -531,7 +531,7 @@ test("missing rows", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // error
@@ -561,7 +561,7 @@ test("notNull", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // insert
@@ -588,7 +588,7 @@ test("notNull", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   let error = await indexingStore
@@ -622,7 +622,7 @@ test("default", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -650,7 +650,7 @@ test("$default", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -681,7 +681,7 @@ test("$onUpdateFn", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   // insert
@@ -715,7 +715,7 @@ test("array", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await indexingStore.insert(schema.account).values({
@@ -753,7 +753,7 @@ test("enum", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await indexingStore.insert(schema.account).values({
@@ -789,7 +789,7 @@ test("json bigint", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   const error = await indexingStore
