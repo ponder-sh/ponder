@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.30
+
+### Patch Changes
+
+- [#1454](https://github.com/ponder-sh/ponder/pull/1454) [`14959005f40bd7bff4e7a91df16f1bf4565e9e30`](https://github.com/ponder-sh/ponder/commit/14959005f40bd7bff4e7a91df16f1bf4565e9e30) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with schema awareness when two ponder apps are in the same database.
+
 ## 0.8.29
 
 ### Patch Changes
