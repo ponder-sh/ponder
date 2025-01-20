@@ -24,7 +24,7 @@ import {
   processEvents,
   processSetupEvents,
   setIndexingStore,
-} from "./service.js";
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);

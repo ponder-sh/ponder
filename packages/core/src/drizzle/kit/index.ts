@@ -367,7 +367,7 @@ class PgCreateTableConvertor extends Convertor {
     let statement = "";
     const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
 
-    statement += `CREATE TABLE ${name} (\n`;
+    statement += `CREATE UNLOGGED TABLE ${name} (\n`;
     for (let i = 0; i < columns.length; i++) {
       const column = columns[i];
 

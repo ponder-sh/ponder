@@ -486,6 +486,9 @@ export const createDatabase = ({
         msg: `Using database schema '${preBuild.namespace}'`,
       });
 
+      // @ts-ignore
+      await driver.user.query("SET synchronous_commit = off");
+
       ////////
       // Migrate
       ////////
