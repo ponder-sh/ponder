@@ -10,7 +10,6 @@ import {
   type PgSequence,
   PgTable,
   PgView,
-  bigint,
   getTableConfig,
   integer,
   isPgEnum,
@@ -115,7 +114,6 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
             checkpoint: varchar({
               length: 75,
             }).notNull(),
-            chain_id: bigint({ mode: "number" }).notNull(),
           }),
         ],
         [],

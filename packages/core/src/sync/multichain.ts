@@ -185,6 +185,7 @@ export const createSyncMultichain = async (params: {
             checkpoint,
             status: structuredClone(status),
             events,
+            network: params.network,
           })
           .then(() => {
             if (events.length > 0 && isKilled === false) {
@@ -208,14 +209,22 @@ export const createSyncMultichain = async (params: {
 
       case "finalize": {
         const checkpoint = getMultichainCheckpoint("finalized")!;
-        params.onRealtimeEvent({ type: "finalize", checkpoint });
+        params.onRealtimeEvent({
+          type: "finalize",
+          checkpoint,
+          network: params.network,
+        });
         break;
       }
 
       case "reorg": {
         // Note: this checkpoint is <= the previous checkpoint
         const checkpoint = getMultichainCheckpoint("current")!;
-        params.onRealtimeEvent({ type: "reorg", checkpoint });
+        params.onRealtimeEvent({
+          type: "reorg",
+          checkpoint,
+          network: params.network,
+        });
         break;
       }
 

@@ -78,10 +78,7 @@ export type Database = {
   finalize(args: {
     checkpoints: { chainId: number; checkpoint: string }[];
   }): Promise<void>;
-  complete(args: {
-    chainId: number;
-    checkpoint: string;
-  }): Promise<void>;
+  complete(args: { checkpoint: string }): Promise<void>;
   unlock(): Promise<void>;
   kill(): Promise<void>;
 };
@@ -111,7 +108,6 @@ export type PonderInternalSchema = {
     operation_id: number;
     operation: 0 | 1 | 2;
     checkpoint: string;
-    chain_id: ColumnType<string, string | number, string | number>;
   };
 };
 
@@ -435,7 +431,13 @@ export const createDatabase = async ({
       .returningAll()
       .where("checkpoint", ">", checkpoint)
       .$if(chainId !== undefined, (qb) =>
-        qb.where("chain_id", "=", String(chainId)),
+        qb.where(
+          sql.raw("substring(checkpoint from 11 for 16)"),
+          "=",
+          sql.raw(
+            `lpad(${decodeCheckpoint(checkpoint).chainId}::text, 16, '0')`,
+          ),
+        ),
       )
       .execute();
 
@@ -465,8 +467,6 @@ export const createDatabase = async ({
         log.checkpoint = undefined;
         // @ts-ignore
         log.operation = undefined;
-        // @ts-ignore
-        log.chain_id = undefined;
         await tx
           // @ts-ignore
           .updateTable(tableName.sql)
@@ -488,8 +488,6 @@ export const createDatabase = async ({
         log.checkpoint = undefined;
         // @ts-ignore
         log.operation = undefined;
-        // @ts-ignore
-        log.chain_id = undefined;
         await tx
           // @ts-ignore
           .insertInto(tableName.sql)
@@ -1165,14 +1163,14 @@ CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint, chain_id)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}', 0);
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint, chain_id)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}', 0);
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint, chain_id)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}', 0);
+    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
 END;
@@ -1266,13 +1264,13 @@ $$ LANGUAGE plpgsql
         });
       }
     },
-    async complete({ chainId, checkpoint }) {
+    async complete({ checkpoint }) {
       await Promise.all(
         getTableNames(schemaBuild.schema).map((tableName) =>
           this.wrap({ method: "complete" }, async () => {
             await qb.internal
               .updateTable(tableName.reorg)
-              .set({ checkpoint, chain_id: chainId })
+              .set({ checkpoint })
               .where("checkpoint", "=", MAX_CHECKPOINT_STRING)
               .execute();
           }),

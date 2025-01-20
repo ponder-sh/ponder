@@ -17,7 +17,11 @@ import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, splitEvents } from "@/sync/index.js";
 import { createSyncMultichain } from "@/sync/multichain.js";
 import { createSyncOmnichain } from "@/sync/omnichain.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  ZERO_CHECKPOINT_STRING,
+  decodeCheckpoint,
+  min,
+} from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
@@ -48,7 +52,7 @@ export async function run({
     createRequestQueue({ network, common }),
   );
 
-  const { checkpoint: initialCheckpoint } =
+  const { checkpoints: initialCheckpoints } =
     await database.prepareNamespace(indexingBuild);
   const syncStore = createSyncStore({ common, database });
   const metadataStore = getMetadataStore({ database });
@@ -90,7 +94,7 @@ export async function run({
       common,
       schemaBuild,
       database,
-      initialCheckpoint,
+      isDatabaseEmpty: initialCheckpoints.length === 0,
     });
 
     indexingService.setIndexingStore(historicalIndexingStore);
@@ -146,13 +150,23 @@ export async function run({
           }
           case "reorg":
             await database.removeTriggers();
-            await database.revert({ checkpoint: event.checkpoint });
+            await database.revert({
+              chainId: event.network.chainId,
+              checkpoint: event.checkpoint,
+            });
             await database.createTriggers();
 
             break;
 
           case "finalize":
-            await database.finalize({ checkpoint: event.checkpoint });
+            await database.finalize({
+              checkpoints: [
+                {
+                  chainId: event.network.chainId,
+                  checkpoint: event.checkpoint,
+                },
+              ],
+            });
             break;
 
           default:
@@ -163,7 +177,7 @@ export async function run({
 
     const start = async () => {
       // If the initial checkpoint is zero, we need to run setup events.
-      if (ZERO_CHECKPOINT_STRING === initialCheckpoint) {
+      if (initialCheckpoints.length === 0) {
         const result = await indexingService.processSetupEvents(indexingBuild);
         if (result.status === "killed") return;
         else if (result.status === "error") {
@@ -173,7 +187,8 @@ export async function run({
       }
 
       await Promise.all(
-        perNetworkSync.map(async (sync) => {
+        perNetworkSync.map(async (sync, index) => {
+          const network = indexingBuild.networks[index]!;
           let lastFlush = Date.now();
 
           // Run historical indexing until complete.
@@ -247,14 +262,20 @@ export async function run({
               }
 
               await database.finalize({
-                checkpoint: ZERO_CHECKPOINT_STRING,
+                // TODO(kyle) fix
+                checkpoints: [],
               });
               await historicalIndexingStore.flush();
               await database.complete({
                 checkpoint: ZERO_CHECKPOINT_STRING,
               });
               await database.finalize({
-                checkpoint: events[events.length - 1]!.checkpoint,
+                checkpoints: [
+                  {
+                    chainId: network.chainId,
+                    checkpoint: events[events.length - 1]!.checkpoint,
+                  },
+                ],
               });
               lastFlush = Date.now();
 
@@ -280,14 +301,20 @@ export async function run({
           });
 
           await database.finalize({
-            checkpoint: ZERO_CHECKPOINT_STRING,
+            // TODO(kyle) fix
+            checkpoints: [],
           });
           await historicalIndexingStore.flush();
           await database.complete({
             checkpoint: ZERO_CHECKPOINT_STRING,
           });
           await database.finalize({
-            checkpoint: sync.getFinalizedCheckpoint(),
+            checkpoints: [
+              {
+                chainId: network.chainId,
+                checkpoint: sync.getFinalizedCheckpoint(),
+              },
+            ],
           });
 
           // Manually update metrics to fix a UI bug that occurs when the end
@@ -350,7 +377,7 @@ export async function run({
         return realtimeQueue.add(realtimeEvent);
       },
       onFatalError,
-      initialCheckpoint,
+      initialCheckpoint: min(...initialCheckpoints.map((c) => c.checkpoint)),
     });
 
     const indexingService = createIndexingService({
@@ -364,7 +391,7 @@ export async function run({
       common,
       schemaBuild,
       database,
-      initialCheckpoint,
+      isDatabaseEmpty: initialCheckpoints.length === 0,
     });
 
     indexingService.setIndexingStore(historicalIndexingStore);
@@ -405,13 +432,21 @@ export async function run({
           }
           case "reorg":
             await database.removeTriggers();
-            await database.revert({ checkpoint: event.checkpoint });
+            await database.revert({
+              chainId: undefined,
+              checkpoint: event.checkpoint,
+            });
             await database.createTriggers();
 
             break;
 
           case "finalize":
-            await database.finalize({ checkpoint: event.checkpoint });
+            await database.finalize({
+              checkpoints: indexingBuild.networks.map((network) => ({
+                chainId: network.chainId,
+                checkpoint: event.checkpoint,
+              })),
+            });
             break;
 
           default:
@@ -422,7 +457,7 @@ export async function run({
 
     const start = async () => {
       // If the initial checkpoint is zero, we need to run setup events.
-      if (ZERO_CHECKPOINT_STRING === initialCheckpoint) {
+      if (initialCheckpoints.length === 0) {
         const result = await indexingService.processSetupEvents({
           sources: indexingBuild.sources,
           networks: indexingBuild.networks,
@@ -503,14 +538,17 @@ export async function run({
           }
 
           await database.finalize({
-            checkpoint: ZERO_CHECKPOINT_STRING,
+            checkpoints: [],
           });
           await historicalIndexingStore.flush();
           await database.complete({
             checkpoint: ZERO_CHECKPOINT_STRING,
           });
           await database.finalize({
-            checkpoint: events[events.length - 1]!.checkpoint,
+            checkpoints: indexingBuild.networks.map((network) => ({
+              chainId: network.chainId,
+              checkpoint: events[events.length - 1]!.checkpoint,
+            })),
           });
           lastFlush = Date.now();
 
@@ -536,13 +574,18 @@ export async function run({
       });
 
       await database.finalize({
-        checkpoint: ZERO_CHECKPOINT_STRING,
+        checkpoints: [],
       });
       await historicalIndexingStore.flush();
       await database.complete({
         checkpoint: ZERO_CHECKPOINT_STRING,
       });
-      await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
+      await database.finalize({
+        checkpoints: indexingBuild.networks.map((network) => ({
+          chainId: network.chainId,
+          checkpoint: sync.getFinalizedCheckpoint(),
+        })),
+      });
 
       // Manually update metrics to fix a UI bug that occurs when the end
       // checkpoint is between the last processed event and the finalized

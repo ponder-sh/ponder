@@ -426,7 +426,6 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
   });
 
@@ -435,7 +434,6 @@ test("prepareNamespace() with crash recovery reverts rows", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
   });
 
@@ -629,7 +627,6 @@ test("finalize()", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
   });
 
@@ -642,7 +639,6 @@ test("finalize()", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
   });
 
@@ -800,7 +796,6 @@ test("createTriggers()", async (context) => {
       operation: 0,
       operation_id: 1,
       checkpoint: MAX_CHECKPOINT_STRING,
-      chain_id: "0",
     },
   ]);
 
@@ -858,7 +853,6 @@ test("complete()", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
@@ -874,7 +868,6 @@ test("complete()", async (context) => {
       operation: 0,
       operation_id: 1,
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      chain_id: "1",
     },
   ]);
 
@@ -912,7 +905,6 @@ test("revert()", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
   });
 
@@ -925,7 +917,6 @@ test("revert()", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
-    chainId: 1,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
   });
 

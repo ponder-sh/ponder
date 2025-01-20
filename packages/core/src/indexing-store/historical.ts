@@ -13,7 +13,6 @@ import {
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
 import {
@@ -146,12 +145,12 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   database,
-  initialCheckpoint,
+  isDatabaseEmpty,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  initialCheckpoint: string;
+  isDatabaseEmpty: boolean;
 }): IndexingStore<"historical"> => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
@@ -302,7 +301,6 @@ export const createHistoricalIndexingStore = ({
     return size;
   };
 
-  let isDatabaseEmpty = initialCheckpoint === ZERO_CHECKPOINT_STRING;
   /** Estimated number of bytes used by cache. */
   let cacheBytes = 0;
   /** LRU counter. */

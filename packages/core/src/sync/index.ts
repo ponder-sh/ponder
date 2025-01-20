@@ -50,14 +50,17 @@ export type RealtimeEvent =
       checkpoint: string;
       status: Status;
       events: RawEvent[];
+      network: Network;
     }
   | {
       type: "reorg";
       checkpoint: string;
+      network: Network;
     }
   | {
       type: "finalize";
       checkpoint: string;
+      network: Network;
     };
 
 export type SyncProgress = {

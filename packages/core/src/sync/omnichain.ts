@@ -239,6 +239,7 @@ export const createSyncOmnichain = async (params: {
                 checkpoint: to,
                 status: structuredClone(status),
                 events,
+                network,
               })
               .then(() => {
                 if (events.length > 0 && isKilled === false) {
@@ -292,7 +293,11 @@ export const createSyncOmnichain = async (params: {
 
           // Raise event to parent function (runtime)
           if (checkpoint > prev) {
-            params.onRealtimeEvent({ type: "finalize", checkpoint });
+            params.onRealtimeEvent({
+              type: "finalize",
+              checkpoint,
+              network,
+            });
           }
 
           break;
@@ -326,7 +331,11 @@ export const createSyncOmnichain = async (params: {
           );
           pendingEvents.push(...events);
 
-          params.onRealtimeEvent({ type: "reorg", checkpoint });
+          params.onRealtimeEvent({
+            type: "reorg",
+            checkpoint,
+            network,
+          });
 
           break;
         }
