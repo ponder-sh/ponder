@@ -1190,7 +1190,7 @@ export const createDatabase = async ({
 
             await sql
               .raw(`
-CREATE OR REPLACE FUNCTION ${tableName.triggerFn}
+CREATE OR REPLACE FUNCTION "${namespace}".${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -1213,7 +1213,7 @@ $$ LANGUAGE plpgsql
               .raw(`
           CREATE OR REPLACE TRIGGER "${tableName.trigger}"
           AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName.sql}"
-          FOR EACH ROW EXECUTE FUNCTION ${tableName.triggerFn};
+          FOR EACH ROW EXECUTE FUNCTION "${namespace}".${tableName.triggerFn};
           `)
               .execute(qb.internal);
           }
