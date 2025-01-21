@@ -132,8 +132,8 @@ test("getEvents() updates status", async (context) => {
 
   const status = sync.getStatus();
 
-  expect(status[network.chainId]?.ready).toBe(false);
-  expect(status[network.chainId]?.block?.number).toBe(2);
+  expect(status[network.name]?.ready).toBe(false);
+  expect(status[network.name]?.block?.number).toBe(2);
 
   await sync.kill();
 
@@ -215,8 +215,8 @@ test("startRealtime()", async (context) => {
 
   const status = sync.getStatus();
 
-  expect(status[network.chainId]?.ready).toBe(true);
-  expect(status[network.chainId]?.block?.number).toBe(1);
+  expect(status[network.name]?.ready).toBe(true);
+  expect(status[network.name]?.block?.number).toBe(1);
 
   await sync.kill();
 

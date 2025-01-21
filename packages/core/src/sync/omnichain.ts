@@ -130,7 +130,7 @@ export const createSyncOmnichain = async (params: {
     network,
   }: { events: RawEvent[]; checkpoint: string; network: Network }) => {
     if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
-      status[network.chainId]!.block = {
+      status[network.name]!.block = {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
@@ -140,7 +140,7 @@ export const createSyncOmnichain = async (params: {
         const event = events[i]!;
 
         if (network.chainId === event.chainId) {
-          status[network.chainId]!.block = {
+          status[network.name]!.block = {
             timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
             number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
           };
@@ -166,7 +166,7 @@ export const createSyncOmnichain = async (params: {
           checkpoint,
       );
     if (localBlock !== undefined) {
-      status[network.chainId]!.block = {
+      status[network.name]!.block = {
         timestamp: hexToNumber(localBlock.timestamp),
         number: hexToNumber(localBlock.number),
       };
@@ -441,7 +441,7 @@ export const createSyncOmnichain = async (params: {
   const status: Status = {};
 
   for (const network of params.indexingBuild.networks) {
-    status[network.chainId] = { block: null, ready: false };
+    status[network.name] = { block: null, ready: false };
   }
 
   const seconds: Seconds = {
@@ -508,11 +508,11 @@ export const createSyncOmnichain = async (params: {
           .filter(({ filter }) => filter.chainId === network.chainId)
           .map(({ filter }) => filter);
 
-        status[network.chainId]!.block = {
+        status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
         };
-        status[network.chainId]!.ready = true;
+        status[network.name]!.ready = true;
 
         // Fetch any events between the omnichain finalized checkpoint and the single-chain
         // finalized checkpoint and add them to pendingEvents. These events are synced during

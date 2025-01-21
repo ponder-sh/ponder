@@ -55,13 +55,11 @@ test(
       amount: parseEther("1"),
       sender: ALICE,
     });
-
     await waitForIndexedBlock({
       port,
       networkName: "mainnet",
       block: { number: 2 },
     });
-
     const result = await client.db.select().from(schema.account);
 
     expect(result[0]).toMatchObject({

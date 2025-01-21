@@ -101,7 +101,7 @@ export const createSyncMultichain = async (params: {
   };
 
   const status: Status = {
-    [params.network.chainId]: { block: null, ready: false },
+    [params.network.name]: { block: null, ready: false },
   };
 
   const seconds: Seconds = {
@@ -141,7 +141,7 @@ export const createSyncMultichain = async (params: {
     const eventGenerator = bufferAsyncGenerator(localEventGenerator, 2);
 
     for await (const { events, checkpoint } of eventGenerator) {
-      status[params.network.chainId]!.block = {
+      status[params.network.name]!.block = {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
@@ -172,7 +172,7 @@ export const createSyncMultichain = async (params: {
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
 
-        status[params.network.chainId]!.block = {
+        status[params.network.name]!.block = {
           timestamp: hexToNumber(event.block.timestamp),
           number: hexToNumber(event.block.number),
         };
@@ -236,11 +236,11 @@ export const createSyncMultichain = async (params: {
   return {
     getEvents,
     async startRealtime() {
-      status[params.network.chainId]!.block = {
+      status[params.network.name]!.block = {
         number: hexToNumber(syncProgress.current!.number),
         timestamp: hexToNumber(syncProgress.current!.timestamp),
       };
-      status[params.network.chainId]!.ready = true;
+      status[params.network.name]!.ready = true;
 
       if (isSyncEnd(syncProgress)) {
         params.common.metrics.ponder_sync_is_complete.set(
