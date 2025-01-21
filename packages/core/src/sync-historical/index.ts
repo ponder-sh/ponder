@@ -415,144 +415,192 @@ export const createHistoricalSync = async (
     return requiredBlocks;
   };
 
-  return {
-    intervalsCache,
-    async sync(_interval) {
-      const intervalsToSync: {
-        interval: Interval;
-        filter: FilterWithoutBlocks;
+  const getIntervalsToSync = (_interval: Interval) => {
+    const intervalsToSync: {
+      interval: Interval;
+      filter: FilterWithoutBlocks;
+    }[] = [];
+
+    // Determine the requests that need to be made, and which intervals need to be inserted.
+    // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
+    // is only partially synced.
+
+    for (const { filter } of args.sources) {
+      if (
+        (filter.fromBlock !== undefined && filter.fromBlock > _interval[1]) ||
+        (filter.toBlock !== undefined && filter.toBlock < _interval[0])
+      ) {
+        continue;
+      }
+
+      const interval: Interval = [
+        Math.max(filter.fromBlock ?? 0, _interval[0]),
+        Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
+      ];
+
+      const completedIntervals = intervalsCache.get(filter)!;
+      const requiredIntervals: {
+        fragment: Fragment;
+        intervals: Interval[];
       }[] = [];
 
-      // Determine the requests that need to be made, and which intervals need to be inserted.
-      // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
-      // is only partially synced.
+      for (const {
+        fragment,
+        intervals: fragmentIntervals,
+      } of completedIntervals) {
+        const requiredFragmentIntervals = intervalDifference(
+          [interval],
+          fragmentIntervals,
+        );
 
-      for (const { filter } of args.sources) {
-        if (
-          (filter.fromBlock !== undefined && filter.fromBlock > _interval[1]) ||
-          (filter.toBlock !== undefined && filter.toBlock < _interval[0])
-        ) {
-          continue;
-        }
-
-        const interval: Interval = [
-          Math.max(filter.fromBlock ?? 0, _interval[0]),
-          Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
-        ];
-
-        const completedIntervals = intervalsCache.get(filter)!;
-        const requiredIntervals: {
-          fragment: Fragment;
-          intervals: Interval[];
-        }[] = [];
-
-        for (const {
-          fragment,
-          intervals: fragmentIntervals,
-        } of completedIntervals) {
-          const requiredFragmentIntervals = intervalDifference(
-            [interval],
-            fragmentIntervals,
-          );
-
-          if (requiredFragmentIntervals.length > 0) {
-            requiredIntervals.push({
-              fragment,
-              intervals: requiredFragmentIntervals,
-            });
-          }
-        }
-
-        if (requiredIntervals.length > 0) {
-          const requiredInterval = intervalBounds(
-            requiredIntervals.flatMap(({ intervals }) => intervals),
-          );
-
-          const requiredFilter = recoverFilter(
-            filter,
-            requiredIntervals.map(({ fragment }) => fragment),
-          );
-
-          intervalsToSync.push({
-            filter: requiredFilter,
-            interval: requiredInterval,
+        if (requiredFragmentIntervals.length > 0) {
+          requiredIntervals.push({
+            fragment,
+            intervals: requiredFragmentIntervals,
           });
         }
       }
 
+      if (requiredIntervals.length > 0) {
+        const requiredInterval = intervalBounds(
+          requiredIntervals.flatMap(({ intervals }) => intervals),
+        );
+
+        const requiredFilter = recoverFilter(
+          filter,
+          requiredIntervals.map(({ fragment }) => fragment),
+        );
+
+        intervalsToSync.push({
+          filter: requiredFilter,
+          interval: requiredInterval,
+        });
+      }
+    }
+
+    return intervalsToSync;
+  };
+
+  /**
+   * Prepares intervals for block-wise processing.
+   * Resolves any `_eth_getLogs` requests for log filters and factory addresses that can only be processed by interval.
+   * Returns the resolved intervals and block numbers that need to be processed.
+   */
+  const resolveIntervals = async (
+    intervals: {
+      interval: Interval;
+      filter: FilterWithoutBlocks;
+    }[],
+  ) => {
+    const blocksToSync: Set<number> = new Set();
+
+    const resolvedLogIntervals: {
+      interval: Interval;
+      filter: Omit<LogFilter, "fromBlock" | "toBlock">;
+      logs: SyncLog[];
+    }[] = [];
+
+    const resolvedTraceOrTranferIntervals: {
+      interval: Interval;
+      filter: Omit<TraceFilter | TransferFilter, "fromBlock" | "toBlock">;
+      fromChildAddresses: Set<Address> | undefined;
+      toChildAddresses: Set<Address> | undefined;
+    }[] = [];
+
+    const resolvedTransactionIntervals: {
+      interval: Interval;
+      filter: Omit<TransactionFilter, "fromBlock" | "toBlock">;
+      fromChildAddresses: Set<Address> | undefined;
+      toChildAddresses: Set<Address> | undefined;
+    }[] = [];
+
+    // Resolve intervals for blockwise processing
+    await Promise.all(
+      intervals.map(async ({ filter, interval }) => {
+        switch (filter.type) {
+          case "log": {
+            const logs = await resolveLogFilter(filter as LogFilter, interval);
+
+            for (const { blockNumber } of logs) {
+              blocksToSync.add(hexToNumber(blockNumber));
+            }
+
+            resolvedLogIntervals.push({
+              filter,
+              interval,
+              logs,
+            });
+
+            break;
+          }
+          case "transaction": {
+            for (const blockNumber of intervalRange(interval)) {
+              blocksToSync.add(blockNumber);
+            }
+
+            resolvedTransactionIntervals.push({
+              filter,
+              interval,
+              ...(await resolveChildAddresses(
+                filter as TransactionFilter,
+                interval,
+              )),
+            });
+            break;
+          }
+          case "trace":
+          case "transfer": {
+            for (const blockNumber of intervalRange(interval)) {
+              blocksToSync.add(blockNumber);
+            }
+
+            resolvedTraceOrTranferIntervals.push({
+              filter,
+              interval,
+              ...(await resolveChildAddresses(
+                filter as TraceFilter | TransferFilter,
+                interval,
+              )),
+            });
+            break;
+          }
+          case "block": {
+            const requiredBlocks = resolveBlockFilter(
+              filter as BlockFilter,
+              interval,
+            );
+
+            for (const blockNumber of requiredBlocks) {
+              blocksToSync.add(blockNumber);
+            }
+
+            break;
+          }
+        }
+      }),
+    );
+
+    return {
+      blocksToSync,
+      resolvedLogIntervals,
+      resolvedTraceOrTranferIntervals,
+      resolvedTransactionIntervals,
+    };
+  };
+
+  return {
+    intervalsCache,
+    async sync(_interval) {
+      const intervalsToSync = getIntervalsToSync(_interval);
+
       if (isKilled) return;
 
-      // Collect the blockNumbers to sync
-      const blocksToSync: Set<number> = new Set();
-      const resolvedLogIntervals: {
-        interval: Interval;
-        filter: Omit<LogFilter, "fromBlock" | "toBlock">;
-        logs: SyncLog[];
-      }[] = [];
-
-      const resolvedChildAddressIntervals: {
-        interval: Interval;
-        filter: Omit<
-          TraceFilter | TransactionFilter | TransferFilter,
-          "fromBlock" | "toBlock"
-        >;
-        fromChildAddresses: Set<Address> | undefined;
-        toChildAddresses: Set<Address> | undefined;
-      }[] = [];
-
-      await Promise.all(
-        intervalsToSync.map(async ({ filter, interval }) => {
-          switch (filter.type) {
-            case "log": {
-              const logs = await resolveLogFilter(
-                filter as LogFilter,
-                interval,
-              );
-
-              for (const { blockNumber } of logs) {
-                blocksToSync.add(hexToNumber(blockNumber));
-              }
-
-              resolvedLogIntervals.push({
-                filter,
-                interval,
-                logs: await resolveLogFilter(filter as LogFilter, interval),
-              });
-
-              break;
-            }
-            case "trace":
-            case "transaction":
-            case "transfer": {
-              for (const blockNumber of intervalRange(interval)) {
-                blocksToSync.add(blockNumber);
-              }
-
-              resolvedChildAddressIntervals.push({
-                filter,
-                interval,
-                ...(await resolveChildAddresses(
-                  filter as TransactionFilter | TraceFilter | TransferFilter,
-                  interval,
-                )),
-              });
-              break;
-            }
-            case "block": {
-              const requiredBlocks = resolveBlockFilter(
-                filter as BlockFilter,
-                interval,
-              );
-
-              for (const blockNumber of requiredBlocks) {
-                blocksToSync.add(blockNumber);
-              }
-
-              break;
-            }
-          }
-        }),
-      );
+      const {
+        blocksToSync,
+        resolvedLogIntervals,
+        resolvedTraceOrTranferIntervals,
+        resolvedTransactionIntervals,
+      } = await resolveIntervals(intervalsToSync);
 
       await Promise.all(
         [...blocksToSync].map(async (number) => {
@@ -635,28 +683,23 @@ export const createHistoricalSync = async (
 
             if (isKilled) return;
 
-            await args.syncStore.insertLogs({
-              logs: blockLogs.map((log) => ({ log, block })),
-              shouldUpdateCheckpoint: true,
-              chainId: args.network.chainId,
-            });
+            if (blockLogs.length > 0) {
+              await args.syncStore.insertLogs({
+                logs: blockLogs.map((log) => ({ log, block })),
+                shouldUpdateCheckpoint: true,
+                chainId: args.network.chainId,
+              });
+            }
 
             if (isKilled) return;
 
-            const requiredChildAddressIntervals =
-              resolvedChildAddressIntervals.filter(
+            const requiredTraceOrTransferIntervals =
+              resolvedTraceOrTranferIntervals.filter(
                 ({ interval }) =>
                   interval[0] <= number && interval[1] >= number,
               );
 
-            const traceIntervals = requiredChildAddressIntervals.filter(
-              ({ filter }) => filter.type === "trace",
-            );
-            const transferIntervals = requiredChildAddressIntervals.filter(
-              ({ filter }) => filter.type === "transfer",
-            );
-
-            if (traceIntervals.length > 0 || transferIntervals.length > 0) {
+            if (requiredTraceOrTransferIntervals.length > 0) {
               const traces = await _debug_traceBlockByHash(args.requestQueue, {
                 hash: block.hash,
               });
@@ -669,10 +712,14 @@ export const createHistoricalSync = async (
 
                   for (const {
                     filter,
+                    interval,
                     fromChildAddresses,
                     toChildAddresses,
-                  } of traceIntervals) {
+                  } of requiredTraceOrTransferIntervals) {
+                    if (interval[0] > number || interval[1] < number) continue;
+
                     if (
+                      filter.type === "trace" &&
                       isTraceFilterMatched({
                         filter: filter as TraceFilter,
                         block,
@@ -687,14 +734,9 @@ export const createHistoricalSync = async (
                         return true;
                       }
                     }
-                  }
 
-                  for (const {
-                    filter,
-                    fromChildAddresses,
-                    toChildAddresses,
-                  } of transferIntervals) {
                     if (
+                      filter.type === "transfer" &&
                       isTransferFilterMatched({
                         filter: filter as TransferFilter,
                         block,
@@ -737,11 +779,13 @@ export const createHistoricalSync = async (
               });
             }
 
-            const transactionIntervals = requiredChildAddressIntervals.filter(
-              ({ filter }) => filter.type === "transaction",
-            );
+            const requiredTransactionIntervals =
+              resolvedTransactionIntervals.filter(
+                ({ interval }) =>
+                  interval[0] <= number && interval[1] >= number,
+              );
 
-            if (transactionIntervals.length > 0) {
+            if (requiredTransactionIntervals.length > 0) {
               block.transactions.map((transaction) => {
                 if (
                   requiredTransactions.has(transaction.hash) &&
@@ -750,7 +794,7 @@ export const createHistoricalSync = async (
                   return;
 
                 if (
-                  transactionIntervals.some(
+                  requiredTransactionIntervals.some(
                     ({ filter, fromChildAddresses, toChildAddresses }) =>
                       isTransactionFilterMatched({
                         filter: filter as TransactionFilter,
