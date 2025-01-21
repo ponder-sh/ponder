@@ -80,8 +80,8 @@ test("getIntervals() empty", async (context) => {
     chainId: 1,
     interval: 1,
     offset: 0,
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies BlockFilter;
 
@@ -124,8 +124,8 @@ test("getIntervals() returns intervals", async (context) => {
     chainId: 1,
     interval: 1,
     offset: 0,
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies BlockFilter;
 
@@ -183,8 +183,8 @@ test("getIntervals() merges intervals", async (context) => {
     chainId: 1,
     interval: 1,
     offset: 0,
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies BlockFilter;
 
@@ -254,8 +254,8 @@ test("getIntervals() adjacent intervals", async (context) => {
     topic2: null,
     topic3: null,
     address: [zeroAddress],
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies LogFilter;
 
@@ -332,8 +332,8 @@ test("insertIntervals() merges duplicates", async (context) => {
     chainId: 1,
     interval: 1,
     offset: 0,
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies BlockFilter;
 
@@ -408,8 +408,8 @@ test("insertIntervals() preserves fragments", async (context) => {
     topic2: null,
     topic3: null,
     address: [zeroAddress, ALICE],
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies LogFilter;
 
@@ -1404,8 +1404,8 @@ test("getEvents() returns events", async (context) => {
     topic1: null,
     topic2: null,
     topic3: null,
-    fromBlock: undefined,
-    toBlock: undefined,
+    fromBlock: 0,
+    toBlock: Number.POSITIVE_INFINITY,
     include: [],
   } satisfies LogFilter;
 
