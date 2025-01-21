@@ -80,6 +80,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
       [databaseName],
     );
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    await client.query(`DROP ROLE IF EXISTS "ponder_${databaseName}_public"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
