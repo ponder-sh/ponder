@@ -198,7 +198,6 @@ export async function setupDatabaseServices(
     namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      mode: "multichain",
     },
     schemaBuild: {
       schema: config.schema,

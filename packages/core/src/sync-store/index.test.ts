@@ -2246,11 +2246,11 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     .selectAll()
     .execute();
 
-  expect(logs).toHaveLength(1);
-  expect(blocks).toHaveLength(1);
-  expect(traces).toHaveLength(1);
-  expect(transactions).toHaveLength(1);
-  expect(transactionReceipts).toHaveLength(1);
+  expect(logs).toHaveLength(0);
+  expect(blocks).toHaveLength(0);
+  expect(traces).toHaveLength(0);
+  expect(transactions).toHaveLength(0);
+  expect(transactionReceipts).toHaveLength(0);
 
   await cleanup();
 });
