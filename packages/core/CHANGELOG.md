@@ -1,5 +1,35 @@
 # ponder
 
+## 0.8.30
+
+### Patch Changes
+
+- [#1454](https://github.com/ponder-sh/ponder/pull/1454) [`14959005f40bd7bff4e7a91df16f1bf4565e9e30`](https://github.com/ponder-sh/ponder/commit/14959005f40bd7bff4e7a91df16f1bf4565e9e30) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with schema awareness when two ponder apps are in the same database.
+
+## 0.8.29
+
+### Patch Changes
+
+- [#1451](https://github.com/ponder-sh/ponder/pull/1451) [`0cea2677997a24299e62a0dc040ce1f9ba4f4a47`](https://github.com/ponder-sh/ponder/commit/0cea2677997a24299e62a0dc040ce1f9ba4f4a47) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved reorg handling resilience.
+
+## 0.8.28
+
+### Patch Changes
+
+- [#1448](https://github.com/ponder-sh/ponder/pull/1448) [`fea49c5eac99ad811061ab532021fcbf1869e976`](https://github.com/ponder-sh/ponder/commit/fea49c5eac99ad811061ab532021fcbf1869e976) Thanks [@kyscott18](https://github.com/kyscott18)! - Added more rpc response validation.
+
+## 0.8.27
+
+### Patch Changes
+
+- [#1443](https://github.com/ponder-sh/ponder/pull/1443) [`595e9684684be414465efb910dc03e0d489c5011`](https://github.com/ponder-sh/ponder/commit/595e9684684be414465efb910dc03e0d489c5011) Thanks [@typedarray](https://github.com/typedarray)! - Improve trace-level logging and retry logic for database operations.
+
+## 0.8.26
+
+### Patch Changes
+
+- [#1438](https://github.com/ponder-sh/ponder/pull/1438) [`c4e17d9ac89e01c2591c49af486417131a59369b`](https://github.com/ponder-sh/ponder/commit/c4e17d9ac89e01c2591c49af486417131a59369b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added "ponder_realtime_latency" metric.
+
 ## 0.8.25
 
 ### Patch Changes

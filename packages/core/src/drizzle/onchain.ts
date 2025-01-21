@@ -149,8 +149,7 @@ export const onchainTable = <
   extra: extra;
   dialect: "pg";
 }> => {
-  const schema =
-    typeof global === "undefined" ? undefined : global.PONDER_DATABASE_SCHEMA;
+  const schema = globalThis?.PONDER_NAMESPACE_BUILD;
   const table = pgTableWithSchema(name, columns, extraConfig as any, schema);
 
   // @ts-ignore
@@ -182,8 +181,7 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
-  const schema =
-    typeof global === "undefined" ? undefined : global.PONDER_DATABASE_SCHEMA;
+  const schema = globalThis?.PONDER_NAMESPACE_BUILD;
   const e = pgEnumWithSchema(enumName, values, schema);
 
   // @ts-ignore

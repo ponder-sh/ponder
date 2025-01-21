@@ -26,7 +26,7 @@ export const getMetadataStore = ({
       const status: Status = {};
 
       for (const row of result) {
-        status[row.chain_id] = {
+        status[row.network_name] = {
           block:
             row.block_number && row.block_timestamp
               ? {
@@ -46,15 +46,15 @@ export const getMetadataStore = ({
       await database.qb.user
         .insertInto("_ponder_status")
         .values(
-          Object.entries(status).map(([chainId, value]) => ({
-            chain_id: +chainId,
+          Object.entries(status).map(([networkName, value]) => ({
+            network_name: networkName,
             block_number: value.block?.number,
             block_timestamp: value.block?.timestamp,
             ready: value.ready,
           })),
         )
         .onConflict((oc) =>
-          oc.column("chain_id").doUpdateSet({
+          oc.column("network_name").doUpdateSet({
             block_number: sql`excluded.block_number`,
             block_timestamp: sql`excluded.block_timestamp`,
             ready: sql`excluded.ready`,

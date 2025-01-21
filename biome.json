@@ -17,7 +17,8 @@
       "docs/",
       "benchmarks/apps/subgraph-*",
       "pnpm-lock.yaml",
-      "**/*.sol"
+      "**/*.sol",
+      "tsconfig.base.json"
     ]
   },
   "formatter": {

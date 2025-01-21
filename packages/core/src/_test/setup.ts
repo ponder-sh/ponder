@@ -80,6 +80,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
       [databaseName],
     );
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    await client.query(`DROP ROLE IF EXISTS "ponder_${databaseName}_public"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
@@ -195,9 +196,9 @@ export async function setupDatabaseServices(
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
       schema: config.schema,
@@ -205,7 +206,7 @@ export async function setupDatabaseServices(
     },
   });
 
-  await database.prepareNamespace({ buildId: config.buildId });
+  await database.migrate({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -222,7 +223,9 @@ export async function setupDatabaseServices(
 
   const metadataStore = getMetadataStore({ database });
 
-  const cleanup = () => database.kill();
+  const cleanup = async () => {
+    await database.kill();
+  };
 
   return {
     database,

@@ -1,6 +1,6 @@
 {
   "name": "@ponder/client",
-  "version": "0.9.0-next.1",
+  "version": "0.9.0-next.8",
   "description": "",
   "license": "MIT",
   "type": "module",
@@ -26,6 +26,9 @@
       "import": "./dist/index.js"
     }
   },
+  "browser": {
+    "undici": false
+  },
   "scripts": {
     "build": "tsup",
     "test": "vitest",
@@ -41,7 +44,8 @@
     }
   },
   "dependencies": {
-    "drizzle-orm": "0.36.4"
+    "drizzle-orm": "0.36.4",
+    "undici": "^7.2.0"
   },
   "devDependencies": {
     "tsup": "^8.0.1"

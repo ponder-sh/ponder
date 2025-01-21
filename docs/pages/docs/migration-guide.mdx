@@ -13,6 +13,11 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 This release makes Ponder's API layer less opinionated. Now, you just need to default export a Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
 
+<Callout type="warning">
+  The `src/api/index.ts` file is now required and no GraphQL endpoint is served
+  by default.
+</Callout>
+
 Copy the following code into `src/api/index.ts` to achieve the same functionality as `<=0.8`.
 
 ```ts filename="src/api/index.ts"
@@ -83,9 +88,36 @@ app.get("/account/:address", async (c) => {
 export default app;
 ```
 
-### `@ponder/client`
+#### `import { publicClients } from "ponder:api"`
 
-A new package for querying Ponder apps. [Read more](/docs/query/client).
+[Viem Public Clients](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts` are injected into `src/api/index.ts`.
+
+```ts filename="src/api/index.ts" {1,11}
+import { publicClients, db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:chainId/:address", async (c) => {
+  const chainId = c.req.param("chainId");
+  const address = c.req.param("address");
+
+  const balance = await publicClients[chainId].getBalance({ address });
+
+  const account = await db.query.accounts.findFirst({
+    where: eq(schema.accounts.address, address),
+  });
+
+  return c.json({ balance, account });
+});
+
+export default app;
+```
+
+### `@ponder/client` and `@ponder/react`
+
+Two new packages for querying Ponder apps. [Read more](/docs/query/client).
 
 ### Event filters
 

@@ -1,31 +1,121 @@
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
+import { promiseWithResolvers } from "@ponder/common";
+import type { QueryWithTypings } from "drizzle-orm";
+import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
+import { streamSSE } from "hono/streaming";
 
+const status = pgTable("_ponder_status", (t) => ({
+  chainId: t.bigint({ mode: "number" }).primaryKey(),
+  blockNumber: t.bigint({ mode: "number" }),
+  blockTimestamp: t.bigint({ mode: "number" }),
+  ready: t.boolean().notNull(),
+}));
+
+/**
+ * Middleware for `@ponder/client`.
+ *
+ * @param db - Drizzle database instance
+ *
+ * @example
+ * ```ts
+ * import { db } from "ponder:api";
+ * import { Hono } from "hono";
+ * import { client } from "ponder";
+ *
+ * const app = new Hono();
+ *
+ * app.use(client({ db }));
+ *
+ * export default app;
+ * ```
+ */
 export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
+  // @ts-ignore
+  const session: PgSession = db._.session;
+  const driver = globalThis.PONDER_DATABASE.driver;
+  let statusResolver = promiseWithResolvers<void>();
+
+  const channel = `${globalThis.PONDER_NAMESPACE_BUILD}_status_channel`;
+
+  if ("instance" in driver) {
+    driver.instance.query(`LISTEN "${channel}"`).then(() => {
+      driver.instance.onNotification(async () => {
+        statusResolver.resolve();
+        statusResolver = promiseWithResolvers();
+      });
+    });
+  } else {
+    const pool = driver.internal;
+
+    const connectAndListen = async () => {
+      driver.listen = await pool.connect();
+
+      await driver.listen.query(`LISTEN "${channel}"`);
+
+      driver.listen.on("error", async () => {
+        driver.listen?.release();
+        connectAndListen();
+      });
+
+      driver.listen.on("notification", async () => {
+        statusResolver.resolve();
+        statusResolver = promiseWithResolvers();
+      });
+    };
+
+    connectAndListen();
+  }
+
   return createMiddleware(async (c, next) => {
-    if (c.req.path !== "/client") {
-      return next();
+    if (c.req.path === "/client/db") {
+      const queryString = c.req.query("sql");
+      if (queryString === undefined) {
+        return c.text('Missing "sql" query parameter', 400);
+      }
+      const query = JSON.parse(queryString) as QueryWithTypings;
+
+      if (query.sql.match(/\brecursive\b/i)) {
+        return c.text("Recursive queries are not allowed", 400);
+      }
+
+      try {
+        const result = await session
+          .prepareQuery(query, undefined, undefined, false)
+          .execute();
+
+        return c.json(result as object);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
+      }
     }
 
-    const body = await c.req.json();
+    if (c.req.path === "/client/live") {
+      // TODO(kyle) live queries only availble in realtime mode
 
-    // @ts-ignore
-    const res = await db._.session
-      .prepareQuery(
-        {
-          sql: body.sql,
-          params: body.params,
-          // @ts-ignore
-          typings: body.typings,
-        },
-        undefined,
-        undefined,
-        body.method === "all",
-      )
-      .execute();
+      c.header("Content-Type", "text/event-stream");
+      c.header("Cache-Control", "no-cache");
+      c.header("Connection", "keep-alive");
 
-    // @ts-ignore
-    return c.json({ rows: res.rows.map((row) => Object.values(row)) });
+      return streamSSE(c, async (stream) => {
+        while (stream.closed === false && stream.aborted === false) {
+          try {
+            await stream.writeSSE({
+              data: JSON.stringify({ status: "success" }),
+            });
+          } catch {}
+          await statusResolver.promise;
+        }
+      });
+    }
+
+    if (c.req.path === "/client/status") {
+      const statusResult = await db.select().from(status);
+      return c.json(statusResult);
+    }
+
+    return next();
   });
 };
