@@ -88,7 +88,6 @@ export type PonderApp = {
   is_dev: 0 | 1;
   heartbeat_at: number;
   build_id: string;
-  // TODO(kyle) checkpoint === zero vs not in array
   checkpoints: { chainId: number; checkpoint: string }[];
   table_names: string[];
 };

@@ -94,7 +94,9 @@ export async function run({
       common,
       schemaBuild,
       database,
-      isDatabaseEmpty: initialCheckpoints.length === 0,
+      isDatabaseEmpty: initialCheckpoints.every(
+        ({ checkpoint }) => checkpoint === ZERO_CHECKPOINT_STRING,
+      ),
     });
 
     indexingService.setIndexingStore(historicalIndexingStore);
@@ -177,7 +179,11 @@ export async function run({
 
     const start = async () => {
       // If the initial checkpoint is zero, we need to run setup events.
-      if (initialCheckpoints.length === 0) {
+      if (
+        initialCheckpoints.every(
+          ({ checkpoint }) => checkpoint === ZERO_CHECKPOINT_STRING,
+        )
+      ) {
         const result = await indexingService.processSetupEvents(indexingBuild);
         if (result.status === "killed") return;
         else if (result.status === "error") {
@@ -194,7 +200,6 @@ export async function run({
           // Run historical indexing until complete.
           for await (const events of sync.getEvents()) {
             for (const eventsChunk of chunk(events, 93)) {
-              // TODO(kyle) this needs to be pipelined across networks
               const result = await indexingService.processEvents({
                 events: decodeEvents(
                   common,
@@ -262,8 +267,12 @@ export async function run({
               }
 
               await database.finalize({
-                // TODO(kyle) fix
-                checkpoints: [],
+                checkpoints: [
+                  {
+                    chainId: network.chainId,
+                    checkpoint: ZERO_CHECKPOINT_STRING,
+                  },
+                ],
               });
               await historicalIndexingStore.flush();
               await database.complete({
@@ -301,8 +310,12 @@ export async function run({
           });
 
           await database.finalize({
-            // TODO(kyle) fix
-            checkpoints: [],
+            checkpoints: [
+              {
+                chainId: network.chainId,
+                checkpoint: ZERO_CHECKPOINT_STRING,
+              },
+            ],
           });
           await historicalIndexingStore.flush();
           await database.complete({
@@ -391,7 +404,9 @@ export async function run({
       common,
       schemaBuild,
       database,
-      isDatabaseEmpty: initialCheckpoints.length === 0,
+      isDatabaseEmpty: initialCheckpoints.every(
+        ({ checkpoint }) => checkpoint === ZERO_CHECKPOINT_STRING,
+      ),
     });
 
     indexingService.setIndexingStore(historicalIndexingStore);
@@ -457,7 +472,11 @@ export async function run({
 
     const start = async () => {
       // If the initial checkpoint is zero, we need to run setup events.
-      if (initialCheckpoints.length === 0) {
+      if (
+        initialCheckpoints.every(
+          ({ checkpoint }) => checkpoint === ZERO_CHECKPOINT_STRING,
+        )
+      ) {
         const result = await indexingService.processSetupEvents({
           sources: indexingBuild.sources,
           networks: indexingBuild.networks,
