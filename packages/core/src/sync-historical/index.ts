@@ -275,7 +275,7 @@ export const createHistoricalSync = async (
       if (logIds.has(id)) {
         args.common.logger.warn({
           service: "sync",
-          msg: `Detected invalid eth_getLogs response. Duplicate log for block ${log.blockHash} with index ${log.logIndex}.`,
+          msg: `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
         });
       } else {
         logIds.add(id);

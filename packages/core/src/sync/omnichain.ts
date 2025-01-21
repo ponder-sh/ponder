@@ -394,8 +394,9 @@ export const createSyncOmnichain = async (params: {
         requestQueue,
         network,
         onEvent: (event) =>
+          // TODO(kyle) do we need a queue
           onRealtimeSyncEventBase(event)
-            .then((event) => onRealtimeSyncEventOmnichain(event))
+            .then(onRealtimeSyncEventOmnichain)
             .catch((error) => {
               params.common.logger.error({
                 service: "sync",

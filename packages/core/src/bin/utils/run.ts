@@ -52,8 +52,7 @@ export async function run({
     createRequestQueue({ network, common }),
   );
 
-  const { checkpoints: initialCheckpoints } =
-    await database.prepareNamespace(indexingBuild);
+  const initialCheckpoints = await database.recoverCheckpoint();
   const syncStore = createSyncStore({ common, database });
   const metadataStore = getMetadataStore({ database });
 

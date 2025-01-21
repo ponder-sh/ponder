@@ -411,6 +411,7 @@ export async function* getLocalEventGenerator(params: {
       });
       const to = min(syncCheckpoint, estimateCheckpoint, params.to);
       try {
+        // TODO(kyle) logs
         const { events, cursor: queryCursor } =
           await params.syncStore.getEvents({
             filters: params.sources.map(({ filter }) => filter),

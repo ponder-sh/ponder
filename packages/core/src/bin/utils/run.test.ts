@@ -64,10 +64,9 @@ test("run() setup", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
-      mode: "multichain",
     },
     schemaBuild: {
       schema,
@@ -75,11 +74,12 @@ test("run() setup", async (context) => {
     },
   });
 
+  await database.migrate({ buildId: "buildId" });
+
   const kill = await run({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
       mode: "multichain",
     },
     schemaBuild,
@@ -133,10 +133,9 @@ test("run() setup error", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
-      mode: "multichain",
     },
     schemaBuild: {
       schema,
@@ -144,13 +143,14 @@ test("run() setup error", async (context) => {
     },
   });
 
+  await database.migrate({ buildId: "buildId" });
+
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
   const kill = await run({
     common: context.common,
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
       mode: "multichain",
     },
     schemaBuild,

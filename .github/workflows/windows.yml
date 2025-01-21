@@ -26,9 +26,6 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Codegen
-        run: cd packages/core/ && pnpm wagmi generate
-
       - name: Test
         run: pnpm --filter "ponder" test
         env:

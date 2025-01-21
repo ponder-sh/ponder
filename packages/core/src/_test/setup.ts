@@ -195,9 +195,9 @@ export async function setupDatabaseServices(
 
   const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
       mode: "multichain",
     },
     schemaBuild: {
@@ -206,7 +206,7 @@ export async function setupDatabaseServices(
     },
   });
 
-  await database.prepareNamespace({ buildId: config.buildId });
+  await database.migrate({ buildId: config.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -223,7 +223,9 @@ export async function setupDatabaseServices(
 
   const metadataStore = getMetadataStore({ database });
 
-  const cleanup = () => database.kill();
+  const cleanup = async () => {
+    await database.kill();
+  };
 
   return {
     database,
