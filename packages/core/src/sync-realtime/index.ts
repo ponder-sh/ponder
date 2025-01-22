@@ -1002,7 +1002,6 @@ export const createRealtimeSync = (
             if (isKilled) return;
 
             const error = _error as Error;
-            error.stack = undefined;
 
             args.common.logger.warn({
               service: "realtime",
