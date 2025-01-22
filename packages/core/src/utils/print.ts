@@ -1,8 +1,10 @@
 // Adapted from viem.
 // https://github.com/wagmi-dev/viem/blob/021ce8e5a3fb02db6139564345a91fc77cba08a6/src/errors/transaction.ts#L6-L19
 export function prettyPrint(
-  args: Record<string, bigint | number | string | undefined | false | unknown>,
+  args?: Record<string, bigint | number | string | undefined | false | unknown>,
 ) {
+  if (args === undefined) return "(undefined)";
+
   const entries = Object.entries(args)
     .map(([key, value]) => {
       if (value === undefined) return null;
