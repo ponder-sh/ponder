@@ -232,18 +232,16 @@ export const createDatabase = async ({
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
-    const internal = createPool(
-      {
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${namespace}_internal`,
-        max: internalMax,
-        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-      },
-      common.logger,
-    );
-
     driver = {
-      internal,
+      internal: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${namespace}_internal`,
+          max: internalMax,
+          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+        },
+        common.logger,
+      ),
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
@@ -270,6 +268,8 @@ export const createDatabase = async ({
       ),
       listen: undefined,
     } as PostgresDriver;
+
+    await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
       internal: new Kysely({

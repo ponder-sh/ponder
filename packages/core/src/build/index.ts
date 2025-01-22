@@ -307,7 +307,7 @@ export const createBuild = async ({
       const app = executeResult.exports.default;
 
       // TODO: Consider a stricter validation here.
-      if (app.constructor.name !== "Hono") {
+      if (app?.constructor?.name !== "Hono") {
         const error = new BuildError(
           "API function file does not export a Hono instance as the default export. Read more: https://ponder-docs-git-v09-ponder-sh.vercel.app/docs/query/api-functions",
         );
