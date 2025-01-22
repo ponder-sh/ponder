@@ -327,7 +327,7 @@ test("flush", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createHistoricalIndexingStore({
@@ -384,7 +384,7 @@ test("sql", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createHistoricalIndexingStore({
@@ -462,7 +462,7 @@ test("sql followed by find", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createHistoricalIndexingStore({

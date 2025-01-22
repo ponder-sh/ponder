@@ -50,7 +50,7 @@ test("createIndexing()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -87,7 +87,7 @@ test("processSetupEvents() empty", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -128,7 +128,7 @@ test("processSetupEvents()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -191,7 +191,7 @@ test("processEvent()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -295,7 +295,7 @@ test("processEvents killed", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -372,7 +372,7 @@ test("processEvents eventCount", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -445,7 +445,7 @@ test("executeSetup() context.client", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -504,7 +504,7 @@ test("executeSetup() context.db", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -563,7 +563,7 @@ test("executeSetup() metrics", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -608,7 +608,7 @@ test("executeSetup() error", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -656,7 +656,7 @@ test("processEvents() context.client", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -739,7 +739,7 @@ test("processEvents() context.db", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -823,7 +823,7 @@ test("processEvents() metrics", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -892,7 +892,7 @@ test("processEvents() error", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -974,7 +974,7 @@ test("execute() error after killed", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -1047,7 +1047,7 @@ test("ponderActions getBalance()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const sync = await createSync({
@@ -1087,7 +1087,7 @@ test("ponderActions getCode()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1129,7 +1129,7 @@ test("ponderActions getStorageAt()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1179,7 +1179,7 @@ test("ponderActions readContract()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1229,7 +1229,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1281,7 +1281,7 @@ test.skip("ponderActions multicall()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });

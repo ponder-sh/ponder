@@ -76,19 +76,50 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       }
       const query = JSON.parse(queryString) as QueryWithTypings;
 
-      if (query.sql.match(/\brecursive\b/i)) {
-        return c.text("Recursive queries are not allowed", 400);
+      if (query.sql.match(/\bCOMMIT\b/i)) {
+        return c.text("Invalid query", 400);
       }
 
-      try {
-        const result = await session
-          .prepareQuery(query, undefined, undefined, false)
-          .execute();
+      if ("instance" in driver) {
+        try {
+          const result = await session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute();
 
-        return c.json(result as object);
-      } catch (error) {
-        (error as Error).stack = undefined;
-        return c.text((error as Error).message, 500);
+          return c.json(result as object);
+        } catch (error) {
+          (error as Error).stack = undefined;
+          return c.text((error as Error).message, 500);
+        }
+      } else {
+        const client = await driver.internal.connect();
+
+        try {
+          // TODO(kyle) these settings should be configured elsewhere
+          await client.query("BEGIN READ ONLY");
+          await client.query("SET work_mem = '512MB'");
+          await client.query(
+            `SET search_path = "${globalThis.PONDER_NAMESPACE_BUILD}"`,
+          );
+          await client.query("SET statement_timeout = '500ms'");
+          await client.query("SET lock_timeout = '500ms'");
+
+          await client.query({
+            text: `PREPARE ponder_client AS ${query.sql}`,
+            values: query.params,
+          });
+          const result = await client.query("EXECUTE ponder_client");
+          await client.query("DEALLOCATE ponder_client");
+
+          return c.json(result);
+        } catch (error) {
+          (error as Error).stack = undefined;
+          return c.text((error as Error).message, 500);
+        } finally {
+          await client.query("ROLLBACK");
+
+          client.release();
+        }
       }
     }
 

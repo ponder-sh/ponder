@@ -26,7 +26,7 @@ test("middleware serves request", async (context) => {
 
   const { database, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   await indexingStore.insert(schema.table).values({
@@ -92,7 +92,7 @@ test("middleware supports path other than /graphql using hono routing", async (c
 
   const { database, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   await indexingStore.insert(schema.table).values({
@@ -137,7 +137,7 @@ test("middleware throws error when extra filter is applied", async (context) => 
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const app = new Hono().use(
@@ -182,7 +182,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const app = new Hono().use(
@@ -234,7 +234,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const app = new Hono().use(
@@ -286,7 +286,7 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const app = new Hono().use(
@@ -344,7 +344,7 @@ test("graphQLMiddleware interactive", async (context) => {
   const schema = {};
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const app = new Hono().use(
