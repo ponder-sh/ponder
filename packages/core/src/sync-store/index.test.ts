@@ -93,11 +93,11 @@ test("getIntervals() empty", async (context) => {
     Map {
       {
         "chainId": 1,
-        "fromBlock": undefined,
+        "fromBlock": 0,
         "include": [],
         "interval": 1,
         "offset": 0,
-        "toBlock": undefined,
+        "toBlock": Infinity,
         "type": "block",
       } => [
         {
@@ -147,11 +147,11 @@ test("getIntervals() returns intervals", async (context) => {
     Map {
       {
         "chainId": 1,
-        "fromBlock": undefined,
+        "fromBlock": 0,
         "include": [],
         "interval": 1,
         "offset": 0,
-        "toBlock": undefined,
+        "toBlock": Infinity,
         "type": "block",
       } => [
         {
@@ -215,11 +215,11 @@ test("getIntervals() merges intervals", async (context) => {
     Map {
       {
         "chainId": 1,
-        "fromBlock": undefined,
+        "fromBlock": 0,
         "include": [],
         "interval": 1,
         "offset": 0,
-        "toBlock": undefined,
+        "toBlock": Infinity,
         "type": "block",
       } => [
         {
@@ -290,9 +290,9 @@ test("getIntervals() adjacent intervals", async (context) => {
           "0x0000000000000000000000000000000000000000",
         ],
         "chainId": 1,
-        "fromBlock": undefined,
+        "fromBlock": 0,
         "include": [],
-        "toBlock": undefined,
+        "toBlock": Infinity,
         "topic0": null,
         "topic1": null,
         "topic2": null,
@@ -369,11 +369,11 @@ test("insertIntervals() merges duplicates", async (context) => {
     Map {
       {
         "chainId": 1,
-        "fromBlock": undefined,
+        "fromBlock": 0,
         "include": [],
         "interval": 1,
         "offset": 0,
-        "toBlock": undefined,
+        "toBlock": Infinity,
         "type": "block",
       } => [
         {
@@ -435,9 +435,9 @@ test("insertIntervals() preserves fragments", async (context) => {
           "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         ],
         "chainId": 1,
-        "fromBlock": undefined,
+        "fromBlock": 0,
         "include": [],
-        "toBlock": undefined,
+        "toBlock": Infinity,
         "topic0": null,
         "topic1": null,
         "topic2": null,
