@@ -41,7 +41,6 @@ import {
 } from "kysely";
 import { KyselyPGlite } from "kysely-pglite";
 import type { Pool, PoolClient } from "pg";
-import parse from "pg-connection-string";
 import prometheus from "prom-client";
 
 export type Database = {
@@ -237,69 +236,6 @@ export const createDatabase = async ({
       common.logger,
     );
 
-    const connection = (parse as unknown as typeof parse.parse)(
-      preBuild.databaseConfig.poolConfig.connectionString!,
-    );
-    if (!connection.database) {
-      throw new NonRetryableError(
-        "postgres connection string did not define a database",
-      );
-    }
-
-    const role = `ponder_${connection.database}_${namespace}`;
-    const internalConn = await internal.connect();
-    await internalConn.query("BEGIN");
-    try {
-      await internalConn.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
-      const hasRole = await internalConn
-        .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
-        .then(({ rows }) => rows.length > 0);
-
-      if (!hasRole) {
-        await internalConn.query(
-          `CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`,
-        );
-        common.logger.debug({
-          service: "database",
-          msg: `Created readonly role '${role}'`,
-        });
-      }
-
-      await internalConn.query(
-        `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
-      );
-      await internalConn.query(
-        `GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`,
-      );
-      await internalConn.query(
-        `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
-      );
-      await internalConn.query(
-        `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
-      );
-      await internalConn.query(
-        `ALTER ROLE "${role}" SET search_path TO "${namespace}"`,
-      );
-      await internalConn.query(
-        `ALTER ROLE "${role}" SET statement_timeout TO '1s'`,
-      );
-      await internalConn.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
-
-      const isSuperuser = await internalConn
-        .query("SELECT rolsuper FROM pg_roles WHERE rolname=current_user;")
-        .then((res) => !!res.rows[0].rolsuper);
-      if (isSuperuser)
-        await internalConn.query(
-          `ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`,
-        );
-      await internalConn.query("COMMIT");
-    } catch (e) {
-      await internalConn.query("ROLLBACK");
-      throw e;
-    } finally {
-      internalConn.release();
-    }
-
     driver = {
       internal,
       user: createPool(
@@ -313,14 +249,8 @@ export const createDatabase = async ({
       readonly: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          connectionString: undefined,
           application_name: `${namespace}_readonly`,
           max: readonlyMax,
-          user: role,
-          password: "pw",
-          host: connection.host ?? undefined,
-          port: Number(connection.port!),
-          database: connection.database ?? undefined,
         },
         common.logger,
       ),
