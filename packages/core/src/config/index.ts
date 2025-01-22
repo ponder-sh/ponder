@@ -61,7 +61,14 @@ type DatabaseConfig =
 // base
 
 type BlockConfig = {
-  /** Block intervals with startBlock (inclusive) and endBlock (inclusive). If `undefined`, events will be processed from block 0 and in real-time. */
+  /**
+   * Block intervals with startBlock (inclusive) and endBlock (inclusive).
+   *  - startBlock: `number | "latest"`
+   *  - endBlock: `number | "latest" | "realtime"`
+   *    - `number`: A specific block number.
+   *    - `"latest"`: The latest block number at the startup of the Ponder instance.
+   *    - `"realtime"`: Indefinite/live indexing.
+   */
   blocks?:
     | [number | "latest", number | "realtime" | "latest"][]
     | [number | "latest", number | "realtime" | "latest"];

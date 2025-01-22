@@ -31,7 +31,15 @@ import { dedupe } from "@ponder/common";
 import { type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 
-type BlockRange = [number | "latest", number | "realtime" | "latest"];
+/**
+ * Block intervals with startBlock (inclusive) and endBlock (inclusive).
+ *  - startBlock: `number | "latest"`
+ *  - endBlock: `number | "latest" | "realtime"`
+ *    - `number`: A specific block number.
+ *    - `"latest"`: The latest block number at the startup of the Ponder instance.
+ *    - `"realtime"`: Indefinite/live indexing.
+ */
+type BlockRange = [number | "latest", number | "latest" | "realtime"];
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
@@ -63,37 +71,6 @@ const flattenSources = <
   );
 };
 
-function resolveBlockRanges(
-  blocks: BlockRange[] | BlockRange | undefined,
-  latest: number,
-): Interval[] {
-  const rawBlockRanges: [number, number | "realtime"][] =
-    blocks === undefined || blocks.length === 0
-      ? [[0, "realtime"]]
-      : blocks.every((b) => Array.isArray(b))
-        ? blocks.map(([fromBlock, toBlock]) => [
-            fromBlock === "latest" ? latest : fromBlock,
-            toBlock === "latest" ? latest : toBlock,
-          ])
-        : [
-            [
-              blocks[0] === "latest" ? latest : blocks[0],
-              blocks[1] === "latest" ? latest : blocks[1],
-            ],
-          ];
-
-  const blockRanges: Interval[] = rawBlockRanges.map(
-    ([rawStartBlock, rawEndBlock]) => [
-      Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
-      Number.isNaN(rawEndBlock) || rawEndBlock === "realtime"
-        ? Number.MAX_SAFE_INTEGER
-        : (rawEndBlock as number),
-    ],
-  );
-
-  return intervalUnion(blockRanges);
-}
-
 export async function buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
@@ -108,7 +85,57 @@ export async function buildConfigAndIndexingFunctions({
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
-  const latestBlockNumbers = new Map<string, number>();
+  const latestBlockNumbers = new Map<string, Promise<Hex>>();
+
+  const latest = async (network: Network) => {
+    if (latestBlockNumbers.has(network.name)) {
+      return hexToNumber(await latestBlockNumbers.get(network.name)!);
+    }
+
+    const latest: Promise<Hex> = network.transport.request({
+      method: "eth_blockNumber",
+    });
+
+    latestBlockNumbers.set(network.name, latest);
+
+    return hexToNumber(await latest);
+  };
+
+  const resolveBlockRanges = async (
+    blocks: BlockRange[] | BlockRange | undefined,
+    network: Network,
+  ) => {
+    let rawBlockRanges: [number, number | "realtime"][];
+
+    if (blocks === undefined || blocks.length === 0) {
+      rawBlockRanges = [[0, "realtime"]];
+    } else if (blocks.every((b) => Array.isArray(b))) {
+      rawBlockRanges = await Promise.all(
+        blocks.map(async ([fromBlock, toBlock]) => [
+          fromBlock === "latest" ? await latest(network) : fromBlock,
+          toBlock === "latest" ? await latest(network) : toBlock,
+        ]),
+      );
+    } else {
+      rawBlockRanges = [
+        [
+          blocks[0] === "latest" ? await latest(network) : blocks[0],
+          blocks[1] === "latest" ? await latest(network) : blocks[1],
+        ],
+      ];
+    }
+
+    const blockRanges: Interval[] = rawBlockRanges.map(
+      ([rawStartBlock, rawEndBlock]) => [
+        Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
+        Number.isNaN(rawEndBlock) || rawEndBlock === "realtime"
+          ? Number.MAX_SAFE_INTEGER
+          : (rawEndBlock as number),
+      ],
+    );
+
+    return intervalUnion(blockRanges);
+  };
 
   const networks = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
@@ -150,12 +177,6 @@ export async function buildConfigAndIndexingFunctions({
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         disableCache: network.disableCache ?? false,
       } satisfies Network;
-
-      const latest: Hex = await network.transport({ chain }).request({
-        method: "eth_blockNumber",
-      });
-
-      latestBlockNumbers.set(networkName, hexToNumber(latest));
 
       return resolvedNetwork;
     }),
@@ -273,20 +294,24 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const latest = latestBlockNumbers.get(source.network)!;
-
     const blockRanges: [number, number | "realtime"][] =
       source.blocks === undefined
         ? [[0, "realtime"]]
         : source.blocks.every((b) => Array.isArray(b))
-          ? source.blocks.map(([fromBlock, toBlock]) => [
-              fromBlock === "latest" ? latest : fromBlock,
-              toBlock === "latest" ? latest : toBlock,
-            ])
+          ? await Promise.all(
+              source.blocks.map(async ([fromBlock, toBlock]) => [
+                fromBlock === "latest" ? await latest(network) : fromBlock,
+                toBlock === "latest" ? await latest(network) : toBlock,
+              ]),
+            )
           : [
               [
-                source.blocks[0] === "latest" ? latest : source.blocks[0],
-                source.blocks[1] === "latest" ? latest : source.blocks[1],
+                source.blocks[0] === "latest"
+                  ? await latest(network)
+                  : source.blocks[0],
+                source.blocks[1] === "latest"
+                  ? await latest(network)
+                  : source.blocks[1],
               ],
             ];
 
@@ -307,8 +332,19 @@ export async function buildConfigAndIndexingFunctions({
     }
   }
 
-  const contractSources: ContractSource[] = flattenSources(
-    config.contracts ?? {},
+  const contractSources: ContractSource[] = (
+    await Promise.all(
+      flattenSources(config.contracts ?? {}).map(
+        async ({ blocks, network, ...rest }) => ({
+          blocks: await resolveBlockRanges(
+            blocks,
+            networks.find((n) => n.name === network)!,
+          ),
+          network,
+          ...rest,
+        }),
+      ),
+    )
   )
     .flatMap((source): ContractSource[] => {
       const network = networks.find((n) => n.name === source.network)!;
@@ -436,9 +472,6 @@ export async function buildConfigAndIndexingFunctions({
         });
       }
 
-      const latest = latestBlockNumbers.get(source.network)!;
-      const resolvedBlockRanges = resolveBlockRanges(source.blocks, latest);
-
       const contractMetadata = {
         type: "contract",
         abi: source.abi,
@@ -461,7 +494,7 @@ export async function buildConfigAndIndexingFunctions({
         });
 
         const logSources = topicsArray.flatMap((topics) =>
-          resolvedBlockRanges.map(
+          source.blocks.map(
             ([fromBlock, toBlock]) =>
               ({
                 ...contractMetadata,
@@ -486,7 +519,7 @@ export async function buildConfigAndIndexingFunctions({
         );
 
         if (source.includeCallTraces) {
-          const callTraceSources = resolvedBlockRanges.map(
+          const callTraceSources = source.blocks.map(
             ([fromBlock, toBlock]) =>
               ({
                 ...contractMetadata,
@@ -538,7 +571,7 @@ export async function buildConfigAndIndexingFunctions({
           : undefined;
 
       const logSources = topicsArray.flatMap((topics) =>
-        resolvedBlockRanges.map(
+        source.blocks.map(
           ([fromBlock, toBlock]) =>
             ({
               ...contractMetadata,
@@ -563,7 +596,7 @@ export async function buildConfigAndIndexingFunctions({
       );
 
       if (source.includeCallTraces) {
-        const callTraceSources = resolvedBlockRanges.map(
+        const callTraceSources = source.blocks.map(
           ([fromBlock, toBlock]) =>
             ({
               ...contractMetadata,
@@ -611,12 +644,22 @@ export async function buildConfigAndIndexingFunctions({
       return hasNoRegisteredIndexingFunctions === false;
     });
 
-  const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
+  const accountSources: AccountSource[] = (
+    await Promise.all(
+      flattenSources(config.accounts ?? {}).map(
+        async ({ blocks, network, ...rest }) => ({
+          blocks: await resolveBlockRanges(
+            blocks,
+            networks.find((n) => n.name === network)!,
+          ),
+          network,
+          ...rest,
+        }),
+      ),
+    )
+  )
     .flatMap((source): AccountSource[] => {
       const network = networks.find((n) => n.name === source.network)!;
-
-      const latest = latestBlockNumbers.get(source.network)!;
-      const resolvedBlockRanges = resolveBlockRanges(source.blocks, latest);
 
       const resolvedAddress = source?.address;
 
@@ -636,78 +679,76 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        const accountSources = resolvedBlockRanges.flatMap(
-          ([fromBlock, toBlock]) => [
-            {
-              type: "account",
-              name: source.name,
-              network,
-              filter: {
-                type: "transaction",
-                chainId: network.chainId,
-                fromAddress: undefined,
-                toAddress: logFactory,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransactionFilterInclude,
-              },
-            } satisfies AccountSource,
-            {
-              type: "account",
-              name: source.name,
-              network,
-              filter: {
-                type: "transaction",
-                chainId: network.chainId,
-                fromAddress: logFactory,
-                toAddress: undefined,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransactionFilterInclude,
-              },
-            } satisfies AccountSource,
-            {
-              type: "account",
-              name: source.name,
-              network,
-              filter: {
-                type: "transfer",
-                chainId: network.chainId,
-                fromAddress: undefined,
-                toAddress: logFactory,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransferFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            } satisfies AccountSource,
-            {
-              type: "account",
-              name: source.name,
-              network,
-              filter: {
-                type: "transfer",
-                chainId: network.chainId,
-                fromAddress: logFactory,
-                toAddress: undefined,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransferFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            } satisfies AccountSource,
-          ],
-        );
+        const accountSources = source.blocks.flatMap(([fromBlock, toBlock]) => [
+          {
+            type: "account",
+            name: source.name,
+            network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: logFactory,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            network,
+            filter: {
+              type: "transaction",
+              chainId: network.chainId,
+              fromAddress: logFactory,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransactionFilterInclude,
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: undefined,
+              toAddress: logFactory,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+          {
+            type: "account",
+            name: source.name,
+            network,
+            filter: {
+              type: "transfer",
+              chainId: network.chainId,
+              fromAddress: logFactory,
+              toAddress: undefined,
+              includeReverted: false,
+              fromBlock,
+              toBlock,
+              include: defaultTransferFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          } satisfies AccountSource,
+        ]);
 
         return accountSources;
       }
@@ -734,78 +775,76 @@ export async function buildConfigAndIndexingFunctions({
           ? toLowerCase(resolvedAddress)
           : undefined;
 
-      const accountSources = resolvedBlockRanges.flatMap(
-        ([fromBlock, toBlock]) => [
-          {
-            type: "account",
-            name: source.name,
-            network,
-            filter: {
-              type: "transaction",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: validatedAddress,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransactionFilterInclude,
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            network,
-            filter: {
-              type: "transaction",
-              chainId: network.chainId,
-              fromAddress: validatedAddress,
-              toAddress: undefined,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransactionFilterInclude,
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            network,
-            filter: {
-              type: "transfer",
-              chainId: network.chainId,
-              fromAddress: undefined,
-              toAddress: validatedAddress,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransferFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies AccountSource,
-          {
-            type: "account",
-            name: source.name,
-            network,
-            filter: {
-              type: "transfer",
-              chainId: network.chainId,
-              fromAddress: validatedAddress,
-              toAddress: undefined,
-              includeReverted: false,
-              fromBlock,
-              toBlock,
-              include: defaultTransferFilterInclude.concat(
-                source.includeTransactionReceipts
-                  ? defaultTransactionReceiptInclude
-                  : [],
-              ),
-            },
-          } satisfies AccountSource,
-        ],
-      );
+      const accountSources = source.blocks.flatMap(([fromBlock, toBlock]) => [
+        {
+          type: "account",
+          name: source.name,
+          network,
+          filter: {
+            type: "transaction",
+            chainId: network.chainId,
+            fromAddress: undefined,
+            toAddress: validatedAddress,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransactionFilterInclude,
+          },
+        } satisfies AccountSource,
+        {
+          type: "account",
+          name: source.name,
+          network,
+          filter: {
+            type: "transaction",
+            chainId: network.chainId,
+            fromAddress: validatedAddress,
+            toAddress: undefined,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransactionFilterInclude,
+          },
+        } satisfies AccountSource,
+        {
+          type: "account",
+          name: source.name,
+          network,
+          filter: {
+            type: "transfer",
+            chainId: network.chainId,
+            fromAddress: undefined,
+            toAddress: validatedAddress,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransferFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
+          },
+        } satisfies AccountSource,
+        {
+          type: "account",
+          name: source.name,
+          network,
+          filter: {
+            type: "transfer",
+            chainId: network.chainId,
+            fromAddress: validatedAddress,
+            toAddress: undefined,
+            includeReverted: false,
+            fromBlock,
+            toBlock,
+            include: defaultTransferFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
+          },
+        } satisfies AccountSource,
+      ]);
 
       return accountSources;
     })
@@ -830,7 +869,20 @@ export async function buildConfigAndIndexingFunctions({
       return hasRegisteredIndexingFunction;
     });
 
-  const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
+  const blockSources: BlockSource[] = (
+    await Promise.all(
+      flattenSources(config.blocks ?? {}).map(
+        async ({ blocks, network, ...rest }) => ({
+          blocks: await resolveBlockRanges(
+            blocks,
+            networks.find((n) => n.name === network)!,
+          ),
+          network,
+          ...rest,
+        }),
+      ),
+    )
+  )
     .flatMap((source) => {
       const network = networks.find((n) => n.name === source.network)!;
 
@@ -843,10 +895,7 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const latest = latestBlockNumbers.get(source.network)!;
-      const resolvedBlockRanges = resolveBlockRanges(source.blocks, latest);
-
-      return resolvedBlockRanges.map(
+      return source.blocks.map(
         ([fromBlock, toBlock]) =>
           ({
             type: "block",
