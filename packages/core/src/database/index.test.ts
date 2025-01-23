@@ -234,12 +234,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
   await database.migrate({ buildId: "abc" });
 
   await database.finalize({
-    checkpoints: [
-      {
-        chainId: 1,
-        checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   const databaseTwo = await createDatabase({
@@ -280,12 +275,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
   await database.migrate({ buildId: "abc" });
 
   await database.finalize({
-    checkpoints: [
-      {
-        chainId: 1,
-        checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await database.unlock();
@@ -337,12 +327,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   });
   await database.migrate({ buildId: "abc" });
   await database.finalize({
-    checkpoints: [
-      {
-        chainId: 1,
-        checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   const databaseTwo = await createDatabase({
@@ -406,12 +391,7 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
   });
 
   await database.finalize({
-    checkpoints: [
-      {
-        chainId: 1,
-        checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await database.unlock();
@@ -483,12 +463,7 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
   await database.migrate({ buildId: "abc" });
 
   await database.finalize({
-    checkpoints: [
-      {
-        chainId: 1,
-        checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await database.createIndexes();
@@ -606,12 +581,7 @@ test("finalize()", async (context) => {
   });
 
   await database.finalize({
-    checkpoints: [
-      {
-        chainId: 1,
-        checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   // reorg tables
@@ -632,12 +602,9 @@ test("finalize()", async (context) => {
     .executeTakeFirstOrThrow()
     .then(({ value }) => value);
 
-  expect(metadata.checkpoints).toStrictEqual([
-    {
-      chainId: 1,
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    },
-  ]);
+  expect(metadata.checkpoint).toStrictEqual(
+    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  );
 
   await database.kill();
 });
@@ -877,7 +844,6 @@ test("revert()", async (context) => {
   });
 
   await database.revert({
-    chainId: undefined,
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
