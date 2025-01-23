@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "0.9.0-next.9",
+  "version": "0.9.0-next.10",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
