@@ -18,3 +18,11 @@ export type NonNull<T> = {
 };
 
 export type PonderTypeError<error extends string> = error;
+
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends (infer U)[]
+    ? DeepPartial<U>[]
+    : T[P] extends object
+      ? DeepPartial<T[P]>
+      : T[P];
+};
