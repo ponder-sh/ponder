@@ -982,7 +982,7 @@ test("processEvents() error with missing event object properties", async (contex
     syncStore,
     indexingBuild: {
       sources,
-      networks,
+      chains,
     },
     onRealtimeEvent: () => Promise.resolve(),
     onFatalError: () => {},
@@ -1005,7 +1005,7 @@ test("processEvents() error with missing event object properties", async (contex
     indexingBuild: {
       indexingFunctions,
       sources,
-      networks,
+      chains,
     },
     sync,
   });
