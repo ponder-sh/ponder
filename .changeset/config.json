@@ -3,7 +3,13 @@
   "changelog": ["@changesets/changelog-github", { "repo": "ponder-sh/ponder" }],
   "commit": false,
   "fixed": [
-    ["ponder", "create-ponder", "eslint-config-ponder", "@ponder/client"]
+    [
+      "ponder",
+      "create-ponder",
+      "eslint-config-ponder",
+      "@ponder/client",
+      "@ponder/react"
+    ]
   ],
   "ignore": [
     "@ponder/common",

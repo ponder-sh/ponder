@@ -121,14 +121,18 @@ export const buildEvents = ({
                   }),
                   log: convertLog(log),
                   block: convertBlock(block),
-                  transaction: convertTransaction(
-                    transactionCache.get(log.transactionHash)!,
-                  ),
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
-                    ? convertTransactionReceipt(
-                        transactionReceiptCache.get(log.transactionHash)!,
+                  transaction: transactionCache.has(log.transactionHash)
+                    ? convertTransaction(
+                        transactionCache.get(log.transactionHash)!,
                       )
                     : undefined,
+                  transactionReceipt:
+                    transactionReceiptCache.has(log.transactionHash) &&
+                    shouldGetTransactionReceipt(filter)
+                      ? convertTransactionReceipt(
+                          transactionReceiptCache.get(log.transactionHash)!,
+                        )
+                      : undefined,
                   trace: undefined,
                 });
               }
@@ -388,7 +392,7 @@ export const decodeEvents = (
 
                 event: {
                   name: safeName,
-                  args,
+                  args: removeNullCharacters(args),
                   log: event.log!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -444,8 +448,8 @@ export const decodeEvents = (
                 name: `${source.name}.${safeName}`,
 
                 event: {
-                  args,
-                  result,
+                  args: removeNullCharacters(args),
+                  result: removeNullCharacters(result),
                   trace: event.trace!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -549,7 +553,7 @@ export const decodeEvents = (
 };
 
 /** @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99 */
-function decodeEventLog({
+export function decodeEventLog({
   abiItem,
   topics,
   data,
@@ -617,6 +621,26 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
     return value;
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
+}
+
+export function removeNullCharacters(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    return obj.replace(/\0/g, "");
+  }
+  if (Array.isArray(obj)) {
+    // Recursively handle array elements
+    return obj.map(removeNullCharacters);
+  }
+  if (obj && typeof obj === "object") {
+    // Recursively handle object properties
+    const newObj: { [key: string]: unknown } = {};
+    for (const [key, val] of Object.entries(obj)) {
+      newObj[key] = removeNullCharacters(val);
+    }
+    return newObj;
+  }
+  // For other types (number, boolean, null, undefined, etc.), return as-is
+  return obj;
 }
 
 const convertBlock = (block: SyncBlock): Block => ({

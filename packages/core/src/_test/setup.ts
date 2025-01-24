@@ -11,7 +11,12 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createTelemetry } from "@/internal/telemetry.js";
-import type { DatabaseConfig, Schema } from "@/internal/types.js";
+import type {
+  DatabaseConfig,
+  IndexingBuild,
+  NamespaceBuild,
+  SchemaBuild,
+} from "@/internal/types.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -80,6 +85,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
       [databaseName],
     );
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    await client.query(`DROP ROLE IF EXISTS "ponder_${databaseName}_public"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
@@ -166,20 +172,13 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-type DatabaseServiceSetup = {
-  buildId: string;
-  schema: Schema;
-  indexing: "realtime" | "historical";
-};
-const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
-  buildId: "abc",
-  schema: {},
-  indexing: "historical",
-};
-
 export async function setupDatabaseServices(
   context: TestContext,
-  overrides: Partial<DatabaseServiceSetup> = {},
+  overrides: Partial<{
+    namespaceBuild: NamespaceBuild;
+    schemaBuild: Partial<SchemaBuild>;
+    indexingBuild: Partial<IndexingBuild>;
+  }> = {},
 ): Promise<{
   database: Database;
   syncStore: SyncStore;
@@ -187,25 +186,25 @@ export async function setupDatabaseServices(
   metadataStore: MetadataStore;
   cleanup: () => Promise<void>;
 }> {
-  const config = { ...defaultDatabaseServiceSetup, ...overrides };
-
   const { statements } = buildSchema({
-    schema: config.schema,
+    schema: overrides.schemaBuild?.schema ?? {},
   });
 
   const database = await createDatabase({
     common: context.common,
+    namespace: overrides.namespaceBuild ?? "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
-      schema: config.schema,
+      schema: overrides.schemaBuild?.schema ?? {},
       statements,
     },
   });
 
-  await database.prepareNamespace({ buildId: config.buildId });
+  await database.migrate({
+    buildId: overrides.indexingBuild?.buildId ?? "abc",
+  });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
@@ -216,13 +215,15 @@ export async function setupDatabaseServices(
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
-    schemaBuild: { schema: config.schema },
+    schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
     database,
   });
 
   const metadataStore = getMetadataStore({ database });
 
-  const cleanup = () => database.kill();
+  const cleanup = async () => {
+    await database.kill();
+  };
 
   return {
     database,

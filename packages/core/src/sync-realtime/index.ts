@@ -40,9 +40,10 @@ import {
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { type Queue, createQueue } from "@ponder/common";
-import { type Address, type Hash, hexToNumber } from "viem";
+import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {
@@ -78,6 +79,7 @@ export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
+      endClock?: () => number;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -113,7 +115,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<void, BlockWithEventData>;
+  let queue: Queue<void, BlockWithEventData & { endClock?: () => number }>;
   let consecutiveErrors = 0;
   let cleanup: (() => Promise<void>) | undefined;
 
@@ -188,7 +190,8 @@ export const createRealtimeSync = (
     traces,
     transactions,
     transactionReceipts,
-  }: BlockWithEventData) => {
+    endClock,
+  }: BlockWithEventData & { endClock?: () => number }) => {
     args.common.logger.debug({
       service: "realtime",
       msg: `Started syncing '${args.chain.chain.name}' block ${hexToNumber(block.number)}`,
@@ -409,6 +412,7 @@ export const createRealtimeSync = (
       traces,
       transactions,
       transactionReceipts,
+      endClock,
     });
 
     // Determine if a new range has become finalized by evaluating if the
@@ -581,6 +585,10 @@ export const createRealtimeSync = (
     blockHash: Hash,
     transactionHashes: Set<Hash>,
   ): Promise<SyncTransactionReceipt[]> => {
+    if (transactionHashes.size === 0) {
+      return [];
+    }
+
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
@@ -617,7 +625,7 @@ export const createRealtimeSync = (
     for (const hash of Array.from(transactionHashes)) {
       if (blockReceiptsTransactionHashes.has(hash) === false) {
         throw new Error(
-          `Detected inconsistent RPC responses. Transaction receipt with transactionHash ${hash} is missing in \`blockReceipts\`.`,
+          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${blockHash}'`,
         );
       }
     }
@@ -658,12 +666,38 @@ export const createRealtimeSync = (
         );
       }
 
-      // Check that logs refer to the correct block
+      const logIds = new Set<string>();
       for (const log of logs) {
         if (log.blockHash !== block.hash) {
           throw new Error(
             `Detected invalid eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match requested block hash ${block.hash}`,
           );
+        }
+
+        const id = `${log.blockHash}-${log.logIndex}`;
+        if (logIds.has(id)) {
+          args.common.logger.warn({
+            service: "sync",
+            msg: `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
+          });
+        } else {
+          logIds.add(id);
+        }
+
+        if (
+          block.transactions.find((t) => t.hash === log.transactionHash) ===
+          undefined
+        ) {
+          if (log.transactionHash === zeroHash) {
+            args.common.logger.warn({
+              service: "sync",
+              msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+            });
+          } else {
+            throw new Error(
+              `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+            );
+          }
         }
       }
     }
@@ -744,12 +778,20 @@ export const createRealtimeSync = (
 
       for (const filter of logFilters) {
         if (isLogFilterMatched({ filter, block, log })) {
-          requiredTransactions.add(log.transactionHash);
           isMatched = true;
-          if (shouldGetTransactionReceipt(filter)) {
-            requiredTransactionReceipts.add(log.transactionHash);
-            // skip to next log
-            break;
+          if (log.transactionHash === zeroHash) {
+            args.common.logger.warn({
+              service: "sync",
+              msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+            });
+          } else {
+            requiredTransactions.add(log.transactionHash);
+            if (shouldGetTransactionReceipt(filter)) {
+              requiredTransactionReceipts.add(log.transactionHash);
+
+              // skip to next log
+              break;
+            }
           }
         }
       }
@@ -960,7 +1002,6 @@ export const createRealtimeSync = (
             if (isKilled) return;
 
             const error = _error as Error;
-            error.stack = undefined;
 
             args.common.logger.warn({
               service: "realtime",
@@ -1033,11 +1074,13 @@ export const createRealtimeSync = (
             });
           }
 
+          const endClock = startClock();
+
           const blockWithEventData = await fetchBlockEventData(block);
 
           consecutiveErrors = 0;
 
-          return queue.add(blockWithEventData);
+          return queue.add({ ...blockWithEventData, endClock });
         } catch (_error) {
           if (isKilled) return;
 

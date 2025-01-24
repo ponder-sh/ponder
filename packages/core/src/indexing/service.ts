@@ -13,6 +13,8 @@ import type {
 import { isAddressFactory } from "@/sync/filter.js";
 import type { Sync } from "@/sync/index.js";
 import type { Db } from "@/types/db.js";
+import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
+import type { DeepPartial } from "@/types/utils.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -195,9 +197,12 @@ export const processSetupEvents = async (
           s.type === "contract" &&
           s.name === contractName &&
           s.filter.chainId === chain.chain.id,
-      )! as ContractSource;
+      ) as ContractSource | undefined;
+
+      if (source === undefined) continue;
 
       if (indexingService.isKilled) return { status: "killed" };
+
       indexingService.eventCount[eventName]!++;
 
       const result = await executeSetup(indexingService, {
@@ -374,52 +379,24 @@ const executeSetup = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error;
-
-    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+    const error = _error instanceof Error ? _error : new Error(String(_error));
 
     addStackTrace(error, common.options);
+    addErrorMeta(error, toErrorMeta(event));
 
-    common.metrics.ponder_indexing_has_error.set(1);
-
+    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
     common.logger.error({
       service: "indexing",
       msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.chain.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
+    common.metrics.ponder_indexing_has_error.set(1);
+
     return { status: "error", error: error };
   }
 
   return { status: "success" };
-};
-
-const toErrorMeta = (event: Event) => {
-  switch (event.type) {
-    case "log":
-    case "trace": {
-      return `Event arguments:\n${prettyPrint(event.event.args)}`;
-    }
-
-    case "transfer": {
-      return `Event arguments:\n${prettyPrint(event.event.transfer)}`;
-    }
-
-    case "block": {
-      return `Block:\n${prettyPrint({
-        hash: event.event.block.hash,
-        number: event.event.block.number,
-        timestamp: event.event.block.timestamp,
-      })}`;
-    }
-
-    case "transaction": {
-      return `Transaction:\n${prettyPrint({
-        hash: event.event.transaction.hash,
-        block: event.event.block.number,
-      })}`;
-    }
-  }
 };
 
 const executeEvent = async (
@@ -461,16 +438,12 @@ const executeEvent = async (
     );
   } catch (_error) {
     if (indexingService.isKilled) return { status: "killed" };
-    const error = _error as Error & { meta?: string[] };
-
-    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+    const error = _error instanceof Error ? _error : new Error(String(_error));
 
     addStackTrace(error, common.options);
+    addErrorMeta(error, toErrorMeta(event));
 
-    error.meta = Array.isArray(error.meta) ? error.meta : [];
-    if (error.meta.length === 0) {
-      error.meta.push(toErrorMeta(event));
-    }
+    const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
     common.logger.error({
       service: "indexing",
@@ -485,3 +458,101 @@ const executeEvent = async (
 
   return { status: "success" };
 };
+
+const toErrorMeta = (event: DeepPartial<Event> | DeepPartial<SetupEvent>) => {
+  switch (event?.type) {
+    case "setup": {
+      return `Block:\n${prettyPrint({
+        number: event?.block,
+      })}`;
+    }
+
+    case "log": {
+      return [
+        `Event arguments:\n${prettyPrint(event?.event?.args)}`,
+        logText(event?.event?.log),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
+      ].join("\n");
+    }
+
+    case "trace": {
+      return [
+        `Call trace arguments:\n${prettyPrint(event?.event?.args)}`,
+        traceText(event?.event?.trace),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
+      ].join("\n");
+    }
+
+    case "transfer": {
+      return [
+        `Transfer arguments:\n${prettyPrint(event?.event?.transfer)}`,
+        traceText(event?.event?.trace),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
+      ].join("\n");
+    }
+
+    case "block": {
+      return blockText(event?.event?.block);
+    }
+
+    case "transaction": {
+      return [
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
+      ].join("\n");
+    }
+
+    default: {
+      return undefined;
+    }
+  }
+};
+
+const addErrorMeta = (error: unknown, meta: string | undefined) => {
+  // If error isn't an object we can modify, do nothing
+  if (typeof error !== "object" || error === null) return;
+  if (meta === undefined) return;
+
+  try {
+    const errorObj = error as { meta?: unknown };
+    // If meta exists and is an array, try to add to it
+    if (Array.isArray(errorObj.meta)) {
+      errorObj.meta = [...errorObj.meta, meta];
+    } else {
+      // Otherwise set meta to be a new array with the meta string
+      errorObj.meta = [meta];
+    }
+  } catch {
+    // Ignore errors
+  }
+};
+
+const blockText = (block?: DeepPartial<Block>) =>
+  `Block:\n${prettyPrint({
+    hash: block?.hash,
+    number: block?.number,
+    timestamp: block?.timestamp,
+  })}`;
+
+const transactionText = (transaction?: DeepPartial<Transaction>) =>
+  `Transaction:\n${prettyPrint({
+    hash: transaction?.hash,
+    from: transaction?.from,
+    to: transaction?.to,
+  })}`;
+
+const logText = (log?: DeepPartial<Log>) =>
+  `Log:\n${prettyPrint({
+    index: log?.logIndex,
+    address: log?.address,
+  })}`;
+
+const traceText = (trace?: DeepPartial<Trace>) =>
+  `Trace:\n${prettyPrint({
+    traceIndex: trace?.traceIndex,
+    from: trace?.from,
+    to: trace?.to,
+  })}`;

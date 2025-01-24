@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database: [Postgres, PGLite]
+        database: [Postgres, PGlite]
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -25,9 +25,6 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
-
-      - name: Codegen
-        run: cd packages/core/ && pnpm wagmi generate
 
       - name: Test
         run: pnpm --filter "ponder" test

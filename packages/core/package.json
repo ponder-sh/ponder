@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "0.9.0-next.1",
+  "version": "0.9.0-next.10",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -27,15 +27,12 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./schema": {
-      "types": "./dist/drizzle/onchain.d.ts",
-      "import": "./dist/drizzle/onchain.js"
-    },
     "./virtual": {
       "types": "./src/types.d.ts"
     }
   },
   "scripts": {
+    "postinstall": "wagmi generate || exit 0",
     "build": "tsup",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",

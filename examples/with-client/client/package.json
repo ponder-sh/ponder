@@ -2,7 +2,9 @@
   "name": "ponder-examples-with-client-client",
   "private": true,
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
   "engines": {
     "node": ">=18.14"
   },
@@ -10,6 +12,7 @@
     "@ponder/client": "workspace:*"
   },
   "devDependencies": {
-    "@types/pg": "^8.10.9"
+    "@types/pg": "^8.10.9",
+    "tsx": "^4.19.2"
   }
 }

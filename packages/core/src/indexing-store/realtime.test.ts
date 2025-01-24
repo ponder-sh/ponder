@@ -27,7 +27,7 @@ test("find", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -68,7 +68,7 @@ test("insert", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -216,7 +216,7 @@ test("update", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -283,7 +283,7 @@ test("delete", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -330,7 +330,7 @@ test("sql", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -427,7 +427,7 @@ test("missing rows", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -457,7 +457,7 @@ test("notNull", async (context) => {
     })),
   };
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   let indexingStore = createRealtimeIndexingStore({
@@ -518,7 +518,7 @@ test("default", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -547,7 +547,7 @@ test("$default", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -579,7 +579,7 @@ test("$onUpdateFn", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -612,7 +612,7 @@ test("array", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   // dynamic size
@@ -653,7 +653,7 @@ test("enum", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
@@ -690,7 +690,7 @@ test("json bigint", async (context) => {
   };
 
   const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({

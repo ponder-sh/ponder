@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "ponder-examples-with-trpc-ponder",
+  "name": "ponder-examples-with-client-ponder",
   "type": "module",
   "scripts": {
     "dev": "ponder dev",

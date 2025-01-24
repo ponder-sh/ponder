@@ -21,15 +21,6 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Codegen
-        run: cd packages/core/ && pnpm wagmi generate
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test (types)
-        run: pnpm --filter "ponder" test:typecheck
-
       - name: Lint
         run: pnpm lint
 
@@ -45,6 +36,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Test (types)
+        run: pnpm --filter "ponder" test:typecheck
 
   test:
     name: Test [core]
@@ -65,9 +59,6 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
-
-      - name: Codegen
-        run: cd packages/core/ && pnpm wagmi generate
 
       - name: Test
         run: pnpm --filter "ponder" test

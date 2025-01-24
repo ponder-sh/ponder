@@ -4,6 +4,8 @@ import type {
   Chain,
   Factory,
   Filter,
+  FilterWithoutBlocks,
+  Fragment,
   LogFactory,
   LogFilter,
   Source,
@@ -18,8 +20,9 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-  shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
+import { recoverFilter } from "@/sync/fragments.js";
 import type {
   SyncBlock,
   SyncLog,
@@ -29,10 +32,10 @@ import type {
 import {
   type Interval,
   getChunks,
+  intervalBounds,
   intervalDifference,
   intervalRange,
 } from "@/utils/interval.js";
-import { never } from "@/utils/never.js";
 import {
   _debug_traceBlockByNumber,
   _eth_getBlockByNumber,
@@ -48,10 +51,11 @@ import {
   hexToBigInt,
   hexToNumber,
   toHex,
+  zeroHash,
 } from "viem";
 
 export type HistoricalSync = {
-  intervalsCache: Map<Filter, Interval[]>;
+  intervalsCache: Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>;
   /**
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
@@ -124,7 +128,10 @@ export const createHistoricalSync = async (
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
-  let intervalsCache: Map<Filter, Interval[]>;
+  let intervalsCache: Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >;
   if (args.chain.disableCache) {
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
@@ -268,7 +275,7 @@ export const createHistoricalSync = async (
       if (logIds.has(id)) {
         args.common.logger.warn({
           service: "sync",
-          msg: `Detected invalid eth_getLogs response. Duplicate log for block ${log.blockHash} with index ${log.logIndex}.`,
+          msg: `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
         });
       } else {
         logIds.add(id);
@@ -346,6 +353,10 @@ export const createHistoricalSync = async (
     block: Hash,
     transactionHashes: Set<Hash>,
   ): Promise<SyncTransactionReceipt[]> => {
+    if (transactionHashes.size === 0) {
+      return [];
+    }
+
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map((hash) =>
@@ -494,9 +505,16 @@ export const createHistoricalSync = async (
         block.transactions.find((t) => t.hash === log.transactionHash) ===
         undefined
       ) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
-        );
+        if (log.transactionHash === zeroHash) {
+          args.common.logger.warn({
+            service: "sync",
+            msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+          });
+        } else {
+          throw new Error(
+            `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+          );
+        }
       }
     }
 
@@ -518,11 +536,21 @@ export const createHistoricalSync = async (
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
         Array.from(requiredBlocks).map((blockHash) => {
-          const blockTransactionHashes = new Set(
-            logs
-              .filter((l) => l.blockHash === blockHash)
-              .map((l) => l.transactionHash),
-          );
+          const blockTransactionHashes = new Set<Hash>();
+
+          for (const log of logs) {
+            if (log.blockHash === blockHash) {
+              if (log.transactionHash === zeroHash) {
+                args.common.logger.warn({
+                  service: "sync",
+                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+                });
+              } else {
+                blockTransactionHashes.add(log.transactionHash);
+              }
+            }
+          }
+
           return syncTransactionReceipts(blockHash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
@@ -720,71 +748,102 @@ export const createHistoricalSync = async (
   return {
     intervalsCache,
     async sync(_interval) {
-      const syncedIntervals: { filter: Filter; interval: Interval }[] = [];
+      const intervalsToSync: {
+        interval: Interval;
+        filter: FilterWithoutBlocks;
+      }[] = [];
 
-      await Promise.all(
-        args.sources.map(async (source) => {
-          const filter = source.filter;
+      // Determine the requests that need to be made, and which intervals need to be inserted.
+      // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
+      // is only partially synced.
 
-          // Compute the required interval to sync, accounting for cached
-          // intervals and start + end block.
+      for (const { filter } of args.sources) {
+        if (
+          (filter.fromBlock !== undefined && filter.fromBlock > _interval[1]) ||
+          (filter.toBlock !== undefined && filter.toBlock < _interval[0])
+        ) {
+          continue;
+        }
 
-          // Skip sync if the interval is after the `toBlock` or before
-          // the `fromBlock`.
-          if (
-            (filter.fromBlock !== undefined &&
-              filter.fromBlock > _interval[1]) ||
-            (filter.toBlock !== undefined && filter.toBlock < _interval[0])
-          ) {
-            return;
-          }
-          const interval: Interval = [
-            Math.max(filter.fromBlock ?? 0, _interval[0]),
-            Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
-          ];
-          const completedIntervals = intervalsCache.get(filter)!;
-          const requiredIntervals = intervalDifference(
+        const interval: Interval = [
+          Math.max(filter.fromBlock ?? 0, _interval[0]),
+          Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
+        ];
+
+        const completedIntervals = intervalsCache.get(filter)!;
+        const requiredIntervals: {
+          fragment: Fragment;
+          intervals: Interval[];
+        }[] = [];
+
+        for (const {
+          fragment,
+          intervals: fragmentIntervals,
+        } of completedIntervals) {
+          const requiredFragmentIntervals = intervalDifference(
             [interval],
-            completedIntervals,
+            fragmentIntervals,
           );
 
-          // Skip sync if the interval is already complete.
-          if (requiredIntervals.length === 0) return;
+          if (requiredFragmentIntervals.length > 0) {
+            requiredIntervals.push({
+              fragment,
+              intervals: requiredFragmentIntervals,
+            });
+          }
+        }
 
+        if (requiredIntervals.length > 0) {
+          const requiredInterval = intervalBounds(
+            requiredIntervals.flatMap(({ intervals }) => intervals),
+          );
+
+          const requiredFilter = recoverFilter(
+            filter,
+            requiredIntervals.map(({ fragment }) => fragment),
+          );
+
+          intervalsToSync.push({
+            filter: requiredFilter,
+            interval: requiredInterval,
+          });
+        }
+      }
+
+      await Promise.all(
+        intervalsToSync.map(async ({ filter, interval }) => {
           // Request last block of interval
           const blockPromise = syncBlock(interval[1]);
 
           try {
-            // sync required intervals, account for chunk sizes
-            await Promise.all(
-              requiredIntervals.map(async (interval) => {
-                switch (filter.type) {
-                  case "log": {
-                    await syncLogFilter(filter, interval);
-                    break;
-                  }
+            switch (filter.type) {
+              case "log": {
+                await syncLogFilter(filter as LogFilter, interval);
+                break;
+              }
 
-                  case "block": {
-                    await syncBlockFilter(filter, interval);
-                    break;
-                  }
+              case "block": {
+                await syncBlockFilter(filter as BlockFilter, interval);
+                break;
+              }
 
-                  case "transaction": {
-                    await syncTransactionFilter(filter, interval);
-                    break;
-                  }
+              case "transaction": {
+                await syncTransactionFilter(
+                  filter as TransactionFilter,
+                  interval,
+                );
+                break;
+              }
 
-                  case "trace":
-                  case "transfer": {
-                    await syncTraceOrTransferFilter(filter, interval);
-                    break;
-                  }
-
-                  default:
-                    never(filter);
-                }
-              }),
-            );
+              case "trace":
+              case "transfer": {
+                await syncTraceOrTransferFilter(
+                  filter as TraceFilter | TransferFilter,
+                  interval,
+                );
+                break;
+              }
+            }
           } catch (_error) {
             const error = _error as Error;
 
@@ -802,10 +861,10 @@ export const createHistoricalSync = async (
           if (isKilled) return;
 
           await blockPromise;
-
-          syncedIntervals.push({ filter, interval });
         }),
       );
+
+      if (isKilled) return;
 
       const blocks = await Promise.all(blockCache.values());
 
@@ -824,11 +883,13 @@ export const createHistoricalSync = async (
         }),
       ]);
 
+      if (isKilled) return;
+
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
       if (args.chain.disableCache === false) {
         await args.syncStore.insertIntervals({
-          intervals: syncedIntervals,
+          intervals: intervalsToSync,
           chainId: args.chain.chain.id,
         });
       }

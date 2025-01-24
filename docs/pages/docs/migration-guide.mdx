@@ -13,6 +13,11 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 This release makes Ponder's API layer less opinionated. Now, you just need to default export a Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
 
+<Callout type="warning">
+  The `src/api/index.ts` file is now required and no GraphQL endpoint is served
+  by default.
+</Callout>
+
 Copy the following code into `src/api/index.ts` to achieve the same functionality as `<=0.8`.
 
 ```ts filename="src/api/index.ts"
@@ -83,9 +88,36 @@ app.get("/account/:address", async (c) => {
 export default app;
 ```
 
-### `@ponder/client`
+#### `import { publicClients } from "ponder:api"`
 
-A new package for querying Ponder apps. [Read more](/docs/query/client).
+[Viem Public Clients](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts` are injected into `src/api/index.ts`.
+
+```ts filename="src/api/index.ts" {1,11}
+import { publicClients, db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:chainId/:address", async (c) => {
+  const chainId = c.req.param("chainId");
+  const address = c.req.param("address");
+
+  const balance = await publicClients[chainId].getBalance({ address });
+
+  const account = await db.query.accounts.findFirst({
+    where: eq(schema.accounts.address, address),
+  });
+
+  return c.json({ balance, account });
+});
+
+export default app;
+```
+
+### `@ponder/client` and `@ponder/react`
+
+Two new packages for querying Ponder apps. [Read more](/docs/query/client).
 
 ### Event filters
 
@@ -371,6 +403,8 @@ Key changes:
 2. Export all table objects from `ponder.schema.ts`
 3. Use `.primaryKey()` to mark the primary key column
 4. Columns are nullable by default, use `.notNull()` to add the constraint
+5. The `hex` column type now uses `TEXT` instead of `BYTEA`
+6. `p.float()` (`DOUBLE PRECISION`) was removed, use `t.doublePrecision()` or `t.real()` instead
 
 The new `onchainTable` function adds several new capabilities.
 
@@ -532,9 +566,19 @@ await context.db
 await context.db.Account.delete({ id: event.args.from });
 await context.db.delete(account, { address: event.args.from });
 
-// findMany -> select
+// findMany -> raw SQL select, see below
 await context.db.Account.findMany({ where: { balance: { gt: 100n } } });
 await context.db.sql.select().from(account).where(eq(account.balance, 100n));
+
+// updateMany -> raw SQL update, see below
+await context.db.Player.updateMany({
+  where: { id: { startsWith: "J" } },
+  data: { age: 50 },
+});
+await context.db.sql
+  .update(player)
+  .set({ age: 50 })
+  .where(like(player.id, "J%"));
 ```
 
 Finally, another migration example for an ERC20 Transfer indexing function using `upsert`.
