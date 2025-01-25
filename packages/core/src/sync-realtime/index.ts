@@ -1126,6 +1126,12 @@ export const createRealtimeSync = (
           cleanup = () => connection.unsubscribe().then(() => {});
         } catch {
           // TODO(kyle) handle error
+          args.common.logger.warn({
+            service: "realtime",
+            msg: `Failed subscribing to '${args.chain.chain.name}' network via websocket, defaulting to polling`,
+          });
+          const interval = setInterval(enqueue, args.chain.pollingInterval);
+          cleanup = () => Promise.resolve(clearInterval(interval));
         }
       } else {
         args.common.logger.info({
