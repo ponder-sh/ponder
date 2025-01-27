@@ -95,6 +95,10 @@ export const createBuild = async ({
     .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
+  const apiPattern = path
+    .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+
   const viteLogger = {
     warnedMessages: new Set<string>(),
     loggedErrors: new WeakSet<Error>(),
@@ -218,7 +222,7 @@ export const createBuild = async ({
     },
     async executeIndexingFunctions(): Promise<IndexingResult> {
       const files = glob.sync(indexingPattern, {
-        ignore: common.options.apiFile,
+        ignore: glob.sync(apiPattern),
       });
       const executeResults = await Promise.all(
         files.map(async (file) => ({
@@ -286,6 +290,9 @@ export const createBuild = async ({
 
         return { status: "error", error };
       }
+
+      viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
+      viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
 
       const executeResult = await executeFile({
         file: common.options.apiFile,
@@ -571,12 +578,10 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.invalidateDepTree(
             glob.sync(indexingPattern, {
-              ignore: common.options.apiFile,
+              ignore: glob.sync(apiPattern),
             }),
           );
-          viteNodeRunner.moduleCache.invalidateDepTree([
-            common.options.apiFile,
-          ]);
+          viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
 

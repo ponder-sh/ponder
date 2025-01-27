@@ -93,7 +93,7 @@ const result = await client.db.select().from(schema.account).limit(10);
 
 #### `client.db`
 
-This method uses a readonly database role, with strict query limits. It provides a Drizzle query builder, similar to [API functions](/docs/query/api-functions#query-the-database).
+This method uses server side query validation and a database session with strict query limits. It provides a Drizzle query builder, similar to [API functions](/docs/query/api-functions#query-the-database).
 
 ```ts
 import { createClient } from "@ponder/client";
@@ -154,7 +154,11 @@ const { data, isError, isPending } = usePonderQuery({
 });
 ```
 
-`usePonderQuery` uses [TanStack Query](https://tanstack.com/query) for async state management. `queryFn` is overriden to include a database object, similar to the [`client.db`](#clientdb) method, and `queryKey` is automatically generated. All other options are preserved.
+### TanStack Query
+
+[TanStack Query](https://tanstack.com/query) is a popular library for managing async state in React. It provides powerful features like background updates, caching, and prefetching.
+
+**Queries** are used to fetch data and each query is identified by a unique `queryKey`.
 
 ### Guide
 
@@ -258,9 +262,79 @@ export function Deposits() {
 
 </Steps>
 
+### API Reference
+
+#### `usePonderQuery`
+
+Hook for querying a Ponder app with live updates.
+
+```ts
+import { usePonderQuery } from "@ponder/react";
+
+const { data } = usePonderQuery({
+  queryFn: (db) =>
+    db
+      .select()
+      .from(schema.depositEvent)
+      .orderBy(schema.depositEvent.timestamp)
+      .limit(10),
+});
+```
+
+#### `usePonderStatus`
+
+Hook for querying the indexing status of each chain.
+
+```ts
+import { usePonderStatus } from "@ponder/react";
+
+const { data } = usePonderStatus();
+```
+
+#### `getPonderQueryOptions`
+
+Helper function for calculating the query function and query key from a Ponder query.
+
+<Callout type="info">
+  Use `getPonderQueryOptions` in a Next.js app to prefetch data on the server.
+  [Read
+  more](https://github.com/ponder-sh/ponder/blob/v0.9/examples/with-nextjs/frontend/app/page.tsx#L11).
+</Callout>
+
+```ts
+import { getPonderQueryOptions } from "@ponder/react";
+
+const { queryFn, queryKey } = getPonderQueryOptions(client, (db) =>
+  db.select().from(schema.depositEvent).limit(10)
+);
+```
+
+#### `getQueryKey`
+
+Helper function for calculating the query key from a Ponder query.
+
+```ts
+import { getQueryKey } from "@ponder/react";
+
+const key = getQueryKey(db.select().from(schema.depositEvent).limit(10));
+```
+
+#### `PonderProvider`
+
+React Context Provider for Ponder.
+
+```tsx
+import { PonderProvider } from "@ponder/react";
+import { client } from "./lib/ponder";
+
+function App() {
+  return <PonderProvider client={client}>{/** ... */}</PonderProvider>;
+}
+```
+
 ## Example projects
 
-These example apps demonstrate how to use `@ponder/client`.
+These example apps demonstrate how to use `@ponder/client` and `@ponder/react`.
 
 - [**Basic**](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts)
 - [**Next.js**](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18)

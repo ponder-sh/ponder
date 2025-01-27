@@ -28,12 +28,13 @@ export function usePonderQuery<result>(
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
+    if (params.enabled === false) return;
     const { unsubscribe } = client.live(
       () => Promise.resolve(),
       () => queryClient.invalidateQueries({ queryKey: memoizedQueryKey }),
     );
     return unsubscribe;
-  }, [memoizedQueryKey]);
+  }, [memoizedQueryKey, params.enabled]);
 
   return useQuery({
     ...params,

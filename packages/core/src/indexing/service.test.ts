@@ -50,7 +50,7 @@ test("createIndexing()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingService = create({
@@ -76,7 +76,7 @@ test("processSetupEvents() empty", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingService = create({
@@ -106,7 +106,7 @@ test("processSetupEvents()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -158,7 +158,7 @@ test("processEvent()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -251,7 +251,7 @@ test("processEvents killed", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -317,7 +317,7 @@ test("processEvents eventCount", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -379,7 +379,7 @@ test("executeSetup() context.client", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -427,7 +427,7 @@ test("executeSetup() context.db", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -475,7 +475,7 @@ test("executeSetup() metrics", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingService = create({
@@ -509,7 +509,7 @@ test("executeSetup() error", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -546,7 +546,7 @@ test("processEvents() context.client", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const clientCall = async ({ context }: { context: Context }) => {
@@ -618,7 +618,7 @@ test("processEvents() context.db", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   let i = 0;
@@ -691,7 +691,7 @@ test("processEvents() metrics", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingService = create({
@@ -749,7 +749,7 @@ test("processEvents() error", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingFunctions = {
@@ -816,11 +816,90 @@ test("processEvents() error", async (context) => {
   await cleanup();
 });
 
+test("processEvents() error with missing event object properties", async (context) => {
+  const { common } = context;
+  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+
+  const sync = await createSync({
+    common,
+    syncStore,
+    indexingBuild: {
+      sources,
+      networks,
+    },
+    onRealtimeEvent: () => Promise.resolve(),
+    onFatalError: () => {},
+    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+  });
+
+  const throwError = async ({ event }: { event: any; context: Context }) => {
+    // biome-ignore lint/performance/noDelete: <explanation>
+    delete event.transaction;
+    throw new Error("empty transaction");
+  };
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      throwError,
+  };
+
+  const indexingService = create({
+    common,
+    indexingBuild: {
+      indexingFunctions,
+      sources,
+      networks,
+    },
+    sync,
+  });
+
+  setIndexingStore(indexingService, indexingStore);
+
+  const topics = encodeEventTopics({
+    abi: erc20ABI,
+    eventName: "Transfer",
+    args: {
+      from: zeroAddress,
+      to: ALICE,
+    },
+  });
+
+  const data = padHex(toHex(parseEther("1")), { size: 32 });
+
+  const rawEvent = {
+    chainId: 1,
+    sourceIndex: 0,
+    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    block: {} as RawEvent["block"],
+    transaction: {} as RawEvent["transaction"],
+    log: {
+      id: "test",
+      data,
+      topics,
+    },
+  } as RawEvent;
+
+  const events = decodeEvents(common, sources, [rawEvent]);
+  const result = await processEvents(indexingService, { events });
+
+  expect(result).toMatchInlineSnapshot(`
+    {
+      "error": [Error: empty transaction],
+      "status": "error",
+    }
+  `);
+
+  await cleanup();
+});
+
 test("execute() error after killed", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { promise, reject } = promiseWithResolvers();
@@ -882,7 +961,7 @@ test("ponderActions getBalance()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const indexingService = create({
@@ -911,7 +990,7 @@ test("ponderActions getCode()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -942,7 +1021,7 @@ test("ponderActions getStorageAt()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -981,7 +1060,7 @@ test("ponderActions readContract()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1020,7 +1099,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1061,7 +1140,7 @@ test.skip("ponderActions multicall()", async (context) => {
   const { common } = context;
   const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
     context,
-    { schema },
+    { schemaBuild: { schema } },
   );
 
   const { address } = await deployErc20({ sender: ALICE });

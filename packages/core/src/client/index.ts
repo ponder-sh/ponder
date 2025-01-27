@@ -5,6 +5,7 @@ import type { QueryWithTypings } from "drizzle-orm";
 import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import { validateQuery } from "./validate.js";
 
 const status = pgTable("_ponder_status", (t) => ({
   chainId: t.bigint({ mode: "number" }).primaryKey(),
@@ -17,21 +18,25 @@ const status = pgTable("_ponder_status", (t) => ({
  * Middleware for `@ponder/client`.
  *
  * @param db - Drizzle database instance
+ * @param schema - Ponder schema
  *
  * @example
  * ```ts
  * import { db } from "ponder:api";
+ * import schema from "ponder:schema";
  * import { Hono } from "hono";
  * import { client } from "ponder";
  *
  * const app = new Hono();
  *
- * app.use(client({ db }));
+ * app.use(client({ db, schema }));
  *
  * export default app;
  * ```
  */
-export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
+export const client = ({
+  db,
+}: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
@@ -76,19 +81,38 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       }
       const query = JSON.parse(queryString) as QueryWithTypings;
 
-      if (query.sql.match(/\brecursive\b/i)) {
-        return c.text("Recursive queries are not allowed", 400);
+      if (query.sql.match(/\bCOMMIT\b/i)) {
+        return c.text("Invalid query", 400);
       }
 
-      try {
-        const result = await session
-          .prepareQuery(query, undefined, undefined, false)
-          .execute();
+      if ("instance" in driver) {
+        try {
+          await validateQuery(query.sql);
+          const result = await session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute();
+          return c.json(result as object);
+        } catch (error) {
+          (error as Error).stack = undefined;
+          return c.text((error as Error).message, 500);
+        }
+      } else {
+        const client = await driver.internal.connect();
 
-        return c.json(result as object);
-      } catch (error) {
-        (error as Error).stack = undefined;
-        return c.text((error as Error).message, 500);
+        try {
+          await validateQuery(query.sql);
+          await client.query("BEGIN READ ONLY");
+          const result = await session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute();
+          return c.json(result as object);
+        } catch (error) {
+          (error as Error).stack = undefined;
+          return c.text((error as Error).message, 500);
+        } finally {
+          await client.query("ROLLBACK");
+          client.release();
+        }
       }
     }
 
