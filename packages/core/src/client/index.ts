@@ -18,6 +18,7 @@ const status = pgTable("_ponder_status", (t) => ({
  * Middleware for `@ponder/client`.
  *
  * @param db - Drizzle database instance
+ * @param schema - Ponder schema
  *
  * @example
  * ```ts

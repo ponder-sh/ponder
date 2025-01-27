@@ -34,7 +34,7 @@ export const validateQuery = async (sql: string) => {
     ALLOW_CACHE.set(hash, false);
   }
 
-  const { parse } = await new Parser();
+  const { parse } = await Parser.default();
   const parseResult = parse(sql) as {
     parse_tree: { stmts: RawStmt[] };
     error: string | null;
