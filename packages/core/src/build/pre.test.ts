@@ -136,18 +136,32 @@ test("buildPre() database with postgres uses pool config", async () => {
     database: {
       kind: "postgres",
       connectionString: "postgres://username@localhost:5432/database",
-      poolConfig: { max: 100 },
+      poolConfig: {
+        max: 100,
+        ssl: {
+          ca: "ca",
+          cert: "cert",
+          key: "key",
+        },
+        // @ts-expect-error
+        unsupported: "unsupported",
+      },
     },
     networks: { mainnet: { chainId: 1, transport: http() } },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
   const { databaseConfig } = buildPre({ config, options });
-  expect(databaseConfig).toMatchObject({
+  expect(databaseConfig).toStrictEqual({
     kind: "postgres",
     poolConfig: {
       connectionString: "postgres://username@localhost:5432/database",
       max: 100,
+      ssl: {
+        ca: "ca",
+        cert: "cert",
+        key: "key",
+      },
     },
   });
 });
