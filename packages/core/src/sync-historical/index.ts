@@ -712,12 +712,9 @@ export const createHistoricalSync = async (
 
                   for (const {
                     filter,
-                    interval,
                     fromChildAddresses,
                     toChildAddresses,
                   } of requiredTraceOrTransferIntervals) {
-                    if (interval[0] > number || interval[1] < number) continue;
-
                     if (
                       filter.type === "trace" &&
                       isTraceFilterMatched({
