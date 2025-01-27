@@ -121,9 +121,7 @@ test("client.db readonly", async (context) => {
 
   const response = await app.request(`/client/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
-  expect(await response.text()).toContain(
-    "cannot execute INSERT in a read-only transaction",
-  );
+  expect(await response.text()).toContain("InsertStmt not supported");
   await cleanup();
 });
 
@@ -157,8 +155,6 @@ FROM infinite_cte;`,
 
   const response = await app.request(`/client/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
-  expect(await response.text()).toContain(
-    "canceling statement due to statement timeout",
-  );
+  expect(await response.text()).toContain("Recursive CTEs not supported");
   await cleanup();
 });

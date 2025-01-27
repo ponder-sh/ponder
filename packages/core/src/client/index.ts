@@ -5,6 +5,7 @@ import type { QueryWithTypings } from "drizzle-orm";
 import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import { validateQuery } from "./validate.js";
 
 const status = pgTable("_ponder_status", (t) => ({
   chainId: t.bigint({ mode: "number" }).primaryKey(),
@@ -82,10 +83,10 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
 
       if ("instance" in driver) {
         try {
+          validateQuery(query.sql);
           const result = await session
             .prepareQuery(query, undefined, undefined, false)
             .execute();
-
           return c.json(result as object);
         } catch (error) {
           (error as Error).stack = undefined;
@@ -94,30 +95,26 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
       } else {
         const client = await driver.internal.connect();
 
+        // TODO(kyle) these settings should be configured elsewhere
+        // await client.query("SET work_mem = '512MB'");
+        // await client.query(
+        //   `SET search_path = "${globalThis.PONDER_NAMESPACE_BUILD}"`,
+        // );
+        // await client.query("SET statement_timeout = '500ms'");
+        // await client.query("SET lock_timeout = '500ms'");
+
         try {
-          // TODO(kyle) these settings should be configured elsewhere
+          validateQuery(query.sql);
           await client.query("BEGIN READ ONLY");
-          await client.query("SET work_mem = '512MB'");
-          await client.query(
-            `SET search_path = "${globalThis.PONDER_NAMESPACE_BUILD}"`,
-          );
-          await client.query("SET statement_timeout = '500ms'");
-          await client.query("SET lock_timeout = '500ms'");
-
-          await client.query({
-            text: `PREPARE ponder_client AS ${query.sql}`,
-            values: query.params,
-          });
-          const result = await client.query("EXECUTE ponder_client");
-          await client.query("DEALLOCATE ponder_client");
-
-          return c.json(result);
+          const result = await session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute();
+          return c.json(result as object);
         } catch (error) {
           (error as Error).stack = undefined;
           return c.text((error as Error).message, 500);
         } finally {
           await client.query("ROLLBACK");
-
           client.release();
         }
       }

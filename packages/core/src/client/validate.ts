@@ -1,12 +1,9 @@
 import { hash } from "@/utils/hash.js";
 import type { Node, RawStmt } from "@pgsql/types";
-import type { SQLWrapper } from "drizzle-orm";
-import { PgDialect } from "drizzle-orm/pg-core";
 // @ts-ignore
 import Parser from "pg-query-emscripten";
 
 const { parse } = await new Parser();
-const dialect = new PgDialect();
 
 type ValidatorNode<
   node extends Node extends infer T ? (T extends T ? keyof T : never) : never,
@@ -20,8 +17,7 @@ const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
 
-export const validateQuery = (query: SQLWrapper) => {
-  const sql = dialect.sqlToQuery(query.getSQL()).sql;
+export const validateQuery = (sql: string) => {
   const sqlHash = hash(sql);
 
   if (ALLOW_CACHE.has(sqlHash)) {
@@ -41,7 +37,7 @@ export const validateQuery = (query: SQLWrapper) => {
   };
 
   if (parseResult.error !== null) {
-    throw new Error("Invalid query");
+    throw new Error(parseResult.error);
   }
 
   if (parseResult.parse_tree.stmts.length === 0) {
@@ -49,7 +45,7 @@ export const validateQuery = (query: SQLWrapper) => {
   }
 
   if (parseResult.parse_tree.stmts.length > 1) {
-    throw new Error("Invalid query");
+    throw new Error("Multiple statements not supported");
   }
 
   const stmt = parseResult.parse_tree.stmts[0]!;
@@ -536,7 +532,7 @@ const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {
     ) {
       return;
     }
-    throw new Error("Function call not allowed");
+    throw new Error("Function call not supported");
   },
 };
 
@@ -610,7 +606,7 @@ const WITH_CLAUSE_VALIDATOR: ValidatorNode<"WithClause"> = {
   children: (node) => [...(node.ctes ?? [])],
   validate: (node) => {
     if (node.recursive) {
-      throw new Error("Recursive CTEs not allowed");
+      throw new Error("Recursive CTEs not supported");
     }
   },
 };
