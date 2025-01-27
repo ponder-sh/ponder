@@ -86,7 +86,7 @@ export const client = ({
 
       if ("instance" in driver) {
         try {
-          validateQuery(query.sql);
+          await validateQuery(query.sql);
           const result = await session
             .prepareQuery(query, undefined, undefined, false)
             .execute();
@@ -99,7 +99,7 @@ export const client = ({
         const client = await driver.internal.connect();
 
         try {
-          validateQuery(query.sql);
+          await validateQuery(query.sql);
           await client.query("BEGIN READ ONLY");
           const result = await session
             .prepareQuery(query, undefined, undefined, false)

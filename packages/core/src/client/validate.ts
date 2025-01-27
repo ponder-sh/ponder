@@ -1,9 +1,4 @@
-import { hash } from "@/utils/hash.js";
 import type { Node, RawStmt } from "@pgsql/types";
-// @ts-ignore
-import Parser from "pg-query-emscripten";
-
-const { parse } = await new Parser();
 
 type ValidatorNode<
   node extends Node extends infer T ? (T extends T ? keyof T : never) : never,
@@ -17,20 +12,29 @@ const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
 
-export const validateQuery = (sql: string) => {
-  const sqlHash = hash(sql);
+export const validateQuery = async (sql: string) => {
+  // @ts-ignore
+  const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
+  const crypto = await import(/* webpackIgnore: true */ "node:crypto");
 
-  if (ALLOW_CACHE.has(sqlHash)) {
-    const result = ALLOW_CACHE.get(sqlHash)!;
-    ALLOW_CACHE.delete(sqlHash);
-    ALLOW_CACHE.set(sqlHash, result);
+  const hash = crypto
+    .createHash("sha256")
+    .update(sql)
+    .digest("hex")
+    .slice(0, 10);
+
+  if (ALLOW_CACHE.has(hash)) {
+    const result = ALLOW_CACHE.get(hash)!;
+    ALLOW_CACHE.delete(hash);
+    ALLOW_CACHE.set(hash, result);
 
     if (result) return;
     throw new Error("Invalid query");
   } else {
-    ALLOW_CACHE.set(sqlHash, false);
+    ALLOW_CACHE.set(hash, false);
   }
 
+  const { parse } = await new Parser();
   const parseResult = parse(sql) as {
     parse_tree: { stmts: RawStmt[] };
     error: string | null;
@@ -72,7 +76,7 @@ export const validateQuery = (sql: string) => {
 
   validate(stmt.stmt);
 
-  ALLOW_CACHE.set(sqlHash, true);
+  ALLOW_CACHE.set(hash, true);
   if (ALLOW_CACHE.size > 1_000_000) {
     const firstKey = ALLOW_CACHE.keys().next().value;
     if (firstKey) ALLOW_CACHE.delete(firstKey);
