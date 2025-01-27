@@ -8,7 +8,6 @@ import {
 import {
   type EIP1193Parameters,
   HttpRequestError,
-  InvalidRequestRpcError,
   JsonRpcVersionUnsupportedError,
   MethodNotFoundRpcError,
   MethodNotSupportedRpcError,
