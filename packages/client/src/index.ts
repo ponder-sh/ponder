@@ -1,10 +1,4 @@
-import {
-  type QueryWithTypings,
-  type SQLWrapper,
-  Table,
-  is,
-  sql,
-} from "drizzle-orm";
+import type { QueryWithTypings, SQLWrapper } from "drizzle-orm";
 import type { PgDialect } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 
@@ -80,9 +74,8 @@ const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
 // @ts-ignore
 const dialect: PgDialect = noopDatabase.dialect;
 
-export const compileQuery = (query: SQLWrapper | string) => {
-  const sequel = typeof query === "string" ? sql.raw(query) : query.getSQL();
-  return dialect.sqlToQuery(sequel);
+export const compileQuery = (query: SQLWrapper) => {
+  return dialect.sqlToQuery(query.getSQL());
 };
 
 /**
@@ -225,18 +218,3 @@ export {
   except,
   exceptAll,
 } from "drizzle-orm/pg-core";
-
-const Schema = Symbol.for("drizzle:Schema");
-
-export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
-  schema: T,
-  schemaName: string,
-): T => {
-  for (const table of Object.values(schema)) {
-    if (is(table, Table)) {
-      // @ts-ignore
-      table[Schema] = schemaName;
-    }
-  }
-  return schema;
-};
