@@ -5,7 +5,7 @@ import { client, graphql } from "ponder";
 
 const app = new Hono();
 
-app.use(client({ db }));
+app.use(client({ db, schema }));
 
 app.use("/", graphql({ db, schema }));
 app.use("/graphql", graphql({ db, schema }));

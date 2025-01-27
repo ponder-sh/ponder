@@ -17,6 +17,8 @@ const queryToParams = (query: QueryWithTypings) =>
   new URLSearchParams({ sql: JSON.stringify(query) });
 
 test("client.db", async (context) => {
+  globalThis.PONDER_NAMESPACE_BUILD = "public";
+
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
     balance: p.bigint(),
@@ -26,10 +28,14 @@ test("client.db", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
   globalThis.PONDER_DATABASE = database;
 
-  const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
+  const app = new Hono().use(
+    client({
+      db: database.qb.drizzleReadonly,
+      schema: { account },
+    }),
+  );
 
   let query = {
     sql: "SELECT * FROM account",
@@ -56,7 +62,12 @@ test("client.db error", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
   globalThis.PONDER_DATABASE = database;
 
-  const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
+  const app = new Hono().use(
+    client({
+      db: database.qb.drizzleReadonly,
+      schema: {},
+    }),
+  );
 
   globalThis.PONDER_NAMESPACE_BUILD = "public";
   globalThis.PONDER_DATABASE = database;
@@ -73,7 +84,9 @@ test("client.db error", async (context) => {
   await cleanup();
 });
 
-test.skip("client.db search_path", async (context) => {
+test("client.db search_path", async (context) => {
+  globalThis.PONDER_NAMESPACE_BUILD = "Ponder";
+
   const schemaAccount = pgSchema("Ponder").table("account", {
     address: hex().primaryKey(),
     balance: bigint(),
@@ -84,10 +97,14 @@ test.skip("client.db search_path", async (context) => {
     schemaBuild: { schema: { account: schemaAccount } },
   });
 
-  globalThis.PONDER_NAMESPACE_BUILD = "Ponder";
   globalThis.PONDER_DATABASE = database;
 
-  const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
+  const app = new Hono().use(
+    client({
+      db: database.qb.drizzleReadonly,
+      schema: { account: schemaAccount },
+    }),
+  );
 
   const query = {
     sql: "SELECT * FROM account",
@@ -100,6 +117,8 @@ test.skip("client.db search_path", async (context) => {
 });
 
 test("client.db readonly", async (context) => {
+  globalThis.PONDER_NAMESPACE_BUILD = "public";
+
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
     balance: p.bigint(),
@@ -109,10 +128,11 @@ test("client.db readonly", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
   globalThis.PONDER_DATABASE = database;
 
-  const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
+  const app = new Hono().use(
+    client({ db: database.qb.drizzleReadonly, schema: { account } }),
+  );
 
   const query = {
     sql: "INSERT INTO account (address, balance) VALUES ('0x123', 100)",
@@ -126,6 +146,8 @@ test("client.db readonly", async (context) => {
 });
 
 test("client.db recursive", async (context) => {
+  globalThis.PONDER_NAMESPACE_BUILD = "public";
+
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
     balance: p.bigint(),
@@ -135,10 +157,11 @@ test("client.db recursive", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
   globalThis.PONDER_DATABASE = database;
 
-  const app = new Hono().use(client({ db: database.qb.drizzleReadonly }));
+  const app = new Hono().use(
+    client({ db: database.qb.drizzleReadonly, schema: { account } }),
+  );
 
   const query = {
     sql: `

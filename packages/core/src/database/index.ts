@@ -22,7 +22,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
-import { createPool } from "@/utils/pg.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
@@ -115,8 +115,6 @@ type QueryBuilder = {
   user: Kysely<any>;
   /** Used to interact with the sync-store */
   sync: Kysely<PonderSyncSchema>;
-  /** Used in api functions */
-  readonly: Kysely<any>;
   drizzle: Drizzle<Schema>;
   drizzleReadonly: Drizzle<Schema>;
 };
@@ -185,17 +183,6 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(namespace)],
       }),
-      readonly: new Kysely({
-        dialect: kyselyDialect,
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "readonly",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin(namespace)],
-      }),
       sync: new Kysely<PonderSyncSchema>({
         dialect: kyselyDialect,
         log(event) {
@@ -244,13 +231,14 @@ export const createDatabase = async ({
         },
         common.logger,
       ),
-      readonly: createPool(
+      readonly: createReadonlyPool(
         {
           ...preBuild.databaseConfig.poolConfig,
           application_name: `${namespace}_readonly`,
           max: readonlyMax,
         },
         common.logger,
+        namespace,
       ),
       sync: createPool(
         {
@@ -283,17 +271,6 @@ export const createDatabase = async ({
           if (event.level === "query") {
             common.metrics.ponder_postgres_query_total.inc({
               pool: "user",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin(namespace)],
-      }),
-      readonly: new Kysely({
-        dialect: new PostgresDialect({ pool: driver.readonly }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "readonly",
             });
           }
         },
@@ -489,6 +466,7 @@ export const createDatabase = async ({
           return result;
         } catch (_error) {
           const error = _error as Error;
+          console.log(error);
 
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },

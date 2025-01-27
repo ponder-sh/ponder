@@ -22,17 +22,20 @@ const status = pgTable("_ponder_status", (t) => ({
  * @example
  * ```ts
  * import { db } from "ponder:api";
+ * import schema from "ponder:schema";
  * import { Hono } from "hono";
  * import { client } from "ponder";
  *
  * const app = new Hono();
  *
- * app.use(client({ db }));
+ * app.use(client({ db, schema }));
  *
  * export default app;
  * ```
  */
-export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
+export const client = ({
+  db,
+}: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
@@ -94,14 +97,6 @@ export const client = ({ db }: { db: ReadonlyDrizzle<Schema> }) => {
         }
       } else {
         const client = await driver.internal.connect();
-
-        // TODO(kyle) these settings should be configured elsewhere
-        // await client.query("SET work_mem = '512MB'");
-        // await client.query(
-        //   `SET search_path = "${globalThis.PONDER_NAMESPACE_BUILD}"`,
-        // );
-        // await client.query("SET statement_timeout = '500ms'");
-        // await client.query("SET lock_timeout = '500ms'");
 
         try {
           validateQuery(query.sql);
