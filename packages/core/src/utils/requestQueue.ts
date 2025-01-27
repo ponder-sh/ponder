@@ -158,8 +158,6 @@ function shouldRetry(error: Error) {
   if ("code" in error && typeof error.code === "number") {
     // Invalid JSON
     if (error.code === ParseRpcError.code) return false;
-    // JSON is not a valid request object
-    if (error.code === InvalidRequestRpcError.code) return false;
     // Method does not exist
     if (error.code === MethodNotFoundRpcError.code) return false;
     // Method is not implemented
