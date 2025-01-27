@@ -6,12 +6,13 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
-  BlockNotFoundError,
   type EIP1193Parameters,
   HttpRequestError,
-  InternalRpcError,
-  InvalidInputRpcError,
-  LimitExceededRpcError,
+  InvalidRequestRpcError,
+  JsonRpcVersionUnsupportedError,
+  MethodNotFoundRpcError,
+  MethodNotSupportedRpcError,
+  ParseRpcError,
   type PublicRpcSchema,
   type RpcError,
   isHex,
@@ -155,31 +156,24 @@ export const createRequestQueue = ({
  */
 function shouldRetry(error: Error) {
   if ("code" in error && typeof error.code === "number") {
-    if (error.code === -1) return true; // Unknown error
-    if (error.code === InvalidInputRpcError.code) return true;
-    if (error.code === LimitExceededRpcError.code) return true;
-    if (error.code === InternalRpcError.code) return true;
-    return false;
+    // Invalid JSON
+    if (error.code === ParseRpcError.code) return false;
+    // Method does not exist
+    if (error.code === MethodNotFoundRpcError.code) return false;
+    // Method is not implemented
+    if (error.code === MethodNotSupportedRpcError.code) return false;
+    // Version of JSON-RPC protocol is not supported
+    if (error.code === JsonRpcVersionUnsupportedError.code) return false;
   }
-  if (error instanceof BlockNotFoundError) return true;
   if (error instanceof HttpRequestError && error.status) {
-    // Forbidden
-    if (error.status === 403) return true;
-    // Request Timeout
-    if (error.status === 408) return true;
-    // Request Entity Too Large
-    if (error.status === 413) return true;
-    // Too Many Requests
-    if (error.status === 429) return true;
-    // Internal Server Error
-    if (error.status === 500) return true;
-    // Bad Gateway
-    if (error.status === 502) return true;
-    // Service Unavailable
-    if (error.status === 503) return true;
-    // Gateway Timeout
-    if (error.status === 504) return true;
-    return false;
+    // Method Not Allowed
+    if (error.status === 405) return false;
+    // Not Found
+    if (error.status === 404) return false;
+    // Not Implemented
+    if (error.status === 501) return false;
+    // HTTP Version Not Supported
+    if (error.status === 505) return false;
   }
   return true;
 }
