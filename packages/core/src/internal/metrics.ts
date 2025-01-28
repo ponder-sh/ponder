@@ -468,7 +468,6 @@ export async function getIndexingProgress(metrics: MetricsService) {
       cachedSeconds,
       completedSeconds,
       progress,
-      timestamp,
       totalEvents,
     },
     events,

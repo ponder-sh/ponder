@@ -29,7 +29,6 @@ export const buildUiState = (): UiState => {
         cachedSeconds: 0,
         totalSeconds: 0,
         progress: 0,
-        timestamp: 0,
         totalEvents: 0,
       },
       events: [],
