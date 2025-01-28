@@ -1,26 +1,39 @@
 import type { Common } from "@/internal/common.js";
 import type {
+  Factory,
   Filter,
+  IndexingBuild,
   Network,
   RawEvent,
   Source,
   Status,
 } from "@/internal/types.js";
-import type { HistoricalSync } from "@/sync-historical/index.js";
-import type { RealtimeSync, RealtimeSyncEvent } from "@/sync-realtime/index.js";
+import {
+  type HistoricalSync,
+  createHistoricalSync,
+} from "@/sync-historical/index.js";
+import {
+  type RealtimeSync,
+  type RealtimeSyncEvent,
+  createRealtimeSync,
+} from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { LightBlock, SyncBlock } from "@/types/sync.js";
 import {
   type Checkpoint,
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
-import { bufferAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  mergeAsyncGenerators,
+} from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
@@ -30,10 +43,15 @@ import {
   sortIntervals,
 } from "@/utils/interval.js";
 import { intervalUnion } from "@/utils/interval.js";
+import { never } from "@/utils/never.js";
+import { partition } from "@/utils/partition.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
-import { type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
+import { zipperMany } from "@/utils/zipper.js";
+import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
+import { buildEvents } from "./events.js";
+import { isAddressFactory } from "./filter.js";
 
 export type Sync = {
   getEvents(): AsyncGenerator<RawEvent[]>;
@@ -105,7 +123,7 @@ export const blockToCheckpoint = (
  * Returns true if all filters have a defined end block and the current
  * sync progress has reached the final end block.
  */
-export const isSyncEnd = (syncProgress: SyncProgress) => {
+const isSyncEnd = (syncProgress: SyncProgress) => {
   if (syncProgress.end === undefined || syncProgress.current === undefined) {
     return false;
   }
@@ -117,7 +135,7 @@ export const isSyncEnd = (syncProgress: SyncProgress) => {
 };
 
 /** Returns true if sync progress has reached the finalized block. */
-export const isSyncFinalized = (syncProgress: SyncProgress) => {
+const isSyncFinalized = (syncProgress: SyncProgress) => {
   if (syncProgress.current === undefined) {
     return false;
   }
@@ -194,6 +212,613 @@ export const getChainCheckpoint = ({
       tag === "start" ? "down" : "up",
     ),
   );
+};
+
+export const createSync = async (params: {
+  common: Common;
+  indexingBuild: Pick<IndexingBuild, "sources" | "networks">;
+  requestQueues: RequestQueue[];
+  syncStore: SyncStore;
+  onRealtimeEvent(event: RealtimeEvent): Promise<void>;
+  onFatalError(error: Error): void;
+  initialCheckpoint: string;
+  mode: "omnichain" | "multichain";
+}): Promise<Sync> => {
+  const perNetworkSync = new Map<
+    Network,
+    {
+      syncProgress: SyncProgress;
+      historicalSync: HistoricalSync;
+      realtimeSync: RealtimeSync;
+    }
+  >();
+
+  const getMultichainCheckpoint = ({
+    tag,
+    network,
+  }: { tag: "start" | "end" | "current" | "finalized"; network: Network }):
+    | string
+    | undefined => {
+    const syncProgress = perNetworkSync.get(network)!.syncProgress;
+    return getChainCheckpoint({ syncProgress, network, tag });
+  };
+
+  /** Returns the minimum checkpoint across all chains. */
+  const getOmnichainCheckpoint = ({
+    tag,
+  }: { tag: "start" | "end" | "current" | "finalized" }):
+    | string
+    | undefined => {
+    const checkpoints = Array.from(perNetworkSync.entries()).map(
+      ([network, { syncProgress }]) =>
+        getChainCheckpoint({ syncProgress, network, tag }),
+    );
+
+    if (tag === "end" && checkpoints.some((c) => c === undefined)) {
+      return undefined;
+    }
+
+    if (tag === "current" && checkpoints.every((c) => c === undefined)) {
+      return undefined;
+    }
+
+    return min(...checkpoints);
+  };
+
+  const updateHistoricalStatus = ({
+    events,
+    checkpoint,
+    network,
+  }: { events: RawEvent[]; checkpoint: string; network: Network }) => {
+    if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
+      status[network.name]!.block = {
+        timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
+        number: Number(decodeCheckpoint(checkpoint).blockNumber),
+      };
+    } else {
+      let i = events.length - 1;
+      while (i >= 0) {
+        const event = events[i]!;
+
+        if (network.chainId === event.chainId) {
+          status[network.name]!.block = {
+            timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
+            number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+          };
+        }
+
+        i--;
+      }
+    }
+  };
+
+  // TODO(kyle) maybe inline ?
+  const updateRealtimeStatus = ({
+    checkpoint,
+    network,
+  }: {
+    checkpoint: string;
+    network: Network;
+  }) => {
+    const localBlock = perNetworkSync
+      .get(network)!
+      .realtimeSync.unfinalizedBlocks.findLast(
+        (block) =>
+          encodeCheckpoint(blockToCheckpoint(block, network.chainId, "up")) <=
+          checkpoint,
+      );
+    if (localBlock !== undefined) {
+      status[network.name]!.block = {
+        timestamp: hexToNumber(localBlock.timestamp),
+        number: hexToNumber(localBlock.number),
+      };
+    }
+  };
+
+  async function* getEvents() {
+    const to = min(
+      getOmnichainCheckpoint({ tag: "end" }),
+      getOmnichainCheckpoint({ tag: "finalized" }),
+    );
+
+    const eventGenerators = Array.from(perNetworkSync.entries()).map(
+      ([network, { syncProgress, historicalSync }]) => {
+        const sources = params.indexingBuild.sources.filter(
+          ({ filter }) => filter.chainId === network.chainId,
+        );
+
+        const localSyncGenerator = getLocalSyncGenerator({
+          common: params.common,
+          network,
+          syncProgress,
+          historicalSync,
+        });
+
+        const localEventGenerator = getLocalEventGenerator({
+          syncStore: params.syncStore,
+          sources,
+          localSyncGenerator,
+          from:
+            params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
+              ? params.initialCheckpoint
+              : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
+          to,
+          limit: 1000,
+        });
+
+        return bufferAsyncGenerator(localEventGenerator, 2);
+      },
+    );
+
+    const mergeAsync =
+      params.mode === "multichain"
+        ? mergeAsyncGenerators
+        : mergeAsyncGeneratorsWithEventOrder;
+
+    for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
+      for (const network of params.indexingBuild.networks) {
+        updateHistoricalStatus({ events, checkpoint, network });
+      }
+      yield events;
+    }
+  }
+
+  const getOnRealtimeSyncEvent = ({
+    network,
+    syncProgress,
+    realtimeSync,
+  }: {
+    network: Network;
+    syncProgress: SyncProgress;
+    realtimeSync: RealtimeSync;
+  }) => {
+    const checkpoints = {
+      // Note: `checkpoints.current` not used in multichain mode
+      current: ZERO_CHECKPOINT_STRING,
+      finalized: ZERO_CHECKPOINT_STRING,
+    };
+
+    // Note: `latencyTimers` not used in multichain mode
+    const latencyTimers = new Map<string, () => number>();
+
+    return (event: RealtimeSyncEvent): void => {
+      switch (event.type) {
+        case "block": {
+          const events = buildEvents({
+            sources: params.indexingBuild.sources,
+            chainId: network.chainId,
+            blockWithEventData: event,
+            finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
+            unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
+          });
+
+          if (params.mode === "multichain") {
+            // Note: `checkpoints.current` not used in multichain mode (maybe)
+            const checkpoint = getMultichainCheckpoint({
+              tag: "current",
+              network,
+            })!;
+
+            status[network.name]!.block = {
+              timestamp: hexToNumber(event.block.timestamp),
+              number: hexToNumber(event.block.number),
+            };
+
+            seconds.end = hexToNumber(event.block.timestamp);
+
+            const readyEvents = events.concat(pendingEvents);
+
+            executedEvents.push(...readyEvents);
+
+            params
+              .onRealtimeEvent({
+                type: "block",
+                checkpoint,
+                status: structuredClone(status),
+                events: readyEvents,
+                network,
+              })
+              .then(() => {
+                if (readyEvents.length > 0 && isKilled === false) {
+                  params.common.logger.info({
+                    service: "app",
+                    msg: `Indexed ${readyEvents.length} events`,
+                  });
+                }
+
+                // update `ponder_realtime_latency` metric
+                if (event.endClock) {
+                  params.common.metrics.ponder_realtime_latency.observe(
+                    { network: network.name },
+                    event.endClock(),
+                  );
+                }
+              });
+          } else {
+            const from = checkpoints.current;
+            checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
+            const to = getOmnichainCheckpoint({ tag: "current" })!;
+
+            if (event.endClock !== undefined) {
+              latencyTimers.set(
+                encodeCheckpoint(
+                  blockToCheckpoint(event.block, network.chainId, "up"),
+                ),
+                event.endClock,
+              );
+            }
+
+            // TODO(kyle) refactor pending + executed
+
+            pendingEvents.push(...events);
+
+            if (to > from) {
+              for (const network of params.indexingBuild.networks) {
+                updateRealtimeStatus({ checkpoint: to, network });
+              }
+
+              seconds.end = decodeCheckpoint(to).blockTimestamp;
+
+              // Move ready events from pending to executed
+
+              const readyEvents = pendingEvents
+                .filter((event) => event.checkpoint < to)
+                .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+
+              pendingEvents = pendingEvents.filter(
+                ({ checkpoint }) => checkpoint > to,
+              );
+              executedEvents.push(...readyEvents);
+
+              params
+                .onRealtimeEvent({
+                  type: "block",
+                  checkpoint: to,
+                  status: structuredClone(status),
+                  events: readyEvents,
+                  network,
+                })
+                .then(() => {
+                  if (readyEvents.length > 0 && isKilled === false) {
+                    params.common.logger.info({
+                      service: "app",
+                      msg: `Indexed ${readyEvents.length} events`,
+                    });
+                  }
+
+                  // update `ponder_realtime_latency` metric
+                  for (const [checkpoint, timer] of latencyTimers) {
+                    if (checkpoint > from && checkpoint <= to) {
+                      const chainId = Number(
+                        decodeCheckpoint(checkpoint).chainId,
+                      );
+                      const network = params.indexingBuild.networks.find(
+                        (network) => network.chainId === chainId,
+                      )!;
+                      params.common.metrics.ponder_realtime_latency.observe(
+                        { network: network.name },
+                        timer(),
+                      );
+                    }
+                  }
+                });
+            }
+          }
+
+          break;
+        }
+
+        case "finalize": {
+          const from = checkpoints.finalized;
+          checkpoints.finalized = getOmnichainCheckpoint({ tag: "finalized" })!;
+          const to = getOmnichainCheckpoint({ tag: "finalized" })!;
+
+          if (
+            params.mode === "omnichain" &&
+            getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
+              getOmnichainCheckpoint({ tag: "current" })!
+          ) {
+            params.common.logger.warn({
+              service: "sync",
+              msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
+            });
+          }
+
+          // Remove all finalized data
+
+          executedEvents = executedEvents.filter((e) => e.checkpoint > to);
+
+          // Raise event to parent function (runtime)
+          if (to > from) {
+            params.onRealtimeEvent({
+              type: "finalize",
+              checkpoint: to,
+              network,
+            });
+          }
+
+          break;
+        }
+
+        case "reorg": {
+          // Note: this checkpoint is <= the previous checkpoint
+          checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
+          const checkpoint = getOmnichainCheckpoint({ tag: "current" })!;
+
+          // Remove all reorged data
+
+          const isReorgedEvent = ({ chainId, block }: RawEvent) =>
+            chainId === network.chainId &&
+            Number(block.number) > hexToNumber(event.block.number);
+
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
+          executedEvents = executedEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
+
+          // Move events from executed to pending
+
+          const events = executedEvents.filter(
+            (e) => e.checkpoint > checkpoint,
+          );
+          executedEvents = executedEvents.filter(
+            (e) => e.checkpoint < checkpoint,
+          );
+          pendingEvents.push(...events);
+
+          // TODO(kyle) to > from
+          params.onRealtimeEvent({
+            type: "reorg",
+            checkpoint,
+            network,
+          });
+
+          break;
+        }
+
+        default:
+          never(event);
+      }
+    };
+  };
+
+  /** Events that have been executed but not finalized. */
+  let executedEvents: RawEvent[] = [];
+  /** Events that have not been executed yet. */
+  let pendingEvents: RawEvent[] = [];
+
+  await Promise.all(
+    params.indexingBuild.networks.map(async (network, index) => {
+      const requestQueue = params.requestQueues[index]!;
+
+      const sources = params.indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === network.chainId,
+      );
+
+      // Invalidate sync cache for devnet sources
+      if (network.disableCache) {
+        params.common.logger.warn({
+          service: "sync",
+          msg: `Deleting cache records for '${network.name}'`,
+        });
+
+        await params.syncStore.pruneByChain({
+          chainId: network.chainId,
+        });
+      }
+
+      const historicalSync = await createHistoricalSync({
+        common: params.common,
+        sources,
+        syncStore: params.syncStore,
+        requestQueue,
+        network,
+        onFatalError: params.onFatalError,
+      });
+
+      const syncProgress = await getLocalSyncProgress({
+        common: params.common,
+        network,
+        sources,
+        requestQueue,
+        intervalsCache: historicalSync.intervalsCache,
+      });
+
+      const realtimeSync = createRealtimeSync({
+        common: params.common,
+        sources,
+        requestQueue,
+        network,
+        onEvent: (event) =>
+          // TODO(kyle) do we need a queue
+          onRealtimeSyncEventBase(event)
+            .then(onRealtimeSyncEvent)
+            .catch((error) => {
+              params.common.logger.error({
+                service: "sync",
+                msg: `Fatal error: Unable to process ${event.type} event`,
+                error,
+              });
+              params.onFatalError(error);
+            }),
+        onFatalError: params.onFatalError,
+      });
+
+      params.common.metrics.ponder_sync_is_realtime.set(
+        { network: network.name },
+        0,
+      );
+      params.common.metrics.ponder_sync_is_complete.set(
+        { network: network.name },
+        0,
+      );
+
+      const onRealtimeSyncEventBase = getRealtimeSyncEventHandler({
+        common: params.common,
+        network,
+        sources,
+        syncStore: params.syncStore,
+        syncProgress,
+        realtimeSync,
+      });
+
+      perNetworkSync.set(network, {
+        syncProgress,
+        historicalSync,
+        realtimeSync,
+      });
+
+      const onRealtimeSyncEvent = getOnRealtimeSyncEvent({
+        network,
+        syncProgress,
+        realtimeSync,
+      });
+    }),
+  );
+
+  const status: Status = {};
+
+  for (const network of params.indexingBuild.networks) {
+    status[network.name] = { block: null, ready: false };
+  }
+
+  // TODO(kyle) multichain seconds
+  const seconds: Seconds = {
+    start: decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
+      .blockTimestamp,
+    end: decodeCheckpoint(
+      min(
+        getOmnichainCheckpoint({ tag: "end" }),
+        getOmnichainCheckpoint({ tag: "finalized" }),
+      ),
+    ).blockTimestamp,
+  };
+
+  let isKilled = false;
+
+  return {
+    getEvents,
+    async startRealtime() {
+      for (const network of params.indexingBuild.networks) {
+        const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
+
+        const filters = params.indexingBuild.sources
+          .filter(({ filter }) => filter.chainId === network.chainId)
+          .map(({ filter }) => filter);
+
+        status[network.name]!.block = {
+          number: hexToNumber(syncProgress.current!.number),
+          timestamp: hexToNumber(syncProgress.current!.timestamp),
+        };
+        status[network.name]!.ready = true;
+
+        // Fetch any events between the omnichain finalized checkpoint and the single-chain
+        // finalized checkpoint and add them to pendingEvents. These events are synced during
+        // the historical phase, but must be indexed in the realtime phase because events
+        // synced in realtime on other chains might be ordered before them.
+        const from = getOmnichainCheckpoint({ tag: "finalized" })!;
+
+        const finalized = getChainCheckpoint({
+          syncProgress,
+          network,
+          tag: "finalized",
+        })!;
+        const end = getChainCheckpoint({
+          syncProgress,
+          network,
+          tag: "end",
+        })!;
+        const to = min(finalized, end);
+
+        if (to > from) {
+          const events = await params.syncStore.getEvents({
+            filters,
+            from,
+            to,
+          });
+          pendingEvents.push(...events.events);
+        }
+
+        if (isSyncEnd(syncProgress)) {
+          params.common.metrics.ponder_sync_is_complete.set(
+            { network: network.name },
+            1,
+          );
+        } else {
+          params.common.metrics.ponder_sync_is_realtime.set(
+            { network: network.name },
+            1,
+          );
+
+          const initialChildAddresses = new Map<Factory, Set<Address>>();
+
+          for (const filter of filters) {
+            switch (filter.type) {
+              case "log":
+                if (isAddressFactory(filter.address)) {
+                  const addresses = await params.syncStore.getChildAddresses({
+                    filter: filter.address,
+                  });
+
+                  initialChildAddresses.set(filter.address, new Set(addresses));
+                }
+                break;
+
+              case "transaction":
+              case "transfer":
+              case "trace":
+                if (isAddressFactory(filter.fromAddress)) {
+                  const addresses = await params.syncStore.getChildAddresses({
+                    filter: filter.fromAddress,
+                  });
+
+                  initialChildAddresses.set(
+                    filter.fromAddress,
+                    new Set(addresses),
+                  );
+                }
+
+                if (isAddressFactory(filter.toAddress)) {
+                  const addresses = await params.syncStore.getChildAddresses({
+                    filter: filter.toAddress,
+                  });
+
+                  initialChildAddresses.set(
+                    filter.toAddress,
+                    new Set(addresses),
+                  );
+                }
+
+                break;
+            }
+          }
+
+          realtimeSync.start({ syncProgress, initialChildAddresses });
+        }
+      }
+    },
+    getStatus() {
+      return status;
+    },
+    getSeconds() {
+      return seconds;
+    },
+    getFinalizedCheckpoint() {
+      return getOmnichainCheckpoint({ tag: "finalized" })!;
+    },
+    async kill() {
+      isKilled = true;
+      const promises: Promise<void>[] = [];
+      for (const network of params.indexingBuild.networks) {
+        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
+        historicalSync.kill();
+        promises.push(realtimeSync.kill());
+      }
+      await Promise.all(promises);
+    },
+  };
 };
 
 export const getRealtimeSyncEventHandler = ({
@@ -746,3 +1371,50 @@ export const getCachedBlock = ({
 
   return undefined;
 };
+
+/**
+ * Merges multiple event generators into a single generator while preserving
+ * the order of events.
+ *
+ * @param generators - Generators to merge.
+ * @returns A single generator that yields events from all generators.
+ */
+export async function* mergeAsyncGeneratorsWithEventOrder(
+  generators: AsyncGenerator<{ events: RawEvent[]; checkpoint: string }>[],
+): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }> {
+  const results = await Promise.all(generators.map((gen) => gen.next()));
+
+  while (results.some((res) => res.done !== true)) {
+    const supremum = min(
+      ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
+    );
+
+    const eventArrays: RawEvent[][] = [];
+
+    for (const result of results) {
+      if (result.done === false) {
+        const [left, right] = partition(
+          result.value.events,
+          (event) => event.checkpoint <= supremum,
+        );
+
+        eventArrays.push(left);
+        result.value.events = right;
+      }
+    }
+
+    const events = zipperMany(eventArrays).sort((a, b) =>
+      a.checkpoint < b.checkpoint ? -1 : 1,
+    );
+
+    const index = results.findIndex(
+      (res) => res.done === false && res.value.checkpoint === supremum,
+    );
+
+    const resultPromise = generators[index]!.next();
+    if (events.length > 0) {
+      yield { events, checkpoint: supremum };
+    }
+    results[index] = await resultPromise;
+  }
+}

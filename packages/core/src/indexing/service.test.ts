@@ -7,7 +7,10 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
-import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
+import {
+  getErc20ConfigAndIndexingFunctions,
+  getNetwork,
+} from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { RawEvent } from "@/internal/types.js";
@@ -823,17 +826,7 @@ test("processEvents() error with missing event object properties", async (contex
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      networks,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
+  const network = getNetwork();
 
   const throwError = async ({ event }: { event: any; context: Context }) => {
     // biome-ignore lint/performance/noDelete: <explanation>
@@ -853,7 +846,8 @@ test("processEvents() error with missing event object properties", async (contex
       sources,
       networks,
     },
-    sync,
+    requestQueues: [createRequestQueue({ network, common: context.common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -872,7 +866,7 @@ test("processEvents() error with missing event object properties", async (contex
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
