@@ -348,6 +348,14 @@ export const createSync = async (params: {
         : mergeAsyncGeneratorsWithEventOrder;
 
     for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
+      if (params.mode === "multichain") {
+      } else {
+        // params.common.logger.debug({
+        //   service: "sync",
+        //   msg: `Indexed ${events.length} events`,
+        // });
+      }
+
       for (const network of params.indexingBuild.networks) {
         updateHistoricalStatus({ events, checkpoint, network });
       }
@@ -1126,8 +1134,8 @@ export async function* getLocalSyncGenerator({
     syncProgress.current = syncProgress.finalized;
 
     common.logger.warn({
-      service: "historical",
-      msg: `Skipped historical sync for '${network.name}' because the start block is not finalized`,
+      service: "sync",
+      msg: `Skipped '${network.name}' historical sync because the start block is not finalized`,
     });
 
     common.metrics.ponder_sync_block.set(
@@ -1144,6 +1152,11 @@ export async function* getLocalSyncGenerator({
     hexToNumber(syncProgress.start.number),
     hexToNumber(last.number),
   ] satisfies Interval;
+
+  common.logger.debug({
+    service: "sync",
+    msg: `Initialized '${network.name}' historical sync for blocks [${totalInterval[0]}, ${totalInterval[1]}]`,
+  });
 
   const requiredIntervals = Array.from(
     historicalSync.intervalsCache.entries(),
@@ -1170,13 +1183,6 @@ export async function* getLocalSyncGenerator({
   common.metrics.ponder_historical_total_blocks.set(label, total);
   common.metrics.ponder_historical_cached_blocks.set(label, total - required);
 
-  common.logger.info({
-    service: "historical",
-    msg: `Started syncing '${network.name}' with ${formatPercentage(
-      (total - required) / total,
-    )} cached`,
-  });
-
   // Handle cache hit
   if (syncProgress.current !== undefined) {
     common.metrics.ponder_sync_block.set(
@@ -1191,13 +1197,25 @@ export async function* getLocalSyncGenerator({
 
     if (hexToNumber(syncProgress.current.number) === hexToNumber(last.number)) {
       common.logger.info({
-        service: "historical",
-        msg: `Skipped historical sync for '${network.name}' because all blocks are cached.`,
+        service: "sync",
+        msg: `Skipped '${network.name}' historical sync because all blocks are cached.`,
       });
       return;
+    } else {
+      common.logger.info({
+        service: "sync",
+        msg: `Started '${network.name}' historical sync with ${formatPercentage(
+          (total - required) / total,
+        )} cached`,
+      });
     }
 
     cursor = hexToNumber(syncProgress.current.number) + 1;
+  } else {
+    common.logger.info({
+      service: "historical",
+      msg: `Started '${network.name}' historical sync`,
+    });
   }
 
   while (true) {
@@ -1213,6 +1231,11 @@ export async function* getLocalSyncGenerator({
     const endClock = startClock();
 
     const synced = await historicalSync.sync(interval);
+
+    common.logger.debug({
+      service: "sync",
+      msg: `Synced '${network.name}' for blocks [${interval[0]}, ${interval[1]}]`,
+    });
 
     // Update cursor to record progress
     cursor = interval[1] + 1;
@@ -1256,6 +1279,11 @@ export async function* getLocalSyncGenerator({
         estimateRange * 2,
         100_000,
       );
+
+      common.logger.debug({
+        service: "sync",
+        msg: `Updated '${network.name}' historical sync estimate to ${estimateRange} blocks`,
+      });
     }
 
     yield encodeCheckpoint(
@@ -1263,6 +1291,10 @@ export async function* getLocalSyncGenerator({
     );
 
     if (isSyncEnd(syncProgress) || isSyncFinalized(syncProgress)) {
+      common.logger.info({
+        service: "sync",
+        msg: `Completed '${network.name}' historical sync`,
+      });
       return;
     }
   }
