@@ -327,6 +327,8 @@ export const createSync = async (params: {
         });
 
         const localEventGenerator = getLocalEventGenerator({
+          common: params.common,
+          network,
           syncStore: params.syncStore,
           sources,
           localSyncGenerator,
@@ -349,11 +351,19 @@ export const createSync = async (params: {
 
     for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
       if (params.mode === "multichain") {
+        const network = params.indexingBuild.networks.find(
+          (network) =>
+            network.chainId === Number(decodeCheckpoint(checkpoint).chainId),
+        )!;
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Sequenced ${events.length} '${network.name}' events to checkpoint${checkpoint}`,
+        });
       } else {
-        // params.common.logger.debug({
-        //   service: "sync",
-        //   msg: `Indexed ${events.length} events`,
-        // });
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Sequenced ${events.length} events to checkpoint ${checkpoint}`,
+        });
       }
 
       for (const network of params.indexingBuild.networks) {
@@ -1046,6 +1056,8 @@ export const getPerChainOnRealtimeSyncEvent = ({
 };
 
 export async function* getLocalEventGenerator(params: {
+  common: Common;
+  network: Network;
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<string>;
@@ -1073,7 +1085,6 @@ export async function* getLocalEventGenerator(params: {
       });
       const to = min(syncCheckpoint, estimateCheckpoint, params.to);
       try {
-        // TODO(kyle) logs
         const { events, cursor: queryCursor } =
           await params.syncStore.getEvents({
             filters: params.sources.map(({ filter }) => filter),
@@ -1081,6 +1092,12 @@ export async function* getLocalEventGenerator(params: {
             to,
             limit: params.limit,
           });
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Extracted ${events.length} '${params.network.name}' events from [${cursor}, ${queryCursor}]`,
+        });
+
         estimateSeconds = estimate({
           from: decodeCheckpoint(cursor).blockTimestamp,
           to: decodeCheckpoint(queryCursor).blockTimestamp,
@@ -1091,12 +1108,24 @@ export async function* getLocalEventGenerator(params: {
           prev: estimateSeconds,
           maxIncrease: 1.08,
         });
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Updated '${params.network.name}' getEvents query estimate to ${estimateSeconds} seconds`,
+        });
+
         consecutiveErrors = 0;
         cursor = queryCursor;
         yield { events, checkpoint: cursor };
       } catch (error) {
         // Handle errors by reducing the requested range by 10x
         estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Updated '${params.network.name}' getEvents query estimate to ${estimateSeconds} seconds`,
+        });
+
         if (++consecutiveErrors > 4) throw error;
       }
     }
