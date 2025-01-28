@@ -466,7 +466,6 @@ export const createDatabase = async ({
           return result;
         } catch (_error) {
           const error = _error as Error;
-          console.log(error);
 
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },
