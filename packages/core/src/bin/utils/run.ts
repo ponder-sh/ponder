@@ -83,8 +83,6 @@ export async function run({
 
   indexingService.setIndexingStore(historicalIndexingStore);
 
-  await metadataStore.setStatus(sync.getStatus());
-
   const realtimeQueue = createQueue({
     initialStart: true,
     browser: false,
@@ -95,22 +93,34 @@ export async function run({
           // Events must be run block-by-block, so that `database.complete` can accurately
           // update the temporary `checkpoint` value set in the trigger.
           for (const { checkpoint, events } of splitEvents(event.events)) {
-            common.metrics.ponder_indexing_total_seconds.set(
-              sync.getSeconds().end - sync.getSeconds().start,
-            );
-
             const result = await indexingService.processEvents({
               events: decodeEvents(common, indexingBuild.sources, events),
             });
-
-            common.metrics.ponder_indexing_completed_seconds.set(
-              sync.getSeconds().end - sync.getSeconds().start,
-            );
 
             if (result.status === "error") onReloadableError(result.error);
 
             // Set reorg table `checkpoint` column for newly inserted rows.
             await database.complete({ checkpoint });
+
+            if (preBuild.mode === "multichain") {
+              const network = indexingBuild.networks.find(
+                (network) =>
+                  network.chainId ===
+                  Number(decodeCheckpoint(checkpoint).chainId),
+              )!;
+
+              common.metrics.ponder_indexing_timestamp.set(
+                { network: network.name },
+                decodeCheckpoint(checkpoint).blockTimestamp,
+              );
+            } else {
+              for (const network of indexingBuild.networks) {
+                common.metrics.ponder_indexing_timestamp.set(
+                  { network: network.name },
+                  decodeCheckpoint(checkpoint).blockTimestamp,
+                );
+              }
+            }
           }
 
           await metadataStore.setStatus(event.status);
@@ -133,6 +143,38 @@ export async function run({
       }
     },
   });
+
+  await metadataStore.setStatus(sync.getStatus());
+
+  for (const network of indexingBuild.networks) {
+    const label = { network: network.name };
+    common.metrics.ponder_historical_total_indexing_seconds.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+        0,
+      ),
+    );
+    common.metrics.ponder_historical_cached_indexing_seconds.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.cached - sync.seconds[network.name]!.start,
+        0,
+      ),
+    );
+    common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+    common.metrics.ponder_indexing_timestamp.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.cached,
+        sync.seconds[network.name]!.start,
+      ),
+    );
+  }
+
+  // Reset the start timestamp so the eta estimate doesn't include
+  // the startup time.
+  common.metrics.start_timestamp = Date.now();
 
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
@@ -165,13 +207,40 @@ export async function run({
           return;
         }
 
-        const eventTimestamp = decodeCheckpoint(
+        const checkpoint = decodeCheckpoint(
           eventsChunk[eventsChunk.length - 1]!.checkpoint,
-        ).blockTimestamp;
-
-        indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-          eventTimestamp - sync.getSeconds().start,
         );
+
+        if (preBuild.mode === "multichain") {
+          const network = indexingBuild.networks.find(
+            (network) => network.chainId === Number(checkpoint.chainId),
+          )!;
+          common.metrics.ponder_historical_completed_indexing_seconds.set(
+            { network: network.name },
+            Math.max(
+              checkpoint.blockTimestamp - sync.seconds[network.name]!.start,
+              0,
+            ),
+          );
+          common.metrics.ponder_indexing_timestamp.set(
+            { network: network.name },
+            checkpoint.blockTimestamp,
+          );
+        } else {
+          for (const network of indexingBuild.networks) {
+            common.metrics.ponder_historical_completed_indexing_seconds.set(
+              { network: network.name },
+              Math.max(
+                checkpoint.blockTimestamp - sync.seconds[network.name]!.start,
+                0,
+              ),
+            );
+            common.metrics.ponder_indexing_timestamp.set(
+              { network: network.name },
+              checkpoint.blockTimestamp,
+            );
+          }
+        }
 
         // Note: allows for terminal and logs to be updated
         await new Promise(setImmediate);
@@ -189,7 +258,7 @@ export async function run({
         } else {
           common.logger.info({
             service: "app",
-            msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
+            msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
           });
         }
       }
@@ -254,12 +323,20 @@ export async function run({
     // checkpoint is between the last processed event and the finalized
     // checkpoint.
 
-    common.metrics.ponder_indexing_total_seconds.set(
-      sync.getSeconds().end - sync.getSeconds().start,
-    );
-    common.metrics.ponder_indexing_completed_seconds.set(
-      sync.getSeconds().end - sync.getSeconds().start,
-    );
+    for (const network of indexingBuild.networks) {
+      const label = { network: network.name };
+      common.metrics.ponder_historical_completed_indexing_seconds.set(
+        label,
+        Math.max(
+          sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+          0,
+        ),
+      );
+      common.metrics.ponder_indexing_timestamp.set(
+        { network: network.name },
+        sync.seconds[network.name]!.end,
+      );
+    }
 
     // Become healthy
     common.logger.info({

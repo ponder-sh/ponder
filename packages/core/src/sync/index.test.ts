@@ -37,7 +37,7 @@ import {
   getLocalEventGenerator,
   getLocalSyncGenerator,
   getLocalSyncProgress,
-  getRealtimeSyncEventHandler,
+  getPerChainOnRealtimeSyncEvent,
   mergeAsyncGeneratorsWithEventOrder,
   splitEvents,
 } from "./index.js";
@@ -108,7 +108,7 @@ test("splitEvents()", async () => {
   `);
 });
 
-test("getRealtimeSyncEventHandler() handles block", async (context) => {
+test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
@@ -150,7 +150,7 @@ test("getRealtimeSyncEventHandler() handles block", async (context) => {
     onFatalError: () => {},
   });
 
-  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,
@@ -179,7 +179,7 @@ test("getRealtimeSyncEventHandler() handles block", async (context) => {
   await cleanup();
 });
 
-test("getRealtimeSyncEventHandler() handles finalize", async (context) => {
+test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   const { cleanup, database, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
@@ -223,7 +223,7 @@ test("getRealtimeSyncEventHandler() handles finalize", async (context) => {
     onFatalError: () => {},
   });
 
-  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,
@@ -279,7 +279,7 @@ test("getRealtimeSyncEventHandler() handles finalize", async (context) => {
   await cleanup();
 });
 
-test("getRealtimeSyncEventHandler() kills realtime when finalized", async (context) => {
+test("getPerChainOnRealtimeSyncEvent() kills realtime when finalized", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
@@ -327,7 +327,7 @@ test("getRealtimeSyncEventHandler() kills realtime when finalized", async (conte
     onFatalError: () => {},
   });
 
-  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,
@@ -363,7 +363,7 @@ test("getRealtimeSyncEventHandler() kills realtime when finalized", async (conte
   await cleanup();
 });
 
-test("getRealtimeSyncEventHandler() handles reorg", async (context) => {
+test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
@@ -407,7 +407,7 @@ test("getRealtimeSyncEventHandler() handles reorg", async (context) => {
     onFatalError: () => {},
   });
 
-  const onRealtimeSyncEvent = getRealtimeSyncEventHandler({
+  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,

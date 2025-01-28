@@ -5,6 +5,7 @@ import type {
   IndexingBuild,
   Network,
   RawEvent,
+  Seconds,
   Source,
   Status,
 } from "@/internal/types.js";
@@ -57,7 +58,7 @@ export type Sync = {
   getEvents(): AsyncGenerator<RawEvent[]>;
   startRealtime(): Promise<void>;
   getStatus(): Status;
-  getSeconds(): Seconds;
+  seconds: Seconds;
   getFinalizedCheckpoint(): string;
   kill(): Promise<void>;
 };
@@ -86,11 +87,6 @@ export type SyncProgress = {
   end: SyncBlock | LightBlock | undefined;
   current: SyncBlock | LightBlock | undefined;
   finalized: SyncBlock | LightBlock;
-};
-
-export type Seconds = {
-  start: number;
-  end: number;
 };
 
 export const syncBlockToLightBlock = ({
@@ -292,14 +288,10 @@ export const createSync = async (params: {
     }
   };
 
-  // TODO(kyle) maybe inline ?
   const updateRealtimeStatus = ({
     checkpoint,
     network,
-  }: {
-    checkpoint: string;
-    network: Network;
-  }) => {
+  }: { checkpoint: string; network: Network }) => {
     const localBlock = perNetworkSync
       .get(network)!
       .realtimeSync.unfinalizedBlocks.findLast(
@@ -363,15 +355,7 @@ export const createSync = async (params: {
     }
   }
 
-  const getOnRealtimeSyncEvent = ({
-    network,
-    syncProgress,
-    realtimeSync,
-  }: {
-    network: Network;
-    syncProgress: SyncProgress;
-    realtimeSync: RealtimeSync;
-  }) => {
+  const getOnRealtimeSyncEvent = () => {
     const checkpoints = {
       // Note: `checkpoints.current` not used in multichain mode
       current: ZERO_CHECKPOINT_STRING,
@@ -381,7 +365,18 @@ export const createSync = async (params: {
     // Note: `latencyTimers` not used in multichain mode
     const latencyTimers = new Map<string, () => number>();
 
-    return (event: RealtimeSyncEvent): void => {
+    return (
+      event: RealtimeSyncEvent,
+      {
+        network,
+        syncProgress,
+        realtimeSync,
+      }: {
+        network: Network;
+        syncProgress: SyncProgress;
+        realtimeSync: RealtimeSync;
+      },
+    ): void => {
       switch (event.type) {
         case "block": {
           const events = buildEvents({
@@ -393,7 +388,7 @@ export const createSync = async (params: {
           });
 
           if (params.mode === "multichain") {
-            // Note: `checkpoints.current` not used in multichain mode (maybe)
+            // Note: `checkpoints.current` not used in multichain mode
             const checkpoint = getMultichainCheckpoint({
               tag: "current",
               network,
@@ -404,11 +399,9 @@ export const createSync = async (params: {
               number: hexToNumber(event.block.number),
             };
 
-            seconds.end = hexToNumber(event.block.timestamp);
-
             const readyEvents = events.concat(pendingEvents);
-
-            executedEvents.push(...readyEvents);
+            pendingEvents = [];
+            executedEvents = executedEvents.concat(readyEvents);
 
             params
               .onRealtimeEvent({
@@ -448,34 +441,29 @@ export const createSync = async (params: {
               );
             }
 
-            // TODO(kyle) refactor pending + executed
-
-            pendingEvents.push(...events);
-
             if (to > from) {
               for (const network of params.indexingBuild.networks) {
                 updateRealtimeStatus({ checkpoint: to, network });
               }
 
-              seconds.end = decodeCheckpoint(to).blockTimestamp;
-
               // Move ready events from pending to executed
 
               const readyEvents = pendingEvents
-                .filter((event) => event.checkpoint < to)
-                .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
-
-              pendingEvents = pendingEvents.filter(
-                ({ checkpoint }) => checkpoint > to,
-              );
-              executedEvents.push(...readyEvents);
+                .concat(events)
+                .filter(({ checkpoint }) => checkpoint < to);
+              pendingEvents = pendingEvents
+                .concat(events)
+                .filter(({ checkpoint }) => checkpoint > to);
+              executedEvents = executedEvents.concat(readyEvents);
 
               params
                 .onRealtimeEvent({
                   type: "block",
                   checkpoint: to,
                   status: structuredClone(status),
-                  events: readyEvents,
+                  events: readyEvents.sort((a, b) =>
+                    a.checkpoint < b.checkpoint ? -1 : 1,
+                  ),
                   network,
                 })
                 .then(() => {
@@ -502,6 +490,8 @@ export const createSync = async (params: {
                     }
                   }
                 });
+            } else {
+              pendingEvents = pendingEvents.concat(events);
             }
           }
 
@@ -541,10 +531,6 @@ export const createSync = async (params: {
         }
 
         case "reorg": {
-          // Note: this checkpoint is <= the previous checkpoint
-          checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
-          const checkpoint = getOmnichainCheckpoint({ tag: "current" })!;
-
           // Remove all reorged data
 
           const isReorgedEvent = ({ chainId, block }: RawEvent) =>
@@ -558,22 +544,43 @@ export const createSync = async (params: {
             (e) => isReorgedEvent(e) === false,
           );
 
-          // Move events from executed to pending
+          if (params.mode === "multichain") {
+            // Note: `checkpoints.current` not used in multichain mode
+            const checkpoint = getMultichainCheckpoint({
+              tag: "current",
+              network,
+            })!;
 
-          const events = executedEvents.filter(
-            (e) => e.checkpoint > checkpoint,
-          );
-          executedEvents = executedEvents.filter(
-            (e) => e.checkpoint < checkpoint,
-          );
-          pendingEvents.push(...events);
+            // Move events from executed to pending
 
-          // TODO(kyle) to > from
-          params.onRealtimeEvent({
-            type: "reorg",
-            checkpoint,
-            network,
-          });
+            const events = executedEvents.filter(
+              (e) => e.checkpoint > checkpoint,
+            );
+            executedEvents = executedEvents.filter(
+              (e) => e.checkpoint < checkpoint,
+            );
+            pendingEvents = pendingEvents.concat(events);
+
+            params.onRealtimeEvent({ type: "reorg", checkpoint, network });
+          } else {
+            const from = checkpoints.current;
+            checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
+            const to = getOmnichainCheckpoint({ tag: "current" })!;
+
+            // Move events from executed to pending
+
+            const events = executedEvents.filter((e) => e.checkpoint > to);
+            executedEvents = executedEvents.filter((e) => e.checkpoint < to);
+            pendingEvents = pendingEvents.concat(events);
+
+            if (to < from) {
+              params.onRealtimeEvent({
+                type: "reorg",
+                checkpoint: to,
+                network,
+              });
+            }
+          }
 
           break;
         }
@@ -586,8 +593,10 @@ export const createSync = async (params: {
 
   /** Events that have been executed but not finalized. */
   let executedEvents: RawEvent[] = [];
-  /** Events that have not been executed yet. */
+  /** Events that have not been executed. */
   let pendingEvents: RawEvent[] = [];
+
+  const onRealtimeSyncEvent = getOnRealtimeSyncEvent();
 
   await Promise.all(
     params.indexingBuild.networks.map(async (network, index) => {
@@ -632,9 +641,14 @@ export const createSync = async (params: {
         requestQueue,
         network,
         onEvent: (event) =>
-          // TODO(kyle) do we need a queue
-          onRealtimeSyncEventBase(event)
-            .then(onRealtimeSyncEvent)
+          perChainOnRealtimeSyncEvent(event)
+            .then((event) =>
+              onRealtimeSyncEvent(event, {
+                network,
+                syncProgress,
+                realtimeSync,
+              }),
+            )
             .catch((error) => {
               params.common.logger.error({
                 service: "sync",
@@ -655,7 +669,13 @@ export const createSync = async (params: {
         0,
       );
 
-      const onRealtimeSyncEventBase = getRealtimeSyncEventHandler({
+      perNetworkSync.set(network, {
+        syncProgress,
+        historicalSync,
+        realtimeSync,
+      });
+
+      const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
         common: params.common,
         network,
         sources,
@@ -663,38 +683,49 @@ export const createSync = async (params: {
         syncProgress,
         realtimeSync,
       });
-
-      perNetworkSync.set(network, {
-        syncProgress,
-        historicalSync,
-        realtimeSync,
-      });
-
-      const onRealtimeSyncEvent = getOnRealtimeSyncEvent({
-        network,
-        syncProgress,
-        realtimeSync,
-      });
     }),
   );
 
   const status: Status = {};
+  const seconds: Seconds = {};
 
   for (const network of params.indexingBuild.networks) {
     status[network.name] = { block: null, ready: false };
   }
 
-  // TODO(kyle) multichain seconds
-  const seconds: Seconds = {
-    start: decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
-      .blockTimestamp,
-    end: decodeCheckpoint(
+  if (params.mode === "multichain") {
+    for (const network of params.indexingBuild.networks) {
+      seconds[network.name] = {
+        start: decodeCheckpoint(
+          getMultichainCheckpoint({ tag: "start", network })!,
+        ).blockTimestamp,
+        end: decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+          ),
+        ).blockTimestamp,
+        cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
+      };
+    }
+  } else {
+    const start = decodeCheckpoint(
+      getOmnichainCheckpoint({ tag: "start" })!,
+    ).blockTimestamp;
+    const end = decodeCheckpoint(
       min(
         getOmnichainCheckpoint({ tag: "end" }),
         getOmnichainCheckpoint({ tag: "finalized" }),
       ),
-    ).blockTimestamp,
-  };
+    ).blockTimestamp;
+    for (const network of params.indexingBuild.networks) {
+      seconds[network.name] = {
+        start,
+        end,
+        cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
+      };
+    }
+  }
 
   let isKilled = false;
 
@@ -738,7 +769,7 @@ export const createSync = async (params: {
             from,
             to,
           });
-          pendingEvents.push(...events.events);
+          pendingEvents = pendingEvents.concat(events.events);
         }
 
         if (isSyncEnd(syncProgress)) {
@@ -802,9 +833,7 @@ export const createSync = async (params: {
     getStatus() {
       return status;
     },
-    getSeconds() {
-      return seconds;
-    },
+    seconds,
     getFinalizedCheckpoint() {
       return getOmnichainCheckpoint({ tag: "finalized" })!;
     },
@@ -821,7 +850,7 @@ export const createSync = async (params: {
   };
 };
 
-export const getRealtimeSyncEventHandler = ({
+export const getPerChainOnRealtimeSyncEvent = ({
   common,
   network,
   sources,

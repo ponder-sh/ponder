@@ -346,6 +346,12 @@ export type Status = {
   };
 };
 
+// Seconds
+
+export type Seconds = {
+  [network: string]: { start: number; end: number; cached: number };
+};
+
 // Events
 
 export type RawEvent = {
