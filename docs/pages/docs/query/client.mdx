@@ -27,7 +27,7 @@ import { client, graphql } from "ponder";
 const app = new Hono();
 
 app.use("/graphql", graphql({ db, schema }));
-app.use(client({ db }));
+app.use("/sql/*", client({ db, schema }));
 
 export default app;
 ```
@@ -71,7 +71,7 @@ Create a client using the URL of your Ponder server. Import your Ponder schema i
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("http://localhost:42069", { schema });
+const client = createClient("http://localhost:42069/sql", { schema });
 ```
 
 #### Run a query
@@ -82,7 +82,7 @@ Use the `client.db` method to execute a `SELECT` statement using Drizzle. The qu
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("https://...", { schema });
+const client = createClient("https://.../sql", { schema });
 
 const result = await client.db.select().from(schema.account).limit(10);
 ```
@@ -99,7 +99,7 @@ This method uses server side query validation and a database session with strict
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("https://...", { schema });
+const client = createClient("https://.../sql", { schema });
 
 const result = await client.db.select().from(schema.account).limit(10);
 ```
@@ -116,7 +116,7 @@ To avoid browser quotas, each `client` instance uses at most one SSE connection 
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("https://...", { schema });
+const client = createClient("https://.../sql", { schema });
 
 const { unsubscribe } = client.live(
   (db) => db.select().from(schema.account),
@@ -137,7 +137,7 @@ Get the indexing progress of each chain.
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("https://...", { schema });
+const client = createClient("https://.../sql", { schema });
 
 const status = await client.getStatus();
 ```
@@ -195,7 +195,7 @@ Create a client object using the URL of your Ponder server. Import your schema i
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("http://localhost:42069", { schema });
+const client = createClient("http://localhost:42069/sql", { schema });
 
 export { client, schema };
 ```
@@ -298,7 +298,7 @@ Helper function for calculating the query function and query key from a Ponder q
 <Callout type="info">
   Use `getPonderQueryOptions` in a Next.js app to prefetch data on the server.
   [Read
-  more](https://github.com/ponder-sh/ponder/blob/v0.9/examples/with-nextjs/frontend/app/page.tsx#L11).
+  more](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/app/page.tsx#L11).
 </Callout>
 
 ```ts
@@ -307,16 +307,6 @@ import { getPonderQueryOptions } from "@ponder/react";
 const { queryFn, queryKey } = getPonderQueryOptions(client, (db) =>
   db.select().from(schema.depositEvent).limit(10)
 );
-```
-
-#### `getQueryKey`
-
-Helper function for calculating the query key from a Ponder query.
-
-```ts
-import { getQueryKey } from "@ponder/react";
-
-const key = getQueryKey(db.select().from(schema.depositEvent).limit(10));
 ```
 
 #### `PonderProvider`

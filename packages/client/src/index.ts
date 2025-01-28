@@ -60,7 +60,7 @@ const getUrl = (
   method: "live" | "db" | "status",
   query?: QueryWithTypings,
 ) => {
-  const url = new URL(`${baseUrl}/client/${method}`);
+  const url = new URL(`${baseUrl}/${method}`);
   if (query) {
     url.searchParams.set("sql", JSON.stringify(query));
   }
@@ -89,7 +89,7 @@ export const compileQuery = (query: SQLWrapper) => {
  * import { createClient } from "@ponder/client";
  * import * as schema from "../ponder.schema";
  *
- * const client = createClient("https://...", { schema });
+ * const client = createClient("https://.../sql", { schema });
  * ```
  */
 export const createClient = <schema extends Schema>(
