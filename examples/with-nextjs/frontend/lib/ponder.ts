@@ -4,8 +4,8 @@ import * as schema from "../../ponder/ponder.schema";
 
 const client = createClient(
   process.env.NODE_ENV === "development"
-    ? "http://localhost:42069"
-    : "https://api.ponder.dev",
+    ? "http://localhost:42069/sql"
+    : "https://api.ponder.dev/sql",
   { schema },
 );
 

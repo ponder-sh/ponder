@@ -15,7 +15,7 @@ const status = pgTable("_ponder_status", (t) => ({
 }));
 
 /**
- * Middleware for `@ponder/client`.
+ * Middleware for `@ponder/sql`.
  *
  * @param db - Drizzle database instance
  * @param schema - Ponder schema
@@ -29,7 +29,7 @@ const status = pgTable("_ponder_status", (t) => ({
  *
  * const app = new Hono();
  *
- * app.use(client({ db, schema }));
+ * app.use("/sql/*", client({ db, schema }));
  *
  * export default app;
  * ```
@@ -74,7 +74,7 @@ export const client = ({
   }
 
   return createMiddleware(async (c, next) => {
-    if (c.req.path === "/client/db") {
+    if (c.req.path === "/sql/db") {
       const queryString = c.req.query("sql");
       if (queryString === undefined) {
         return c.text('Missing "sql" query parameter', 400);
@@ -116,7 +116,7 @@ export const client = ({
       }
     }
 
-    if (c.req.path === "/client/live") {
+    if (c.req.path === "/sql/live") {
       // TODO(kyle) live queries only availble in realtime mode
 
       c.header("Content-Type", "text/event-stream");
@@ -135,7 +135,7 @@ export const client = ({
       });
     }
 
-    if (c.req.path === "/client/status") {
+    if (c.req.path === "/sql/status") {
       const statusResult = await db.select().from(status);
       return c.json(statusResult);
     }
