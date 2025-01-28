@@ -61,17 +61,10 @@ type DatabaseConfig =
 // base
 
 type BlockConfig = {
-  /**
-   * Block intervals with startBlock (inclusive) and endBlock (inclusive).
-   *  - startBlock: `number | "latest"`
-   *  - endBlock: `number | "latest" | "realtime"`
-   *    - `number`: A specific block number.
-   *    - `"latest"`: The latest block number at the startup of the Ponder instance.
-   *    - `"realtime"`: Indefinite/live indexing.
-   */
-  blocks?:
-    | [number | "latest", number | "realtime" | "latest"][]
-    | [number | "latest", number | "realtime" | "latest"];
+  /** Block number or tag at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
+  startBlock?: number | "latest";
+  /** Block number or tag at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+  endBlock?: number | "latest";
 };
 
 type TransactionReceiptConfig = {

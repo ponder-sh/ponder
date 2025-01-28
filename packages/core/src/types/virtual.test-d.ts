@@ -55,7 +55,7 @@ const config = createConfig({
       abi: [event0, func0],
       network: "mainnet",
       address: "0x",
-      blocks: [0, Number.POSITIVE_INFINITY],
+      startBlock: 0,
       includeTransactionReceipts: false,
       includeCallTraces: true,
     },
@@ -64,7 +64,7 @@ const config = createConfig({
       address: "0x69",
       network: {
         mainnet: {
-          blocks: [1, Number.POSITIVE_INFINITY],
+          startBlock: 1,
           includeTransactionReceipts: true,
           includeCallTraces: true,
         },
@@ -81,7 +81,7 @@ const config = createConfig({
   blocks: {
     b1: {
       interval: 2,
-      blocks: [1, Number.POSITIVE_INFINITY],
+      startBlock: 1,
       network: "mainnet",
     },
   },
@@ -283,14 +283,18 @@ test("Context contracts", () => {
   //   ^?
 
   type expectedAbi = [Event1, Event1Overloaded, Func1, Func1Overloaded];
-  type expectedBlocks = [1, number] | undefined;
+  type expectedStartBlock = 1 | undefined;
+  type expectedEndBlock = undefined;
   type expectedAddress = "0x69";
 
   assertType<a["abi"]>({} as any as expectedAbi);
   assertType<expectedAbi>({} as any as a["abi"]);
 
-  assertType<a["blocks"]>({} as any as expectedBlocks);
-  assertType<expectedBlocks>({} as any as a["blocks"]);
+  assertType<a["startBlock"]>({} as any as expectedStartBlock);
+  assertType<expectedStartBlock>({} as any as a["startBlock"]);
+
+  assertType<a["endBlock"]>({} as any as expectedEndBlock);
+  assertType<expectedEndBlock>({} as any as a["endBlock"]);
 
   assertType<a["address"]>({} as any as expectedAddress);
   assertType<expectedAddress>({} as any as a["address"]);

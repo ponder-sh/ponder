@@ -25,12 +25,12 @@ test("createConfig basic", () => {
       c1: {
         abi: [event1],
         network: "mainnet",
-        blocks: [0, Number.POSITIVE_INFINITY],
+        startBlock: 0,
       },
       c2: {
         abi: [event1],
         network: "optimism",
-        blocks: [0, Number.POSITIVE_INFINITY],
+        startBlock: 0,
       },
     },
   });
@@ -185,7 +185,7 @@ test("createConfig network overrides", () => {
       c1: {
         abi: [event1],
         network: "mainnet",
-        blocks: [0, Number.POSITIVE_INFINITY],
+        startBlock: 0,
       },
       c2: {
         abi: [event0, event1],
@@ -200,7 +200,7 @@ test("createConfig network overrides", () => {
             },
           },
         },
-        blocks: [0, Number.POSITIVE_INFINITY],
+        startBlock: 0,
       },
     },
   });

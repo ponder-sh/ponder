@@ -42,7 +42,8 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
         network: { mainnet: {} },
         abi: [event0, event1],
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });
@@ -71,7 +72,8 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
         network: { mainnet: {} },
         abi: [event1, event1Overloaded],
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });
@@ -100,7 +102,8 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
         network: {
           mainnet: {
             address: [address1, address3],
-            blocks: [16370000, 16370020],
+            startBlock: 16370000,
+            endBlock: 16370020,
           },
         },
         abi: [event1, event1Overloaded],
@@ -160,7 +163,8 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
           },
         },
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });
@@ -199,7 +203,8 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
           },
         ],
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });
@@ -232,7 +237,8 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
       a: {
         abi: [event0],
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
         network: {
           mainnet: {
             address: address2,
@@ -260,7 +266,8 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
         network: "mainnet",
         abi: [event0],
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });
@@ -434,7 +441,7 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
   );
 });
 
-test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -443,7 +450,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to 0", async () =
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        blocks: [Number.NaN, 16370020],
+        startBlock: Number.NaN,
       },
     },
   });
@@ -558,7 +565,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() coerces NaN endBlock to Number.MAX_SAFE_INTEGER", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -567,7 +574,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to Number.MAX_SAFE_
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        blocks: [16370000, Number.NaN],
+        endBlock: Number.NaN,
       },
     },
   });
@@ -577,22 +584,24 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to Number.MAX_SAFE_
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(sources[0]!.filter.toBlock).toBe(Number.MAX_SAFE_INTEGER);
+  expect(sources[0]!.filter.toBlock).toBe(Number.POSITIVE_INFINITY);
 });
 
-test("buildConfigAndIndexingFunctions() resolves overlapping block ranges", async () => {
+test("buildConfigAndIndexingFunctions() block tag", async () => {
   const config = createConfig({
     networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+      mainnet: {
+        chainId: 1,
+        transport: http(
+          `http://127.0.0.1:8545/${Number(process.env.VITEST_POOL_ID ?? 1)}`,
+        ),
+      },
     },
     contracts: {
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        blocks: [
-          [16370000, 16370020],
-          [16370010, 16370030],
-        ],
+        startBlock: "latest",
       },
     },
   });
@@ -602,33 +611,9 @@ test("buildConfigAndIndexingFunctions() resolves overlapping block ranges", asyn
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(sources[0]!.filter.fromBlock).toBe(16370000);
-  expect(sources[0]!.filter.toBlock).toBe(16370030);
-});
-
-test("buildConfigAndIndexingFunctions() multiple block ranges", async () => {
-  const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-    },
-    contracts: {
-      a: {
-        network: { mainnet: {} },
-        abi: [event0, event1],
-        blocks: [
-          [16370000, 16370020],
-          [16370040, 16370060],
-        ],
-      },
-    },
-  });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
-
-  expect(sources).toHaveLength(2);
+  expect(sources).toHaveLength(1);
+  expect(sources[0]?.filter.fromBlock).toBe(0);
+  expect(sources[0]?.filter.toBlock).toBe(Number.POSITIVE_INFINITY);
 });
 
 test("buildConfigAndIndexingFunctions() account source", async () => {
@@ -640,7 +625,8 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
       a: {
         network: { mainnet: {} },
         address: address1,
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });
@@ -679,7 +665,8 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
     blocks: {
       a: {
         network: { mainnet: {} },
-        blocks: [16370000, 16370020],
+        startBlock: 16370000,
+        endBlock: 16370020,
       },
     },
   });

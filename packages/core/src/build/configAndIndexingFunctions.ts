@@ -23,23 +23,13 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
+import type { SyncBlock } from "@/types/sync.js";
 import { chains } from "@/utils/chains.js";
-import { type Interval, intervalUnion } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { dedupe } from "@ponder/common";
 import { type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
-
-/**
- * Block intervals with startBlock (inclusive) and endBlock (inclusive).
- *  - startBlock: `number | "latest"`
- *  - endBlock: `number | "latest" | "realtime"`
- *    - `number`: A specific block number.
- *    - `"latest"`: The latest block number at the startup of the Ponder instance.
- *    - `"realtime"`: Indefinite/live indexing.
- */
-type BlockRange = [number | "latest", number | "latest" | "realtime"];
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
@@ -85,59 +75,36 @@ export async function buildConfigAndIndexingFunctions({
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
-  const latestBlockNumbers = new Map<string, Promise<Hex>>();
+  const perNetworkLatestBlockNumber: Map<string, Promise<number>> = new Map();
 
-  const latest = async (network: Network) => {
-    if (latestBlockNumbers.has(network.name)) {
-      return hexToNumber(await latestBlockNumbers.get(network.name)!);
-    }
-
-    const latest: Promise<Hex> = network.transport.request({
-      method: "eth_blockNumber",
-    });
-
-    latestBlockNumbers.set(network.name, latest);
-
-    return hexToNumber(await latest);
-  };
-
-  const resolveBlockRanges = async (
-    blocks: BlockRange[] | BlockRange | undefined,
+  const resolveBlockNumber = async (
+    blockNumberOrTag: number | "latest" | undefined,
     network: Network,
   ) => {
-    let rawBlockRanges: [number, number | "realtime"][];
-
-    if (blocks === undefined || blocks.length === 0) {
-      rawBlockRanges = [[0, "realtime"]];
-    } else if (blocks.every((b) => Array.isArray(b))) {
-      rawBlockRanges = await Promise.all(
-        blocks.map(async ([fromBlock, toBlock]) => [
-          fromBlock === "latest" ? await latest(network) : fromBlock,
-          toBlock === "latest" ? await latest(network) : toBlock,
-        ]),
-      );
-    } else {
-      rawBlockRanges = [
-        [
-          blocks[0] === "latest" ? await latest(network) : blocks[0],
-          blocks[1] === "latest" ? await latest(network) : blocks[1],
-        ],
-      ];
+    if (blockNumberOrTag === undefined) {
+      return undefined;
     }
-
-    const blockRanges: Interval[] = rawBlockRanges.map(
-      ([rawStartBlock, rawEndBlock]) => [
-        Number.isNaN(rawStartBlock) ? 0 : rawStartBlock,
-        Number.isNaN(rawEndBlock) || rawEndBlock === "realtime"
-          ? Number.MAX_SAFE_INTEGER
-          : (rawEndBlock as number),
-      ],
-    );
-
-    return intervalUnion(blockRanges);
+    if (Number.isNaN(blockNumberOrTag)) {
+      return undefined;
+    }
+    if (blockNumberOrTag === "latest") {
+      if (perNetworkLatestBlockNumber.has(network.name)) {
+        return perNetworkLatestBlockNumber.get(network.name)!;
+      } else {
+        const blockPromise = network.transport
+          .request({
+            method: "eth_getBlockByNumber",
+            params: ["latest", false],
+          })
+          .then((block) => hexToNumber((block as SyncBlock).number));
+        perNetworkLatestBlockNumber.set(network.name, blockPromise);
+        return blockPromise;
+      }
+    }
+    return blockNumberOrTag;
   };
 
-  const networks = await Promise.all(
+  const networks: Network[] = await Promise.all(
     Object.entries(config.networks).map(async ([networkName, network]) => {
       const { chainId, transport } = network;
 
@@ -167,7 +134,7 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      const resolvedNetwork = {
+      return {
         name: networkName,
         chainId,
         chain,
@@ -177,8 +144,6 @@ export async function buildConfigAndIndexingFunctions({
         finalityBlockCount: getFinalityBlockCount({ chainId }),
         disableCache: network.disableCache ?? false,
       } satisfies Network;
-
-      return resolvedNetwork;
     }),
   );
 
@@ -293,209 +258,164 @@ export async function buildConfigAndIndexingFunctions({
           .join(", ")}].`,
       );
     }
-
-    const blockRanges: [number, number | "realtime"][] =
-      source.blocks === undefined
-        ? [[0, "realtime"]]
-        : source.blocks.every((b) => Array.isArray(b))
-          ? await Promise.all(
-              source.blocks.map(async ([fromBlock, toBlock]) => [
-                fromBlock === "latest" ? await latest(network) : fromBlock,
-                toBlock === "latest" ? await latest(network) : toBlock,
-              ]),
-            )
-          : [
-              [
-                source.blocks[0] === "latest"
-                  ? await latest(network)
-                  : source.blocks[0],
-                source.blocks[1] === "latest"
-                  ? await latest(network)
-                  : source.blocks[1],
-              ],
-            ];
-
-    for (const [rawStartBlock, rawEndBlock] of blockRanges) {
-      const startBlock = Number.isNaN(rawStartBlock) ? 0 : rawStartBlock;
-      const endBlock = Number.isNaN(rawEndBlock) ? "realtime" : rawEndBlock;
-      if (typeof endBlock !== "string" && endBlock < startBlock) {
-        throw new Error(
-          `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
-        );
-      }
-
-      if (typeof endBlock === "string" && endBlock !== "realtime") {
-        throw new Error(
-          `Validation failed: End block for '${source.name}' is ${endBlock}. Expected number or "realtime"`,
-        );
-      }
-    }
   }
 
-  const contractSources: ContractSource[] = (
-    await Promise.all(
-      flattenSources(config.contracts ?? {}).map(
-        async ({ blocks, network, ...rest }) => ({
-          blocks: await resolveBlockRanges(
-            blocks,
-            networks.find((n) => n.name === network)!,
-          ),
-          network,
-          ...rest,
-        }),
-      ),
-    )
-  )
-    .flatMap((source): ContractSource[] => {
-      const network = networks.find((n) => n.name === source.network)!;
+  const contractSources: ContractSource[] = await Promise.all(
+    flattenSources(config.contracts ?? {}).map(
+      async (source): Promise<ContractSource[]> => {
+        const network = networks.find((n) => n.name === source.network)!;
 
-      // Get indexing function that were registered for this contract
-      const registeredLogEvents: string[] = [];
-      const registeredCallTraceEvents: string[] = [];
-      for (const eventName of Object.keys(indexingFunctions)) {
-        // log event
-        if (eventName.includes(":")) {
-          const [logContractName, logEventName] = eventName.split(":") as [
-            string,
-            string,
-          ];
-          if (logContractName === source.name && logEventName !== "setup") {
-            registeredLogEvents.push(logEventName);
+        // Get indexing function that were registered for this contract
+        const registeredLogEvents: string[] = [];
+        const registeredCallTraceEvents: string[] = [];
+        for (const eventName of Object.keys(indexingFunctions)) {
+          // log event
+          if (eventName.includes(":")) {
+            const [logContractName, logEventName] = eventName.split(":") as [
+              string,
+              string,
+            ];
+            if (logContractName === source.name && logEventName !== "setup") {
+              registeredLogEvents.push(logEventName);
+            }
+          }
+
+          //  trace event
+          if (eventName.includes(".")) {
+            const [functionContractName, functionName] = eventName.split(
+              ".",
+            ) as [string, string];
+            if (functionContractName === source.name) {
+              registeredCallTraceEvents.push(functionName);
+            }
           }
         }
 
-        //  trace event
-        if (eventName.includes(".")) {
-          const [functionContractName, functionName] = eventName.split(".") as [
-            string,
-            string,
-          ];
-          if (functionContractName === source.name) {
-            registeredCallTraceEvents.push(functionName);
-          }
-        }
-      }
+        // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
+        const abiEvents = buildAbiEvents({ abi: source.abi });
+        const abiFunctions = buildAbiFunctions({ abi: source.abi });
 
-      // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
-      const abiEvents = buildAbiEvents({ abi: source.abi });
-      const abiFunctions = buildAbiFunctions({ abi: source.abi });
-
-      const registeredEventSelectors: Hex[] = [];
-      // Validate that the registered log events exist in the abi
-      for (const logEvent of registeredLogEvents) {
-        const abiEvent = abiEvents.bySafeName[logEvent];
-        if (abiEvent === undefined) {
-          throw new Error(
-            `Validation failed: Event name for event '${logEvent}' not found in the contract ABI. Got '${logEvent}', expected one of [${Object.keys(
-              abiEvents.bySafeName,
-            )
-              .map((eventName) => `'${eventName}'`)
-              .join(", ")}].`,
-          );
-        }
-
-        registeredEventSelectors.push(abiEvent.selector);
-      }
-
-      const registeredFunctionSelectors: Hex[] = [];
-      for (const _function of registeredCallTraceEvents) {
-        const abiFunction = abiFunctions.bySafeName[_function];
-        if (abiFunction === undefined) {
-          throw new Error(
-            `Validation failed: Function name for function '${_function}' not found in the contract ABI. Got '${_function}', expected one of [${Object.keys(
-              abiFunctions.bySafeName,
-            )
-              .map((eventName) => `'${eventName}'`)
-              .join(", ")}].`,
-          );
-        }
-
-        registeredFunctionSelectors.push(abiFunction.selector);
-      }
-
-      const topicsArray: {
-        topic0: LogTopic;
-        topic1: LogTopic;
-        topic2: LogTopic;
-        topic3: LogTopic;
-      }[] = [];
-
-      if (source.filter !== undefined) {
-        const eventFilters = Array.isArray(source.filter)
-          ? source.filter
-          : [source.filter];
-
-        for (const filter of eventFilters) {
-          const abiEvent = abiEvents.bySafeName[filter.event];
-          if (!abiEvent) {
+        const registeredEventSelectors: Hex[] = [];
+        // Validate that the registered log events exist in the abi
+        for (const logEvent of registeredLogEvents) {
+          const abiEvent = abiEvents.bySafeName[logEvent];
+          if (abiEvent === undefined) {
             throw new Error(
-              `Validation failed: Invalid filter for contract '${
-                source.name
-              }'. Got event name '${filter.event}', expected one of [${Object.keys(
+              `Validation failed: Event name for event '${logEvent}' not found in the contract ABI. Got '${logEvent}', expected one of [${Object.keys(
                 abiEvents.bySafeName,
               )
-                .map((n) => `'${n}'`)
+                .map((eventName) => `'${eventName}'`)
                 .join(", ")}].`,
             );
           }
+
+          registeredEventSelectors.push(abiEvent.selector);
         }
 
-        topicsArray.push(...buildTopics(source.abi, eventFilters));
+        const registeredFunctionSelectors: Hex[] = [];
+        for (const _function of registeredCallTraceEvents) {
+          const abiFunction = abiFunctions.bySafeName[_function];
+          if (abiFunction === undefined) {
+            throw new Error(
+              `Validation failed: Function name for function '${_function}' not found in the contract ABI. Got '${_function}', expected one of [${Object.keys(
+                abiFunctions.bySafeName,
+              )
+                .map((eventName) => `'${eventName}'`)
+                .join(", ")}].`,
+            );
+          }
 
-        // event selectors that have a filter
-        const filteredEventSelectors: Hex[] = topicsArray.map(
-          (t) => t.topic0 as Hex,
-        );
-        // event selectors that are registered but don't have a filter
-        const excludedRegisteredEventSelectors =
-          registeredEventSelectors.filter(
-            (s) => filteredEventSelectors.includes(s) === false,
+          registeredFunctionSelectors.push(abiFunction.selector);
+        }
+
+        const topicsArray: {
+          topic0: LogTopic;
+          topic1: LogTopic;
+          topic2: LogTopic;
+          topic3: LogTopic;
+        }[] = [];
+
+        if (source.filter !== undefined) {
+          const eventFilters = Array.isArray(source.filter)
+            ? source.filter
+            : [source.filter];
+
+          for (const filter of eventFilters) {
+            const abiEvent = abiEvents.bySafeName[filter.event];
+            if (!abiEvent) {
+              throw new Error(
+                `Validation failed: Invalid filter for contract '${
+                  source.name
+                }'. Got event name '${filter.event}', expected one of [${Object.keys(
+                  abiEvents.bySafeName,
+                )
+                  .map((n) => `'${n}'`)
+                  .join(", ")}].`,
+              );
+            }
+          }
+
+          topicsArray.push(...buildTopics(source.abi, eventFilters));
+
+          // event selectors that have a filter
+          const filteredEventSelectors: Hex[] = topicsArray.map(
+            (t) => t.topic0 as Hex,
           );
+          // event selectors that are registered but don't have a filter
+          const excludedRegisteredEventSelectors =
+            registeredEventSelectors.filter(
+              (s) => filteredEventSelectors.includes(s) === false,
+            );
 
-        // TODO(kyle) should we throw an error when an event selector has
-        // a filter but is not registered?
+          // TODO(kyle) should we throw an error when an event selector has
+          // a filter but is not registered?
 
-        if (excludedRegisteredEventSelectors.length > 0) {
+          if (excludedRegisteredEventSelectors.length > 0) {
+            topicsArray.push({
+              topic0: excludedRegisteredEventSelectors,
+              topic1: null,
+              topic2: null,
+              topic3: null,
+            });
+          }
+        } else {
           topicsArray.push({
-            topic0: excludedRegisteredEventSelectors,
+            topic0: registeredEventSelectors,
             topic1: null,
             topic2: null,
             topic3: null,
           });
         }
-      } else {
-        topicsArray.push({
-          topic0: registeredEventSelectors,
-          topic1: null,
-          topic2: null,
-          topic3: null,
-        });
-      }
 
-      const contractMetadata = {
-        type: "contract",
-        abi: source.abi,
-        abiEvents,
-        abiFunctions,
-        name: source.name,
-        network,
-      } as const;
+        const fromBlock =
+          (await resolveBlockNumber(source.startBlock, network)) ?? 0;
+        const toBlock =
+          (await resolveBlockNumber(source.endBlock, network)) ??
+          Number.POSITIVE_INFINITY;
 
-      const resolvedAddress = source?.address;
+        const contractMetadata = {
+          type: "contract",
+          abi: source.abi,
+          abiEvents,
+          abiFunctions,
+          name: source.name,
+          network,
+        } as const;
 
-      if (
-        typeof resolvedAddress === "object" &&
-        !Array.isArray(resolvedAddress)
-      ) {
-        // Note that this can throw.
-        const logFactory = buildLogFactory({
-          chainId: network.chainId,
-          ...resolvedAddress,
-        });
+        const resolvedAddress = source?.address;
 
-        const logSources = topicsArray.flatMap((topics) =>
-          source.blocks.map(
-            ([fromBlock, toBlock]) =>
+        if (
+          typeof resolvedAddress === "object" &&
+          !Array.isArray(resolvedAddress)
+        ) {
+          // Note that this can throw.
+          const logFactory = buildLogFactory({
+            chainId: network.chainId,
+            ...resolvedAddress,
+          });
+
+          const logSources = topicsArray.map(
+            (topics) =>
               ({
                 ...contractMetadata,
                 filter: {
@@ -515,13 +435,12 @@ export async function buildConfigAndIndexingFunctions({
                   ),
                 },
               }) satisfies ContractSource,
-          ),
-        );
+          );
 
-        if (source.includeCallTraces) {
-          const callTraceSources = source.blocks.map(
-            ([fromBlock, toBlock]) =>
-              ({
+          if (source.includeCallTraces) {
+            return [
+              ...logSources,
+              {
                 ...contractMetadata,
                 filter: {
                   type: "trace",
@@ -539,40 +458,37 @@ export async function buildConfigAndIndexingFunctions({
                       : [],
                   ),
                 },
-              }) satisfies ContractSource,
-          );
+              } satisfies ContractSource,
+            ];
+          }
 
-          return [...logSources, ...callTraceSources];
+          return logSources;
+        } else if (resolvedAddress !== undefined) {
+          for (const address of Array.isArray(resolvedAddress)
+            ? resolvedAddress
+            : [resolvedAddress]) {
+            if (!address!.startsWith("0x"))
+              throw new Error(
+                `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
+                  0,
+                  2,
+                )}', expected '0x'.`,
+              );
+            if (address!.length !== 42)
+              throw new Error(
+                `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
+              );
+          }
         }
 
-        return logSources;
-      } else if (resolvedAddress !== undefined) {
-        for (const address of Array.isArray(resolvedAddress)
-          ? resolvedAddress
-          : [resolvedAddress]) {
-          if (!address!.startsWith("0x"))
-            throw new Error(
-              `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
-                0,
-                2,
-              )}', expected '0x'.`,
-            );
-          if (address!.length !== 42)
-            throw new Error(
-              `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
-            );
-        }
-      }
+        const validatedAddress = Array.isArray(resolvedAddress)
+          ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
+          : resolvedAddress !== undefined
+            ? toLowerCase(resolvedAddress)
+            : undefined;
 
-      const validatedAddress = Array.isArray(resolvedAddress)
-        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
-        : resolvedAddress !== undefined
-          ? toLowerCase(resolvedAddress)
-          : undefined;
-
-      const logSources = topicsArray.flatMap((topics) =>
-        source.blocks.map(
-          ([fromBlock, toBlock]) =>
+        const logSources = topicsArray.map(
+          (topics) =>
             ({
               ...contractMetadata,
               filter: {
@@ -592,13 +508,12 @@ export async function buildConfigAndIndexingFunctions({
                 ),
               },
             }) satisfies ContractSource,
-        ),
-      );
+        );
 
-      if (source.includeCallTraces) {
-        const callTraceSources = source.blocks.map(
-          ([fromBlock, toBlock]) =>
-            ({
+        if (source.includeCallTraces) {
+          return [
+            ...logSources,
+            {
               ...contractMetadata,
               filter: {
                 type: "trace",
@@ -620,13 +535,14 @@ export async function buildConfigAndIndexingFunctions({
                     : [],
                 ),
               },
-            }) satisfies ContractSource,
-        );
-
-        return [...logSources, ...callTraceSources];
-      } else return logSources;
-    }) // Remove sources with no registered indexing functions
-    .filter((source) => {
+            } satisfies ContractSource,
+          ];
+        } else return logSources;
+      },
+    ),
+  ).then((sources) =>
+    sources.flat().filter((source) => {
+      // Remove sources with no registered indexing functions
       const hasNoRegisteredIndexingFunctions =
         source.filter.type === "trace"
           ? Array.isArray(source.filter.functionSelector) &&
@@ -642,44 +558,133 @@ export async function buildConfigAndIndexingFunctions({
         });
       }
       return hasNoRegisteredIndexingFunctions === false;
-    });
+    }),
+  );
 
-  const accountSources: AccountSource[] = (
-    await Promise.all(
-      flattenSources(config.accounts ?? {}).map(
-        async ({ blocks, network, ...rest }) => ({
-          blocks: await resolveBlockRanges(
-            blocks,
-            networks.find((n) => n.name === network)!,
-          ),
-          network,
-          ...rest,
-        }),
-      ),
-    )
-  )
-    .flatMap((source): AccountSource[] => {
-      const network = networks.find((n) => n.name === source.network)!;
+  const accountSources: AccountSource[] = await Promise.all(
+    flattenSources(config.accounts ?? {}).map(
+      async (source): Promise<AccountSource[]> => {
+        const network = networks.find((n) => n.name === source.network)!;
 
-      const resolvedAddress = source?.address;
+        const fromBlock =
+          (await resolveBlockNumber(source.startBlock, network)) ?? 0;
+        const toBlock =
+          (await resolveBlockNumber(source.endBlock, network)) ??
+          Number.POSITIVE_INFINITY;
 
-      if (resolvedAddress === undefined) {
-        throw new Error(
-          `Validation failed: Account '${source.name}' must specify an 'address'.`,
-        );
-      }
+        const resolvedAddress = source?.address;
 
-      if (
-        typeof resolvedAddress === "object" &&
-        !Array.isArray(resolvedAddress)
-      ) {
-        // Note that this can throw.
-        const logFactory = buildLogFactory({
-          chainId: network.chainId,
-          ...resolvedAddress,
-        });
+        if (resolvedAddress === undefined) {
+          throw new Error(
+            `Validation failed: Account '${source.name}' must specify an 'address'.`,
+          );
+        }
 
-        const accountSources = source.blocks.flatMap(([fromBlock, toBlock]) => [
+        if (
+          typeof resolvedAddress === "object" &&
+          !Array.isArray(resolvedAddress)
+        ) {
+          // Note that this can throw.
+          const logFactory = buildLogFactory({
+            chainId: network.chainId,
+            ...resolvedAddress,
+          });
+
+          return [
+            {
+              type: "account",
+              name: source.name,
+              network,
+              filter: {
+                type: "transaction",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: logFactory,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransactionFilterInclude,
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              network,
+              filter: {
+                type: "transaction",
+                chainId: network.chainId,
+                fromAddress: logFactory,
+                toAddress: undefined,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransactionFilterInclude,
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              network,
+              filter: {
+                type: "transfer",
+                chainId: network.chainId,
+                fromAddress: undefined,
+                toAddress: logFactory,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransferFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            } satisfies AccountSource,
+            {
+              type: "account",
+              name: source.name,
+              network,
+              filter: {
+                type: "transfer",
+                chainId: network.chainId,
+                fromAddress: logFactory,
+                toAddress: undefined,
+                includeReverted: false,
+                fromBlock,
+                toBlock,
+                include: defaultTransferFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            } satisfies AccountSource,
+          ];
+        }
+
+        for (const address of Array.isArray(resolvedAddress)
+          ? resolvedAddress
+          : [resolvedAddress]) {
+          if (!address!.startsWith("0x"))
+            throw new Error(
+              `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
+                0,
+                2,
+              )}', expected '0x'.`,
+            );
+          if (address!.length !== 42)
+            throw new Error(
+              `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
+            );
+        }
+
+        const validatedAddress = Array.isArray(resolvedAddress)
+          ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
+          : resolvedAddress !== undefined
+            ? toLowerCase(resolvedAddress)
+            : undefined;
+
+        return [
           {
             type: "account",
             name: source.name,
@@ -688,7 +693,7 @@ export async function buildConfigAndIndexingFunctions({
               type: "transaction",
               chainId: network.chainId,
               fromAddress: undefined,
-              toAddress: logFactory,
+              toAddress: validatedAddress,
               includeReverted: false,
               fromBlock,
               toBlock,
@@ -702,7 +707,7 @@ export async function buildConfigAndIndexingFunctions({
             filter: {
               type: "transaction",
               chainId: network.chainId,
-              fromAddress: logFactory,
+              fromAddress: validatedAddress,
               toAddress: undefined,
               includeReverted: false,
               fromBlock,
@@ -718,7 +723,7 @@ export async function buildConfigAndIndexingFunctions({
               type: "transfer",
               chainId: network.chainId,
               fromAddress: undefined,
-              toAddress: logFactory,
+              toAddress: validatedAddress,
               includeReverted: false,
               fromBlock,
               toBlock,
@@ -736,7 +741,7 @@ export async function buildConfigAndIndexingFunctions({
             filter: {
               type: "transfer",
               chainId: network.chainId,
-              fromAddress: logFactory,
+              fromAddress: validatedAddress,
               toAddress: undefined,
               includeReverted: false,
               fromBlock,
@@ -748,107 +753,11 @@ export async function buildConfigAndIndexingFunctions({
               ),
             },
           } satisfies AccountSource,
-        ]);
-
-        return accountSources;
-      }
-
-      for (const address of Array.isArray(resolvedAddress)
-        ? resolvedAddress
-        : [resolvedAddress]) {
-        if (!address!.startsWith("0x"))
-          throw new Error(
-            `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
-              0,
-              2,
-            )}', expected '0x'.`,
-          );
-        if (address!.length !== 42)
-          throw new Error(
-            `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
-          );
-      }
-
-      const validatedAddress = Array.isArray(resolvedAddress)
-        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
-        : resolvedAddress !== undefined
-          ? toLowerCase(resolvedAddress)
-          : undefined;
-
-      const accountSources = source.blocks.flatMap(([fromBlock, toBlock]) => [
-        {
-          type: "account",
-          name: source.name,
-          network,
-          filter: {
-            type: "transaction",
-            chainId: network.chainId,
-            fromAddress: undefined,
-            toAddress: validatedAddress,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransactionFilterInclude,
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          network,
-          filter: {
-            type: "transaction",
-            chainId: network.chainId,
-            fromAddress: validatedAddress,
-            toAddress: undefined,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransactionFilterInclude,
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          network,
-          filter: {
-            type: "transfer",
-            chainId: network.chainId,
-            fromAddress: undefined,
-            toAddress: validatedAddress,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransferFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies AccountSource,
-        {
-          type: "account",
-          name: source.name,
-          network,
-          filter: {
-            type: "transfer",
-            chainId: network.chainId,
-            fromAddress: validatedAddress,
-            toAddress: undefined,
-            includeReverted: false,
-            fromBlock,
-            toBlock,
-            include: defaultTransferFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies AccountSource,
-      ]);
-
-      return accountSources;
-    })
-    .filter((source) => {
+        ];
+      },
+    ),
+  ).then((sources) =>
+    sources.flat().filter((source) => {
       const eventName =
         source.filter.type === "transaction"
           ? source.filter.fromAddress === undefined
@@ -867,23 +776,11 @@ export async function buildConfigAndIndexingFunctions({
         });
       }
       return hasRegisteredIndexingFunction;
-    });
+    }),
+  );
 
-  const blockSources: BlockSource[] = (
-    await Promise.all(
-      flattenSources(config.blocks ?? {}).map(
-        async ({ blocks, network, ...rest }) => ({
-          blocks: await resolveBlockRanges(
-            blocks,
-            networks.find((n) => n.name === network)!,
-          ),
-          network,
-          ...rest,
-        }),
-      ),
-    )
-  )
-    .flatMap((source) => {
+  const blockSources: BlockSource[] = await Promise.all(
+    flattenSources(config.blocks ?? {}).map(async (source) => {
       const network = networks.find((n) => n.name === source.network)!;
 
       const intervalMaybeNan = source.interval ?? 1;
@@ -895,25 +792,29 @@ export async function buildConfigAndIndexingFunctions({
         );
       }
 
-      return source.blocks.map(
-        ([fromBlock, toBlock]) =>
-          ({
-            type: "block",
-            name: source.name,
-            network,
-            filter: {
-              type: "block",
-              chainId: network.chainId,
-              interval: interval,
-              offset: fromBlock % interval,
-              fromBlock,
-              toBlock,
-              include: defaultBlockFilterInclude,
-            },
-          }) satisfies BlockSource,
-      );
-    })
-    .filter((blockSource) => {
+      const fromBlock =
+        (await resolveBlockNumber(source.startBlock, network)) ?? 0;
+      const toBlock =
+        (await resolveBlockNumber(source.endBlock, network)) ??
+        Number.POSITIVE_INFINITY;
+
+      return {
+        type: "block",
+        name: source.name,
+        network,
+        filter: {
+          type: "block",
+          chainId: network.chainId,
+          interval: interval,
+          offset: fromBlock % interval,
+          fromBlock,
+          toBlock,
+          include: defaultBlockFilterInclude,
+        },
+      } satisfies BlockSource;
+    }),
+  ).then((sources) =>
+    sources.filter((blockSource) => {
       const hasRegisteredIndexingFunction =
         indexingFunctions[`${blockSource.name}:block`] !== undefined;
       if (!hasRegisteredIndexingFunction) {
@@ -923,7 +824,8 @@ export async function buildConfigAndIndexingFunctions({
         });
       }
       return hasRegisteredIndexingFunction;
-    });
+    }),
+  );
 
   const sources = [...contractSources, ...accountSources, ...blockSources];
 
