@@ -567,7 +567,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/726a6ee5fc8427a0013d6f624e486c9130c0e336
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75
 
   examples/with-foundry/ponder:
     dependencies:
@@ -607,6 +607,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.12.2
         version: 5.12.2(react@18.2.0)
+      '@tanstack/react-query-devtools':
+        specifier: ^5.65.0
+        version: 5.65.0(@tanstack/react-query@5.12.2(react@18.2.0))(react@18.2.0)
       next:
         specifier: 14.0.3
         version: 14.0.3(@opentelemetry/api@1.7.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -872,6 +875,9 @@ importers:
       pg-connection-string:
         specifier: ^2.6.2
         version: 2.6.2
+      pg-query-emscripten:
+        specifier: 5.1.0
+        version: 5.1.0
       picocolors:
         specifier: ^1.0.0
         version: 1.0.0
@@ -897,6 +903,9 @@ importers:
         specifier: 4.3.1
         version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
     devDependencies:
+      '@pgsql/types':
+        specifier: 16.0.0
+        version: 16.0.0
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6
@@ -2975,6 +2984,9 @@ packages:
     resolution: {integrity: sha512-VtaY4spKTdN5LjJ04im/d/joXuvLbQdgy5Z4DXF4MFZhQ+MTrejbNMkfZBp1Bs3O5+bFqnJgyGdPuZQflvIa5A==}
     engines: {node: '>=10.12.0'}
 
+  '@pgsql/types@16.0.0':
+    resolution: {integrity: sha512-5y6LsSqrsiZApustJl5a+5Vh2glyhdUVgRJfG+f7AosMvohLG/yptBZg234/rKXsOdFJBXwwUdhv6ynbdZuMHA==}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -3223,6 +3235,15 @@ packages:
 
   '@tanstack/query-core@5.12.1':
     resolution: {integrity: sha512-WbZztNmKq0t6QjdNmHzezbi/uifYo9j6e2GLJkodsYaYUlzMbAp91RDyeHkIZrm7EfO4wa6Sm5sxJZm5SPlh6w==}
+
+  '@tanstack/query-devtools@5.65.0':
+    resolution: {integrity: sha512-g5y7zc07U9D3esMdqUfTEVu9kMHoIaVBsD0+M3LPdAdD710RpTcLiNvJY1JkYXqkq9+NV+CQoemVNpQPBXVsJg==}
+
+  '@tanstack/react-query-devtools@5.65.0':
+    resolution: {integrity: sha512-xKoeWpHs6DcPqYmydIl+juWmZ2j4e4DaQEA/ju9PylhLI/X5eV5JG4IsI0ZrjtGwAEb4+lJv3SFwU/m6cmrljA==}
+    peerDependencies:
+      '@tanstack/react-query': ^5.65.0
+      react: ^18 || ^19
 
   '@tanstack/react-query@5.12.2':
     resolution: {integrity: sha512-BeWZu8zVFH20oRc+S/K9ADPgWjEzP/XQCGBNz5IbApUwPQAdwkQYbXODVL5AyAlWiSxhx+P2xlARPBApj2Yrog==}
@@ -5283,8 +5304,8 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/726a6ee5fc8427a0013d6f624e486c9130c0e336:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/726a6ee5fc8427a0013d6f624e486c9130c0e336}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75}
     version: 1.9.5
 
   form-data@2.3.3:
@@ -7270,6 +7291,9 @@ packages:
 
   pg-protocol@1.6.0:
     resolution: {integrity: sha512-M+PDm637OY5WM307051+bsDia5Xej6d9IR4GwJse1qA1DIhiKlksvrneZOYQq42OM+spubpcNYEo2FcKQrDk+Q==}
+
+  pg-query-emscripten@5.1.0:
+    resolution: {integrity: sha512-H1ZWOzLRddmHuE4GZqFjjo55hA9zMiePz/WDDGANA/EnvILCJps9pcRucyGd+MFvapeYOy6TWSYz6DbtBOaxRQ==}
 
   pg-types@2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
@@ -11010,6 +11034,8 @@ snapshots:
       tslib: 2.6.2
       webcrypto-core: 1.7.7
 
+  '@pgsql/types@16.0.0': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -11245,6 +11271,14 @@ snapshots:
       tslib: 2.6.2
 
   '@tanstack/query-core@5.12.1': {}
+
+  '@tanstack/query-devtools@5.65.0': {}
+
+  '@tanstack/react-query-devtools@5.65.0(@tanstack/react-query@5.12.2(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      '@tanstack/query-devtools': 5.65.0
+      '@tanstack/react-query': 5.12.2(react@18.2.0)
+      react: 18.2.0
 
   '@tanstack/react-query@5.12.2(react@18.2.0)':
     dependencies:
@@ -13666,7 +13700,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/726a6ee5fc8427a0013d6f624e486c9130c0e336: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75: {}
 
   form-data@2.3.3:
     dependencies:
@@ -16307,6 +16341,8 @@ snapshots:
       pg: 8.11.3
 
   pg-protocol@1.6.0: {}
+
+  pg-query-emscripten@5.1.0: {}
 
   pg-types@2.2.0:
     dependencies:

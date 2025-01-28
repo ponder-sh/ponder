@@ -22,7 +22,7 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
-import { createPool } from "@/utils/pg.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
@@ -41,7 +41,6 @@ import {
 } from "kysely";
 import { KyselyPGlite } from "kysely-pglite";
 import type { Pool, PoolClient } from "pg";
-import parse from "pg-connection-string";
 import prometheus from "prom-client";
 
 export type Database = {
@@ -116,8 +115,6 @@ type QueryBuilder = {
   user: Kysely<any>;
   /** Used to interact with the sync-store */
   sync: Kysely<PonderSyncSchema>;
-  /** Used in api functions */
-  readonly: Kysely<any>;
   drizzle: Drizzle<Schema>;
   drizzleReadonly: Drizzle<Schema>;
 };
@@ -186,17 +183,6 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(namespace)],
       }),
-      readonly: new Kysely({
-        dialect: kyselyDialect,
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "readonly",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin(namespace)],
-      }),
       sync: new Kysely<PonderSyncSchema>({
         dialect: kyselyDialect,
         log(event) {
@@ -227,81 +213,16 @@ export const createDatabase = async ({
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
 
-    const internal = createPool(
-      {
-        ...preBuild.databaseConfig.poolConfig,
-        application_name: `${namespace}_internal`,
-        max: internalMax,
-        statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-      },
-      common.logger,
-    );
-
-    const connection = (parse as unknown as typeof parse.parse)(
-      preBuild.databaseConfig.poolConfig.connectionString!,
-    );
-    if (!connection.database) {
-      throw new NonRetryableError(
-        "postgres connection string did not define a database",
-      );
-    }
-
-    const role = `ponder_${connection.database}_${namespace}`;
-    const internalConn = await internal.connect();
-    await internalConn.query("BEGIN");
-    try {
-      await internalConn.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
-      const hasRole = await internalConn
-        .query("SELECT FROM pg_roles WHERE rolname = $1", [role])
-        .then(({ rows }) => rows.length > 0);
-
-      if (!hasRole) {
-        await internalConn.query(
-          `CREATE ROLE "${role}" WITH LOGIN PASSWORD 'pw'`,
-        );
-        common.logger.debug({
-          service: "database",
-          msg: `Created readonly role '${role}'`,
-        });
-      }
-
-      await internalConn.query(
-        `GRANT CONNECT ON DATABASE "${connection.database}" TO "${role}"`,
-      );
-      await internalConn.query(
-        `GRANT USAGE ON SCHEMA "${namespace}" TO "${role}"`,
-      );
-      await internalConn.query(
-        `GRANT SELECT ON ALL TABLES IN SCHEMA "${namespace}" TO "${role}"`,
-      );
-      await internalConn.query(
-        `ALTER DEFAULT PRIVILEGES IN SCHEMA "${namespace}" GRANT SELECT ON TABLES TO "${role}"`,
-      );
-      await internalConn.query(
-        `ALTER ROLE "${role}" SET search_path TO "${namespace}"`,
-      );
-      await internalConn.query(
-        `ALTER ROLE "${role}" SET statement_timeout TO '1s'`,
-      );
-      await internalConn.query(`ALTER ROLE "${role}" SET work_mem TO '1MB'`);
-
-      const isSuperuser = await internalConn
-        .query("SELECT rolsuper FROM pg_roles WHERE rolname=current_user;")
-        .then((res) => !!res.rows[0].rolsuper);
-      if (isSuperuser)
-        await internalConn.query(
-          `ALTER ROLE "${role}" SET temp_file_limit TO '1MB'`,
-        );
-      await internalConn.query("COMMIT");
-    } catch (e) {
-      await internalConn.query("ROLLBACK");
-      throw e;
-    } finally {
-      internalConn.release();
-    }
-
     driver = {
-      internal,
+      internal: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${namespace}_internal`,
+          max: internalMax,
+          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+        },
+        common.logger,
+      ),
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
@@ -310,19 +231,14 @@ export const createDatabase = async ({
         },
         common.logger,
       ),
-      readonly: createPool(
+      readonly: createReadonlyPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          connectionString: undefined,
           application_name: `${namespace}_readonly`,
           max: readonlyMax,
-          user: role,
-          password: "pw",
-          host: connection.host ?? undefined,
-          port: Number(connection.port!),
-          database: connection.database ?? undefined,
         },
         common.logger,
+        namespace,
       ),
       sync: createPool(
         {
@@ -334,6 +250,8 @@ export const createDatabase = async ({
       ),
       listen: undefined,
     } as PostgresDriver;
+
+    await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
       internal: new Kysely({
@@ -353,17 +271,6 @@ export const createDatabase = async ({
           if (event.level === "query") {
             common.metrics.ponder_postgres_query_total.inc({
               pool: "user",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin(namespace)],
-      }),
-      readonly: new Kysely({
-        dialect: new PostgresDialect({ pool: driver.readonly }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "readonly",
             });
           }
         },

@@ -1,6 +1,5 @@
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
-import { BaseError } from "@/internal/errors.js";
 import type {
   ContractSource,
   Event,
@@ -15,6 +14,7 @@ import { isAddressFactory } from "@/sync/filter.js";
 import type { Sync } from "@/sync/index.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
+import type { DeepPartial } from "@/types/utils.js";
 import {
   type Checkpoint,
   decodeCheckpoint,
@@ -386,13 +386,7 @@ const executeSetup = async (
     const error = _error instanceof Error ? _error : new Error(String(_error));
 
     addStackTrace(error, common.options);
-
-    if (error instanceof BaseError) {
-      error.meta.push(toErrorMeta(event));
-    } else {
-      // @ts-expect-error
-      error.meta = [toErrorMeta(event)];
-    }
+    addErrorMeta(error, toErrorMeta(event));
 
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
     common.logger.error({
@@ -452,13 +446,7 @@ const executeEvent = async (
     const error = _error instanceof Error ? _error : new Error(String(_error));
 
     addStackTrace(error, common.options);
-
-    if (error instanceof BaseError) {
-      error.meta.push(toErrorMeta(event));
-    } else {
-      // @ts-expect-error
-      error.meta = [toErrorMeta(event)];
-    }
+    addErrorMeta(error, toErrorMeta(event));
 
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
@@ -476,77 +464,100 @@ const executeEvent = async (
   return { status: "success" };
 };
 
-const blockText = (block: Block) =>
-  `Block:\n${prettyPrint({
-    hash: block.hash,
-    number: block.number,
-    timestamp: block.timestamp,
-  })}`;
-
-const transactionText = (transaction: Transaction) =>
-  `Transaction:\n${prettyPrint({
-    hash: transaction.hash,
-    from: transaction.from,
-    to: transaction.to,
-  })}`;
-
-const logText = (log: Log) =>
-  `Log:\n${prettyPrint({
-    index: log.logIndex,
-    address: log.address,
-  })}`;
-
-const traceText = (trace: Trace) =>
-  `Trace:\n${prettyPrint({
-    traceIndex: trace.traceIndex,
-    from: trace.from,
-    to: trace.to,
-  })}`;
-
-const toErrorMeta = (event: Event | SetupEvent) => {
-  switch (event.type) {
+const toErrorMeta = (event: DeepPartial<Event> | DeepPartial<SetupEvent>) => {
+  switch (event?.type) {
     case "setup": {
       return `Block:\n${prettyPrint({
-        number: event.block,
+        number: event?.block,
       })}`;
     }
 
     case "log": {
       return [
-        `Event arguments:\n${prettyPrint(event.event.args)}`,
-        logText(event.event.log),
-        transactionText(event.event.transaction),
-        blockText(event.event.block),
+        `Event arguments:\n${prettyPrint(event?.event?.args)}`,
+        logText(event?.event?.log),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
       ].join("\n");
     }
 
     case "trace": {
       return [
-        `Call trace arguments:\n${prettyPrint(event.event.args)}`,
-        traceText(event.event.trace),
-        transactionText(event.event.transaction),
-        blockText(event.event.block),
+        `Call trace arguments:\n${prettyPrint(event?.event?.args)}`,
+        traceText(event?.event?.trace),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
       ].join("\n");
     }
 
     case "transfer": {
       return [
-        `Transfer arguments:\n${prettyPrint(event.event.transfer)}`,
-        traceText(event.event.trace),
-        transactionText(event.event.transaction),
-        blockText(event.event.block),
+        `Transfer arguments:\n${prettyPrint(event?.event?.transfer)}`,
+        traceText(event?.event?.trace),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
       ].join("\n");
     }
 
     case "block": {
-      return blockText(event.event.block);
+      return blockText(event?.event?.block);
     }
 
     case "transaction": {
       return [
-        transactionText(event.event.transaction),
-        blockText(event.event.block),
+        transactionText(event?.event?.transaction),
+        blockText(event?.event?.block),
       ].join("\n");
+    }
+
+    default: {
+      return undefined;
     }
   }
 };
+
+const addErrorMeta = (error: unknown, meta: string | undefined) => {
+  // If error isn't an object we can modify, do nothing
+  if (typeof error !== "object" || error === null) return;
+  if (meta === undefined) return;
+
+  try {
+    const errorObj = error as { meta?: unknown };
+    // If meta exists and is an array, try to add to it
+    if (Array.isArray(errorObj.meta)) {
+      errorObj.meta = [...errorObj.meta, meta];
+    } else {
+      // Otherwise set meta to be a new array with the meta string
+      errorObj.meta = [meta];
+    }
+  } catch {
+    // Ignore errors
+  }
+};
+
+const blockText = (block?: DeepPartial<Block>) =>
+  `Block:\n${prettyPrint({
+    hash: block?.hash,
+    number: block?.number,
+    timestamp: block?.timestamp,
+  })}`;
+
+const transactionText = (transaction?: DeepPartial<Transaction>) =>
+  `Transaction:\n${prettyPrint({
+    hash: transaction?.hash,
+    from: transaction?.from,
+    to: transaction?.to,
+  })}`;
+
+const logText = (log?: DeepPartial<Log>) =>
+  `Log:\n${prettyPrint({
+    index: log?.logIndex,
+    address: log?.address,
+  })}`;
+
+const traceText = (trace?: DeepPartial<Trace>) =>
+  `Trace:\n${prettyPrint({
+    traceIndex: trace?.traceIndex,
+    from: trace?.from,
+    to: trace?.to,
+  })}`;

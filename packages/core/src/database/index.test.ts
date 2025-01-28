@@ -1,12 +1,6 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import {
-  bigint,
-  hex,
-  onchainEnum,
-  onchainTable,
-  primaryKey,
-} from "@/drizzle/onchain.js";
+import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   encodeCheckpoint,
@@ -15,7 +9,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "drizzle-orm";
-import { index, pgSchema } from "drizzle-orm/pg-core";
+import { index } from "drizzle-orm/pg-core";
 import { sql as ksql } from "kysely";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -32,71 +26,6 @@ const account = onchainTable("account", (p) => ({
 function createCheckpoint(index: number): string {
   return encodeCheckpoint({ ...zeroCheckpoint, blockTimestamp: index });
 }
-
-// skip pglite because it doesn't support multiple connections
-test("createDatabase() readonly", async (context) => {
-  if (context.databaseConfig.kind === "pglite_test") return;
-  const database = await createDatabase({
-    common: context.common,
-    namespace: "public",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  const error = await database.qb.drizzleReadonly
-    .insert(account)
-    .values({
-      address: zeroAddress,
-      balance: 10n,
-    })
-    .catch((error) => error);
-
-  expect(error).toBeDefined();
-  expect(error?.message).toContain("permission denied for table");
-
-  // TODO(kyle) test query complexity limit
-
-  await database.kill();
-});
-
-test("createDatabase() search path", async (context) => {
-  // create table in "Ponder" schema
-
-  const schemaAccount = pgSchema("Ponder").table("account", {
-    address: hex().primaryKey(),
-    balance: bigint(),
-  });
-
-  const database = await createDatabase({
-    common: context.common,
-    namespace: "Ponder",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account: schemaAccount },
-      statements: buildSchema({ schema: { account: schemaAccount } })
-        .statements,
-    },
-  });
-  await database.migrate({ buildId: "abc" });
-
-  // using bare "account" will leave schema empty, and the search_path
-  // will then use the "Ponder" schema
-
-  const rows = await database.qb.drizzleReadonly.select().from(account);
-
-  expect(rows).toStrictEqual([]);
-
-  await database.kill();
-});
 
 test("migrate() succeeds with empty schema", async (context) => {
   const database = await createDatabase({
