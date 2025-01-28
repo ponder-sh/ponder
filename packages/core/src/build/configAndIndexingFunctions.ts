@@ -258,6 +258,18 @@ export async function buildConfigAndIndexingFunctions({
           .join(", ")}].`,
       );
     }
+
+    const fromBlock =
+      (await resolveBlockNumber(source.startBlock, network)) ?? 0;
+    const toBlock =
+      (await resolveBlockNumber(source.endBlock, network)) ??
+      Number.POSITIVE_INFINITY;
+
+    if (fromBlock > toBlock) {
+      throw new Error(
+        `Validation failed: Start block for '${source.name}' is after end block (${fromBlock} > ${toBlock}).`,
+      );
+    }
   }
 
   const contractSources: ContractSource[] = await Promise.all(
