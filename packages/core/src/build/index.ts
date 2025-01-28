@@ -425,6 +425,7 @@ export const createBuild = async ({
         common.logger[log.level]({ service: "build", msg: log.msg });
       }
 
+      // TODO(kyle) include mode
       const buildId = crypto
         .createHash("sha256")
         .update(BUILD_ID_VERSION)
