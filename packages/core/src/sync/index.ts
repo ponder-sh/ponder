@@ -349,6 +349,11 @@ export const createSync = async (params: {
         ? mergeAsyncGenerators
         : mergeAsyncGeneratorsWithEventOrder;
 
+    let cursor =
+      params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
+        ? params.initialCheckpoint
+        : getOmnichainCheckpoint({ tag: "start" })!;
+
     for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
       if (params.mode === "multichain") {
         const network = params.indexingBuild.networks.find(
@@ -357,12 +362,12 @@ export const createSync = async (params: {
         )!;
         params.common.logger.debug({
           service: "sync",
-          msg: `Sequenced ${events.length} '${network.name}' events to checkpoint${checkpoint}`,
+          msg: `Sequenced ${events.length} '${network.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
       } else {
         params.common.logger.debug({
           service: "sync",
-          msg: `Sequenced ${events.length} events to checkpoint ${checkpoint}`,
+          msg: `Sequenced ${events.length} events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
       }
 
@@ -370,6 +375,7 @@ export const createSync = async (params: {
         updateHistoricalStatus({ events, checkpoint, network });
       }
       yield events;
+      cursor = checkpoint;
     }
   }
 
@@ -1078,6 +1084,7 @@ export async function* getLocalEventGenerator(params: {
     while (cursor < min(syncCheckpoint, params.to)) {
       const estimateCheckpoint = encodeCheckpoint({
         ...ZERO_CHECKPOINT,
+        chainId: BigInt(params.network.chainId),
         blockTimestamp: Math.min(
           decodeCheckpoint(cursor).blockTimestamp + estimateSeconds,
           MAX_CHECKPOINT.blockTimestamp,
@@ -1095,7 +1102,7 @@ export async function* getLocalEventGenerator(params: {
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Extracted ${events.length} '${params.network.name}' events from [${cursor}, ${queryCursor}]`,
+          msg: `Extracted ${events.length} '${params.network.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
         });
 
         estimateSeconds = estimate({
