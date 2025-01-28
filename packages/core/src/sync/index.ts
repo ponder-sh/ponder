@@ -1011,13 +1011,8 @@ export const syncDiagnostic = async ({
 }) => {
   /** Earliest `startBlock` among all `filters` */
   const start = Math.min(...sources.map(({ filter }) => filter.fromBlock ?? 0));
-  /**
-   * Latest `endBlock` among all filters. `undefined` if at least one
-   * of the filters doesn't have an `endBlock`.
-   */
-  const end = sources.some(({ filter }) => filter.toBlock === undefined)
-    ? undefined
-    : Math.max(...sources.map(({ filter }) => filter.toBlock!));
+  /** Latest `endBlock` among all `filters` */
+  const end = Math.max(...sources.map(({ filter }) => filter.toBlock!));
 
   const [remoteChainId, startBlock, latestBlock] = await Promise.all([
     requestQueue.request({ method: "eth_chainId" }),
@@ -1026,7 +1021,7 @@ export const syncDiagnostic = async ({
   ]);
 
   const endBlock =
-    end === undefined
+    end === Number.POSITIVE_INFINITY
       ? undefined
       : end > hexToBigInt(latestBlock.number)
         ? ({
