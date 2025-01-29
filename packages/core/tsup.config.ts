@@ -10,4 +10,9 @@ export default defineConfig({
   dts: true,
   clean: true,
   splitting: true,
+  onSuccess: async () => {
+    try {
+      await execa("pnpm", ["wagmi", "generate"]);
+    } catch {}
+  },
 });

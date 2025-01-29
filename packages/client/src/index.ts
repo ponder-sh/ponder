@@ -1,20 +1,8 @@
 import type { QueryWithTypings, SQLWrapper } from "drizzle-orm";
 import type { PgDialect } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
+import { EventSource } from "eventsource";
 import superjson from "superjson";
-
-const getEventSource = async () => {
-  let SSE: typeof EventSource;
-  if (typeof window === "undefined") {
-    const undici = await import(/* webpackIgnore: true */ "undici");
-    // @ts-ignore
-    SSE = undici.EventSource;
-  } else {
-    SSE = EventSource;
-  }
-
-  return SSE;
-};
 
 type Schema = { [name: string]: unknown };
 
@@ -44,7 +32,27 @@ type ClientDb<schema extends Schema = Schema> = Prettify<
 export type Client<schema extends Schema = Schema> = {
   /** Query the database. */
   db: ClientDb<schema>;
-  /** Subscribe to live updates. */
+  /**
+   * Subscribe to live updates.
+   *
+   * @param queryFn - The query to subscribe to.
+   * @param onData - The callback to call with each new query result
+   * @param onError - The callback to call when an error occurs.
+   *
+   * @example
+   * ```ts
+   * import { createClient } from "@ponder/client";
+   * import * as schema from "../ponder.schema";
+   *
+   * const client = createClient("https://.../sql", { schema });
+   *
+   * client.live(
+   *   (db) => db.select().from(schema.account),
+   *   (result) => console.log(result),
+   *   (error) => console.error(error),
+   * );
+   * ```
+   */
   live: <result>(
     queryFn: (db: ClientDb<schema>) => Promise<result>,
     onData: (result: result) => void,
@@ -61,7 +69,8 @@ const getUrl = (
   method: "live" | "db" | "status",
   query?: QueryWithTypings,
 ) => {
-  const url = new URL(`${baseUrl}/${method}`);
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname}/${method}`;
   if (query) {
     url.searchParams.set("sql", superjson.stringify(query));
   }
@@ -124,28 +133,26 @@ export const createClient = <schema extends Schema>(
       { schema, casing: "snake_case" },
     ),
     live: (queryFn, onData, onError) => {
-      const addEventListeners = () => {
-        sse!.addEventListener("message", () => {
-          queryFn(client.db).then(onData).catch(onError);
-        });
+      if (sse === undefined) {
+        sse = new EventSource(getUrl(baseUrl, "live"));
+      }
 
-        sse!.addEventListener("error", () => {
-          onError?.(new Error("server disconnected"));
-        });
+      const onDataListener = (_event: MessageEvent) => {
+        queryFn(client.db).then(onData).catch(onError);
       };
 
+      const onErrorListener = (_event: MessageEvent) => {
+        onError?.(new Error("server disconnected"));
+      };
+
+      sse?.addEventListener("message", onDataListener);
+      sse?.addEventListener("error", onErrorListener);
       liveCount++;
-      if (sse === undefined) {
-        getEventSource().then((SSE) => {
-          sse = new SSE(getUrl(baseUrl, "live"));
-          addEventListeners();
-        });
-      } else {
-        addEventListeners();
-      }
 
       return {
         unsubscribe: () => {
+          sse?.removeEventListener("message", onDataListener);
+          sse?.removeEventListener("error", onErrorListener);
           if (--liveCount === 0) sse?.close();
         },
       };
