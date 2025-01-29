@@ -31,7 +31,6 @@ export function usePonderQuery<result>(
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    console.log("calling client.live");
     const { unsubscribe } = client.live(
       () => Promise.resolve(),
       () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
@@ -46,6 +45,8 @@ export function usePonderQuery<result>(
   });
 }
 
+const statusQueryKey = ["status"];
+
 export function usePonderStatus(
   params: Omit<UseQueryOptions<Status>, "queryFn" | "queryKey">,
 ): UseQueryResult<Status> {
@@ -56,20 +57,18 @@ export function usePonderStatus(
     throw new Error("PonderProvider not found");
   }
 
-  const queryKey = useMemo(() => ["status"], []);
-
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     const { unsubscribe } = client.live(
       () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey }),
+      () => queryClient.invalidateQueries({ queryKey: statusQueryKey }),
     );
     return unsubscribe;
   }, []);
 
   return useQuery({
     ...params,
-    queryKey,
+    queryKey: statusQueryKey,
     queryFn: () => client.getStatus(),
   });
 }
