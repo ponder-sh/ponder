@@ -62,10 +62,10 @@ export const client = ({
 
       driver.listen.on("error", async () => {
         driver.listen?.release();
-        connectAndListen();
+        await connectAndListen();
       });
 
-      driver.listen.on("notification", async () => {
+      driver.listen.on("notification", () => {
         statusResolver.resolve();
         statusResolver = promiseWithResolvers();
       });
