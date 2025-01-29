@@ -484,6 +484,8 @@ test("getLocalEventGenerator()", async (context) => {
   });
 
   const eventGenerator = getLocalEventGenerator({
+    common: context.common,
+    network,
     syncStore,
     sources,
     localSyncGenerator: syncGenerator,
@@ -540,6 +542,8 @@ test("getLocalEventGenerator() pagination", async (context) => {
   });
 
   const eventGenerator = getLocalEventGenerator({
+    common: context.common,
+    network,
     syncStore,
     sources,
     localSyncGenerator: syncGenerator,
