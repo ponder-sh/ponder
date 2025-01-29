@@ -25,6 +25,7 @@ export const validateQuery = async (sql: string) => {
 
   if (ALLOW_CACHE.has(hash)) {
     const result = ALLOW_CACHE.get(hash)!;
+
     ALLOW_CACHE.delete(hash);
     ALLOW_CACHE.set(hash, result);
 

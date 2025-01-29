@@ -50,14 +50,16 @@ export const graphql = (
 
   generateSchema({ graphqlSchema }).catch(() => {});
 
+  const metadataStore = getMetadataStore({
+    database: globalThis.PONDER_DATABASE,
+  });
+
   const yoga = createYoga({
     graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
     schema: graphqlSchema,
     context: () => {
       const getDataLoader = buildDataLoaderCache({ drizzle: db });
-      const metadataStore = getMetadataStore({
-        database: globalThis.PONDER_DATABASE,
-      });
+
       return { drizzle: db, metadataStore, getDataLoader };
     },
     maskedErrors: process.env.NODE_ENV === "production",

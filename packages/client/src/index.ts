@@ -1,6 +1,7 @@
 import type { QueryWithTypings, SQLWrapper } from "drizzle-orm";
 import type { PgDialect } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
+import superjson from "superjson";
 
 const getEventSource = async () => {
   let SSE: typeof EventSource;
@@ -62,7 +63,7 @@ const getUrl = (
 ) => {
   const url = new URL(`${baseUrl}/${method}`);
   if (query) {
-    url.searchParams.set("sql", JSON.stringify(query));
+    url.searchParams.set("sql", superjson.stringify(query));
   }
   return url;
 };
@@ -123,21 +124,9 @@ export const createClient = <schema extends Schema>(
       { schema, casing: "snake_case" },
     ),
     live: (queryFn, onData, onError) => {
-      // https://github.com/drizzle-team/drizzle-orm/blob/04c91434c7ac10aeb2923efd1d19a7ebf10ea9d4/drizzle-orm/src/pg-core/db.ts#L602-L621
-
       const addEventListeners = () => {
-        sse!.addEventListener("message", (event) => {
-          const data = JSON.parse(event.data) as
-            | { status: "success"; result: unknown }
-            | { status: "error"; error: string };
-
-          if (data.status === "error") {
-            const error = new Error(data.error);
-            error.stack = undefined;
-            onError?.(error);
-          } else {
-            queryFn(client.db).then(onData).catch(onError);
-          }
+        sse!.addEventListener("message", () => {
+          queryFn(client.db).then(onData).catch(onError);
         });
 
         sse!.addEventListener("error", () => {

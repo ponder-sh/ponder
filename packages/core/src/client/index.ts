@@ -5,6 +5,7 @@ import type { QueryWithTypings } from "drizzle-orm";
 import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import superjson from "superjson";
 import { validateQuery } from "./validate.js";
 
 const status = pgTable("_ponder_status", (t) => ({
@@ -15,7 +16,7 @@ const status = pgTable("_ponder_status", (t) => ({
 }));
 
 /**
- * Middleware for `@ponder/sql`.
+ * Middleware for `@ponder/client`.
  *
  * @param db - Drizzle database instance
  * @param schema - Ponder schema
@@ -79,11 +80,7 @@ export const client = ({
       if (queryString === undefined) {
         return c.text('Missing "sql" query parameter', 400);
       }
-      const query = JSON.parse(queryString) as QueryWithTypings;
-
-      if (query.sql.match(/\bCOMMIT\b/i)) {
-        return c.text("Invalid query", 400);
-      }
+      const query = superjson.parse(queryString) as QueryWithTypings;
 
       if ("instance" in driver) {
         try {
@@ -117,8 +114,6 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/live") {
-      // TODO(kyle) live queries only availble in realtime mode
-
       c.header("Content-Type", "text/event-stream");
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
@@ -126,9 +121,7 @@ export const client = ({
       return streamSSE(c, async (stream) => {
         while (stream.closed === false && stream.aborted === false) {
           try {
-            await stream.writeSSE({
-              data: JSON.stringify({ status: "success" }),
-            });
+            await stream.writeSSE({ data: "" });
           } catch {}
           await statusResolver.promise;
         }

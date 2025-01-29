@@ -79,6 +79,7 @@
     "prom-client": "^15.0.0",
     "react": "^18.2.0",
     "stacktrace-parser": "^0.1.10",
+    "superjson": "^2.2.2",
     "vite": "5.0.7",
     "vite-node": "1.0.2",
     "vite-tsconfig-paths": "4.3.1"
