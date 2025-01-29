@@ -308,10 +308,17 @@ export const createSync = async (params: {
   };
 
   async function* getEvents() {
+    let cursor =
+      params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
+        ? params.initialCheckpoint
+        : getOmnichainCheckpoint({ tag: "start" })!;
+
     const to = min(
       getOmnichainCheckpoint({ tag: "end" }),
       getOmnichainCheckpoint({ tag: "finalized" }),
     );
+
+    // TODO(kyle) initialize log
 
     const eventGenerators = Array.from(perNetworkSync.entries()).map(
       ([network, { syncProgress, historicalSync }]) => {
@@ -348,11 +355,6 @@ export const createSync = async (params: {
       params.mode === "multichain"
         ? mergeAsyncGenerators
         : mergeAsyncGeneratorsWithEventOrder;
-
-    let cursor =
-      params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
-        ? params.initialCheckpoint
-        : getOmnichainCheckpoint({ tag: "start" })!;
 
     for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
       if (params.mode === "multichain") {
@@ -411,6 +413,11 @@ export const createSync = async (params: {
             unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
           });
 
+          params.common.logger.debug({
+            service: "sync",
+            msg: `Extracted ${events.length} '${network.name}' events`,
+          });
+
           if (params.mode === "multichain") {
             // Note: `checkpoints.current` not used in multichain mode
             const checkpoint = getMultichainCheckpoint({
@@ -426,6 +433,11 @@ export const createSync = async (params: {
             const readyEvents = events.concat(pendingEvents);
             pendingEvents = [];
             executedEvents = executedEvents.concat(readyEvents);
+
+            params.common.logger.debug({
+              service: "sync",
+              msg: `Sequenced ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+            });
 
             params
               .onRealtimeEvent({
@@ -479,6 +491,11 @@ export const createSync = async (params: {
                 .concat(events)
                 .filter(({ checkpoint }) => checkpoint > to);
               executedEvents = executedEvents.concat(readyEvents);
+
+              params.common.logger.debug({
+                service: "sync",
+                msg: `Sequenced ${events.length} '${network.name}' events for timestamps [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+              });
 
               params
                 .onRealtimeEvent({
@@ -557,9 +574,18 @@ export const createSync = async (params: {
         case "reorg": {
           // Remove all reorged data
 
-          const isReorgedEvent = ({ chainId, block }: RawEvent) =>
-            chainId === network.chainId &&
-            Number(block.number) > hexToNumber(event.block.number);
+          let reorgedEvents = 0;
+
+          const isReorgedEvent = ({ chainId, block }: RawEvent) => {
+            if (
+              chainId === network.chainId &&
+              Number(block.number) > hexToNumber(event.block.number)
+            ) {
+              reorgedEvents++;
+              return true;
+            }
+            return false;
+          };
 
           pendingEvents = pendingEvents.filter(
             (e) => isReorgedEvent(e) === false,
@@ -567,6 +593,11 @@ export const createSync = async (params: {
           executedEvents = executedEvents.filter(
             (e) => isReorgedEvent(e) === false,
           );
+
+          params.common.logger.debug({
+            service: "sync",
+            msg: `Removed ${reorgedEvents} reorged '${network.name}' events`,
+          });
 
           if (params.mode === "multichain") {
             // Note: `checkpoints.current` not used in multichain mode
@@ -585,6 +616,11 @@ export const createSync = async (params: {
             );
             pendingEvents = pendingEvents.concat(events);
 
+            params.common.logger.debug({
+              service: "sync",
+              msg: `Rescheduled ${events.length} reorged events`,
+            });
+
             params.onRealtimeEvent({ type: "reorg", checkpoint, network });
           } else {
             const from = checkpoints.current;
@@ -596,6 +632,11 @@ export const createSync = async (params: {
             const events = executedEvents.filter((e) => e.checkpoint > to);
             executedEvents = executedEvents.filter((e) => e.checkpoint < to);
             pendingEvents = pendingEvents.concat(events);
+
+            params.common.logger.debug({
+              service: "sync",
+              msg: `Rescheduled ${events.length} reorged events`,
+            });
 
             if (to < from) {
               params.onRealtimeEvent({
@@ -1076,6 +1117,8 @@ export async function* getLocalEventGenerator(params: {
   // used to determine `to` passed to `getEvents`.
   let estimateSeconds = 1_000;
 
+  // TODO(kyle) initialize log
+
   for await (const syncCheckpoint of bufferAsyncGenerator(
     params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
@@ -1118,7 +1161,7 @@ export async function* getLocalEventGenerator(params: {
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Updated '${params.network.name}' getEvents query estimate to ${estimateSeconds} seconds`,
+          msg: `Updated '${params.network.name}' extract query estimate to ${estimateSeconds} seconds`,
         });
 
         consecutiveErrors = 0;
