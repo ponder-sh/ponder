@@ -239,7 +239,6 @@ export const createSync = async (params: {
     return getChainCheckpoint({ syncProgress, network, tag });
   };
 
-  /** Returns the minimum checkpoint across all chains. */
   const getOmnichainCheckpoint = ({
     tag,
   }: { tag: "start" | "end" | "current" | "finalized" }):
@@ -317,8 +316,6 @@ export const createSync = async (params: {
       getOmnichainCheckpoint({ tag: "end" }),
       getOmnichainCheckpoint({ tag: "finalized" }),
     );
-
-    // TODO(kyle) initialize log
 
     const eventGenerators = Array.from(perNetworkSync.entries()).map(
       ([network, { syncProgress, historicalSync }]) => {
@@ -448,13 +445,6 @@ export const createSync = async (params: {
                 network,
               })
               .then(() => {
-                if (readyEvents.length > 0 && isKilled === false) {
-                  params.common.logger.info({
-                    service: "app",
-                    msg: `Indexed ${readyEvents.length} events`,
-                  });
-                }
-
                 // update `ponder_realtime_latency` metric
                 if (event.endClock) {
                   params.common.metrics.ponder_realtime_latency.observe(
@@ -508,12 +498,12 @@ export const createSync = async (params: {
                   network,
                 })
                 .then(() => {
-                  if (readyEvents.length > 0 && isKilled === false) {
-                    params.common.logger.info({
-                      service: "app",
-                      msg: `Indexed ${readyEvents.length} events`,
-                    });
-                  }
+                  // if (readyEvents.length > 0 && isKilled === false) {
+                  //   params.common.logger.info({
+                  //     service: "app",
+                  //     msg: `Indexed ${readyEvents.length} events`,
+                  //   });
+                  // }
 
                   // update `ponder_realtime_latency` metric
                   for (const [checkpoint, timer] of latencyTimers) {
@@ -551,7 +541,7 @@ export const createSync = async (params: {
           ) {
             params.common.logger.warn({
               service: "sync",
-              msg: `Finalized block for '${network.name}' has surpassed overall indexing checkpoint`,
+              msg: `Finalized '${network.name}' block has surpassed overall indexing checkpoint`,
             });
           }
 
@@ -792,8 +782,6 @@ export const createSync = async (params: {
     }
   }
 
-  let isKilled = false;
-
   return {
     getEvents,
     async startRealtime() {
@@ -834,6 +822,12 @@ export const createSync = async (params: {
             from,
             to,
           });
+
+          params.common.logger.debug({
+            service: "sync",
+            msg: `Extracted and scheduled ${events.events.length} '${network.name}' events`,
+          });
+
           pendingEvents = pendingEvents.concat(events.events);
         }
 
@@ -891,6 +885,11 @@ export const createSync = async (params: {
             }
           }
 
+          params.common.logger.debug({
+            service: "sync",
+            msg: `Initialized '${network.name}' realtime sync with ${initialChildAddresses.size} factory child addresses`,
+          });
+
           realtimeSync.start({ syncProgress, initialChildAddresses });
         }
       }
@@ -903,7 +902,6 @@ export const createSync = async (params: {
       return getOmnichainCheckpoint({ tag: "finalized" })!;
     },
     async kill() {
-      isKilled = true;
       const promises: Promise<void>[] = [];
       for (const network of params.indexingBuild.networks) {
         const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
@@ -940,6 +938,11 @@ export const getPerChainOnRealtimeSyncEvent = ({
       case "block": {
         syncProgress.current = event.block;
 
+        common.logger.debug({
+          service: "sync",
+          msg: `Updated '${network.name}' current block to ${hexToNumber(event.block.number)}`,
+        });
+
         common.metrics.ponder_sync_block.set(
           { network: network.name },
           hexToNumber(syncProgress.current.number),
@@ -958,6 +961,11 @@ export const getPerChainOnRealtimeSyncEvent = ({
         ] satisfies Interval;
 
         syncProgress.finalized = event.block;
+
+        common.logger.debug({
+          service: "sync",
+          msg: `Updated '${network.name}' finalized block to ${hexToNumber(event.block.number)}`,
+        });
 
         // Remove all finalized data
 
@@ -1068,7 +1076,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
           );
           common.logger.info({
             service: "sync",
-            msg: `Synced final end block for '${network.name}' (${hexToNumber(syncProgress.end!.number)}), killing realtime sync service`,
+            msg: `Killing '${network.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
           });
           realtimeSync.kill();
         }
@@ -1078,6 +1086,11 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
       case "reorg": {
         syncProgress.current = event.block;
+
+        common.logger.debug({
+          service: "sync",
+          msg: `Updated '${network.name}' current block to ${hexToNumber(event.block.number)}`,
+        });
 
         common.metrics.ponder_sync_block.set(
           { network: network.name },
@@ -1117,7 +1130,10 @@ export async function* getLocalEventGenerator(params: {
   // used to determine `to` passed to `getEvents`.
   let estimateSeconds = 1_000;
 
-  // TODO(kyle) initialize log
+  params.common.logger.debug({
+    service: "sync",
+    msg: `Initialized '${params.network.name}' extract query for timestamps [${decodeCheckpoint(params.from).blockTimestamp}, ${decodeCheckpoint(params.to).blockTimestamp}]`,
+  });
 
   for await (const syncCheckpoint of bufferAsyncGenerator(
     params.localSyncGenerator,
