@@ -3,6 +3,8 @@ import { validateQuery } from "./validate.js";
 
 test("validateQuery()", async () => {
   await validateQuery("SELECT * FROM users;");
+  await validateQuery("SELECT u.name FROM users as u;");
+
   await validateQuery("SELECT col FROM users LIMIT 1;");
   await validateQuery(
     "SELECT col FROM users JOIN users ON users.id = users.id;",

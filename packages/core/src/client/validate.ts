@@ -71,6 +71,12 @@ export const validateQuery = async (sql: string) => {
       // @ts-ignore
       node[getNodeType(node)],
     )) {
+      if ("RangeVar" in child) {
+        if (child.RangeVar.schemaname) {
+          throw new Error("Schema name not supported");
+        }
+      }
+
       validate(child);
     }
   };
