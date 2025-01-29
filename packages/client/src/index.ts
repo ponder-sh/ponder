@@ -147,13 +147,17 @@ export const createClient = <schema extends Schema>(
 
       sse?.addEventListener("message", onDataListener);
       sse?.addEventListener("error", onErrorListener);
-      liveCount++;
+      liveCount = liveCount + 1;
 
       return {
         unsubscribe: () => {
           sse?.removeEventListener("message", onDataListener);
           sse?.removeEventListener("error", onErrorListener);
-          if (--liveCount === 0) sse?.close();
+          liveCount = liveCount - 1;
+          if (liveCount === 0) {
+            sse?.close();
+            sse = undefined;
+          }
         },
       };
     },

@@ -23,22 +23,26 @@ export function usePonderQuery<result>(
     throw new Error("PonderProvider not found");
   }
 
-  const { queryFn, queryKey } = getPonderQueryOptions(client, params.queryFn);
-  const memoizedQueryKey = useMemo(() => queryKey, [queryKey]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+  const queryOptions = useMemo(
+    () => getPonderQueryOptions(client, params.queryFn),
+    [params.queryFn],
+  );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
+    console.log("calling client.live");
     const { unsubscribe } = client.live(
       () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: memoizedQueryKey }),
+      () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
     );
     return unsubscribe;
-  }, [memoizedQueryKey]);
+  }, queryOptions.queryKey);
 
   return useQuery({
     ...params,
-    queryKey: memoizedQueryKey,
-    queryFn,
+    queryKey: queryOptions.queryKey,
+    queryFn: queryOptions.queryFn,
   });
 }
 
