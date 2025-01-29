@@ -161,7 +161,7 @@ export namespace Virtual {
     ///
     base = Extract<contract, { [p in property]: unknown }>[property],
     override = Extract<
-      contract["chain"][keyof contract["chain"]],
+      contract["network"][keyof contract["network"]],
       { [p in property]: unknown }
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
@@ -184,7 +184,15 @@ export namespace Virtual {
         >;
       };
     };
-    chain: config["chains"][number];
+    network: keyof config["networks"] extends infer network extends
+      keyof config["networks"]
+      ? network extends network
+        ? {
+            name: network;
+            chainId: config["networks"][network]["chainId"];
+          }
+        : never
+      : never;
     client: Prettify<ReadOnlyClient>;
     db: Db<schema>;
   };

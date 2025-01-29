@@ -21,32 +21,35 @@ import {
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
-import type { Hex, LogTopic } from "viem";
+import { type Hex, type LogTopic, defineChain, extractChain } from "viem";
+import * as viemChains from "viem/chains";
 import { buildLogFactory } from "./factory.js";
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
 >(
   config: T,
-): (Omit<T[string], "chain"> & { name: string; chain: number })[] => {
+): (Omit<T[string], "network"> & { name: string; network: string })[] => {
   return Object.entries(config).flatMap(
     ([name, source]: [string, T[string]]) => {
-      if (typeof source.chain === "number") {
+      if (typeof source.network === "string") {
         return {
           name,
           ...source,
         };
       } else {
-        return Object.entries(source.chain).map(([chain, sourceOverride]) => {
-          const { chain: _chain, ...base } = source;
+        return Object.entries(source.network).map(
+          ([network, sourceOverride]) => {
+            const { network: _network, ...base } = source;
 
-          return {
-            name,
-            chain,
-            ...base,
-            ...sourceOverride,
-          };
-        });
+            return {
+              name,
+              network,
+              ...base,
+              ...sourceOverride,
+            };
+          },
+        );
       }
     },
   );
@@ -66,35 +69,54 @@ export async function buildConfigAndIndexingFunctions({
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
-  const chains = config.chains.map((chain) => {
-    // TODO(kyle) throw error if not defined, warn if public
-    const rpcUrl = config.rpcUrls[chain.id]!;
-    const pollingInterval = config.pollingInterval?.[chain.id] ?? 1_000;
-    const maxRequestsPerSecond = config.maxRequestsPerSecond?.[chain.id] ?? 50;
-    const disableCache = config.disableCache?.[chain.id] ?? false;
+  const chains = Object.entries(config.networks).map(
+    ([networkName, network]) => {
+      const rpcUrl = network.rpcUrl ?? network.transport;
 
-    // if (isRpcUrlPublic(rpcUrl)) {
-    //   logs.push({
-    //     level: "warn",
-    //     msg: `Network '${networkName}' is using a public RPC URL (${rpcUrl}). Most apps require an RPC URL with a higher rate limit.`,
-    //   });
-    // }
+      // if (isRpcUrlPublic(rpcUrl)) {
+      //   logs.push({
+      //     level: "warn",
+      //     msg: `Network '${networkName}' is using a public RPC URL (${rpcUrl}). Most apps require an RPC URL with a higher rate limit.`,
+      //   });
+      // }
 
-    if (pollingInterval! < 100) {
-      throw new Error(
-        `Invalid 'pollingInterval' for chain '${chain.name}. Expected 100 milliseconds or greater, got ${pollingInterval} milliseconds.`,
-      );
-    }
+      if ((network.pollingInterval ?? 1_000) < 100) {
+        throw new Error(
+          `Invalid 'pollingInterval' for network '${networkName}. Expected 100 milliseconds or greater, got ${network.pollingInterval} milliseconds.`,
+        );
+      }
 
-    return {
-      chain,
-      rpcUrl,
-      pollingInterval,
-      maxRequestsPerSecond,
-      disableCache,
-      finalityBlockCount: getFinalityBlockCount({ chain }),
-    } satisfies Chain;
-  });
+      let chain = extractChain({
+        // @ts-ignore
+        chains: Object.values(viemChains),
+        id: network.chainId,
+      });
+
+      if (chain === undefined) {
+        chain = defineChain({
+          id: network.chainId,
+          name: networkName,
+          nativeCurrency: {
+            decimals: 18,
+            name: "Ether",
+            symbol: "ETH",
+          },
+          rpcUrls: { default: { http: [] } },
+        });
+      }
+
+      chain.name = networkName;
+
+      return {
+        chain,
+        rpcUrl,
+        pollingInterval: network.pollingInterval ?? 1_000,
+        maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
+        disableCache: network.disableCache ?? false,
+        finalityBlockCount: getFinalityBlockCount({ chain }),
+      } satisfies Chain;
+    },
+  );
 
   const sourceNames = new Set<string>();
   for (const source of [
@@ -189,10 +211,10 @@ export async function buildConfigAndIndexingFunctions({
     ...flattenSources(config.accounts ?? {}),
     ...flattenSources(config.blocks ?? {}),
   ]) {
-    if (source.chain === undefined) {
+    if (source.network === undefined) {
       throw new Error(
-        `Validation failed: Chain for '${source.name}' is undefined. Expected one of [${chains
-          .map((c) => `'${c.chain.id}'`)
+        `Validation failed: Network for '${source.name}' is undefined. Expected one of [${chains
+          .map((c) => `'${c.chain.name}'`)
           .join(", ")}].`,
       );
     }
@@ -216,13 +238,13 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const chain = chains.find((c) => c.chain.id === Number(source.chain));
+    const chain = chains.find((c) => c.chain.name === source.network);
     if (chain === undefined) {
       throw new Error(
-        `Validation failed: Invalid chain for '${
+        `Validation failed: Invalid network for '${
           source.name
-        }'. Got '${source.chain}', expected one of [${chains
-          .map((c) => `'${c.chain.id}'`)
+        }'. Got '${source.network}', expected one of [${chains
+          .map((c) => `'${c.chain.name}'`)
           .join(", ")}].`,
       );
     }
@@ -232,7 +254,7 @@ export async function buildConfigAndIndexingFunctions({
     config.contracts ?? {},
   )
     .flatMap((source): ContractSource[] => {
-      const chain = chains.find((c) => c.chain.id === Number(source.chain))!;
+      const chain = chains.find((c) => c.chain.name === source.name)!;
 
       // Get indexing function that were registered for this contract
       const registeredLogEvents: string[] = [];
@@ -532,7 +554,7 @@ export async function buildConfigAndIndexingFunctions({
 
   const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
     .flatMap((source): AccountSource[] => {
-      const chain = chains.find((c) => c.chain.id === Number(source.chain))!;
+      const chain = chains.find((c) => c.chain.name === source.name)!;
 
       const startBlockMaybeNan = source.startBlock;
       const fromBlock = Number.isNaN(startBlockMaybeNan)
@@ -749,7 +771,7 @@ export async function buildConfigAndIndexingFunctions({
 
   const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
     .map((source) => {
-      const chain = chains.find((c) => c.chain.id === Number(source.chain))!;
+      const chain = chains.find((c) => c.chain.name === source.name)!;
 
       const intervalMaybeNan = source.interval ?? 1;
       const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
@@ -806,7 +828,7 @@ export async function buildConfigAndIndexingFunctions({
     if (!hasSources) {
       logs.push({
         level: "warn",
-        msg: `No sources registered for chain '${chain.chain.name}'`,
+        msg: `No sources registered for network '${chain.chain.name}'`,
       });
     }
     return hasSources;

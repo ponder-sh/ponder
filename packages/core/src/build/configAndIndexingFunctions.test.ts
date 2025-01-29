@@ -8,7 +8,7 @@ import {
   toFunctionSelector,
   zeroAddress,
 } from "viem";
-import { mainnet, optimism } from "viem/chains";
+import { mainnet } from "viem/chains";
 import { expect, test } from "vitest";
 import { type Config, createConfig } from "../config/index.js";
 import {
@@ -34,13 +34,15 @@ const bytes2 =
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0, event1],
         address: address1,
         startBlock: 16370000,
@@ -65,13 +67,15 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
 
 test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event1, event1Overloaded],
         address: address1,
         startBlock: 16370000,
@@ -96,14 +100,16 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
 
 test("buildConfigAndIndexingFunctions() handles multiple addresses", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: {
-          [mainnet.id]: {
+        network: {
+          mainnet: {
             address: [address1, address3],
             startBlock: 16370000,
             endBlock: 16370020,
@@ -130,14 +136,19 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
 
 test("buildConfigAndIndexingFunctions() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
-    chains: [mainnet, optimism],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
-      [optimism.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+      optimism: {
+        chainId: 10,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: { [mainnet.id]: {}, [optimism.id]: {} },
+        network: { mainnet: {}, optimism: {} },
         abi: [event0],
       },
     },
@@ -153,13 +164,15 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
 
 test("buildConfigAndIndexingFunctions() builds topics for event filter", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
         filter: {
           event: "Event0",
@@ -188,13 +201,15 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0, event1Overloaded],
         filter: [
           {
@@ -236,9 +251,11 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
 
 test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
@@ -246,8 +263,8 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        chain: {
-          [mainnet.id]: {
+        network: {
+          mainnet: {
             address: address2,
           },
         },
@@ -265,13 +282,15 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
 
 test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
         address: address1,
         startBlock: 16370000,
@@ -290,14 +309,16 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
 
 test("buildConfigAndIndexingFunctions() validates network name", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
         // @ts-expect-error
-        chain: 2,
+        network: "base",
         abi: [event0],
         address: address1,
       },
@@ -317,13 +338,15 @@ test("buildConfigAndIndexingFunctions() validates network name", async () => {
 
 test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
         address: address1,
       },
@@ -346,13 +369,15 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
 
 test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
         // @ts-expect-error
         filter: {
@@ -378,13 +403,15 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
 
 test("buildConfigAndIndexingFunctions() validates address empty string", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
         address: "" as Address,
       },
@@ -404,13 +431,15 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
 
 test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
 
         address: "0b0000000000000000000000000000000000000001" as Address,
@@ -431,13 +460,15 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
 
 test("buildConfigAndIndexingFunctions() validates address length", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0],
         address: "0x000000000001",
       },
@@ -457,13 +488,15 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
 
 test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0, event1],
         startBlock: Number.NaN,
       },
@@ -480,17 +513,22 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
   const config = createConfig({
-    chains: [mainnet, optimism],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
-      [optimism.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+      optimism: {
+        chainId: 10,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
         includeTransactionReceipts: true,
-        chain: {
-          [mainnet.id]: {},
-          [optimism.id]: { includeTransactionReceipts: false },
+        network: {
+          mainnet: {},
+          optimism: { includeTransactionReceipts: false },
         },
         abi: [event0],
       },
@@ -507,17 +545,22 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
 
 test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   const config = createConfig({
-    chains: [mainnet, optimism],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
-      [optimism.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+      optimism: {
+        chainId: 10,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
         includeCallTraces: true,
-        chain: {
-          [mainnet.id]: {},
-          [optimism.id]: { includeCallTraces: false },
+        network: {
+          mainnet: {},
+          optimism: { includeCallTraces: false },
         },
         address: zeroAddress,
         abi: [func0],
@@ -544,17 +587,22 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
 
 test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
   const config = createConfig({
-    chains: [mainnet, optimism],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
-      [optimism.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+      optimism: {
+        chainId: 10,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
         includeCallTraces: true,
-        chain: {
-          [mainnet.id]: {},
-          [optimism.id]: { includeCallTraces: false },
+        network: {
+          mainnet: {},
+          optimism: { includeCallTraces: false },
         },
         address: factory({
           address: address2,
@@ -585,13 +633,15 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     contracts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         abi: [event0, event1],
         endBlock: Number.NaN,
       },
@@ -608,13 +658,15 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
 
 test("buildConfigAndIndexingFunctions() account source", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     accounts: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -650,13 +702,15 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
 
 test("buildConfigAndIndexingFunctions() block source", async () => {
   const config = createConfig({
-    chains: [mainnet],
-    rpcUrls: {
-      [mainnet.id]: "https://rpc.com",
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
     },
     blocks: {
       a: {
-        chain: mainnet.id,
+        network: "mainnet",
         startBlock: 16370000,
         endBlock: 16370020,
       },

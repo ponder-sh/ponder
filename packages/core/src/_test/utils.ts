@@ -48,13 +48,15 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
   includeTransactionReceipts?: boolean;
 }) => {
   const config = createConfig({
-    chains: [anvil],
-    rpcUrls: {
-      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
     },
     contracts: {
       Erc20: {
-        chain: anvil.id,
+        network: "mainnet",
         abi: erc20ABI,
         address: params.address,
         includeCallTraces: params.includeCallTraces,
@@ -87,14 +89,16 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
   includeTransactionReceipts?: boolean;
 }) => {
   const config = createConfig({
-    chains: [anvil],
-    rpcUrls: {
-      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
     },
     contracts: {
       Pair: {
         abi: pairABI,
-        chain: anvil.id,
+        network: "mainnet",
         address: factory({
           address: params.address,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
@@ -120,13 +124,15 @@ export const getBlocksConfigAndIndexingFunctions = (params: {
   interval: number;
 }) => {
   const config = createConfig({
-    chains: [anvil],
-    rpcUrls: {
-      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
     },
     blocks: {
       Blocks: {
-        chain: anvil.id,
+        network: "mainnet",
         interval: params.interval,
       },
     },
@@ -141,13 +147,15 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
   address: Address;
 }) => {
   const config = createConfig({
-    chains: [anvil],
-    rpcUrls: {
-      [anvil.id]: `http://127.0.0.1:8545/${poolId}`,
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
     },
     accounts: {
       Accounts: {
-        chain: anvil.id,
+        network: "mainnet",
         address: params.address,
       },
     },

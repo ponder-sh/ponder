@@ -1,7 +1,6 @@
 import { createConfig } from "@/config/index.js";
 import { onchainTable } from "@/drizzle/onchain.js";
-import { type Abi, type Address, type Hex, parseAbiItem } from "viem";
-import { mainnet, optimism } from "viem/chains";
+import { http, type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 import type { Db } from "./db.js";
 import type {
@@ -41,15 +40,20 @@ type abi = readonly [
 ];
 
 const config = createConfig({
-  chains: [mainnet, optimism],
-  rpcUrls: {
-    [mainnet.id]: "http://rpc.com",
-    [optimism.id]: "http://rpc.com",
+  networks: {
+    mainnet: {
+      chainId: 1,
+      transport: http(),
+    },
+    optimism: {
+      chainId: 10,
+      transport: http(),
+    },
   },
   contracts: {
     c1: {
       abi: [event0, func0],
-      chain: mainnet.id,
+      network: "mainnet",
       address: "0x",
       startBlock: 0,
       includeTransactionReceipts: false,
@@ -58,27 +62,27 @@ const config = createConfig({
     c2: {
       abi: [event1, event1Overloaded, func1, func1Overloaded],
       address: "0x69",
-      chain: {
-        [mainnet.id]: {
+      network: {
+        mainnet: {
           startBlock: 1,
           includeTransactionReceipts: true,
           includeCallTraces: true,
         },
-        [optimism.id]: {},
+        optimism: {},
       },
     },
   },
   accounts: {
     a1: {
       address: "0x",
-      chain: mainnet.id,
+      network: "mainnet",
     },
   },
   blocks: {
     b1: {
       interval: 2,
       startBlock: 1,
-      chain: mainnet.id,
+      network: "mainnet",
     },
   },
 });
@@ -94,7 +98,7 @@ test("FormatEventNames", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {
-      contract: { abi: abi; chain: number };
+      contract: { abi: abi; network: "" };
     },
     {},
     {}
@@ -114,7 +118,7 @@ test("FormatEventNames with semi-weak abi", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {
-      contract: { abi: abi[number][]; chain: number };
+      contract: { abi: abi[number][]; network: "" };
     },
     {},
     {}
@@ -134,7 +138,7 @@ test("FormatEventNames with weak abi", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {
-      contract: { abi: Abi; chain: number };
+      contract: { abi: Abi; network: "" };
     },
     {},
     {}
@@ -148,7 +152,7 @@ test("FormatEventNames with functions", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {
-      contract: { abi: abi; chain: number; includeCallTraces: true };
+      contract: { abi: abi; network: ""; includeCallTraces: true };
     },
     {},
     {}
@@ -171,7 +175,7 @@ test("FormatEventName with accounts", () => {
   type a = Virtual.FormatEventNames<
     // ^?
     {},
-    { account: { address: "0x"; chain: typeof mainnet.id } },
+    { account: { address: "0x"; network: "mainnet" } },
     {}
   >;
 
@@ -195,7 +199,7 @@ test("FormatEventName with blocks", () => {
     // ^?
     {},
     {},
-    { block: { interval: 2; startBlock: 1; chain: typeof mainnet.id } }
+    { block: { interval: 2; startBlock: 1; network: "mainnet" } }
   >;
 
   assertType<a>({} as any as "block:block");
@@ -210,17 +214,28 @@ test("Context db", () => {
   assertType<Db<typeof schema>>({} as any as a);
 });
 
-test("Context chain", () => {
-  type a = Virtual.Context<
-    // ^?
-    typeof config,
-    typeof schema
-  >["chain"];
+test("Context network", () => {
+  type a = Virtual.Context<typeof config, typeof schema>["network"];
+  //   ^?
 
-  type expectedChain = typeof mainnet | typeof optimism;
+  type expectedNetwork =
+    | { name: "mainnet"; chainId: 1 }
+    | { name: "optimism"; chainId: 10 };
 
-  assertType<a>({} as any as expectedChain);
-  assertType<expectedChain>({} as any as a);
+  assertType<a>({} as any as expectedNetwork);
+  assertType<expectedNetwork>({} as any as a);
+});
+
+test("Context block network", () => {
+  type a = Virtual.Context<typeof config, typeof schema>["network"];
+  //   ^?
+
+  type expectedNetwork =
+    | { name: "mainnet"; chainId: 1 }
+    | { name: "optimism"; chainId: 10 };
+
+  assertType<a>({} as any as expectedNetwork);
+  assertType<expectedNetwork>({} as any as a);
 });
 
 test("Context client", () => {
@@ -400,7 +415,7 @@ test("Registry", () => {
     event.block;
     event.transaction;
 
-    context.chain;
+    context.network;
     context.db;
     context.client;
     context.contracts.c1;
