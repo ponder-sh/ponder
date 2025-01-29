@@ -222,13 +222,15 @@ export async function run({
     // Run historical indexing until complete.
     for await (const events of sync.getEvents()) {
       if (events.length > 0) {
-        const eventChunks = chunk(
-          decodeEvents(common, indexingBuild.sources, events),
-          93,
+        const decodedEvents = decodeEvents(
+          common,
+          indexingBuild.sources,
+          events,
         );
+        const eventChunks = chunk(decodedEvents, 93);
         common.logger.debug({
           service: "app",
-          msg: `Decoded ${eventChunks.flat().length} events`,
+          msg: `Decoded ${decodedEvents.length} events`,
         });
         for (const eventChunk of eventChunks) {
           const result = await indexingService.processEvents({
@@ -287,12 +289,12 @@ export async function run({
         if (eta === undefined || progress === undefined) {
           common.logger.info({
             service: "app",
-            msg: `Indexed ${events.length} events`,
+            msg: `Indexed ${decodedEvents.length} events`,
           });
         } else {
           common.logger.info({
             service: "app",
-            msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+            msg: `Indexed ${decodedEvents.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
           });
         }
 
