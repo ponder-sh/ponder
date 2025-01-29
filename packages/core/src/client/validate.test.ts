@@ -33,6 +33,17 @@ test("validateQuery() select into", () => {
   expect(() => validateQuery("SELECT * INTO users;")).rejects.toThrow();
 });
 
+test("validateQuery() schema name", () => {
+  expect(() =>
+    validateQuery("SELECT * FROM offchain.metadata;"),
+  ).rejects.toThrow();
+});
+test("validateQuery() system tables", () => {
+  expect(() =>
+    validateQuery("SELECT * FROM pg_stat_activity;"),
+  ).rejects.toThrow();
+});
+
 test("validateQuery() recursive cte", () => {
   expect(() =>
     validateQuery(
