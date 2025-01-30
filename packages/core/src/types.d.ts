@@ -15,7 +15,6 @@ declare module "ponder:registry" {
     schema,
     name
   >;
-  export type ApiContext = Virtual.ApiContext<schema>;
   export type IndexingFunctionArgs<name extends EventNames = EventNames> =
     Virtual.IndexingFunctionArgs<config["default"], schema, name>;
 }
@@ -23,4 +22,17 @@ declare module "ponder:registry" {
 declare module "ponder:schema" {
   const schema: typeof import("ponder:internal").schema;
   export { schema as default };
+}
+
+declare module "ponder:api" {
+  import type { ReadonlyDrizzle } from "ponder";
+  import type { PublicClient } from "viem";
+
+  type schema = typeof import("ponder:internal").schema;
+  type config = typeof import("ponder:internal").config;
+
+  export const db: ReadonlyDrizzle<schema>;
+  export const publicClients: {
+    [chainId in config["default"]["networks"][keyof config["default"]["networks"]]["chainId"]]: PublicClient;
+  };
 }

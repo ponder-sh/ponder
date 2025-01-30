@@ -1,5 +1,12 @@
-import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  Factory,
+  IndexingBuild,
+  Network,
+  RawEvent,
+  Source,
+  Status,
+} from "@/internal/types.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -43,8 +50,8 @@ import {
   toHex,
 } from "viem";
 import { _eth_getBlockByNumber } from "../utils/rpc.js";
-import { type RawEvent, buildEvents } from "./events.js";
-import { type Factory, type Source, isAddressFactory } from "./source.js";
+import { buildEvents } from "./events.js";
+import { isAddressFactory } from "./filter.js";
 import { cachedTransport } from "./transport.js";
 
 export type Sync = {
@@ -72,13 +79,6 @@ export type RealtimeEvent =
       type: "finalize";
       checkpoint: string;
     };
-
-export type Status = {
-  [networkName: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
-  };
-};
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
@@ -221,9 +221,8 @@ export const getChainCheckpoint = ({
 
 type CreateSyncParameters = {
   common: Common;
+  indexingBuild: Pick<IndexingBuild, "sources" | "networks">;
   syncStore: SyncStore;
-  sources: Source[];
-  networks: Network[];
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
   initialCheckpoint: string;
@@ -255,12 +254,12 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
   // Instantiate `localSyncData` and `status`
   await Promise.all(
-    args.networks.map(async (network) => {
+    args.indexingBuild.networks.map(async (network) => {
       const requestQueue = createRequestQueue({
         network,
         common: args.common,
       });
-      const sources = args.sources.filter(
+      const sources = args.indexingBuild.sources.filter(
         ({ filter }) => filter.chainId === network.chainId,
       );
 
@@ -523,7 +522,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
           try {
             const { events, cursor } = await args.syncStore.getEvents({
-              filters: args.sources.map(({ filter }) => filter),
+              filters: args.indexingBuild.sources.map(({ filter }) => filter),
               from,
               to: to < estimatedTo ? to : estimatedTo,
               limit: getEventsMaxBatchSize,
@@ -534,7 +533,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               msg: `Fetched ${events.length} events from the database for a ${formatEta(estimateSeconds * 1000)} range from timestamp ${decodeCheckpoint(from).blockTimestamp}`,
             });
 
-            for (const network of args.networks) {
+            for (const network of args.indexingBuild.networks) {
               updateHistoricalStatus({ events, checkpoint: cursor, network });
             }
 
@@ -653,7 +652,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         );
 
         const newEvents = buildEvents({
-          sources: args.sources,
+          sources: args.indexingBuild.sources,
           chainId: network.chainId,
           blockWithEventData: event,
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
@@ -664,7 +663,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
         pendingEvents.push(...newEvents);
 
         if (to > from) {
-          for (const network of args.networks) {
+          for (const network of args.indexingBuild.networks) {
             updateRealtimeStatus({ checkpoint: to, network });
           }
 
@@ -695,7 +694,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
               }
 
               // update `ponder_realtime_latency` metric
-              for (const network of args.networks) {
+              for (const network of args.indexingBuild.networks) {
                 for (const { block, endClock } of perNetworkSync.get(network)!
                   .unfinalizedBlocks) {
                   const checkpoint = encodeCheckpoint(
@@ -813,7 +812,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
 
         if (network.disableCache === false) {
           await args.syncStore.insertIntervals({
-            intervals: args.sources
+            intervals: args.indexingBuild.sources
               .filter(({ filter }) => filter.chainId === network.chainId)
               .map(({ filter }) => ({ filter, interval })),
             chainId: network.chainId,
@@ -905,10 +904,10 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
   return {
     getEvents,
     async startRealtime() {
-      for (const network of args.networks) {
+      for (const network of args.indexingBuild.networks) {
         const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
-        const filters = args.sources
+        const filters = args.indexingBuild.sources
           .filter(({ filter }) => filter.chainId === network.chainId)
           .map(({ filter }) => filter);
 
@@ -984,7 +983,7 @@ export const createSync = async (args: CreateSyncParameters): Promise<Sync> => {
     async kill() {
       isKilled = true;
       const promises: Promise<void>[] = [];
-      for (const network of args.networks) {
+      for (const network of args.indexingBuild.networks) {
         const { historicalSync, realtimeSync, realtimeQueue } =
           perNetworkSync.get(network)!;
         historicalSync.kill();

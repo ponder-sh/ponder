@@ -1,5 +1,5 @@
-import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
+import type { Common } from "@/internal/common.js";
+import type { Network } from "@/internal/types.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
   type GetLogsRetryHelperParameters,

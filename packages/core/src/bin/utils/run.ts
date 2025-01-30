@@ -1,14 +1,13 @@
-import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
-import { runCodegen } from "@/common/codegen.js";
-import type { Common } from "@/common/common.js";
-import { getAppProgress } from "@/common/metrics.js";
+import { runCodegen } from "@/bin/utils/codegen.js";
 import type { Database } from "@/database/index.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexingService } from "@/indexing/index.js";
+import type { Common } from "@/internal/common.js";
+import { getAppProgress } from "@/internal/metrics.js";
+import type { Event, IndexingBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import type { Event } from "@/sync/events.js";
 import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import {
@@ -38,29 +37,21 @@ export async function run({
 }) {
   let isKilled = false;
 
-  const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
-
-  const syncStore = createSyncStore({
-    common,
-    db: database.qb.sync,
-  });
-
-  const metadataStore = getMetadataStore({
-    db: database.qb.user,
-  });
+  const initialCheckpoint = await database.recoverCheckpoint();
+  const syncStore = createSyncStore({ common, database });
+  const metadataStore = getMetadataStore({ database });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
   await database.migrateSync();
 
-  runCodegen({ common, graphqlSchema: schemaBuild.graphqlSchema });
+  runCodegen({ common });
 
   // Note: can throw
   const sync = await createSync({
     common,
+    indexingBuild,
     syncStore,
-    networks: indexingBuild.networks,
-    sources: indexingBuild.sources,
     // Note: this is not great because it references the
     // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {
@@ -121,17 +112,15 @@ export async function run({
   });
 
   const indexingService = createIndexingService({
-    indexingFunctions: indexingBuild.indexingFunctions,
     common,
-    sources: indexingBuild.sources,
-    networks: indexingBuild.networks,
+    indexingBuild,
     sync,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
     common,
+    schemaBuild,
     database,
-    schema: schemaBuild.schema,
     initialCheckpoint,
   });
 
@@ -275,9 +264,9 @@ export async function run({
 
     indexingService.setIndexingStore(
       createRealtimeIndexingStore({
-        database,
-        schema: schemaBuild.schema,
         common,
+        schemaBuild,
+        database,
       }),
     );
 
@@ -287,7 +276,7 @@ export async function run({
 
     common.logger.info({
       service: "server",
-      msg: "Started responding as healthy",
+      msg: "Started returning 200 responses from /ready endpoint",
     });
   };
 

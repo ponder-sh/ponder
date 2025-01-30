@@ -1,4 +1,4 @@
-import type { Config } from "@/config/config.js";
+import type { Config } from "@/config/index.js";
 import type {
   FormatEventArgs,
   FormatFunctionArgs,
@@ -6,8 +6,8 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { Drizzle, Schema } from "@/drizzle/index.js";
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { Schema } from "@/internal/types.js";
 import type {
   Block,
   Log,
@@ -16,7 +16,6 @@ import type {
   TransactionReceipt,
   Transfer,
 } from "@/types/eth.js";
-import type { ApiRegistry } from "./api.js";
 import type { Db } from "./db.js";
 import type { Prettify } from "./utils.js";
 
@@ -27,17 +26,7 @@ export namespace Virtual {
     contract extends Config["contracts"][string],
     ///
     safeEventNames = SafeEventNames<contract["abi"]>,
-  > = string extends safeEventNames
-    ? never
-    : contract extends {
-          filter: { event: infer event extends string | readonly string[] };
-        }
-      ? event extends safeEventNames
-        ? event
-        : event[number] extends safeEventNames
-          ? event[number]
-          : safeEventNames
-      : safeEventNames;
+  > = string extends safeEventNames ? never : safeEventNames;
 
   type _FormatFunctionNames<
     contract extends Config["contracts"][string],
@@ -246,9 +235,5 @@ export namespace Virtual {
         },
       ) => Promise<void> | void,
     ) => void;
-  } & ApiRegistry<schema>;
-
-  export type ApiContext<schema extends Schema> = {
-    db: Drizzle<schema>;
   };
 }

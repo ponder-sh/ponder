@@ -1,8 +1,7 @@
 import { type AddressInfo, createServer } from "node:net";
 import { factory } from "@/config/address.js";
-import { createConfig } from "@/config/config.js";
-import type { Network } from "@/config/networks.js";
-import type { Status } from "@/sync/index.js";
+import { createConfig } from "@/config/index.js";
+import type { Network, Status } from "@/internal/types.js";
 import type { Address, Chain } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
@@ -197,11 +196,15 @@ export function getFreePort(): Promise<number> {
   });
 }
 
-export async function waitForIndexedBlock(
-  port: number,
-  networkName: string,
-  blockNumber: number,
-) {
+export async function waitForIndexedBlock({
+  port,
+  networkName,
+  block,
+}: {
+  port: number;
+  networkName: string;
+  block: { number: number };
+}) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       clearInterval(interval);
@@ -216,7 +219,7 @@ export async function waitForIndexedBlock(
           : undefined;
         if (
           statusBlockNumber !== undefined &&
-          statusBlockNumber >= blockNumber
+          statusBlockNumber >= block.number
         ) {
           clearTimeout(timeout);
           clearInterval(interval);
@@ -225,18 +228,4 @@ export async function waitForIndexedBlock(
       }
     }, 20);
   });
-}
-
-export async function postGraphql(port: number, query: string) {
-  const response = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: `query { ${query} }` }),
-  });
-  return response;
-}
-
-export async function getMetrics(port: number) {
-  const response = await fetch(`http://localhost:${port}/metrics`);
-  return await response.text();
 }

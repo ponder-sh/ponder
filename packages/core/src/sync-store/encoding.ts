@@ -1,4 +1,4 @@
-import type { FragmentId } from "@/sync/fragments.js";
+import type { FragmentId } from "@/internal/types.js";
 import type {
   SyncBlock,
   SyncLog,

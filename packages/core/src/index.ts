@@ -1,4 +1,4 @@
-export { createConfig } from "@/config/config.js";
+export { createConfig } from "@/config/index.js";
 export { factory } from "@/config/address.js";
 export type {
   Block,
@@ -16,7 +16,7 @@ export {
   replaceBigInts,
 } from "@ponder/utils";
 
-import type { Config } from "@/config/config.js";
+import type { Config } from "@/config/index.js";
 import type { Prettify } from "./types/utils.js";
 
 export type ContractConfig = Prettify<Config["contracts"][string]>;
@@ -30,7 +30,11 @@ export {
   primaryKey,
   hex,
   bigint,
-} from "@/drizzle/index.js";
+} from "@/drizzle/onchain.js";
+
+export type { ReadonlyDrizzle } from "@/types/db.js";
+
+export { client } from "@/client/index.js";
 
 export { graphql } from "@/graphql/middleware.js";
 
@@ -51,6 +55,8 @@ export {
   between,
   notBetween,
   like,
+  notLike,
+  ilike,
   notIlike,
   not,
   asc,

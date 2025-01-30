@@ -1,38 +1,33 @@
-import { BuildError } from "@/common/errors.js";
-import type { Config } from "@/config/config.js";
+import type { Config } from "@/config/index.js";
 import {
-  type Network,
   getFinalityBlockCount,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "@/config/networks.js";
+import { BuildError } from "@/internal/errors.js";
+import type {
+  AccountSource,
+  BlockSource,
+  ContractSource,
+  IndexingFunctions,
+  Network,
+  RawIndexingFunctions,
+  Source,
+} from "@/internal/types.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
-  type AccountSource,
-  type BlockSource,
-  type ContractSource,
-  type Source,
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
   defaultTraceFilterInclude,
   defaultTransactionFilterInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-} from "@/sync/source.js";
+} from "@/sync/filter.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
 import type { Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
-
-export type RawIndexingFunctions = {
-  name: string;
-  fn: (...args: any) => any;
-}[];
-
-export type IndexingFunctions = {
-  [eventName: string]: (...args: any) => any;
-};
 
 const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
@@ -323,32 +318,25 @@ export async function buildConfigAndIndexingFunctions({
         registeredFunctionSelectors.push(abiFunction.selector);
       }
 
-      let topic0: LogTopic = registeredEventSelectors;
-      let topic1: LogTopic = null;
-      let topic2: LogTopic = null;
-      let topic3: LogTopic = null;
+      const topicsArray: {
+        topic0: LogTopic;
+        topic1: LogTopic;
+        topic2: LogTopic;
+        topic3: LogTopic;
+      }[] = [];
 
       if (source.filter !== undefined) {
-        if (
-          Array.isArray(source.filter.event) &&
-          source.filter.args !== undefined
-        ) {
-          throw new Error(
-            `Validation failed: Event filter for contract '${source.name}' cannot contain indexed argument values if multiple events are provided.`,
-          );
-        }
+        const eventFilters = Array.isArray(source.filter)
+          ? source.filter
+          : [source.filter];
 
-        const filterSafeEventNames = Array.isArray(source.filter.event)
-          ? source.filter.event
-          : [source.filter.event];
-
-        for (const filterSafeEventName of filterSafeEventNames) {
-          const abiEvent = abiEvents.bySafeName[filterSafeEventName];
+        for (const filter of eventFilters) {
+          const abiEvent = abiEvents.bySafeName[filter.event];
           if (!abiEvent) {
             throw new Error(
               `Validation failed: Invalid filter for contract '${
                 source.name
-              }'. Got event name '${filterSafeEventName}', expected one of [${Object.keys(
+              }'. Got event name '${filter.event}', expected one of [${Object.keys(
                 abiEvents.bySafeName,
               )
                 .map((n) => `'${n}'`)
@@ -357,41 +345,41 @@ export async function buildConfigAndIndexingFunctions({
           }
         }
 
-        // TODO: Explicit validation of indexed argument value format (array or object).
-        // The first element of the array return from `buildTopics` being defined
-        // is an invariant of the current filter design.
-        // Note: This can throw.
+        topicsArray.push(...buildTopics(source.abi, eventFilters));
 
-        const topics = buildTopics(source.abi, source.filter);
-        const topic0FromFilter = topics.topic0;
-        topic1 = topics.topic1;
-        topic2 = topics.topic2;
-        topic3 = topics.topic3;
+        // event selectors that have a filter
+        const filteredEventSelectors: Hex[] = topicsArray.map(
+          (t) => t.topic0 as Hex,
+        );
+        // event selectors that are registered but don't have a filter
+        const excludedRegisteredEventSelectors =
+          registeredEventSelectors.filter(
+            (s) => filteredEventSelectors.includes(s) === false,
+          );
 
-        const filteredEventSelectors = Array.isArray(topic0FromFilter)
-          ? topic0FromFilter
-          : [topic0FromFilter];
-
-        // Validate that the topic0 value defined by the `eventFilter` is a superset of the
-        // registered indexing functions. Simply put, confirm that no indexing function is
-        // defined for a log event that is excluded by the filter.
-        for (const registeredEventSelector of registeredEventSelectors) {
-          if (!filteredEventSelectors.includes(registeredEventSelector)) {
-            const logEventName =
-              abiEvents.bySelector[registeredEventSelector]!.safeName;
-
+        for (const selector of filteredEventSelectors) {
+          if (registeredEventSelectors.includes(selector) === false) {
             throw new Error(
-              `Validation failed: Event '${logEventName}' is excluded by the event filter defined on the contract '${
-                source.name
-              }'. Got '${logEventName}', expected one of [${filteredEventSelectors
-                .map((s) => abiEvents.bySelector[s]!.safeName)
-                .map((eventName) => `'${eventName}'`)
-                .join(", ")}].`,
+              `Validation failed: Event selector '${abiEvents.bySelector[selector]?.safeName}' is used in a filter but does not have a corresponding indexing function.`,
             );
           }
         }
 
-        topic0 = registeredEventSelectors;
+        if (excludedRegisteredEventSelectors.length > 0) {
+          topicsArray.push({
+            topic0: excludedRegisteredEventSelectors,
+            topic1: null,
+            topic2: null,
+            topic3: null,
+          });
+        }
+      } else {
+        topicsArray.push({
+          topic0: registeredEventSelectors,
+          topic1: null,
+          topic2: null,
+          topic3: null,
+        });
       }
 
       const startBlockMaybeNan = source.startBlock;
@@ -409,7 +397,7 @@ export async function buildConfigAndIndexingFunctions({
         abiEvents,
         abiFunctions,
         name: source.name,
-        networkName: source.network,
+        network,
       } as const;
 
       const resolvedAddress = source?.address;
@@ -424,29 +412,32 @@ export async function buildConfigAndIndexingFunctions({
           ...resolvedAddress,
         });
 
-        const logSource = {
-          ...contractMetadata,
-          filter: {
-            type: "log",
-            chainId: network.chainId,
-            address: logFactory,
-            topic0,
-            topic1,
-            topic2,
-            topic3,
-            fromBlock,
-            toBlock,
-            include: defaultLogFilterInclude.concat(
-              source.includeTransactionReceipts
-                ? defaultTransactionReceiptInclude
-                : [],
-            ),
-          },
-        } satisfies ContractSource;
+        const logSources = topicsArray.map(
+          (topics) =>
+            ({
+              ...contractMetadata,
+              filter: {
+                type: "log",
+                chainId: network.chainId,
+                address: logFactory,
+                topic0: topics.topic0,
+                topic1: topics.topic1,
+                topic2: topics.topic2,
+                topic3: topics.topic3,
+                fromBlock,
+                toBlock,
+                include: defaultLogFilterInclude.concat(
+                  source.includeTransactionReceipts
+                    ? defaultTransactionReceiptInclude
+                    : [],
+                ),
+              },
+            }) satisfies ContractSource,
+        );
 
         if (source.includeCallTraces) {
           return [
-            logSource,
+            ...logSources,
             {
               ...contractMetadata,
               filter: {
@@ -469,7 +460,7 @@ export async function buildConfigAndIndexingFunctions({
           ];
         }
 
-        return [logSource];
+        return logSources;
       } else if (resolvedAddress !== undefined) {
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
@@ -494,29 +485,32 @@ export async function buildConfigAndIndexingFunctions({
           ? toLowerCase(resolvedAddress)
           : undefined;
 
-      const logSource = {
-        ...contractMetadata,
-        filter: {
-          type: "log",
-          chainId: network.chainId,
-          address: validatedAddress,
-          topic0,
-          topic1,
-          topic2,
-          topic3,
-          fromBlock,
-          toBlock,
-          include: defaultLogFilterInclude.concat(
-            source.includeTransactionReceipts
-              ? defaultTransactionReceiptInclude
-              : [],
-          ),
-        },
-      } satisfies ContractSource;
+      const logSources = topicsArray.map(
+        (topics) =>
+          ({
+            ...contractMetadata,
+            filter: {
+              type: "log",
+              chainId: network.chainId,
+              address: validatedAddress,
+              topic0: topics.topic0,
+              topic1: topics.topic1,
+              topic2: topics.topic2,
+              topic3: topics.topic3,
+              fromBlock,
+              toBlock,
+              include: defaultLogFilterInclude.concat(
+                source.includeTransactionReceipts
+                  ? defaultTransactionReceiptInclude
+                  : [],
+              ),
+            },
+          }) satisfies ContractSource,
+      );
 
       if (source.includeCallTraces) {
         return [
-          logSource,
+          ...logSources,
           {
             ...contractMetadata,
             filter: {
@@ -541,16 +535,16 @@ export async function buildConfigAndIndexingFunctions({
             },
           } satisfies ContractSource,
         ];
-      } else return [logSource];
+      } else return logSources;
     }) // Remove sources with no registered indexing functions
     .filter((source) => {
-      const hasRegisteredIndexingFunctions =
+      const hasNoRegisteredIndexingFunctions =
         source.filter.type === "trace"
           ? Array.isArray(source.filter.functionSelector) &&
-            source.filter.functionSelector.length > 0
+            source.filter.functionSelector.length === 0
           : Array.isArray(source.filter.topic0) &&
-            source.filter.topic0?.length > 0;
-      if (!hasRegisteredIndexingFunctions) {
+            source.filter.topic0?.length === 0;
+      if (hasNoRegisteredIndexingFunctions) {
         logs.push({
           level: "debug",
           msg: `No indexing functions were registered for '${
@@ -558,7 +552,7 @@ export async function buildConfigAndIndexingFunctions({
           }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
         });
       }
-      return hasRegisteredIndexingFunctions;
+      return hasNoRegisteredIndexingFunctions === false;
     });
 
   const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
@@ -596,7 +590,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transaction",
               chainId: network.chainId,
@@ -611,7 +605,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transaction",
               chainId: network.chainId,
@@ -626,7 +620,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transfer",
               chainId: network.chainId,
@@ -645,7 +639,7 @@ export async function buildConfigAndIndexingFunctions({
           {
             type: "account",
             name: source.name,
-            networkName: source.network,
+            network,
             filter: {
               type: "transfer",
               chainId: network.chainId,
@@ -690,8 +684,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-
-          networkName: source.network,
+          network,
           filter: {
             type: "transaction",
             chainId: network.chainId,
@@ -706,7 +699,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-          networkName: source.network,
+          network,
           filter: {
             type: "transaction",
             chainId: network.chainId,
@@ -721,7 +714,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-          networkName: source.network,
+          network,
           filter: {
             type: "transfer",
             chainId: network.chainId,
@@ -740,7 +733,7 @@ export async function buildConfigAndIndexingFunctions({
         {
           type: "account",
           name: source.name,
-          networkName: source.network,
+          network,
           filter: {
             type: "transfer",
             chainId: network.chainId,
@@ -804,7 +797,7 @@ export async function buildConfigAndIndexingFunctions({
       return {
         type: "block",
         name: source.name,
-        networkName: source.network,
+        network,
         filter: {
           type: "block",
           chainId: network.chainId,
@@ -833,7 +826,7 @@ export async function buildConfigAndIndexingFunctions({
   // Filter out any networks that don't have any sources registered.
   const networksWithSources = networks.filter((network) => {
     const hasSources = sources.some(
-      (source) => source.networkName === network.name,
+      (source) => source.network.name === network.name,
     );
     if (!hasSources) {
       logs.push({

@@ -2,7 +2,7 @@ import type {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
-} from "@/common/metrics.js";
+} from "@/internal/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
@@ -144,7 +144,7 @@ const App = (ui: UiState) => {
           <Text> </Text>
 
           <Box flexDirection="column">
-            <Text bold>GraphQL </Text>
+            <Text bold>API functions </Text>
             <Box flexDirection="row">
               <Text>
                 Server live at http://{hostname}:{port}

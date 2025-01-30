@@ -28,6 +28,7 @@ export default defineConfig({
         "!**/with-foundry/**",
         "!**/with-trpc/**",
         "!**/with-client/**",
+        "!**/with-offchain/**",
         "!**/node_modules/**",
         "!**/generated/**",
         "!**/.ponder/**",

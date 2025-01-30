@@ -72,16 +72,19 @@
     "kysely-pglite": "^0.6.0",
     "pg": "^8.11.3",
     "pg-connection-string": "^2.6.2",
+    "pg-query-emscripten": "5.1.0",
     "picocolors": "^1.0.0",
     "pino": "^8.16.2",
     "prom-client": "^15.0.0",
     "react": "^18.2.0",
     "stacktrace-parser": "^0.1.10",
+    "superjson": "^2.2.2",
     "vite": "5.0.7",
     "vite-node": "1.0.2",
     "vite-tsconfig-paths": "4.3.1"
   },
   "devDependencies": {
+    "@pgsql/types": "16.0.0",
     "@types/babel__code-frame": "^7.0.6",
     "@types/glob": "^8.1.0",
     "@types/node": "^20.10.0",
@@ -96,7 +99,8 @@
     "vitest": "^1.0.2"
   },
   "imports": {
-    "@ponder/common": "../common/index.ts"
+    "@ponder/common": "../common/index.ts",
+    "@ponder/client": "../client/index.ts"
   },
   "engines": {
     "node": ">=18.14"

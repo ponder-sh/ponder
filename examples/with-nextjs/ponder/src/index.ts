@@ -1,7 +1,7 @@
 import { ponder } from "ponder:registry";
 import schema from "ponder:schema";
 
-ponder.on("WETH:Deposit", async ({ event, context }) => {
+ponder.on("weth9:Deposit", async ({ event, context }) => {
   await context.db.insert(schema.depositEvent).values({
     id: event.log.id,
     account: event.args.dst,

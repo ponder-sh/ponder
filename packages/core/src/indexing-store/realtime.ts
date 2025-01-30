@@ -1,16 +1,13 @@
-import type { Common } from "@/common/common.js";
+import type { Database } from "@/database/index.js";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
+import { onchain } from "@/drizzle/onchain.js";
+import type { Common } from "@/internal/common.js";
 import {
   InvalidStoreMethodError,
   RecordNotFoundError,
   UndefinedTableError,
-} from "@/common/errors.js";
-import type { Database } from "@/database/index.js";
-import {
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-  onchain,
-} from "@/drizzle/index.js";
+} from "@/internal/errors.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type QueryWithTypings,
@@ -47,12 +44,12 @@ const checkOnchainTable = (
 };
 
 export const createRealtimeIndexingStore = ({
+  schemaBuild: { schema },
   database,
-  schema,
 }: {
   common: Common;
+  schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  schema: Schema;
 }): IndexingStore<"realtime"> => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
@@ -106,7 +103,7 @@ export const createRealtimeIndexingStore = ({
   };
 
   const find = (table: Table, key: object) => {
-    return database.drizzle
+    return database.qb.drizzle
       .select()
       .from(table)
       .where(getWhereCondition(table, key))
@@ -118,7 +115,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
@@ -136,7 +133,7 @@ export const createRealtimeIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -166,7 +163,7 @@ export const createRealtimeIndexingStore = ({
                     };
 
                     try {
-                      return await database.drizzle
+                      return await database.qb.drizzle
                         .insert(table)
                         .values(values)
                         .onConflictDoNothing()
@@ -180,7 +177,7 @@ export const createRealtimeIndexingStore = ({
               ),
             onConflictDoUpdate: (valuesU: any) =>
               queue.add(() =>
-                database.qb.user.wrap(
+                database.wrap(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -189,7 +186,7 @@ export const createRealtimeIndexingStore = ({
 
                     if (typeof valuesU === "object") {
                       try {
-                        return await database.drizzle
+                        return await database.qb.drizzle
                           .insert(table)
                           .values(values)
                           .onConflictDoUpdate({
@@ -216,7 +213,7 @@ export const createRealtimeIndexingStore = ({
                         if (row === null) {
                           try {
                             rows.push(
-                              await database.drizzle
+                              await database.qb.drizzle
                                 .insert(table)
                                 .values(value)
                                 .returning()
@@ -228,7 +225,7 @@ export const createRealtimeIndexingStore = ({
                         } else {
                           try {
                             rows.push(
-                              await database.drizzle
+                              await database.qb.drizzle
                                 .update(table)
                                 .set(valuesU(row))
                                 .where(getWhereCondition(table, value))
@@ -246,7 +243,7 @@ export const createRealtimeIndexingStore = ({
 
                       if (row === null) {
                         try {
-                          return await database.drizzle
+                          return await database.qb.drizzle
                             .insert(table)
                             .values(values)
                             .returning()
@@ -256,7 +253,7 @@ export const createRealtimeIndexingStore = ({
                         }
                       } else {
                         try {
-                          return await database.drizzle
+                          return await database.qb.drizzle
                             .update(table)
                             .set(valuesU(row))
                             .where(getWhereCondition(table, values))
@@ -274,7 +271,7 @@ export const createRealtimeIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               queue
                 .add(() =>
-                  database.qb.user.wrap(
+                  database.wrap(
                     {
                       method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
@@ -282,7 +279,7 @@ export const createRealtimeIndexingStore = ({
                       checkOnchainTable(table, "insert");
 
                       try {
-                        return await database.drizzle
+                        return await database.qb.drizzle
                           .insert(table)
                           .values(values)
                           .returning()
@@ -322,7 +319,7 @@ export const createRealtimeIndexingStore = ({
       return {
         set: (values: any) =>
           queue.add(() =>
-            database.qb.user.wrap(
+            database.wrap(
               { method: `${getTableName(table) ?? "unknown"}.update()` },
               async () => {
                 checkOnchainTable(table, "update");
@@ -341,7 +338,7 @@ export const createRealtimeIndexingStore = ({
                   }
 
                   try {
-                    return await database.drizzle
+                    return await database.qb.drizzle
                       .update(table)
                       .set(values(row))
                       .where(getWhereCondition(table, key))
@@ -352,7 +349,7 @@ export const createRealtimeIndexingStore = ({
                   }
                 } else {
                   try {
-                    return await database.drizzle
+                    return await database.qb.drizzle
                       .update(table)
                       .set(values)
                       .where(getWhereCondition(table, key))
@@ -370,12 +367,12 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
-        database.qb.user.wrap(
+        database.wrap(
           { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
 
-            const deleted = await database.drizzle
+            const deleted = await database.qb.drizzle
               .delete(table)
               .where(getWhereCondition(table, key))
               .returning();
@@ -391,18 +388,15 @@ export const createRealtimeIndexingStore = ({
         queue.add(async () => {
           const query: QueryWithTypings = { sql: _sql, params, typings };
 
-          const res = await database.qb.user.wrap(
-            { method: "sql" },
-            async () => {
-              try {
-                return await database.drizzle._.session
-                  .prepareQuery(query, undefined, undefined, method === "all")
-                  .execute();
-              } catch (e) {
-                throw parseSqlError(e);
-              }
-            },
-          );
+          const res = await database.wrap({ method: "sql" }, async () => {
+            try {
+              return await database.qb.drizzle._.session
+                .prepareQuery(query, undefined, undefined, method === "all")
+                .execute();
+            } catch (e) {
+              throw parseSqlError(e);
+            }
+          });
 
           // @ts-ignore
           return { rows: res.rows.map((row) => Object.values(row)) };

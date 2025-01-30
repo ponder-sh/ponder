@@ -1,34 +1,12 @@
-import type { Common } from "@/common/common.js";
+import type { Common } from "@/internal/common.js";
 import type { Plugin } from "vite";
 
-const virtualModule = () => `import { Hono } from "hono";
-
-const ponderHono = {
-  routes: [],
-  get(...maybePathOrHandlers) {
-    this.routes.push({ method: "GET", pathOrHandlers: maybePathOrHandlers });
-    return this;
-  },
-  post(...maybePathOrHandlers) {
-    this.routes.push({ method: "POST", pathOrHandlers: maybePathOrHandlers });
-    return this;
-  },
-  use(...maybePathOrHandlers) {
-    this.routes.push({ method: "USE", pathOrHandlers: maybePathOrHandlers });
-    return this;
-  },
-};
-
-const ponder = {
-  ...ponderHono,
-  hono: new Hono(),
+const virtualModule = () => `export const ponder = {
   fns: [],
   on(name, fn) {
     this.fns.push({ name, fn });
   },
 };
-
-export { ponder };
 `;
 
 const schemaModule = (
@@ -36,6 +14,21 @@ const schemaModule = (
 ) => `import * as schema from "${schemaPath}";
 export * from "${schemaPath}";
 export default schema;
+`;
+
+const apiModule = () => `import { createPublicClient } from "viem";
+
+const publicClients = {};
+
+for (const network of globalThis.PONDER_INDEXING_BUILD.networks) {
+  publicClients[network.chainId] = createPublicClient({
+    chain: network.chain,
+    transport: () => network.transport
+  })
+}
+
+export const db = globalThis.PONDER_DATABASE.qb.drizzleReadonly;
+export { publicClients };
 `;
 
 export const vitePluginPonder = (options: Common["options"]): Plugin => {
@@ -48,6 +41,7 @@ export const vitePluginPonder = (options: Common["options"]): Plugin => {
     load: (id) => {
       if (id === "ponder:registry") return virtualModule();
       if (id === "ponder:schema") return schemaModule(schemaPath);
+      if (id === "ponder:api") return apiModule();
       return null;
     },
   };

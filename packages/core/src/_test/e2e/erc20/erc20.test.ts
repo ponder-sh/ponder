@@ -6,16 +6,14 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
-import {
-  getFreePort,
-  postGraphql,
-  waitForIndexedBlock,
-} from "@/_test/utils.js";
+import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
+import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, describe, expect, test } from "vitest";
+import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
 beforeEach(() => {
@@ -39,6 +37,7 @@ test(
   "erc20",
   async () => {
     const port = await getFreePort();
+    const client = createClient(`http://localhost:${port}/sql`, { schema });
 
     const cleanup = await start({
       cliOptions: {
@@ -57,31 +56,21 @@ test(
       sender: ALICE,
     });
 
-    await waitForIndexedBlock(port, "mainnet", 2);
-
-    const response = await postGraphql(
+    await waitForIndexedBlock({
       port,
-      `
-    accounts {
-      items {
-        address
-        balance
-      }
-    }
-    `,
-    );
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as any;
-
-    expect(body.errors).toBe(undefined);
-    const accounts = body.data.accounts.items;
-    expect(accounts[0]).toMatchObject({
-      address: zeroAddress,
-      balance: (-1 * 10 ** 18).toString(),
+      networkName: "mainnet",
+      block: { number: 2 },
     });
-    expect(accounts[1]).toMatchObject({
+
+    const result = await client.db.select().from(schema.account);
+
+    expect(result[0]).toMatchObject({
+      address: zeroAddress,
+      balance: -1n * 10n ** 18n,
+    });
+    expect(result[1]).toMatchObject({
       address: ALICE.toLowerCase(),
-      balance: (10 ** 18).toString(),
+      balance: 10n ** 18n,
     });
 
     await cleanup();
@@ -95,6 +84,9 @@ const isPglite = !!process.env.DATABASE_URL;
 describe.skipIf(isPglite)("postgres database", () => {
   test.todo("ponder serve", async () => {
     const startPort = await getFreePort();
+    const client = createClient(`http://localhost:${startPort}/sql`, {
+      schema,
+    });
 
     const cleanupStart = await start({
       cliOptions: {
@@ -122,29 +114,14 @@ describe.skipIf(isPglite)("postgres database", () => {
       },
     });
 
-    const response = await postGraphql(
-      servePort,
-      `
-      accounts {
-        items {
-          address
-          balance
-        }
-      }
-      `,
-    );
+    const result = await client.db.select().from(schema.account);
 
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as any;
-    expect(body.errors).toBe(undefined);
-    const accounts = body.data.accounts.items;
-
-    expect(accounts).toHaveLength(3);
-    expect(accounts[0]).toMatchObject({
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({
       address: zeroAddress,
       balance: (-1 * 10 ** 18).toString(),
     });
-    expect(accounts[1]).toMatchObject({
+    expect(result[1]).toMatchObject({
       address: ALICE.toLowerCase(),
       balance: (10 ** 18).toString(),
     });

@@ -8,11 +8,11 @@ import { deployErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { getNetwork } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase } from "@/database/index.js";
-import { onchainTable } from "@/drizzle/index.js";
-import { buildGraphQLSchema } from "@/graphql/index.js";
+import { onchainTable } from "@/drizzle/onchain.js";
+import type { IndexingBuild } from "@/internal/types.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
@@ -27,7 +27,6 @@ const account = onchainTable("account", (p) => ({
 }));
 
 const schema = { account };
-const graphqlSchema = buildGraphQLSchema(schema);
 
 test("run() setup", async (context) => {
   const network = getNetwork();
@@ -54,7 +53,6 @@ test("run() setup", async (context) => {
   const schemaBuild: SchemaBuild = {
     schema,
     statements,
-    graphqlSchema,
   };
 
   const indexingBuild: IndexingBuild = {
@@ -64,17 +62,19 @@ test("run() setup", async (context) => {
     indexingFunctions,
   };
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
       schema,
       statements,
     },
   });
+
+  await database.migrate({ buildId: "buildId" });
 
   const kill = await run({
     common: context.common,
@@ -118,7 +118,6 @@ test("run() setup error", async (context) => {
   const schemaBuild: SchemaBuild = {
     schema,
     statements,
-    graphqlSchema,
   };
 
   const indexingBuild: IndexingBuild = {
@@ -128,17 +127,19 @@ test("run() setup error", async (context) => {
     indexingFunctions,
   };
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
+    namespace: "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
       schema,
       statements,
     },
   });
+
+  await database.migrate({ buildId: "buildId" });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
