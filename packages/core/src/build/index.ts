@@ -222,7 +222,7 @@ export const createBuild = async ({
     },
     async executeIndexingFunctions(): Promise<IndexingResult> {
       const files = glob.sync(indexingPattern, {
-        ignore: glob.sync(apiPattern),
+        ignore: apiPattern,
       });
       const executeResults = await Promise.all(
         files.map(async (file) => ({
@@ -577,7 +577,7 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.invalidateDepTree(
             glob.sync(indexingPattern, {
-              ignore: glob.sync(apiPattern),
+              ignore: apiPattern,
             }),
           );
           viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
