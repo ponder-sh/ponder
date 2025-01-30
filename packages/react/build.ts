@@ -1,8 +1,8 @@
 /// <reference types="node" />
 
 import chalk from "chalk";
-import { watch } from "chokidar";
 import { execa } from "execa";
+import { rimraf } from "rimraf";
 
 const PACKAGE_NAME = "@PONDER/REACT";
 const TSCONFIG = "tsconfig.build.json";
@@ -20,7 +20,7 @@ async function build() {
 
   // Clean dist folder
   try {
-    await execa("rm", ["-rf", "dist"]);
+    await rimraf("dist");
     console.log(`${cliInfo} Cleaned output folder`);
   } catch (error) {
     console.error(`${cliError} Clean failed:`);
@@ -66,73 +66,79 @@ async function build() {
   return true;
 }
 
-async function watchMode() {
-  // Initial build
-  await build();
+build().then((success) => {
+  process.exit(success ? 0 : 1);
+});
 
-  const paths = ["."];
-  const ignorePaths = ["**/node_modules/**", "**/dist/**", "**/.git/**"];
+/// WATCH MODE (WIP) ///
 
-  // Set up file watcher
-  const watcher = watch(paths, {
-    ignored: ignorePaths,
-    persistent: true,
-    ignoreInitial: true,
-    awaitWriteFinish: {
-      stabilityThreshold: 100,
-      pollInterval: 100,
-    },
-  });
+// async function watchMode() {
+//   // Initial build
+//   await build();
 
-  console.log(
-    `${cliInfo} Watching for changes in ${paths.map((p) => `"${p}"`).join(" | ")}`,
-  );
-  console.log(
-    `${cliInfo} Ignoring changes in ${ignorePaths
-      .map((p) => `"${p}"`)
-      .join(" | ")}`,
-  );
+//   const paths = ["."];
+//   const ignorePaths = ["**/node_modules/**", "**/dist/**", "**/.git/**"];
 
-  let building = false;
-  let pendingBuild = false;
+//   // Set up file watcher
+//   const watcher = watch(paths, {
+//     ignored: ignorePaths,
+//     persistent: true,
+//     ignoreInitial: true,
+//     awaitWriteFinish: {
+//       stabilityThreshold: 100,
+//       pollInterval: 100,
+//     },
+//   });
 
-  watcher
-    .on("change", async (path) => {
-      console.log(`${cliInfo} Change detected: ${path}`);
+//   console.log(
+//     `${cliInfo} Watching for changes in ${paths.map((p) => `"${p}"`).join(" | ")}`,
+//   );
+//   console.log(
+//     `${cliInfo} Ignoring changes in ${ignorePaths
+//       .map((p) => `"${p}"`)
+//       .join(" | ")}`,
+//   );
 
-      if (building) {
-        pendingBuild = true;
-        return;
-      }
+//   let building = false;
+//   let pendingBuild = false;
 
-      building = true;
-      await build();
-      building = false;
+//   watcher
+//     .on("change", async (path) => {
+//       console.log(`${cliInfo} Change detected: ${path}`);
 
-      if (pendingBuild) {
-        pendingBuild = false;
-        watcher.emit("change", "pending changes");
-      }
-    })
-    .on("error", (error) => {
-      console.log(`${cliError} Watch error:`);
-      console.error(error);
-    });
-}
+//       if (building) {
+//         pendingBuild = true;
+//         return;
+//       }
 
-// Check for watch mode in a more robust way
-const isWatchMode = process.argv
-  .slice(2)
-  .some((arg) => arg === "--watch" || arg === "--watch=true" || arg === "-w");
+//       building = true;
+//       await build();
+//       building = false;
 
-if (isWatchMode) {
-  watchMode().catch((error) => {
-    console.log(`${cliError} Watch mode failed:`);
-    console.error(error);
-    process.exit(1);
-  });
-} else {
-  build().then((success) => {
-    process.exit(success ? 0 : 1);
-  });
-}
+//       if (pendingBuild) {
+//         pendingBuild = false;
+//         watcher.emit("change", "pending changes");
+//       }
+//     })
+//     .on("error", (error) => {
+//       console.log(`${cliError} Watch error:`);
+//       console.error(error);
+//     });
+// }
+
+// // Check for watch mode in a more robust way
+// const isWatchMode = process.argv
+//   .slice(2)
+//   .some((arg) => arg === "--watch" || arg === "--watch=true" || arg === "-w");
+
+// if (isWatchMode) {
+//   watchMode().catch((error) => {
+//     console.log(`${cliError} Watch mode failed:`);
+//     console.error(error);
+//     process.exit(1);
+//   });
+// } else {
+//   build().then((success) => {
+//     process.exit(success ? 0 : 1);
+//   });
+// }
