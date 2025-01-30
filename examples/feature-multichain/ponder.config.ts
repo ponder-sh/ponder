@@ -20,23 +20,28 @@ export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-      pollingInterval: 15_000,
+      rpcUrl: [process.env.PONDER_RPC_URL_1!, process.env.PONDER_RPC_URL_1_WS!],
     },
     base: {
       chainId: 8453,
-      transport: http(process.env.PONDER_RPC_URL_8453),
-      pollingInterval: 15_000,
+      rpcUrl: [
+        process.env.PONDER_RPC_URL_8453!,
+        process.env.PONDER_RPC_URL_8453_WS!,
+      ],
     },
     optimism: {
       chainId: 10,
-      transport: http(process.env.PONDER_RPC_URL_10),
-      pollingInterval: 15_000,
+      rpcUrl: [
+        process.env.PONDER_RPC_URL_10!,
+        process.env.PONDER_RPC_URL_10_WS!,
+      ],
     },
     polygon: {
       chainId: 137,
-      transport: http(process.env.PONDER_RPC_URL_137),
-      pollingInterval: 15_000,
+      rpcUrl: [
+        process.env.PONDER_RPC_URL_137!,
+        process.env.PONDER_RPC_URL_137_WS!,
+      ],
     },
   },
   contracts: {

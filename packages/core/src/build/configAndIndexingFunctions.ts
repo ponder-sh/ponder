@@ -254,7 +254,7 @@ export async function buildConfigAndIndexingFunctions({
     config.contracts ?? {},
   )
     .flatMap((source): ContractSource[] => {
-      const chain = chains.find((c) => c.chain.name === source.name)!;
+      const chain = chains.find((c) => c.chain.name === source.network)!;
 
       // Get indexing function that were registered for this contract
       const registeredLogEvents: string[] = [];
@@ -554,7 +554,7 @@ export async function buildConfigAndIndexingFunctions({
 
   const accountSources: AccountSource[] = flattenSources(config.accounts ?? {})
     .flatMap((source): AccountSource[] => {
-      const chain = chains.find((c) => c.chain.name === source.name)!;
+      const chain = chains.find((c) => c.chain.name === source.network)!;
 
       const startBlockMaybeNan = source.startBlock;
       const fromBlock = Number.isNaN(startBlockMaybeNan)
@@ -771,7 +771,7 @@ export async function buildConfigAndIndexingFunctions({
 
   const blockSources: BlockSource[] = flattenSources(config.blocks ?? {})
     .map((source) => {
-      const chain = chains.find((c) => c.chain.name === source.name)!;
+      const chain = chains.find((c) => c.chain.name === source.network)!;
 
       const intervalMaybeNan = source.interval ?? 1;
       const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
