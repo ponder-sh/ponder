@@ -211,12 +211,17 @@ export { client, schema };
 
 Wrap your app with the `PonderProvider` and include the client object you just created.
 
-```ts filename="app.tsx" {6-8}
+{/* prettier-ignore */}
+```ts filename="app.tsx" {6,8}
 import { PonderProvider } from "@ponder/react";
 import { client } from "./lib/ponder";
 
 function App() {
-  return <PonderProvider client={client}>{/** ... */}</PonderProvider>;
+  return (
+    <PonderProvider client={client}>
+      {/** ... */}
+    </PonderProvider>
+  );
 }
 ```
 
@@ -224,7 +229,8 @@ function App() {
 
 Inside the `PonderProvider`, wrap your app with a TanStack Query Provider. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
 
-```ts filename="app.tsx" {5, 10-12}
+{/* prettier-ignore */}
+```ts filename="app.tsx" {5, 10,12}
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PonderProvider } from "@ponder/react";
 import { client } from "./lib/ponder";
@@ -246,6 +252,7 @@ function App() {
 
 In a React client component, use the `usePonderQuery` hook to fetch data. The hook returns an ordinary TanStack Query result object.
 
+{/* prettier-ignore */}
 ```ts filename="components/Deposits.tsx"
 import { usePonderQuery } from "@ponder/react";
 import { schema } from "../lib/ponder";
@@ -253,8 +260,7 @@ import { schema } from "../lib/ponder";
 export function Deposits() {
   const { data, isError, isPending } = usePonderQuery({
     queryFn: (db) =>
-      db
-        .select()
+      db.select()
         .from(schema.depositEvent)
         .orderBy(schema.depositEvent.timestamp)
         .limit(10),
