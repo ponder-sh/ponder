@@ -1,7 +1,9 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
 import type { Database } from "@/database/index.js";
+import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 // import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
@@ -78,14 +80,24 @@ export async function run({
     syncStore,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    database,
+    checkpoint: initialCheckpoint,
+  });
+
   const historicalIndexingStore = createHistoricalIndexingStore({
     common,
     schemaBuild,
     database,
-    isDatabaseEmpty: initialCheckpoint === ZERO_CHECKPOINT_STRING,
+    indexingCache,
   });
 
-  // indexingService.setIndexingStore(historicalIndexingStore);
+  const realtimeIndexingStore = createRealtimeIndexingStore({
+    common,
+    schemaBuild,
+    database,
+  });
 
   const realtimeQueue = createQueue({
     initialStart: true,
@@ -119,6 +131,7 @@ export async function run({
 
               const result = await indexing.processEvents({
                 events: decodedEvents,
+                db: realtimeIndexingStore,
               });
 
               common.logger.info({
@@ -127,6 +140,8 @@ export async function run({
               });
 
               if (result.status === "error") onReloadableError(result.error);
+
+              await realtimeIndexingStore.queue.onIdle();
 
               // Set reorg table `checkpoint` column for newly inserted rows.
               await database.complete({ checkpoint });
@@ -209,7 +224,9 @@ export async function run({
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
     if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
-      const result = await indexing.processSetupEvents();
+      const result = await indexing.processSetupEvents({
+        db: historicalIndexingStore,
+      });
       if (result.status === "killed") {
         return;
       } else if (result.status === "error") {
@@ -236,6 +253,7 @@ export async function run({
         for (const eventChunk of eventChunks) {
           const result = await indexing.processEvents({
             events: eventChunk,
+            db: historicalIndexingStore,
           });
 
           if (result.status === "killed") {
@@ -304,12 +322,13 @@ export async function run({
         // have been written because of raw sql access are deleted. Also must truncate
         // the reorg tables that may have been written because of raw sql access.
         if (
-          (historicalIndexingStore.isCacheFull() && events.length > 0) ||
+          (indexingCache.size > common.options.indexingCacheMaxBytes &&
+            events.length > 0) ||
           (common.options.command === "dev" &&
             lastFlush + 5_000 < Date.now() &&
             events.length > 0)
         ) {
-          if (historicalIndexingStore.isCacheFull()) {
+          if (indexingCache.size > common.options.indexingCacheMaxBytes) {
             common.logger.debug({
               service: "indexing",
               msg: `Indexing cache has exceeded ${common.options.indexingCacheMaxBytes} MB limit, starting flush`,
@@ -322,7 +341,8 @@ export async function run({
           }
 
           await database.finalize({ checkpoint: ZERO_CHECKPOINT_STRING });
-          await historicalIndexingStore.flush();
+          await historicalIndexingStore.queue.onIdle();
+          await indexingCache.flush();
           await database.complete({ checkpoint: ZERO_CHECKPOINT_STRING });
           await database.finalize({
             checkpoint: events[events.length - 1]!.checkpoint,
@@ -352,7 +372,8 @@ export async function run({
     });
 
     await database.finalize({ checkpoint: ZERO_CHECKPOINT_STRING });
-    await historicalIndexingStore.flush();
+    await historicalIndexingStore.queue.onIdle();
+    await indexingCache.flush();
     await database.complete({ checkpoint: ZERO_CHECKPOINT_STRING });
     await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
 
@@ -383,14 +404,6 @@ export async function run({
 
     await database.createIndexes();
     await database.createTriggers();
-
-    // indexingService.setIndexingStore(
-    //   createRealtimeIndexingStore({
-    //     common,
-    //     schemaBuild,
-    //     database,
-    //   }),
-    // );
 
     await sync.startRealtime();
 

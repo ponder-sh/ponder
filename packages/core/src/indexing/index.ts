@@ -1,3 +1,4 @@
+import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   ContractSource,
@@ -43,14 +44,17 @@ type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: () => Promise<
+  processSetupEvents: ({
+    db,
+  }: { db: IndexingStore }) => Promise<
     | { status: "error"; error: Error }
     | { status: "success" }
     | { status: "killed" }
   >;
   processEvents: ({
     events,
-  }: { events: Event[] }) => Promise<
+    db,
+  }: { events: Event[]; db: IndexingStore }) => Promise<
     | { status: "error"; error: Error }
     | { status: "success" }
     | { status: "killed" }
@@ -267,13 +271,8 @@ export const createIndexing = ({
   };
 
   return {
-    async processSetupEvents() {
-      // context.db = createIndexingStore({
-      //   common,
-      //   database,
-      //   schemaBuild,
-      //   tx,
-      // });
+    async processSetupEvents({ db }) {
+      context.db = db;
       for (const eventName of Object.keys(indexingFunctions)) {
         if (!eventName.endsWith(":setup")) continue;
 
@@ -317,13 +316,8 @@ export const createIndexing = ({
 
       return { status: "success" };
     },
-    async processEvents({ events }) {
-      // context.db = createIndexingStore({
-      //   common,
-      //   database,
-      //   schemaBuild,
-      //   tx,
-      // });
+    async processEvents({ events, db }) {
+      context.db = db;
       for (let i = 0; i < events.length; i++) {
         if (isKilled) return { status: "killed" };
 

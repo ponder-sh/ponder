@@ -1,14 +1,10 @@
 import type { Database } from "@/database/index.js";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
-import { onchain } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
-import {
-  InvalidStoreMethodError,
-  RecordNotFoundError,
-  UndefinedTableError,
-} from "@/internal/errors.js";
+import { RecordNotFoundError } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
+import { createQueue } from "@ponder/common";
 import {
   type QueryWithTypings,
   type SQL,
@@ -18,30 +14,13 @@ import {
   eq,
   getTableName,
 } from "drizzle-orm";
-import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { createQueue } from "../../../common/src/queue.js";
-import { normalizeColumn } from "./historical.js";
-import { type IndexingStore, parseSqlError } from "./index.js";
-
-/** Throw an error if `table` is not an `onchainTable`. */
-const checkOnchainTable = (
-  table: Table,
-  method: "find" | "insert" | "update" | "delete",
-) => {
-  if (table === undefined)
-    throw new UndefinedTableError(
-      `Table object passed to db.${method}() is undefined`,
-    );
-
-  if (onchain in table) return;
-
-  throw new InvalidStoreMethodError(
-    method === "find"
-      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
-      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
-  );
-};
+import {
+  type IndexingStore,
+  checkOnchainTable,
+  parseSqlError,
+} from "./index.js";
 
 export const createRealtimeIndexingStore = ({
   schemaBuild: { schema },
@@ -50,7 +29,7 @@ export const createRealtimeIndexingStore = ({
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-}): IndexingStore<"realtime"> => {
+}): IndexingStore => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
     browser: false,
@@ -306,9 +285,7 @@ export const createRealtimeIndexingStore = ({
                 },
               ),
             // @ts-ignore
-          } satisfies ReturnType<
-            ReturnType<IndexingStore<"realtime">["insert"]>["values"]
-          >;
+          } satisfies ReturnType<ReturnType<IndexingStore["insert"]>["values"]>;
 
           return inner;
         },
@@ -403,7 +380,7 @@ export const createRealtimeIndexingStore = ({
         }),
       { schema, casing: "snake_case" },
     ),
-  } satisfies IndexingStore<"realtime">;
+  } satisfies IndexingStore;
 
   // @ts-ignore
   return indexingStore;
