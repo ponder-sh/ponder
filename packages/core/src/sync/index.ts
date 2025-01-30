@@ -498,13 +498,6 @@ export const createSync = async (params: {
                   network,
                 })
                 .then(() => {
-                  // if (readyEvents.length > 0 && isKilled === false) {
-                  //   params.common.logger.info({
-                  //     service: "app",
-                  //     msg: `Indexed ${readyEvents.length} events`,
-                  //   });
-                  // }
-
                   // update `ponder_realtime_latency` metric
                   for (const [checkpoint, timer] of latencyTimers) {
                     if (checkpoint > from && checkpoint <= to) {

@@ -60,6 +60,10 @@ export async function run({
     requestQueues,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
+      if (realtimeEvent.type === "reorg") {
+        realtimeQueue.clear();
+      }
+
       return realtimeQueue.add(realtimeEvent);
     },
     onFatalError,
