@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.1
+
+### Patch Changes
+
+- [#1473](https://github.com/ponder-sh/ponder/pull/1473) [`02756d0809ca57369c13e6988a3b275be70f3df9`](https://github.com/ponder-sh/ponder/commit/02756d0809ca57369c13e6988a3b275be70f3df9) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a Windows build error introduced in `0.9.0`.
+
 ## 0.9.0
 
 ### Minor Changes
