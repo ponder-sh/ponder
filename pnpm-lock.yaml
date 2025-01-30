@@ -777,7 +777,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.36.4
-        version: 0.36.4
+        version: 0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0)
       eventsource:
         specifier: ^3.0.5
         version: 3.0.5
@@ -787,7 +787,7 @@ importers:
     devDependencies:
       tsup:
         specifier: ^8.0.1
-        version: 8.0.1
+        version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3))(typescript@5.3.3)
 
   packages/common:
     devDependencies:
@@ -1019,6 +1019,10 @@ importers:
   packages/eslint-config-ponder: {}
 
   packages/react:
+    dependencies:
+      superjson:
+        specifier: ^2.2.2
+        version: 2.2.2
     devDependencies:
       '@ponder/client':
         specifier: workspace:*
@@ -12746,10 +12750,6 @@ snapshots:
     optionalDependencies:
       supports-color: 8.1.1
 
-  debug@4.3.7:
-    dependencies:
-      ms: 2.1.3
-
   debug@4.3.7(supports-color@8.1.1):
     dependencies:
       ms: 2.1.3
@@ -12932,8 +12932,6 @@ snapshots:
       esbuild-register: 3.6.0(esbuild@0.19.12)
     transitivePeerDependencies:
       - supports-color
-
-  drizzle-orm@0.36.4: {}
 
   drizzle-orm@0.36.4(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(@types/react@18.2.46)(kysely@0.26.3)(pg@8.11.3)(react@18.2.0):
     optionalDependencies:
@@ -16474,11 +16472,6 @@ snapshots:
       camelcase-css: 2.0.1
       postcss: 8.4.32
 
-  postcss-load-config@4.0.2:
-    dependencies:
-      lilconfig: 3.1.2
-      yaml: 2.3.4
-
   postcss-load-config@4.0.2(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3)):
     dependencies:
       lilconfig: 3.1.2
@@ -16486,6 +16479,14 @@ snapshots:
     optionalDependencies:
       postcss: 8.4.32
       ts-node: 10.9.2(@types/node@20.11.24)(typescript@5.3.3)
+
+  postcss-load-config@4.0.2(postcss@8.4.32)(ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3)):
+    dependencies:
+      lilconfig: 3.1.2
+      yaml: 2.3.4
+    optionalDependencies:
+      postcss: 8.4.32
+      ts-node: 10.9.2(@types/node@22.10.6)(typescript@5.3.3)
 
   postcss-nested@6.0.1(postcss@8.4.32):
     dependencies:
@@ -17638,6 +17639,25 @@ snapshots:
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
+  ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3):
+    dependencies:
+      '@cspotcode/source-map-support': 0.8.1
+      '@tsconfig/node10': 1.0.9
+      '@tsconfig/node12': 1.0.11
+      '@tsconfig/node14': 1.0.3
+      '@tsconfig/node16': 1.0.4
+      '@types/node': 22.10.6
+      acorn: 8.11.3
+      acorn-walk: 8.3.1
+      arg: 4.1.3
+      create-require: 1.1.1
+      diff: 4.0.2
+      make-error: 1.3.6
+      typescript: 5.3.3
+      v8-compile-cache-lib: 3.0.1
+      yn: 3.1.1
+    optional: true
+
   tsconfck@3.0.1(typescript@5.3.3):
     optionalDependencies:
       typescript: 5.3.3
@@ -17651,26 +17671,6 @@ snapshots:
 
   tslib@2.6.2: {}
 
-  tsup@8.0.1:
-    dependencies:
-      bundle-require: 4.0.2(esbuild@0.19.11)
-      cac: 6.7.14
-      chokidar: 3.6.0
-      debug: 4.3.7
-      esbuild: 0.19.11
-      execa: 5.1.1
-      globby: 11.1.0
-      joycon: 3.1.1
-      postcss-load-config: 4.0.2
-      resolve-from: 5.0.0
-      rollup: 4.9.2
-      source-map: 0.8.0-beta.0
-      sucrase: 3.35.0
-      tree-kill: 1.2.2
-    transitivePeerDependencies:
-      - supports-color
-      - ts-node
-
   tsup@8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3):
     dependencies:
       bundle-require: 4.0.2(esbuild@0.19.11)
@@ -17682,6 +17682,29 @@ snapshots:
       globby: 11.1.0
       joycon: 3.1.1
       postcss-load-config: 4.0.2(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))
+      resolve-from: 5.0.0
+      rollup: 4.9.2
+      source-map: 0.8.0-beta.0
+      sucrase: 3.35.0
+      tree-kill: 1.2.2
+    optionalDependencies:
+      postcss: 8.4.32
+      typescript: 5.3.3
+    transitivePeerDependencies:
+      - supports-color
+      - ts-node
+
+  tsup@8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3))(typescript@5.3.3):
+    dependencies:
+      bundle-require: 4.0.2(esbuild@0.19.11)
+      cac: 6.7.14
+      chokidar: 3.6.0
+      debug: 4.3.7(supports-color@8.1.1)
+      esbuild: 0.19.11
+      execa: 5.1.1
+      globby: 11.1.0
+      joycon: 3.1.1
+      postcss-load-config: 4.0.2(postcss@8.4.32)(ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3))
       resolve-from: 5.0.0
       rollup: 4.9.2
       source-map: 0.8.0-beta.0
