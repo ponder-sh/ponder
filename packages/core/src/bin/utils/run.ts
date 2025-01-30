@@ -2,8 +2,8 @@ import { runCodegen } from "@/bin/utils/codegen.js";
 import type { Database } from "@/database/index.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import { createIndexingService } from "@/indexing/index.js";
+// import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
@@ -71,7 +71,7 @@ export async function run({
     mode: preBuild.mode,
   });
 
-  const indexingService = createIndexingService({
+  const indexing = createIndexing({
     common,
     indexingBuild,
     requestQueues,
@@ -85,7 +85,7 @@ export async function run({
     isDatabaseEmpty: initialCheckpoint === ZERO_CHECKPOINT_STRING,
   });
 
-  indexingService.setIndexingStore(historicalIndexingStore);
+  // indexingService.setIndexingStore(historicalIndexingStore);
 
   const realtimeQueue = createQueue({
     initialStart: true,
@@ -117,7 +117,7 @@ export async function run({
                 msg: `Decoded ${decodedEvents.length} events`,
               });
 
-              const result = await indexingService.processEvents({
+              const result = await indexing.processEvents({
                 events: decodedEvents,
               });
 
@@ -209,10 +209,7 @@ export async function run({
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
     if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
-      const result = await indexingService.processSetupEvents({
-        sources: indexingBuild.sources,
-        networks: indexingBuild.networks,
-      });
+      const result = await indexing.processSetupEvents();
       if (result.status === "killed") {
         return;
       } else if (result.status === "error") {
@@ -237,7 +234,7 @@ export async function run({
           msg: `Decoded ${decodedEvents.length} events`,
         });
         for (const eventChunk of eventChunks) {
-          const result = await indexingService.processEvents({
+          const result = await indexing.processEvents({
             events: eventChunk,
           });
 
@@ -387,13 +384,13 @@ export async function run({
     await database.createIndexes();
     await database.createTriggers();
 
-    indexingService.setIndexingStore(
-      createRealtimeIndexingStore({
-        common,
-        schemaBuild,
-        database,
-      }),
-    );
+    // indexingService.setIndexingStore(
+    //   createRealtimeIndexingStore({
+    //     common,
+    //     schemaBuild,
+    //     database,
+    //   }),
+    // );
 
     await sync.startRealtime();
 
@@ -409,7 +406,7 @@ export async function run({
 
   return async () => {
     isKilled = true;
-    indexingService.kill();
+    indexing.kill();
     await sync.kill();
     realtimeQueue.pause();
     realtimeQueue.clear();
