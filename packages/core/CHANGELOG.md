@@ -1,5 +1,15 @@
 # ponder
 
+## 0.9.2
+
+### Patch Changes
+
+- [#1479](https://github.com/ponder-sh/ponder/pull/1479) [`b7a6fcf1e74ec69404611a723adf6344b6d3614e`](https://github.com/ponder-sh/ponder/commit/b7a6fcf1e74ec69404611a723adf6344b6d3614e) Thanks [@typedarray](https://github.com/typedarray)! - Fixed peer dependency resolution issues with `kysely`.
+
+- [`3855a47dd4cb8199e7260969a57714a40c13c898`](https://github.com/ponder-sh/ponder/commit/3855a47dd4cb8199e7260969a57714a40c13c898) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where the process would crash with "crypto" is not defined on Node 18.
+
+- [#1482](https://github.com/ponder-sh/ponder/pull/1482) [`375e2935bf11f31aaa3825d257a7de5af4c08ae3`](https://github.com/ponder-sh/ponder/commit/375e2935bf11f31aaa3825d257a7de5af4c08ae3) Thanks [@shrugs](https://github.com/shrugs)! - Fixed a bug where `t.bigint().array()` column values greater than `Number.MAX_SAFE_INTEGER` would lose precision when using Postgres.
+
 ## 0.9.1
 
 ### Patch Changes
