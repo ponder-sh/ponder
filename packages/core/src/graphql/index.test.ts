@@ -11,6 +11,10 @@ import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
+// https://github.com/ponder-sh/ponder/issues/1475#issuecomment-2625967710
+const LARGE_BIGINT =
+  81043282338925483631878461732084420541800751556297842951124152226153187811344n;
+
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
@@ -131,14 +135,14 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     floatArray: [0],
     booleanArray: [false],
     hexArray: ["0x0"],
-    bigintArray: [0n],
+    bigintArray: [0n, LARGE_BIGINT],
 
     stringArrayNotNull: ["0"],
     intArrayNotNull: [0],
     floatArrayNotNull: [0],
     booleanArrayNotNull: [false],
     hexArrayNotNull: ["0x0"],
-    bigintArrayNotNull: [0n],
+    bigintArrayNotNull: [0n, LARGE_BIGINT],
   });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
@@ -203,14 +207,14 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       floatArray: [0],
       booleanArray: [false],
       hexArray: ["0x00"],
-      bigintArray: ["0"],
+      bigintArray: ["0", LARGE_BIGINT.toString()],
 
       stringArrayNotNull: ["0"],
       intArrayNotNull: [0],
       floatArrayNotNull: [0],
       booleanArrayNotNull: [false],
       hexArrayNotNull: ["0x00"],
-      bigintArrayNotNull: ["0"],
+      bigintArrayNotNull: ["0", LARGE_BIGINT.toString()],
     },
   });
 
