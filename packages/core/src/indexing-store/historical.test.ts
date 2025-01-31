@@ -9,10 +9,12 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
+import { createIndexingCache } from "./cache.js";
 import { createHistoricalIndexingStore } from "./historical.js";
 
 beforeEach(setupCommon);
@@ -28,11 +30,18 @@ test("find", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     database,
-    isDatabaseEmpty: true,
+    indexingCache,
   });
 
   // empty
@@ -68,11 +77,18 @@ test("insert", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
   });
 
   // single
@@ -215,11 +231,18 @@ test("update", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
   });
 
   // setup
@@ -281,11 +304,18 @@ test("delete", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
   });
 
   // no entry
@@ -329,11 +359,18 @@ test("flush", async (context) => {
     schemaBuild: { schema },
   });
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
   });
 
   // insert
@@ -343,7 +380,7 @@ test("flush", async (context) => {
     balance: 10n,
   });
 
-  await indexingStore.flush();
+  await indexingCache.flush();
 
   let result = await indexingStore.find(schema.account, {
     address: zeroAddress,
@@ -360,7 +397,7 @@ test("flush", async (context) => {
     balance: 12n,
   });
 
-  await indexingStore.flush();
+  await indexingCache.flush();
 
   result = await indexingStore.find(schema.account, {
     address: zeroAddress,

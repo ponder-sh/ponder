@@ -78,7 +78,7 @@ export const createHistoricalIndexingStore = ({
             checkOnchainTable(table, "find");
 
             if (indexingCache.has(table, key)) {
-              return indexingCache.get(table, key)!.row;
+              return indexingCache.get(table, key);
             } else if (indexingCache.isCacheComplete()) {
               return null;
             } else {
@@ -110,7 +110,7 @@ export const createHistoricalIndexingStore = ({
                           indexingCache.has(table, value) &&
                           indexingCache.get(table, value)
                         ) {
-                          rows.push(indexingCache.get(table, value)!);
+                          rows.push(null);
                         } else if (indexingCache.isCacheComplete()) {
                           rows.push(
                             indexingCache.set(
@@ -124,14 +124,13 @@ export const createHistoricalIndexingStore = ({
                           const findResult = await find(table, value);
 
                           if (findResult) {
-                            rows.push(
-                              indexingCache.set(
-                                table,
-                                value,
-                                findResult,
-                                EntryType.INSERT,
-                              ),
+                            indexingCache.set(
+                              table,
+                              value,
+                              findResult,
+                              EntryType.INSERT,
                             );
+                            rows.push(null);
                           } else {
                             rows.push(
                               indexingCache.set(
@@ -150,7 +149,7 @@ export const createHistoricalIndexingStore = ({
                         indexingCache.has(table, values) &&
                         indexingCache.get(table, values)
                       ) {
-                        return indexingCache.get(table, values)!;
+                        return null;
                       } else if (indexingCache.isCacheComplete()) {
                         return indexingCache.set(
                           table,
@@ -162,12 +161,13 @@ export const createHistoricalIndexingStore = ({
                         const findResult = await find(table, values);
 
                         if (findResult) {
-                          return indexingCache.set(
+                          indexingCache.set(
                             table,
                             values,
                             findResult,
                             EntryType.INSERT,
                           );
+                          return null;
                         } else {
                           return indexingCache.set(
                             table,
@@ -519,17 +519,20 @@ export const createHistoricalIndexingStore = ({
                 return false;
               }
               indexingCache.delete(table, key);
-              await database.qb.drizzle
-                .delete(table)
-                .where(getWhereCondition(table, key));
+
+              if (indexingCache.isCacheComplete() === false) {
+                await database.qb.drizzle
+                  .delete(table)
+                  .where(getWhereCondition(table, key));
+              }
 
               return true;
             } else if (indexingCache.isCacheComplete()) {
               return false;
             } else {
               const deleteResult = await database.qb.drizzle
-                .delete(table as Table)
-                .where(getWhereCondition(table as Table, key))
+                .delete(table)
+                .where(getWhereCondition(table, key))
                 .returning();
 
               return deleteResult.length > 0;
