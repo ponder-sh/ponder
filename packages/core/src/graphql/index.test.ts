@@ -11,8 +11,9 @@ import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
+const BIGINT_MAX = 2n ** 256n - 1n;
 // https://github.com/ponder-sh/ponder/issues/1475#issuecomment-2625967710
-const LARGE_BIGINT =
+const BIGINT_LARGE =
   81043282338925483631878461732084420541800751556297842951124152226153187811344n;
 
 beforeEach(setupCommon);
@@ -135,14 +136,14 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     floatArray: [0],
     booleanArray: [false],
     hexArray: ["0x0"],
-    bigintArray: [0n, LARGE_BIGINT],
+    bigintArray: [0n, BIGINT_LARGE, BIGINT_MAX],
 
     stringArrayNotNull: ["0"],
     intArrayNotNull: [0],
     floatArrayNotNull: [0],
     booleanArrayNotNull: [false],
     hexArrayNotNull: ["0x0"],
-    bigintArrayNotNull: [0n, LARGE_BIGINT],
+    bigintArrayNotNull: [0n, BIGINT_LARGE, BIGINT_MAX],
   });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
@@ -207,14 +208,14 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       floatArray: [0],
       booleanArray: [false],
       hexArray: ["0x00"],
-      bigintArray: ["0", LARGE_BIGINT.toString()],
+      bigintArray: ["0", BIGINT_LARGE.toString(), BIGINT_MAX.toString()],
 
       stringArrayNotNull: ["0"],
       intArrayNotNull: [0],
       floatArrayNotNull: [0],
       booleanArrayNotNull: [false],
       hexArrayNotNull: ["0x00"],
-      bigintArrayNotNull: ["0", LARGE_BIGINT.toString()],
+      bigintArrayNotNull: ["0", BIGINT_LARGE.toString(), BIGINT_MAX.toString()],
     },
   });
 
