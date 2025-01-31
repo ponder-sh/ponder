@@ -26,6 +26,18 @@ import {
   parseSqlError,
 } from "./index.js";
 
+/** Returns an sql where condition for `table` with `key`. */
+const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
+  const conditions: SQLWrapper[] = [];
+
+  for (const { js } of getPrimaryKeyColumns(table)) {
+    // @ts-ignore
+    conditions.push(eq(table[js]!, key[js]));
+  }
+
+  return and(...conditions)!;
+};
+
 export const createHistoricalIndexingStore = ({
   database,
   schemaBuild: { schema },
@@ -43,18 +55,6 @@ export const createHistoricalIndexingStore = ({
     concurrency: 1,
     worker: (fn) => fn(),
   });
-
-  /** Returns an sql where condition for `table` with `key`. */
-  const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
-    const conditions: SQLWrapper[] = [];
-
-    for (const { js } of getPrimaryKeyColumns(table)) {
-      // @ts-ignore
-      conditions.push(eq(table[js]!, key[js]));
-    }
-
-    return and(...conditions)!;
-  };
 
   const find = (table: Table, key: object) =>
     database.wrap(
