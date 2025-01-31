@@ -4,7 +4,6 @@ import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-// import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { getAppProgress } from "@/internal/metrics.js";
