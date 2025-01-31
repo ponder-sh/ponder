@@ -193,12 +193,17 @@ export const createIndexingCache = ({
   };
 
   return {
-    has(table, row) {
-      return cache.get(table)!.has(getCacheKey(table, row));
+    has(table, key) {
+      return cache.get(table)!.has(getCacheKey(table, key));
     },
-    get(table, row) {
-      // TODO(kyle) touch
-      return cache.get(table)!.get(getCacheKey(table, row))?.row ?? null;
+    get(table, key) {
+      const entry = cache.get(table)!.get(getCacheKey(table, key));
+
+      if (entry) {
+        entry.operationIndex = totalCacheOps++;
+      }
+
+      return entry?.row ? structuredClone(entry.row) : null;
     },
     set(table, key, _row, entryType) {
       let row: { [key: string]: unknown } | null;
@@ -206,7 +211,7 @@ export const createIndexingCache = ({
       if (_row === null) {
         row = null;
       } else {
-        row = normalizeRow(table, structuredClone(_row), entryType);
+        row = normalizeRow(table, _row, entryType);
       }
 
       if (
@@ -224,11 +229,9 @@ export const createIndexingCache = ({
         type: entryType,
         bytes,
         operationIndex: totalCacheOps++,
-        row,
+        row: structuredClone(row),
       });
-
-      // TODO(kyle) how to do only one copy?
-      return structuredClone(row);
+      return row;
     },
     delete(table, key) {
       const entry = cache.get(table)!.get(getCacheKey(table, key));
@@ -366,11 +369,6 @@ export const createIndexingCache = ({
       }
 
       await Promise.all(promises);
-      // });
     },
   };
 };
-
-// isCacheFull() {
-//   return cacheBytes > maxBytes;
-// },
