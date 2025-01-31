@@ -486,7 +486,7 @@ export const createHistoricalIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         await indexingCache.flush();
-        // TODO(kyle) invalidate cache
+        indexingCache.bust();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
