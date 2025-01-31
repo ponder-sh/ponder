@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -448,7 +449,7 @@ export const createDatabase = async ({
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const endClock = startClock();
 
-        const id = crypto.randomUUID().slice(0, 8);
+        const id = randomUUID().slice(0, 8);
         if (options.includeTraceLogs) {
           common.logger.trace({
             service: "database",
