@@ -56,15 +56,18 @@ export const createHistoricalIndexingStore = ({
     return and(...conditions)!;
   };
 
-  const find = (table: Table, key: object) => {
-    return database.qb.drizzle
-      .select()
-      .from(table)
-      .where(getWhereCondition(table as PgTable, key))
-      .then((res) => (res.length === 0 ? null : res[0]!));
-  };
+  const find = (table: Table, key: object) =>
+    database.wrap(
+      { method: `${getTableName(table) ?? "unknown"}.sql.find()` },
+      async () => {
+        return database.qb.drizzle
+          .select()
+          .from(table)
+          .where(getWhereCondition(table as PgTable, key))
+          .then((res) => (res.length === 0 ? null : res[0]!));
+      },
+    );
 
-  // @ts-ignore
   return {
     // @ts-ignore
     find: (table: Table, key) =>
@@ -80,7 +83,7 @@ export const createHistoricalIndexingStore = ({
               return null;
             } else {
               const row = await find(table, key);
-              return indexingCache.set(table, row, EntryType.FIND);
+              return indexingCache.set(table, key, row, EntryType.FIND);
             }
           },
         ),
@@ -110,7 +113,12 @@ export const createHistoricalIndexingStore = ({
                           rows.push(indexingCache.get(table, value)!);
                         } else if (indexingCache.isCacheComplete()) {
                           rows.push(
-                            indexingCache.set(table, value, EntryType.INSERT),
+                            indexingCache.set(
+                              table,
+                              value,
+                              value,
+                              EntryType.INSERT,
+                            ),
                           );
                         } else {
                           const findResult = await find(table, value);
@@ -119,13 +127,19 @@ export const createHistoricalIndexingStore = ({
                             rows.push(
                               indexingCache.set(
                                 table,
+                                value,
                                 findResult,
                                 EntryType.INSERT,
                               ),
                             );
                           } else {
                             rows.push(
-                              indexingCache.set(table, value, EntryType.INSERT),
+                              indexingCache.set(
+                                table,
+                                value,
+                                value,
+                                EntryType.INSERT,
+                              ),
                             );
                           }
                         }
@@ -141,6 +155,7 @@ export const createHistoricalIndexingStore = ({
                         return indexingCache.set(
                           table,
                           values,
+                          values,
                           EntryType.INSERT,
                         );
                       } else {
@@ -149,12 +164,14 @@ export const createHistoricalIndexingStore = ({
                         if (findResult) {
                           return indexingCache.set(
                             table,
+                            values,
                             findResult,
                             EntryType.INSERT,
                           );
                         } else {
                           return indexingCache.set(
                             table,
+                            values,
                             values,
                             EntryType.INSERT,
                           );
@@ -195,11 +212,21 @@ export const createHistoricalIndexingStore = ({
                             }
                           }
                           rows.push(
-                            indexingCache.set(table, row, EntryType.UPDATE),
+                            indexingCache.set(
+                              table,
+                              row,
+                              row,
+                              EntryType.UPDATE,
+                            ),
                           );
                         } else if (indexingCache.isCacheComplete()) {
                           rows.push(
-                            indexingCache.set(table, valuesU, EntryType.INSERT),
+                            indexingCache.set(
+                              table,
+                              value,
+                              valuesU,
+                              EntryType.INSERT,
+                            ),
                           );
                         } else {
                           const findResult = await find(table, values);
@@ -221,6 +248,7 @@ export const createHistoricalIndexingStore = ({
                             rows.push(
                               indexingCache.set(
                                 table,
+                                values,
                                 findResult,
                                 EntryType.UPDATE,
                               ),
@@ -229,6 +257,7 @@ export const createHistoricalIndexingStore = ({
                             rows.push(
                               indexingCache.set(
                                 table,
+                                values,
                                 findResult,
                                 EntryType.INSERT,
                               ),
@@ -243,21 +272,27 @@ export const createHistoricalIndexingStore = ({
                         indexingCache.get(table, values)
                       ) {
                         const row = indexingCache.get(table, values)!;
-                        if (typeof values === "function") {
+                        if (typeof valuesU === "function") {
                           for (const [key, value] of Object.entries(
-                            values(row),
+                            valuesU(row),
                           )) {
                             row[key] = value;
                           }
                         } else {
-                          for (const [key, value] of Object.entries(values)) {
+                          for (const [key, value] of Object.entries(valuesU)) {
                             row[key] = value;
                           }
                         }
-                        return indexingCache.set(table, row, EntryType.UPDATE);
+                        return indexingCache.set(
+                          table,
+                          values,
+                          row,
+                          EntryType.UPDATE,
+                        );
                       } else if (indexingCache.isCacheComplete()) {
                         return indexingCache.set(
                           table,
+                          values,
                           values,
                           EntryType.INSERT,
                         );
@@ -266,25 +301,29 @@ export const createHistoricalIndexingStore = ({
 
                         if (findResult) {
                           //  const row = indexingCache.get(table, values)!;
-                          if (typeof values === "function") {
+                          if (typeof valuesU === "function") {
                             for (const [key, value] of Object.entries(
-                              values(findResult),
+                              valuesU(findResult),
                             )) {
                               findResult[key] = value;
                             }
                           } else {
-                            for (const [key, value] of Object.entries(values)) {
+                            for (const [key, value] of Object.entries(
+                              valuesU,
+                            )) {
                               findResult[key] = value;
                             }
                           }
                           return indexingCache.set(
                             table,
+                            values,
                             findResult,
                             EntryType.UPDATE,
                           );
                         } else {
                           return indexingCache.set(
                             table,
+                            values,
                             values,
                             EntryType.INSERT,
                           );
@@ -321,7 +360,12 @@ export const createHistoricalIndexingStore = ({
                             throw error;
                           } else if (indexingCache.isCacheComplete()) {
                             rows.push(
-                              indexingCache.set(table, value, EntryType.INSERT),
+                              indexingCache.set(
+                                table,
+                                value,
+                                value,
+                                EntryType.INSERT,
+                              ),
                             );
                           } else {
                             const findResult = await find(table, value);
@@ -338,6 +382,7 @@ export const createHistoricalIndexingStore = ({
                               rows.push(
                                 indexingCache.set(
                                   table,
+                                  value,
                                   value,
                                   EntryType.INSERT,
                                 ),
@@ -362,6 +407,7 @@ export const createHistoricalIndexingStore = ({
                           return indexingCache.set(
                             table,
                             values,
+                            values,
                             EntryType.INSERT,
                           );
                         } else {
@@ -378,6 +424,7 @@ export const createHistoricalIndexingStore = ({
                           } else {
                             return indexingCache.set(
                               table,
+                              values,
                               values,
                               EntryType.INSERT,
                             );
@@ -453,7 +500,7 @@ export const createHistoricalIndexingStore = ({
                   }
                 }
 
-                return indexingCache.set(table, row, EntryType.UPDATE);
+                return indexingCache.set(table, key, row, EntryType.UPDATE);
               },
             ),
           ),

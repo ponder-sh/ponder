@@ -89,8 +89,7 @@ export const createRealtimeIndexingStore = ({
       .then((res) => (res.length === 0 ? null : res[0]!));
   };
 
-  // @ts-ignore
-  const indexingStore = {
+  return {
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
@@ -380,8 +379,6 @@ export const createRealtimeIndexingStore = ({
         }),
       { schema, casing: "snake_case" },
     ),
-  } satisfies IndexingStore;
-
-  // @ts-ignore
-  return indexingStore;
+    queue,
+  };
 };

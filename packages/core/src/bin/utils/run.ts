@@ -83,6 +83,7 @@ export async function run({
   const indexingCache = createIndexingCache({
     common,
     database,
+    schemaBuild,
     checkpoint: initialCheckpoint,
   });
 

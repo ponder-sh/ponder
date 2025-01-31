@@ -1,4 +1,5 @@
 import type { Database } from "@/database/index.js";
+import { getTableNames } from "@/drizzle/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -7,6 +8,7 @@ import {
   FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
@@ -19,18 +21,16 @@ import {
 } from "drizzle-orm";
 
 export type IndexingCache = {
-  has: (table: Table, row: { [key: string]: unknown }) => boolean;
+  has: (table: Table, key: object) => boolean;
   // TODO(kyle) should `get` make a database query?
-  get: (
-    table: Table,
-    row: { [key: string]: unknown },
-  ) => { [key: string]: unknown } | null;
+  get: (table: Table, key: object) => { [key: string]: unknown } | null;
   set: (
     table: Table,
-    row: { [key: string]: unknown },
+    key: object,
+    row: { [key: string]: unknown } | null,
     entryType: EntryType,
-  ) => { [key: string]: unknown };
-  delete: (table: Table, row: { [key: string]: unknown }) => boolean;
+  ) => { [key: string]: unknown } | null;
+  delete: (table: Table, key: object) => boolean;
   isCacheComplete: () => boolean;
   size: number;
   flush: () => Promise<void>;
@@ -42,35 +42,13 @@ export enum EntryType {
   FIND = 2,
 }
 
-/** Cache entries that need to be created in the database. */
-type InsertEntry = {
-  type: EntryType.INSERT;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown };
-};
-
-/** Cache entries that need to be updated in the database. */
-type UpdateEntry = {
-  type: EntryType.UPDATE;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown };
-};
-
-/**
- * Cache entries that mirror the database. Can be `null`,
- * meaning the entry doesn't exist.
- */
-type FindEntry = {
-  type: EntryType.FIND;
+type Key = string;
+type Entry = {
+  type: EntryType;
   bytes: number;
   operationIndex: number;
   row: { [key: string]: unknown } | null;
 };
-
-type Key = string;
-type Entry = InsertEntry | UpdateEntry | FindEntry;
 type Cache = Map<Table, Map<Key, Entry>>;
 
 /**
@@ -179,10 +157,12 @@ const getBytes = (value: unknown) => {
 export const createIndexingCache = ({
   common,
   database,
+  schemaBuild: { schema },
   checkpoint,
 }: {
   common: Common;
   database: Database;
+  schemaBuild: Pick<SchemaBuild, "schema">;
   checkpoint: string;
 }): IndexingCache => {
   const cache: Cache = new Map();
@@ -198,15 +178,16 @@ export const createIndexingCache = ({
     msg: `Using a ${Math.round(common.options.indexingCacheMaxBytes / (1024 * 1024))} MB indexing cache`,
   });
 
-  const getCacheKey = (
-    table: Table,
-    row: { [key: string]: unknown },
-  ): string => {
+  for (const tableName of getTableNames(schema)) {
+    cache.set(schema[tableName.js] as Table, new Map());
+  }
+
+  const getCacheKey = (table: Table, key: object): string => {
     const primaryKeys = getPrimaryKeyColumns(table);
     return (
       primaryKeys
         // @ts-ignore
-        .map((pk) => normalizeColumn(table[pk.js], row[pk.js]))
+        .map((pk) => normalizeColumn(table[pk.js], key[pk.js]))
         .join("_")
     );
   };
@@ -217,9 +198,17 @@ export const createIndexingCache = ({
     },
     get(table, row) {
       // TODO(kyle) touch
-      return cache.get(table)!.get(getCacheKey(table, row)) ?? null;
+      return cache.get(table)!.get(getCacheKey(table, row))?.row ?? null;
     },
-    set(table, _row, entryType) {
+    set(table, key, _row, entryType) {
+      let row: { [key: string]: unknown } | null;
+
+      if (_row === null) {
+        row = null;
+      } else {
+        row = normalizeRow(table, structuredClone(_row), entryType);
+      }
+
       if (
         entryType === EntryType.UPDATE &&
         cache.get(table)!.get(getCacheKey(table, _row!))?.type ===
@@ -228,12 +217,10 @@ export const createIndexingCache = ({
         entryType = EntryType.INSERT;
       }
 
-      const row = normalizeRow(table, structuredClone(_row), entryType);
-
       const bytes = getBytes(row);
       cacheBytes += bytes;
 
-      cache.get(table)!.set(getCacheKey(table, row), {
+      cache.get(table)!.set(getCacheKey(table, key), {
         type: entryType,
         bytes,
         operationIndex: totalCacheOps++,
@@ -243,11 +230,11 @@ export const createIndexingCache = ({
       // TODO(kyle) how to do only one copy?
       return structuredClone(row);
     },
-    delete(table, row) {
-      const entry = cache.get(table)!.get(getCacheKey(table, row));
+    delete(table, key) {
+      const entry = cache.get(table)!.get(getCacheKey(table, key));
       if (entry) {
         cacheBytes -= entry!.bytes;
-        cache.get(table)!.delete(getCacheKey(table, row));
+        cache.get(table)!.delete(getCacheKey(table, key));
         return true;
       } else {
         return false;
@@ -280,8 +267,8 @@ export const createIndexingCache = ({
             Object.keys(getTableColumns(table)).length,
         );
 
-        const insertValues: InsertEntry["row"][] = [];
-        const updateValues: UpdateEntry["row"][] = [];
+        const insertValues: Entry["row"][] = [];
+        const updateValues: Entry["row"][] = [];
 
         for (const [key, entry] of tableCache) {
           if (entry.type === EntryType.INSERT) {
