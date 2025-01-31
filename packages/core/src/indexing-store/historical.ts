@@ -79,12 +79,10 @@ export const createHistoricalIndexingStore = ({
 
             if (indexingCache.has(table, key)) {
               return indexingCache.get(table, key);
-            } else if (indexingCache.isCacheComplete()) {
-              return null;
-            } else {
-              const row = await find(table, key);
-              return indexingCache.set(table, key, row, EntryType.FIND);
             }
+
+            const row = await find(table, key);
+            return indexingCache.set(table, key, row, EntryType.FIND);
           },
         ),
       ),
@@ -111,15 +109,6 @@ export const createHistoricalIndexingStore = ({
                           indexingCache.get(table, value)
                         ) {
                           rows.push(null);
-                        } else if (indexingCache.isCacheComplete()) {
-                          rows.push(
-                            indexingCache.set(
-                              table,
-                              value,
-                              value,
-                              EntryType.INSERT,
-                            ),
-                          );
                         } else {
                           const findResult = await find(table, value);
 
@@ -150,35 +139,26 @@ export const createHistoricalIndexingStore = ({
                         indexingCache.get(table, values)
                       ) {
                         return null;
-                      } else if (indexingCache.isCacheComplete()) {
-                        return indexingCache.set(
+                      }
+
+                      const findResult = await find(table, values);
+
+                      if (findResult) {
+                        indexingCache.set(
                           table,
                           values,
-                          values,
+                          findResult,
                           EntryType.INSERT,
                         );
-                      } else {
-                        // TODO(kyle) optimistically assume no conflict,
-                        // check for error at flush time
-                        const findResult = await find(table, values);
-
-                        if (findResult) {
-                          indexingCache.set(
-                            table,
-                            values,
-                            findResult,
-                            EntryType.INSERT,
-                          );
-                          return null;
-                        } else {
-                          return indexingCache.set(
-                            table,
-                            values,
-                            values,
-                            EntryType.INSERT,
-                          );
-                        }
+                        return null;
                       }
+
+                      return indexingCache.set(
+                        table,
+                        values,
+                        values,
+                        EntryType.INSERT,
+                      );
                     }
                   },
                 ),
@@ -219,15 +199,6 @@ export const createHistoricalIndexingStore = ({
                               row,
                               row,
                               EntryType.UPDATE,
-                            ),
-                          );
-                        } else if (indexingCache.isCacheComplete()) {
-                          rows.push(
-                            indexingCache.set(
-                              table,
-                              value,
-                              valuesU,
-                              EntryType.INSERT,
                             ),
                           );
                         } else {
@@ -291,45 +262,35 @@ export const createHistoricalIndexingStore = ({
                           row,
                           EntryType.UPDATE,
                         );
-                      } else if (indexingCache.isCacheComplete()) {
+                      }
+                      const findResult = await find(table, values);
+
+                      if (findResult) {
+                        if (typeof valuesU === "function") {
+                          for (const [key, value] of Object.entries(
+                            valuesU(findResult),
+                          )) {
+                            findResult[key] = value;
+                          }
+                        } else {
+                          for (const [key, value] of Object.entries(valuesU)) {
+                            findResult[key] = value;
+                          }
+                        }
                         return indexingCache.set(
                           table,
                           values,
-                          values,
-                          EntryType.INSERT,
+                          findResult,
+                          EntryType.UPDATE,
                         );
-                      } else {
-                        const findResult = await find(table, values);
-
-                        if (findResult) {
-                          if (typeof valuesU === "function") {
-                            for (const [key, value] of Object.entries(
-                              valuesU(findResult),
-                            )) {
-                              findResult[key] = value;
-                            }
-                          } else {
-                            for (const [key, value] of Object.entries(
-                              valuesU,
-                            )) {
-                              findResult[key] = value;
-                            }
-                          }
-                          return indexingCache.set(
-                            table,
-                            values,
-                            findResult,
-                            EntryType.UPDATE,
-                          );
-                        } else {
-                          return indexingCache.set(
-                            table,
-                            values,
-                            values,
-                            EntryType.INSERT,
-                          );
-                        }
                       }
+
+                      return indexingCache.set(
+                        table,
+                        values,
+                        values,
+                        EntryType.INSERT,
+                      );
                     }
                   },
                 ),
@@ -359,37 +320,28 @@ export const createHistoricalIndexingStore = ({
                               `db.insert arguments:\n${prettyPrint(value)}`,
                             );
                             throw error;
-                          } else if (indexingCache.isCacheComplete()) {
-                            rows.push(
-                              indexingCache.set(
-                                table,
-                                value,
-                                value,
-                                EntryType.INSERT,
-                              ),
-                            );
-                          } else {
-                            const findResult = await find(table, value);
-
-                            if (findResult) {
-                              const error = new UniqueConstraintError(
-                                `Unique constraint failed for '${getTableName(table)}'.`,
-                              );
-                              error.meta.push(
-                                `db.insert arguments:\n${prettyPrint(value)}`,
-                              );
-                              throw error;
-                            } else {
-                              rows.push(
-                                indexingCache.set(
-                                  table,
-                                  value,
-                                  value,
-                                  EntryType.INSERT,
-                                ),
-                              );
-                            }
                           }
+
+                          const findResult = await find(table, value);
+
+                          if (findResult) {
+                            const error = new UniqueConstraintError(
+                              `Unique constraint failed for '${getTableName(table)}'.`,
+                            );
+                            error.meta.push(
+                              `db.insert arguments:\n${prettyPrint(value)}`,
+                            );
+                            throw error;
+                          }
+
+                          rows.push(
+                            indexingCache.set(
+                              table,
+                              value,
+                              value,
+                              EntryType.INSERT,
+                            ),
+                          );
                         }
                         return rows;
                       } else {
@@ -404,33 +356,28 @@ export const createHistoricalIndexingStore = ({
                             `db.insert arguments:\n${prettyPrint(values)}`,
                           );
                           throw error;
-                        } else if (indexingCache.isCacheComplete()) {
-                          return indexingCache.set(
-                            table,
-                            values,
-                            values,
-                            EntryType.INSERT,
-                          );
-                        } else {
-                          const findResult = await find(table, values);
-
-                          if (findResult) {
-                            const error = new UniqueConstraintError(
-                              `Unique constraint failed for '${getTableName(table)}'.`,
-                            );
-                            error.meta.push(
-                              `db.insert arguments:\n${prettyPrint(values)}`,
-                            );
-                            throw error;
-                          } else {
-                            return indexingCache.set(
-                              table,
-                              values,
-                              values,
-                              EntryType.INSERT,
-                            );
-                          }
                         }
+
+                        // TODO(kyle) optimistically assume no conflict,
+                        // check for error at flush time
+                        const findResult = await find(table, values);
+
+                        if (findResult) {
+                          const error = new UniqueConstraintError(
+                            `Unique constraint failed for '${getTableName(table)}'.`,
+                          );
+                          error.meta.push(
+                            `db.insert arguments:\n${prettyPrint(values)}`,
+                          );
+                          throw error;
+                        }
+
+                        return indexingCache.set(
+                          table,
+                          values,
+                          values,
+                          EntryType.INSERT,
+                        );
                       }
                     },
                   ),
@@ -465,30 +412,20 @@ export const createHistoricalIndexingStore = ({
               async () => {
                 checkOnchainTable(table, "update");
 
-                let row: { [key: string]: unknown };
+                let row: { [key: string]: unknown } | null;
 
                 if (indexingCache.has(table, key)) {
-                  row = indexingCache.get(table, key)!;
-                } else if (indexingCache.isCacheComplete()) {
+                  row = indexingCache.get(table, key);
+                } else {
+                  row = await find(table, key);
+                }
+
+                if (row === null) {
                   const error = new RecordNotFoundError(
                     `No existing record found in table '${getTableName(table)}'`,
                   );
                   error.meta.push(`db.update arguments:\n${prettyPrint(key)}`);
                   throw error;
-                } else {
-                  const findResult = await find(table, key);
-
-                  if (findResult) {
-                    row = findResult;
-                  } else {
-                    const error = new RecordNotFoundError(
-                      `No existing record found in table '${getTableName(table)}'`,
-                    );
-                    error.meta.push(
-                      `db.update arguments:\n${prettyPrint(key)}`,
-                    );
-                    throw error;
-                  }
                 }
 
                 if (typeof values === "function") {
@@ -515,29 +452,33 @@ export const createHistoricalIndexingStore = ({
           async () => {
             checkOnchainTable(table, "delete");
 
-            if (indexingCache.has(table, key)) {
-              if (indexingCache.get(table, key) === null) {
-                return false;
-              }
-              indexingCache.delete(table, key);
+            // in the cache with null
+            // in the cache with a value
+            // not in the cache
 
-              if (indexingCache.isCacheComplete() === false) {
-                await database.qb.drizzle
-                  .delete(table)
-                  .where(getWhereCondition(table, key));
-              }
+            if (
+              indexingCache.has(table, key) &&
+              indexingCache.get(table, key) === null
+            ) {
+              return false;
+            }
+
+            if (indexingCache.has(table, key)) {
+              // TODO(kyle) if cache is not complete, delete from db
+              // await database.qb.drizzle
+              //   .delete(table)
+              //   .where(getWhereCondition(table, key));
+              // }
 
               return true;
-            } else if (indexingCache.isCacheComplete()) {
-              return false;
-            } else {
-              const deleteResult = await database.qb.drizzle
-                .delete(table)
-                .where(getWhereCondition(table, key))
-                .returning();
-
-              return deleteResult.length > 0;
             }
+
+            const deleteResult = await database.qb.drizzle
+              .delete(table)
+              .where(getWhereCondition(table, key))
+              .returning();
+
+            return deleteResult.length > 0;
           },
         ),
       ),

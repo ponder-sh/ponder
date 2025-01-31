@@ -30,9 +30,9 @@ export type IndexingCache = {
     entryType: EntryType,
   ) => { [key: string]: unknown } | null;
   delete: (table: Table, key: object) => boolean;
-  isCacheComplete: () => boolean;
-  size: number;
   flush: () => Promise<void>;
+  bust: () => void;
+  size: number;
 };
 
 export enum EntryType {
@@ -49,6 +49,12 @@ type Entry = {
   row: { [key: string]: unknown } | null;
 };
 type Cache = Map<Table, Map<Key, Entry>>;
+
+// type Buffer = Map<Table, {
+//   event: string;
+//   method: string;
+//   args: object;
+// }[]>;
 
 /**
  * Returns true if the column has a "default" value that is used when no value is passed.
@@ -193,6 +199,7 @@ export const createIndexingCache = ({
 
   return {
     has(table, key) {
+      if (isCacheComplete) return true;
       return cache.get(table)!.has(getCacheKey(table, key));
     },
     get(table, key) {
@@ -241,12 +248,6 @@ export const createIndexingCache = ({
       } else {
         return false;
       }
-    },
-    isCacheComplete() {
-      return isCacheComplete;
-    },
-    get size() {
-      return cacheBytes;
     },
     async flush() {
       let cacheSize = 0;
@@ -368,6 +369,12 @@ export const createIndexingCache = ({
       }
 
       await Promise.all(promises);
+    },
+    bust() {
+      isCacheComplete = false;
+    },
+    get size() {
+      return cacheBytes;
     },
   };
 };
