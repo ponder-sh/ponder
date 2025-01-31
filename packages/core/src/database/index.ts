@@ -23,7 +23,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
+import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -39,7 +39,6 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
-import { KyselyPGlite } from "kysely-pglite";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -155,7 +154,7 @@ export const createDatabase = async ({
           : preBuild.databaseConfig.instance,
     };
 
-    const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
+    const kyselyDialect = createPgliteKyselyDialect(driver.instance);
 
     await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     await driver.instance.query(`SET search_path TO "${namespace}"`);
