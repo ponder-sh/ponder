@@ -14,7 +14,10 @@ import { prettyPrint } from "@/utils/print.js";
 import {
   type Column,
   type SQL,
+  type SQLWrapper,
   type Table,
+  and,
+  eq,
   getTableColumns,
   getTableName,
   sql,
@@ -22,14 +25,20 @@ import {
 
 export type IndexingCache = {
   has: (table: Table, key: object) => boolean;
-  get: (table: Table, key: object) => { [key: string]: unknown } | null;
+  get: (
+    table: Table,
+    key: object,
+  ) =>
+    | { [key: string]: unknown }
+    | null
+    | Promise<{ [key: string]: unknown } | null>;
   set: (
     table: Table,
     key: object,
     row: { [key: string]: unknown } | null,
     entryType: EntryType,
   ) => { [key: string]: unknown } | null;
-  delete: (table: Table, key: object) => boolean;
+  delete: (table: Table, key: object) => boolean | Promise<boolean>;
   flush: () => Promise<void>;
   bust: () => void;
   size: number;
@@ -132,6 +141,18 @@ export const normalizeRow = (
   return row;
 };
 
+/** Returns an sql where condition for `table` with `key`. */
+const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
+  const conditions: SQLWrapper[] = [];
+
+  for (const { js } of getPrimaryKeyColumns(table)) {
+    // @ts-ignore
+    conditions.push(eq(table[js]!, key[js]));
+  }
+
+  return and(...conditions)!;
+};
+
 const getBytes = (value: unknown) => {
   // size of metadata
   let size = 13;
@@ -172,6 +193,18 @@ export const createIndexingCache = ({
 }): IndexingCache => {
   const cache: Cache = new Map();
 
+  const find = (table: Table, key: object) =>
+    database.wrap(
+      { method: `${getTableName(table) ?? "unknown"}.cache.find()` },
+      async () => {
+        return database.qb.drizzle
+          .select()
+          .from(table)
+          .where(getWhereCondition(table, key))
+          .then((res) => (res.length === 0 ? null : res[0]!));
+      },
+    );
+
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
   /** Estimated number of bytes used by cache. */
   let cacheBytes = 0;
@@ -207,9 +240,36 @@ export const createIndexingCache = ({
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
+
+        if (entry.row) {
+          return structuredClone(entry.row);
+        }
       }
 
-      return entry?.row ? structuredClone(entry.row) : null;
+      if (isCacheComplete) {
+        return null;
+      }
+
+      return find(table, key).then((_row) => {
+        let row: { [key: string]: unknown } | null;
+
+        if (_row === null) {
+          row = null;
+        } else {
+          row = normalizeRow(table, _row, EntryType.FIND);
+        }
+
+        const bytes = getBytes(row);
+        cacheBytes += bytes;
+
+        cache.get(table)!.set(getCacheKey(table, key), {
+          type: EntryType.FIND,
+          bytes,
+          operationIndex: totalCacheOps++,
+          row: structuredClone(row),
+        });
+        return row;
+      });
     },
     set(table, key, _row, entryType) {
       let row: { [key: string]: unknown } | null;
@@ -241,13 +301,27 @@ export const createIndexingCache = ({
     },
     delete(table, key) {
       const entry = cache.get(table)!.get(getCacheKey(table, key));
+
       if (entry) {
-        cacheBytes -= entry!.bytes;
-        cache.get(table)!.delete(getCacheKey(table, key));
+        if (entry.row === null) {
+          return false;
+        }
+
+        if (isCacheComplete === false) {
+          return database.qb.drizzle
+            .delete(table)
+            .where(getWhereCondition(table, key))
+            .then(() => true);
+        }
+
         return true;
-      } else {
-        return false;
       }
+
+      return database.qb.drizzle
+        .delete(table)
+        .where(getWhereCondition(table, key))
+        .returning()
+        .then((result) => result.length > 0);
     },
     async flush() {
       let cacheSize = 0;
