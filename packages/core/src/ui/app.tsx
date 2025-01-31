@@ -140,7 +140,7 @@ const App = (ui: UiState) => {
               {formatPercentage(app.mode === "realtime" ? 1 : app.progress)}
               {app.eta === undefined || app.eta === 0
                 ? null
-                : ` (${formatEta(app.eta)} eta)`}
+                : ` (${formatEta(app.eta * 1_000)} eta)`}
             </Text>
           </Box>
           <Text> </Text>
