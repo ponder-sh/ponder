@@ -58,7 +58,7 @@ export const createHistoricalIndexingStore = ({
 
   const find = (table: Table, key: object) =>
     database.wrap(
-      { method: `${getTableName(table) ?? "unknown"}.sql.find()` },
+      { method: `${getTableName(table) ?? "unknown"}.cache.find()` },
       async () => {
         return database.qb.drizzle
           .select()
