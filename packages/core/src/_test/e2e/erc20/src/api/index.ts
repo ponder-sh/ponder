@@ -5,6 +5,6 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-app.use(client({ db, schema }));
+app.use("/sql/*", client({ db, schema }));
 
 export default app;

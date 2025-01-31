@@ -54,7 +54,7 @@ export type Database = {
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
   migrate({ buildId }: Pick<IndexingBuild, "buildId">): Promise<void>;
-  /** Determine the app checkpoint , possibly reverting unfinalized rows. */
+  /** Determine the app checkpoint, possibly reverting unfinalized rows. */
   recoverCheckpoint(): Promise<string>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;

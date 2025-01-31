@@ -7,6 +7,7 @@ import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
+import superjson from "superjson";
 import { beforeEach, expect, test } from "vitest";
 import { client } from "./index.js";
 
@@ -14,7 +15,7 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 const queryToParams = (query: QueryWithTypings) =>
-  new URLSearchParams({ sql: JSON.stringify(query) });
+  new URLSearchParams({ sql: superjson.stringify(query) });
 
 test("client.db", async (context) => {
   globalThis.PONDER_NAMESPACE_BUILD = "public";
@@ -42,7 +43,7 @@ test("client.db", async (context) => {
     params: [],
   };
 
-  let response = await app.request(`/client/db?${queryToParams(query)}`);
+  let response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(200);
   const result = await response.json();
   expect(result.rows).toStrictEqual([]);
@@ -52,7 +53,7 @@ test("client.db", async (context) => {
     params: [],
   };
 
-  response = await app.request(`/client/db?${queryToParams(query)}`);
+  response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(200);
 
   await cleanup();
@@ -77,7 +78,7 @@ test("client.db error", async (context) => {
     params: [],
   };
 
-  const response = await app.request(`/client/db?${queryToParams(query)}`);
+  const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
   expect(await response.text()).toContain('relation "account" does not exist');
 
@@ -111,7 +112,7 @@ test("client.db search_path", async (context) => {
     params: [],
   };
 
-  const response = await app.request(`/client/db?${queryToParams(query)}`);
+  const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(200);
   await cleanup();
 });
@@ -139,7 +140,7 @@ test("client.db readonly", async (context) => {
     params: [],
   };
 
-  const response = await app.request(`/client/db?${queryToParams(query)}`);
+  const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
   expect(await response.text()).toContain("InsertStmt not supported");
   await cleanup();
@@ -176,7 +177,7 @@ FROM infinite_cte;`,
     params: [],
   };
 
-  const response = await app.request(`/client/db?${queryToParams(query)}`);
+  const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
   expect(await response.text()).toContain("Recursive CTEs not supported");
   await cleanup();

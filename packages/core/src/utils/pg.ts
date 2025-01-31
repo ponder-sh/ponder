@@ -92,7 +92,7 @@ export function createReadonlyPool(
         super.connect(() => {
           this.query(
             `
-          SET search_path = "${namespace}", public;
+          SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
           SET statement_timeout = '500ms';
@@ -105,7 +105,7 @@ export function createReadonlyPool(
         return super.connect().then(() =>
           this.query(
             `
-          SET search_path = "${namespace}", public;
+          SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
           SET statement_timeout = '500ms';

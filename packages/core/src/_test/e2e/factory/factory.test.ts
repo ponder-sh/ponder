@@ -37,7 +37,7 @@ test(
   "factory",
   async () => {
     const port = await getFreePort();
-    const client = createClient(`http://localhost:${port}`, { schema });
+    const client = createClient(`http://localhost:${port}/sql`, { schema });
 
     const cleanup = await start({
       cliOptions: {

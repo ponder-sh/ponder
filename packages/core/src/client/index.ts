@@ -5,6 +5,7 @@ import type { QueryWithTypings } from "drizzle-orm";
 import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import superjson from "superjson";
 import { validateQuery } from "./validate.js";
 
 const status = pgTable("_ponder_status", (t) => ({
@@ -29,7 +30,7 @@ const status = pgTable("_ponder_status", (t) => ({
  *
  * const app = new Hono();
  *
- * app.use(client({ db, schema }));
+ * app.use("/sql/*", client({ db, schema }));
  *
  * export default app;
  * ```
@@ -61,10 +62,10 @@ export const client = ({
 
       driver.listen.on("error", async () => {
         driver.listen?.release();
-        connectAndListen();
+        await connectAndListen();
       });
 
-      driver.listen.on("notification", async () => {
+      driver.listen.on("notification", () => {
         statusResolver.resolve();
         statusResolver = promiseWithResolvers();
       });
@@ -74,16 +75,12 @@ export const client = ({
   }
 
   return createMiddleware(async (c, next) => {
-    if (c.req.path === "/client/db") {
+    if (c.req.path === "/sql/db") {
       const queryString = c.req.query("sql");
       if (queryString === undefined) {
         return c.text('Missing "sql" query parameter', 400);
       }
-      const query = JSON.parse(queryString) as QueryWithTypings;
-
-      if (query.sql.match(/\bCOMMIT\b/i)) {
-        return c.text("Invalid query", 400);
-      }
+      const query = superjson.parse(queryString) as QueryWithTypings;
 
       if ("instance" in driver) {
         try {
@@ -116,9 +113,7 @@ export const client = ({
       }
     }
 
-    if (c.req.path === "/client/live") {
-      // TODO(kyle) live queries only availble in realtime mode
-
+    if (c.req.path === "/sql/live") {
       c.header("Content-Type", "text/event-stream");
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
@@ -126,16 +121,14 @@ export const client = ({
       return streamSSE(c, async (stream) => {
         while (stream.closed === false && stream.aborted === false) {
           try {
-            await stream.writeSSE({
-              data: JSON.stringify({ status: "success" }),
-            });
+            await stream.writeSSE({ data: "" });
           } catch {}
           await statusResolver.promise;
         }
       });
     }
 
-    if (c.req.path === "/client/status") {
+    if (c.req.path === "/sql/status") {
       const statusResult = await db.select().from(status);
       return c.json(statusResult);
     }

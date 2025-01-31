@@ -3,6 +3,8 @@ import { validateQuery } from "./validate.js";
 
 test("validateQuery()", async () => {
   await validateQuery("SELECT * FROM users;");
+  await validateQuery("SELECT u.name FROM users as u;");
+
   await validateQuery("SELECT col FROM users LIMIT 1;");
   await validateQuery(
     "SELECT col FROM users JOIN users ON users.id = users.id;",
@@ -29,6 +31,17 @@ test("validateQuery() cache", async () => {
 
 test("validateQuery() select into", () => {
   expect(() => validateQuery("SELECT * INTO users;")).rejects.toThrow();
+});
+
+test("validateQuery() schema name", () => {
+  expect(() =>
+    validateQuery("SELECT * FROM offchain.metadata;"),
+  ).rejects.toThrow();
+});
+test("validateQuery() system tables", () => {
+  expect(() =>
+    validateQuery("SELECT * FROM pg_stat_activity;"),
+  ).rejects.toThrow();
 });
 
 test("validateQuery() recursive cte", () => {
