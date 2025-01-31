@@ -1,144 +1,127 @@
 /// <reference types="node" />
 
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import chalk from "chalk";
+import { watch } from "chokidar";
 import { execa } from "execa";
 import { rimraf } from "rimraf";
 
 const PACKAGE_NAME = "@PONDER/REACT";
-const TSCONFIG = "tsconfig.build.json";
 
-const prefix = `${chalk.gray("[")}${PACKAGE_NAME}${chalk.gray("]")}`;
-const cliInfo = `${prefix} ${chalk.blue("CLI")}`;
-const cliError = `${prefix} ${chalk.red("CLI")}`;
-const tscInfo = `${prefix} ${chalk.green("TSC")}`;
-const tscError = `${prefix} ${chalk.red("TSC")}`;
+const TSCONFIG = "tsconfig.build.json";
+const WATCH_DIRECTORY = "src";
+
+// Logging utilities
+const prefix = chalk.gray(`[${PACKAGE_NAME}]`);
+const log = {
+  cli: (msg: string) => console.log(`${prefix} ${chalk.magenta("CLI")} ${msg}`),
+  error: (msg: string) =>
+    console.error(`${prefix} ${chalk.red("ERROR")} ${msg}`),
+  success: (msg: string) =>
+    console.log(`${prefix} ${chalk.green("CLI")} ${msg}`),
+  tsc: (msg: string) => console.log(`${prefix} ${chalk.blue("TSC")} ${msg}`),
+};
 
 async function build() {
-  console.log(`${cliInfo} Build start`);
-
-  const startTime = Date.now();
-
-  // Clean dist folder
   try {
+    log.cli("Build start");
+    const startTime = Date.now();
+
+    // Clean dist folder
     await rimraf("dist");
-    console.log(`${cliInfo} Cleaned output folder`);
-  } catch (error) {
-    console.error(`${cliError} Clean failed:`);
-    console.error(error);
-    return false;
-  }
+    log.cli("Cleaned output folder");
 
-  // Run TypeScript compiler
-  let stdout: string;
-  let stderr: string;
-  let exitCode: number;
-  try {
+    // Run TypeScript compiler
     const result = await execa("tsc", ["--project", TSCONFIG], {
       reject: false,
       stderr: "pipe",
       stdout: "pipe",
     });
-    stdout = result.stdout;
-    stderr = result.stderr;
-    exitCode = result.exitCode;
+
+    // Handle compiler output
+    const output = `${result.stdout}\n${result.stderr}`
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    output.forEach((line) => log.tsc(line));
+
+    if (result.exitCode !== 0) {
+      log.error("Build failed");
+      return false;
+    }
+
+    const duration = Date.now() - startTime;
+    log.success(`⚡️ Build success in ${duration}ms`);
+    return true;
   } catch (error) {
-    console.error(error);
-    console.error(`${tscError} Build failed`);
+    log.error(`Build failed: ${error}`);
     return false;
   }
-
-  const output = `${stdout}\n${stderr}`
-    .trim()
-    .split("\n")
-    .filter((l) => l.trim() !== "");
-  for (const line of output) {
-    console.log(`${tscError} ${line}`);
-  }
-
-  if (exitCode !== 0) {
-    console.error(`${tscError} Build failed`);
-    return false;
-  }
-
-  const duration = Date.now() - startTime;
-  console.log(`${tscInfo} ⚡️ Build success in ${duration}ms`);
-
-  return true;
 }
 
-build().then((success) => {
-  process.exit(success ? 0 : 1);
-});
+async function watchMode() {
+  await build();
 
-/// WATCH MODE (WIP) ///
+  const watcher = watch(WATCH_DIRECTORY, {
+    cwd: dirname(fileURLToPath(import.meta.url)),
+    persistent: true,
+  });
 
-// async function watchMode() {
-//   // Initial build
-//   await build();
+  let isBuilding = false;
+  let isBuildQueued = false;
 
-//   const paths = ["."];
-//   const ignorePaths = ["**/node_modules/**", "**/dist/**", "**/.git/**"];
+  async function enqueueBuild() {
+    if (!isBuilding) {
+      try {
+        isBuilding = true;
+        await build();
+      } finally {
+        isBuilding = false;
+      }
+      if (isBuildQueued) {
+        isBuildQueued = false;
+        await enqueueBuild();
+      }
+    } else {
+      isBuildQueued = true;
+    }
+  }
 
-//   // Set up file watcher
-//   const watcher = watch(paths, {
-//     ignored: ignorePaths,
-//     persistent: true,
-//     ignoreInitial: true,
-//     awaitWriteFinish: {
-//       stabilityThreshold: 100,
-//       pollInterval: 100,
-//     },
-//   });
+  watcher.on("change", async (path) => {
+    log.cli(`Change detected: ${path}`);
+    await enqueueBuild();
+  });
 
-//   console.log(
-//     `${cliInfo} Watching for changes in ${paths.map((p) => `"${p}"`).join(" | ")}`,
-//   );
-//   console.log(
-//     `${cliInfo} Ignoring changes in ${ignorePaths
-//       .map((p) => `"${p}"`)
-//       .join(" | ")}`,
-//   );
+  watcher.on("error", (error) => {
+    log.error(`Watch error: ${error}`);
+  });
 
-//   let building = false;
-//   let pendingBuild = false;
+  watcher.on("ready", () => {
+    log.cli(`Watching for changes in "${WATCH_DIRECTORY}"`);
+  });
 
-//   watcher
-//     .on("change", async (path) => {
-//       console.log(`${cliInfo} Change detected: ${path}`);
+  // Handle process termination
+  process.on("SIGINT", () => {
+    watcher.close().then(() => {
+      log.cli("Watch mode terminated");
+      process.exit(0);
+    });
+  });
+}
 
-//       if (building) {
-//         pendingBuild = true;
-//         return;
-//       }
+// Parse command line arguments
+const isWatchMode =
+  process.argv.includes("--watch") || process.argv.includes("-w");
 
-//       building = true;
-//       await build();
-//       building = false;
-
-//       if (pendingBuild) {
-//         pendingBuild = false;
-//         watcher.emit("change", "pending changes");
-//       }
-//     })
-//     .on("error", (error) => {
-//       console.log(`${cliError} Watch error:`);
-//       console.error(error);
-//     });
-// }
-
-// // Check for watch mode in a more robust way
-// const isWatchMode = process.argv
-//   .slice(2)
-//   .some((arg) => arg === "--watch" || arg === "--watch=true" || arg === "-w");
-
-// if (isWatchMode) {
-//   watchMode().catch((error) => {
-//     console.log(`${cliError} Watch mode failed:`);
-//     console.error(error);
-//     process.exit(1);
-//   });
-// } else {
-//   build().then((success) => {
-//     process.exit(success ? 0 : 1);
-//   });
-// }
+if (isWatchMode) {
+  watchMode().catch((error) => {
+    log.error(`Watch mode failed: ${error}`);
+    process.exit(1);
+  });
+} else {
+  build().then((success) => {
+    process.exit(success ? 0 : 1);
+  });
+}
