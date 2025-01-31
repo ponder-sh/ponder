@@ -158,6 +158,8 @@ export const createHistoricalIndexingStore = ({
                           EntryType.INSERT,
                         );
                       } else {
+                        // TODO(kyle) optimistically assume no conflict,
+                        // check for error at flush time
                         const findResult = await find(table, values);
 
                         if (findResult) {
@@ -300,7 +302,6 @@ export const createHistoricalIndexingStore = ({
                         const findResult = await find(table, values);
 
                         if (findResult) {
-                          //  const row = indexingCache.get(table, values)!;
                           if (typeof valuesU === "function") {
                             for (const [key, value] of Object.entries(
                               valuesU(findResult),
@@ -543,10 +544,8 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await database.createTriggers();
-        // TODO(kyle) invalidate cache
         await indexingCache.flush();
-        await database.removeTriggers();
+        // TODO(kyle) invalidate cache
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 

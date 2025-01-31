@@ -22,7 +22,6 @@ import {
 
 export type IndexingCache = {
   has: (table: Table, key: object) => boolean;
-  // TODO(kyle) should `get` make a database query?
   get: (table: Table, key: object) => { [key: string]: unknown } | null;
   set: (
     table: Table,
