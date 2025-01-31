@@ -713,3 +713,43 @@ test("json bigint", async (context) => {
 
   await cleanup();
 });
+
+const BIGINT_MAX = 2n ** 256n - 1n;
+// https://github.com/ponder-sh/ponder/issues/1475#issuecomment-2625967710
+const BIGINT_LARGE =
+  81043282338925483631878461732084420541800751556297842951124152226153187811344n;
+
+test("bigint array", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      balances: t.bigint().array().notNull(),
+    })),
+  };
+
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    balances: [1n, BIGINT_LARGE, BIGINT_MAX],
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balances: [1n, BIGINT_LARGE, BIGINT_MAX],
+  });
+
+  await cleanup();
+});
