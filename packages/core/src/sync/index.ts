@@ -441,7 +441,9 @@ export const createSync = async (params: {
                 type: "block",
                 checkpoint,
                 status: structuredClone(status),
-                events: readyEvents,
+                events: readyEvents.sort((a, b) =>
+                  a.checkpoint < b.checkpoint ? -1 : 1,
+                ),
                 network,
               })
               .then(() => {

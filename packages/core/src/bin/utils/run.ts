@@ -106,6 +106,12 @@ export async function run({
             });
 
             for (const { checkpoint, events } of perBlockEvents) {
+              const network = indexingBuild.networks.find(
+                (network) =>
+                  network.chainId ===
+                  Number(decodeCheckpoint(checkpoint).chainId),
+              )!;
+
               const decodedEvents = decodeEvents(
                 common,
                 indexingBuild.sources,
@@ -114,7 +120,7 @@ export async function run({
 
               common.logger.debug({
                 service: "app",
-                msg: `Decoded ${decodedEvents.length} events`,
+                msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
               });
 
               const result = await indexingService.processEvents({
@@ -123,7 +129,7 @@ export async function run({
 
               common.logger.info({
                 service: "app",
-                msg: `Indexed ${decodedEvents.length} events`,
+                msg: `Indexed ${decodedEvents.length} '${network.name}' events`,
               });
 
               if (result.status === "error") onReloadableError(result.error);
