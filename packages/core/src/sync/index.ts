@@ -412,7 +412,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted ${events.length} '${network.name}' events`,
+            msg: `Extracted ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
           if (params.mode === "multichain") {

@@ -120,7 +120,7 @@ export async function run({
 
               common.logger.debug({
                 service: "app",
-                msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
+                msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
               });
 
               const result = await indexingService.processEvents({
@@ -129,7 +129,7 @@ export async function run({
 
               common.logger.info({
                 service: "app",
-                msg: `Indexed ${decodedEvents.length} '${network.name}' events`,
+                msg: `Indexed ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
               });
 
               if (result.status === "error") onReloadableError(result.error);
