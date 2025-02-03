@@ -126,3 +126,12 @@ export class FlushError extends NonRetryableError {
     Object.setPrototypeOf(this, FlushError.prototype);
   }
 }
+
+export class ShutdownError extends NonRetryableError {
+  override name = "ShutdownError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, ShutdownError.prototype);
+  }
+}

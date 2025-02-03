@@ -1,3 +1,5 @@
+import { ShutdownError } from "@/internal/errors.js";
+import type { Shutdown } from "@/internal/shutdown.js";
 import { promiseWithResolvers } from "@ponder/common";
 
 /**
@@ -90,4 +92,15 @@ export async function drainAsyncGenerator<T>(
   }
 
   return result;
+}
+
+export async function* shutdownAsyncGenerator<T>(
+  asyncGenerator: AsyncGenerator<T>,
+  shutdown: Shutdown,
+): AsyncGenerator<T> {
+  for await (const result of asyncGenerator) {
+    // TODO(kyle) should this add something to shutdown?
+    if (shutdown.isKilled) throw new ShutdownError();
+    yield result;
+  }
 }

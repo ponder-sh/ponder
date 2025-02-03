@@ -130,7 +130,6 @@ export const createDatabase = async ({
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
-  let isKilled = false;
 
   ////////
   // Create schema, drivers, roles, and query builders
@@ -456,6 +455,7 @@ export const createDatabase = async ({
         }
 
         try {
+          // if (common.shutdown.isKilled) {}
           const result = await fn();
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },

@@ -188,11 +188,7 @@ export const processSetupEvents = async (
     sources: Source[];
     networks: Network[];
   },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   for (const eventName of Object.keys(indexingService.indexingFunctions)) {
     if (!eventName.endsWith(":setup")) continue;
 
@@ -240,11 +236,7 @@ export const processSetupEvents = async (
 export const processEvents = async (
   indexingService: Service,
   { events }: { events: Event[] },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   for (let i = 0; i < events.length; i++) {
     if (indexingService.isKilled) return { status: "killed" };
 

@@ -13,7 +13,7 @@ export type Queue<returnType, taskType> = {
   size: () => number;
   pending: () => Promise<number>;
   add: (task: taskType) => Promise<returnType>;
-  clear: () => void;
+  clear: (error?: Error) => void;
   isStarted: () => boolean;
   start: () => Promise<void>;
   pause: () => void;
@@ -185,7 +185,11 @@ export const createQueue = <returnType, taskType = void>({
         throw error;
       });
     },
-    clear: () => {
+    clear: (error) => {
+      for (const task of queue) {
+        task.reject(error ?? new Error("Queue cleared"));
+      }
+
       queue = new Array<InnerQueue<returnType, taskType>[number]>();
       clearTimeout(timer);
       timer = undefined;
