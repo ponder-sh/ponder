@@ -1326,7 +1326,7 @@ export async function* getLocalSyncGenerator({
 
     common.logger.debug({
       service: "sync",
-      msg: `Synced '${network.name}' for blocks [${interval[0]}, ${interval[1]}]`,
+      msg: `Synced ${interval[1] - interval[0] + 1} '${network.name}' blocks [${interval[0]}, ${interval[1]}]`,
     });
 
     // Update cursor to record progress
