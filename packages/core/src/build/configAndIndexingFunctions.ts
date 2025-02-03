@@ -357,8 +357,13 @@ export async function buildConfigAndIndexingFunctions({
             (s) => filteredEventSelectors.includes(s) === false,
           );
 
-        // TODO(kyle) should we throw an error when an event selector has
-        // a filter but is not registered?
+        for (const selector of filteredEventSelectors) {
+          if (registeredEventSelectors.includes(selector) === false) {
+            throw new Error(
+              `Validation failed: Event selector '${abiEvents.bySelector[selector]?.safeName}' is used in a filter but does not have a corresponding indexing function.`,
+            );
+          }
+        }
 
         if (excludedRegisteredEventSelectors.length > 0) {
           topicsArray.push({

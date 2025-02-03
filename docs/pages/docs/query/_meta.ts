@@ -1,6 +1,6 @@
 export default {
-  "api-functions": "API functions",
-  "client": "Client",
+  "client": "SQL client",
   "graphql": "GraphQL",
+  "api-functions": "API functions",
   "direct-sql": "Direct SQL",
 };

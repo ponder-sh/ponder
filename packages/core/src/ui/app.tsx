@@ -146,7 +146,7 @@ const App = (ui: UiState) => {
           <Text> </Text>
 
           <Box flexDirection="column">
-            <Text bold>GraphQL </Text>
+            <Text bold>API functions </Text>
             <Box flexDirection="row">
               <Text>
                 Server live at http://{hostname}:{port}
