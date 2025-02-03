@@ -76,7 +76,6 @@ type CreateHistoricalSyncParameters = {
 export const createHistoricalSync = async (
   args: CreateHistoricalSyncParameters,
 ): Promise<HistoricalSync> => {
-  let isKilled = false;
   /**
    * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
    */
@@ -434,7 +433,7 @@ export const createHistoricalSync = async (
       address: filter.address,
     });
 
-    if (isKilled) return;
+    // if (isKilled) return;
 
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
