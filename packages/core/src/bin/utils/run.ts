@@ -231,6 +231,8 @@ export async function run({
 
     // Run historical indexing until complete.
     for await (const events of sync.getEvents()) {
+      if (isKilled) return;
+
       if (events.length > 0) {
         const decodedEvents = decodeEvents(
           common,

@@ -270,20 +270,22 @@ export const createSync = async (params: {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
-    } else {
-      let i = events.length - 1;
-      while (i >= 0) {
-        const event = events[i]!;
+      return;
+    }
 
-        if (network.chainId === event.chainId) {
-          status[network.name]!.block = {
-            timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
-            number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
-          };
-        }
+    let i = events.length - 1;
+    while (i >= 0) {
+      const event = events[i]!;
 
-        i--;
+      if (network.chainId === event.chainId) {
+        status[network.name]!.block = {
+          timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
+          number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+        };
+        return;
       }
+
+      i--;
     }
   };
 
