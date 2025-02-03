@@ -113,7 +113,7 @@ export function buildPre({
   return {
     databaseConfig,
     logs,
-    mode: config.mode ?? "multichain",
+    mode: config.mode ?? "omnichain",
   };
 }
 

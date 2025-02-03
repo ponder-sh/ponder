@@ -343,10 +343,13 @@ export const createSync = async (params: {
               ? params.initialCheckpoint
               : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
           to,
-          limit: 1000,
+          limit: Math.round(
+            params.common.options.syncEventsQuerySize /
+              (params.indexingBuild.networks.length * 2),
+          ),
         });
 
-        return bufferAsyncGenerator(localEventGenerator, 2);
+        return bufferAsyncGenerator(localEventGenerator, 1);
       },
     );
 
