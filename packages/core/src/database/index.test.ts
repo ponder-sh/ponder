@@ -341,14 +341,11 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
   });
 
   await databaseTwo.migrate({ buildId: "abc" });
-  const checkpoints = await databaseTwo.recoverCheckpoint();
+  const checkpoint = await databaseTwo.recoverCheckpoint();
 
-  expect(checkpoints).toStrictEqual([
-    {
-      chainId: 1,
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    },
-  ]);
+  expect(checkpoint).toStrictEqual(
+    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  );
 
   const rows = await databaseTwo.qb.drizzle
     .execute(sql`SELECT * from "account"`)

@@ -409,7 +409,7 @@ export async function run({
 
     common.logger.info({
       service: "server",
-      msg: "Started responding as healthy",
+      msg: "Started returning 200 responses from /ready endpoint",
     });
   };
 

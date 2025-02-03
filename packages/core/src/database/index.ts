@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -22,7 +23,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
+import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -38,7 +39,6 @@ import {
   WithSchemaPlugin,
   sql,
 } from "kysely";
-import { KyselyPGlite } from "kysely-pglite";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -154,7 +154,10 @@ export const createDatabase = async ({
           : preBuild.databaseConfig.instance,
     };
 
-    const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
+    const kyselyDialect = createPgliteKyselyDialect(driver.instance);
+
+    await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
+    await driver.instance.query(`SET search_path TO "${namespace}"`);
 
     await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     await driver.instance.query(`SET search_path TO "${namespace}"`);
@@ -444,7 +447,7 @@ export const createDatabase = async ({
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const endClock = startClock();
 
-        const id = crypto.randomUUID().slice(0, 8);
+        const id = randomUUID().slice(0, 8);
         if (options.includeTraceLogs) {
           common.logger.trace({
             service: "database",
@@ -1151,31 +1154,27 @@ $$ LANGUAGE plpgsql
       );
     },
     async finalize({ checkpoint }) {
-      await this.wrap({ method: "finalize" }, async () => {
-        const app = await qb.internal
-          .selectFrom("_ponder_meta")
-          .select("value")
-          .where("key", "=", "app")
-          .executeTakeFirstOrThrow()
-          .then(({ value }) => value);
+      await this.wrap(
+        { method: "finalize", includeTraceLogs: true },
+        async () => {
+          await qb.internal
+            .updateTable("_ponder_meta")
+            .where("key", "=", "app")
+            .set({
+              value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
+            })
+            .execute();
 
-        app.checkpoint = checkpoint;
-
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({ value: app })
-          .execute();
-
-        await Promise.all(
-          getTableNames(schemaBuild.schema).map((tableName) =>
-            qb.internal
-              .deleteFrom(tableName.reorg)
-              .where("checkpoint", "<=", checkpoint)
-              .execute(),
-          ),
-        );
-      });
+          await Promise.all(
+            getTableNames(schemaBuild.schema).map((tableName) =>
+              qb.internal
+                .deleteFrom(tableName.reorg)
+                .where("checkpoint", "<=", checkpoint)
+                .execute(),
+            ),
+          );
+        },
+      );
 
       const decoded = decodeCheckpoint(checkpoint);
 
@@ -1187,13 +1186,16 @@ $$ LANGUAGE plpgsql
     async complete({ checkpoint }) {
       await Promise.all(
         getTableNames(schemaBuild.schema).map((tableName) =>
-          this.wrap({ method: "complete" }, async () => {
-            await qb.internal
-              .updateTable(tableName.reorg)
-              .set({ checkpoint })
-              .where("checkpoint", "=", MAX_CHECKPOINT_STRING)
-              .execute();
-          }),
+          this.wrap(
+            { method: "complete", includeTraceLogs: true },
+            async () => {
+              await qb.internal
+                .updateTable(tableName.reorg)
+                .set({ checkpoint })
+                .where("checkpoint", "=", MAX_CHECKPOINT_STRING)
+                .execute();
+            },
+          ),
         ),
       );
     },
