@@ -78,9 +78,13 @@ test("run() setup", async (context) => {
 
   const kill = await run({
     common: context.common,
-    database,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      mode: "multichain",
+    },
     schemaBuild,
     indexingBuild,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: vi.fn(),
   });
@@ -145,9 +149,13 @@ test("run() setup error", async (context) => {
 
   const kill = await run({
     common: context.common,
-    database,
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      mode: "multichain",
+    },
     schemaBuild,
     indexingBuild,
+    database,
     onFatalError: vi.fn(),
     onReloadableError: () => {
       onReloadableErrorPromiseResolver.resolve();

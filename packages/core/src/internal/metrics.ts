@@ -17,14 +17,16 @@ const httpRequestSizeBytes = [
 
 export class MetricsService {
   registry: prometheus.Registry;
+  start_timestamp: number;
 
-  ponder_indexing_total_seconds: prometheus.Gauge;
-  ponder_indexing_completed_seconds: prometheus.Gauge;
+  ponder_historical_total_indexing_seconds: prometheus.Gauge<"network">;
+  ponder_historical_cached_indexing_seconds: prometheus.Gauge<"network">;
+  ponder_historical_completed_indexing_seconds: prometheus.Gauge<"network">;
+
+  ponder_indexing_timestamp: prometheus.Gauge<"network">;
+  ponder_indexing_has_error: prometheus.Gauge<"network">;
+
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
-
-  ponder_indexing_completed_timestamp: prometheus.Gauge;
-  ponder_indexing_has_error: prometheus.Gauge;
-
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
 
@@ -63,15 +65,24 @@ export class MetricsService {
 
   constructor() {
     this.registry = new prometheus.Registry();
+    this.start_timestamp = Date.now();
 
-    this.ponder_indexing_total_seconds = new prometheus.Gauge({
-      name: "ponder_indexing_total_seconds",
+    this.ponder_historical_total_indexing_seconds = new prometheus.Gauge({
+      name: "ponder_historical_total_indexing_seconds",
       help: "Total number of seconds that are required",
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
-    this.ponder_indexing_completed_seconds = new prometheus.Gauge({
-      name: "ponder_indexing_completed_seconds",
+    this.ponder_historical_cached_indexing_seconds = new prometheus.Gauge({
+      name: "ponder_historical_cached_indexing_seconds",
+      help: "Number of seconds that have been cached",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_completed_indexing_seconds = new prometheus.Gauge({
+      name: "ponder_historical_completed_indexing_seconds",
       help: "Number of seconds that have been completed",
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_completed_events = new prometheus.Gauge({
@@ -80,9 +91,10 @@ export class MetricsService {
       labelNames: ["network", "event"] as const,
       registers: [this.registry],
     });
-    this.ponder_indexing_completed_timestamp = new prometheus.Gauge({
-      name: "ponder_indexing_completed_timestamp",
+    this.ponder_indexing_timestamp = new prometheus.Gauge({
+      name: "ponder_indexing_timestamp",
       help: "Timestamp through which all events have been completed",
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_has_error = new prometheus.Gauge({
@@ -237,10 +249,12 @@ export class MetricsService {
   }
 
   resetIndexingMetrics() {
-    this.ponder_indexing_total_seconds.reset();
-    this.ponder_indexing_completed_seconds.reset();
+    this.start_timestamp = Date.now();
+    this.ponder_historical_total_indexing_seconds.reset();
+    this.ponder_historical_cached_indexing_seconds.reset();
+    this.ponder_historical_completed_indexing_seconds.reset();
     this.ponder_indexing_completed_events.reset();
-    this.ponder_indexing_completed_timestamp.reset();
+    this.ponder_indexing_timestamp.reset();
     this.ponder_indexing_has_error.reset();
     this.ponder_indexing_function_duration.reset();
     this.ponder_indexing_abi_decoding_duration.reset();
@@ -380,16 +394,33 @@ export async function getIndexingProgress(metrics: MetricsService) {
     .values[0]?.value;
   const hasError = hasErrorMetric === 1;
 
-  const totalSeconds =
-    (await metrics.ponder_indexing_total_seconds.get()).values[0]?.value ?? 0;
-  const completedSeconds =
-    (await metrics.ponder_indexing_completed_seconds.get()).values[0]?.value ??
-    0;
-  const completedToTimestamp =
-    (await metrics.ponder_indexing_completed_timestamp.get()).values[0]!
-      .value ?? 0;
+  const sum = (x: number[]) => x.reduce((a, b) => a + b, 0);
+  const max = (x: number[]) => x.reduce((a, b) => Math.max(a, b), 0);
 
-  const progress = totalSeconds === 0 ? 0 : completedSeconds / totalSeconds;
+  const totalSeconds = await metrics.ponder_historical_total_indexing_seconds
+    .get()
+    .then(({ values }) => values.map(({ value }) => value))
+    .then(sum);
+  const cachedSeconds = await metrics.ponder_historical_cached_indexing_seconds
+    .get()
+    .then(({ values }) => values.map(({ value }) => value))
+    .then(sum);
+  const completedSeconds =
+    await metrics.ponder_historical_completed_indexing_seconds
+      .get()
+      .then(({ values }) => values.map(({ value }) => value))
+      .then(sum);
+  const timestamp = await metrics.ponder_indexing_timestamp
+    .get()
+    .then(({ values }) => values.map(({ value }) => value))
+    .then(max);
+
+  const progress =
+    timestamp === 0
+      ? 0
+      : totalSeconds === 0
+        ? 1
+        : (completedSeconds + cachedSeconds) / totalSeconds;
 
   const indexingCompletedEventsMetric = (
     await metrics.ponder_indexing_completed_events.get()
@@ -424,10 +455,10 @@ export async function getIndexingProgress(metrics: MetricsService) {
   return {
     hasError,
     overall: {
-      completedSeconds,
       totalSeconds,
+      cachedSeconds,
+      completedSeconds,
       progress,
-      completedToTimestamp,
       totalEvents,
     },
     events,
@@ -435,86 +466,25 @@ export async function getIndexingProgress(metrics: MetricsService) {
 }
 
 export async function getAppProgress(metrics: MetricsService): Promise<{
-  mode: "historical" | "realtime" | "complete" | undefined;
+  mode: "historical" | "realtime" | undefined;
   progress: number;
   eta: number | undefined;
 }> {
-  const sync = await getSyncProgress(metrics);
   const indexing = await getIndexingProgress(metrics);
-  const decodingSum = await metrics.ponder_indexing_abi_decoding_duration
-    .get()
-    .then(
-      (m) =>
-        m.values.find(
-          (v) => v.metricName === "ponder_indexing_abi_decoding_duration_sum",
-        )?.value,
-    );
-  const getEventsSum = await metrics.ponder_database_method_duration
-    .get()
-    .then(
-      (m) =>
-        m.values.find(
-          (v) =>
-            v.labels.method === "getEvents" &&
-            v.metricName === "ponder_database_method_duration_sum",
-        )?.value,
-    );
-  const indexingSum = indexing.events.reduce(
-    (acc, cur) => acc + cur.averageDuration * cur.count,
-    0,
-  );
-
-  let maxSync: (typeof sync)[number] | undefined;
-  for (const networkSync of sync) {
-    if (
-      maxSync === undefined ||
-      maxSync.eta === undefined ||
-      (networkSync.eta && networkSync.eta > maxSync.eta)
-    ) {
-      maxSync = networkSync;
-    }
-  }
 
   const remainingSeconds =
-    indexing.overall.totalSeconds - indexing.overall.completedSeconds;
+    indexing.overall.totalSeconds -
+    (indexing.overall.completedSeconds + indexing.overall.cachedSeconds);
+  const elapsedSeconds = (Date.now() - metrics.start_timestamp) / 1_000;
 
-  const indexingEta =
+  const eta =
     indexing.overall.completedSeconds === 0
-      ? undefined
-      : (((decodingSum ?? 0) + (getEventsSum ?? 0) + indexingSum) *
-          remainingSeconds) /
-        indexing.overall.completedSeconds;
-
-  const eta = sync.every((n) => n.progress === 1)
-    ? indexingEta
-    : maxSync?.eta === undefined && indexingEta === undefined
-      ? undefined
-      : maxSync?.eta === undefined && maxSync?.progress !== undefined
-        ? undefined
-        : Math.max(maxSync?.eta ?? 0, indexingEta ?? 0);
-
-  // Edge case: If all matched events occurred in the same unix timestamp (second), progress will
-  // be zero, even though indexing is complete. When this happens, totalEvents will be non-zero.
-  const indexingProgress =
-    indexing.overall.progress === 0 && indexing.overall.totalEvents > 0
-      ? 1
-      : indexing.overall.progress;
-
-  const progress = sync.every((n) => n.progress === 1)
-    ? indexingProgress
-    : maxSync?.progress === undefined
       ? 0
-      : maxSync!.progress * indexingProgress;
+      : (elapsedSeconds / indexing.overall.completedSeconds) * remainingSeconds;
 
   return {
-    mode: sync.some((n) => n.status === "realtime")
-      ? "realtime"
-      : sync.every((n) => n.status === "complete")
-        ? "complete"
-        : sync.length === 0
-          ? undefined
-          : "historical",
-    progress,
+    mode: indexing.overall.progress === 1 ? "realtime" : "historical",
+    progress: indexing.overall.progress,
     eta,
   };
 }

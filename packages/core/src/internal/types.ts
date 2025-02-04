@@ -311,6 +311,8 @@ export type NamespaceBuild = string;
 export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
+  /** Ordering of events */
+  mode: "omnichain" | "multichain";
 };
 
 export type SchemaBuild = {
@@ -347,6 +349,12 @@ export type Status = {
     block: { number: number; timestamp: number } | null;
     ready: boolean;
   };
+};
+
+// Seconds
+
+export type Seconds = {
+  [network: string]: { start: number; end: number; cached: number };
 };
 
 // Events

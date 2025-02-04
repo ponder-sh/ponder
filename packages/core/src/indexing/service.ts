@@ -10,23 +10,25 @@ import type {
   SetupEvent,
   Source,
 } from "@/internal/types.js";
+import type { RPC } from "@/rpc/index.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import { isAddressFactory } from "@/sync/filter.js";
-import type { Sync } from "@/sync/index.js";
+import { cachedTransport } from "@/sync/transport.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
 import {
-  type Checkpoint,
+  ZERO_CHECKPOINT,
   decodeCheckpoint,
   encodeCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address, Chain as ViemChain } from "viem";
 import { checksumAddress, createClient } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
-import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
+import type { ReadOnlyClient } from "./ponderActions.js";
+import { getPonderActions } from "./ponderActions.js";
 
 export type Context = {
   chain: ViemChain;
@@ -54,7 +56,6 @@ export type Service = {
   eventCount: {
     [eventName: string]: number;
   };
-  startCheckpoint: Checkpoint;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -76,14 +77,16 @@ export type Service = {
 export const create = ({
   common,
   indexingBuild: { sources, chains, indexingFunctions },
-  sync,
+  rpcs,
+  syncStore,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
     "sources" | "chains" | "indexingFunctions"
   >;
-  sync: Sync;
+  rpcs: RPC[];
+  syncStore: SyncStore;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
     blockNumber: undefined!,
@@ -136,10 +139,12 @@ export const create = ({
   }
 
   // build clientByChainId
-  for (const chain of chains) {
-    const transport = sync.getCachedTransport(chain);
+  for (let i = 0; i < chains.length; i++) {
+    const chain = chains[i]!;
+    const rpc = rpcs[i]!;
+
     clientByChainId[chain.chain.id] = createClient({
-      transport,
+      transport: cachedTransport({ rpc, syncStore }),
       chain: chain.chain,
       // @ts-ignore
     }).extend(getPonderActions(contextState));
@@ -156,7 +161,6 @@ export const create = ({
     indexingFunctions,
     isKilled: false,
     eventCount,
-    startCheckpoint: decodeCheckpoint(sync.getStartCheckpoint()),
     currentEvent: {
       contextState,
       context: {
@@ -210,7 +214,7 @@ export const processSetupEvents = async (
           type: "setup",
           chainId: chain.chain.id,
           checkpoint: encodeCheckpoint({
-            ...zeroCheckpoint,
+            ...ZERO_CHECKPOINT,
             chainId: BigInt(chain.chain.id),
             blockNumber: BigInt(source.filter.fromBlock ?? 0),
           }),
@@ -259,40 +263,8 @@ export const processEvents = async (
       service: "indexing",
       msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
     });
-
-    // periodically update metrics
-    if (i % 93 === 0) {
-      updateCompletedEvents(indexingService);
-
-      const eventTimestamp = decodeCheckpoint(event.checkpoint).blockTimestamp;
-
-      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-        eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
-      );
-      indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
-        eventTimestamp,
-      );
-
-      // Note: allows for terminal and logs to be updated
-      await new Promise(setImmediate);
-    }
   }
 
-  // set completed seconds
-  if (events.length > 0) {
-    const lastEventInBatchTimestamp = decodeCheckpoint(
-      events[events.length - 1]!.checkpoint,
-    ).blockTimestamp;
-
-    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      lastEventInBatchTimestamp -
-        indexingService.startCheckpoint.blockTimestamp,
-    );
-    indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
-      lastEventInBatchTimestamp,
-    );
-  }
-  // set completed events
   updateCompletedEvents(indexingService);
 
   return { status: "success" };
@@ -317,16 +289,6 @@ export const kill = (indexingService: Service) => {
     msg: "Killed indexing service",
   });
   indexingService.isKilled = true;
-};
-
-export const updateTotalSeconds = (
-  indexingService: Service,
-  endCheckpoint: Checkpoint,
-) => {
-  indexingService.common.metrics.ponder_indexing_total_seconds.set(
-    endCheckpoint.blockTimestamp -
-      indexingService.startCheckpoint.blockTimestamp,
-  );
 };
 
 const updateCompletedEvents = (indexingService: Service) => {

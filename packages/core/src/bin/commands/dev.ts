@@ -224,6 +224,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         indexingCleanupReloadable = await run({
           common,
           database,
+          preBuild,
           schemaBuild,
           indexingBuild: indexingBuildResult.result,
           onFatalError: () => {

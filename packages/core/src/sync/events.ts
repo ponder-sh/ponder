@@ -23,9 +23,9 @@ import type {
 } from "@/types/sync.js";
 import {
   EVENT_TYPES,
+  MAX_CHECKPOINT,
+  ZERO_CHECKPOINT,
   encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
@@ -329,9 +329,9 @@ export const buildEvents = ({
               blockTimestamp: hexToNumber(block.timestamp),
               chainId: BigInt(filter.chainId),
               blockNumber: hexToBigInt(block.number),
-              transactionIndex: maxCheckpoint.transactionIndex,
+              transactionIndex: MAX_CHECKPOINT.transactionIndex,
               eventType: EVENT_TYPES.blocks,
-              eventIndex: zeroCheckpoint.eventIndex,
+              eventIndex: ZERO_CHECKPOINT.eventIndex,
             }),
             block: convertBlock(block),
             log: undefined,

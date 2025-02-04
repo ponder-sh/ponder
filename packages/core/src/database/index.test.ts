@@ -3,9 +3,10 @@ import { buildSchema } from "@/build/schema.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
+  type Checkpoint,
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT,
   encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
 import { sql } from "drizzle-orm";
@@ -23,8 +24,8 @@ const account = onchainTable("account", (p) => ({
   balance: p.bigint(),
 }));
 
-function createCheckpoint(index: number): string {
-  return encodeCheckpoint({ ...zeroCheckpoint, blockTimestamp: index });
+function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
+  return encodeCheckpoint({ ...ZERO_CHECKPOINT, ...checkpoint });
 }
 
 test("migrate() succeeds with empty schema", async (context) => {
@@ -162,7 +163,10 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
   });
   await database.migrate({ buildId: "abc" });
-  await database.finalize({ checkpoint: createCheckpoint(10) });
+
+  await database.finalize({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  });
 
   const databaseTwo = await createDatabase({
     common: context.common,
@@ -202,7 +206,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
   await database.migrate({ buildId: "abc" });
 
   await database.finalize({
-    checkpoint: createCheckpoint(10),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await database.unlock();
@@ -253,7 +257,9 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
   });
   await database.migrate({ buildId: "abc" });
-  await database.finalize({ checkpoint: createCheckpoint(10) });
+  await database.finalize({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  });
 
   const databaseTwo = await createDatabase({
     common: context.common,
@@ -304,7 +310,7 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    checkpoint: createCheckpoint(9),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
   });
 
   await indexingStore
@@ -312,11 +318,11 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
-    checkpoint: createCheckpoint(11),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
   });
 
   await database.finalize({
-    checkpoint: createCheckpoint(10),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await database.unlock();
@@ -337,7 +343,9 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
   await databaseTwo.migrate({ buildId: "abc" });
   const checkpoint = await databaseTwo.recoverCheckpoint();
 
-  expect(checkpoint).toMatchObject(createCheckpoint(10));
+  expect(checkpoint).toStrictEqual(
+    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  );
 
   const rows = await databaseTwo.qb.drizzle
     .execute(sql`SELECT * from "account"`)
@@ -383,7 +391,7 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
   await database.migrate({ buildId: "abc" });
 
   await database.finalize({
-    checkpoint: createCheckpoint(10),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await database.createIndexes();
@@ -485,7 +493,7 @@ test("finalize()", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    checkpoint: createCheckpoint(9),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
   });
 
   await indexingStore
@@ -497,11 +505,11 @@ test("finalize()", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
-    checkpoint: createCheckpoint(11),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
   });
 
   await database.finalize({
-    checkpoint: createCheckpoint(10),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   // reorg tables
@@ -519,10 +527,12 @@ test("finalize()", async (context) => {
     .selectFrom("_ponder_meta")
     .where("key", "=", "app")
     .select("value")
-    .executeTakeFirst();
+    .executeTakeFirstOrThrow()
+    .then(({ value }) => value);
 
-  // @ts-ignore
-  expect(metadata?.value?.checkpoint).toBe(createCheckpoint(10));
+  expect(metadata.checkpoint).toStrictEqual(
+    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  );
 
   await database.kill();
 });
@@ -639,7 +649,7 @@ test("createTriggers()", async (context) => {
       balance: "10",
       operation: 0,
       operation_id: 1,
-      checkpoint: encodeCheckpoint(maxCheckpoint),
+      checkpoint: MAX_CHECKPOINT_STRING,
     },
   ]);
 
@@ -695,7 +705,7 @@ test("complete()", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    checkpoint: createCheckpoint(10),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   const rows = await database.qb.user
@@ -709,7 +719,7 @@ test("complete()", async (context) => {
       balance: "10",
       operation: 0,
       operation_id: 1,
-      checkpoint: createCheckpoint(10),
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     },
   ]);
 
@@ -746,7 +756,7 @@ test("revert()", async (context) => {
     .values({ address: zeroAddress, balance: 10n });
 
   await database.complete({
-    checkpoint: createCheckpoint(9),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
   });
 
   await indexingStore
@@ -758,11 +768,11 @@ test("revert()", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
-    checkpoint: createCheckpoint(11),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
   });
 
   await database.revert({
-    checkpoint: createCheckpoint(10),
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   const rows = await database.qb.user

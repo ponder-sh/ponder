@@ -11,9 +11,9 @@ import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { RawEvent } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { decodeEvents } from "@/sync/events.js";
-import { createSync } from "@/sync/index.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
@@ -53,18 +53,6 @@ test("createIndexing()", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -72,7 +60,8 @@ test("createIndexing()", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -90,18 +79,6 @@ test("processSetupEvents() empty", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -109,7 +86,8 @@ test("processSetupEvents() empty", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -131,18 +109,6 @@ test("processSetupEvents()", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
@@ -154,7 +120,8 @@ test("processSetupEvents()", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -194,18 +161,6 @@ test("processEvent()", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
@@ -219,7 +174,8 @@ test("processEvent()", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -238,7 +194,7 @@ test("processEvent()", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -298,18 +254,6 @@ test("processEvents killed", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
@@ -323,7 +267,8 @@ test("processEvents killed", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -343,7 +288,7 @@ test("processEvents killed", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -375,18 +320,6 @@ test("processEvents eventCount", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
@@ -399,7 +332,8 @@ test("processEvents eventCount", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -418,7 +352,7 @@ test("processEvents eventCount", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -448,18 +382,6 @@ test("executeSetup() context.client", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
       await context.client.getBalance({
@@ -475,7 +397,8 @@ test("executeSetup() context.client", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -507,18 +430,6 @@ test("executeSetup() context.db", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
       await context.db
@@ -534,7 +445,8 @@ test("executeSetup() context.db", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -566,18 +478,6 @@ test("executeSetup() metrics", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -587,7 +487,8 @@ test("executeSetup() metrics", async (context) => {
       sources,
       chains,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -611,18 +512,6 @@ test("executeSetup() error", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
   };
@@ -634,7 +523,8 @@ test("executeSetup() error", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -659,18 +549,6 @@ test("processEvents() context.client", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const clientCall = async ({ context }: { context: Context }) => {
     await context.client.getBalance({
       address: BOB,
@@ -687,7 +565,8 @@ test("processEvents() context.client", async (context) => {
       sources,
       chains,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -711,7 +590,7 @@ test("processEvents() context.client", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -742,18 +621,6 @@ test("processEvents() context.db", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   let i = 0;
 
   const dbCall = async ({ context }: { event: any; context: Context }) => {
@@ -773,7 +640,8 @@ test("processEvents() context.db", async (context) => {
       sources,
       chains,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -794,7 +662,7 @@ test("processEvents() context.db", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -826,18 +694,6 @@ test("processEvents() metrics", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -848,7 +704,8 @@ test("processEvents() metrics", async (context) => {
       sources,
       chains,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -867,7 +724,7 @@ test("processEvents() metrics", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -895,18 +752,6 @@ test("processEvents() error", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
       vi.fn(),
@@ -919,7 +764,8 @@ test("processEvents() error", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -942,7 +788,7 @@ test("processEvents() error", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -977,18 +823,6 @@ test("processEvents() error with missing event object properties", async (contex
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const throwError = async ({ event }: { event: any; context: Context }) => {
     // biome-ignore lint/performance/noDelete: <explanation>
     delete event.transaction;
@@ -1007,7 +841,8 @@ test("processEvents() error with missing event object properties", async (contex
       sources,
       chains,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1026,7 +861,7 @@ test("processEvents() error with missing event object properties", async (contex
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -1056,18 +891,6 @@ test("execute() error after killed", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const { promise, reject } = promiseWithResolvers();
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -1081,7 +904,8 @@ test("execute() error after killed", async (context) => {
       chains,
       indexingFunctions,
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1100,7 +924,7 @@ test("execute() error after killed", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -1129,18 +953,6 @@ test("ponderActions getBalance()", async (context) => {
     { schemaBuild: { schema } },
   );
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -1148,7 +960,8 @@ test("ponderActions getBalance()", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1171,18 +984,6 @@ test("ponderActions getCode()", async (context) => {
 
   const { address } = await deployErc20({ sender: ALICE });
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -1190,7 +991,8 @@ test("ponderActions getCode()", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1219,18 +1021,6 @@ test("ponderActions getStorageAt()", async (context) => {
     sender: ALICE,
   });
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -1238,7 +1028,8 @@ test("ponderActions getStorageAt()", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1269,18 +1060,6 @@ test("ponderActions readContract()", async (context) => {
     sender: ALICE,
   });
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -1288,7 +1067,8 @@ test("ponderActions readContract()", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1319,18 +1099,6 @@ test("ponderActions readContract() blockNumber", async (context) => {
     sender: ALICE,
   });
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -1338,7 +1106,8 @@ test("ponderActions readContract() blockNumber", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);
@@ -1371,18 +1140,6 @@ test.skip("ponderActions multicall()", async (context) => {
     sender: ALICE,
   });
 
-  const sync = await createSync({
-    common,
-    syncStore,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    onRealtimeEvent: () => Promise.resolve(),
-    onFatalError: () => {},
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
-  });
-
   const indexingService = create({
     common,
     indexingBuild: {
@@ -1390,7 +1147,8 @@ test.skip("ponderActions multicall()", async (context) => {
       chains,
       indexingFunctions: {},
     },
-    sync,
+    rpcs: [createRpc({ chain: chains[0]!, common })],
+    syncStore,
   });
 
   setIndexingStore(indexingService, indexingStore);

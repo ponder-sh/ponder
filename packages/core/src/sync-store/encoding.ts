@@ -8,9 +8,9 @@ import type {
 } from "@/types/sync.js";
 import {
   EVENT_TYPES,
+  MAX_CHECKPOINT,
+  ZERO_CHECKPOINT,
   encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { ColumnType, Insertable } from "kysely";
@@ -55,9 +55,9 @@ export const encodeBlock = ({
       blockTimestamp: hexToNumber(block.timestamp),
       chainId: BigInt(chainId),
       blockNumber: hexToBigInt(block.number),
-      transactionIndex: maxCheckpoint.transactionIndex,
+      transactionIndex: MAX_CHECKPOINT.transactionIndex,
       eventType: EVENT_TYPES.blocks,
-      eventIndex: zeroCheckpoint.eventIndex,
+      eventIndex: ZERO_CHECKPOINT.eventIndex,
     }),
     baseFeePerGas: block.baseFeePerGas
       ? hexToBigInt(block.baseFeePerGas)
@@ -183,7 +183,7 @@ export const encodeTransaction = ({
       blockNumber: hexToBigInt(transaction.blockNumber),
       transactionIndex: hexToBigInt(transaction.transactionIndex),
       eventType: EVENT_TYPES.transactions,
-      eventIndex: zeroCheckpoint.eventIndex,
+      eventIndex: ZERO_CHECKPOINT.eventIndex,
     }),
     chainId,
     blockHash: transaction.blockHash,

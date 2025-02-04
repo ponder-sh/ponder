@@ -32,10 +32,10 @@ import type {
 import { createRpc } from "@/rpc/index.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
+  MAX_CHECKPOINT,
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import {
   _eth_getBlockByNumber,
@@ -859,7 +859,7 @@ test("insertBlocks() creates checkpoint", async (context) => {
   expect(checkpoint.blockTimestamp).toBe(hexToNumber(rpcBlock.timestamp));
   expect(checkpoint.chainId).toBe(1n);
   expect(checkpoint.blockNumber).toBe(1n);
-  expect(checkpoint.transactionIndex).toBe(maxCheckpoint.transactionIndex);
+  expect(checkpoint.transactionIndex).toBe(MAX_CHECKPOINT.transactionIndex);
   expect(checkpoint.eventType).toBe(5);
   expect(checkpoint.eventIndex).toBe(0n);
 
@@ -1348,8 +1348,8 @@ test("getEvents() returns events", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: [filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1428,8 +1428,8 @@ test("getEvents() handles log filter logic", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: [sources[0]!.filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1509,8 +1509,8 @@ test("getEvents() handles log factory", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: [sources[0]!.filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1598,8 +1598,8 @@ test("getEvents() handles multiple log factories", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: [filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1636,8 +1636,8 @@ test("getEvents() handles block filter logic", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: [sources[0]!.filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1716,8 +1716,8 @@ test("getEvents() handles trace filter logic", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: sources.map((source) => source.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1767,8 +1767,8 @@ test("getEvents() handles transaction filter logic", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: sources.map((source) => source.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1845,8 +1845,8 @@ test("getEvents() handles transfer filter logic", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: sources.map((source) => source.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1903,8 +1903,8 @@ test("getEvents() handles block bounds", async (context) => {
 
   const { events } = await syncStore.getEvents({
     filters: [sources[0]!.filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -1941,8 +1941,8 @@ test("getEvents() pagination", async (context) => {
 
   const { events, cursor } = await syncStore.getEvents({
     filters: [sources[0]!.filter],
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 1,
   });
 
@@ -1951,7 +1951,7 @@ test("getEvents() pagination", async (context) => {
   const { events: events2 } = await syncStore.getEvents({
     filters: [sources[0]!.filter],
     from: cursor,
-    to: encodeCheckpoint(maxCheckpoint),
+    to: MAX_CHECKPOINT_STRING,
     limit: 1,
   });
 
@@ -2133,7 +2133,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  await syncStore.pruneByChain({ chainId: 1, fromBlock: 3 });
+  await syncStore.pruneByChain({ chainId: 1 });
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   const blocks = await database.qb.sync
@@ -2153,11 +2153,11 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     .selectAll()
     .execute();
 
-  expect(logs).toHaveLength(1);
-  expect(blocks).toHaveLength(1);
-  expect(traces).toHaveLength(1);
-  expect(transactions).toHaveLength(1);
-  expect(transactionReceipts).toHaveLength(1);
+  expect(logs).toHaveLength(0);
+  expect(blocks).toHaveLength(0);
+  expect(traces).toHaveLength(0);
+  expect(transactions).toHaveLength(0);
+  expect(transactionReceipts).toHaveLength(0);
 
   await cleanup();
 });

@@ -33,9 +33,8 @@ import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
 import {
   _eth_getBlockByNumber,
@@ -88,7 +87,7 @@ test("decodeEvents() log", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -135,7 +134,7 @@ test("decodeEvents() log error", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -164,7 +163,7 @@ test("decodeEvents() block", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {
       number: 1n,
     } as RawEvent["block"],
@@ -196,7 +195,7 @@ test("decodeEvents() transfer", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 3,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -242,7 +241,7 @@ test("decodeEvents() transaction", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -271,7 +270,7 @@ test("decodeEvents() trace", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 1,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -321,7 +320,7 @@ test("decodeEvents() trace error", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 1,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -395,8 +394,8 @@ test("buildEvents() matches getEvents() log", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -485,8 +484,8 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -536,8 +535,8 @@ test("buildEvents() matches getEvents() block", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -629,8 +628,8 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -697,8 +696,8 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -793,8 +792,8 @@ test("buildEvents() matches getEvents() trace", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 

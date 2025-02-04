@@ -6,6 +6,7 @@ import type { GetEventFilter } from "./eventFilter.js";
 
 export type Config = {
   database?: DatabaseConfig;
+  mode?: "omnichain" | "multichain";
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   accounts: { [accountName: string]: AccountConfig<unknown> };
@@ -16,6 +17,7 @@ export type Config = {
 
 export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
   database?: DatabaseConfig;
+  mode?: "omnichain" | "multichain";
   networks: networks;
   contracts: contracts;
   accounts: accounts;
@@ -29,6 +31,7 @@ export const createConfig = <
   const blocks = {},
 >(config: {
   // TODO: add jsdoc to these properties.
+  mode?: "omnichain" | "multichain";
   database?: DatabaseConfig;
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
