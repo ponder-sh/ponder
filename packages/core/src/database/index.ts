@@ -767,7 +767,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               }
 
               await tx.execute(
-                sql.raw(`TRUNCATE TABLE ${PONDER_STATUS} CASCADE`),
+                sql.raw(
+                  `TRUNCATE TABLE "${namespace}"."${getTableName(PONDER_STATUS)}" CASCADE`,
+                ),
               );
 
               await createEnums();
