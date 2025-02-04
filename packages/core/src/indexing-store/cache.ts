@@ -1,5 +1,4 @@
 import type { Database } from "@/database/index.js";
-import { getTableNames } from "@/drizzle/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -8,7 +7,8 @@ import {
   FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
-import type { SchemaBuild } from "@/internal/types.js";
+import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
@@ -16,30 +16,45 @@ import {
   type SQL,
   type SQLWrapper,
   type Table,
+  type TableConfig,
   and,
   eq,
   getTableColumns,
   getTableName,
+  is,
   sql,
 } from "drizzle-orm";
+import { PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
 
 export type IndexingCache = {
-  has: (table: Table, key: object) => boolean;
-  get: (
-    table: Table,
-    key: object,
-  ) =>
+  has: ({ table, key }: { table: Table; key: object }) => boolean;
+  get: ({
+    table,
+    key,
+    db,
+  }: { table: Table; key: object; db: Drizzle<Schema> }) =>
     | { [key: string]: unknown }
     | null
     | Promise<{ [key: string]: unknown } | null>;
-  set: (
-    table: Table,
-    key: object,
-    row: { [key: string]: unknown } | null,
-    entryType: EntryType,
-  ) => { [key: string]: unknown } | null;
-  delete: (table: Table, key: object) => boolean | Promise<boolean>;
-  flush: () => Promise<void>;
+  set: ({
+    table,
+    key,
+    row,
+    entryType,
+  }: {
+    table: Table;
+    key: object;
+    row: { [key: string]: unknown } | null;
+    entryType: EntryType;
+  }) => { [key: string]: unknown } | null;
+  delete: ({
+    table,
+    key,
+    db,
+  }: { table: Table; key: object; db: Drizzle<Schema> }) =>
+    | boolean
+    | Promise<boolean>;
+  flush: ({ db }: { db: Drizzle<Schema> }) => Promise<void>;
   bust: () => void;
   size: number;
 };
@@ -141,8 +156,18 @@ export const normalizeRow = (
   return row;
 };
 
+export const getCacheKey = (table: Table, key: object): string => {
+  const primaryKeys = getPrimaryKeyColumns(table);
+  return (
+    primaryKeys
+      // @ts-ignore
+      .map((pk) => normalizeColumn(table[pk.js], key[pk.js]))
+      .join("_")
+  );
+};
+
 /** Returns an sql where condition for `table` with `key`. */
-const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
+export const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
   const conditions: SQLWrapper[] = [];
 
   for (const { js } of getPrimaryKeyColumns(table)) {
@@ -193,18 +218,6 @@ export const createIndexingCache = ({
 }): IndexingCache => {
   const cache: Cache = new Map();
 
-  const find = (table: Table, key: object) =>
-    database.wrap(
-      { method: `${getTableName(table) ?? "unknown"}.cache.find()` },
-      async () => {
-        return database.qb.drizzle
-          .select()
-          .from(table)
-          .where(getWhereCondition(table, key))
-          .then((res) => (res.length === 0 ? null : res[0]!));
-      },
-    );
-
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
   /** Estimated number of bytes used by cache. */
   let cacheBytes = 0;
@@ -216,26 +229,18 @@ export const createIndexingCache = ({
     msg: `Using a ${Math.round(common.options.indexingCacheMaxBytes / (1024 * 1024))} MB indexing cache`,
   });
 
-  for (const tableName of getTableNames(schema)) {
-    cache.set(schema[tableName.js] as Table, new Map());
+  for (const table of Object.values(schema).filter(
+    (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
+  )) {
+    cache.set(table, new Map());
   }
 
-  const getCacheKey = (table: Table, key: object): string => {
-    const primaryKeys = getPrimaryKeyColumns(table);
-    return (
-      primaryKeys
-        // @ts-ignore
-        .map((pk) => normalizeColumn(table[pk.js], key[pk.js]))
-        .join("_")
-    );
-  };
-
   return {
-    has(table, key) {
+    has({ table, key }) {
       if (isCacheComplete) return true;
       return cache.get(table)!.has(getCacheKey(table, key));
     },
-    get(table, key) {
+    get({ table, key, db }) {
       const entry = cache.get(table)!.get(getCacheKey(table, key));
 
       if (entry) {
@@ -250,28 +255,39 @@ export const createIndexingCache = ({
         return null;
       }
 
-      return find(table, key).then((_row) => {
-        let row: { [key: string]: unknown } | null;
+      return database
+        .wrap(
+          { method: `${getTableName(table) ?? "unknown"}.cache.find()` },
+          async () => {
+            return db
+              .select()
+              .from(table)
+              .where(getWhereCondition(table, key))
+              .then((res) => (res.length === 0 ? null : res[0]!));
+          },
+        )
+        .then((_row) => {
+          let row: { [key: string]: unknown } | null;
 
-        if (_row === null) {
-          row = null;
-        } else {
-          row = normalizeRow(table, _row, EntryType.FIND);
-        }
+          if (_row === null) {
+            row = null;
+          } else {
+            row = normalizeRow(table, _row, EntryType.FIND);
+          }
 
-        const bytes = getBytes(row);
-        cacheBytes += bytes;
+          const bytes = getBytes(row);
+          cacheBytes += bytes;
 
-        cache.get(table)!.set(getCacheKey(table, key), {
-          type: EntryType.FIND,
-          bytes,
-          operationIndex: totalCacheOps++,
-          row: structuredClone(row),
+          cache.get(table)!.set(getCacheKey(table, key), {
+            type: EntryType.FIND,
+            bytes,
+            operationIndex: totalCacheOps++,
+            row: structuredClone(row),
+          });
+          return row;
         });
-        return row;
-      });
     },
-    set(table, key, _row, entryType) {
+    set({ table, key, row: _row, entryType }) {
       let row: { [key: string]: unknown } | null;
 
       if (_row === null) {
@@ -299,16 +315,18 @@ export const createIndexingCache = ({
       });
       return row;
     },
-    delete(table, key) {
+    delete({ table, key, db }) {
       const entry = cache.get(table)!.get(getCacheKey(table, key));
 
       if (entry) {
+        cache.get(table)!.delete(getCacheKey(table, key));
+
         if (entry.row === null) {
           return false;
         }
 
         if (isCacheComplete === false) {
-          return database.qb.drizzle
+          return db
             .delete(table)
             .where(getWhereCondition(table, key))
             .then(() => true);
@@ -317,13 +335,17 @@ export const createIndexingCache = ({
         return true;
       }
 
-      return database.qb.drizzle
+      if (isCacheComplete) {
+        return false;
+      }
+
+      return db
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning()
         .then((result) => result.length > 0);
     },
-    async flush() {
+    async flush({ db }) {
       let cacheSize = 0;
       for (const c of cache.values()) cacheSize += c.size;
 
@@ -377,7 +399,7 @@ export const createIndexingCache = ({
               database.wrap(
                 { method: `${getTableName(table)}.flush()` },
                 async () => {
-                  await database.qb.drizzle
+                  await db
                     .insert(table)
                     .values(values)
                     .catch((_error) => {
@@ -419,7 +441,7 @@ export const createIndexingCache = ({
                   method: `${getTableName(table)}.flush()`,
                 },
                 async () => {
-                  await database.qb.drizzle
+                  await db
                     .insert(table)
                     .values(values)
                     .onConflictDoUpdate({

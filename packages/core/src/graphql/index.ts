@@ -1,5 +1,5 @@
+import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
-import type { MetadataStore } from "@/indexing-store/metadata.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
@@ -64,9 +64,8 @@ import { GraphQLJSON } from "./json.js";
 
 type Parent = Record<string, any>;
 type Context = {
+  database: Database;
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  metadataStore: MetadataStore;
-  drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
 type PluralArgs = {
@@ -301,8 +300,10 @@ export function buildGraphQLSchema({
                 );
 
                 return executePluralQuery(
-                  referencedTable,
-                  context.drizzle,
+                  table,
+                  context.database.qb.drizzle as Drizzle<{
+                    [key: string]: OnchainTable;
+                  }>,
                   args,
                   includeTotalCount,
                   relationalConditions,
@@ -384,7 +385,9 @@ export function buildGraphQLSchema({
 
         return executePluralQuery(
           table,
-          context.drizzle,
+          context.database.qb.drizzle as Drizzle<{
+            [key: string]: OnchainTable;
+          }>,
           args,
           includeTotalCount,
         );
@@ -395,7 +398,7 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const status = await context.metadataStore.getStatus();
+      const status = await context.database.getStatus();
       return { status };
     },
   };

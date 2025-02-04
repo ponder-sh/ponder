@@ -4,7 +4,8 @@ import {
   RecordNotFoundError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { SchemaBuild } from "@/internal/types.js";
+import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
@@ -20,11 +21,13 @@ export const createHistoricalIndexingStore = ({
   database,
   schemaBuild: { schema },
   indexingCache,
+  db,
 }: {
   common: Common;
   database: Database;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
+  db: Drizzle<Schema>;
 }): IndexingStore => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
@@ -42,7 +45,7 @@ export const createHistoricalIndexingStore = ({
           { method: `${getTableName(table) ?? "unknown"}.find()` },
           async () => {
             checkOnchainTable(table, "find");
-            return indexingCache.get(table, key);
+            return indexingCache.get({ table, key, db });
           },
         ),
       ),
@@ -64,35 +67,43 @@ export const createHistoricalIndexingStore = ({
                     if (Array.isArray(values)) {
                       const rows = [];
                       for (const value of values) {
-                        const row = await indexingCache.get(table, value);
+                        const row = await indexingCache.get({
+                          table,
+                          key: value,
+                          db,
+                        });
 
                         if (row) {
                           rows.push(null);
                         } else {
                           rows.push(
-                            indexingCache.set(
+                            indexingCache.set({
                               table,
-                              value,
-                              value,
-                              EntryType.INSERT,
-                            ),
+                              key: value,
+                              row: value,
+                              entryType: EntryType.INSERT,
+                            }),
                           );
                         }
                       }
                       return rows;
                     } else {
-                      const row = await indexingCache.get(table, values);
+                      const row = await indexingCache.get({
+                        table,
+                        key: values,
+                        db,
+                      });
 
                       if (row) {
                         return null;
                       }
 
-                      return indexingCache.set(
+                      return indexingCache.set({
                         table,
-                        values,
-                        values,
-                        EntryType.INSERT,
-                      );
+                        key: values,
+                        row: values,
+                        entryType: EntryType.INSERT,
+                      });
                     }
                   },
                 ),
@@ -109,7 +120,11 @@ export const createHistoricalIndexingStore = ({
                     if (Array.isArray(values)) {
                       const rows = [];
                       for (const value of values) {
-                        const row = await indexingCache.get(table, value);
+                        const row = await indexingCache.get({
+                          table,
+                          key: value,
+                          db,
+                        });
 
                         if (row) {
                           if (typeof valuesU === "function") {
@@ -126,27 +141,31 @@ export const createHistoricalIndexingStore = ({
                             }
                           }
                           rows.push(
-                            indexingCache.set(
+                            indexingCache.set({
                               table,
+                              key: row,
                               row,
-                              row,
-                              EntryType.UPDATE,
-                            ),
+                              entryType: EntryType.UPDATE,
+                            }),
                           );
                         } else {
                           rows.push(
-                            indexingCache.set(
+                            indexingCache.set({
                               table,
-                              value,
-                              value,
-                              EntryType.UPDATE,
-                            ),
+                              key: value,
+                              row: value,
+                              entryType: EntryType.UPDATE,
+                            }),
                           );
                         }
                       }
                       return rows;
                     } else {
-                      const row = await indexingCache.get(table, values);
+                      const row = await indexingCache.get({
+                        table,
+                        key: values,
+                        db,
+                      });
 
                       if (row) {
                         if (typeof valuesU === "function") {
@@ -160,20 +179,20 @@ export const createHistoricalIndexingStore = ({
                             row[key] = value;
                           }
                         }
-                        return indexingCache.set(
+                        return indexingCache.set({
                           table,
-                          values,
+                          key: values,
                           row,
-                          EntryType.UPDATE,
-                        );
+                          entryType: EntryType.UPDATE,
+                        });
                       }
 
-                      return indexingCache.set(
+                      return indexingCache.set({
                         table,
-                        values,
-                        values,
-                        EntryType.INSERT,
-                      );
+                        key: values,
+                        row: values,
+                        entryType: EntryType.INSERT,
+                      });
                     }
                   },
                 ),
@@ -192,7 +211,11 @@ export const createHistoricalIndexingStore = ({
                       if (Array.isArray(values)) {
                         const rows = [];
                         for (const value of values) {
-                          const row = await indexingCache.get(table, value);
+                          const row = await indexingCache.get({
+                            table,
+                            key: value,
+                            db,
+                          });
 
                           if (row) {
                             const error = new UniqueConstraintError(
@@ -205,17 +228,21 @@ export const createHistoricalIndexingStore = ({
                           }
 
                           rows.push(
-                            indexingCache.set(
+                            indexingCache.set({
                               table,
-                              value,
-                              value,
-                              EntryType.INSERT,
-                            ),
+                              key: value,
+                              row: value,
+                              entryType: EntryType.INSERT,
+                            }),
                           );
                         }
                         return rows;
                       } else {
-                        const row = await indexingCache.get(table, values);
+                        const row = await indexingCache.get({
+                          table,
+                          key: values,
+                          db,
+                        });
 
                         // TODO(kyle) optimistically assume no conflict,
                         // check for error at flush time
@@ -229,12 +256,12 @@ export const createHistoricalIndexingStore = ({
                           throw error;
                         }
 
-                        return indexingCache.set(
+                        return indexingCache.set({
                           table,
-                          values,
-                          values,
-                          EntryType.INSERT,
-                        );
+                          key: values,
+                          row: values,
+                          entryType: EntryType.INSERT,
+                        });
                       }
                     },
                   ),
@@ -269,7 +296,7 @@ export const createHistoricalIndexingStore = ({
               async () => {
                 checkOnchainTable(table, "update");
 
-                const row = await indexingCache.get(table, values);
+                const row = await indexingCache.get({ table, key, db });
 
                 if (row === null) {
                   const error = new RecordNotFoundError(
@@ -289,7 +316,12 @@ export const createHistoricalIndexingStore = ({
                   }
                 }
 
-                return indexingCache.set(table, key, row, EntryType.UPDATE);
+                return indexingCache.set({
+                  table,
+                  key,
+                  row,
+                  entryType: EntryType.UPDATE,
+                });
               },
             ),
           ),
@@ -302,21 +334,21 @@ export const createHistoricalIndexingStore = ({
           { method: `${getTableName(table) ?? "unknown"}.delete()` },
           async () => {
             checkOnchainTable(table, "delete");
-            return indexingCache.delete(table, key);
+            return indexingCache.delete({ table, key, db });
           },
         ),
       ),
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await indexingCache.flush();
+        await indexingCache.flush({ db });
         indexingCache.bust();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         const res = await database.wrap({ method: "sql" }, async () => {
           try {
-            return await database.qb.drizzle._.session
+            return await db._.session
               .prepareQuery(query, undefined, undefined, method === "all")
               .execute();
           } catch (e) {

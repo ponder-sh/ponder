@@ -1,10 +1,6 @@
 import { buildSchema } from "@/build/schema.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
-import {
-  type MetadataStore,
-  getMetadataStore,
-} from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
@@ -182,8 +178,7 @@ export async function setupDatabaseServices(
 ): Promise<{
   database: Database;
   syncStore: SyncStore;
-  indexingStore: IndexingStore<"realtime">;
-  metadataStore: MetadataStore;
+  indexingStore: IndexingStore;
   cleanup: () => Promise<void>;
 }> {
   const { statements } = buildSchema({
@@ -219,8 +214,6 @@ export async function setupDatabaseServices(
     database,
   });
 
-  const metadataStore = getMetadataStore({ database });
-
   const cleanup = async () => {
     await database.kill();
   };
@@ -229,7 +222,6 @@ export async function setupDatabaseServices(
     database,
     indexingStore,
     syncStore,
-    metadataStore,
     cleanup,
   };
 }

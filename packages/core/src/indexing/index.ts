@@ -28,7 +28,7 @@ import { addStackTrace } from "./addStackTrace.js";
 import type { ReadOnlyClient } from "./ponderActions.js";
 import { getPonderActions } from "./ponderActions.js";
 
-type Context = {
+export type Context = {
   network: { chainId: number; name: string };
   client: ReadOnlyClient;
   db: Db<Schema>;

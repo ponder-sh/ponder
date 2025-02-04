@@ -1,3 +1,4 @@
+import type { Database } from "@/database/index.js";
 import type { SqlStatements } from "@/drizzle/kit/index.js";
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type {
@@ -14,6 +15,17 @@ import type { PGlite } from "@electric-sql/pglite";
 import type { Hono } from "hono";
 import type { PoolConfig } from "pg";
 import type { Abi, Address, Chain, Hex, LogTopic, Transport } from "viem";
+import type { Common } from "./common.js";
+
+export type Ponder = {
+  common: Common;
+  namespace: NamespaceBuild;
+  preBuild: PreBuild;
+  schemaBuild: SchemaBuild;
+  indexingBuild: IndexingBuild;
+  apiBuild: ApiBuild;
+  database: Database;
+};
 
 // Database
 

@@ -1,21 +1,13 @@
 import type { Database } from "@/database/index.js";
-import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
-import {
-  type QueryWithTypings,
-  type SQL,
-  type SQLWrapper,
-  type Table,
-  and,
-  eq,
-  getTableName,
-} from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
+import { getCacheKey, getWhereCondition } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
@@ -39,47 +31,6 @@ export const createRealtimeIndexingStore = ({
       return fn();
     },
   });
-
-  const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
-
-  for (const tableName of getTableNames(schema)) {
-    primaryKeysCache.set(
-      schema[tableName.js] as Table,
-      getPrimaryKeyColumns(schema[tableName.js] as PgTable),
-    );
-  }
-
-  ////////
-  // Helper functions
-  ////////
-
-  const getCacheKey = (
-    table: Table,
-    row: { [key: string]: unknown },
-  ): string => {
-    const primaryKeys = primaryKeysCache.get(table)!;
-
-    return (
-      primaryKeys
-        // @ts-ignore
-        .map((pk) => normalizeColumn(table[pk.js], row[pk.js]))
-        .join("_")
-    );
-  };
-
-  /** Returns an sql where condition for `table` with `key`. */
-  const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
-    primaryKeysCache.get(table)!;
-
-    const conditions: SQLWrapper[] = [];
-
-    for (const { js } of primaryKeysCache.get(table)!) {
-      // @ts-ignore
-      conditions.push(eq(table[js]!, key[js]));
-    }
-
-    return and(...conditions)!;
-  };
 
   const find = (table: Table, key: object) => {
     return database.qb.drizzle
@@ -168,10 +119,10 @@ export const createRealtimeIndexingStore = ({
                           .insert(table)
                           .values(values)
                           .onConflictDoUpdate({
-                            target: primaryKeysCache
-                              .get(table)!
+                            target: getPrimaryKeyColumns(table).map(
                               // @ts-ignore
-                              .map(({ js }) => table[js]),
+                              ({ js }) => table[js],
+                            ),
                             set: valuesU,
                           })
                           .returning()

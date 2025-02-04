@@ -5,7 +5,6 @@ import {
 } from "@/_test/setup.js";
 import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
-import type { MetadataStore } from "@/indexing-store/metadata.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -14,26 +13,25 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-function buildContextValue(database: Database, metadataStore: MetadataStore) {
+function buildContextValue(database: Database) {
   const drizzle = database.qb.drizzleReadonly;
   const getDataLoader = buildDataLoaderCache({ drizzle });
-  return { drizzle, metadataStore, getDataLoader };
+  return { database, getDataLoader };
 }
 
 test("metadata", async (context) => {
   const schema = {};
 
-  const { database, metadataStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, cleanup } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await metadataStore.setStatus({
+  await database.setStatus({
     [1]: {
       ready: true,
       block: {
@@ -104,9 +102,11 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     })),
   };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -228,9 +228,11 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
   }));
   const schema = { testEnum, table };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -284,9 +286,11 @@ test("enum primary key", async (context) => {
   );
   const schema = { testEnum, table };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -326,9 +330,11 @@ test("json, json not null", async (context) => {
     })),
   };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -381,9 +387,11 @@ test("singular", async (context) => {
   );
   const schema = { transferEvents, allowances };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -480,9 +488,11 @@ test("singular with one relation", async (context) => {
 
   const schema = { person, pet, petRelations };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -545,9 +555,11 @@ test("singular with many relation", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -602,9 +614,11 @@ test("singular with many relation using filter", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -663,9 +677,11 @@ test("singular with many relation using order by", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -725,9 +741,11 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -937,9 +955,11 @@ test("filter universal", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -986,9 +1006,11 @@ test("filter singular", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1038,9 +1060,11 @@ test("filter plural", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1146,9 +1170,11 @@ test("filter numeric", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1270,9 +1296,11 @@ test("filter string", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1339,9 +1367,11 @@ test("filter and/or", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1389,9 +1419,11 @@ test("order by", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1508,9 +1540,11 @@ test("limit", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1574,9 +1608,11 @@ test("cursor pagination ascending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1722,9 +1758,11 @@ test("cursor pagination descending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1859,9 +1897,11 @@ test("cursor pagination start and end cursors", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1926,9 +1966,11 @@ test("cursor pagination has previous page", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2016,9 +2058,11 @@ test("cursor pagination composite primary key", async (context) => {
 
   const schema = { allowance };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2161,9 +2205,11 @@ test("column casing", async (context) => {
     })),
   };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2213,9 +2259,11 @@ test("snake case table and column names with where clause", async (context) => {
     ),
   };
 
-  const { database, indexingStore, metadataStore, cleanup } =
-    await setupDatabaseServices(context, { schemaBuild: { schema } });
-  const contextValue = buildContextValue(database, metadataStore);
+  const { database, indexingStore, cleanup } = await setupDatabaseServices(
+    context,
+    { schemaBuild: { schema } },
+  );
+  const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 

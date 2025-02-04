@@ -2,7 +2,6 @@ import { runCodegen } from "@/bin/utils/codegen.js";
 import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
-import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
@@ -47,7 +46,6 @@ export async function run({
 
   const initialCheckpoint = await database.recoverCheckpoint();
   const syncStore = createSyncStore({ common, database });
-  const metadataStore = getMetadataStore({ database });
 
   // This can be a long-running operation, so it's best to do it after
   // starting the server so the app can become responsive more quickly.
@@ -84,13 +82,6 @@ export async function run({
     database,
     schemaBuild,
     checkpoint: initialCheckpoint,
-  });
-
-  const historicalIndexingStore = createHistoricalIndexingStore({
-    common,
-    schemaBuild,
-    database,
-    indexingCache,
   });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
@@ -144,7 +135,7 @@ export async function run({
               await realtimeIndexingStore.queue.onIdle();
 
               // Set reorg table `checkpoint` column for newly inserted rows.
-              await database.complete({ checkpoint });
+              await database.complete({ checkpoint, db: database.qb.drizzle });
 
               if (preBuild.mode === "multichain") {
                 const network = indexingBuild.networks.find(
@@ -168,19 +159,24 @@ export async function run({
             }
           }
 
-          await metadataStore.setStatus(event.status);
+          await database.setStatus(event.status);
 
           break;
         }
         case "reorg":
           await database.removeTriggers();
-          await database.revert({ checkpoint: event.checkpoint });
+          await database.qb.drizzle.transaction(async (tx) => {
+            await database.revert({ checkpoint: event.checkpoint, db: tx });
+          });
           await database.createTriggers();
 
           break;
 
         case "finalize":
-          await database.finalize({ checkpoint: event.checkpoint });
+          await database.finalize({
+            checkpoint: event.checkpoint,
+            db: database.qb.drizzle,
+          });
           break;
 
         default:
@@ -189,7 +185,7 @@ export async function run({
     },
   });
 
-  await metadataStore.setStatus(sync.getStatus());
+  await database.setStatus(sync.getStatus());
 
   for (const network of indexingBuild.networks) {
     const label = { network: network.name };
@@ -224,6 +220,13 @@ export async function run({
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
     if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
+      const historicalIndexingStore = createHistoricalIndexingStore({
+        common,
+        schemaBuild,
+        database,
+        indexingCache,
+        db: database.qb.drizzle,
+      });
       const result = await indexing.processSetupEvents({
         db: historicalIndexingStore,
       });
@@ -240,8 +243,14 @@ export async function run({
     // Run historical indexing until complete.
     for await (const events of sync.getEvents()) {
       if (events.length > 0) {
-        await database.qb.drizzle.transaction(async () => {
-          // set transaction in indexing store and indexing cache
+        await database.qb.drizzle.transaction(async (tx) => {
+          const historicalIndexingStore = createHistoricalIndexingStore({
+            common,
+            schemaBuild,
+            database,
+            indexingCache,
+            db: tx,
+          });
           const decodedEvents = decodeEvents(
             common,
             indexingBuild.sources,
@@ -347,9 +356,10 @@ export async function run({
               });
             }
 
-            await indexingCache.flush();
+            await indexingCache.flush({ db: tx });
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
+              db: tx,
             });
             lastFlush = Date.now();
 
@@ -361,7 +371,7 @@ export async function run({
         });
       }
 
-      await metadataStore.setStatus(sync.getStatus());
+      await database.setStatus(sync.getStatus());
     }
 
     if (isKilled) return;
@@ -376,9 +386,12 @@ export async function run({
       msg: "Completed all historical events, starting final flush",
     });
 
-    await database.qb.drizzle.transaction(async () => {
-      await indexingCache.flush();
-      await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
+    await database.qb.drizzle.transaction(async (tx) => {
+      await indexingCache.flush({ db: tx });
+      await database.finalize({
+        checkpoint: sync.getFinalizedCheckpoint(),
+        db: tx,
+      });
     });
 
     // Manually update metrics to fix a UI bug that occurs when the end
@@ -411,7 +424,7 @@ export async function run({
 
     await sync.startRealtime();
 
-    await metadataStore.setStatus(sync.getStatus());
+    await database.setStatus(sync.getStatus());
 
     common.logger.info({
       service: "server",
