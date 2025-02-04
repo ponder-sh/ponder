@@ -62,9 +62,9 @@ type DatabaseConfig =
 
 type BlockConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
-  startBlock?: number;
+  startBlock?: number | "latest";
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-  endBlock?: number;
+  endBlock?: number | "latest";
 };
 
 type TransactionReceiptConfig = {
@@ -212,9 +212,9 @@ type AccountsConfig<networks, accounts> = {} extends accounts
 
 type BlockFilterConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
-  startBlock?: number;
+  startBlock?: number | "latest";
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-  endBlock?: number;
+  endBlock?: number | "latest";
   interval?: number;
 };
 
