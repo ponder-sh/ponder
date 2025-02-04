@@ -248,25 +248,6 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    const startBlockMaybeNan = source.startBlock;
-    const startBlock = Number.isNaN(startBlockMaybeNan)
-      ? undefined
-      : startBlockMaybeNan;
-    const endBlockMaybeNan = source.endBlock;
-    const endBlock = Number.isNaN(endBlockMaybeNan)
-      ? undefined
-      : endBlockMaybeNan;
-
-    if (
-      startBlock !== undefined &&
-      endBlock !== undefined &&
-      endBlock < startBlock
-    ) {
-      throw new Error(
-        `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
-      );
-    }
-
     const network = networks.find((n) => n.name === source.network);
     if (!network) {
       throw new Error(
@@ -275,6 +256,19 @@ export async function buildConfigAndIndexingFunctions({
         }'. Got '${source.network}', expected one of [${networks
           .map((n) => `'${n.name}'`)
           .join(", ")}].`,
+      );
+    }
+
+    const startBlock = await resolveBlockNumber(source.startBlock, network);
+    const endBlock = await resolveBlockNumber(source.endBlock, network);
+
+    if (
+      startBlock !== undefined &&
+      endBlock !== undefined &&
+      endBlock < startBlock
+    ) {
+      throw new Error(
+        `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
       );
     }
   }
