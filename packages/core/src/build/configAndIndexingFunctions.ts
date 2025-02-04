@@ -27,7 +27,7 @@ import type { SyncBlock } from "@/types/sync.js";
 import { chains } from "@/utils/chains.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { dedupe } from "@ponder/common";
-import { type Hex, type LogTopic, hexToNumber } from "viem";
+import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 
 const flattenSources = <
@@ -96,7 +96,13 @@ export async function buildConfigAndIndexingFunctions({
             method: "eth_getBlockByNumber",
             params: ["latest", false],
           })
-          .then((block) => hexToNumber((block as SyncBlock).number));
+          .then((block) => {
+            if (!block)
+              throw new BlockNotFoundError({
+                blockNumber: "latest" as any,
+              });
+            return hexToNumber((block as SyncBlock).number);
+          });
         perNetworkLatestBlockNumber.set(network.name, blockPromise);
         return blockPromise;
       }

@@ -1,15 +1,18 @@
+import { setupAnvil } from "@/_test/setup.js";
+import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
   http,
   type Address,
+  BlockNotFoundError,
   parseAbiItem,
   toEventSelector,
   toFunctionSelector,
   zeroAddress,
 } from "viem";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { type Config, createConfig } from "../config/index.js";
 import {
   buildConfigAndIndexingFunctions,
@@ -31,6 +34,8 @@ const bytes1 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
+
+beforeEach(setupAnvil);
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
@@ -464,6 +469,55 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   });
 
   expect(sources[0]?.filter.fromBlock).toBe(undefined);
+});
+
+test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        abi: [event0, event1],
+        startBlock: "latest",
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(sources[0]?.filter.fromBlock).toBeTypeOf("number");
+});
+
+test("buildConfigAndIndexingFunctions() throws BlockNotFoundError", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        abi: [event0, event1],
+        startBlock: "latest",
+      },
+    },
+  });
+
+  await expect(
+    buildConfigAndIndexingFunctions({
+      config,
+      rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    }),
+  ).rejects.toThrowError(
+    new BlockNotFoundError({ blockNumber: "latest" as any }),
+  );
 });
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
