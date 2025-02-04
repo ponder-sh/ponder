@@ -6,10 +6,14 @@ import { toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
-  FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
-import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
+import type {
+  Event,
+  Schema,
+  SchemaBuild,
+  SetupEvent,
+} from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -27,6 +31,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
+import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
   has: (params: { table: Table; key: object }) => boolean;
@@ -56,7 +61,7 @@ export enum EntryType {
 
 type Metadata = {
   method: string;
-  event: Event | undefined;
+  event: Event | SetupEvent;
 };
 
 type Cache = Map<
@@ -418,41 +423,46 @@ export const createIndexingCache = ({
           while (insertValues.length > 0) {
             const values = insertValues.splice(0, batchSize);
 
-            await database.wrap(
-              { method: `${getTableName(table)}.flush()` },
-              async () => {
-                await db.execute(sql`SAVEPOINT flush`);
-                await db
-                  .insert(table)
-                  .values(values.map((value) => value.row))
-                  .catch(async (_error) => {
-                    const error = _error as Error;
-                    const result = await recoverBatchError(
-                      values,
-                      async (values) => {
-                        await db.execute(sql`ROLLBACK TO flush`);
-                        await database.qb.drizzle
-                          .insert(table)
-                          .values(values.map((value) => value.row));
-                        await db.execute(sql`SAVEPOINT flush`);
-                      },
-                    );
+            // await database.wrap(
+            //   { method: `${getTableName(table)}.flush()` },
+            //   async () => {
+            await db.execute(sql`SAVEPOINT flush`);
+            await db
+              .insert(table)
+              .values(values.map((value) => value.row))
+              .catch(async () => {
+                const result = await recoverBatchError(
+                  values,
+                  async (values) => {
+                    await db.execute(sql`ROLLBACK TO flush`);
+                    await database.qb.drizzle
+                      .insert(table)
+                      .values(values.map((value) => value.row));
+                    await db.execute(sql`SAVEPOINT flush`);
+                  },
+                );
 
-                    if (result.status === "error") {
-                      const error = result.error;
-                      if (result.value.metadata?.event) {
-                        addErrorMeta(
-                          error,
-                          toErrorMeta(result.value.metadata.event),
-                        );
-                      }
-                      throw error;
-                    } else {
-                      throw new FlushError(error.message);
-                    }
+                if (result.status === "success") {
+                  return;
+                }
+
+                const error = parseSqlError(result.error);
+                error.stack = undefined;
+
+                if (result.value.metadata?.event) {
+                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                  common.logger.error({
+                    service: "indexing",
+                    msg: `Error while processing ${getTableName(table)}.${result.value.metadata.method}() in '${result.value.metadata.event.name}' event`,
+                    error,
                   });
-              },
-            );
+                }
+
+                throw error;
+              });
+            //   },
+            // );
           }
         }
 
@@ -475,53 +485,58 @@ export const createIndexingCache = ({
 
           while (updateValues.length > 0) {
             const values = updateValues.splice(0, batchSize);
-            await database.wrap(
-              {
-                method: `${getTableName(table)}.flush()`,
-              },
-              async () => {
-                await db.execute(sql`SAVEPOINT flush`);
-                await db
-                  .insert(table)
-                  .values(values.map((value) => value.row))
-                  .onConflictDoUpdate({
-                    // @ts-ignore
-                    target: primaryKeys.map(({ js }) => table[js]),
-                    set,
-                  })
-                  .catch(async (_error) => {
-                    const error = _error as Error;
-                    const result = await recoverBatchError(
-                      values,
-                      async (values) => {
-                        await db.execute(sql`ROLLBACK TO flush`);
-                        await db
-                          .insert(table)
-                          .values(values.map((value) => value.row))
-                          .onConflictDoUpdate({
-                            // @ts-ignore
-                            target: primaryKeys.map(({ js }) => table[js]),
-                            set,
-                          });
-                        await db.execute(sql`SAVEPOINT flush`);
-                      },
-                    );
+            // await database.wrap(
+            //   {
+            //     method: `${getTableName(table)}.flush()`,
+            //   },
+            //   async () => {
+            await db.execute(sql`SAVEPOINT flush`);
+            await db
+              .insert(table)
+              .values(values.map((value) => value.row))
+              .onConflictDoUpdate({
+                // @ts-ignore
+                target: primaryKeys.map(({ js }) => table[js]),
+                set,
+              })
+              .catch(async () => {
+                const result = await recoverBatchError(
+                  values,
+                  async (values) => {
+                    await db.execute(sql`ROLLBACK TO flush`);
+                    await db
+                      .insert(table)
+                      .values(values.map((value) => value.row))
+                      .onConflictDoUpdate({
+                        // @ts-ignore
+                        target: primaryKeys.map(({ js }) => table[js]),
+                        set,
+                      });
+                    await db.execute(sql`SAVEPOINT flush`);
+                  },
+                );
 
-                    if (result.status === "error") {
-                      const error = result.error;
-                      if (result.value.metadata?.event) {
-                        addErrorMeta(
-                          error,
-                          toErrorMeta(result.value.metadata.event),
-                        );
-                      }
-                      throw error;
-                    } else {
-                      throw new FlushError(error.message);
-                    }
+                if (result.status === "success") {
+                  return;
+                }
+
+                const error = parseSqlError(result.error);
+                error.stack = undefined;
+
+                if (result.value.metadata?.event) {
+                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                  common.logger.error({
+                    service: "indexing",
+                    msg: `Error while processing ${getTableName(table)}.${result.value.metadata.method}() in '${result.value.metadata.event.name}' event`,
+                    error,
                   });
-              },
-            );
+                }
+
+                throw error;
+              });
+            //   },
+            // );
           }
         }
 

@@ -4,8 +4,12 @@ import {
   RecordNotFoundError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
-import type { Event } from "@/internal/types.js";
+import type {
+  Event,
+  Schema,
+  SchemaBuild,
+  SetupEvent,
+} from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
@@ -38,7 +42,7 @@ export const createHistoricalIndexingStore = ({
     worker: (fn) => fn(),
   });
 
-  let event: Event | undefined;
+  let event: Event | SetupEvent;
 
   return {
     // @ts-ignore
@@ -371,7 +375,7 @@ export const createHistoricalIndexingStore = ({
       { schema, casing: "snake_case" },
     ),
     queue,
-    set event(value: Event | undefined) {
+    set event(value: Event | SetupEvent) {
       event = value;
     },
   };
