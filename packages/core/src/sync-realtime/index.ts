@@ -403,6 +403,7 @@ export const createRealtimeSync = (
     // @ts-ignore
     block.transactions = undefined;
 
+    // TODO(kyle) why awaited
     await args.onEvent({
       type: "block",
       hasMatchedFilter: matchedFilters.size > 0,
@@ -433,7 +434,7 @@ export const createRealtimeSync = (
         service: "realtime",
         msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
           args.network.name
-        }' blocks from ${hexToNumber(finalizedBlock.number) + 1} to ${hexToNumber(pendingFinalizedBlock.number)}`,
+        }' blocks [${hexToNumber(finalizedBlock.number) + 1}, ${hexToNumber(pendingFinalizedBlock.number)}]`,
       });
 
       const finalizedBlocks = unfinalizedBlocks.filter(
@@ -551,9 +552,9 @@ export const createRealtimeSync = (
 
     args.common.logger.warn({
       service: "realtime",
-      msg: `Reconciled ${reorgedBlocks.length}-block reorg on '${
+      msg: `Reconciled ${reorgedBlocks.length}-block '${
         args.network.name
-      }' with common ancestor block ${hexToNumber(commonAncestor.number)}`,
+      }' reorg with common ancestor block ${hexToNumber(commonAncestor.number)}`,
     });
 
     // recompute `unfinalizedChildAddresses`
@@ -691,11 +692,11 @@ export const createRealtimeSync = (
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
               service: "sync",
-              msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+              msg: `Detected '${args.network.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
             });
           } else {
             throw new Error(
-              `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+              `Detected inconsistent '${args.network.name}' RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
             );
           }
         }
@@ -708,7 +709,7 @@ export const createRealtimeSync = (
     ) {
       args.common.logger.debug({
         service: "realtime",
-        msg: `Skipped fetching logs for '${args.network.name}' block ${hexToNumber(block.number)} due to bloom filter result`,
+        msg: `Skipped fetching '${args.network.name}' logs for block ${hexToNumber(block.number)} due to bloom filter result`,
       });
     }
 
@@ -782,7 +783,7 @@ export const createRealtimeSync = (
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
               service: "sync",
-              msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+              msg: `Detected '${args.network.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
             });
           } else {
             requiredTransactions.add(log.transactionHash);
@@ -961,10 +962,10 @@ export const createRealtimeSync = (
                 service: "realtime",
                 msg: `Fetched ${missingBlockRange.length} missing '${
                   args.network.name
-                }' blocks from ${hexToNumber(latestBlock.number) + 1} to ${Math.min(
+                }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
                   hexToNumber(block.number),
                   hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-                )}`,
+                )}]`,
               });
 
               // This is needed to ensure proper `kill()` behavior. When the service
@@ -1042,6 +1043,11 @@ export const createRealtimeSync = (
         try {
           const block = await _eth_getBlockByNumber(args.requestQueue, {
             blockTag: "latest",
+          });
+
+          args.common.logger.debug({
+            service: "realtime",
+            msg: `Received latest '${args.network.name}' block ${hexToNumber(block.number)}`,
           });
 
           const latestBlock = getLatestUnfinalizedBlock();

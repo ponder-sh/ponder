@@ -7,6 +7,7 @@ import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
+import superjson from "superjson";
 import { beforeEach, expect, test } from "vitest";
 import { client } from "./index.js";
 
@@ -14,7 +15,7 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
 const queryToParams = (query: QueryWithTypings) =>
-  new URLSearchParams({ sql: JSON.stringify(query) });
+  new URLSearchParams({ sql: superjson.stringify(query) });
 
 test("client.db", async (context) => {
   globalThis.PONDER_NAMESPACE_BUILD = "public";

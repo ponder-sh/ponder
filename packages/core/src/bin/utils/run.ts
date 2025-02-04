@@ -109,6 +109,12 @@ export async function run({
             });
 
             for (const { checkpoint, events } of perBlockEvents) {
+              const network = indexingBuild.networks.find(
+                (network) =>
+                  network.chainId ===
+                  Number(decodeCheckpoint(checkpoint).chainId),
+              )!;
+
               const decodedEvents = decodeEvents(
                 common,
                 indexingBuild.sources,
@@ -117,7 +123,7 @@ export async function run({
 
               common.logger.debug({
                 service: "app",
-                msg: `Decoded ${decodedEvents.length} events`,
+                msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
               });
 
               const result = await indexing.processEvents({
@@ -127,7 +133,7 @@ export async function run({
 
               common.logger.info({
                 service: "app",
-                msg: `Indexed ${decodedEvents.length} events`,
+                msg: `Indexed ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
               });
 
               if (result.status === "error") onReloadableError(result.error);
@@ -242,6 +248,8 @@ export async function run({
 
     // Run historical indexing until complete.
     for await (const events of sync.getEvents()) {
+      if (isKilled) return;
+
       if (events.length > 0) {
         await database.qb.drizzle.transaction(async (tx) => {
           const historicalIndexingStore = createHistoricalIndexingStore({
@@ -428,7 +436,7 @@ export async function run({
 
     common.logger.info({
       service: "server",
-      msg: "Started responding as healthy",
+      msg: "Started returning 200 responses from /ready endpoint",
     });
   };
 

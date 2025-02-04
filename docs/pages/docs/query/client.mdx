@@ -1,22 +1,17 @@
 ---
-title: "Client"
+title: "SQL client"
 description: "Query a Ponder app with the `@ponder/client` package."
 ---
 
 import { Callout, Steps, Tabs } from "nextra/components";
 
-# Client queries
+# SQL client queries
 
-`@ponder/client` and `@ponder/react` are TypeScript client packages for querying a Ponder app with end-to-end type safety and live updates.
+The `@ponder/client` package provides an SQL client for querying a Ponder app over HTTP, with end-to-end type inference and live updates. It's an alternative to the [GraphQL API](/docs/query/graphql).
 
 ## Enable on the server
 
-<Callout type="info">
-  Client queries are available starting from version `0.9.0`. Read the
-  [migration guide](/docs/migration-guide#090) for more details.
-</Callout>
-
-Register the `client` middleware on your Ponder server to enable client queries.
+To enable client queries, register the `client` middleware in your API function file.
 
 ```ts filename="src/api/index.ts" {4,9}
 import { db } from "ponder:api";
@@ -31,6 +26,8 @@ app.use("/sql/*", client({ db, schema }));
 
 export default app;
 ```
+
+[Read more](#security) about how the `client` middleware protects against malicious queries and denial-of-service attacks.
 
 ## `@ponder/client`
 
@@ -63,9 +60,9 @@ Install the `@ponder/client` package in your client project.
   </Tabs.Tab>
 </Tabs>
 
-#### Setup client
+#### Create client
 
-Create a client using the URL of your Ponder server. Import your Ponder schema into the same file.
+Create a client using the URL of your Ponder server. Import your schema into the same file using a relative import from your ponder.schema.ts file.
 
 ```ts {4}
 import { createClient } from "@ponder/client";
@@ -73,6 +70,12 @@ import * as schema from "../../ponder/ponder.schema";
 
 const client = createClient("http://localhost:42069/sql", { schema });
 ```
+
+<Callout type="info">
+  **Non-monorepo users**: If your Ponder project and client project are not in
+  the same repository, you won't be able to use a relative import. We're working
+  on a solution for this, stay tuned.
+</Callout>
 
 #### Run a query
 
@@ -108,7 +111,7 @@ const result = await client.db.select().from(schema.account).limit(10);
 
 Subscribe to live updates.
 
-When you initiate a live query, the client opens a persistent HTTP connection with the server using Server-Sent Events (SSE). Then, the server notifies the client whenever a new block gets indexed. If a query result is no longer valid, the client will immediately refetch it to receive the latest result. This approach achieves low-latency updates with minimal network traffic.
+This method intiates a HTTP connection with the server using server-sent events (SSE). The server notifies the client whenever a new block gets indexed. If a query result is no longer valid, the client immediately refetches it to receive the latest result. This approach achieves low-latency updates with minimal network traffic.
 
 To avoid browser quotas, each `client` instance uses at most one SSE connection at a time.
 
@@ -129,7 +132,7 @@ const { unsubscribe } = client.live(
 );
 ```
 
-#### `client.getStatus()`
+#### `client.getStatus`
 
 Get the indexing progress of each chain.
 
@@ -144,21 +147,19 @@ const status = await client.getStatus();
 
 ## Query from React
 
-The `@ponder/react` package includes React hooks for subscribing to live updates from your database. It uses `@ponder/client` and Tanstack Query under the hood.
+The `@ponder/react` package provides React hooks for subscribing to live updates from your database, powered by `@ponder/client`. This package wraps [TanStack Query](https://tanstack.com/query), a popular library for managing async state in React.
 
 ```ts filename="components/Deposits.tsx"
 import { usePonderQuery } from "@ponder/react";
 
-const { data, isError, isPending } = usePonderQuery({
-  queryFn: (db) => db.select().from(schema.depositEvent).limit(10),
-});
+export function Deposits() {
+  const { data, isError, isPending } = usePonderQuery({
+    queryFn: (db) => db.select().from(schema.depositEvent).limit(10),
+  });
+
+  // ...
+}
 ```
-
-### TanStack Query
-
-[TanStack Query](https://tanstack.com/query) is a popular library for managing async state in React. It provides powerful features like background updates, caching, and prefetching.
-
-**Queries** are used to fetch data and each query is identified by a unique `queryKey`.
 
 ### Guide
 
@@ -200,33 +201,41 @@ const client = createClient("http://localhost:42069/sql", { schema });
 export { client, schema };
 ```
 
+<Callout type="info">
+  **Non-monorepo users**: If your Ponder project and client project are not in
+  the same repository, you won't be able to use a relative import. We're working
+  on a solution for this, stay tuned.
+</Callout>
+
 #### Wrap app in provider
 
-Wrap your app with the `PonderProvider` React Context Provider and include the client object you just created.
+Wrap your app with the `PonderProvider` and include the client object you just created.
 
-```ts filename="app.tsx" {6-8}
-import { PonderProvider } from '@ponder/react'
-import { client } from './lib/ponder'
+{/* prettier-ignore */}
+```ts filename="app.tsx" {6,8}
+import { PonderProvider } from "@ponder/react";
+import { client } from "./lib/ponder";
 
 function App() {
   return (
     <PonderProvider client={client}>
       {/** ... */}
     </PonderProvider>
-  )
+  );
 }
 ```
 
 #### Setup TanStack Query
 
-Inside the `PonderProvider`, wrap your app in a TanStack Query React Context Provider. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
+Inside the `PonderProvider`, wrap your app with a TanStack Query Provider. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
 
-```ts filename="app.tsx" {5, 10-12}
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { PonderProvider } from '@ponder/react'
-import { client } from './lib/ponder'
+{/* prettier-ignore */}
+```ts filename="app.tsx" {5, 10,12}
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PonderProvider } from "@ponder/react";
+import { client } from "./lib/ponder";
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient();
 
 function App() {
   return (
@@ -235,15 +244,18 @@ function App() {
         {/** ... */}
       </QueryClientProvider>
     </PonderProvider>
-  )
+  );
 }
 ```
 
 #### Use the hook
 
+In a React client component, use the `usePonderQuery` hook to fetch data. The hook returns an ordinary TanStack Query result object.
+
+{/* prettier-ignore */}
 ```ts filename="components/Deposits.tsx"
-import { usePonderQuery } from '@ponder/react'
-import { schema } from '../lib/ponder'
+import { usePonderQuery } from "@ponder/react";
+import { schema } from "../lib/ponder";
 
 export function Deposits() {
   const { data, isError, isPending } = usePonderQuery({
@@ -254,9 +266,9 @@ export function Deposits() {
         .limit(10),
   });
 
-  if (isPending) return <div>Loading deposits</div>
-  if (isError) return <div>Error fetching deposits</div>
-  return <div>Deposits: {data}</div>
+  if (isPending) return <div>Loading deposits</div>;
+  if (isError) return <div>Error fetching deposits</div>;
+  return <div>Deposits: {data}</div>;
 }
 ```
 
@@ -293,7 +305,7 @@ const { data } = usePonderStatus();
 
 #### `getPonderQueryOptions`
 
-Helper function for calculating the query function and query key from a Ponder query.
+Helper function to build the Tanstack `queryFn` and `queryKey` for a SQL query.
 
 <Callout type="info">
   Use `getPonderQueryOptions` in a Next.js app to prefetch data on the server.
@@ -311,7 +323,7 @@ const { queryFn, queryKey } = getPonderQueryOptions(client, (db) =>
 
 #### `PonderProvider`
 
-React Context Provider for Ponder.
+React Context Provider for `@ponder/react`.
 
 ```tsx
 import { PonderProvider } from "@ponder/react";
@@ -328,3 +340,24 @@ These example apps demonstrate how to use `@ponder/client` and `@ponder/react`.
 
 - [**Basic**](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts)
 - [**Next.js**](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18)
+
+## Security
+
+Here are the measures taken by the `client` middleware to prevent malicious queries & denial-of-service attacks.
+
+- **Read-only**: Each query statement runs in an `READ ONLY` transaction using autocommit.
+- **Query validator**: Each query is parsed using [`libpg_query`](https://github.com/pganalyze/libpg_query) and must pass the following checks.
+
+  - The root of the AST must be a `SELECT{:sql}` statement. Queries containing multiple statements are rejected.
+  - The query must only contain allowlisted AST nodes and built-in SQL functions. For example, `SELECT`, `WHERE`, and `max()` are allowed, but `DELETE`, `SET`, and `pg_advisory_lock()` are not. [Read more](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/client/validate.ts).
+  - The query must not contain references to objects in schemas other than the current schema. [Read more](/docs/production/deploy#database-schema).
+
+- **Resource limits**: The database session uses the following resource limit settings.
+
+```sql
+SET work_mem = '512MB';
+SET statement_timeout = '500ms';
+SET lock_timeout = '500ms';
+```
+
+Together, these measures aim to achieve a similar level of risk as the GraphQL API.

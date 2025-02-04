@@ -2,6 +2,12 @@ import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
 
+// The default parser for numeric[] (1231) seems to parse values as Number
+// or perhaps through JSON.parse(). Use the int8[] (1016) parser instead,
+// which properly returns an array of strings.
+const bigIntArrayParser = pg.types.getTypeParser(1016);
+pg.types.setTypeParser(1231, bigIntArrayParser);
+
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
 const originalClientQuery = pg.Client.prototype.query;
@@ -92,7 +98,7 @@ export function createReadonlyPool(
         super.connect(() => {
           this.query(
             `
-          SET search_path = "${namespace}", public;
+          SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
           SET statement_timeout = '500ms';
@@ -105,7 +111,7 @@ export function createReadonlyPool(
         return super.connect().then(() =>
           this.query(
             `
-          SET search_path = "${namespace}", public;
+          SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
           SET statement_timeout = '500ms';

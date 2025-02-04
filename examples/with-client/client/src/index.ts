@@ -9,3 +9,21 @@ const result = await client.db
   .execute();
 
 console.log(result);
+
+const { unsubscribe } = client.live(
+  (db) =>
+    db
+      .select({ sum: sum(schema.account.balance) })
+      .from(schema.account)
+      .execute(),
+  (data) => {
+    console.log(data);
+  },
+  (error) => {
+    console.error(error);
+  },
+);
+
+setTimeout(() => {
+  unsubscribe();
+}, 10_000);

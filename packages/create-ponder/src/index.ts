@@ -288,13 +288,13 @@ export async function run({
       const result = await prompts({
         type: "text",
         name: "id",
-        message: "Enter a subgraph ID",
+        message: "Enter a subgraph Deployment ID",
         initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
       });
       subgraph = result.id;
     }
     if (!subgraph) {
-      log(pico.red("No subgraph ID provided."));
+      log(pico.red("No subgraph Deployment ID provided."));
       process.exit(0);
     }
   }

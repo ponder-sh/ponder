@@ -484,6 +484,7 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Trans
 
 const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
   "trace.id",
+  "trace.traceIndex",
   "trace.type",
   "trace.from",
   "trace.to",

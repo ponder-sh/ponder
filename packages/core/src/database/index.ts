@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -23,7 +24,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
+import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -47,7 +48,6 @@ import {
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { sql as ksql } from "kysely";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
-import { KyselyPGlite } from "kysely-pglite";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -178,7 +178,10 @@ export const createDatabase = async ({
           : preBuild.databaseConfig.instance,
     };
 
-    const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
+    const kyselyDialect = createPgliteKyselyDialect(driver.instance);
+
+    await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
+    await driver.instance.query(`SET search_path TO "${namespace}"`);
 
     await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     await driver.instance.query(`SET search_path TO "${namespace}"`);
@@ -359,7 +362,7 @@ export const createDatabase = async ({
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const endClock = startClock();
 
-        const id = crypto.randomUUID().slice(0, 8);
+        const id = randomUUID().slice(0, 8);
         if (options.includeTraceLogs) {
           common.logger.trace({
             service: "database",
@@ -1145,29 +1148,25 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       );
     },
     async finalize({ checkpoint, db }) {
-      await this.wrap({ method: "finalize" }, async () => {
-        const app = await db
-          .select({ value: PONDER_META.value })
-          .from(PONDER_META)
-          .where(eq(PONDER_META.key, "app"))
-          .then((result) => result[0]!.value);
+      await this.wrap(
+        { method: "finalize", includeTraceLogs: true },
+        async () => {
+          await db
+            .update(PONDER_META)
+            .set({
+              value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
+            })
+            .where(eq(PONDER_META.key, "app"));
 
-        app.checkpoint = checkpoint;
-
-        await db
-          .update(PONDER_META)
-          .set({ value: app })
-          .where(eq(PONDER_META.key, "app"));
-
-        await Promise.all(
-          tables.map((table) =>
-            db
-              .delete(getReorgTable(table))
-              .where(lte(getReorgTable(table).checkpoint, checkpoint))
-              .execute(),
-          ),
-        );
-      });
+          await Promise.all(
+            tables.map((table) =>
+              db
+                .delete(getReorgTable(table))
+                .where(lte(getReorgTable(table).checkpoint, checkpoint)),
+            ),
+          );
+        },
+      );
 
       const decoded = decodeCheckpoint(checkpoint);
 
@@ -1176,12 +1175,12 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
     },
-    async complete({ checkpoint }) {
+    async complete({ checkpoint, db }) {
       await Promise.all(
         tables.map((table) =>
           this.wrap({ method: "complete" }, async () => {
             const reorgTable = getReorgTable(table);
-            await qb.drizzle
+            await db
               .update(reorgTable)
               .set({ checkpoint })
               .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING));

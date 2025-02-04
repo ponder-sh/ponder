@@ -270,20 +270,22 @@ export const createSync = async (params: {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
-    } else {
-      let i = events.length - 1;
-      while (i >= 0) {
-        const event = events[i]!;
+      return;
+    }
 
-        if (network.chainId === event.chainId) {
-          status[network.name]!.block = {
-            timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
-            number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
-          };
-        }
+    let i = events.length - 1;
+    while (i >= 0) {
+      const event = events[i]!;
 
-        i--;
+      if (network.chainId === event.chainId) {
+        status[network.name]!.block = {
+          timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
+          number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+        };
+        return;
       }
+
+      i--;
     }
   };
 
@@ -341,10 +343,13 @@ export const createSync = async (params: {
               ? params.initialCheckpoint
               : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
           to,
-          limit: 1000,
+          limit: Math.round(
+            params.common.options.syncEventsQuerySize /
+              (params.indexingBuild.networks.length * 2),
+          ),
         });
 
-        return bufferAsyncGenerator(localEventGenerator, 2);
+        return bufferAsyncGenerator(localEventGenerator, 1);
       },
     );
 
@@ -412,7 +417,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted ${events.length} '${network.name}' events`,
+            msg: `Extracted ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
           if (params.mode === "multichain") {
@@ -441,7 +446,9 @@ export const createSync = async (params: {
                 type: "block",
                 checkpoint,
                 status: structuredClone(status),
-                events: readyEvents,
+                events: readyEvents.sort((a, b) =>
+                  a.checkpoint < b.checkpoint ? -1 : 1,
+                ),
                 network,
               })
               .then(() => {
@@ -1322,7 +1329,7 @@ export async function* getLocalSyncGenerator({
 
     common.logger.debug({
       service: "sync",
-      msg: `Synced '${network.name}' for blocks [${interval[0]}, ${interval[1]}]`,
+      msg: `Synced ${interval[1] - interval[0] + 1} '${network.name}' blocks [${interval[0]}, ${interval[1]}]`,
     });
 
     // Update cursor to record progress
