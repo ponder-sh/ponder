@@ -17,6 +17,7 @@ const latestBlockPolygon = await createPublicClient({
 }).getBlock();
 
 export default createConfig({
+  mode: "multichain",
   networks: {
     mainnet: {
       chainId: 1,
