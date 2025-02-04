@@ -211,13 +211,13 @@ export const createHistoricalIndexingStore = ({
                       if (Array.isArray(values)) {
                         const rows = [];
                         for (const value of values) {
-                          const row = await indexingCache.get({
-                            table,
-                            key: value,
-                            db,
-                          });
+                          // Note: optimistic assumption that no conflict exists
+                          // because error is recovered at flush time
 
-                          if (row) {
+                          if (
+                            indexingCache.has({ table, key: value }) &&
+                            indexingCache.get({ table, key: value, db })
+                          ) {
                             const error = new UniqueConstraintError(
                               `Unique constraint failed for '${getTableName(table)}'.`,
                             );
@@ -238,15 +238,13 @@ export const createHistoricalIndexingStore = ({
                         }
                         return rows;
                       } else {
-                        const row = await indexingCache.get({
-                          table,
-                          key: values,
-                          db,
-                        });
+                        // Note: optimistic assumption that no conflict exists
+                        // because error is recovered at flush time
 
-                        // TODO(kyle) optimistically assume no conflict,
-                        // check for error at flush time
-                        if (row) {
+                        if (
+                          indexingCache.has({ table, key: values }) &&
+                          indexingCache.get({ table, key: values, db })
+                        ) {
                           const error = new UniqueConstraintError(
                             `Unique constraint failed for '${getTableName(table)}'.`,
                           );
