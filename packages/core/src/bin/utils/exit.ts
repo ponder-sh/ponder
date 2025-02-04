@@ -1,26 +1,22 @@
 import os from "node:os";
 import readline from "node:readline";
 import type { Common } from "@/internal/common.js";
-import { IgnorableError } from "@/internal/errors.js";
-
+import { ShutdownError } from "@/internal/errors.js";
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 
-/**
- * Sets up shutdown handlers for the process. Accepts additional cleanup logic to run.
- */
-export function setupShutdown({
+/**  Sets up shutdown handlers for the process. Accepts additional cleanup logic to run. */
+export const createExit = ({
   common,
-  cleanup,
 }: {
-  common: Common;
-  cleanup: () => Promise<void>;
-}) {
+  common: Pick<Common, "logger" | "telemetry">;
+}) => {
   let isShuttingDown = false;
 
   const shutdown = async ({
+    callback,
     reason,
     code,
-  }: { reason: string; code: 0 | 1 }) => {
+  }: { callback: () => Promise<void>; reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     setTimeout(async () => {
@@ -28,7 +24,6 @@ export function setupShutdown({
         service: "process",
         msg: "Failed to shutdown within 5 seconds, terminating (exit code 1)",
       });
-      await common.logger.kill();
       process.exit(1);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
@@ -43,7 +38,7 @@ export function setupShutdown({
       properties: { duration_seconds: process.uptime() },
     });
 
-    await cleanup();
+    await callback();
 
     const level = code === 0 ? "info" : "fatal";
     common.logger[level]({
@@ -51,7 +46,6 @@ export function setupShutdown({
       msg: `Finished shutdown sequence, terminating (exit code ${code})`,
     });
 
-    await common.logger.kill();
     process.exit(code);
   };
 
@@ -74,7 +68,7 @@ export function setupShutdown({
   );
 
   process.on("uncaughtException", (error: Error) => {
-    if (error instanceof IgnorableError) return;
+    if (error instanceof ShutdownError) return;
     common.logger.error({
       service: "process",
       msg: "Caught uncaughtException event",
@@ -83,7 +77,7 @@ export function setupShutdown({
     shutdown({ reason: "Received uncaughtException", code: 1 });
   });
   process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof IgnorableError) return;
+    if (error instanceof ShutdownError) return;
     common.logger.error({
       service: "process",
       msg: "Caught unhandledRejection event",
@@ -93,4 +87,4 @@ export function setupShutdown({
   });
 
   return shutdown;
-}
+};

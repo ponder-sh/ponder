@@ -4,7 +4,7 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type { CliOptions } from "../ponder.js";
-import { setupShutdown } from "../utils/shutdown.js";
+import { setupShutdown } from "../utils/exit.js";
 
 export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });

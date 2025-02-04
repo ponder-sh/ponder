@@ -11,9 +11,9 @@ import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
+import { setupShutdown } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
-import { setupShutdown } from "../utils/shutdown.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });

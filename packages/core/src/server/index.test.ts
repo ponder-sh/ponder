@@ -14,7 +14,7 @@ beforeEach(setupIsolatedDatabase);
 test("listens on ipv4", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
-  const server = await createServer({
+  await createServer({
     common: context.common,
     apiBuild: {
       app: new Hono(),
@@ -29,14 +29,13 @@ test("listens on ipv4", async (context) => {
   );
   expect(response.status).toBe(200);
 
-  await server.kill();
   await cleanup();
 });
 
 test("listens on ipv6", async (context) => {
   const { database, cleanup } = await setupDatabaseServices(context);
 
-  const server = await createServer({
+  await createServer({
     common: context.common,
     apiBuild: {
       app: new Hono(),
@@ -51,7 +50,6 @@ test("listens on ipv6", async (context) => {
   );
   expect(response.status).toBe(200);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -72,7 +70,6 @@ test("not ready", async (context) => {
 
   expect(response.status).toBe(503);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -105,7 +102,6 @@ test("ready", async (context) => {
 
   expect(response.status).toBe(200);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -126,7 +122,6 @@ test("health", async (context) => {
 
   expect(response.status).toBe(200);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -149,7 +144,6 @@ test("healthy PUT", async (context) => {
 
   expect(response.status).toBe(404);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -170,7 +164,6 @@ test("metrics", async (context) => {
 
   expect(response.status).toBe(200);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -194,7 +187,6 @@ test("metrics error", async (context) => {
 
   expect(response.status).toBe(500);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -217,7 +209,6 @@ test("metrics PUT", async (context) => {
 
   expect(response.status).toBe(404);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -242,7 +233,6 @@ test("metrics unmatched route", async (context) => {
   const text = await response.text();
   expect(text).not.toContain('path="/unmatched"');
 
-  await server.kill();
   await cleanup();
 });
 
@@ -263,7 +253,6 @@ test("missing route", async (context) => {
 
   expect(response.status).toBe(404);
 
-  await server.kill();
   await cleanup();
 });
 
@@ -284,7 +273,6 @@ test("custom api route", async (context) => {
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
 
-  await server.kill();
   await cleanup();
 });
 
@@ -304,7 +292,6 @@ test("custom hono route", async (context) => {
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
 
-  await server.kill();
   await cleanup();
 });
 
@@ -321,8 +308,6 @@ test.skip("kill", async (context) => {
     },
     database,
   });
-
-  await server.kill();
 
   expect(() => server.hono.request("/health")).rejects.toThrow();
 });

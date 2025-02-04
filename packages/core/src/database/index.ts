@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { IgnorableError, NonRetryableError } from "@/internal/errors.js";
+import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
   IndexingBuild,
   NamespaceBuild,
@@ -62,7 +62,6 @@ export type Database = {
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
   unlock(): Promise<void>;
-  kill(): Promise<void>;
 };
 
 export type PonderApp = {
@@ -152,6 +151,10 @@ export const createDatabase = async ({
           ? createPglite(preBuild.databaseConfig.options)
           : preBuild.databaseConfig.instance,
     };
+
+    if (dialect === "pglite") {
+      common.shutdown.add(() => (driver as PGliteDriver).instance.close());
+    }
 
     const kyselyDialect = createPgliteKyselyDialect(driver.instance);
 
@@ -251,6 +254,17 @@ export const createDatabase = async ({
       ),
       listen: undefined,
     } as PostgresDriver;
+
+    common.shutdown.add(async () => {
+      const d = driver as PostgresDriver;
+      d.listen?.release();
+      await Promise.all([
+        d.internal.end(),
+        d.user.end(),
+        d.readonly.end(),
+        d.sync.end(),
+      ]);
+    });
 
     await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
@@ -455,7 +469,10 @@ export const createDatabase = async ({
         }
 
         try {
-          // if (common.shutdown.isKilled) {}
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
           const result = await fn();
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },
@@ -465,6 +482,10 @@ export const createDatabase = async ({
         } catch (_error) {
           const error = _error as Error;
 
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },
             endClock(),
@@ -472,14 +493,6 @@ export const createDatabase = async ({
           common.metrics.ponder_database_method_error_total.inc({
             method: options.method,
           });
-
-          if (isKilled) {
-            common.logger.trace({
-              service: "database",
-              msg: `Ignored error during '${options.method}' database method, service is killed (id=${id})`,
-            });
-            throw new IgnorableError();
-          }
 
           if (!hasError) {
             hasError = true;
@@ -1214,32 +1227,6 @@ $$ LANGUAGE plpgsql
             .execute();
         },
       );
-    },
-    async kill() {
-      isKilled = true;
-
-      if (dialect === "pglite") {
-        const d = driver as PGliteDriver;
-        await d.instance.close();
-      }
-
-      if (dialect === "pglite_test") {
-        // no-op, allow test harness to clean up the instance
-      }
-
-      if (dialect === "postgres") {
-        const d = driver as PostgresDriver;
-        d.listen?.release();
-        await d.internal.end();
-        await d.user.end();
-        await d.readonly.end();
-        await d.sync.end();
-      }
-
-      common.logger.debug({
-        service: "database",
-        msg: "Closed connection to database",
-      });
     },
   } satisfies Database;
 

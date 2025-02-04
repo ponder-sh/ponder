@@ -71,6 +71,10 @@ export const createRequestQueue = ({
       } catch (_error) {
         const error = _error as Error;
 
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+
         if (
           request.method === "eth_getLogs" &&
           isHex(request.params[0].fromBlock) &&

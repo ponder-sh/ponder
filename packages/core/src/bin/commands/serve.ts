@@ -4,11 +4,12 @@ import { createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createServer } from "@/server/index.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
-import { setupShutdown } from "../utils/shutdown.js";
+import { createExit } from "../utils/exit.js";
 
 export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -26,7 +27,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    await logger.kill();
     process.exit(1);
   }
 
@@ -37,24 +37,28 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  const common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  const common = { options, logger, metrics, telemetry, shutdown };
 
   const build = await createBuild({ common, cliOptions });
 
-  let cleanupReloadable = () => Promise.resolve();
+  // let cleanupReloadable = () => Promise.resolve();
 
-  const cleanup = async () => {
-    await cleanupReloadable();
-    await telemetry.kill();
-  };
+  // const cleanup = async () => {
+  //   await cleanupReloadable();
+  //   await telemetry.kill();
+  // };
 
-  const shutdown = setupShutdown({ common, cleanup });
+  const exit = createExit({ common });
   const namespaceResult = build.namespaceCompile();
 
   if (namespaceResult.status === "error") {
-    await shutdown({ reason: "Failed to initialize namespace", code: 1 });
-    return cleanup;
+    await exit({
+      callback: shutdown.kill,
+      reason: "Failed to initialize namespace",
+      code: 1,
+    });
   }
 
   const configResult = await build.executeConfig();

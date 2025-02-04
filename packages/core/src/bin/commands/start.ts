@@ -4,12 +4,13 @@ import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
+import { setupShutdown } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
-import { setupShutdown } from "../utils/shutdown.js";
 
 export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -27,7 +28,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    await logger.kill();
     process.exit(1);
   }
 
@@ -39,7 +39,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const metrics = new MetricsService();
   const telemetry = createTelemetry({ options, logger });
-  const common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const common = { options, logger, metrics, telemetry, shutdown };
 
   const build = await createBuild({ common, cliOptions });
 
@@ -60,7 +61,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     await telemetry.kill();
   };
 
-  const shutdown = setupShutdown({ common, cleanup });
+  // const shutdown = setupShutdown({ common, cleanup });
 
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {

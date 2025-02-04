@@ -30,6 +30,7 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
+import { mutex } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -42,7 +43,7 @@ import {
 } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
-import { type Queue, createQueue } from "@ponder/common";
+import type { Queue } from "@ponder/common";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 
@@ -51,7 +52,6 @@ export type RealtimeSync = {
     syncProgress: Pick<SyncProgress, "finalized">;
     initialChildAddresses: Map<Factory, Set<Address>>;
   }): Promise<Queue<void, BlockWithEventData>>;
-  kill(): Promise<void>;
   unfinalizedBlocks: LightBlock[];
   finalizedChildAddresses: Map<Factory, Set<Address>>;
   unfinalizedChildAddresses: Map<Factory, Set<Address>>;
@@ -102,7 +102,6 @@ export const createRealtimeSync = (
   ////////
   // state
   ////////
-  let isKilled = false;
   let isBlockReceipts = true;
   let finalizedBlock: LightBlock;
   let finalizedChildAddresses: Map<Factory, Set<Address>>;
@@ -115,7 +114,7 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let queue: Queue<void, BlockWithEventData & { endClock?: () => number }>;
+  // let queue: Queue<void, BlockWithEventData & { endClock?: () => number }>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -909,11 +908,11 @@ export const createRealtimeSync = (
        * 4) Block is behind the last processed. This is a sign that
        *    a reorg has occurred.
        */
-      queue = createQueue({
-        browser: false,
-        concurrency: 1,
-        initialStart: true,
-        worker: async ({ block, ...rest }) => {
+      const processBlock = mutex(
+        async ({
+          block,
+          ...rest
+        }: BlockWithEventData & { endClock?: () => number }) => {
           const latestBlock = getLatestUnfinalizedBlock();
 
           // We already saw and handled this block. No-op.
@@ -932,7 +931,7 @@ export const createRealtimeSync = (
             if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
               await handleReorg(block);
 
-              queue.clear();
+              processBlock.clear();
               return;
             }
 
@@ -973,13 +972,13 @@ export const createRealtimeSync = (
               // will never resolve.
               if (isKilled) return;
 
-              queue.clear();
+              processBlock.clear();
 
               for (const pendingBlock of pendingBlocks) {
-                queue.add(pendingBlock);
+                processBlock(pendingBlock);
               }
 
-              queue.add({ block, ...rest });
+              processBlock({ block, ...rest });
 
               return;
             }
@@ -987,7 +986,7 @@ export const createRealtimeSync = (
             // Check if a reorg occurred by validating the chain of block hashes.
             if (block.parentHash !== latestBlock.hash) {
               await handleReorg(block);
-              queue.clear();
+              processBlock.clear();
               return;
             }
 
@@ -1023,7 +1022,7 @@ export const createRealtimeSync = (
 
             // Remove all blocks from the queue. This protects against an
             // erroneous block causing a fatal error.
-            queue.clear();
+            processBlock.clear();
 
             // After a certain number of attempts, emit a fatal error.
             if (++consecutiveErrors === ERROR_TIMEOUT.length) {
@@ -1037,7 +1036,9 @@ export const createRealtimeSync = (
             }
           }
         },
-      });
+        args.common.shutdown,
+      );
+      // });
 
       const enqueue = async () => {
         try {
@@ -1068,7 +1069,7 @@ export const createRealtimeSync = (
 
           consecutiveErrors = 0;
 
-          return queue.add({ ...blockWithEventData, endClock });
+          return processBlock({ ...blockWithEventData, endClock });
         } catch (_error) {
           if (isKilled) return;
 
@@ -1095,15 +1096,12 @@ export const createRealtimeSync = (
 
       interval = setInterval(enqueue, args.network.pollingInterval);
 
+      args.common.shutdown.add(() => {
+        clearInterval(interval);
+      });
+
       // Note: this is done just for testing.
-      return enqueue().then(() => queue);
-    },
-    async kill() {
-      clearInterval(interval);
-      isKilled = true;
-      queue?.pause();
-      queue?.clear();
-      await queue?.onIdle();
+      return enqueue().then(() => processBlock);
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;

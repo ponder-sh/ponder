@@ -222,6 +222,7 @@ export async function setupDatabaseServices(
   const metadataStore = getMetadataStore({ database });
 
   const cleanup = async () => {
+    // TODO(kyle) await common.shutdown
     await database.kill();
   };
 

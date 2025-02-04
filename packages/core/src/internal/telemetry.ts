@@ -6,11 +6,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { Options } from "@/internal/options.js";
 import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
 import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import type { Logger } from "./logger.js";
+import type { Shutdown } from "./shutdown.js";
 import type { IndexingBuild } from "./types.js";
 import type { PreBuild, SchemaBuild } from "./types.js";
 
@@ -65,12 +65,12 @@ export type Telemetry = ReturnType<typeof createTelemetry>;
 export function createTelemetry({
   options,
   logger,
-}: { options: Options; logger: Logger }) {
+  shutdown,
+}: { options: Options; logger: Logger; shutdown: Shutdown }) {
   if (options.telemetryDisabled) {
     return {
       record: (_event: TelemetryEvent) => {},
       flush: async () => {},
-      kill: async () => {},
     };
   }
 
@@ -157,7 +157,6 @@ export function createTelemetry({
   const contextPromise = buildContext();
 
   const controller = new AbortController();
-  let isKilled = false;
 
   const queue = createQueue({
     initialStart: true,
@@ -200,7 +199,6 @@ export function createTelemetry({
   });
 
   const record = (event: TelemetryEvent) => {
-    if (isKilled) return;
     queue.add(event);
   };
 
@@ -211,21 +209,19 @@ export function createTelemetry({
     });
   }, HEARTBEAT_INTERVAL_MS);
 
+  shutdown.add(async () => {
+    clearInterval(heartbeatInterval);
+    queue.pause();
+    queue.clear();
+    await queue.onIdle();
+  });
+
   // Note that this method is only used for testing.
   const flush = async () => {
     await queue.onIdle();
   };
 
-  const kill = async () => {
-    clearInterval(heartbeatInterval);
-    isKilled = true;
-    // If there are any events in the queue that have not started, drop them.
-    queue.clear();
-    // Wait at most 1 second for any in-flight events to complete.
-    await Promise.race([queue.onIdle(), wait(1_000)]);
-  };
-
-  return { record, flush, kill };
+  return { record, flush };
 }
 
 async function getPackageManager() {

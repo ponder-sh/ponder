@@ -19,7 +19,6 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { createQueue } from "@ponder/common";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -56,7 +55,7 @@ export async function run({
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
       if (realtimeEvent.type === "reorg") {
-        realtimeQueue.clear();
+        onRealtimeEvent.clear();
       }
 
       return onRealtimeEvent(realtimeEvent);
@@ -391,20 +390,4 @@ export async function run({
     service: "server",
     msg: "Started returning 200 responses from /ready endpoint",
   });
-
-  // const startPromise = start();
-
-  // return async () => {
-  //   isKilled = true;
-  //   indexingService.kill();
-  //   await sync.kill();
-  //   realtimeQueue.pause();
-  //   realtimeQueue.clear();
-  //   await realtimeQueue.onIdle();
-  //   await startPromise;
-  //   await database.unlock();
-  // };
-
-  // TODO(kyle) return a promise that resolves when the shutdown is complete
-  return common.shutdown.kill;
 }

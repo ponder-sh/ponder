@@ -1,11 +1,13 @@
 import { ShutdownError } from "@/internal/errors.js";
 import type { Shutdown } from "@/internal/shutdown.js";
-import { createQueue } from "@ponder/common";
+import { type Queue, createQueue } from "@ponder/common";
+
+export type Mutex<T, P> = ((params: T) => Promise<P>) & Queue<P, T>;
 
 export const mutex = <T, P>(
   fn: (params: T) => Promise<P>,
   shutdown: Shutdown,
-): ((params: T) => Promise<P>) => {
+): Mutex<T, P> => {
   const queue = createQueue({
     initialStart: true,
     browser: false,
@@ -21,5 +23,5 @@ export const mutex = <T, P>(
     return queue.onIdle;
   });
 
-  return queue.add;
+  return Object.assign(queue.add, queue);
 };

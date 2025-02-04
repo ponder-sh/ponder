@@ -61,7 +61,6 @@ export type Sync = {
   getStatus(): Status;
   seconds: Seconds;
   getFinalizedCheckpoint(): string;
-  kill(): Promise<void>;
 };
 
 export type RealtimeEvent =
@@ -902,15 +901,6 @@ export const createSync = async (params: {
     getFinalizedCheckpoint() {
       return getOmnichainCheckpoint({ tag: "finalized" })!;
     },
-    async kill() {
-      const promises: Promise<void>[] = [];
-      for (const network of params.indexingBuild.networks) {
-        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
-        historicalSync.kill();
-        promises.push(realtimeSync.kill());
-      }
-      await Promise.all(promises);
-    },
   };
 };
 
@@ -920,7 +910,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
   sources,
   syncStore,
   syncProgress,
-  realtimeSync,
+  // realtimeSync,
 }: {
   common: Common;
   network: Network;
@@ -1079,7 +1069,8 @@ export const getPerChainOnRealtimeSyncEvent = ({
             service: "sync",
             msg: `Killing '${network.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
           });
-          realtimeSync.kill();
+          // TODO(kyle)
+          // realtimeSync.kill();
         }
 
         return event;

@@ -12,7 +12,7 @@ import { printTable } from "@/ui/Table.js";
 import { formatEta } from "@/utils/format.js";
 import { type SelectQueryBuilder, sql } from "kysely";
 import type { CliOptions } from "../ponder.js";
-import { setupShutdown } from "../utils/shutdown.js";
+import { setupShutdown } from "../utils/exit.js";
 
 const emptySchemaBuild = {
   schema: {},

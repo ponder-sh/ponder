@@ -11,9 +11,5 @@ export async function runServer(params: {
   apiBuild: ApiBuild;
   database: Database;
 }) {
-  const server = await createServer(params);
-
-  return async () => {
-    await server.kill();
-  };
+  await createServer(params);
 }
