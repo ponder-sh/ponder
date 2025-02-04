@@ -389,8 +389,6 @@ export const createIndexingCache = ({
       const shouldDelete = cacheBytes > common.options.indexingCacheMaxBytes;
       if (shouldDelete) isCacheComplete = false;
 
-      const promises: Promise<void>[] = [];
-
       for (const [table, tableCache] of cache) {
         const batchSize = Math.round(
           common.options.databaseMaxQueryParameters /
@@ -476,54 +474,52 @@ export const createIndexingCache = ({
 
           while (updateValues.length > 0) {
             const values = updateValues.splice(0, batchSize);
-            promises.push(
-              database.wrap(
-                {
-                  method: `${getTableName(table)}.flush()`,
-                },
-                async () => {
-                  await db.execute(sql`SAVEPOINT flush`);
-                  await db
-                    .insert(table)
-                    .values(values)
-                    .onConflictDoUpdate({
-                      // @ts-ignore
-                      target: primaryKeys.map(({ js }) => table[js]),
-                      set,
-                    })
-                    .catch(async (_error) => {
-                      const error = _error as Error;
-                      const result = await recoverBatchError(
-                        values,
-                        async (values) => {
-                          await db.execute(sql`ROLLBACK TO flush`);
-                          await db
-                            .insert(table)
-                            .values(values)
-                            .onConflictDoUpdate({
-                              // @ts-ignore
-                              target: primaryKeys.map(({ js }) => table[js]),
-                              set,
-                            });
-                          await db.execute(sql`SAVEPOINT flush`);
-                        },
-                      );
+            await database.wrap(
+              {
+                method: `${getTableName(table)}.flush()`,
+              },
+              async () => {
+                await db.execute(sql`SAVEPOINT flush`);
+                await db
+                  .insert(table)
+                  .values(values)
+                  .onConflictDoUpdate({
+                    // @ts-ignore
+                    target: primaryKeys.map(({ js }) => table[js]),
+                    set,
+                  })
+                  .catch(async (_error) => {
+                    const error = _error as Error;
+                    const result = await recoverBatchError(
+                      values,
+                      async (values) => {
+                        await db.execute(sql`ROLLBACK TO flush`);
+                        await db
+                          .insert(table)
+                          .values(values)
+                          .onConflictDoUpdate({
+                            // @ts-ignore
+                            target: primaryKeys.map(({ js }) => table[js]),
+                            set,
+                          });
+                        await db.execute(sql`SAVEPOINT flush`);
+                      },
+                    );
 
-                      if (result.status === "error") {
-                        console.log(result.value);
-                        // TODO(kyle) pretty print the error
-                      } else {
-                        throw new FlushError(error.message);
-                      }
-                    });
-                },
-              ),
+                    if (result.status === "error") {
+                      console.log(result.value);
+                      // TODO(kyle) pretty print the error
+                    } else {
+                      throw new FlushError(error.message);
+                    }
+                  });
+              },
             );
           }
         }
       }
 
-      await Promise.all(promises);
+      await db.execute(sql`RELEASE flush`);
     },
     bust() {
       isCacheComplete = false;
