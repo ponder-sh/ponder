@@ -159,9 +159,6 @@ export const createDatabase = async ({
     await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     await driver.instance.query(`SET search_path TO "${namespace}"`);
 
-    await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
-    await driver.instance.query(`SET search_path TO "${namespace}"`);
-
     qb = {
       internal: new Kysely({
         dialect: kyselyDialect,
