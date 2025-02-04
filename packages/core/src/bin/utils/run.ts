@@ -5,6 +5,7 @@ import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
+import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
@@ -226,22 +227,24 @@ export async function run({
   const start = async () => {
     // If the initial checkpoint is zero, we need to run setup events.
     if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
-      const historicalIndexingStore = createHistoricalIndexingStore({
-        common,
-        schemaBuild,
-        database,
-        indexingCache,
-        db: database.qb.drizzle,
+      await database.qb.drizzle.transaction(async (tx) => {
+        const historicalIndexingStore = createHistoricalIndexingStore({
+          common,
+          schemaBuild,
+          database,
+          indexingCache,
+          db: tx,
+        });
+        const result = await indexing.processSetupEvents({
+          db: historicalIndexingStore,
+        });
+        if (result.status === "killed") {
+          return;
+        } else if (result.status === "error") {
+          onReloadableError(result.error);
+          return;
+        }
       });
-      const result = await indexing.processSetupEvents({
-        db: historicalIndexingStore,
-      });
-      if (result.status === "killed") {
-        return;
-      } else if (result.status === "error") {
-        onReloadableError(result.error);
-        return;
-      }
     }
 
     let lastFlush = Date.now();
@@ -395,7 +398,15 @@ export async function run({
     });
 
     await database.qb.drizzle.transaction(async (tx) => {
-      await indexingCache.flush({ db: tx });
+      try {
+        await indexingCache.flush({ db: tx });
+      } catch (error) {
+        if (error instanceof FlushError === false) {
+          onReloadableError(error as Error);
+          return;
+        }
+        throw error;
+      }
       await database.finalize({
         checkpoint: sync.getFinalizedCheckpoint(),
         db: tx,

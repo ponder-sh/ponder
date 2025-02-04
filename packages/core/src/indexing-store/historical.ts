@@ -5,6 +5,7 @@ import {
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Event } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
@@ -36,6 +37,8 @@ export const createHistoricalIndexingStore = ({
     concurrency: 1,
     worker: (fn) => fn(),
   });
+
+  let event: Event | undefined;
 
   return {
     // @ts-ignore
@@ -154,7 +157,7 @@ export const createHistoricalIndexingStore = ({
                               table,
                               key: value,
                               row: value,
-                              entryType: EntryType.UPDATE,
+                              entryType: EntryType.INSERT,
                             }),
                           );
                         }
@@ -233,6 +236,10 @@ export const createHistoricalIndexingStore = ({
                               key: value,
                               row: value,
                               entryType: EntryType.INSERT,
+                              metadata: {
+                                method: "insert",
+                                event,
+                              },
                             }),
                           );
                         }
@@ -259,6 +266,10 @@ export const createHistoricalIndexingStore = ({
                           key: values,
                           row: values,
                           entryType: EntryType.INSERT,
+                          metadata: {
+                            method: "insert",
+                            event,
+                          },
                         });
                       }
                     },
@@ -360,5 +371,8 @@ export const createHistoricalIndexingStore = ({
       { schema, casing: "snake_case" },
     ),
     queue,
+    set event(value: Event | undefined) {
+      event = value;
+    },
   };
 };

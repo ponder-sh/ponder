@@ -1,13 +1,15 @@
 import type { Database } from "@/database/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import { addErrorMeta } from "@/indexing/index.js";
+import { toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
   FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -27,34 +29,22 @@ import {
 import { PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
 
 export type IndexingCache = {
-  has: ({ table, key }: { table: Table; key: object }) => boolean;
-  get: ({
-    table,
-    key,
-    db,
-  }: { table: Table; key: object; db: Drizzle<Schema> }) =>
+  has: (params: { table: Table; key: object }) => boolean;
+  get: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
     | { [key: string]: unknown }
     | null
     | Promise<{ [key: string]: unknown } | null>;
-  set: ({
-    table,
-    key,
-    row,
-    entryType,
-  }: {
+  set: (params: {
     table: Table;
     key: object;
-    row: { [key: string]: unknown } | null;
+    row: { [key: string]: unknown };
     entryType: EntryType;
+    metadata?: Metadata;
   }) => { [key: string]: unknown } | null;
-  delete: ({
-    table,
-    key,
-    db,
-  }: { table: Table; key: object; db: Drizzle<Schema> }) =>
+  delete: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
     | boolean
     | Promise<boolean>;
-  flush: ({ db }: { db: Drizzle<Schema> }) => Promise<void>;
+  flush: (params: { db: Drizzle<Schema> }) => Promise<void>;
   bust: () => void;
   size: number;
 };
@@ -62,23 +52,36 @@ export type IndexingCache = {
 export enum EntryType {
   INSERT = 0,
   UPDATE = 1,
-  FIND = 2,
 }
 
-type Key = string;
-type Entry = {
-  type: EntryType;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown } | null;
+type Metadata = {
+  method: string;
+  event: Event | undefined;
 };
-type Cache = Map<Table, Map<Key, Entry>>;
 
-// type Buffer = Map<Table, {
-//   event: string;
-//   method: string;
-//   args: object;
-// }[]>;
+type Cache = Map<
+  Table,
+  Map<
+    string,
+    {
+      bytes: number;
+      operationIndex: number;
+      row: { [key: string]: unknown } | null;
+    }
+  >
+>;
+
+type Buffer = Map<
+  Table,
+  Map<
+    string,
+    {
+      row: { [key: string]: unknown };
+      // TODO(kyle) bytes ?
+      metadata?: Metadata;
+    }
+  >
+>;
 
 /**
  * Returns true if the column has a "default" value that is used when no value is passed.
@@ -144,9 +147,7 @@ export const normalizeRow = (
       const error = new NotNullConstraintError(
         `Column '${getTableName(table)}.${columnName}' violates not-null constraint.`,
       );
-      error.meta.push(
-        `db.${type === EntryType.INSERT ? "insert" : "update"} arguments:\n${prettyPrint(row)}`,
-      );
+      error.meta.push(`db.insert arguments:\n${prettyPrint(row)}`);
       throw error;
     }
 
@@ -248,6 +249,8 @@ export const createIndexingCache = ({
   checkpoint: string;
 }): IndexingCache => {
   const cache: Cache = new Map();
+  const insertBuffer: Buffer = new Map();
+  const updateBuffer: Buffer = new Map();
 
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
   /** Estimated number of bytes used by cache. */
@@ -264,21 +267,36 @@ export const createIndexingCache = ({
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
   )) {
     cache.set(table, new Map());
+    insertBuffer.set(table, new Map());
+    updateBuffer.set(table, new Map());
   }
 
   return {
     has({ table, key }) {
       if (isCacheComplete) return true;
-      return cache.get(table)!.has(getCacheKey(table, key));
+      return (
+        insertBuffer.get(table)!.has(getCacheKey(table, key)) ??
+        updateBuffer.get(table)!.has(getCacheKey(table, key)) ??
+        cache.get(table)!.has(getCacheKey(table, key))
+      );
     },
     get({ table, key, db }) {
-      const entry = cache.get(table)!.get(getCacheKey(table, key));
+      // TODO(kyle) is this corrent?
+      const bufferEntry =
+        updateBuffer.get(table)!.get(getCacheKey(table, key)) ??
+        insertBuffer.get(table)!.get(getCacheKey(table, key));
 
-      if (entry) {
-        entry.operationIndex = totalCacheOps++;
+      if (bufferEntry) {
+        return structuredClone(bufferEntry.row);
+      }
 
-        if (entry.row) {
-          return structuredClone(entry.row);
+      const cacheEntry = cache.get(table)!.get(getCacheKey(table, key));
+
+      if (cacheEntry) {
+        cacheEntry.operationIndex = totalCacheOps++;
+
+        if (cacheEntry.row) {
+          return structuredClone(cacheEntry.row);
         }
       }
 
@@ -297,20 +315,11 @@ export const createIndexingCache = ({
               .then((res) => (res.length === 0 ? null : res[0]!));
           },
         )
-        .then((_row) => {
-          let row: { [key: string]: unknown } | null;
-
-          if (_row === null) {
-            row = null;
-          } else {
-            row = normalizeRow(table, _row, EntryType.FIND);
-          }
-
+        .then((row) => {
           const bytes = getBytes(row);
           cacheBytes += bytes;
 
           cache.get(table)!.set(getCacheKey(table, key), {
-            type: EntryType.FIND,
             bytes,
             operationIndex: totalCacheOps++,
             row: structuredClone(row),
@@ -318,32 +327,15 @@ export const createIndexingCache = ({
           return row;
         });
     },
-    set({ table, key, row: _row, entryType }) {
-      let row: { [key: string]: unknown } | null;
+    set({ table, key, row: _row, entryType, metadata }) {
+      const row = normalizeRow(table, _row, entryType);
 
-      if (_row === null) {
-        row = null;
-      } else {
-        row = normalizeRow(table, _row, entryType);
-      }
-
-      if (
-        entryType === EntryType.UPDATE &&
-        cache.get(table)!.get(getCacheKey(table, _row!))?.type ===
-          EntryType.INSERT
-      ) {
-        entryType = EntryType.INSERT;
-      }
-
-      const bytes = getBytes(row);
-      cacheBytes += bytes;
-
-      cache.get(table)!.set(getCacheKey(table, key), {
-        type: entryType,
-        bytes,
-        operationIndex: totalCacheOps++,
-        row: structuredClone(row),
-      });
+      (entryType === EntryType.INSERT ? insertBuffer : updateBuffer)
+        .get(table)!
+        .set(getCacheKey(table, key), {
+          row: structuredClone(row),
+          metadata,
+        });
       return row;
     },
     delete({ table, key, db }) {
@@ -395,25 +387,26 @@ export const createIndexingCache = ({
             Object.keys(getTableColumns(table)).length,
         );
 
-        const insertValues: Entry["row"][] = [];
-        const updateValues: Entry["row"][] = [];
+        const insertValues = Array.from(insertBuffer.get(table)!.values());
+        const updateValues = Array.from(updateBuffer.get(table)!.values());
+
+        // copy buffer into cache
+        // delete stale cache entries
 
         for (const [key, entry] of tableCache) {
-          if (entry.type === EntryType.INSERT) {
-            insertValues.push(entry.row);
-          }
+          // if (entry.type === EntryType.INSERT) {
+          //   insertValues.push(entry.row!);
+          // }
 
-          if (entry.type === EntryType.UPDATE) {
-            updateValues.push(entry.row);
-          }
+          // if (entry.type === EntryType.UPDATE) {
+          //   updateValues.push(entry.row!);
+          // }
 
           // delete so that object is eligible for GC
           if (shouldDelete && entry.operationIndex < flushIndex) {
             tableCache.delete(key);
             cacheBytes -= entry.bytes;
           }
-
-          entry.type = EntryType.FIND;
         }
 
         if (insertValues.length > 0) {
@@ -431,21 +424,29 @@ export const createIndexingCache = ({
                 await db.execute(sql`SAVEPOINT flush`);
                 await db
                   .insert(table)
-                  .values(values)
+                  .values(values.map((value) => value.row))
                   .catch(async (_error) => {
                     const error = _error as Error;
                     const result = await recoverBatchError(
                       values,
                       async (values) => {
                         await db.execute(sql`ROLLBACK TO flush`);
-                        await database.qb.drizzle.insert(table).values(values);
+                        await database.qb.drizzle
+                          .insert(table)
+                          .values(values.map((value) => value.row));
                         await db.execute(sql`SAVEPOINT flush`);
                       },
                     );
 
                     if (result.status === "error") {
-                      console.log(result.value);
-                      // TODO(kyle) pretty print the error
+                      const error = result.error;
+                      if (result.value.metadata?.event) {
+                        addErrorMeta(
+                          error,
+                          toErrorMeta(result.value.metadata.event),
+                        );
+                      }
+                      throw error;
                     } else {
                       throw new FlushError(error.message);
                     }
@@ -482,7 +483,7 @@ export const createIndexingCache = ({
                 await db.execute(sql`SAVEPOINT flush`);
                 await db
                   .insert(table)
-                  .values(values)
+                  .values(values.map((value) => value.row))
                   .onConflictDoUpdate({
                     // @ts-ignore
                     target: primaryKeys.map(({ js }) => table[js]),
@@ -496,7 +497,7 @@ export const createIndexingCache = ({
                         await db.execute(sql`ROLLBACK TO flush`);
                         await db
                           .insert(table)
-                          .values(values)
+                          .values(values.map((value) => value.row))
                           .onConflictDoUpdate({
                             // @ts-ignore
                             target: primaryKeys.map(({ js }) => table[js]),
@@ -507,8 +508,14 @@ export const createIndexingCache = ({
                     );
 
                     if (result.status === "error") {
-                      console.log(result.value);
-                      // TODO(kyle) pretty print the error
+                      const error = result.error;
+                      if (result.value.metadata?.event) {
+                        addErrorMeta(
+                          error,
+                          toErrorMeta(result.value.metadata.event),
+                        );
+                      }
+                      throw error;
                     } else {
                       throw new FlushError(error.message);
                     }
@@ -517,9 +524,11 @@ export const createIndexingCache = ({
             );
           }
         }
-      }
 
-      await db.execute(sql`RELEASE flush`);
+        if (insertValues.length > 0 || updateValues.length > 0) {
+          await db.execute(sql`RELEASE flush`);
+        }
+      }
     },
     bust() {
       isCacheComplete = false;

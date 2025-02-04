@@ -322,6 +322,7 @@ export const createIndexing = ({
         if (isKilled) return { status: "killed" };
 
         const event = events[i]!;
+        db.event = event;
 
         eventCount[event.name]!++;
 
@@ -356,7 +357,9 @@ export const createIndexing = ({
   };
 };
 
-const toErrorMeta = (event: DeepPartial<Event> | DeepPartial<SetupEvent>) => {
+export const toErrorMeta = (
+  event: DeepPartial<Event> | DeepPartial<SetupEvent>,
+) => {
   switch (event?.type) {
     case "setup": {
       return `Block:\n${prettyPrint({
@@ -408,7 +411,7 @@ const toErrorMeta = (event: DeepPartial<Event> | DeepPartial<SetupEvent>) => {
   }
 };
 
-const addErrorMeta = (error: unknown, meta: string | undefined) => {
+export const addErrorMeta = (error: unknown, meta: string | undefined) => {
   // If error isn't an object we can modify, do nothing
   if (typeof error !== "object" || error === null) return;
   if (meta === undefined) return;
