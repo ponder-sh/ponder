@@ -169,6 +169,21 @@ test("createConfig with multiple filters", () => {
   });
 });
 
+test("createConfig network transport + rpcUrls", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(),
+      },
+      optimism: {
+        chainId: 10,
+        rpcUrl: ["rpc.com"],
+      },
+    },
+  });
+});
+
 test("createConfig network overrides", () => {
   createConfig({
     networks: {

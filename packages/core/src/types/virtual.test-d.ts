@@ -207,33 +207,15 @@ test("FormatEventName with blocks", () => {
 });
 
 test("Context db", () => {
-  type a = Virtual.Context<typeof config, typeof schema, "c1:Event0">["db"];
+  type a = Virtual.Context<typeof config, typeof schema>["db"];
   //   ^?
 
   assertType<a>({} as any as Db<typeof schema>);
   assertType<Db<typeof schema>>({} as any as a);
 });
 
-test("Context single network", () => {
-  type a = Virtual.Context<
-    typeof config,
-    typeof schema,
-    "c1:Event0"
-  >["network"];
-  //   ^?
-
-  type expectedNetwork = { name: "mainnet"; chainId: 1 };
-
-  assertType<a>({} as any as expectedNetwork);
-  assertType<expectedNetwork>({} as any as a);
-});
-
-test("Context multi network", () => {
-  type a = Virtual.Context<
-    typeof config,
-    typeof schema,
-    "c2:Event1()"
-  >["network"];
+test("Context network", () => {
+  type a = Virtual.Context<typeof config, typeof schema>["network"];
   //   ^?
 
   type expectedNetwork =
@@ -245,21 +227,19 @@ test("Context multi network", () => {
 });
 
 test("Context block network", () => {
-  type a = Virtual.Context<typeof config, typeof schema, "b1:block">["network"];
+  type a = Virtual.Context<typeof config, typeof schema>["network"];
   //   ^?
 
-  type expectedNetwork = { name: "mainnet"; chainId: 1 };
+  type expectedNetwork =
+    | { name: "mainnet"; chainId: 1 }
+    | { name: "optimism"; chainId: 10 };
 
   assertType<a>({} as any as expectedNetwork);
   assertType<expectedNetwork>({} as any as a);
 });
 
 test("Context client", () => {
-  type a = Virtual.Context<
-    typeof config,
-    typeof schema,
-    "c2:Event1()"
-  >["client"];
+  type a = Virtual.Context<typeof config, typeof schema>["client"];
   //   ^?
 
   type expectedFunctions =
@@ -275,11 +255,7 @@ test("Context client", () => {
 });
 
 test("Context contracts", () => {
-  type a = Virtual.Context<
-    typeof config,
-    typeof schema,
-    "c2:Event1()"
-  >["contracts"]["c2"];
+  type a = Virtual.Context<typeof config, typeof schema>["contracts"]["c2"];
   //   ^?
 
   type expectedAbi = [Event1, Event1Overloaded, Func1, Func1Overloaded];
@@ -298,28 +274,6 @@ test("Context contracts", () => {
 
   assertType<a["address"]>({} as any as expectedAddress);
   assertType<expectedAddress>({} as any as a["address"]);
-});
-
-test("Context network without event", () => {
-  type a = Virtual.Context<
-    // ^?
-    typeof config,
-    typeof schema,
-    Virtual.EventNames<typeof config>
-  >["network"];
-
-  type expectedNetwork =
-    | {
-        name: "mainnet";
-        chainId: 1;
-      }
-    | {
-        name: "optimism";
-        chainId: 10;
-      };
-
-  assertType<a>({} as any as expectedNetwork);
-  assertType<expectedNetwork>({} as any as a);
 });
 
 test("Event", () => {

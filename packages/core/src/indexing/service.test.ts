@@ -7,16 +7,13 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
-import {
-  getErc20ConfigAndIndexingFunctions,
-  getNetwork,
-} from "@/_test/utils.js";
+import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { RawEvent } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { decodeEvents } from "@/sync/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import { promiseWithResolvers } from "@ponder/common";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
@@ -44,7 +41,7 @@ const schema = { account };
 const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
   address: zeroAddress,
 });
-const { sources, networks } = await buildConfigAndIndexingFunctions({
+const { sources, chains } = await buildConfigAndIndexingFunctions({
   config,
   rawIndexingFunctions,
 });
@@ -60,10 +57,10 @@ test("createIndexing()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -86,10 +83,10 @@ test("processSetupEvents() empty", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -97,7 +94,7 @@ test("processSetupEvents() empty", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -120,10 +117,10 @@ test("processSetupEvents()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -131,7 +128,7 @@ test("processSetupEvents()", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -174,10 +171,10 @@ test("processEvent()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -267,10 +264,10 @@ test("processEvents killed", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -332,10 +329,10 @@ test("processEvents eventCount", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -397,10 +394,10 @@ test("executeSetup() context.client", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -413,7 +410,7 @@ test("executeSetup() context.client", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -445,10 +442,10 @@ test("executeSetup() context.db", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -458,7 +455,7 @@ test("executeSetup() context.db", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
 
   expect(result).toStrictEqual({ status: "success" });
@@ -488,9 +485,9 @@ test("executeSetup() metrics", async (context) => {
         "Erc20:setup": vi.fn(),
       },
       sources,
-      networks,
+      chains,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -498,7 +495,7 @@ test("executeSetup() metrics", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
   expect(result).toStrictEqual({ status: "success" });
 
@@ -523,10 +520,10 @@ test("executeSetup() error", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -536,7 +533,7 @@ test("executeSetup() error", async (context) => {
 
   const result = await processSetupEvents(indexingService, {
     sources,
-    networks,
+    chains,
   });
   expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
 
@@ -566,9 +563,9 @@ test("processEvents() context.client", async (context) => {
           clientCall,
       },
       sources,
-      networks,
+      chains,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -641,9 +638,9 @@ test("processEvents() context.db", async (context) => {
           dbCall,
       },
       sources,
-      networks,
+      chains,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -705,9 +702,9 @@ test("processEvents() metrics", async (context) => {
           vi.fn(),
       },
       sources,
-      networks,
+      chains,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -764,10 +761,10 @@ test("processEvents() error", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -826,8 +823,6 @@ test("processEvents() error with missing event object properties", async (contex
     { schemaBuild: { schema } },
   );
 
-  const network = getNetwork();
-
   const throwError = async ({ event }: { event: any; context: Context }) => {
     // biome-ignore lint/performance/noDelete: <explanation>
     delete event.transaction;
@@ -844,9 +839,9 @@ test("processEvents() error with missing event object properties", async (contex
     indexingBuild: {
       indexingFunctions,
       sources,
-      networks,
+      chains,
     },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -906,10 +901,10 @@ test("execute() error after killed", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -962,10 +957,10 @@ test("ponderActions getBalance()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -993,10 +988,10 @@ test("ponderActions getCode()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -1030,10 +1025,10 @@ test("ponderActions getStorageAt()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -1069,10 +1064,10 @@ test("ponderActions readContract()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -1108,10 +1103,10 @@ test("ponderActions readContract() blockNumber", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 
@@ -1149,10 +1144,10 @@ test.skip("ponderActions multicall()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      networks,
+      chains,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    rpcs: [createRpc({ chain: chains[0]!, common })],
     syncStore,
   });
 

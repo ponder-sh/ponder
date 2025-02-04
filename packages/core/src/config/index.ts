@@ -30,9 +30,9 @@ export const createConfig = <
   const accounts = {},
   const blocks = {},
 >(config: {
-  database?: DatabaseConfig;
-  mode?: "omnichain" | "multichain";
   // TODO: add jsdoc to these properties.
+  mode?: "omnichain" | "multichain";
+  database?: DatabaseConfig;
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
   accounts?: AccountsConfig<networks, Narrow<accounts>>;
@@ -90,28 +90,50 @@ type NetworkConfig<network> = {
   chainId: network extends { chainId: infer chainId extends number }
     ? chainId | number
     : number;
-  /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
-   *
-   * __To avoid rate limiting, include a custom RPC URL.__ Usage:
-   *
-   * ```ts
-   * import { http } from "viem";
-   *
-   * const network = {
-   *    name: "mainnet",
-   *    chainId: 1,
-   *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
-   * }
-   * ```
-   */
-  transport: Transport;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /** Maximum number of RPC requests per second. Default: `50`. */
   maxRequestsPerSecond?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
-};
+} & (
+  | {
+      /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
+       *
+       * __To avoid rate limiting, include a custom RPC URL.__ Usage:
+       *
+       * ```ts
+       * import { http } from "viem";
+       *
+       * const network = {
+       *    name: "mainnet",
+       *    chainId: 1,
+       *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+       * }
+       * ```
+       */
+      transport: Transport;
+      rpcUrl?: never;
+    }
+  | {
+      /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
+       *
+       * __To avoid rate limiting, include a custom RPC URL.__ Usage:
+       *
+       * ```ts
+       * import { http } from "viem";
+       *
+       * const network = {
+       *    name: "mainnet",
+       *    chainId: 1,
+       *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+       * }
+       * ```
+       */
+      transport?: never;
+      rpcUrl: string | string[];
+    }
+);
 
 type NetworksConfig<networks> = {} extends networks
   ? {}

@@ -17,8 +17,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
@@ -30,12 +30,12 @@ import type {
   TransferEvent,
 } from "@/internal/types.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
   MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
   _eth_getLogs,
@@ -351,11 +351,8 @@ test("decodeEvents() trace error", async (context) => {
 test("buildEvents() matches getEvents() log", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -375,7 +372,7 @@ test("buildEvents() matches getEvents() log", async (context) => {
 
   // insert block 2
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -385,7 +382,7 @@ test("buildEvents() matches getEvents() log", async (context) => {
     chainId: 1,
   });
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -426,11 +423,8 @@ test("buildEvents() matches getEvents() log", async (context) => {
 test("buildEvents() matches getEvents() log factory", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
   const { result: pair } = await createPair({
@@ -456,7 +450,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
 
   // insert block 2
 
-  let rpcLogs = await _eth_getLogs(requestQueue, {
+  let rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -468,7 +462,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
 
   // insert block 3
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 3,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -478,7 +472,7 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
     chainId: 1,
   });
 
-  rpcLogs = await _eth_getLogs(requestQueue, {
+  rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 3,
     toBlock: 3,
   });
@@ -521,11 +515,8 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
 test("buildEvents() matches getEvents() block", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -537,7 +528,7 @@ test("buildEvents() matches getEvents() block", async (context) => {
 
   // insert block 0
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 0,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -573,11 +564,8 @@ test("buildEvents() matches getEvents() block", async (context) => {
 test("buildEvents() matches getEvents() transfer", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { hash } = await transferEth({
     to: BOB,
@@ -594,7 +582,7 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
     rawIndexingFunctions,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -604,7 +592,7 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
     chainId: 1,
   });
 
-  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
+  const rpcReceipt = await _eth_getTransactionReceipt(rpc, { hash });
 
   await syncStore.insertTransactionReceipts({
     transactionReceipts: [rpcReceipt],
@@ -670,11 +658,8 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
 test("buildEvents() matches getEvents() transaction", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { hash } = await transferEth({
     to: BOB,
@@ -692,7 +677,7 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
     rawIndexingFunctions,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -702,7 +687,7 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
     chainId: 1,
   });
 
-  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
+  const rpcReceipt = await _eth_getTransactionReceipt(rpc, { hash });
 
   await syncStore.insertTransactionReceipts({
     transactionReceipts: [rpcReceipt],
@@ -740,11 +725,8 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
 test("buildEvents() matches getEvents() trace", async (context) => {
   const { cleanup, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
   const { hash } = await mintErc20({
@@ -763,7 +745,7 @@ test("buildEvents() matches getEvents() trace", async (context) => {
     rawIndexingFunctions,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });

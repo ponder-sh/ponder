@@ -166,22 +166,7 @@ export namespace Virtual {
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
 
-  export type Context<
-    config extends Config,
-    schema extends Schema,
-    name extends EventNames<config>,
-    ///
-    sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
-    sourceNetwork = sourceName extends sourceName
-      ?
-          | (unknown extends config["contracts"][sourceName]["network"]
-              ? never
-              : config["contracts"][sourceName]["network"])
-          | (unknown extends config["blocks"][sourceName]["network"]
-              ? never
-              : config["blocks"][sourceName]["network"])
-      : never,
-  > = {
+  export type Context<config extends Config, schema extends Schema> = {
     contracts: {
       [_contractName in keyof config["contracts"]]: {
         abi: config["contracts"][_contractName]["abi"];
@@ -199,20 +184,15 @@ export namespace Virtual {
         >;
       };
     };
-    network: sourceNetwork extends string
-      ? // 1. No network overriding
-        {
-          name: sourceNetwork;
-          chainId: config["networks"][sourceNetwork]["chainId"];
-        }
-      : // 2. Network overrides
-        {
-          [key in keyof sourceNetwork]: {
-            name: key;
-            chainId: config["networks"][key &
-              keyof config["networks"]]["chainId"];
-          };
-        }[keyof sourceNetwork];
+    network: keyof config["networks"] extends infer network extends
+      keyof config["networks"]
+      ? network extends network
+        ? {
+            name: network;
+            chainId: config["networks"][network]["chainId"];
+          }
+        : never
+      : never;
     client: Prettify<ReadOnlyClient>;
     db: Db<schema>;
   };
@@ -223,7 +203,7 @@ export namespace Virtual {
     name extends EventNames<config>,
   > = {
     event: Event<config, name>;
-    context: Context<config, schema, name>;
+    context: Context<config, schema>;
   };
 
   export type Registry<config extends Config, schema extends Schema> = {
@@ -231,7 +211,7 @@ export namespace Virtual {
       _name: name,
       indexingFunction: (
         args: { event: Event<config, name> } & {
-          context: Prettify<Context<config, schema, name>>;
+          context: Prettify<Context<config, schema>>;
         },
       ) => Promise<void> | void,
     ) => void;

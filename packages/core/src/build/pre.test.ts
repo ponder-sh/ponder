@@ -1,6 +1,5 @@
 import path from "node:path";
 import type { Options } from "@/internal/options.js";
-import { http } from "viem";
 import { expect, test, vi } from "vitest";
 import { createConfig } from "../config/index.js";
 import { buildPre } from "./pre.js";
@@ -12,7 +11,12 @@ const options = {
 
 test("buildPre() database uses pglite by default", () => {
   const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
@@ -37,7 +41,12 @@ test("buildPre() database uses pglite by default", () => {
 test("buildPre() database respects custom pglite path", async () => {
   const config = createConfig({
     database: { kind: "pglite", directory: "custom-pglite/directory" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
@@ -54,7 +63,12 @@ test("buildPre() database respects custom pglite path", async () => {
 test("buildPre() database uses pglite if specified even if DATABASE_URL env var present", async () => {
   const config = createConfig({
     database: { kind: "pglite" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
@@ -73,7 +87,12 @@ test("buildPre() database uses pglite if specified even if DATABASE_URL env var 
 
 test("buildPre() database uses postgres if DATABASE_URL env var present", async () => {
   const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
@@ -92,7 +111,12 @@ test("buildPre() database uses postgres if DATABASE_URL env var present", async 
 
 test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
   const config = createConfig({
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
@@ -116,7 +140,12 @@ test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present"
 test("buildPre() throws for postgres database with no connection string", async () => {
   const config = createConfig({
     database: { kind: "postgres" },
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 
@@ -138,7 +167,12 @@ test("buildPre() database with postgres uses pool config", async () => {
       connectionString: "postgres://username@localhost:5432/database",
       poolConfig: { max: 100 },
     },
-    networks: { mainnet: { chainId: 1, transport: http() } },
+    networks: {
+      mainnet: {
+        chainId: 1,
+        rpcUrl: ["https://rpc.com"],
+      },
+    },
     contracts: { a: { network: "mainnet", abi: [] } },
   });
 

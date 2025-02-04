@@ -1,18 +1,19 @@
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
+  Chain,
   Factory,
   Filter,
   FilterWithoutBlocks,
   Fragment,
   LogFactory,
   LogFilter,
-  Network,
   Source,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type { RPC } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   isAddressFactory,
@@ -35,7 +36,6 @@ import {
   intervalDifference,
   intervalRange,
 } from "@/utils/interval.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _debug_traceBlockByNumber,
   _eth_getBlockByNumber,
@@ -68,8 +68,8 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   sources: Source[];
   syncStore: SyncStore;
-  network: Network;
-  requestQueue: RequestQueue;
+  chain: Chain;
+  rpc: RPC;
   onFatalError: (error: Error) => void;
 };
 
@@ -132,7 +132,7 @@ export const createHistoricalSync = async (
     Filter,
     { fragment: Fragment; intervals: Interval[] }[]
   >;
-  if (args.network.disableCache) {
+  if (args.chain.disableCache) {
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
       intervalsCache.set(filter, []);
@@ -225,7 +225,7 @@ export const createHistoricalSync = async (
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
-          _eth_getLogs(args.requestQueue, {
+          _eth_getLogs(args.rpc, {
             address,
             topics,
             fromBlock: interval[0],
@@ -252,7 +252,7 @@ export const createHistoricalSync = async (
             args.common.logger.debug({
               service: "sync",
               msg: `Caught eth_getLogs error on '${
-                args.network.name
+                args.chain.chain.name
               }', updating recommended range to ${range}.`,
             });
 
@@ -320,7 +320,7 @@ export const createHistoricalSync = async (
     if (blockCache.has(number)) {
       block = await blockCache.get(number)!;
     } else {
-      const _block = _eth_getBlockByNumber(args.requestQueue, {
+      const _block = _eth_getBlockByNumber(args.rpc, {
         blockNumber: toHex(number),
       });
       blockCache.set(number, _block);
@@ -341,7 +341,7 @@ export const createHistoricalSync = async (
     if (traceCache.has(block)) {
       return await traceCache.get(block)!;
     } else {
-      const traces = _debug_traceBlockByNumber(args.requestQueue, {
+      const traces = _debug_traceBlockByNumber(args.rpc, {
         blockNumber: block,
       });
       traceCache.set(block, traces);
@@ -375,7 +375,7 @@ export const createHistoricalSync = async (
       args.common.logger.warn({
         service: "sync",
         msg: `Caught eth_getBlockReceipts error on '${
-          args.network.name
+          args.chain.chain.name
         }', switching to eth_getTransactionReceipt method.`,
         error,
       });
@@ -406,7 +406,7 @@ export const createHistoricalSync = async (
     if (transactionReceiptsCache.has(transaction)) {
       return await transactionReceiptsCache.get(transaction)!;
     } else {
-      const receipt = _eth_getTransactionReceipt(args.requestQueue, {
+      const receipt = _eth_getTransactionReceipt(args.rpc, {
         hash: transaction,
       });
       transactionReceiptsCache.set(transaction, receipt);
@@ -418,7 +418,7 @@ export const createHistoricalSync = async (
     if (blockReceiptsCache.has(block)) {
       return await blockReceiptsCache.get(block)!;
     } else {
-      const blockReceipts = _eth_getBlockReceipts(args.requestQueue, {
+      const blockReceipts = _eth_getBlockReceipts(args.rpc, {
         blockHash: block,
       });
       blockReceiptsCache.set(block, blockReceipts);
@@ -440,7 +440,7 @@ export const createHistoricalSync = async (
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),
       shouldUpdateCheckpoint: false,
-      chainId: args.network.chainId,
+      chainId: args.chain.chain.id,
     });
   };
 
@@ -528,7 +528,7 @@ export const createHistoricalSync = async (
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
       shouldUpdateCheckpoint: true,
-      chainId: args.network.chainId,
+      chainId: args.chain.chain.id,
     });
 
     if (isKilled) return;
@@ -559,7 +559,7 @@ export const createHistoricalSync = async (
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
-        chainId: args.network.chainId,
+        chainId: args.chain.chain.id,
       });
     }
   };
@@ -644,7 +644,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertTransactionReceipts({
       transactionReceipts,
-      chainId: args.network.chainId,
+      chainId: args.chain.chain.id,
     });
   };
 
@@ -719,7 +719,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertTraces({
       traces,
-      chainId: args.network.chainId,
+      chainId: args.chain.chain.id,
     });
 
     if (isKilled) return;
@@ -740,7 +740,7 @@ export const createHistoricalSync = async (
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
-        chainId: args.network.chainId,
+        chainId: args.chain.chain.id,
       });
     }
   };
@@ -849,7 +849,7 @@ export const createHistoricalSync = async (
 
             args.common.logger.error({
               service: "sync",
-              msg: `Fatal error: Unable to sync '${args.network.name}' from ${interval[0]} to ${interval[1]}.`,
+              msg: `Fatal error: Unable to sync '${args.chain.chain.name}' from ${interval[0]} to ${interval[1]}.`,
               error,
             });
 
@@ -869,7 +869,7 @@ export const createHistoricalSync = async (
       const blocks = await Promise.all(blockCache.values());
 
       await Promise.all([
-        args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
+        args.syncStore.insertBlocks({ blocks, chainId: args.chain.chain.id }),
         args.syncStore.insertTransactions({
           transactions: blocks.flatMap((block) =>
             block.transactions
@@ -879,7 +879,7 @@ export const createHistoricalSync = async (
                 block,
               })),
           ),
-          chainId: args.network.chainId,
+          chainId: args.chain.chain.id,
         }),
       ]);
 
@@ -887,10 +887,10 @@ export const createHistoricalSync = async (
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
-      if (args.network.disableCache === false) {
+      if (args.chain.disableCache === false) {
         await args.syncStore.insertIntervals({
           intervals: intervalsToSync,
-          chainId: args.network.chainId,
+          chainId: args.chain.chain.id,
         });
       }
 

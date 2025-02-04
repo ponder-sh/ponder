@@ -434,7 +434,7 @@ export const createBuild = async ({
         result: {
           buildId,
           sources: buildConfigAndIndexingFunctionsResult.sources,
-          networks: buildConfigAndIndexingFunctionsResult.networks,
+          chains: buildConfigAndIndexingFunctionsResult.chains,
           indexingFunctions:
             buildConfigAndIndexingFunctionsResult.indexingFunctions,
         },

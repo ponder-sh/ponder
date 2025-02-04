@@ -7,6 +7,7 @@ import { createIndexingService } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
@@ -17,7 +18,6 @@ import {
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import { createQueue } from "@ponder/common";
 
 /** Starts the sync and indexing services for the specified build. */
@@ -40,8 +40,8 @@ export async function run({
 }) {
   let isKilled = false;
 
-  const requestQueues = indexingBuild.networks.map((network) =>
-    createRequestQueue({ network, common }),
+  const rpcs = indexingBuild.chains.map((chain) =>
+    createRpc({ chain, common }),
   );
 
   const initialCheckpoint = await database.recoverCheckpoint();
@@ -57,7 +57,7 @@ export async function run({
   const sync = await createSync({
     common,
     indexingBuild,
-    requestQueues,
+    rpcs,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
       if (realtimeEvent.type === "reorg") {
@@ -74,7 +74,7 @@ export async function run({
   const indexingService = createIndexingService({
     common,
     indexingBuild,
-    requestQueues,
+    rpcs,
     syncStore,
   });
 
@@ -106,9 +106,9 @@ export async function run({
             });
 
             for (const { checkpoint, events } of perBlockEvents) {
-              const network = indexingBuild.networks.find(
-                (network) =>
-                  network.chainId ===
+              const chain = indexingBuild.chains.find(
+                (chain) =>
+                  chain.chain.id ===
                   Number(decodeCheckpoint(checkpoint).chainId),
               )!;
 
@@ -120,7 +120,7 @@ export async function run({
 
               common.logger.debug({
                 service: "app",
-                msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                msg: `Decoded ${decodedEvents.length} '${chain.chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
               });
 
               const result = await indexingService.processEvents({
@@ -129,7 +129,7 @@ export async function run({
 
               common.logger.info({
                 service: "app",
-                msg: `Indexed ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                msg: `Indexed ${decodedEvents.length} '${chain.chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
               });
 
               if (result.status === "error") onReloadableError(result.error);
@@ -138,20 +138,20 @@ export async function run({
               await database.complete({ checkpoint });
 
               if (preBuild.mode === "multichain") {
-                const network = indexingBuild.networks.find(
-                  (network) =>
-                    network.chainId ===
+                const chain = indexingBuild.chains.find(
+                  (chain) =>
+                    chain.chain.id ===
                     Number(decodeCheckpoint(checkpoint).chainId),
                 )!;
 
                 common.metrics.ponder_indexing_timestamp.set(
-                  { network: network.name },
+                  { network: chain.chain.name },
                   decodeCheckpoint(checkpoint).blockTimestamp,
                 );
               } else {
-                for (const network of indexingBuild.networks) {
+                for (const chain of indexingBuild.chains) {
                   common.metrics.ponder_indexing_timestamp.set(
-                    { network: network.name },
+                    { network: chain.chain.name },
                     decodeCheckpoint(checkpoint).blockTimestamp,
                   );
                 }
@@ -182,19 +182,21 @@ export async function run({
 
   await metadataStore.setStatus(sync.getStatus());
 
-  for (const network of indexingBuild.networks) {
-    const label = { network: network.name };
+  for (const chain of indexingBuild.chains) {
+    const label = { network: chain.chain.name };
     common.metrics.ponder_historical_total_indexing_seconds.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+        sync.seconds[chain.chain.name]!.end -
+          sync.seconds[chain.chain.name]!.start,
         0,
       ),
     );
     common.metrics.ponder_historical_cached_indexing_seconds.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.cached - sync.seconds[network.name]!.start,
+        sync.seconds[chain.chain.name]!.cached -
+          sync.seconds[chain.chain.name]!.start,
         0,
       ),
     );
@@ -202,8 +204,8 @@ export async function run({
     common.metrics.ponder_indexing_timestamp.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.cached,
-        sync.seconds[network.name]!.start,
+        sync.seconds[chain.chain.name]!.cached,
+        sync.seconds[chain.chain.name]!.start,
       ),
     );
   }
@@ -217,7 +219,7 @@ export async function run({
     if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
       const result = await indexingService.processSetupEvents({
         sources: indexingBuild.sources,
-        networks: indexingBuild.networks,
+        chains: indexingBuild.chains,
       });
       if (result.status === "killed") {
         return;
@@ -261,31 +263,33 @@ export async function run({
           );
 
           if (preBuild.mode === "multichain") {
-            const network = indexingBuild.networks.find(
-              (network) => network.chainId === Number(checkpoint.chainId),
+            const chain = indexingBuild.chains.find(
+              (chain) => chain.chain.id === Number(checkpoint.chainId),
             )!;
             common.metrics.ponder_historical_completed_indexing_seconds.set(
-              { network: network.name },
+              { network: chain.chain.name },
               Math.max(
-                checkpoint.blockTimestamp - sync.seconds[network.name]!.start,
+                checkpoint.blockTimestamp -
+                  sync.seconds[chain.chain.name]!.start,
                 0,
               ),
             );
             common.metrics.ponder_indexing_timestamp.set(
-              { network: network.name },
+              { network: chain.chain.name },
               checkpoint.blockTimestamp,
             );
           } else {
-            for (const network of indexingBuild.networks) {
+            for (const chain of indexingBuild.chains) {
               common.metrics.ponder_historical_completed_indexing_seconds.set(
-                { network: network.name },
+                { network: chain.chain.name },
                 Math.max(
-                  checkpoint.blockTimestamp - sync.seconds[network.name]!.start,
+                  checkpoint.blockTimestamp -
+                    sync.seconds[chain.chain.name]!.start,
                   0,
                 ),
               );
               common.metrics.ponder_indexing_timestamp.set(
-                { network: network.name },
+                { network: chain.chain.name },
                 checkpoint.blockTimestamp,
               );
             }
@@ -371,18 +375,19 @@ export async function run({
     // checkpoint is between the last processed event and the finalized
     // checkpoint.
 
-    for (const network of indexingBuild.networks) {
-      const label = { network: network.name };
+    for (const chain of indexingBuild.chains) {
+      const label = { network: chain.chain.name };
       common.metrics.ponder_historical_completed_indexing_seconds.set(
         label,
         Math.max(
-          sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+          sync.seconds[chain.chain.name]!.end -
+            sync.seconds[chain.chain.name]!.start,
           0,
         ),
       );
       common.metrics.ponder_indexing_timestamp.set(
-        { network: network.name },
-        sync.seconds[network.name]!.end,
+        { network: chain.chain.name },
+        sync.seconds[chain.chain.name]!.end,
       );
     }
 

@@ -1,7 +1,7 @@
+import type { RPC } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import type { Hex, Transport } from "viem";
 import { custom, hexToBigInt, maxUint256 } from "viem";
 
@@ -34,10 +34,10 @@ const nonBlockDependentMethods = new Set([
 ]);
 
 export const cachedTransport = ({
-  requestQueue,
+  rpc,
   syncStore,
 }: {
-  requestQueue: RequestQueue;
+  rpc: RPC;
   syncStore: SyncStore;
 }): Transport => {
   return ({ chain }) => {
@@ -94,7 +94,7 @@ export const cachedTransport = ({
               return cachedResult;
             }
           } else {
-            const response = await requestQueue.request(body);
+            const response = await rpc.request(body);
             await syncStore.insertRpcRequestResult({
               ...cacheKey,
               result: JSON.stringify(response),
@@ -102,7 +102,7 @@ export const cachedTransport = ({
             return response;
           }
         } else {
-          return requestQueue.request(body);
+          return rpc.request(body);
         }
       },
     });

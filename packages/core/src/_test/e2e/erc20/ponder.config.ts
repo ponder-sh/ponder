@@ -1,4 +1,3 @@
-import { http } from "viem";
 import { createConfig } from "../../../config/index.js";
 import { erc20ABI } from "../../generated.js";
 
@@ -20,7 +19,7 @@ export default createConfig({
   networks: {
     mainnet: {
       chainId: 1,
-      transport: http(`http://127.0.0.1:8545/${poolId}`),
+      rpcUrl: `http://127.0.0.1:8545/${poolId}`,
     },
   },
   contracts: {

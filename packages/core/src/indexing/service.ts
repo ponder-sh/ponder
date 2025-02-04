@@ -1,15 +1,16 @@
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
+  Chain,
   ContractSource,
   Event,
   IndexingBuild,
   IndexingFunctions,
-  Network,
   Schema,
   SetupEvent,
   Source,
 } from "@/internal/types.js";
+import type { RPC } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { isAddressFactory } from "@/sync/filter.js";
 import { cachedTransport } from "@/sync/transport.js";
@@ -22,16 +23,15 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
-import { type Abi, type Address, createClient } from "viem";
-import { checksumAddress } from "viem";
+import type { Abi, Address, Chain as ViemChain } from "viem";
+import { checksumAddress, createClient } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
 import type { ReadOnlyClient } from "./ponderActions.js";
 import { getPonderActions } from "./ponderActions.js";
 
 export type Context = {
-  network: { chainId: number; name: string };
+  chain: ViemChain;
   client: ReadOnlyClient;
   db: Db<Schema>;
   contracts: Record<
@@ -69,23 +69,23 @@ export type Service = {
   };
 
   // static cache
-  networkByChainId: { [chainId: number]: Network };
+  chainById: { [chainId: number]: Chain };
   clientByChainId: { [chainId: number]: Context["client"] };
   contractsByChainId: { [chainId: number]: Context["contracts"] };
 };
 
 export const create = ({
   common,
-  indexingBuild: { sources, networks, indexingFunctions },
-  requestQueues,
+  indexingBuild: { sources, chains, indexingFunctions },
+  rpcs,
   syncStore,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "networks" | "indexingFunctions"
+    "sources" | "chains" | "indexingFunctions"
   >;
-  requestQueues: RequestQueue[];
+  rpcs: RPC[];
   syncStore: SyncStore;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
@@ -94,13 +94,10 @@ export const create = ({
   const clientByChainId: Service["clientByChainId"] = {};
   const contractsByChainId: Service["contractsByChainId"] = {};
 
-  const networkByChainId = networks.reduce<Service["networkByChainId"]>(
-    (acc, cur) => {
-      acc[cur.chainId] = cur;
-      return acc;
-    },
-    {},
-  );
+  const chainById = chains.reduce<Service["chainById"]>((acc, cur) => {
+    acc[cur.chain.id] = cur;
+    return acc;
+  }, {});
 
   // build contractsByChainId
   for (const source of sources) {
@@ -142,13 +139,13 @@ export const create = ({
   }
 
   // build clientByChainId
-  for (let i = 0; i < networks.length; i++) {
-    const network = networks[i]!;
-    const requestQueue = requestQueues[i]!;
+  for (let i = 0; i < chains.length; i++) {
+    const chain = chains[i]!;
+    const rpc = rpcs[i]!;
 
-    clientByChainId[network.chainId] = createClient({
-      transport: cachedTransport({ requestQueue, syncStore }),
-      chain: network.chain,
+    clientByChainId[chain.chain.id] = createClient({
+      transport: cachedTransport({ rpc, syncStore }),
+      chain: chain.chain,
       // @ts-ignore
     }).extend(getPonderActions(contextState));
   }
@@ -167,13 +164,13 @@ export const create = ({
     currentEvent: {
       contextState,
       context: {
-        network: { name: undefined!, chainId: undefined! },
+        chain: undefined!,
         contracts: undefined!,
         client: undefined!,
         db: undefined!,
       },
     },
-    networkByChainId,
+    chainById,
     clientByChainId,
     contractsByChainId,
   };
@@ -183,10 +180,10 @@ export const processSetupEvents = async (
   indexingService: Service,
   {
     sources,
-    networks,
+    chains,
   }: {
     sources: Source[];
-    networks: Network[];
+    chains: Chain[];
   },
 ): Promise<
   | { status: "error"; error: Error }
@@ -198,12 +195,12 @@ export const processSetupEvents = async (
 
     const [contractName] = eventName.split(":");
 
-    for (const network of networks) {
+    for (const chain of chains) {
       const source = sources.find(
         (s) =>
           s.type === "contract" &&
           s.name === contractName &&
-          s.filter.chainId === network.chainId,
+          s.filter.chainId === chain.chain.id,
       ) as ContractSource | undefined;
 
       if (source === undefined) continue;
@@ -215,10 +212,10 @@ export const processSetupEvents = async (
       const result = await executeSetup(indexingService, {
         event: {
           type: "setup",
-          chainId: network.chainId,
+          chainId: chain.chain.id,
           checkpoint: encodeCheckpoint({
             ...ZERO_CHECKPOINT,
-            chainId: BigInt(network.chainId),
+            chainId: BigInt(chain.chain.id),
             blockNumber: BigInt(source.filter.fromBlock ?? 0),
           }),
 
@@ -318,7 +315,7 @@ const executeSetup = async (
     common,
     indexingFunctions,
     currentEvent,
-    networkByChainId,
+    chainById,
     contractsByChainId,
     clientByChainId,
   } = indexingService;
@@ -327,8 +324,7 @@ const executeSetup = async (
 
   try {
     // set currentEvent
-    currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.chain = chainById[event.chainId]!.chain;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.blockNumber = event.block;
@@ -353,7 +349,7 @@ const executeSetup = async (
     const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.chain.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 
@@ -377,7 +373,7 @@ const executeEvent = async (
     common,
     indexingFunctions,
     currentEvent,
-    networkByChainId,
+    chainById,
     contractsByChainId,
     clientByChainId,
   } = indexingService;
@@ -386,8 +382,7 @@ const executeEvent = async (
 
   try {
     // set currentEvent
-    currentEvent.context.network.chainId = event.chainId;
-    currentEvent.context.network.name = networkByChainId[event.chainId]!.name;
+    currentEvent.context.chain = chainById[event.chainId]!.chain;
     currentEvent.context.client = clientByChainId[event.chainId]!;
     currentEvent.context.contracts = contractsByChainId[event.chainId]!;
     currentEvent.contextState.blockNumber = event.event.block.number;
@@ -414,7 +409,7 @@ const executeEvent = async (
 
     common.logger.error({
       service: "indexing",
-      msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+      msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.chain.name}' block ${decodedCheckpoint.blockNumber}`,
       error,
     });
 

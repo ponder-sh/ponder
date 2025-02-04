@@ -1,14 +1,15 @@
 import type { Common } from "@/internal/common.js";
 import type {
+  Chain,
   Factory,
   Filter,
   IndexingBuild,
-  Network,
   RawEvent,
   Seconds,
   Source,
   Status,
 } from "@/internal/types.js";
+import type { RPC } from "@/rpc/index.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -46,7 +47,6 @@ import {
 import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { partition } from "@/utils/partition.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -69,17 +69,14 @@ export type RealtimeEvent =
       checkpoint: string;
       status: Status;
       events: RawEvent[];
-      network: Network;
     }
   | {
       type: "reorg";
       checkpoint: string;
-      network: Network;
     }
   | {
       type: "finalize";
       checkpoint: string;
-      network: Network;
     };
 
 export type SyncProgress = {
@@ -183,11 +180,11 @@ export const splitEvents = (
 /** Returns the checkpoint for a given block tag. */
 export const getChainCheckpoint = ({
   syncProgress,
-  network,
+  chain,
   tag,
 }: {
   syncProgress: SyncProgress;
-  network: Network;
+  chain: Chain;
   tag: "start" | "current" | "finalized" | "end";
 }): string | undefined => {
   if (tag === "end" && syncProgress.end === undefined) {
@@ -202,7 +199,7 @@ export const getChainCheckpoint = ({
   return encodeCheckpoint(
     blockToCheckpoint(
       block,
-      network.chainId,
+      chain.chain.id,
       // The checkpoint returned by this function is meant to be used in
       // a closed interval (includes endpoints), so "start" should be inclusive.
       tag === "start" ? "down" : "up",
@@ -212,16 +209,16 @@ export const getChainCheckpoint = ({
 
 export const createSync = async (params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "networks">;
-  requestQueues: RequestQueue[];
+  indexingBuild: Pick<IndexingBuild, "sources" | "chains">;
+  rpcs: RPC[];
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
   initialCheckpoint: string;
   mode: "omnichain" | "multichain";
 }): Promise<Sync> => {
-  const perNetworkSync = new Map<
-    Network,
+  const perChainSync = new Map<
+    Chain,
     {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
@@ -231,12 +228,12 @@ export const createSync = async (params: {
 
   const getMultichainCheckpoint = ({
     tag,
-    network,
-  }: { tag: "start" | "end" | "current" | "finalized"; network: Network }):
+    chain,
+  }: { tag: "start" | "end" | "current" | "finalized"; chain: Chain }):
     | string
     | undefined => {
-    const syncProgress = perNetworkSync.get(network)!.syncProgress;
-    return getChainCheckpoint({ syncProgress, network, tag });
+    const syncProgress = perChainSync.get(chain)!.syncProgress;
+    return getChainCheckpoint({ syncProgress, chain, tag });
   };
 
   const getOmnichainCheckpoint = ({
@@ -244,9 +241,9 @@ export const createSync = async (params: {
   }: { tag: "start" | "end" | "current" | "finalized" }):
     | string
     | undefined => {
-    const checkpoints = Array.from(perNetworkSync.entries()).map(
-      ([network, { syncProgress }]) =>
-        getChainCheckpoint({ syncProgress, network, tag }),
+    const checkpoints = Array.from(perChainSync.entries()).map(
+      ([chain, { syncProgress }]) =>
+        getChainCheckpoint({ syncProgress, chain, tag }),
     );
 
     if (tag === "end" && checkpoints.some((c) => c === undefined)) {
@@ -263,10 +260,10 @@ export const createSync = async (params: {
   const updateHistoricalStatus = ({
     events,
     checkpoint,
-    network,
-  }: { events: RawEvent[]; checkpoint: string; network: Network }) => {
-    if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
-      status[network.name]!.block = {
+    chain,
+  }: { events: RawEvent[]; checkpoint: string; chain: Chain }) => {
+    if (Number(decodeCheckpoint(checkpoint).chainId) === chain.chain.id) {
+      status[chain.chain.id]!.block = {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
         number: Number(decodeCheckpoint(checkpoint).blockNumber),
       };
@@ -277,8 +274,8 @@ export const createSync = async (params: {
     while (i >= 0) {
       const event = events[i]!;
 
-      if (network.chainId === event.chainId) {
-        status[network.name]!.block = {
+      if (chain.chain.id === event.chainId) {
+        status[chain.chain.name]!.block = {
           timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
         };
@@ -291,17 +288,17 @@ export const createSync = async (params: {
 
   const updateRealtimeStatus = ({
     checkpoint,
-    network,
-  }: { checkpoint: string; network: Network }) => {
-    const localBlock = perNetworkSync
-      .get(network)!
+    chain,
+  }: { checkpoint: string; chain: Chain }) => {
+    const localBlock = perChainSync
+      .get(chain)!
       .realtimeSync.unfinalizedBlocks.findLast(
         (block) =>
-          encodeCheckpoint(blockToCheckpoint(block, network.chainId, "up")) <=
+          encodeCheckpoint(blockToCheckpoint(block, chain.chain.id, "up")) <=
           checkpoint,
       );
     if (localBlock !== undefined) {
-      status[network.name]!.block = {
+      status[chain.chain.id]!.block = {
         timestamp: hexToNumber(localBlock.timestamp),
         number: hexToNumber(localBlock.number),
       };
@@ -319,33 +316,33 @@ export const createSync = async (params: {
       getOmnichainCheckpoint({ tag: "finalized" }),
     );
 
-    const eventGenerators = Array.from(perNetworkSync.entries()).map(
-      ([network, { syncProgress, historicalSync }]) => {
+    const eventGenerators = Array.from(perChainSync.entries()).map(
+      ([chain, { syncProgress, historicalSync }]) => {
         const sources = params.indexingBuild.sources.filter(
-          ({ filter }) => filter.chainId === network.chainId,
+          ({ filter }) => filter.chainId === chain.chain.id,
         );
 
         const localSyncGenerator = getLocalSyncGenerator({
           common: params.common,
-          network,
+          chain,
           syncProgress,
           historicalSync,
         });
 
         const localEventGenerator = getLocalEventGenerator({
           common: params.common,
-          network,
+          chain,
           syncStore: params.syncStore,
           sources,
           localSyncGenerator,
           from:
             params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
               ? params.initialCheckpoint
-              : getChainCheckpoint({ syncProgress, network, tag: "start" })!,
+              : getChainCheckpoint({ syncProgress, chain, tag: "start" })!,
           to,
           limit: Math.round(
             params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.networks.length * 2),
+              (params.indexingBuild.chains.length * 2),
           ),
         });
 
@@ -360,13 +357,13 @@ export const createSync = async (params: {
 
     for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
       if (params.mode === "multichain") {
-        const network = params.indexingBuild.networks.find(
-          (network) =>
-            network.chainId === Number(decodeCheckpoint(checkpoint).chainId),
+        const chain = params.indexingBuild.chains.find(
+          (chain) =>
+            chain.chain.id === Number(decodeCheckpoint(checkpoint).chainId),
         )!;
         params.common.logger.debug({
           service: "sync",
-          msg: `Sequenced ${events.length} '${network.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
+          msg: `Sequenced ${events.length} '${chain.chain.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
       } else {
         params.common.logger.debug({
@@ -375,8 +372,8 @@ export const createSync = async (params: {
         });
       }
 
-      for (const network of params.indexingBuild.networks) {
-        updateHistoricalStatus({ events, checkpoint, network });
+      for (const chain of params.indexingBuild.chains) {
+        updateHistoricalStatus({ events, checkpoint, chain });
       }
       yield events;
       cursor = checkpoint;
@@ -396,11 +393,11 @@ export const createSync = async (params: {
     return (
       event: RealtimeSyncEvent,
       {
-        network,
+        chain,
         syncProgress,
         realtimeSync,
       }: {
-        network: Network;
+        chain: Chain;
         syncProgress: SyncProgress;
         realtimeSync: RealtimeSync;
       },
@@ -409,7 +406,7 @@ export const createSync = async (params: {
         case "block": {
           const events = buildEvents({
             sources: params.indexingBuild.sources,
-            chainId: network.chainId,
+            chainId: chain.chain.id,
             blockWithEventData: event,
             finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
             unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
@@ -417,17 +414,17 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+            msg: `Extracted ${events.length} '${chain.chain.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
           if (params.mode === "multichain") {
             // Note: `checkpoints.current` not used in multichain mode
             const checkpoint = getMultichainCheckpoint({
               tag: "current",
-              network,
+              chain,
             })!;
 
-            status[network.name]!.block = {
+            status[chain.chain.name]!.block = {
               timestamp: hexToNumber(event.block.timestamp),
               number: hexToNumber(event.block.number),
             };
@@ -438,7 +435,7 @@ export const createSync = async (params: {
 
             params.common.logger.debug({
               service: "sync",
-              msg: `Sequenced ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+              msg: `Sequenced ${events.length} '${chain.chain.name}' events for block ${hexToNumber(event.block.number)}`,
             });
 
             params
@@ -449,13 +446,12 @@ export const createSync = async (params: {
                 events: readyEvents.sort((a, b) =>
                   a.checkpoint < b.checkpoint ? -1 : 1,
                 ),
-                network,
               })
               .then(() => {
                 // update `ponder_realtime_latency` metric
                 if (event.endClock) {
                   params.common.metrics.ponder_realtime_latency.observe(
-                    { network: network.name },
+                    { network: chain.chain.name },
                     event.endClock(),
                   );
                 }
@@ -468,15 +464,15 @@ export const createSync = async (params: {
             if (event.endClock !== undefined) {
               latencyTimers.set(
                 encodeCheckpoint(
-                  blockToCheckpoint(event.block, network.chainId, "up"),
+                  blockToCheckpoint(event.block, chain.chain.id, "up"),
                 ),
                 event.endClock,
               );
             }
 
             if (to > from) {
-              for (const network of params.indexingBuild.networks) {
-                updateRealtimeStatus({ checkpoint: to, network });
+              for (const chain of params.indexingBuild.chains) {
+                updateRealtimeStatus({ checkpoint: to, chain });
               }
 
               // Move ready events from pending to executed
@@ -491,7 +487,7 @@ export const createSync = async (params: {
 
               params.common.logger.debug({
                 service: "sync",
-                msg: `Sequenced ${events.length} '${network.name}' events for timestamps [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+                msg: `Sequenced ${events.length} '${chain.chain.name}' events for timestamps [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
               });
 
               params
@@ -502,7 +498,6 @@ export const createSync = async (params: {
                   events: readyEvents.sort((a, b) =>
                     a.checkpoint < b.checkpoint ? -1 : 1,
                   ),
-                  network,
                 })
                 .then(() => {
                   // update `ponder_realtime_latency` metric
@@ -511,11 +506,11 @@ export const createSync = async (params: {
                       const chainId = Number(
                         decodeCheckpoint(checkpoint).chainId,
                       );
-                      const network = params.indexingBuild.networks.find(
-                        (network) => network.chainId === chainId,
+                      const chain = params.indexingBuild.chains.find(
+                        (chain) => chain.chain.id === chainId,
                       )!;
                       params.common.metrics.ponder_realtime_latency.observe(
-                        { network: network.name },
+                        { network: chain.chain.name },
                         timer(),
                       );
                     }
@@ -536,12 +531,12 @@ export const createSync = async (params: {
 
           if (
             params.mode === "omnichain" &&
-            getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
+            getChainCheckpoint({ syncProgress, chain, tag: "finalized" })! >
               getOmnichainCheckpoint({ tag: "current" })!
           ) {
             params.common.logger.warn({
               service: "sync",
-              msg: `Finalized '${network.name}' block has surpassed overall indexing checkpoint`,
+              msg: `Finalized '${chain.chain.name}' block has surpassed overall indexing checkpoint`,
             });
           }
 
@@ -554,7 +549,6 @@ export const createSync = async (params: {
             params.onRealtimeEvent({
               type: "finalize",
               checkpoint: to,
-              network,
             });
           }
 
@@ -568,7 +562,7 @@ export const createSync = async (params: {
 
           const isReorgedEvent = ({ chainId, block }: RawEvent) => {
             if (
-              chainId === network.chainId &&
+              chainId === chain.chain.id &&
               Number(block.number) > hexToNumber(event.block.number)
             ) {
               reorgedEvents++;
@@ -586,14 +580,14 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Removed ${reorgedEvents} reorged '${network.name}' events`,
+            msg: `Removed ${reorgedEvents} reorged '${chain.chain.name}' events`,
           });
 
           if (params.mode === "multichain") {
             // Note: `checkpoints.current` not used in multichain mode
             const checkpoint = getMultichainCheckpoint({
               tag: "current",
-              network,
+              chain,
             })!;
 
             // Move events from executed to pending
@@ -611,7 +605,7 @@ export const createSync = async (params: {
               msg: `Rescheduled ${events.length} reorged events`,
             });
 
-            params.onRealtimeEvent({ type: "reorg", checkpoint, network });
+            params.onRealtimeEvent({ type: "reorg", checkpoint });
           } else {
             const from = checkpoints.current;
             checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
@@ -632,7 +626,6 @@ export const createSync = async (params: {
               params.onRealtimeEvent({
                 type: "reorg",
                 checkpoint: to,
-                network,
               });
             }
           }
@@ -654,22 +647,22 @@ export const createSync = async (params: {
   const onRealtimeSyncEvent = getOnRealtimeSyncEvent();
 
   await Promise.all(
-    params.indexingBuild.networks.map(async (network, index) => {
-      const requestQueue = params.requestQueues[index]!;
+    params.indexingBuild.chains.map(async (chain, index) => {
+      const rpc = params.rpcs[index]!;
 
       const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === network.chainId,
+        ({ filter }) => filter.chainId === chain.chain.id,
       );
 
       // Invalidate sync cache for devnet sources
-      if (network.disableCache) {
+      if (chain.disableCache) {
         params.common.logger.warn({
           service: "sync",
-          msg: `Deleting cache records for '${network.name}'`,
+          msg: `Deleting cache records for '${chain.chain.name}'`,
         });
 
         await params.syncStore.pruneByChain({
-          chainId: network.chainId,
+          chainId: chain.chain.id,
         });
       }
 
@@ -677,29 +670,29 @@ export const createSync = async (params: {
         common: params.common,
         sources,
         syncStore: params.syncStore,
-        requestQueue,
-        network,
+        rpc,
+        chain,
         onFatalError: params.onFatalError,
       });
 
       const syncProgress = await getLocalSyncProgress({
         common: params.common,
-        network,
+        chain,
         sources,
-        requestQueue,
+        rpc,
         intervalsCache: historicalSync.intervalsCache,
       });
 
       const realtimeSync = createRealtimeSync({
         common: params.common,
         sources,
-        requestQueue,
-        network,
+        rpc,
+        chain,
         onEvent: (event) =>
           perChainOnRealtimeSyncEvent(event)
             .then((event) =>
               onRealtimeSyncEvent(event, {
-                network,
+                chain,
                 syncProgress,
                 realtimeSync,
               }),
@@ -716,15 +709,15 @@ export const createSync = async (params: {
       });
 
       params.common.metrics.ponder_sync_is_realtime.set(
-        { network: network.name },
+        { network: chain.chain.name },
         0,
       );
       params.common.metrics.ponder_sync_is_complete.set(
-        { network: network.name },
+        { network: chain.chain.name },
         0,
       );
 
-      perNetworkSync.set(network, {
+      perChainSync.set(chain, {
         syncProgress,
         historicalSync,
         realtimeSync,
@@ -732,7 +725,7 @@ export const createSync = async (params: {
 
       const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
         common: params.common,
-        network,
+        chain,
         sources,
         syncStore: params.syncStore,
         syncProgress,
@@ -744,15 +737,15 @@ export const createSync = async (params: {
   const status: Status = {};
   const seconds: Seconds = {};
 
-  for (const network of params.indexingBuild.networks) {
-    status[network.name] = { block: null, ready: false };
+  for (const chain of params.indexingBuild.chains) {
+    status[chain.chain.name] = { block: null, ready: false };
   }
 
   if (params.mode === "multichain") {
-    for (const network of params.indexingBuild.networks) {
-      seconds[network.name] = {
+    for (const chain of params.indexingBuild.chains) {
+      seconds[chain.chain.name] = {
         start: decodeCheckpoint(
-          getMultichainCheckpoint({ tag: "start", network })!,
+          getMultichainCheckpoint({ tag: "start", chain })!,
         ).blockTimestamp,
         end: decodeCheckpoint(
           min(
@@ -773,8 +766,8 @@ export const createSync = async (params: {
         getOmnichainCheckpoint({ tag: "finalized" }),
       ),
     ).blockTimestamp;
-    for (const network of params.indexingBuild.networks) {
-      seconds[network.name] = {
+    for (const chain of params.indexingBuild.chains) {
+      seconds[chain.chain.name] = {
         start,
         end,
         cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
@@ -785,18 +778,18 @@ export const createSync = async (params: {
   return {
     getEvents,
     async startRealtime() {
-      for (const network of params.indexingBuild.networks) {
-        const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
+      for (const chain of params.indexingBuild.chains) {
+        const { syncProgress, realtimeSync } = perChainSync.get(chain)!;
 
         const filters = params.indexingBuild.sources
-          .filter(({ filter }) => filter.chainId === network.chainId)
+          .filter(({ filter }) => filter.chainId === chain.chain.id)
           .map(({ filter }) => filter);
 
-        status[network.name]!.block = {
+        status[chain.chain.id]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
         };
-        status[network.name]!.ready = true;
+        status[chain.chain.id]!.ready = true;
 
         // Fetch any events between the omnichain finalized checkpoint and the single-chain
         // finalized checkpoint and add them to pendingEvents. These events are synced during
@@ -806,12 +799,12 @@ export const createSync = async (params: {
 
         const finalized = getChainCheckpoint({
           syncProgress,
-          network,
+          chain,
           tag: "finalized",
         })!;
         const end = getChainCheckpoint({
           syncProgress,
-          network,
+          chain,
           tag: "end",
         })!;
         const to = min(finalized, end);
@@ -825,7 +818,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted and scheduled ${events.events.length} '${network.name}' events`,
+            msg: `Extracted and scheduled ${events.events.length} '${chain.chain.name}' events`,
           });
 
           pendingEvents = pendingEvents.concat(events.events);
@@ -833,12 +826,12 @@ export const createSync = async (params: {
 
         if (isSyncEnd(syncProgress)) {
           params.common.metrics.ponder_sync_is_complete.set(
-            { network: network.name },
+            { network: chain.chain.name },
             1,
           );
         } else {
           params.common.metrics.ponder_sync_is_realtime.set(
-            { network: network.name },
+            { network: chain.chain.name },
             1,
           );
 
@@ -887,7 +880,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Initialized '${network.name}' realtime sync with ${initialChildAddresses.size} factory child addresses`,
+            msg: `Initialized '${chain.chain.name}' realtime sync with ${initialChildAddresses.size} factory child addresses`,
           });
 
           realtimeSync.start({ syncProgress, initialChildAddresses });
@@ -903,8 +896,8 @@ export const createSync = async (params: {
     },
     async kill() {
       const promises: Promise<void>[] = [];
-      for (const network of params.indexingBuild.networks) {
-        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
+      for (const chain of params.indexingBuild.chains) {
+        const { historicalSync, realtimeSync } = perChainSync.get(chain)!;
         historicalSync.kill();
         promises.push(realtimeSync.kill());
       }
@@ -915,14 +908,14 @@ export const createSync = async (params: {
 
 export const getPerChainOnRealtimeSyncEvent = ({
   common,
-  network,
+  chain,
   sources,
   syncStore,
   syncProgress,
   realtimeSync,
 }: {
   common: Common;
-  network: Network;
+  chain: Chain;
   sources: Source[];
   syncStore: SyncStore;
   syncProgress: SyncProgress;
@@ -940,11 +933,11 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         common.logger.debug({
           service: "sync",
-          msg: `Updated '${network.name}' current block to ${hexToNumber(event.block.number)}`,
+          msg: `Updated '${chain.chain.name}' current block to ${hexToNumber(event.block.number)}`,
         });
 
         common.metrics.ponder_sync_block.set(
-          { network: network.name },
+          { network: chain.chain.name },
           hexToNumber(syncProgress.current.number),
         );
 
@@ -964,7 +957,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         common.logger.debug({
           service: "sync",
-          msg: `Updated '${network.name}' finalized block to ${hexToNumber(event.block.number)}`,
+          msg: `Updated '${chain.chain.name}' finalized block to ${hexToNumber(event.block.number)}`,
         });
 
         // Remove all finalized data
@@ -986,21 +979,21 @@ export const getPerChainOnRealtimeSyncEvent = ({
             blocks: finalizedBlocks
               .filter(({ hasMatchedFilter }) => hasMatchedFilter)
               .map(({ block }) => block),
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           }),
           syncStore.insertLogs({
             logs: finalizedBlocks.flatMap(({ logs, block }) =>
               logs.map((log) => ({ log, block })),
             ),
             shouldUpdateCheckpoint: true,
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           }),
           syncStore.insertLogs({
             logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
               factoryLogs.map((log) => ({ log })),
             ),
             shouldUpdateCheckpoint: false,
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           }),
           syncStore.insertTransactions({
             transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
@@ -1009,13 +1002,13 @@ export const getPerChainOnRealtimeSyncEvent = ({
                 block,
               })),
             ),
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           }),
           syncStore.insertTransactionReceipts({
             transactionReceipts: finalizedBlocks.flatMap(
               ({ transactionReceipts }) => transactionReceipts,
             ),
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           }),
           syncStore.insertTraces({
             traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
@@ -1027,14 +1020,14 @@ export const getPerChainOnRealtimeSyncEvent = ({
                 )!,
               })),
             ),
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           }),
         ]);
 
         // Add corresponding intervals to the sync-store
         // Note: this should happen after insertion so the database doesn't become corrupted
 
-        if (network.disableCache === false) {
+        if (chain.disableCache === false) {
           const syncedIntervals: {
             interval: Interval;
             filter: Filter;
@@ -1058,7 +1051,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
           await syncStore.insertIntervals({
             intervals: syncedIntervals,
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           });
         }
 
@@ -1067,16 +1060,16 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
           common.metrics.ponder_sync_is_realtime.set(
-            { network: network.name },
+            { network: chain.chain.name },
             0,
           );
           common.metrics.ponder_sync_is_complete.set(
-            { network: network.name },
+            { network: chain.chain.name },
             1,
           );
           common.logger.info({
             service: "sync",
-            msg: `Killing '${network.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
+            msg: `Killing '${chain.chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
           });
           realtimeSync.kill();
         }
@@ -1089,11 +1082,11 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         common.logger.debug({
           service: "sync",
-          msg: `Updated '${network.name}' current block to ${hexToNumber(event.block.number)}`,
+          msg: `Updated '${chain.chain.name}' current block to ${hexToNumber(event.block.number)}`,
         });
 
         common.metrics.ponder_sync_block.set(
-          { network: network.name },
+          { network: chain.chain.name },
           hexToNumber(syncProgress.current.number),
         );
 
@@ -1105,7 +1098,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
         );
 
         await syncStore.pruneRpcRequestResult({
-          chainId: network.chainId,
+          chainId: chain.chain.id,
           blocks: event.reorgedBlocks,
         });
 
@@ -1117,7 +1110,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
 export async function* getLocalEventGenerator(params: {
   common: Common;
-  network: Network;
+  chain: Chain;
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<string>;
@@ -1132,7 +1125,7 @@ export async function* getLocalEventGenerator(params: {
 
   params.common.logger.debug({
     service: "sync",
-    msg: `Initialized '${params.network.name}' extract query for timestamps [${decodeCheckpoint(params.from).blockTimestamp}, ${decodeCheckpoint(params.to).blockTimestamp}]`,
+    msg: `Initialized '${params.chain.chain.name}' extract query for timestamps [${decodeCheckpoint(params.from).blockTimestamp}, ${decodeCheckpoint(params.to).blockTimestamp}]`,
   });
 
   for await (const syncCheckpoint of bufferAsyncGenerator(
@@ -1143,7 +1136,7 @@ export async function* getLocalEventGenerator(params: {
     while (cursor < min(syncCheckpoint, params.to)) {
       const estimateCheckpoint = encodeCheckpoint({
         ...ZERO_CHECKPOINT,
-        chainId: BigInt(params.network.chainId),
+        chainId: BigInt(params.chain.chain.id),
         blockTimestamp: Math.min(
           decodeCheckpoint(cursor).blockTimestamp + estimateSeconds,
           MAX_CHECKPOINT.blockTimestamp,
@@ -1161,7 +1154,7 @@ export async function* getLocalEventGenerator(params: {
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Extracted ${events.length} '${params.network.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
+          msg: `Extracted ${events.length} '${params.chain.chain.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
         });
 
         estimateSeconds = estimate({
@@ -1177,7 +1170,7 @@ export async function* getLocalEventGenerator(params: {
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Updated '${params.network.name}' extract query estimate to ${estimateSeconds} seconds`,
+          msg: `Updated '${params.chain.chain.name}' extract query estimate to ${estimateSeconds} seconds`,
         });
 
         consecutiveErrors = 0;
@@ -1189,7 +1182,7 @@ export async function* getLocalEventGenerator(params: {
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Updated '${params.network.name}' getEvents query estimate to ${estimateSeconds} seconds`,
+          msg: `Updated '${params.chain.chain.name}' getEvents query estimate to ${estimateSeconds} seconds`,
         });
 
         if (++consecutiveErrors > 4) throw error;
@@ -1200,16 +1193,16 @@ export async function* getLocalEventGenerator(params: {
 
 export async function* getLocalSyncGenerator({
   common,
-  network,
+  chain,
   syncProgress,
   historicalSync,
 }: {
   common: Common;
-  network: Network;
+  chain: Chain;
   syncProgress: SyncProgress;
   historicalSync: HistoricalSync;
 }): AsyncGenerator<string> {
-  const label = { network: network.name };
+  const label = { network: chain.chain.name };
 
   let cursor = hexToNumber(syncProgress.start.number);
   const last = getHistoricalLast(syncProgress);
@@ -1230,7 +1223,7 @@ export async function* getLocalSyncGenerator({
 
     common.logger.warn({
       service: "sync",
-      msg: `Skipped '${network.name}' historical sync because the start block is not finalized`,
+      msg: `Skipped '${chain.chain.name}' historical sync because the start block is not finalized`,
     });
 
     common.metrics.ponder_sync_block.set(
@@ -1250,7 +1243,7 @@ export async function* getLocalSyncGenerator({
 
   common.logger.debug({
     service: "sync",
-    msg: `Initialized '${network.name}' historical sync for blocks [${totalInterval[0]}, ${totalInterval[1]}]`,
+    msg: `Initialized '${chain.chain.name}' historical sync for blocks [${totalInterval[0]}, ${totalInterval[1]}]`,
   });
 
   const requiredIntervals = Array.from(
@@ -1287,19 +1280,19 @@ export async function* getLocalSyncGenerator({
 
     // `getEvents` can make progress without calling `sync`, so immediately "yield"
     yield encodeCheckpoint(
-      blockToCheckpoint(syncProgress.current, network.chainId, "up"),
+      blockToCheckpoint(syncProgress.current, chain.chain.id, "up"),
     );
 
     if (hexToNumber(syncProgress.current.number) === hexToNumber(last.number)) {
       common.logger.info({
         service: "sync",
-        msg: `Skipped '${network.name}' historical sync because all blocks are cached.`,
+        msg: `Skipped '${chain.chain.name}' historical sync because all blocks are cached.`,
       });
       return;
     } else {
       common.logger.info({
         service: "sync",
-        msg: `Started '${network.name}' historical sync with ${formatPercentage(
+        msg: `Started '${chain.chain.name}' historical sync with ${formatPercentage(
           (total - required) / total,
         )} cached`,
       });
@@ -1309,7 +1302,7 @@ export async function* getLocalSyncGenerator({
   } else {
     common.logger.info({
       service: "historical",
-      msg: `Started '${network.name}' historical sync`,
+      msg: `Started '${chain.chain.name}' historical sync`,
     });
   }
 
@@ -1329,7 +1322,7 @@ export async function* getLocalSyncGenerator({
 
     common.logger.debug({
       service: "sync",
-      msg: `Synced ${interval[1] - interval[0] + 1} '${network.name}' blocks [${interval[0]}, ${interval[1]}]`,
+      msg: `Synced ${interval[1] - interval[0] + 1} '${chain.chain.name}' blocks [${interval[0]}, ${interval[1]}]`,
     });
 
     // Update cursor to record progress
@@ -1377,18 +1370,18 @@ export async function* getLocalSyncGenerator({
 
       common.logger.debug({
         service: "sync",
-        msg: `Updated '${network.name}' historical sync estimate to ${estimateRange} blocks`,
+        msg: `Updated '${chain.chain.name}' historical sync estimate to ${estimateRange} blocks`,
       });
     }
 
     yield encodeCheckpoint(
-      blockToCheckpoint(syncProgress.current!, network.chainId, "up"),
+      blockToCheckpoint(syncProgress.current!, chain.chain.id, "up"),
     );
 
     if (isSyncEnd(syncProgress) || isSyncFinalized(syncProgress)) {
       common.logger.info({
         service: "sync",
-        msg: `Completed '${network.name}' historical sync`,
+        msg: `Completed '${chain.chain.name}' historical sync`,
       });
       return;
     }
@@ -1398,14 +1391,14 @@ export async function* getLocalSyncGenerator({
 export const getLocalSyncProgress = async ({
   common,
   sources,
-  network,
-  requestQueue,
+  chain,
+  rpc,
   intervalsCache,
 }: {
   common: Common;
   sources: Source[];
-  network: Network;
-  requestQueue: RequestQueue;
+  chain: Chain;
+  rpc: RPC;
   intervalsCache: HistoricalSync["intervalsCache"];
 }): Promise<SyncProgress> => {
   const syncProgress = {} as SyncProgress;
@@ -1418,23 +1411,23 @@ export const getLocalSyncProgress = async ({
   const diagnostics = await Promise.all(
     cached === undefined
       ? [
-          requestQueue.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }),
-          _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
+          rpc.request({ method: "eth_chainId" }),
+          _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
+          _eth_getBlockByNumber(rpc, { blockNumber: start }),
         ]
       : [
-          requestQueue.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(requestQueue, { blockTag: "latest" }),
-          _eth_getBlockByNumber(requestQueue, { blockNumber: start }),
-          _eth_getBlockByNumber(requestQueue, { blockNumber: cached }),
+          rpc.request({ method: "eth_chainId" }),
+          _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
+          _eth_getBlockByNumber(rpc, { blockNumber: start }),
+          _eth_getBlockByNumber(rpc, { blockNumber: cached }),
         ],
   );
 
   const finalized = Math.max(
     0,
-    hexToNumber(diagnostics[1].number) - network.finalityBlockCount,
+    hexToNumber(diagnostics[1].number) - chain.finalityBlockCount,
   );
-  syncProgress.finalized = await _eth_getBlockByNumber(requestQueue, {
+  syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
     blockNumber: finalized,
   });
   syncProgress.start = diagnostics[2];
@@ -1443,10 +1436,10 @@ export const getLocalSyncProgress = async ({
   }
 
   // Warn if the config has a different chainId than the remote.
-  if (hexToNumber(diagnostics[0]) !== network.chainId) {
+  if (hexToNumber(diagnostics[0]) !== chain.chain.id) {
     common.logger.warn({
       service: "sync",
-      msg: `Remote chain ID (${diagnostics[0]}) does not match configured chain ID (${network.chainId}) for network "${network.name}"`,
+      msg: `Remote chain ID (${diagnostics[0]}) does not match configured chain ID (${chain.chain.id}) for network "${chain.chain.name}"`,
     });
   }
 
@@ -1465,7 +1458,7 @@ export const getLocalSyncProgress = async ({
       timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
-    syncProgress.end = await _eth_getBlockByNumber(requestQueue, {
+    syncProgress.end = await _eth_getBlockByNumber(rpc, {
       blockNumber: end,
     });
   }
