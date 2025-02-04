@@ -205,6 +205,37 @@ const getBytes = (value: unknown) => {
   return size;
 };
 
+export const recoverBatchError = async <T>(
+  values: T[],
+  callback: (values: T[]) => Promise<unknown>,
+): Promise<
+  { status: "success" } | { status: "error"; error: Error; value: T }
+> => {
+  try {
+    await callback(values);
+    return { status: "success" };
+  } catch (error) {
+    if (values.length === 1) {
+      return { status: "error", error: error as Error, value: values[0]! };
+    }
+
+    const left = values.slice(0, Math.floor(values.length / 2));
+    const right = values.slice(Math.floor(values.length / 2));
+
+    const resultLeft = await recoverBatchError(left, callback);
+    if (resultLeft.status === "error") {
+      return resultLeft;
+    }
+
+    const resultRight = await recoverBatchError(right, callback);
+    if (resultRight.status === "error") {
+      return resultRight;
+    }
+
+    throw "unreachable";
+  }
+};
+
 export const createIndexingCache = ({
   common,
   database,
@@ -395,23 +426,57 @@ export const createIndexingCache = ({
 
           while (insertValues.length > 0) {
             const values = insertValues.splice(0, batchSize);
-            promises.push(
-              database.wrap(
-                { method: `${getTableName(table)}.flush()` },
-                async () => {
-                  await db
-                    .insert(table)
-                    .values(values)
-                    .catch((_error) => {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                      });
+
+            await db.execute(sql`SAVEPOINT flush`);
+
+            await database.wrap(
+              { method: `${getTableName(table)}.flush()` },
+              async () => {
+                await db
+                  .insert(table)
+                  .values(values)
+                  .catch(async (_error) => {
+                    const error = _error as Error;
+                    const result = await recoverBatchError(
+                      values,
+                      async (values) => {
+                        await db.execute(sql`ROLLBACK TO flush`);
+                        await database.qb.drizzle.insert(table).values(values);
+                        await db.execute(sql`SAVEPOINT flush`);
+                      },
+                    );
+
+                    if (result.status === "error") {
+                      console.log(result.value);
+                    } else {
                       throw new FlushError(error.message);
-                    });
-                },
-              ),
+                    }
+                  });
+
+                // const result = await recoverBatchError(values, (values) =>
+                //   db.insert(table).values(values),
+                // );
+
+                // if (result.status === "error") {
+                //   console.log(result.value);
+                //   common.logger.error({
+                //     service: "indexing",
+                //     msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                //   });
+                //   throw new FlushError(result.error.message);
+                // }
+                // await db
+                //   .insert(table)
+                //   .values(values)
+                //   .catch((_error) => {
+                //     const error = _error as Error;
+                //     common.logger.error({
+                //       service: "indexing",
+                //       msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                //     });
+                //     throw new FlushError(error.message);
+                //   });
+              },
             );
           }
         }
