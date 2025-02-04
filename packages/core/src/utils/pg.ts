@@ -77,3 +77,82 @@ export function createPool(config: PoolConfig, logger: Logger) {
 
   return pool;
 }
+
+export function createReadonlyPool(
+  config: PoolConfig,
+  logger: Logger,
+  namespace: string,
+) {
+  class ReadonlyClient extends pg.Client {
+    // @ts-expect-error
+    override connect(
+      callback: (err: Error) => void | undefined,
+    ): void | Promise<void> {
+      if (callback) {
+        super.connect(() => {
+          this.query(
+            `
+          SET search_path = "${namespace}";
+          SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
+          SET work_mem = '512MB';
+          SET statement_timeout = '500ms';
+          SET lock_timeout = '500ms';
+        `,
+            callback,
+          );
+        });
+      } else {
+        return super.connect().then(() =>
+          this.query(
+            `
+          SET search_path = "${namespace}";
+          SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
+          SET work_mem = '512MB';
+          SET statement_timeout = '500ms';
+          SET lock_timeout = '500ms';
+        `,
+          ).then(() => {}),
+        );
+      }
+    }
+  }
+
+  const pool = new pg.Pool({
+    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
+    statement_timeout: 2 * 60 * 1000, // 2 minutes
+    // @ts-expect-error: The custom Client is an undocumented option.
+    Client: ReadonlyClient,
+    ...config,
+  });
+
+  function onError(error: Error) {
+    const client = (error as any).client as any | undefined;
+    const pid = (client?.processID as number | undefined) ?? "unknown";
+    const applicationName =
+      (client?.connectionParameters?.application_name as string | undefined) ??
+      "unknown";
+
+    logger.error({
+      service: "postgres",
+      msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
+      error,
+    });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  }
+
+  function onNotice(notice: { message?: string; code?: string }) {
+    logger.debug({
+      service: "postgres",
+      msg: `notice: ${notice.message} (code: ${notice.code})`,
+    });
+  }
+
+  pool.on("error", onError);
+  pool.on("connect", (client) => {
+    client.on("notice", onNotice);
+  });
+
+  return pool;
+}

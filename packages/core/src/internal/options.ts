@@ -8,6 +8,7 @@ export type Options = {
 
   configFile: string;
   schemaFile: string;
+  apiDir: string;
   apiFile: string;
   rootDir: string;
   indexingDir: string;
@@ -81,6 +82,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),
+    apiDir: path.join(rootDir, "src", "api"),
     apiFile: path.join(rootDir, "src", "api", "index.ts"),
     indexingDir: path.join(rootDir, "src"),
     generatedDir: path.join(rootDir, "generated"),

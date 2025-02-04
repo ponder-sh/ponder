@@ -14,7 +14,7 @@ export const getMetadataStore = ({
 }): MetadataStore => ({
   getStatus: async () => {
     return database.wrap({ method: "_ponder_status.get()" }, async () => {
-      const result = await database.qb.readonly
+      const result = await database.qb.user
         .selectFrom("_ponder_status")
         .selectAll()
         .execute();

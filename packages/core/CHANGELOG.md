@@ -1,5 +1,11 @@
 # ponder
 
+## 0.8.33
+
+### Patch Changes
+
+- [#1467](https://github.com/ponder-sh/ponder/pull/1467) [`32991725dd89cb1384f6de747c729b94bd0d4421`](https://github.com/ponder-sh/ponder/commit/32991725dd89cb1384f6de747c729b94bd0d4421) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improved rpc error retry logic.
+
 ## 0.8.32
 
 ### Patch Changes

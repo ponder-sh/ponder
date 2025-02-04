@@ -232,7 +232,10 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [{ name: "a:Event1", fn: () => {} }],
+    rawIndexingFunctions: [
+      { name: "a:Event0", fn: () => {} },
+      { name: "a:Event1", fn: () => {} },
+    ],
   });
 
   expect(sources).toHaveLength(2);

@@ -37,7 +37,7 @@ test(
   "erc20",
   async () => {
     const port = await getFreePort();
-    const client = createClient(`http://localhost:${port}`, { schema });
+    const client = createClient(`http://localhost:${port}/sql`, { schema });
 
     const cleanup = await start({
       cliOptions: {
@@ -84,7 +84,9 @@ const isPglite = !!process.env.DATABASE_URL;
 describe.skipIf(isPglite)("postgres database", () => {
   test.todo("ponder serve", async () => {
     const startPort = await getFreePort();
-    const client = createClient(`http://localhost:${startPort}`, { schema });
+    const client = createClient(`http://localhost:${startPort}/sql`, {
+      schema,
+    });
 
     const cleanupStart = await start({
       cliOptions: {
