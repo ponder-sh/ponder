@@ -403,7 +403,6 @@ export const createRealtimeSync = (
     // @ts-ignore
     block.transactions = undefined;
 
-    // TODO(kyle) why awaited
     await args.onEvent({
       type: "block",
       hasMatchedFilter: matchedFilters.size > 0,
