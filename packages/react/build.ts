@@ -1,5 +1,3 @@
-/// <reference types="node" />
-
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import chalk from "chalk";
@@ -33,21 +31,40 @@ async function build() {
     log.cli("Cleaned output folder");
 
     // Run TypeScript compiler
-    const result = await execa("tsc", ["--project", TSCONFIG], {
+    const tscResult = await execa("tsc", ["--project", TSCONFIG], {
       reject: false,
       stderr: "pipe",
       stdout: "pipe",
     });
 
-    // Handle compiler output
-    const output = `${result.stdout}\n${result.stderr}`
+    `${tscResult.stdout}\n${tscResult.stderr}`
       .trim()
       .split("\n")
-      .filter(Boolean);
+      .filter(Boolean)
+      .forEach((line) => log.tsc(line));
 
-    output.forEach((line) => log.tsc(line));
+    if (tscResult.exitCode !== 0) {
+      log.error("Build failed");
+      return false;
+    }
 
-    if (result.exitCode !== 0) {
+    const pathsResult = await execa(
+      "tsconfig-replace-paths",
+      ["--project", TSCONFIG],
+      {
+        reject: false,
+        stderr: "pipe",
+        stdout: "pipe",
+      },
+    );
+
+    `${pathsResult.stdout}\n${pathsResult.stderr}`
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .forEach((line) => log.tsc(line));
+
+    if (pathsResult.exitCode !== 0) {
       log.error("Build failed");
       return false;
     }
