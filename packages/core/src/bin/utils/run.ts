@@ -369,7 +369,7 @@ export async function run({
       default:
         never(event);
     }
-  }, common.shutdown);
+  });
 
   await database.createIndexes();
   await database.createTriggers();

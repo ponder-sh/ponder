@@ -17,14 +17,12 @@ import type { RawEvent } from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { promiseWithResolvers } from "@ponder/common";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import {
   type Context,
   create,
-  kill,
   processEvents,
   processSetupEvents,
   setIndexingStore,
@@ -70,7 +68,6 @@ test("createIndexing()", async (context) => {
   setIndexingStore(indexingService, indexingStore);
 
   expect(indexingService).toBeDefined();
-  expect(indexingService.isKilled).toBe(false);
 
   await cleanup();
 });
@@ -246,72 +243,6 @@ test("processEvent()", async (context) => {
       db: expect.any(Object),
     },
   });
-
-  await cleanup();
-});
-
-test("processEvents killed", async (context) => {
-  const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
-
-  const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
-    "Pair:Swap": vi.fn(),
-  };
-
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions,
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
-
-  setIndexingStore(indexingService, indexingStore);
-  kill(indexingService);
-
-  const topics = encodeEventTopics({
-    abi: erc20ABI,
-    eventName: "Transfer",
-    args: {
-      from: zeroAddress,
-      to: ALICE,
-    },
-  });
-
-  const data = padHex(toHex(parseEther("1")), { size: 32 });
-
-  const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
-  } as RawEvent;
-
-  const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, {
-    events,
-  });
-  expect(result).toStrictEqual({ status: "killed" });
-
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledTimes(0);
 
   await cleanup();
 });
@@ -885,68 +816,6 @@ test("processEvents() error with missing event object properties", async (contex
       "status": "error",
     }
   `);
-
-  await cleanup();
-});
-
-test("execute() error after killed", async (context) => {
-  const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
-
-  const { promise, reject } = promiseWithResolvers();
-  const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      () => promise,
-  };
-
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions,
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
-
-  setIndexingStore(indexingService, indexingStore);
-
-  const topics = encodeEventTopics({
-    abi: erc20ABI,
-    eventName: "Transfer",
-    args: {
-      from: zeroAddress,
-      to: ALICE,
-    },
-  });
-
-  const data = padHex(toHex(parseEther("1")), { size: 32 });
-
-  const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
-  } as RawEvent;
-
-  const events = decodeEvents(common, sources, [rawEvent]);
-  const resultPromise = processEvents(indexingService, { events });
-  kill(indexingService);
-
-  reject(new Error("anything"));
-
-  const result = await resultPromise;
-  expect(result).toStrictEqual({ status: "killed" });
 
   await cleanup();
 });

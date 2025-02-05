@@ -140,12 +140,6 @@ export const createRequestQueue = ({
     },
   });
 
-  common.shutdown.add(() => {
-    requestQueue.pause();
-    requestQueue.clear(new ShutdownError());
-    return requestQueue.onIdle();
-  });
-
   return {
     request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,

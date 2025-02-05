@@ -1,5 +1,6 @@
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   ContractSource,
   Event,
@@ -319,6 +320,10 @@ const executeSetup = async (
   } catch (_error) {
     const error = _error instanceof Error ? _error : new Error(String(_error));
 
+    if (common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
+
     addStackTrace(error, common.options);
     addErrorMeta(error, toErrorMeta(event));
 
@@ -373,6 +378,10 @@ const executeEvent = async (
     );
   } catch (_error) {
     const error = _error instanceof Error ? _error : new Error(String(_error));
+
+    if (common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
 
     addStackTrace(error, common.options);
     addErrorMeta(error, toErrorMeta(event));

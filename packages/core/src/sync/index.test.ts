@@ -1142,8 +1142,6 @@ test("createSync()", async (context) => {
 
   expect(sync).toBeDefined();
 
-  await sync.kill();
-
   await cleanup();
 });
 
@@ -1183,8 +1181,6 @@ test("getEvents() multichain", async (context) => {
   expect(events).toBeDefined();
   expect(events).toHaveLength(2);
 
-  await sync.kill();
-
   await cleanup();
 });
 
@@ -1223,8 +1219,6 @@ test("getEvents() omnichain", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(2);
-
-  await sync.kill();
 
   await cleanup();
 });
@@ -1266,8 +1260,6 @@ test("getEvents() mulitchain updates status", async (context) => {
   expect(status[network.name]?.ready).toBe(false);
   expect(status[network.name]?.block?.number).toBe(2);
 
-  await sync.kill();
-
   await cleanup();
 });
 
@@ -1307,8 +1299,6 @@ test("getEvents() omnichain updates status", async (context) => {
 
   expect(status[network.name]?.ready).toBe(false);
   expect(status[network.name]?.block?.number).toBe(2);
-
-  await sync.kill();
 
   await cleanup();
 });
@@ -1350,8 +1340,6 @@ test("getEvents() with initial checkpoint", async (context) => {
   expect(events).toBeDefined();
   expect(events).toHaveLength(0);
 
-  await sync.kill();
-
   await cleanup();
 });
 
@@ -1390,8 +1378,6 @@ test("startRealtime()", async (context) => {
 
   expect(status[network.name]?.ready).toBe(true);
   expect(status[network.name]?.block?.number).toBe(1);
-
-  await sync.kill();
 
   await cleanup();
 });
@@ -1438,8 +1424,6 @@ test("onEvent() multichain handles block", async (context) => {
   await promise.promise;
 
   expect(events).toHaveLength(1);
-
-  await sync.kill();
 
   await cleanup();
 });
@@ -1498,8 +1482,6 @@ test("onEvent() omnichain handles block", async (context) => {
 
   await promise.promise;
 
-  await sync.kill();
-
   await cleanup();
 });
 
@@ -1550,8 +1532,6 @@ test("onEvent() handles finalize", async (context) => {
 
   expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(2n);
 
-  await sync.kill();
-
   await cleanup();
 });
 
@@ -1598,8 +1578,6 @@ test("onEvent() handles errors", async (context) => {
   await sync.startRealtime();
 
   await promise.promise;
-
-  await sync.kill();
 
   await cleanup();
 });

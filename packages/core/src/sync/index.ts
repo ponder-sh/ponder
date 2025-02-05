@@ -34,7 +34,6 @@ import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
   mergeAsyncGenerators,
-  shutdownAsyncGenerator,
 } from "@/utils/generators.js";
 import {
   type Interval,
@@ -1128,7 +1127,7 @@ export async function* getLocalEventGenerator(params: {
   });
 
   for await (const syncCheckpoint of bufferAsyncGenerator(
-    shutdownAsyncGenerator(params.localSyncGenerator, params.common.shutdown),
+    params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
   )) {
     let consecutiveErrors = 0;

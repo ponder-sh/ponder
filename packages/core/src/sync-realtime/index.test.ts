@@ -113,8 +113,6 @@ test("start() handles block", async (context) => {
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  await realtimeSync.kill();
-
   await cleanup();
 });
 
@@ -166,8 +164,6 @@ test("start() no-op when receiving same block twice", async (context) => {
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  await realtimeSync.kill();
-
   await cleanup();
 });
 
@@ -212,8 +208,6 @@ test("start() gets missing block", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
-
-  await realtimeSync.kill();
 
   await cleanup();
 });
@@ -264,8 +258,6 @@ test("start() retries on error", async (context) => {
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
-  await realtimeSync.kill();
-
   await cleanup();
 });
 
@@ -306,8 +298,6 @@ test("kill()", async (context) => {
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
   });
-
-  await realtimeSync.kill();
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
@@ -384,8 +374,6 @@ test("handleBlock() block event with log", async (context) => {
   expect(data[0]?.logs).toHaveLength(1);
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(1);
-
-  await realtimeSync.kill();
 
   await cleanup();
 });
@@ -479,8 +467,6 @@ test("handleBlock() block event with log factory", async (context) => {
   expect(data[0]?.transactions).toHaveLength(0);
   expect(data[1]?.transactions).toHaveLength(1);
 
-  await realtimeSync.kill();
-
   await cleanup();
 });
 
@@ -548,8 +534,6 @@ test("handleBlock() block event with block", async (context) => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(0);
-
-  await realtimeSync.kill();
 
   await cleanup();
 });
@@ -624,8 +608,6 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[0]?.transactionReceipts).toHaveLength(1);
-
-  await realtimeSync.kill();
 
   await cleanup();
 });
@@ -726,8 +708,6 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(data[0]?.traces).toHaveLength(1);
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[0]?.transactionReceipts).toHaveLength(1);
-
-  await realtimeSync.kill();
 
   await cleanup();
 });
@@ -882,8 +862,6 @@ test("handleBlock() block event with trace", async (context) => {
   expect(data[0]?.transactionReceipts).toHaveLength(0);
   expect(data[1]?.transactionReceipts).toHaveLength(0);
 
-  await realtimeSync.kill();
-
   await cleanup();
 });
 
@@ -940,8 +918,6 @@ test("handleBlock() finalize event", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
   expect(data[0]?.block.number).toBe("0x2");
-
-  await realtimeSync.kill();
 
   await cleanup();
 });
@@ -1000,8 +976,6 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  await realtimeSync.kill();
-
   await cleanup();
 });
 
@@ -1059,8 +1033,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
-
-  await realtimeSync.kill();
 
   await cleanup();
 });

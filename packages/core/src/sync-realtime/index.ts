@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Factory,
@@ -967,11 +968,6 @@ export const createRealtimeSync = (
                 )}]`,
               });
 
-              // This is needed to ensure proper `kill()` behavior. When the service
-              // is killed, nothing should be added to the queue, or else `onIdle()`
-              // will never resolve.
-              if (isKilled) return;
-
               processBlock.clear();
 
               for (const pendingBlock of pendingBlocks) {
@@ -999,9 +995,11 @@ export const createRealtimeSync = (
 
             return;
           } catch (_error) {
-            if (isKilled) return;
-
             const error = _error as Error;
+
+            if (args.common.shutdown.isKilled) {
+              throw new ShutdownError();
+            }
 
             args.common.logger.warn({
               service: "realtime",
@@ -1036,9 +1034,7 @@ export const createRealtimeSync = (
             }
           }
         },
-        args.common.shutdown,
       );
-      // });
 
       const enqueue = async () => {
         try {
@@ -1071,9 +1067,11 @@ export const createRealtimeSync = (
 
           return processBlock({ ...blockWithEventData, endClock });
         } catch (_error) {
-          if (isKilled) return;
-
           const error = _error as Error;
+
+          if (args.common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
 
           args.common.logger.warn({
             service: "realtime",

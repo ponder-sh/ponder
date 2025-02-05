@@ -8,15 +8,14 @@ const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 export const createExit = ({
   common,
 }: {
-  common: Pick<Common, "logger" | "telemetry">;
+  common: Pick<Common, "logger" | "telemetry" | "shutdown">;
 }) => {
   let isShuttingDown = false;
 
   const shutdown = async ({
-    callback,
     reason,
     code,
-  }: { callback: () => Promise<void>; reason: string; code: 0 | 1 }) => {
+  }: { reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     setTimeout(async () => {
@@ -38,7 +37,7 @@ export const createExit = ({
       properties: { duration_seconds: process.uptime() },
     });
 
-    await callback();
+    await common.shutdown.kill();
 
     const level = code === 0 ? "info" : "fatal";
     common.logger[level]({

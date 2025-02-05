@@ -9,6 +9,7 @@ import { startClock } from "@/utils/timer.js";
 import { createQueue } from "@ponder/common";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
+import { ShutdownError } from "./errors.js";
 import type { Logger } from "./logger.js";
 import type { Shutdown } from "./shutdown.js";
 import type { IndexingBuild } from "./types.js";
@@ -189,6 +190,11 @@ export function createTelemetry({
         });
       } catch (error_) {
         const error = error_ as Error;
+
+        if (shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+
         logger.trace({
           service: "telemetry",
           msg: `Failed to send '${event.name}' event after ${endClock()}ms`,
@@ -209,11 +215,8 @@ export function createTelemetry({
     });
   }, HEARTBEAT_INTERVAL_MS);
 
-  shutdown.add(async () => {
+  shutdown.add(() => {
     clearInterval(heartbeatInterval);
-    queue.pause();
-    queue.clear();
-    await queue.onIdle();
   });
 
   // Note that this method is only used for testing.
