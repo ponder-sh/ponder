@@ -14,7 +14,7 @@ import type { RawEvent } from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
 import { createSync } from "@/sync/index.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";

@@ -17,8 +17,8 @@ import {
   maxCheckpoint,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { wait } from "@/utils/wait.js";
-import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { type Sync, createSync } from "./index.js";
 

@@ -24,8 +24,8 @@ import {
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
 import { chains } from "@/utils/chains.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { dedupe } from "@ponder/common";
 import type { Hex, LogTopic } from "viem";
 import { buildLogFactory } from "./factory.js";
 

@@ -1,6 +1,6 @@
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { type PgSession, pgTable } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";

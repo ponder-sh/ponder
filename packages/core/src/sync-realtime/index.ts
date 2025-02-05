@@ -30,6 +30,7 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/types/sync.js";
+import { type Queue, createQueue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -42,7 +43,6 @@ import {
 } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
-import { type Queue, createQueue } from "@ponder/common";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 

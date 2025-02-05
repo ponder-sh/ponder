@@ -13,7 +13,7 @@ import { createDatabase } from "@/database/index.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { IndexingBuild } from "@/internal/types.js";
 import type { SchemaBuild } from "@/internal/types.js";
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import { run } from "./run.js";
 

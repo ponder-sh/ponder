@@ -17,22 +17,22 @@
     "!src/_test/**/*"
   ],
   "bin": {
-    "ponder": "./dist/bin/ponder.js"
+    "ponder": "./dist/esm/bin/ponder.js"
   },
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "typings": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/esm/index.js",
+      "types": "./dist/types/index.d.ts"
     },
     "./virtual": {
       "types": "./src/types.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsx build.ts",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",
     "typecheck": "tsc --noEmit"
@@ -91,14 +91,14 @@
     "@types/react": "^18.2.38",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
+    "chalk": "^5.4.1",
+    "chokidar": "^4.0.3",
     "execa": "^8.0.1",
     "rimraf": "^5.0.5",
+    "tsconfig-replace-paths": "^0.0.14",
     "tsup": "^8.0.1",
+    "tsx": "^4.19.2",
     "vitest": "^1.0.2"
-  },
-  "imports": {
-    "@ponder/common": "../common/index.ts",
-    "@ponder/client": "../client/index.ts"
   },
   "engines": {
     "node": ">=18.14"

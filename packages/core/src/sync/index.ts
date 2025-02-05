@@ -38,9 +38,9 @@ import {
 } from "@/utils/interval.js";
 import { intervalUnion } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
+import { type Queue, createQueue } from "@/utils/queue.js";
 import { type RequestQueue, createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
-import { type Queue, createQueue } from "@ponder/common";
 import {
   type Address,
   type Hash,

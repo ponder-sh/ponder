@@ -15,7 +15,7 @@ import {
 import type { SchemaBuild } from "@/internal/types.js";
 import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
-import { createQueue } from "@ponder/common";
+import { createQueue } from "@/utils/queue.js";
 import {
   type Column,
   type QueryWithTypings,

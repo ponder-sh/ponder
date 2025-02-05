@@ -17,7 +17,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { never } from "@/utils/never.js";
-import { createQueue } from "@ponder/common";
+import { createQueue } from "@/utils/queue.js";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
