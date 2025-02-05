@@ -432,8 +432,6 @@ export const createHistoricalSync = async (
       address: filter.address,
     });
 
-    // if (isKilled) return;
-
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),

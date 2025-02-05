@@ -909,7 +909,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
   sources,
   syncStore,
   syncProgress,
-  // realtimeSync,
+  realtimeSync,
 }: {
   common: Common;
   network: Network;
@@ -1068,8 +1068,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
             service: "sync",
             msg: `Killing '${network.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
           });
-          // TODO(kyle)
-          // realtimeSync.kill();
+          realtimeSync.kill();
         }
 
         return event;

@@ -1,4 +1,5 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -10,9 +11,10 @@ import { createServer } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("listens on ipv4", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   await createServer({
     common: context.common,
@@ -28,12 +30,10 @@ test("listens on ipv4", async (context) => {
     `http://localhost:${context.common.options.port}/health`,
   );
   expect(response.status).toBe(200);
-
-  await cleanup();
 });
 
 test("listens on ipv6", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   await createServer({
     common: context.common,
@@ -49,12 +49,10 @@ test("listens on ipv6", async (context) => {
     `http://[::1]:${context.common.options.port}/health`,
   );
   expect(response.status).toBe(200);
-
-  await cleanup();
 });
 
 test("not ready", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -69,12 +67,10 @@ test("not ready", async (context) => {
   const response = await server.hono.request("/ready");
 
   expect(response.status).toBe(503);
-
-  await cleanup();
 });
 
 test("ready", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -101,12 +97,10 @@ test("ready", async (context) => {
   const response = await server.hono.request("/ready");
 
   expect(response.status).toBe(200);
-
-  await cleanup();
 });
 
 test("health", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -121,12 +115,10 @@ test("health", async (context) => {
   const response = await server.hono.request("/health");
 
   expect(response.status).toBe(200);
-
-  await cleanup();
 });
 
 test("healthy PUT", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -143,12 +135,10 @@ test("healthy PUT", async (context) => {
   });
 
   expect(response.status).toBe(404);
-
-  await cleanup();
 });
 
 test("metrics", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -163,12 +153,10 @@ test("metrics", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(200);
-
-  await cleanup();
 });
 
 test("metrics error", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -186,12 +174,10 @@ test("metrics error", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(500);
-
-  await cleanup();
 });
 
 test("metrics PUT", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -208,12 +194,10 @@ test("metrics PUT", async (context) => {
   });
 
   expect(response.status).toBe(404);
-
-  await cleanup();
 });
 
 test("metrics unmatched route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -232,12 +216,10 @@ test("metrics unmatched route", async (context) => {
   expect(response.status).toBe(200);
   const text = await response.text();
   expect(text).not.toContain('path="/unmatched"');
-
-  await cleanup();
 });
 
 test("missing route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -252,12 +234,10 @@ test("missing route", async (context) => {
   const response = await server.hono.request("/kevin");
 
   expect(response.status).toBe(404);
-
-  await cleanup();
 });
 
 test("custom api route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
@@ -272,12 +252,10 @@ test("custom api route", async (context) => {
 
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
-
-  await cleanup();
 });
 
 test("custom hono route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const app = new Hono().get("/hi", (c) => c.text("hi"));
 
@@ -291,8 +269,6 @@ test("custom hono route", async (context) => {
 
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
-
-  await cleanup();
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually

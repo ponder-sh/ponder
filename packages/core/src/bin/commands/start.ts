@@ -156,4 +156,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     database,
     apiBuild: apiBuildResult.result,
   });
+
+  return shutdown.kill;
 }

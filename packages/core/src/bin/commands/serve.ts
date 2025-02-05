@@ -143,4 +143,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     database,
     apiBuild,
   });
+
+  return shutdown.kill;
 }

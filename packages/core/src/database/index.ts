@@ -61,7 +61,6 @@ export type Database = {
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
-  unlock(): Promise<void>;
 };
 
 export type PonderApp = {
@@ -153,7 +152,19 @@ export const createDatabase = async ({
     };
 
     if (dialect === "pglite") {
-      common.shutdown.add(() => (driver as PGliteDriver).instance.close());
+      common.shutdown.add(async () => {
+        clearInterval(heartbeatInterval);
+
+        await qb.internal
+          .updateTable("_ponder_meta")
+          .where("key", "=", "app")
+          .set({
+            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+          })
+          .execute();
+
+        (driver as PGliteDriver).instance.close();
+      });
     }
 
     const kyselyDialect = createPgliteKyselyDialect(driver.instance);
@@ -256,6 +267,16 @@ export const createDatabase = async ({
     } as PostgresDriver;
 
     common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
+
       const d = driver as PostgresDriver;
       d.listen?.release();
       await Promise.all([

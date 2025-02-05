@@ -1,4 +1,5 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -45,6 +46,7 @@ import {
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("splitEvents()", async () => {
   const events = [
@@ -109,7 +111,7 @@ test("splitEvents()", async () => {
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
 
@@ -175,12 +177,10 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
   });
 
   expect(event.type).toBe("block");
-
-  await cleanup();
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
 
@@ -275,12 +275,10 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
       },
     ]
   `);
-
-  await cleanup();
 });
 
 test("getPerChainOnRealtimeSyncEvent() kills realtime when finalized", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
 
@@ -359,12 +357,10 @@ test("getPerChainOnRealtimeSyncEvent() kills realtime when finalized", async (co
   });
 
   expect(spy).toHaveBeenCalled();
-
-  await cleanup();
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
 
@@ -438,12 +434,10 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   });
 
   expect(event.type).toBe("reorg");
-
-  await cleanup();
 });
 
 test("getLocalEventGenerator()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -496,12 +490,10 @@ test("getLocalEventGenerator()", async (context) => {
 
   const events = await drainAsyncGenerator(eventGenerator);
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getLocalEventGenerator() pagination", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -554,12 +546,10 @@ test("getLocalEventGenerator() pagination", async (context) => {
 
   const events = await drainAsyncGenerator(eventGenerator);
   expect(events.length).toBeGreaterThan(1);
-
-  await cleanup();
 });
 
 test("getLocalSyncGenerator()", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -615,12 +605,10 @@ test("getLocalSyncGenerator()", async (context) => {
       },
     ]
   `);
-
-  await cleanup();
 });
 
 test("getLocalSyncGenerator() with partial cache", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -704,12 +692,10 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
       },
     ]
   `);
-
-  await cleanup();
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
   const requestQueue = createRequestQueue({ network, common: context.common });
 
@@ -784,8 +770,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(requestSpy).toHaveBeenCalledTimes(0);
-
-  await cleanup();
 });
 
 test("getLocalSyncProgress()", async (context) => {
@@ -1117,7 +1101,7 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 });
 
 test("createSync()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1141,12 +1125,10 @@ test("createSync()", async (context) => {
   });
 
   expect(sync).toBeDefined();
-
-  await cleanup();
 });
 
 test("getEvents() multichain", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1180,12 +1162,10 @@ test("getEvents() multichain", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("getEvents() omnichain", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1219,12 +1199,10 @@ test("getEvents() omnichain", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("getEvents() mulitchain updates status", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1259,12 +1237,10 @@ test("getEvents() mulitchain updates status", async (context) => {
 
   expect(status[network.name]?.ready).toBe(false);
   expect(status[network.name]?.block?.number).toBe(2);
-
-  await cleanup();
 });
 
 test("getEvents() omnichain updates status", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1299,12 +1275,10 @@ test("getEvents() omnichain updates status", async (context) => {
 
   expect(status[network.name]?.ready).toBe(false);
   expect(status[network.name]?.block?.number).toBe(2);
-
-  await cleanup();
 });
 
 test("getEvents() with initial checkpoint", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1339,12 +1313,10 @@ test("getEvents() with initial checkpoint", async (context) => {
 
   expect(events).toBeDefined();
   expect(events).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("startRealtime()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1378,12 +1350,10 @@ test("startRealtime()", async (context) => {
 
   expect(status[network.name]?.ready).toBe(true);
   expect(status[network.name]?.block?.number).toBe(1);
-
-  await cleanup();
 });
 
 test("onEvent() multichain handles block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1424,12 +1394,10 @@ test("onEvent() multichain handles block", async (context) => {
   await promise.promise;
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("onEvent() omnichain handles block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -1481,12 +1449,10 @@ test("onEvent() omnichain handles block", async (context) => {
   await sync.startRealtime();
 
   await promise.promise;
-
-  await cleanup();
 });
 
 test("onEvent() handles finalize", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1531,14 +1497,12 @@ test("onEvent() handles finalize", async (context) => {
   await promise.promise;
 
   expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(2n);
-
-  await cleanup();
 });
 
 test.todo("onEvent() handles reorg");
 
 test("onEvent() handles errors", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
 
@@ -1578,6 +1542,4 @@ test("onEvent() handles errors", async (context) => {
   await sync.startRealtime();
 
   await promise.promise;
-
-  await cleanup();
 });

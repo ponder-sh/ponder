@@ -56,7 +56,6 @@ test("migrate() succeeds with empty schema", async (context) => {
 
   expect(metadata).toHaveLength(1);
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -104,7 +103,6 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
   expect(tableNames).toContain("_reorg__kyle");
   expect(tableNames).toContain("_ponder_meta");
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -211,8 +209,9 @@ test("migrate() succeeds with crash recovery", async (context) => {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
-  await database.unlock();
   await context.common.shutdown.kill();
+
+  context.common.shutdown = createShutdown();
 
   const databaseTwo = await createDatabase({
     common: context.common,
@@ -277,7 +276,6 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 
   await databaseTwo.migrate({ buildId: "abc" });
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -326,7 +324,6 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
-  await database.unlock();
   await context.common.shutdown.kill();
 
   context.common.shutdown = createShutdown();
@@ -399,7 +396,6 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
 
   await database.createIndexes();
 
-  await database.unlock();
   await context.common.shutdown.kill();
 
   context.common.shutdown = createShutdown();
@@ -464,7 +460,6 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     // @ts-ignore
   ).toBeGreaterThan(row!.value!.heartbeat_at as number);
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -542,7 +537,7 @@ test("finalize()", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("unlock()", async (context) => {
+test("kill()", async (context) => {
   let database = await createDatabase({
     common: context.common,
     namespace: "public",
@@ -556,8 +551,10 @@ test("unlock()", async (context) => {
   });
 
   await database.migrate({ buildId: "abc" });
-  await database.unlock();
+
   await context.common.shutdown.kill();
+
+  context.common.shutdown = createShutdown();
 
   database = await createDatabase({
     common: context.common,
@@ -579,7 +576,6 @@ test("unlock()", async (context) => {
 
   expect((metadata[0]!.value as PonderApp).is_locked).toBe(0);
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -613,7 +609,6 @@ test("createIndexes()", async (context) => {
   const indexNames = await getUserIndexNames(database, "public", "account");
   expect(indexNames).toContain("balance_index");
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -658,7 +653,6 @@ test("createTriggers()", async (context) => {
     },
   ]);
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 
@@ -679,7 +673,6 @@ test("createTriggers() duplicate", async (context) => {
   await database.createTriggers();
   await database.createTriggers();
 
-  await database.unlock();
   await context.common.shutdown.kill();
 });
 

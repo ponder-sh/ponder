@@ -2,6 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -61,6 +62,7 @@ import {
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("decodeEvents() log", async (context) => {
   const { common } = context;
@@ -349,7 +351,7 @@ test("decodeEvents() trace error", async (context) => {
 });
 
 test("buildEvents() matches getEvents() log", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -419,12 +421,10 @@ test("buildEvents() matches getEvents() log", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() log factory", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -514,12 +514,10 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -566,12 +564,10 @@ test("buildEvents() matches getEvents() block", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() transfer", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -663,12 +659,10 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
   expect(events1).toHaveLength(2);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() transaction", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -733,12 +727,10 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() trace", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -832,8 +824,6 @@ test("buildEvents() matches getEvents() trace", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("removeNullCharacters removes null characters", () => {

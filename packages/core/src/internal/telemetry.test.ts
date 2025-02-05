@@ -119,33 +119,3 @@ test("telemetry throws if event is submitted after kill", async (context) => {
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
 });
-
-test("kill resolves within 1 second even with slow events", async (context) => {
-  const shutdown = createShutdown();
-  const telemetry = createTelemetry({
-    options: context.common.options,
-    logger: context.common.logger,
-    shutdown,
-  });
-
-  // Mock fetch to simulate a slow request
-  fetchSpy.mockImplementation(
-    () => new Promise((resolve) => setTimeout(resolve, 5000)),
-  );
-
-  // Record an event that will trigger the slow fetch
-  telemetry.record({
-    name: "lifecycle:heartbeat_send",
-    properties: { duration_seconds: process.uptime() },
-  });
-
-  const startTime = Date.now();
-  await shutdown.kill();
-  const endTime = Date.now();
-
-  const killDuration = endTime - startTime;
-  expect(killDuration).toBeLessThan(1100); // Allow a small buffer for execution time
-
-  // Ensure that fetch was called, but not completed
-  expect(fetchSpy).toHaveBeenCalledTimes(1);
-});

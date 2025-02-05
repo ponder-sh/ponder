@@ -2,6 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -56,9 +57,10 @@ import { beforeEach, expect, test } from "vitest";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("setup creates tables", async (context) => {
-  const { cleanup, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
   const tables = await database.qb.sync.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
 
@@ -69,11 +71,10 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("transactionReceipts");
 
   expect(tableNames).toContain("rpc_request_results");
-  await cleanup();
 });
 
 test("getIntervals() empty", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
     type: "block",
@@ -112,12 +113,10 @@ test("getIntervals() empty", async (context) => {
       ],
     }
   `);
-
-  await cleanup();
 });
 
 test("getIntervals() returns intervals", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
     type: "block",
@@ -171,12 +170,10 @@ test("getIntervals() returns intervals", async (context) => {
       ],
     }
   `);
-
-  await cleanup();
 });
 
 test("getIntervals() merges intervals", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
     type: "block",
@@ -239,12 +236,10 @@ test("getIntervals() merges intervals", async (context) => {
       ],
     }
   `);
-
-  await cleanup();
 });
 
 test("getIntervals() adjacent intervals", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
     type: "log",
@@ -320,12 +315,10 @@ test("getIntervals() adjacent intervals", async (context) => {
       ],
     }
   `);
-
-  await cleanup();
 });
 
 test("insertIntervals() merges duplicates", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
     type: "block",
@@ -393,12 +386,10 @@ test("insertIntervals() merges duplicates", async (context) => {
       ],
     }
   `);
-
-  await cleanup();
 });
 
 test("insertIntervals() preserves fragments", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
     type: "log",
@@ -483,12 +474,10 @@ test("insertIntervals() preserves fragments", async (context) => {
       ],
     }
   `);
-
-  await cleanup();
 });
 
 test("getChildAddresses()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -527,12 +516,10 @@ test("getChildAddresses()", async (context) => {
 
   expect(addresses).toHaveLength(1);
   expect(addresses[0]).toBe(result);
-
-  await cleanup();
 });
 
 test("getChildAddresses() empty", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const { address } = await deployFactory({ sender: ALICE });
 
@@ -553,12 +540,10 @@ test("getChildAddresses() empty", async (context) => {
   });
 
   expect(addresses).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("getChildAddresses() distinct", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -597,12 +582,10 @@ test("getChildAddresses() distinct", async (context) => {
 
   expect(addresses).toHaveLength(1);
   expect(addresses[0]).toBe(result);
-
-  await cleanup();
 });
 
 test("filterChildAddresses()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -640,12 +623,10 @@ test("filterChildAddresses()", async (context) => {
   });
 
   expect(addresses.size).toBe(1);
-
-  await cleanup();
 });
 
 test("insertLogs()", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -673,12 +654,10 @@ test("insertLogs()", async (context) => {
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertLogs() with duplicates", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -712,12 +691,10 @@ test("insertLogs() with duplicates", async (context) => {
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertLogs() creates checkpoint", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -755,12 +732,10 @@ test("insertLogs() creates checkpoint", async (context) => {
   expect(checkpoint.transactionIndex).toBe(0n);
   expect(checkpoint.eventType).toBe(5);
   expect(checkpoint.eventIndex).toBe(0n);
-
-  await cleanup();
 });
 
 test("insertLogs() upserts checkpoint", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -809,12 +784,10 @@ test("insertLogs() upserts checkpoint", async (context) => {
 
   logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs[0]!.checkpoint).not.toBe(null);
-
-  await cleanup();
 });
 
 test("insertBlocks()", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -834,12 +807,10 @@ test("insertBlocks()", async (context) => {
     .selectAll()
     .execute();
   expect(blocks).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertBlocks() with duplicates", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -860,12 +831,10 @@ test("insertBlocks() with duplicates", async (context) => {
     .selectAll()
     .execute();
   expect(blocks).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertBlocks() creates checkpoint", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -892,12 +861,10 @@ test("insertBlocks() creates checkpoint", async (context) => {
   expect(checkpoint.transactionIndex).toBe(MAX_CHECKPOINT.transactionIndex);
   expect(checkpoint.eventType).toBe(5);
   expect(checkpoint.eventIndex).toBe(0n);
-
-  await cleanup();
 });
 
 test("hasBlock()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -921,12 +888,10 @@ test("hasBlock()", async (context) => {
     hash: zeroHash,
   });
   expect(block).toBe(false);
-
-  await cleanup();
 });
 
 test("insertTransactions()", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -955,12 +920,10 @@ test("insertTransactions()", async (context) => {
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertTransactions() with duplicates", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -993,12 +956,10 @@ test("insertTransactions() with duplicates", async (context) => {
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("hasTransaction()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1031,12 +992,10 @@ test("hasTransaction()", async (context) => {
     hash: zeroHash,
   });
   expect(transaction).toBe(false);
-
-  await cleanup();
 });
 
 test("insertTransactionReceipts()", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1066,12 +1025,10 @@ test("insertTransactionReceipts()", async (context) => {
     .selectAll()
     .execute();
   expect(transactionReceipts).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertTransactionReceipts() with duplicates", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1105,12 +1062,10 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     .selectAll()
     .execute();
   expect(transactionReceipts).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("hasTransactionReceipt()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1144,12 +1099,10 @@ test("hasTransactionReceipt()", async (context) => {
     hash: zeroHash,
   });
   expect(transaction).toBe(false);
-
-  await cleanup();
 });
 
 test("insertTraces()", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1209,12 +1162,10 @@ test("insertTraces()", async (context) => {
     .selectAll()
     .execute();
   expect(traces).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("insertTraces() creates checkpoint", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1281,12 +1232,10 @@ test("insertTraces() creates checkpoint", async (context) => {
   expect(checkpoint.transactionIndex).toBe(0n);
   expect(checkpoint.eventType).toBe(7);
   expect(checkpoint.eventIndex).toBe(0n);
-
-  await cleanup();
 });
 
 test("insertTraces() with duplicates", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1356,12 +1305,10 @@ test("insertTraces() with duplicates", async (context) => {
     .selectAll()
     .execute();
   expect(traces).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() returns events", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1417,12 +1364,10 @@ test("getEvents() returns events", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles log filter logic", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1500,12 +1445,10 @@ test("getEvents() handles log filter logic", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles log factory", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1584,12 +1527,10 @@ test("getEvents() handles log factory", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles multiple log factories", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1676,12 +1617,10 @@ test("getEvents() handles multiple log factories", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles block filter logic", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1717,12 +1656,10 @@ test("getEvents() handles block filter logic", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles trace filter logic", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1800,12 +1737,10 @@ test("getEvents() handles trace filter logic", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles transaction filter logic", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1854,12 +1789,10 @@ test("getEvents() handles transaction filter logic", async (context) => {
   });
 
   expect(events).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("getEvents() handles transfer filter logic", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1936,12 +1869,10 @@ test("getEvents() handles transfer filter logic", async (context) => {
 
   // transaction:from and transfer:from
   expect(events).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("getEvents() handles block bounds", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -1996,12 +1927,10 @@ test("getEvents() handles block bounds", async (context) => {
   });
 
   expect(events).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("getEvents() pagination", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -2046,12 +1975,10 @@ test("getEvents() pagination", async (context) => {
   });
 
   expect(events2).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("pruneRpcRequestResult", async (context) => {
-  const { cleanup, database, syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   await syncStore.insertRpcRequestResult({
     request: "0x1",
@@ -2089,12 +2016,10 @@ test("pruneRpcRequestResult", async (context) => {
     .execute();
 
   expect(requestResults).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
-  const { syncStore, database, cleanup } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -2251,6 +2176,4 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   expect(traces).toHaveLength(0);
   expect(transactions).toHaveLength(0);
   expect(transactionReceipts).toHaveLength(0);
-
-  await cleanup();
 });

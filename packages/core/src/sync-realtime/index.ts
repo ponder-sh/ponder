@@ -56,6 +56,7 @@ export type RealtimeSync = {
   unfinalizedBlocks: LightBlock[];
   finalizedChildAddresses: Map<Factory, Set<Address>>;
   unfinalizedChildAddresses: Map<Factory, Set<Address>>;
+  kill: () => void;
 };
 
 type CreateRealtimeSyncParameters = {
@@ -1109,6 +1110,9 @@ export const createRealtimeSync = (
     },
     get unfinalizedChildAddresses() {
       return unfinalizedChildAddresses;
+    },
+    async kill() {
+      clearInterval(interval);
     },
   };
 };

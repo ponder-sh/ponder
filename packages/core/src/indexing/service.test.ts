@@ -2,6 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -31,6 +32,7 @@ import {
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 const account = onchainTable("account", (p) => ({
   address: p.hex().primaryKey(),
@@ -49,10 +51,9 @@ const { sources, networks } = await buildConfigAndIndexingFunctions({
 
 test("createIndexing()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingService = create({
     common,
@@ -68,16 +69,13 @@ test("createIndexing()", async (context) => {
   setIndexingStore(indexingService, indexingStore);
 
   expect(indexingService).toBeDefined();
-
-  await cleanup();
 });
 
 test("processSetupEvents() empty", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingService = create({
     common,
@@ -98,16 +96,13 @@ test("processSetupEvents() empty", async (context) => {
   });
 
   expect(result).toStrictEqual({ status: "success" });
-
-  await cleanup();
 });
 
 test("processSetupEvents()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -150,16 +145,13 @@ test("processSetupEvents()", async (context) => {
       db: expect.any(Object),
     },
   });
-
-  await cleanup();
 });
 
 test("processEvent()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -243,16 +235,13 @@ test("processEvent()", async (context) => {
       db: expect.any(Object),
     },
   });
-
-  await cleanup();
 });
 
 test("processEvents eventCount", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -305,16 +294,13 @@ test("processEvents eventCount", async (context) => {
   expect(indexingService.eventCount).toStrictEqual({
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 1,
   });
-
-  await cleanup();
 });
 
 test("executeSetup() context.client", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
@@ -353,16 +339,13 @@ test("executeSetup() context.client", async (context) => {
   expect(getBalanceSpy).toHaveBeenCalledWith({
     address: BOB,
   });
-
-  await cleanup();
 });
 
 test("executeSetup() context.db", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
@@ -401,16 +384,13 @@ test("executeSetup() context.db", async (context) => {
     address: zeroAddress,
     balance: 10n,
   });
-
-  await cleanup();
 });
 
 test("executeSetup() metrics", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingService = create({
     common,
@@ -435,16 +415,13 @@ test("executeSetup() metrics", async (context) => {
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
   expect(metrics.values).toBeDefined();
-
-  await cleanup();
 });
 
 test("executeSetup() error", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -472,16 +449,13 @@ test("executeSetup() error", async (context) => {
   expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
 
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
-
-  await cleanup();
 });
 
 test("processEvents() context.client", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const clientCall = async ({ context }: { context: Context }) => {
     await context.client.getBalance({
@@ -544,16 +518,13 @@ test("processEvents() context.client", async (context) => {
   expect(getBalanceSpy).toHaveBeenCalledWith({
     address: BOB,
   });
-
-  await cleanup();
 });
 
 test("processEvents() context.db", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   let i = 0;
 
@@ -617,16 +588,13 @@ test("processEvents() context.db", async (context) => {
   const transferEvents = await indexingStore.sql.select().from(account);
 
   expect(transferEvents).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("processEvents() metrics", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingService = create({
     common,
@@ -675,16 +643,13 @@ test("processEvents() metrics", async (context) => {
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
   expect(metrics.values).toBeDefined();
-
-  await cleanup();
 });
 
 test("processEvents() error", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -746,16 +711,13 @@ test("processEvents() error", async (context) => {
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
     ],
   ).toHaveBeenCalledTimes(1);
-
-  await cleanup();
 });
 
 test("processEvents() error with missing event object properties", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const network = getNetwork();
 
@@ -816,16 +778,13 @@ test("processEvents() error with missing event object properties", async (contex
       "status": "error",
     }
   `);
-
-  await cleanup();
 });
 
 test("ponderActions getBalance()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingService = create({
     common,
@@ -845,16 +804,13 @@ test("ponderActions getBalance()", async (context) => {
   });
 
   expect(balance).toBe(parseEther("10000"));
-
-  await cleanup();
 });
 
 test("ponderActions getCode()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const { address } = await deployErc20({ sender: ALICE });
 
@@ -876,16 +832,13 @@ test("ponderActions getCode()", async (context) => {
   });
 
   expect(bytecode).toBeTruthy();
-
-  await cleanup();
 });
 
 test("ponderActions getStorageAt()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -915,16 +868,13 @@ test("ponderActions getStorageAt()", async (context) => {
   });
 
   expect(BigInt(storage!)).toBe(parseEther("1"));
-
-  await cleanup();
 });
 
 test("ponderActions readContract()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -954,16 +904,13 @@ test("ponderActions readContract()", async (context) => {
   });
 
   expect(totalSupply).toBe(parseEther("1"));
-
-  await cleanup();
 });
 
 test("ponderActions readContract() blockNumber", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -994,17 +941,14 @@ test("ponderActions readContract() blockNumber", async (context) => {
   });
 
   expect(totalSupply).toBe(parseEther("0"));
-
-  await cleanup();
 });
 
 // Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
 test.skip("ponderActions multicall()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -1039,6 +983,4 @@ test.skip("ponderActions multicall()", async (context) => {
   });
 
   expect(totalSupply).toBe(parseEther("1"));
-
-  await cleanup();
 });

@@ -2,6 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -39,10 +40,11 @@ import { type RealtimeSyncEvent, createRealtimeSync } from "./index.js";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("createRealtimeSyncService()", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -68,13 +70,11 @@ test("createRealtimeSyncService()", async (context) => {
   });
 
   expect(realtimeSync).toBeDefined();
-
-  await cleanup();
 });
 
 test("start() handles block", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -112,13 +112,11 @@ test("start() handles block", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("start() no-op when receiving same block twice", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -163,13 +161,11 @@ test("start() no-op when receiving same block twice", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("start() gets missing block", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -208,13 +204,11 @@ test("start() gets missing block", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("start() retries on error", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -257,13 +251,11 @@ test("start() retries on error", async (context) => {
   await queue.onIdle();
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("kill()", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -300,13 +292,11 @@ test("kill()", async (context) => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("handleBlock() block event with log", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -374,13 +364,11 @@ test("handleBlock() block event with log", async (context) => {
   expect(data[0]?.logs).toHaveLength(1);
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("handleBlock() block event with log factory", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -466,13 +454,11 @@ test("handleBlock() block event with log factory", async (context) => {
 
   expect(data[0]?.transactions).toHaveLength(0);
   expect(data[1]?.transactions).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("handleBlock() block event with block", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -534,13 +520,11 @@ test("handleBlock() block event with block", async (context) => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("handleBlock() block event with transaction", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -608,13 +592,11 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[0]?.transactionReceipts).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("handleBlock() block event with transfer", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -708,13 +690,11 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(data[0]?.traces).toHaveLength(1);
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[0]?.transactionReceipts).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("handleBlock() block event with trace", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -861,13 +841,11 @@ test("handleBlock() block event with trace", async (context) => {
 
   expect(data[0]?.transactionReceipts).toHaveLength(0);
   expect(data[1]?.transactionReceipts).toHaveLength(0);
-
-  await cleanup();
 });
 
 test("handleBlock() finalize event", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -918,13 +896,11 @@ test("handleBlock() finalize event", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
   expect(data[0]?.block.number).toBe("0x2");
-
-  await cleanup();
 });
 
 test("handleReorg() finds common ancestor", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -975,13 +951,11 @@ test("handleReorg() finds common ancestor", async (context) => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("handleReorg() throws error for deep reorg", async (context) => {
   const { common } = context;
-  const { cleanup } = await setupDatabaseServices(context);
+  await setupDatabaseServices(context);
 
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
@@ -1033,6 +1007,4 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
-
-  await cleanup();
 });

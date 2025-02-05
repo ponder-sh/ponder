@@ -157,12 +157,12 @@ export function createTelemetry({
   let context: Awaited<ReturnType<typeof buildContext>> | undefined = undefined;
   const contextPromise = buildContext();
 
-  const controller = new AbortController();
-
   const queue = createQueue({
     initialStart: true,
     concurrency: 10,
     worker: async (event: TelemetryEvent) => {
+      if (shutdown.isKilled) return;
+
       const endClock = startClock();
       try {
         if (context === undefined) context = await contextPromise;
@@ -182,7 +182,6 @@ export function createTelemetry({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body,
-          signal: controller.signal,
         });
         logger.trace({
           service: "telemetry",
