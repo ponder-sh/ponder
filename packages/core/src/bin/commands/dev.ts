@@ -54,7 +54,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const build = await createBuild({ common, cliOptions });
 
-  const ui = createUi({ common });
+  let ui: ReturnType<typeof createUi>;
+  if (cliOptions.disableUi !== true) {
+    ui = createUi({ common });
+  }
 
   let indexingCleanupReloadable = () => Promise.resolve();
   let apiCleanupReloadable = () => Promise.resolve();
@@ -68,7 +71,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     }
     await build.kill();
     await telemetry.kill();
-    ui.kill();
+    if (ui) {
+      ui.kill();
+    }
   };
 
   const shutdown = setupShutdown({ common, cleanup });
