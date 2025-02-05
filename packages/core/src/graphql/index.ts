@@ -457,7 +457,7 @@ const columnToGraphQLCore = (
     const enumType = enumTypes[column.enum.enumName];
     if (enumType === undefined) {
       throw new Error(
-        `Internal error: Expected to find a GraphQL enum named "${column.enum.enumName}"`,
+        `Internal error: Expected to find a GraphQL enum named "${column.enum.enumName}". This may happen if "${column.enum.enumName}" has not been exported from your Ponder schema`,
       );
     }
 
