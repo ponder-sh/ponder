@@ -573,7 +573,7 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.invalidateDepTree(
             glob.sync(indexingPattern, {
-              ignore: glob.sync(apiPattern),
+              ignore: apiPattern,
             }),
           );
           viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));

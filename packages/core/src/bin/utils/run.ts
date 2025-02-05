@@ -102,7 +102,7 @@ export async function run({
 
             common.logger.debug({
               service: "app",
-              msg: `Partitioned events into ${perBlockEvents.length} blocks`,
+              msg: `Partitioned ${event.events.length} events into ${perBlockEvents.length} blocks`,
             });
 
             for (const { checkpoint, events } of perBlockEvents) {

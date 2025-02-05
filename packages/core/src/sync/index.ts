@@ -366,12 +366,12 @@ export const createSync = async (params: {
         )!;
         params.common.logger.debug({
           service: "sync",
-          msg: `Sequenced ${events.length} '${network.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
+          msg: `Sequenced ${events.length} '${network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
       } else {
         params.common.logger.debug({
           service: "sync",
-          msg: `Sequenced ${events.length} events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
+          msg: `Sequenced ${events.length} events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
       }
 
@@ -495,7 +495,7 @@ export const createSync = async (params: {
 
             params.common.logger.debug({
               service: "sync",
-              msg: `Sequenced ${readyEvents.length} '${network.name}' events for timestamps [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+              msg: `Sequenced ${readyEvents.length} '${network.name}' events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
             });
 
             params
@@ -1121,7 +1121,7 @@ export async function* getLocalEventGenerator(params: {
 
   params.common.logger.debug({
     service: "sync",
-    msg: `Initialized '${params.network.name}' extract query for timestamps [${decodeCheckpoint(params.from).blockTimestamp}, ${decodeCheckpoint(params.to).blockTimestamp}]`,
+    msg: `Initialized '${params.network.name}' extract query for timestamp range [${decodeCheckpoint(params.from).blockTimestamp}, ${decodeCheckpoint(params.to).blockTimestamp}]`,
   });
 
   for await (const syncCheckpoint of bufferAsyncGenerator(
@@ -1150,7 +1150,7 @@ export async function* getLocalEventGenerator(params: {
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Extracted ${events.length} '${params.network.name}' events for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
+          msg: `Extracted ${events.length} '${params.network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
         });
 
         estimateSeconds = estimate({
@@ -1175,7 +1175,7 @@ export async function* getLocalEventGenerator(params: {
       } catch (error) {
         params.common.logger.warn({
           service: "sync",
-          msg: `Failed '${params.network.name}' extract query for timestamps [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+          msg: `Failed '${params.network.name}' extract query for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
           error: error as Error,
         });
 
@@ -1225,7 +1225,7 @@ export async function* getLocalSyncGenerator({
 
     common.logger.warn({
       service: "sync",
-      msg: `Skipped '${network.name}' historical sync because the start block is not finalized`,
+      msg: `Skipped '${network.name}' historical sync because the start block is unfinalized`,
     });
 
     common.metrics.ponder_sync_block.set(
@@ -1245,7 +1245,7 @@ export async function* getLocalSyncGenerator({
 
   common.logger.debug({
     service: "sync",
-    msg: `Initialized '${network.name}' historical sync for blocks [${totalInterval[0]}, ${totalInterval[1]}]`,
+    msg: `Initialized '${network.name}' historical sync for block range [${totalInterval[0]}, ${totalInterval[1]}]`,
   });
 
   const requiredIntervals = Array.from(
@@ -1288,7 +1288,7 @@ export async function* getLocalSyncGenerator({
     if (hexToNumber(syncProgress.current.number) === hexToNumber(last.number)) {
       common.logger.info({
         service: "sync",
-        msg: `Skipped '${network.name}' historical sync because all blocks are cached.`,
+        msg: `Skipped '${network.name}' historical sync because all blocks are cached`,
       });
       return;
     } else {
@@ -1324,7 +1324,7 @@ export async function* getLocalSyncGenerator({
 
     common.logger.debug({
       service: "sync",
-      msg: `Synced ${interval[1] - interval[0] + 1} '${network.name}' blocks [${interval[0]}, ${interval[1]}]`,
+      msg: `Synced ${interval[1] - interval[0] + 1} '${network.name}' blocks in range [${interval[0]}, ${interval[1]}]`,
     });
 
     // Update cursor to record progress
