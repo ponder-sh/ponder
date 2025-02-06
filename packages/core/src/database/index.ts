@@ -163,7 +163,7 @@ export const createDatabase = async ({
         .execute();
 
       if (dialect === "pglite") {
-        (driver as PGliteDriver).instance.close();
+        await (driver as PGliteDriver).instance.close();
       }
     });
 
@@ -496,6 +496,10 @@ export const createDatabase = async ({
             { method: options.method },
             endClock(),
           );
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
           return result;
         } catch (_error) {
           const error = _error as Error;

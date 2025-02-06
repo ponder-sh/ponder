@@ -491,11 +491,6 @@ export const createRealtimeSync = (
 
       await args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
     }
-
-    args.common.logger.debug({
-      service: "realtime",
-      msg: `Finished syncing '${args.network.name}' block ${hexToNumber(block.number)}`,
-    });
   };
 
   /**

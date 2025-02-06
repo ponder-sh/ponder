@@ -51,7 +51,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const metrics = new MetricsService();
   let indexingShutdown = createShutdown();
   let apiShutdown = createShutdown();
-  // let databaseShutdown = createShutdown();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry };
@@ -64,7 +63,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   shutdown.add(async () => {
     await indexingShutdown.kill();
     await apiShutdown.kill();
-    // await databaseShutdown.kill();
   });
 
   createUi({ common: { ...common, shutdown } });
@@ -92,11 +90,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
       if (result.kind === "indexing") {
         metrics.resetIndexingMetrics();
-
-        // if (database) {
-        //   await databaseShutdown.kill();
-        //   databaseShutdown = createShutdown();
-        // }
 
         const configResult = await build.executeConfig();
         if (configResult.status === "error") {

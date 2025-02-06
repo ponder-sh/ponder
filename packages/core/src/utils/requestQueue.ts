@@ -53,19 +53,27 @@ export const createRequestQueue = ({
     for (let i = 0; i <= RETRY_COUNT; i++) {
       try {
         const stopClock = startClock();
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
         common.logger.trace({
           service: "rpc",
           msg: `Sent ${request.method} request (params=${JSON.stringify(request.params)})`,
         });
+
         const response = await network.transport.request(request);
-        common.logger.trace({
-          service: "rpc",
-          msg: `Received ${request.method} response (duration=${stopClock()}, params=${JSON.stringify(request.params)})`,
-        });
         common.metrics.ponder_rpc_request_duration.observe(
           { method: request.method, network: network.name },
           stopClock(),
         );
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+
+        common.logger.trace({
+          service: "rpc",
+          msg: `Received ${request.method} response (duration=${stopClock()}, params=${JSON.stringify(request.params)})`,
+        });
 
         return response;
       } catch (_error) {

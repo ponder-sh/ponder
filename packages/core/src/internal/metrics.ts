@@ -18,6 +18,7 @@ const httpRequestSizeBytes = [
 export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
+  rps: { [network: string]: { count: number; timestamp: number }[] };
 
   ponder_historical_total_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_cached_indexing_seconds: prometheus.Gauge<"network">;
@@ -67,6 +68,7 @@ export class MetricsService {
   constructor() {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
+    this.rps = {};
 
     this.ponder_historical_total_indexing_seconds = new prometheus.Gauge({
       name: "ponder_historical_total_indexing_seconds",
@@ -258,6 +260,8 @@ export class MetricsService {
 
   resetIndexingMetrics() {
     this.start_timestamp = Date.now();
+    this.rps = {};
+
     this.ponder_historical_total_indexing_seconds.reset();
     this.ponder_historical_cached_indexing_seconds.reset();
     this.ponder_historical_completed_indexing_seconds.reset();
@@ -297,8 +301,6 @@ export class MetricsService {
     this.ponder_indexing_has_error.reset();
   }
 }
-
-const rps: { [network: string]: { count: number; timestamp: number }[] } = {};
 
 export async function getSyncProgress(metrics: MetricsService): Promise<
   {
@@ -352,14 +354,14 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   }
 
   for (const [networkName, count] of Object.entries(requestCount)) {
-    if (rps[networkName] === undefined) {
-      rps[networkName] = [{ count, timestamp: Date.now() }];
+    if (metrics.rps[networkName] === undefined) {
+      metrics.rps[networkName] = [{ count, timestamp: Date.now() }];
     } else {
-      rps[networkName]!.push({ count, timestamp: Date.now() });
+      metrics.rps[networkName]!.push({ count, timestamp: Date.now() });
     }
 
-    if (rps[networkName]!.length > 100) {
-      rps[networkName]!.shift();
+    if (metrics.rps[networkName]!.length > 100) {
+      metrics.rps[networkName]!.shift();
     }
   }
 
@@ -379,9 +381,9 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     // The ETA is low quality if we've completed only one or two blocks.
     const eta = completedBlocks >= 3 ? total - elapsed : undefined;
 
-    const _length = rps[labels.network!]!.length;
-    const _firstRps = rps[labels.network!]![0]!;
-    const _lastRps = rps[labels.network!]![_length - 1]!;
+    const _length = metrics.rps[labels.network!]!.length;
+    const _firstRps = metrics.rps[labels.network!]![0]!;
+    const _lastRps = metrics.rps[labels.network!]![_length - 1]!;
 
     const requests = _lastRps.count - (_length > 1 ? _firstRps.count : 0);
     const seconds =
