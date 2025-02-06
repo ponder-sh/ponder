@@ -616,12 +616,14 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 
 The optional `startBlock` and `endBlock` options specify the block range to index.
 
-| Option       | Default          |
-| :----------- | :--------------- |
-| `startBlock` | `0{:ts}`         |
-| `endBlock`   | `undefined{:ts}` |
+| field          |               type                |                                                                                                               |
+| :------------- | :-------------------------------: | :------------------------------------------------------------------------------------------------------------ |
+| **startBlock** | `number \| "latest" \| undefined` | **Default: `0`**. Block number or tag to start indexing. Usually set to the contract deployment block number. |
+| **endBlock**   | `number \| "latest" \| undefined` | **Default: `undefined`**. Block number or tag to stop indexing.                                               |
 
-If `endBlock` is `undefined{:ts}`, the contract will be indexed in realtime. If `endBlock` is defined, no events will be indexed after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
+The `"latest"{:ts}` option fetches the latest block during the build step and uses that block number. Use this option with `startBlock` to only index in realtime, or `endBlock` to only index historical data.
+
+When `endBlock` is `undefined{:ts}`, indexing will continue indefinitely in realtime. Set `endBlock` to index only a slice of history, or to enable faster feedback loops during development.
 
 ```ts filename="ponder.config.ts" {15-16}
 import { createConfig } from "ponder";
