@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type { Network } from "@/internal/types.js";
 import { type Queue, createQueue } from "@ponder/common";
 import {
@@ -44,12 +45,9 @@ const BASE_DURATION = 125;
  * Creates a queue built to manage rpc requests.
  */
 export const createRequestQueue = ({
-  network,
   common,
-}: {
-  network: Network;
-  common: Common;
-}): RequestQueue => {
+  network,
+}: { common: Common; network: Network }): RequestQueue => {
   // @ts-ignore
   const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
     for (let i = 0; i <= RETRY_COUNT; i++) {
@@ -72,6 +70,10 @@ export const createRequestQueue = ({
         return response;
       } catch (_error) {
         const error = _error as Error;
+
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
 
         if (
           request.method === "eth_getLogs" &&
@@ -139,7 +141,6 @@ export const createRequestQueue = ({
   });
 
   return {
-    ...requestQueue,
     request: <TParameters extends EIP1193Parameters<PublicRpcSchema>>(
       params: TParameters,
     ) => {

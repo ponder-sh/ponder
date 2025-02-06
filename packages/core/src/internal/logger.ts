@@ -72,7 +72,7 @@ export function createLogger({
     trace(options: Omit<Log, "level" | "time">) {
       logger.trace(options);
     },
-    async kill() {},
+    flush: () => new Promise((resolve) => logger.flush(resolve)),
   };
 }
 

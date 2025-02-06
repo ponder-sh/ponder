@@ -1,5 +1,6 @@
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   ContractSource,
   Event,
@@ -51,8 +52,6 @@ export type Service = {
   indexingFunctions: IndexingFunctions;
 
   // state
-  isKilled: boolean;
-
   eventCount: {
     [eventName: string]: number;
   };
@@ -162,7 +161,6 @@ export const create = ({
   return {
     common,
     indexingFunctions,
-    isKilled: false,
     eventCount,
     currentEvent: {
       contextState,
@@ -188,11 +186,7 @@ export const processSetupEvents = async (
     sources: Source[];
     networks: Network[];
   },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   for (const eventName of Object.keys(indexingService.indexingFunctions)) {
     if (!eventName.endsWith(":setup")) continue;
 
@@ -207,8 +201,6 @@ export const processSetupEvents = async (
       ) as ContractSource | undefined;
 
       if (source === undefined) continue;
-
-      if (indexingService.isKilled) return { status: "killed" };
 
       indexingService.eventCount[eventName]!++;
 
@@ -240,14 +232,8 @@ export const processSetupEvents = async (
 export const processEvents = async (
   indexingService: Service,
   { events }: { events: Event[] },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   for (let i = 0; i < events.length; i++) {
-    if (indexingService.isKilled) return { status: "killed" };
-
     const event = events[i]!;
 
     indexingService.eventCount[event.name]!++;
@@ -286,14 +272,6 @@ export const setIndexingStore = (
   };
 };
 
-export const kill = (indexingService: Service) => {
-  indexingService.common.logger.debug({
-    service: "indexing",
-    msg: "Killed indexing service",
-  });
-  indexingService.isKilled = true;
-};
-
 const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {
     const metricLabel = {
@@ -309,11 +287,7 @@ const updateCompletedEvents = (indexingService: Service) => {
 const executeSetup = async (
   indexingService: Service,
   { event }: { event: SetupEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   const {
     common,
     indexingFunctions,
@@ -344,8 +318,11 @@ const executeSetup = async (
       endClock(),
     );
   } catch (_error) {
-    if (indexingService.isKilled) return { status: "killed" };
     const error = _error instanceof Error ? _error : new Error(String(_error));
+
+    if (common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
 
     addStackTrace(error, common.options);
     addErrorMeta(error, toErrorMeta(event));
@@ -368,11 +345,7 @@ const executeSetup = async (
 const executeEvent = async (
   indexingService: Service,
   { event }: { event: Event },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   const {
     common,
     indexingFunctions,
@@ -404,8 +377,11 @@ const executeEvent = async (
       endClock(),
     );
   } catch (_error) {
-    if (indexingService.isKilled) return { status: "killed" };
     const error = _error instanceof Error ? _error : new Error(String(_error));
+
+    if (common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
 
     addStackTrace(error, common.options);
     addErrorMeta(error, toErrorMeta(event));

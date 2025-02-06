@@ -60,7 +60,6 @@ export type Sync = {
   getStatus(): Status;
   seconds: Seconds;
   getFinalizedCheckpoint(): string;
-  kill(): Promise<void>;
 };
 
 export type RealtimeEvent =
@@ -911,15 +910,6 @@ export const createSync = async (params: {
     seconds,
     getFinalizedCheckpoint() {
       return getOmnichainCheckpoint({ tag: "finalized" })!;
-    },
-    async kill() {
-      const promises: Promise<void>[] = [];
-      for (const network of params.indexingBuild.networks) {
-        const { historicalSync, realtimeSync } = perNetworkSync.get(network)!;
-        historicalSync.kill();
-        promises.push(realtimeSync.kill());
-      }
-      await Promise.all(promises);
     },
   };
 };

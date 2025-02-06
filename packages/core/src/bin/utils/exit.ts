@@ -1,34 +1,26 @@
 import os from "node:os";
 import readline from "node:readline";
 import type { Common } from "@/internal/common.js";
-import { IgnorableError } from "@/internal/errors.js";
+import { ShutdownError } from "@/internal/errors.js";
 
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 
-/**
- * Sets up shutdown handlers for the process. Accepts additional cleanup logic to run.
- */
-export function setupShutdown({
+/** Sets up shutdown handlers for the process. Accepts additional cleanup logic to run. */
+export const createExit = ({
   common,
-  cleanup,
 }: {
-  common: Common;
-  cleanup: () => Promise<void>;
-}) {
+  common: Pick<Common, "logger" | "telemetry" | "shutdown">;
+}) => {
   let isShuttingDown = false;
 
-  const shutdown = async ({
-    reason,
-    code,
-  }: { reason: string; code: 0 | 1 }) => {
+  const exit = async ({ reason, code }: { reason: string; code: 0 | 1 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    setTimeout(async () => {
+    const timeout = setTimeout(async () => {
       common.logger.fatal({
         service: "process",
         msg: "Failed to shutdown within 5 seconds, terminating (exit code 1)",
       });
-      await common.logger.kill();
       process.exit(1);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
@@ -43,15 +35,14 @@ export function setupShutdown({
       properties: { duration_seconds: process.uptime() },
     });
 
-    await cleanup();
+    await common.shutdown.kill();
+    clearTimeout(timeout);
 
-    const level = code === 0 ? "info" : "fatal";
-    common.logger[level]({
-      service: "process",
-      msg: `Finished shutdown sequence, terminating (exit code ${code})`,
-    });
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+    }
 
-    await common.logger.kill();
     process.exit(code);
   };
 
@@ -61,36 +52,31 @@ export function setupShutdown({
       output: process.stdout,
     });
     readlineInterface.on("SIGINT", () =>
-      shutdown({ reason: "Received SIGINT", code: 0 }),
+      exit({ reason: "Received SIGINT", code: 0 }),
     );
   }
 
-  process.on("SIGINT", () => shutdown({ reason: "Received SIGINT", code: 0 }));
-  process.on("SIGTERM", () =>
-    shutdown({ reason: "Received SIGTERM", code: 0 }),
-  );
-  process.on("SIGQUIT", () =>
-    shutdown({ reason: "Received SIGQUIT", code: 0 }),
-  );
-
+  process.on("SIGINT", () => exit({ reason: "Received SIGINT", code: 0 }));
+  process.on("SIGTERM", () => exit({ reason: "Received SIGTERM", code: 0 }));
+  process.on("SIGQUIT", () => exit({ reason: "Received SIGQUIT", code: 0 }));
   process.on("uncaughtException", (error: Error) => {
-    if (error instanceof IgnorableError) return;
+    if (error instanceof ShutdownError) return;
     common.logger.error({
       service: "process",
       msg: "Caught uncaughtException event",
       error,
     });
-    shutdown({ reason: "Received uncaughtException", code: 1 });
+    exit({ reason: "Received uncaughtException", code: 1 });
   });
   process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof IgnorableError) return;
+    if (error instanceof ShutdownError) return;
     common.logger.error({
       service: "process",
       msg: "Caught unhandledRejection event",
       error,
     });
-    shutdown({ reason: "Received unhandledRejection", code: 1 });
+    exit({ reason: "Received unhandledRejection", code: 1 });
   });
 
-  return shutdown;
-}
+  return exit;
+};
