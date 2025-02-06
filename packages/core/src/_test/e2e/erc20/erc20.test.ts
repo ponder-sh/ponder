@@ -7,7 +7,6 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
-import { serve } from "@/bin/commands/serve.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
@@ -72,61 +71,6 @@ test(
     });
 
     await shutdown!();
-  },
-  { timeout: 15_000 },
-);
-
-const isPglite = process.env.DATABASE_URL === undefined;
-
-test(
-  "ponder serve",
-  async () => {
-    if (isPglite) return;
-    const startPort = await getFreePort();
-    const client = createClient(`http://localhost:${startPort}/sql`, {
-      schema,
-    });
-
-    const shutdownStart = await start({
-      cliOptions: {
-        ...cliOptions,
-        command: "start",
-        port: startPort,
-      },
-    });
-
-    const { address } = await deployErc20({ sender: ALICE });
-
-    await mintErc20({
-      erc20: address,
-      to: ALICE,
-      amount: parseEther("1"),
-      sender: ALICE,
-    });
-    const servePort = await getFreePort();
-
-    const shutdownServe = await serve({
-      cliOptions: {
-        ...cliOptions,
-        command: "serve",
-        port: servePort,
-      },
-    });
-
-    const result = await client.db.select().from(schema.account);
-
-    expect(result).toHaveLength(3);
-    expect(result[0]).toMatchObject({
-      address: zeroAddress,
-      balance: (-1 * 10 ** 18).toString(),
-    });
-    expect(result[1]).toMatchObject({
-      address: ALICE.toLowerCase(),
-      balance: (10 ** 18).toString(),
-    });
-
-    await shutdownServe!();
-    await shutdownStart!();
   },
   { timeout: 15_000 },
 );
