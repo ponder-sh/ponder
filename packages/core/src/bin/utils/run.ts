@@ -60,6 +60,11 @@ export async function run({
     requestQueues,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
+      common.logger.debug({
+        service: "app",
+        msg: `Received ${realtimeEvent.type} event for checkpoint ${realtimeEvent.checkpoint}`,
+      });
+
       if (realtimeEvent.type === "reorg") {
         realtimeQueue.clear();
       }
@@ -92,6 +97,11 @@ export async function run({
     browser: false,
     concurrency: 1,
     worker: async (event: RealtimeEvent) => {
+      common.logger.debug({
+        service: "app",
+        msg: `Processing ${event.type} event for checkpoint ${event.checkpoint}`,
+      });
+
       switch (event.type) {
         case "block": {
           if (event.events.length > 0) {

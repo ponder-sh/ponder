@@ -157,11 +157,11 @@ const getHistoricalLast = (
 export const splitEvents = (
   events: RawEvent[],
 ): { checkpoint: string; events: RawEvent[] }[] => {
-  let prevHash: Hash | undefined;
+  let hash: Hash | undefined;
   const result: { checkpoint: string; events: RawEvent[] }[] = [];
 
   for (const event of events) {
-    if (prevHash === undefined || prevHash !== event.block.hash) {
+    if (hash === undefined || hash !== event.block.hash) {
       result.push({
         checkpoint: encodeCheckpoint({
           ...MAX_CHECKPOINT,
@@ -171,7 +171,7 @@ export const splitEvents = (
         }),
         events: [],
       });
-      prevHash = event.block.hash;
+      hash = event.block.hash;
     }
 
     result[result.length - 1]!.events.push(event);
