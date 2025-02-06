@@ -10,7 +10,7 @@ import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@ponder/common";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { EntryType, type IndexingCache } from "./cache.js";
+import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
@@ -81,7 +81,7 @@ export const createHistoricalIndexingStore = ({
                               table,
                               key: value,
                               row: value,
-                              entryType: EntryType.INSERT,
+                              isUpdate: false,
                             }),
                           );
                         }
@@ -102,7 +102,7 @@ export const createHistoricalIndexingStore = ({
                         table,
                         key: values,
                         row: values,
-                        entryType: EntryType.INSERT,
+                        isUpdate: false,
                       });
                     }
                   },
@@ -145,7 +145,7 @@ export const createHistoricalIndexingStore = ({
                               table,
                               key: row,
                               row,
-                              entryType: EntryType.UPDATE,
+                              isUpdate: true,
                             }),
                           );
                         } else {
@@ -154,7 +154,7 @@ export const createHistoricalIndexingStore = ({
                               table,
                               key: value,
                               row: value,
-                              entryType: EntryType.UPDATE,
+                              isUpdate: false,
                             }),
                           );
                         }
@@ -183,7 +183,7 @@ export const createHistoricalIndexingStore = ({
                           table,
                           key: values,
                           row,
-                          entryType: EntryType.UPDATE,
+                          isUpdate: true,
                         });
                       }
 
@@ -191,7 +191,7 @@ export const createHistoricalIndexingStore = ({
                         table,
                         key: values,
                         row: values,
-                        entryType: EntryType.INSERT,
+                        isUpdate: false,
                       });
                     }
                   },
@@ -232,7 +232,7 @@ export const createHistoricalIndexingStore = ({
                               table,
                               key: value,
                               row: value,
-                              entryType: EntryType.INSERT,
+                              isUpdate: false,
                             }),
                           );
                         }
@@ -260,7 +260,7 @@ export const createHistoricalIndexingStore = ({
                           table,
                           key: values,
                           row: values,
-                          entryType: EntryType.INSERT,
+                          isUpdate: false,
                         });
                       }
                     },
@@ -320,7 +320,7 @@ export const createHistoricalIndexingStore = ({
                   table,
                   key,
                   row,
-                  entryType: EntryType.UPDATE,
+                  isUpdate: true,
                 });
               },
             ),
@@ -342,7 +342,7 @@ export const createHistoricalIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         await indexingCache.flush({ db });
-        indexingCache.bust();
+        indexingCache.invalidate();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 

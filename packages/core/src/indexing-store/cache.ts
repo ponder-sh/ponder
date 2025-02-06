@@ -27,58 +27,87 @@ import {
 import { PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
 
 export type IndexingCache = {
-  has: ({ table, key }: { table: Table; key: object }) => boolean;
-  get: ({
-    table,
-    key,
-    db,
-  }: { table: Table; key: object; db: Drizzle<Schema> }) =>
+  /**
+   * Returns true if the cache has an entry for `table` with `key`.
+   */
+  has: (params: { table: Table; key: object }) => boolean;
+  /**
+   * Returns the entry for `table` with `key`.
+   */
+  get: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
     | { [key: string]: unknown }
     | null
     | Promise<{ [key: string]: unknown } | null>;
-  set: ({
-    table,
-    key,
-    row,
-    entryType,
-  }: {
+  /**
+   * Sets the entry for `table` with `key` to `row`.
+   */
+  set: (params: {
     table: Table;
     key: object;
-    row: { [key: string]: unknown } | null;
-    entryType: EntryType;
-  }) => { [key: string]: unknown } | null;
-  delete: ({
-    table,
-    key,
-    db,
-  }: { table: Table; key: object; db: Drizzle<Schema> }) =>
+    row: { [key: string]: unknown };
+    isUpdate: boolean;
+  }) => { [key: string]: unknown };
+  /**
+   * Deletes the entry for `table` with `key`.
+   */
+  delete: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
     | boolean
     | Promise<boolean>;
-  flush: ({ db }: { db: Drizzle<Schema> }) => Promise<void>;
-  bust: () => void;
+  /**
+   * Prepares the cache for ...
+   */
+  prepare: () => void;
+  /**
+   * Writes all temporary data to the database.
+   *
+   * Note: it is assumed this function is called after `prepare`.
+   */
+  flush: (params: { db: Drizzle<Schema> }) => Promise<void>;
+  /**
+   * ...
+   */
+  invalidate: () => void;
+  /**
+   * Returns true if the cache is invalidated.
+   *
+   * Note: this also resets the invalidated state.
+   */
+  isInvalidated: () => boolean;
+  /**
+   * Remove spillover and buffer entries.
+   */
+  rollback: () => void;
+  /**
+   * Deletes all entries from the cache.
+   */
+  clear: () => void;
+  /**
+   * Returns the estimated number of bytes in the cache.
+   */
   size: number;
 };
 
-export enum EntryType {
-  INSERT = 0,
-  UPDATE = 1,
-  FIND = 2,
-}
+type Cache = Map<
+  Table,
+  Map<
+    string,
+    {
+      bytes: number;
+      operationIndex: number;
+      row: { [key: string]: unknown } | null;
+    }
+  >
+>;
 
-type Key = string;
-type Entry = {
-  type: EntryType;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown } | null;
-};
-type Cache = Map<Table, Map<Key, Entry>>;
-
-// type Buffer = Map<Table, {
-//   event: string;
-//   method: string;
-//   args: object;
-// }[]>;
+type Buffer = Map<
+  Table,
+  Map<
+    string,
+    {
+      row: { [key: string]: unknown };
+    }
+  >
+>;
 
 /**
  * Returns true if the column has a "default" value that is used when no value is passed.
@@ -89,8 +118,8 @@ export const hasEmptyValue = (column: Column) => {
 };
 
 /** Returns the "default" value for `column`. */
-export const getEmptyValue = (column: Column, type: EntryType) => {
-  if (type === EntryType.UPDATE && column.onUpdateFn) {
+export const getEmptyValue = (column: Column, isUpdate: boolean) => {
+  if (isUpdate && column.onUpdateFn) {
     return column.onUpdateFn();
   }
   if (column.default !== undefined) return column.default;
@@ -105,11 +134,11 @@ export const getEmptyValue = (column: Column, type: EntryType) => {
 export const normalizeColumn = (
   column: Column,
   value: unknown,
-  type: EntryType,
+  isUpdate: boolean,
   // @ts-ignore
 ): unknown => {
   if (value === undefined) {
-    if (hasEmptyValue(column)) return getEmptyValue(column, type);
+    if (hasEmptyValue(column)) return getEmptyValue(column, isUpdate);
     return null;
   }
   if (column.mapToDriverValue === undefined) return value;
@@ -131,12 +160,12 @@ export const normalizeColumn = (
 export const normalizeRow = (
   table: Table,
   row: { [key: string]: unknown },
-  type: EntryType,
+  isUpdate: boolean,
 ) => {
   for (const [columnName, column] of Object.entries(getTableColumns(table))) {
     // not-null constraint
     if (
-      type === EntryType.INSERT &&
+      isUpdate === false &&
       (row[columnName] === undefined || row[columnName] === null) &&
       column.notNull &&
       hasEmptyValue(column) === false
@@ -144,13 +173,11 @@ export const normalizeRow = (
       const error = new NotNullConstraintError(
         `Column '${getTableName(table)}.${columnName}' violates not-null constraint.`,
       );
-      error.meta.push(
-        `db.${type === EntryType.INSERT ? "insert" : "update"} arguments:\n${prettyPrint(row)}`,
-      );
+      error.meta.push(`db.insert arguments:\n${prettyPrint(row)}`);
       throw error;
     }
 
-    row[columnName] = normalizeColumn(column, row[columnName], type);
+    row[columnName] = normalizeColumn(column, row[columnName], isUpdate);
   }
 
   return row;
@@ -217,10 +244,15 @@ export const createIndexingCache = ({
   checkpoint: string;
 }): IndexingCache => {
   const cache: Cache = new Map();
+  const spillover: Cache = new Map();
+  const insertBuffer: Buffer = new Map();
+  const updateBuffer: Buffer = new Map();
 
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
-  /** Estimated number of bytes used by cache. */
+  let isInvalidated = false;
   let cacheBytes = 0;
+  let spilloverBytes = 0;
+
   /** LRU counter. */
   let totalCacheOps = 0;
 
@@ -233,15 +265,36 @@ export const createIndexingCache = ({
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
   )) {
     cache.set(table, new Map());
+    spillover.set(table, new Map());
+    insertBuffer.set(table, new Map());
+    updateBuffer.set(table, new Map());
   }
 
   return {
     has({ table, key }) {
       if (isCacheComplete) return true;
-      return cache.get(table)!.has(getCacheKey(table, key));
+
+      return (
+        cache.get(table)!.has(getCacheKey(table, key)) ??
+        spillover.get(table)!.has(getCacheKey(table, key)) ??
+        insertBuffer.get(table)!.has(getCacheKey(table, key)) ??
+        updateBuffer.get(table)!.has(getCacheKey(table, key))
+      );
     },
     get({ table, key, db }) {
-      const entry = cache.get(table)!.get(getCacheKey(table, key));
+      // Note: order is important, it is an invariant that update entries
+      // are prioritized over insert entries
+      const bufferEntry =
+        updateBuffer.get(table)!.get(getCacheKey(table, key)) ??
+        insertBuffer.get(table)!.get(getCacheKey(table, key));
+
+      if (bufferEntry) {
+        return structuredClone(bufferEntry.row);
+      }
+
+      const entry =
+        cache.get(table)!.get(getCacheKey(table, key)) ??
+        spillover.get(table)!.get(getCacheKey(table, key));
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
@@ -266,20 +319,11 @@ export const createIndexingCache = ({
               .then((res) => (res.length === 0 ? null : res[0]!));
           },
         )
-        .then((_row) => {
-          let row: { [key: string]: unknown } | null;
-
-          if (_row === null) {
-            row = null;
-          } else {
-            row = normalizeRow(table, _row, EntryType.FIND);
-          }
-
+        .then((row) => {
           const bytes = getBytes(row);
-          cacheBytes += bytes;
+          spilloverBytes += bytes;
 
-          cache.get(table)!.set(getCacheKey(table, key), {
-            type: EntryType.FIND,
+          spillover.get(table)!.set(getCacheKey(table, key), {
             bytes,
             operationIndex: totalCacheOps++,
             row: structuredClone(row),
@@ -287,32 +331,19 @@ export const createIndexingCache = ({
           return row;
         });
     },
-    set({ table, key, row: _row, entryType }) {
-      let row: { [key: string]: unknown } | null;
+    set({ table, key, row: _row, isUpdate }) {
+      const row = normalizeRow(table, _row, isUpdate);
 
-      if (_row === null) {
-        row = null;
+      if (isUpdate) {
+        updateBuffer.get(table)!.set(getCacheKey(table, key), {
+          row: structuredClone(row),
+        });
       } else {
-        row = normalizeRow(table, _row, entryType);
+        insertBuffer.get(table)!.set(getCacheKey(table, key), {
+          row: structuredClone(row),
+        });
       }
 
-      if (
-        entryType === EntryType.UPDATE &&
-        cache.get(table)!.get(getCacheKey(table, _row!))?.type ===
-          EntryType.INSERT
-      ) {
-        entryType = EntryType.INSERT;
-      }
-
-      const bytes = getBytes(row);
-      cacheBytes += bytes;
-
-      cache.get(table)!.set(getCacheKey(table, key), {
-        type: entryType,
-        bytes,
-        operationIndex: totalCacheOps++,
-        row: structuredClone(row),
-      });
       return row;
     },
     delete({ table, key, db }) {
@@ -346,46 +377,18 @@ export const createIndexingCache = ({
         .then((result) => result.length > 0);
     },
     async flush({ db }) {
-      let cacheSize = 0;
-      for (const c of cache.values()) cacheSize += c.size;
+      let flushCount = 0;
 
-      // prepare: manipulate LRU cache
-      // flush: write buffer to db
-
-      const flushIndex =
-        totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheFlushRatio);
-      const shouldDelete = cacheBytes > common.options.indexingCacheMaxBytes;
-      if (shouldDelete) isCacheComplete = false;
-
-      const promises: Promise<void>[] = [];
-
-      for (const [table, tableCache] of cache) {
+      for (const table of cache.keys()) {
         const batchSize = Math.round(
           common.options.databaseMaxQueryParameters /
             Object.keys(getTableColumns(table)).length,
         );
 
-        const insertValues: Entry["row"][] = [];
-        const updateValues: Entry["row"][] = [];
+        const insertValues = Array.from(insertBuffer.get(table)!.values());
+        const updateValues = Array.from(updateBuffer.get(table)!.values());
 
-        for (const [key, entry] of tableCache) {
-          if (entry.type === EntryType.INSERT) {
-            insertValues.push(entry.row);
-          }
-
-          if (entry.type === EntryType.UPDATE) {
-            updateValues.push(entry.row);
-          }
-
-          // delete so that object is eligible for GC
-          if (shouldDelete && entry.operationIndex < flushIndex) {
-            tableCache.delete(key);
-            cacheBytes -= entry.bytes;
-          }
-
-          entry.type = EntryType.FIND;
-        }
+        flushCount += insertValues.length + updateValues.length;
 
         if (insertValues.length > 0) {
           common.logger.debug({
@@ -395,23 +398,22 @@ export const createIndexingCache = ({
 
           while (insertValues.length > 0) {
             const values = insertValues.splice(0, batchSize);
-            promises.push(
-              database.wrap(
-                { method: `${getTableName(table)}.flush()` },
-                async () => {
-                  await db
-                    .insert(table)
-                    .values(values)
-                    .catch((_error) => {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                      });
-                      throw new FlushError(error.message);
+
+            await database.wrap(
+              { method: `${getTableName(table)}.flush()` },
+              async () => {
+                await db
+                  .insert(table)
+                  .values(values.map(({ row }) => row))
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    common.logger.error({
+                      service: "indexing",
+                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
                     });
-                },
-              ),
+                    throw new FlushError(error.message);
+                  });
+              },
             );
           }
         }
@@ -435,42 +437,146 @@ export const createIndexingCache = ({
 
           while (updateValues.length > 0) {
             const values = updateValues.splice(0, batchSize);
-            promises.push(
-              database.wrap(
-                {
-                  method: `${getTableName(table)}.flush()`,
-                },
-                async () => {
-                  await db
-                    .insert(table)
-                    .values(values)
-                    .onConflictDoUpdate({
-                      // @ts-ignore
-                      target: primaryKeys.map(({ js }) => table[js]),
-                      set,
-                    })
-                    .catch((_error) => {
-                      const error = _error as Error;
-                      common.logger.error({
-                        service: "indexing",
-                        msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                      });
-                      throw new FlushError(error.message);
+            await database.wrap(
+              {
+                method: `${getTableName(table)}.flush()`,
+              },
+              async () => {
+                await db
+                  .insert(table)
+                  .values(values.map(({ row }) => row))
+                  .onConflictDoUpdate({
+                    // @ts-ignore
+                    target: primaryKeys.map(({ js }) => table[js]),
+                    set,
+                  })
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    common.logger.error({
+                      service: "indexing",
+                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
                     });
-                },
-              ),
+                    throw new FlushError(error.message);
+                  });
+              },
             );
+          }
+        }
+
+        insertBuffer.get(table)!.clear();
+        updateBuffer.get(table)!.clear();
+      }
+
+      if (flushCount > 0) {
+        common.logger.debug({
+          service: "indexing",
+          msg: `Flushed ${flushCount} rows to the database`,
+        });
+      }
+    },
+    prepare() {
+      let cacheSize = 0;
+      for (const c of cache.values()) cacheSize += c.size;
+
+      const flushIndex =
+        totalCacheOps -
+        cacheSize * (1 - common.options.indexingCacheFlushRatio);
+
+      if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
+        isCacheComplete = false;
+
+        for (const tableCache of cache.values()) {
+          for (const [key, entry] of tableCache) {
+            if (entry.operationIndex < flushIndex) {
+              tableCache.delete(key);
+              cacheBytes -= entry.bytes;
+            }
           }
         }
       }
 
-      await Promise.all(promises);
+      for (const [table, tableSpillover] of spillover) {
+        const tableCache = cache.get(table)!;
+        for (const [key, entry] of tableSpillover) {
+          tableCache.set(key, entry);
+        }
+        tableSpillover.clear();
+      }
+
+      cacheBytes += spilloverBytes;
+      spilloverBytes = 0;
+
+      for (const [table, tableBuffer] of insertBuffer) {
+        const tableCache = cache.get(table)!;
+        for (const [key, entry] of tableBuffer) {
+          const bytes = getBytes(entry.row);
+          cacheBytes += bytes;
+          tableCache.set(key, {
+            bytes,
+            operationIndex: totalCacheOps++,
+            row: entry.row,
+          });
+        }
+      }
+
+      for (const [table, tableBuffer] of updateBuffer) {
+        const tableCache = cache.get(table)!;
+        for (const [key, entry] of tableBuffer) {
+          const bytes = getBytes(entry.row);
+          cacheBytes += bytes;
+          tableCache.set(key, {
+            bytes,
+            operationIndex: totalCacheOps++,
+            row: entry.row,
+          });
+        }
+      }
     },
-    bust() {
-      isCacheComplete = false;
+    invalidate() {
+      isInvalidated = true;
+    },
+    isInvalidated() {
+      const result = isInvalidated;
+      isInvalidated = false;
+      return result;
+    },
+    rollback() {
+      for (const tableSpillover of spillover.values()) {
+        tableSpillover.clear();
+      }
+
+      for (const tableBuffer of insertBuffer.values()) {
+        tableBuffer.clear();
+      }
+
+      for (const tableBuffer of updateBuffer.values()) {
+        tableBuffer.clear();
+      }
+
+      spilloverBytes = 0;
+    },
+    clear() {
+      for (const tableCache of cache.values()) {
+        tableCache.clear();
+      }
+
+      for (const tableSpillover of spillover.values()) {
+        tableSpillover.clear();
+      }
+
+      for (const tableBuffer of insertBuffer.values()) {
+        tableBuffer.clear();
+      }
+
+      for (const tableBuffer of updateBuffer.values()) {
+        tableBuffer.clear();
+      }
+
+      cacheBytes = 0;
+      spilloverBytes = 0;
     },
     get size() {
-      return cacheBytes;
+      return cacheBytes + spilloverBytes;
     },
   };
 };

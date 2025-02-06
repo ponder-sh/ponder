@@ -346,24 +346,14 @@ export async function run({
           // have been written because of raw sql access are deleted. Also must truncate
           // the reorg tables that may have been written because of raw sql access.
           if (
+            indexingCache.isInvalidated() ||
             (indexingCache.size > common.options.indexingCacheMaxBytes &&
               events.length > 0) ||
             (common.options.command === "dev" &&
               lastFlush + 5_000 < Date.now() &&
               events.length > 0)
           ) {
-            if (indexingCache.size > common.options.indexingCacheMaxBytes) {
-              common.logger.debug({
-                service: "indexing",
-                msg: `Indexing cache has exceeded ${common.options.indexingCacheMaxBytes} MB limit, starting flush`,
-              });
-            } else {
-              common.logger.debug({
-                service: "indexing",
-                msg: "Dev server periodic flush triggered, starting flush",
-              });
-            }
-
+            indexingCache.prepare();
             await indexingCache.flush({ db: tx });
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
@@ -396,6 +386,7 @@ export async function run({
 
     await database.qb.drizzle.transaction(async (tx) => {
       await indexingCache.flush({ db: tx });
+      indexingCache.clear();
       await database.finalize({
         checkpoint: sync.getFinalizedCheckpoint(),
         db: tx,
