@@ -44,6 +44,7 @@ import {
   sortIntervals,
 } from "@/utils/interval.js";
 import { intervalUnion } from "@/utils/interval.js";
+import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { partition } from "@/utils/partition.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -387,6 +388,8 @@ export const createSync = async (params: {
   /** Events that have not been executed. */
   let pendingEvents: RawEvent[] = [];
 
+  const realtimeMutex = createMutex();
+
   const checkpoints = {
     // Note: `checkpoints.current` not used in multichain mode
     current: ZERO_CHECKPOINT_STRING,
@@ -690,7 +693,7 @@ export const createSync = async (params: {
         sources,
         requestQueue,
         network,
-        onEvent: (event) =>
+        onEvent: realtimeMutex((event) =>
           perChainOnRealtimeSyncEvent(event)
             .then((event) => {
               onRealtimeSyncEvent(event, {
@@ -726,6 +729,7 @@ export const createSync = async (params: {
               });
               params.onFatalError(error);
             }),
+        ),
         onFatalError: params.onFatalError,
       });
 

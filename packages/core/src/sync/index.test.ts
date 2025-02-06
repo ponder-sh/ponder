@@ -18,7 +18,6 @@ import type {
   RawEvent,
 } from "@/internal/types.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
-import { createRealtimeSync } from "@/sync-realtime/index.js";
 import {
   MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT_STRING,
@@ -143,22 +142,12 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
     intervalsCache,
   });
 
-  const realtimeSync = createRealtimeSync({
-    common: context.common,
-    network,
-    sources,
-    requestQueue,
-    onEvent: async () => {},
-    onFatalError: () => {},
-  });
-
   const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,
     syncStore,
     syncProgress,
-    realtimeSync,
   });
 
   const block = await _eth_getBlockByNumber(requestQueue, {
@@ -214,22 +203,12 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     intervalsCache,
   });
 
-  const realtimeSync = createRealtimeSync({
-    common: context.common,
-    network,
-    sources,
-    requestQueue,
-    onEvent: async () => {},
-    onFatalError: () => {},
-  });
-
   const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,
     syncStore,
     syncProgress,
-    realtimeSync,
   });
 
   const block = await _eth_getBlockByNumber(requestQueue, {
@@ -277,88 +256,6 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   `);
 });
 
-test("getPerChainOnRealtimeSyncEvent() kills realtime when finalized", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-
-  // @ts-ignore
-  config.blocks.Blocks.endBlock = 1;
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  const intervalsCache = new Map<
-    Filter,
-    { fragment: Fragment; intervals: Interval[] }[]
-  >();
-  for (const source of sources) {
-    for (const { fragment } of getFragments(source.filter)) {
-      intervalsCache.set(source.filter, [{ fragment, intervals: [] }]);
-    }
-  }
-
-  // finalized block: 0
-
-  await testClient.mine({ blocks: 1 });
-
-  const syncProgress = await getLocalSyncProgress({
-    common: context.common,
-    sources,
-    network,
-    requestQueue,
-    intervalsCache,
-  });
-
-  const realtimeSync = createRealtimeSync({
-    common: context.common,
-    network,
-    sources,
-    requestQueue,
-    onEvent: async () => {},
-    onFatalError: () => {},
-  });
-
-  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
-    common: context.common,
-    network,
-    sources,
-    syncStore,
-    syncProgress,
-    realtimeSync,
-  });
-
-  const block = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-
-  await onRealtimeSyncEvent({
-    type: "block",
-    hasMatchedFilter: false,
-    block,
-    logs: [],
-    factoryLogs: [],
-    traces: [],
-    transactions: [],
-    transactionReceipts: [],
-  });
-
-  const spy = vi.spyOn(realtimeSync, "kill");
-
-  await onRealtimeSyncEvent({
-    type: "finalize",
-    block,
-  });
-
-  expect(spy).toHaveBeenCalled();
-});
-
 test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
@@ -394,22 +291,12 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
     intervalsCache,
   });
 
-  const realtimeSync = createRealtimeSync({
-    common: context.common,
-    network,
-    sources,
-    requestQueue,
-    onEvent: async () => {},
-    onFatalError: () => {},
-  });
-
   const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
     common: context.common,
     network,
     sources,
     syncStore,
     syncProgress,
-    realtimeSync,
   });
 
   const block = await _eth_getBlockByNumber(requestQueue, {
@@ -1497,6 +1384,57 @@ test("onEvent() handles finalize", async (context) => {
   await promise.promise;
 
   expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(2n);
+});
+
+test("onEvent() kills realtime when finalized", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+
+  // @ts-ignore
+  config.blocks.Blocks.endBlock = 1;
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const promise = promiseWithResolvers<void>();
+  let checkpoint: string;
+
+  // finalized block: 0
+
+  network.finalityBlockCount = 0;
+
+  const sync = await createSync({
+    syncStore,
+    common: context.common,
+    indexingBuild: { sources, networks: [network] },
+    requestQueues: [createRequestQueue({ network, common: context.common })],
+    onRealtimeEvent: async (event) => {
+      if (event.type === "finalize") {
+        checkpoint = event.checkpoint;
+        promise.resolve();
+      }
+    },
+    onFatalError: () => {},
+    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    mode: "multichain",
+  });
+
+  await testClient.mine({ blocks: 4 });
+
+  await drainAsyncGenerator(sync.getEvents());
+
+  await sync.startRealtime();
+
+  await promise.promise;
+
+  expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(1n);
 });
 
 test.todo("onEvent() handles reorg");
