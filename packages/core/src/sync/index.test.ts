@@ -1202,6 +1202,9 @@ test("getEvents() with initial checkpoint", async (context) => {
   expect(events).toHaveLength(0);
 });
 
+// Note: this test is causing a flake on ci.
+// We need a way to figure out how to make sure queues are drained
+// when shutting down.
 test.skip("startRealtime()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
