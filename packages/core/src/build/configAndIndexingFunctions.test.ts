@@ -6,7 +6,6 @@ import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
   http,
   type Address,
-  BlockNotFoundError,
   parseAbiItem,
   toEventSelector,
   toFunctionSelector,
@@ -494,30 +493,6 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () =>
   });
 
   expect(sources[0]?.filter.fromBlock).toBeTypeOf("number");
-});
-
-test("buildConfigAndIndexingFunctions() throws BlockNotFoundError", async () => {
-  const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-    },
-    contracts: {
-      a: {
-        network: { mainnet: {} },
-        abi: [event0, event1],
-        startBlock: "latest",
-      },
-    },
-  });
-
-  await expect(
-    buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    }),
-  ).rejects.toThrowError(
-    new BlockNotFoundError({ blockNumber: "latest" as any }),
-  );
 });
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {

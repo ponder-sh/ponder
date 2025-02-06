@@ -1,9 +1,5 @@
 import { createConfig } from "ponder";
-import { http, createPublicClient } from "viem";
-
-const latestBlockMainnet = await createPublicClient({
-  transport: http(process.env.PONDER_RPC_URL_1),
-}).getBlock();
+import { http } from "viem";
 
 export default createConfig({
   networks: {
@@ -15,7 +11,7 @@ export default createConfig({
   accounts: {
     BeaverBuilder: {
       network: "mainnet",
-      startBlock: Number(latestBlockMainnet.number) - 100,
+      startBlock: "latest",
       address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
     },
   },

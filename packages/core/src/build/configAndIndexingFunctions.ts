@@ -98,10 +98,13 @@ export async function buildConfigAndIndexingFunctions({
           })
           .then((block) => {
             if (!block)
-              throw new BlockNotFoundError({
-                blockNumber: "latest" as any,
-              });
+              throw new BlockNotFoundError({ blockNumber: "latest" as any });
             return hexToNumber((block as SyncBlock).number);
+          })
+          .catch((e) => {
+            throw new Error(
+              `Unable to fetch "latest" block for network '${network.name}':\n${e.message}`,
+            );
           });
         perNetworkLatestBlockNumber.set(network.name, blockPromise);
         return blockPromise;
