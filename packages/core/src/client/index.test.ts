@@ -1,4 +1,5 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -13,6 +14,7 @@ import { client } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 const queryToParams = (query: QueryWithTypings) =>
   new URLSearchParams({ sql: superjson.stringify(query) });
@@ -25,7 +27,7 @@ test("client.db", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -55,12 +57,10 @@ test("client.db", async (context) => {
 
   response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(200);
-
-  await cleanup();
 });
 
 test("client.db error", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
   globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
@@ -81,8 +81,6 @@ test("client.db error", async (context) => {
   const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
   expect(await response.text()).toContain('relation "account" does not exist');
-
-  await cleanup();
 });
 
 test("client.db search_path", async (context) => {
@@ -93,7 +91,7 @@ test("client.db search_path", async (context) => {
     balance: bigint(),
   });
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     namespaceBuild: "Ponder",
     schemaBuild: { schema: { account: schemaAccount } },
   });
@@ -114,7 +112,6 @@ test("client.db search_path", async (context) => {
 
   const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(200);
-  await cleanup();
 });
 
 test("client.db readonly", async (context) => {
@@ -125,7 +122,7 @@ test("client.db readonly", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -143,7 +140,6 @@ test("client.db readonly", async (context) => {
   const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
   expect(await response.text()).toContain("InsertStmt not supported");
-  await cleanup();
 });
 
 test("client.db recursive", async (context) => {
@@ -154,7 +150,7 @@ test("client.db recursive", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -180,5 +176,4 @@ FROM infinite_cte;`,
   const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
   expect(await response.text()).toContain("Recursive CTEs not supported");
-  await cleanup();
 });

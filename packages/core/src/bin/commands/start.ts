@@ -4,12 +4,13 @@ import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
+import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
-import { setupShutdown } from "../utils/shutdown.js";
 
 export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -27,7 +28,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    await logger.kill();
     process.exit(1);
   }
 
@@ -38,48 +38,36 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  const common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  const common = { options, logger, metrics, telemetry, shutdown };
+  const exit = createExit({ common });
 
   const build = await createBuild({ common, cliOptions });
-
-  let cleanupReloadable = () => Promise.resolve();
-  let cleanupReloadableServer = () => Promise.resolve();
 
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
-  const cleanup = async () => {
-    await cleanupReloadable();
-    await cleanupReloadableServer();
-
-    if (database) {
-      await database.kill();
-    }
-
-    await telemetry.kill();
-  };
-
-  const shutdown = setupShutdown({ common, cleanup });
+  // const shutdown = setupShutdown({ common, cleanup });
 
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
-    await shutdown({ reason: "Failed to initialize namespace", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed to initialize namespace", code: 1 });
+    return;
   }
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
   const schemaResult = await build.executeSchema({
     namespace: namespaceResult.result,
   });
   if (schemaResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
   const buildResult1 = mergeResults([
@@ -88,16 +76,16 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   ]);
 
   if (buildResult1.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
   const [preBuild, schemaBuild] = buildResult1.result;
 
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
   const indexingBuildResult = await build.compileIndexing({
@@ -107,8 +95,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (indexingBuildResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
   database = await createDatabase({
@@ -124,8 +112,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     database,
   });
   if (apiResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
   const apiBuildResult = await build.compileApi({
@@ -133,11 +121,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (apiBuildResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
-
-  await build.kill();
 
   telemetry.record({
     name: "lifecycle:session_start",
@@ -151,24 +137,25 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  cleanupReloadable = await run({
+  run({
     common,
     database,
+    preBuild,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
     onFatalError: () => {
-      shutdown({ reason: "Received fatal error", code: 1 });
+      exit({ reason: "Received fatal error", code: 1 });
     },
     onReloadableError: () => {
-      shutdown({ reason: "Encountered indexing error", code: 1 });
+      exit({ reason: "Encountered indexing error", code: 1 });
     },
   });
 
-  cleanupReloadableServer = await runServer({
+  runServer({
     common,
     database,
     apiBuild: apiBuildResult.result,
   });
 
-  return cleanup;
+  return shutdown.kill;
 }

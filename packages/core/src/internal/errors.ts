@@ -35,15 +35,6 @@ export class NonRetryableError extends BaseError {
   }
 }
 
-export class IgnorableError extends BaseError {
-  override name = "IgnorableError";
-
-  constructor(message?: string | undefined) {
-    super(message);
-    Object.setPrototypeOf(this, IgnorableError.prototype);
-  }
-}
-
 // Indexing store errors
 
 export class StoreError extends NonRetryableError {
@@ -124,5 +115,14 @@ export class FlushError extends NonRetryableError {
   constructor(message?: string | undefined) {
     super(message);
     Object.setPrototypeOf(this, FlushError.prototype);
+  }
+}
+
+export class ShutdownError extends NonRetryableError {
+  override name = "ShutdownError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, ShutdownError.prototype);
   }
 }

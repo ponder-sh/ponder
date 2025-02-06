@@ -109,9 +109,9 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
       generatePgSnapshot(
         [
           pgTable("", {
-            operation_id: serial("operation_id").notNull().primaryKey(),
-            operation: integer("operation").notNull(),
-            checkpoint: varchar("checkpoint", {
+            operation_id: serial().notNull().primaryKey(),
+            operation: integer().notNull(),
+            checkpoint: varchar({
               length: 75,
             }).notNull(),
           }),

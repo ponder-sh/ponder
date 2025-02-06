@@ -1,5 +1,6 @@
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   ContractSource,
   Event,
@@ -10,23 +11,25 @@ import type {
   SetupEvent,
   Source,
 } from "@/internal/types.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import { isAddressFactory } from "@/sync/filter.js";
-import type { Sync } from "@/sync/index.js";
+import { cachedTransport } from "@/sync/transport.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
 import {
-  type Checkpoint,
+  ZERO_CHECKPOINT,
   decodeCheckpoint,
   encodeCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
+import type { RequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
-import type { Abi, Address } from "viem";
-import { checksumAddress, createClient } from "viem";
+import { type Abi, type Address, createClient } from "viem";
+import { checksumAddress } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
-import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
+import type { ReadOnlyClient } from "./ponderActions.js";
+import { getPonderActions } from "./ponderActions.js";
 
 export type Context = {
   network: { chainId: number; name: string };
@@ -49,12 +52,9 @@ export type Service = {
   indexingFunctions: IndexingFunctions;
 
   // state
-  isKilled: boolean;
-
   eventCount: {
     [eventName: string]: number;
   };
-  startCheckpoint: Checkpoint;
 
   /**
    * Reduce memory usage by reserving space for objects ahead of time
@@ -76,14 +76,16 @@ export type Service = {
 export const create = ({
   common,
   indexingBuild: { sources, networks, indexingFunctions },
-  sync,
+  requestQueues,
+  syncStore,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
     "sources" | "networks" | "indexingFunctions"
   >;
-  sync: Sync;
+  requestQueues: RequestQueue[];
+  syncStore: SyncStore;
 }): Service => {
   const contextState: Service["currentEvent"]["contextState"] = {
     blockNumber: undefined!,
@@ -139,10 +141,12 @@ export const create = ({
   }
 
   // build clientByChainId
-  for (const network of networks) {
-    const transport = sync.getCachedTransport(network);
+  for (let i = 0; i < networks.length; i++) {
+    const network = networks[i]!;
+    const requestQueue = requestQueues[i]!;
+
     clientByChainId[network.chainId] = createClient({
-      transport,
+      transport: cachedTransport({ requestQueue, syncStore }),
       chain: network.chain,
       // @ts-ignore
     }).extend(getPonderActions(contextState));
@@ -157,9 +161,7 @@ export const create = ({
   return {
     common,
     indexingFunctions,
-    isKilled: false,
     eventCount,
-    startCheckpoint: decodeCheckpoint(sync.getStartCheckpoint()),
     currentEvent: {
       contextState,
       context: {
@@ -184,11 +186,7 @@ export const processSetupEvents = async (
     sources: Source[];
     networks: Network[];
   },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   for (const eventName of Object.keys(indexingService.indexingFunctions)) {
     if (!eventName.endsWith(":setup")) continue;
 
@@ -204,8 +202,6 @@ export const processSetupEvents = async (
 
       if (source === undefined) continue;
 
-      if (indexingService.isKilled) return { status: "killed" };
-
       indexingService.eventCount[eventName]!++;
 
       const result = await executeSetup(indexingService, {
@@ -213,7 +209,7 @@ export const processSetupEvents = async (
           type: "setup",
           chainId: network.chainId,
           checkpoint: encodeCheckpoint({
-            ...zeroCheckpoint,
+            ...ZERO_CHECKPOINT,
             chainId: BigInt(network.chainId),
             blockNumber: BigInt(source.filter.fromBlock ?? 0),
           }),
@@ -236,14 +232,8 @@ export const processSetupEvents = async (
 export const processEvents = async (
   indexingService: Service,
   { events }: { events: Event[] },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   for (let i = 0; i < events.length; i++) {
-    if (indexingService.isKilled) return { status: "killed" };
-
     const event = events[i]!;
 
     indexingService.eventCount[event.name]!++;
@@ -262,40 +252,8 @@ export const processEvents = async (
       service: "indexing",
       msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
     });
-
-    // periodically update metrics
-    if (i % 93 === 0) {
-      updateCompletedEvents(indexingService);
-
-      const eventTimestamp = decodeCheckpoint(event.checkpoint).blockTimestamp;
-
-      indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-        eventTimestamp - indexingService.startCheckpoint.blockTimestamp,
-      );
-      indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
-        eventTimestamp,
-      );
-
-      // Note: allows for terminal and logs to be updated
-      await new Promise(setImmediate);
-    }
   }
 
-  // set completed seconds
-  if (events.length > 0) {
-    const lastEventInBatchTimestamp = decodeCheckpoint(
-      events[events.length - 1]!.checkpoint,
-    ).blockTimestamp;
-
-    indexingService.common.metrics.ponder_indexing_completed_seconds.set(
-      lastEventInBatchTimestamp -
-        indexingService.startCheckpoint.blockTimestamp,
-    );
-    indexingService.common.metrics.ponder_indexing_completed_timestamp.set(
-      lastEventInBatchTimestamp,
-    );
-  }
-  // set completed events
   updateCompletedEvents(indexingService);
 
   return { status: "success" };
@@ -314,24 +272,6 @@ export const setIndexingStore = (
   };
 };
 
-export const kill = (indexingService: Service) => {
-  indexingService.common.logger.debug({
-    service: "indexing",
-    msg: "Killed indexing service",
-  });
-  indexingService.isKilled = true;
-};
-
-export const updateTotalSeconds = (
-  indexingService: Service,
-  endCheckpoint: Checkpoint,
-) => {
-  indexingService.common.metrics.ponder_indexing_total_seconds.set(
-    endCheckpoint.blockTimestamp -
-      indexingService.startCheckpoint.blockTimestamp,
-  );
-};
-
 const updateCompletedEvents = (indexingService: Service) => {
   for (const event of Object.keys(indexingService.eventCount)) {
     const metricLabel = {
@@ -347,11 +287,7 @@ const updateCompletedEvents = (indexingService: Service) => {
 const executeSetup = async (
   indexingService: Service,
   { event }: { event: SetupEvent },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   const {
     common,
     indexingFunctions,
@@ -382,8 +318,11 @@ const executeSetup = async (
       endClock(),
     );
   } catch (_error) {
-    if (indexingService.isKilled) return { status: "killed" };
     const error = _error instanceof Error ? _error : new Error(String(_error));
+
+    if (common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
 
     addStackTrace(error, common.options);
     addErrorMeta(error, toErrorMeta(event));
@@ -406,11 +345,7 @@ const executeSetup = async (
 const executeEvent = async (
   indexingService: Service,
   { event }: { event: Event },
-): Promise<
-  | { status: "error"; error: Error }
-  | { status: "success" }
-  | { status: "killed" }
-> => {
+): Promise<{ status: "error"; error: Error } | { status: "success" }> => {
   const {
     common,
     indexingFunctions,
@@ -442,8 +377,11 @@ const executeEvent = async (
       endClock(),
     );
   } catch (_error) {
-    if (indexingService.isKilled) return { status: "killed" };
     const error = _error instanceof Error ? _error : new Error(String(_error));
+
+    if (common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
 
     addStackTrace(error, common.options);
     addErrorMeta(error, toErrorMeta(event));

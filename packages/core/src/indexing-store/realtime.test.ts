@@ -1,4 +1,5 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -17,6 +18,7 @@ import { createRealtimeIndexingStore } from "./realtime.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("find", async (context) => {
   const schema = {
@@ -26,7 +28,7 @@ test("find", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -55,8 +57,6 @@ test("find", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("insert", async (context) => {
@@ -67,7 +67,7 @@ test("insert", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -203,8 +203,6 @@ test("insert", async (context) => {
     address: "0x0000000000000000000000000000000000000001",
     balance: 32n,
   });
-
-  await cleanup();
 });
 
 test("update", async (context) => {
@@ -215,7 +213,7 @@ test("update", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -270,8 +268,6 @@ test("update", async (context) => {
     address: zeroAddress,
     balance: 22n,
   });
-
-  await cleanup();
 });
 
 test("delete", async (context) => {
@@ -282,7 +278,7 @@ test("delete", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -317,8 +313,6 @@ test("delete", async (context) => {
   });
 
   expect(result).toBe(null);
-
-  await cleanup();
 });
 
 test("sql", async (context) => {
@@ -329,7 +323,7 @@ test("sql", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -386,12 +380,10 @@ test("sql", async (context) => {
     .catch((error) => error);
 
   expect(error).instanceOf(UniqueConstraintError);
-
-  await cleanup();
 });
 
 test("onchain table", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: pgTable("account", (p) => ({
@@ -414,8 +406,6 @@ test("onchain table", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("missing rows", async (context) => {
@@ -426,7 +416,7 @@ test("missing rows", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -445,8 +435,6 @@ test("missing rows", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("notNull", async (context) => {
@@ -456,7 +444,7 @@ test("notNull", async (context) => {
       balance: p.bigint(),
     })),
   };
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -505,8 +493,6 @@ test("notNull", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("default", async (context) => {
@@ -517,7 +503,7 @@ test("default", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -534,8 +520,6 @@ test("default", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("$default", async (context) => {
@@ -546,7 +530,7 @@ test("$default", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -563,8 +547,6 @@ test("$default", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("$onUpdateFn", async (context) => {
@@ -578,7 +560,7 @@ test("$onUpdateFn", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -599,8 +581,6 @@ test("$onUpdateFn", async (context) => {
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
   // update
-
-  await cleanup();
 });
 
 test("array", async (context) => {
@@ -611,7 +591,7 @@ test("array", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -638,8 +618,6 @@ test("array", async (context) => {
   });
 
   // TODO(kyle) fixed size
-
-  await cleanup();
 });
 
 test("enum", async (context) => {
@@ -652,7 +630,7 @@ test("enum", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -677,8 +655,6 @@ test("enum", async (context) => {
   });
 
   // TODO(kyle) error
-
-  await cleanup();
 });
 
 test("json bigint", async (context) => {
@@ -689,7 +665,7 @@ test("json bigint", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -710,8 +686,6 @@ test("json bigint", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeInstanceOf(BigIntSerializationError);
-
-  await cleanup();
 });
 
 const BIGINT_MAX = 2n ** 256n - 1n;
@@ -727,7 +701,7 @@ test("bigint array", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -750,6 +724,4 @@ test("bigint array", async (context) => {
     address: zeroAddress,
     balances: [1n, BIGINT_LARGE, BIGINT_MAX],
   });
-
-  await cleanup();
 });

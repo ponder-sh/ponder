@@ -10,6 +10,7 @@ import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   DatabaseConfig,
@@ -42,13 +43,13 @@ export function setupCommon(context: TestContext) {
   const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
   const logger = createLogger({ level: cliOptions.logLevel });
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  context.common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  context.common = { options, logger, metrics, telemetry, shutdown };
+}
 
-  return async () => {
-    await telemetry.kill();
-    await logger.kill();
-  };
+export function setupCleanup(context: TestContext) {
+  return context.common.shutdown.kill;
 }
 
 const pgliteInstances = new Map<number, PGlite>();
@@ -184,7 +185,6 @@ export async function setupDatabaseServices(
   syncStore: SyncStore;
   indexingStore: IndexingStore<"realtime">;
   metadataStore: MetadataStore;
-  cleanup: () => Promise<void>;
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
@@ -221,16 +221,11 @@ export async function setupDatabaseServices(
 
   const metadataStore = getMetadataStore({ database });
 
-  const cleanup = async () => {
-    await database.kill();
-  };
-
   return {
     database,
     indexingStore,
     syncStore,
     metadataStore,
-    cleanup,
   };
 }
 

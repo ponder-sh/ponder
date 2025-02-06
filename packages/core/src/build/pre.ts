@@ -18,6 +18,7 @@ export function buildPre({
   options: Pick<Options, "rootDir" | "ponderDir">;
 }): {
   databaseConfig: DatabaseConfig;
+  ordering: NonNullable<Config["ordering"]>;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
 } {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
@@ -112,6 +113,7 @@ export function buildPre({
   return {
     databaseConfig,
     logs,
+    ordering: config.ordering ?? "omnichain",
   };
 }
 
@@ -131,6 +133,7 @@ export function safeBuildPre({
     return {
       status: "success",
       databaseConfig: result.databaseConfig,
+      ordering: result.ordering,
       logs: result.logs,
     } as const;
   } catch (_error) {
