@@ -151,21 +151,21 @@ export const createDatabase = async ({
           : preBuild.databaseConfig.instance,
     };
 
-    if (dialect === "pglite") {
-      common.shutdown.add(async () => {
-        clearInterval(heartbeatInterval);
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
 
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
-          })
-          .execute();
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
 
+      if (dialect === "pglite") {
         (driver as PGliteDriver).instance.close();
-      });
-    }
+      }
+    });
 
     const kyselyDialect = createPgliteKyselyDialect(driver.instance);
 
