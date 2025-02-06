@@ -374,7 +374,7 @@ export const createBuild = async ({
         status: "success",
         result: {
           databaseConfig: preBuild.databaseConfig,
-          mode: preBuild.mode,
+          ordering: preBuild.ordering,
         },
       } as const;
     },

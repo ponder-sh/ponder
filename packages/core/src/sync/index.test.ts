@@ -1008,7 +1008,7 @@ test("createSync()", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   expect(sync).toBeDefined();
@@ -1040,7 +1040,7 @@ test("getEvents() multichain", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
@@ -1077,7 +1077,7 @@ test("getEvents() omnichain", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "omnichain",
+    ordering: "omnichain",
   });
 
   const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
@@ -1115,7 +1115,7 @@ test("getEvents() mulitchain updates status", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -1153,7 +1153,7 @@ test("getEvents() omnichain updates status", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -1191,7 +1191,7 @@ test("getEvents() with initial checkpoint", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: MAX_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
@@ -1228,7 +1228,7 @@ test.skip("startRealtime()", async (context) => {
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -1273,7 +1273,7 @@ test("onEvent() multichain handles block", async (context) => {
     },
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await drainAsyncGenerator(sync.getEvents());
@@ -1328,7 +1328,7 @@ test("onEvent() omnichain handles block", async (context) => {
     },
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "omnichain",
+    ordering: "omnichain",
   });
 
   await testClient.mine({ blocks: 1 });
@@ -1374,7 +1374,7 @@ test("onEvent() handles finalize", async (context) => {
     },
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await testClient.mine({ blocks: 4 });
@@ -1425,7 +1425,7 @@ test("onEvent() kills realtime when finalized", async (context) => {
     },
     onFatalError: () => {},
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await testClient.mine({ blocks: 4 });
@@ -1469,7 +1469,7 @@ test("onEvent() handles errors", async (context) => {
       promise.resolve();
     },
     initialCheckpoint: ZERO_CHECKPOINT_STRING,
-    mode: "multichain",
+    ordering: "multichain",
   });
 
   await testClient.mine({ blocks: 4 });

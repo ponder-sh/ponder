@@ -218,7 +218,7 @@ export const createSync = async (params: {
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
   initialCheckpoint: string;
-  mode: "omnichain" | "multichain";
+  ordering: "omnichain" | "multichain";
 }): Promise<Sync> => {
   const perNetworkSync = new Map<
     Network,
@@ -354,12 +354,12 @@ export const createSync = async (params: {
     );
 
     const mergeAsync =
-      params.mode === "multichain"
+      params.ordering === "multichain"
         ? mergeAsyncGenerators
         : mergeAsyncGeneratorsWithEventOrder;
 
     for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
-      if (params.mode === "multichain") {
+      if (params.ordering === "multichain") {
         const network = params.indexingBuild.networks.find(
           (network) =>
             network.chainId === Number(decodeCheckpoint(checkpoint).chainId),
@@ -391,12 +391,12 @@ export const createSync = async (params: {
   const realtimeMutex = createMutex();
 
   const checkpoints = {
-    // Note: `checkpoints.current` not used in multichain mode
+    // Note: `checkpoints.current` not used in multichain ordering
     current: ZERO_CHECKPOINT_STRING,
     finalized: ZERO_CHECKPOINT_STRING,
   };
 
-  // Note: `latencyTimers` not used in multichain mode
+  // Note: `latencyTimers` not used in multichain ordering
   const latencyTimers = new Map<string, () => number>();
 
   const onRealtimeSyncEvent = (
@@ -426,8 +426,8 @@ export const createSync = async (params: {
           msg: `Extracted ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
         });
 
-        if (params.mode === "multichain") {
-          // Note: `checkpoints.current` not used in multichain mode
+        if (params.ordering === "multichain") {
+          // Note: `checkpoints.current` not used in multichain ordering
           const checkpoint = getMultichainCheckpoint({
             tag: "current",
             network,
@@ -541,7 +541,7 @@ export const createSync = async (params: {
         const to = getOmnichainCheckpoint({ tag: "finalized" })!;
 
         if (
-          params.mode === "omnichain" &&
+          params.ordering === "omnichain" &&
           getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
             getOmnichainCheckpoint({ tag: "current" })!
         ) {
@@ -595,8 +595,8 @@ export const createSync = async (params: {
           msg: `Removed ${reorgedEvents} reorged '${network.name}' events`,
         });
 
-        if (params.mode === "multichain") {
-          // Note: `checkpoints.current` not used in multichain mode
+        if (params.ordering === "multichain") {
+          // Note: `checkpoints.current` not used in multichain ordering
           const checkpoint = getMultichainCheckpoint({
             tag: "current",
             network,
@@ -765,7 +765,7 @@ export const createSync = async (params: {
     status[network.name] = { block: null, ready: false };
   }
 
-  if (params.mode === "multichain") {
+  if (params.ordering === "multichain") {
     for (const network of params.indexingBuild.networks) {
       seconds[network.name] = {
         start: decodeCheckpoint(

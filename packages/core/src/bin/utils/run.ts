@@ -69,7 +69,7 @@ export async function run({
     },
     onFatalError,
     initialCheckpoint,
-    mode: preBuild.mode,
+    ordering: preBuild.ordering,
   });
 
   const indexingService = createIndexingService({
@@ -160,7 +160,7 @@ export async function run({
           eventChunk[eventChunk.length - 1]!.checkpoint,
         );
 
-        if (preBuild.mode === "multichain") {
+        if (preBuild.ordering === "multichain") {
           const network = indexingBuild.networks.find(
             (network) => network.chainId === Number(checkpoint.chainId),
           )!;
@@ -341,7 +341,7 @@ export async function run({
             // Set reorg table `checkpoint` column for newly inserted rows.
             await database.complete({ checkpoint });
 
-            if (preBuild.mode === "multichain") {
+            if (preBuild.ordering === "multichain") {
               const network = indexingBuild.networks.find(
                 (network) =>
                   network.chainId ===
