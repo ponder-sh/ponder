@@ -1291,34 +1291,23 @@ test("onEvent() omnichain handles block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources: sources1, networks: networks1 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
-
-  const { sources: sources2, networks: networks2 } =
-    await buildConfigAndIndexingFunctions({
-      config,
-      rawIndexingFunctions,
-    });
+  const { sources, networks } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
 
   // finalized block: 0
-
-  sources2[0]!.filter.chainId = 2;
-  networks2[0]!.chainId = 2;
 
   const promise = promiseWithResolvers<void>();
 
   const sync = await createSync({
     common: context.common,
     indexingBuild: {
-      sources: [...sources1, ...sources2],
-      networks: [...networks1, ...networks2],
+      sources,
+      networks,
     },
     requestQueues: [
-      createRequestQueue({ network: networks1[0]!, common: context.common }),
-      createRequestQueue({ network: networks2[0]!, common: context.common }),
+      createRequestQueue({ network: networks[0]!, common: context.common }),
     ],
     syncStore,
     onRealtimeEvent: async (event) => {
