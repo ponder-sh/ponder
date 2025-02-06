@@ -26,6 +26,37 @@ export default createConfig({
 
 By default, `ponder dev` and `start` look for `ponder.config.ts` in the current working directory. Use the `--config-file` CLI option to specify a different path.
 
+## Event ordering
+
+The `ordering` field specifies how events across multiple chains should be ordered. For single-chain apps, `ordering` has no effect.
+
+| field        |             type              |                                                      |
+| :----------- | :---------------------------: | :--------------------------------------------------- |
+| **ordering** | `"omnichain" \| "multichain"` | **Default:** `"omnichain"`. Event ordering strategy. |
+
+{/* prettier-ignore */}
+```ts filename="ponder.config.ts" {4}
+import { createConfig } from "ponder";
+
+export default createConfig({
+  ordering: "multichain",
+  networks: { /* ... */ },
+  // ... more config
+});
+```
+
+### Guarantees
+
+The omnichain and multichain ordering strategies offer different guarantees. Multichain ordering is generally faster, but will fail or produce a non-deterministic database state if your indexing logic attempts to access the same database row(s) from multiple chains.
+
+|                                      | Omnichain (default)                                                         | Multichain                                                 |
+| :----------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------- |
+| Event order for any individual chain | Deterministic, by EVM execution                                             | Deterministic, by EVM execution                            |
+| Event order across chains            | Deterministic, by (block timestamp, chain ID, block number)                 | Non-deterministic, no ordering guarantee                   |
+| Realtime indexing latency            | Medium-high, must wait for the slowest chain to maintain ordering guarantee | Low, each chain indexes blocks as soon as they arrive      |
+| Indexing logic constraints           | None                                                                        | Must avoid cross-chain writes **or** use commutative logic |
+| Use cases                            | Bridges, cross-chain contract calls, global constraints                     | Same protocol deployed to multiple chains                  |
+
 ## Networks
 
 The `networks` field is an object where each key is a network name containing that network's configuration. Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundry's local Anvil node.
