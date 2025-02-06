@@ -10,11 +10,7 @@ export function createUi({ common }: { common: Common }) {
   const ui = buildUiState();
   const { render, unmount } = setupInkApp(ui);
 
-  let isKilled = false;
-
   const renderInterval = setInterval(async () => {
-    if (isKilled) return;
-
     ui.sync = await getSyncProgress(common.metrics);
     ui.indexing = await getIndexingProgress(common.metrics);
     ui.app = await getAppProgress(common.metrics);
@@ -26,13 +22,8 @@ export function createUi({ common }: { common: Common }) {
     render(ui);
   }, 100);
 
-  const kill = () => {
-    isKilled = true;
+  common.shutdown.add(async () => {
     clearInterval(renderInterval);
     unmount();
-  };
-
-  return {
-    kill,
-  };
+  });
 }

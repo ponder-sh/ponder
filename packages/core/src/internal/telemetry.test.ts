@@ -7,6 +7,7 @@ import { rimrafSync } from "rimraf";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Common } from "./common.js";
 import { createLogger } from "./logger.js";
+import { createShutdown } from "./shutdown.js";
 
 const fetchSpy = vi.fn();
 
@@ -38,9 +39,11 @@ beforeEach((context) => {
 });
 
 test("telemetry calls fetch with event body", async (context) => {
+  const shutdown = createShutdown();
   const telemetry = createTelemetry({
     options: context.common.options,
     logger: context.common.logger,
+    shutdown,
   });
 
   telemetry.record({
@@ -49,7 +52,7 @@ test("telemetry calls fetch with event body", async (context) => {
   });
 
   await telemetry.flush();
-  await telemetry.kill();
+  await shutdown.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(1);
 
@@ -65,9 +68,11 @@ test("telemetry calls fetch with event body", async (context) => {
 });
 
 test("telemetry does not submit events if telemetry is disabled", async (context) => {
+  const shutdown = createShutdown();
   const telemetry = createTelemetry({
     options: { ...context.common.options, telemetryDisabled: true },
     logger: context.common.logger,
+    shutdown,
   });
 
   telemetry.record({
@@ -80,15 +85,17 @@ test("telemetry does not submit events if telemetry is disabled", async (context
   });
 
   await telemetry.flush();
-  await telemetry.kill();
+  await shutdown.kill();
 
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
 test("telemetry throws if event is submitted after kill", async (context) => {
+  const shutdown = createShutdown();
   const telemetry = createTelemetry({
     options: context.common.options,
     logger: context.common.logger,
+    shutdown,
   });
 
   for (let i = 0; i < 5; i++) {
@@ -99,7 +106,7 @@ test("telemetry throws if event is submitted after kill", async (context) => {
   }
 
   await telemetry.flush();
-  await telemetry.kill();
+  await shutdown.kill();
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
 
@@ -111,32 +118,4 @@ test("telemetry throws if event is submitted after kill", async (context) => {
   await telemetry.flush();
 
   expect(fetchSpy).toHaveBeenCalledTimes(5);
-});
-
-test("kill resolves within 1 second even with slow events", async (context) => {
-  const telemetry = createTelemetry({
-    options: context.common.options,
-    logger: context.common.logger,
-  });
-
-  // Mock fetch to simulate a slow request
-  fetchSpy.mockImplementation(
-    () => new Promise((resolve) => setTimeout(resolve, 5000)),
-  );
-
-  // Record an event that will trigger the slow fetch
-  telemetry.record({
-    name: "lifecycle:heartbeat_send",
-    properties: { duration_seconds: process.uptime() },
-  });
-
-  const startTime = Date.now();
-  await telemetry.kill();
-  const endTime = Date.now();
-
-  const killDuration = endTime - startTime;
-  expect(killDuration).toBeLessThan(1100); // Allow a small buffer for execution time
-
-  // Ensure that fetch was called, but not completed
-  expect(fetchSpy).toHaveBeenCalledTimes(1);
 });

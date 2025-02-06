@@ -5,15 +5,16 @@ import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import type { IndexingBuild } from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { type Result, mergeResults } from "@/utils/result.js";
 import { createQueue } from "@ponder/common";
 import type { CliOptions } from "../ponder.js";
+import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
-import { setupShutdown } from "../utils/shutdown.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -31,7 +32,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    await logger.kill();
     process.exit(1);
   }
 
@@ -49,29 +49,25 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
+  let indexingShutdown = createShutdown();
+  let apiShutdown = createShutdown();
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry };
 
-  const build = await createBuild({ common, cliOptions });
+  const build = await createBuild({
+    common: { ...common, shutdown },
+    cliOptions,
+  });
 
-  const ui = createUi({ common });
+  shutdown.add(async () => {
+    await indexingShutdown.kill();
+    await apiShutdown.kill();
+  });
 
-  let indexingCleanupReloadable = () => Promise.resolve();
-  let apiCleanupReloadable = () => Promise.resolve();
+  createUi({ common: { ...common, shutdown } });
 
-  const cleanup = async () => {
-    await indexingCleanupReloadable();
-    await apiCleanupReloadable();
-
-    if (database) {
-      await database.kill();
-    }
-    await build.kill();
-    await telemetry.kill();
-    ui.kill();
-  };
-
-  const shutdown = setupShutdown({ common, cleanup });
+  const exit = createExit({ common: { ...common, shutdown } });
 
   let isInitialBuild = true;
 
@@ -80,26 +76,20 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     concurrency: 1,
     worker: async (result: Result<never> & { kind: "indexing" | "api" }) => {
       if (result.kind === "indexing") {
-        await indexingCleanupReloadable();
+        await indexingShutdown.kill();
+        indexingShutdown = createShutdown();
       }
-      await apiCleanupReloadable();
+      await apiShutdown.kill();
+      apiShutdown = createShutdown();
 
       if (result.status === "error") {
         // This handles indexing function build failures on hot reload.
         metrics.ponder_indexing_has_error.set(1);
-        if (result.kind === "indexing") {
-          indexingCleanupReloadable = () => Promise.resolve();
-        }
-        apiCleanupReloadable = () => Promise.resolve();
         return;
       }
 
       if (result.kind === "indexing") {
         metrics.resetIndexingMetrics();
-
-        if (database) {
-          await database.kill();
-        }
 
         const configResult = await build.executeConfig();
         if (configResult.status === "error") {
@@ -164,7 +154,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         indexingBuild = indexingBuildResult.result;
 
         database = await createDatabase({
-          common,
+          common: { ...common, shutdown: indexingShutdown },
           namespace,
           preBuild,
           schemaBuild,
@@ -215,19 +205,20 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         metrics.resetApiMetrics();
 
-        apiCleanupReloadable = await runServer({
-          common,
+        runServer({
+          common: { ...common, shutdown: apiShutdown },
           database,
           apiBuild: apiBuildResult.result,
         });
 
-        indexingCleanupReloadable = await run({
-          common,
+        run({
+          common: { ...common, shutdown: indexingShutdown },
           database,
+          preBuild,
           schemaBuild,
           indexingBuild: indexingBuildResult.result,
           onFatalError: () => {
-            shutdown({ reason: "Received fatal error", code: 1 });
+            exit({ reason: "Received fatal error", code: 1 });
           },
           onReloadableError: (error) => {
             buildQueue.clear();
@@ -264,8 +255,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const apiBuild = buildResult.result;
 
-        apiCleanupReloadable = await runServer({
-          common,
+        runServer({
+          common: { ...common, shutdown: apiShutdown },
           database: database!,
           apiBuild,
         });
@@ -288,8 +279,5 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   buildQueue.add({ status: "success", kind: "indexing" });
 
-  return async () => {
-    buildQueue.pause();
-    await cleanup();
-  };
+  return shutdown.kill;
 }

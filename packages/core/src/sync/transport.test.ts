@@ -1,6 +1,7 @@
 import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -16,6 +17,7 @@ import { cachedTransport } from "./transport.js";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("default", async (context) => {
   const network = getNetwork();
@@ -24,7 +26,7 @@ test("default", async (context) => {
     common: context.common,
   });
 
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const transport = cachedTransport({
     requestQueue,
@@ -48,8 +50,6 @@ test("default", async (context) => {
       "value": undefined,
     }
   `);
-
-  await cleanup();
 });
 
 test("request() block dependent method", async (context) => {
@@ -59,7 +59,7 @@ test("request() block dependent method", async (context) => {
     common: context.common,
   });
 
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const transport = cachedTransport({
@@ -88,8 +88,6 @@ test("request() block dependent method", async (context) => {
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(1);
-
-  await cleanup();
 });
 
 test("request() non-block dependent method", async (context) => {
@@ -107,7 +105,7 @@ test("request() non-block dependent method", async (context) => {
     sender: ALICE,
   });
 
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
   const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
@@ -137,8 +135,6 @@ test("request() non-block dependent method", async (context) => {
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(1);
-
-  await cleanup();
 });
 
 test("request() non-cached method", async (context) => {
@@ -148,7 +144,7 @@ test("request() non-cached method", async (context) => {
     common: context.common,
   });
 
-  const { syncStore, cleanup } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
   const transport = cachedTransport({
     requestQueue,
     syncStore,
@@ -163,6 +159,4 @@ test("request() non-cached method", async (context) => {
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(0);
-
-  await cleanup();
 });

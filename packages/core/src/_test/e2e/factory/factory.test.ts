@@ -39,7 +39,7 @@ test(
     const port = await getFreePort();
     const client = createClient(`http://localhost:${port}/sql`, { schema });
 
-    const cleanup = await start({
+    const shutdown = await start({
       cliOptions: {
         ...cliOptions,
         command: "start",
@@ -94,7 +94,7 @@ test(
 
     expect(result).toHaveLength(2);
 
-    await cleanup();
+    await shutdown!();
   },
   { timeout: 15_000 },
 );

@@ -1,4 +1,5 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -9,7 +10,6 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import { encodeCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
@@ -18,9 +18,10 @@ import { createHistoricalIndexingStore } from "./historical.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("find", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -33,7 +34,7 @@ test("find", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     database,
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // empty
@@ -55,12 +56,10 @@ test("find", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("insert", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -73,7 +72,7 @@ test("insert", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // single
@@ -202,12 +201,10 @@ test("insert", async (context) => {
     address: "0x0000000000000000000000000000000000000001",
     balance: 32n,
   });
-
-  await cleanup();
 });
 
 test("update", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -220,7 +217,7 @@ test("update", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // setup
@@ -268,12 +265,10 @@ test("update", async (context) => {
     address: zeroAddress,
     balance: 22n,
   });
-
-  await cleanup();
 });
 
 test("delete", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -286,7 +281,7 @@ test("delete", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // no entry
@@ -314,8 +309,6 @@ test("delete", async (context) => {
   });
 
   expect(result).toBe(null);
-
-  await cleanup();
 });
 
 test("flush", async (context) => {
@@ -326,7 +319,7 @@ test("flush", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -334,7 +327,7 @@ test("flush", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // insert
@@ -371,8 +364,6 @@ test("flush", async (context) => {
     address: zeroAddress,
     balance: 12n,
   });
-
-  await cleanup();
 });
 
 test("sql", async (context) => {
@@ -383,7 +374,7 @@ test("sql", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -391,7 +382,7 @@ test("sql", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // setup
@@ -449,8 +440,6 @@ test("sql", async (context) => {
     .catch((error) => error);
 
   expect(error).instanceOf(UniqueConstraintError);
-
-  await cleanup();
 });
 
 test("sql followed by find", async (context) => {
@@ -461,7 +450,7 @@ test("sql followed by find", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -469,7 +458,7 @@ test("sql followed by find", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   await indexingStore.sql
@@ -484,12 +473,10 @@ test("sql followed by find", async (context) => {
     address: zeroAddress,
     balance: 10n,
   });
-
-  await cleanup();
 });
 
 test("onchain table", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: pgTable("account", (p) => ({
@@ -502,7 +489,7 @@ test("onchain table", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // check error
@@ -513,12 +500,10 @@ test("onchain table", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("missing rows", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -531,7 +516,7 @@ test("missing rows", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // error
@@ -543,12 +528,10 @@ test("missing rows", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("notNull", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   let schema = {
     account: onchainTable("account", (p) => ({
@@ -561,7 +544,7 @@ test("notNull", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // insert
@@ -588,7 +571,7 @@ test("notNull", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   let error = await indexingStore
@@ -604,12 +587,10 @@ test("notNull", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("default", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -622,7 +603,7 @@ test("default", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -632,12 +613,10 @@ test("default", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 0 });
-
-  await cleanup();
 });
 
 test("$default", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -650,7 +629,7 @@ test("$default", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -660,12 +639,10 @@ test("$default", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("$onUpdateFn", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -681,7 +658,7 @@ test("$onUpdateFn", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   // insert
@@ -695,12 +672,10 @@ test("$onUpdateFn", async (context) => {
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
   // update
-
-  await cleanup();
 });
 
 test("array", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   // dynamic size
 
@@ -715,7 +690,7 @@ test("array", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   await indexingStore.insert(schema.account).values({
@@ -733,12 +708,10 @@ test("array", async (context) => {
   });
 
   // TODO(kyle) fixed size
-
-  await cleanup();
 });
 
 test("enum", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const moodEnum = onchainEnum("mood", ["sad", "ok", "happy"]);
   const schema = {
@@ -753,7 +726,7 @@ test("enum", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   await indexingStore.insert(schema.account).values({
@@ -771,12 +744,10 @@ test("enum", async (context) => {
   });
 
   // TODO(kyle) error
-
-  await cleanup();
 });
 
 test("json bigint", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -789,7 +760,7 @@ test("json bigint", async (context) => {
     common: context.common,
     database,
     schemaBuild: { schema },
-    initialCheckpoint: encodeCheckpoint(zeroCheckpoint),
+    isDatabaseEmpty: true,
   });
 
   const error = await indexingStore
@@ -803,6 +774,4 @@ test("json bigint", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeInstanceOf(BigIntSerializationError);
-
-  await cleanup();
 });

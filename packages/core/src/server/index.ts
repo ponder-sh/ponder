@@ -13,7 +13,6 @@ import { onError } from "./error.js";
 
 export type Server = {
   hono: Hono;
-  kill: () => Promise<void>;
 };
 
 export async function createServer({
@@ -145,8 +144,7 @@ export async function createServer({
     gracefulTerminationTimeout: 1000,
   });
 
-  return {
-    hono,
-    kill: () => terminator.terminate(),
-  };
+  common.shutdown.add(() => terminator.terminate());
+
+  return { hono };
 }

@@ -4,6 +4,7 @@ import { http } from "viem";
 import { weth9Abi } from "./abis/weth9Abi";
 
 export default createConfig({
+  ordering: "multichain",
   networks: {
     mainnet: {
       chainId: 1,
