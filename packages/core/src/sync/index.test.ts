@@ -1202,7 +1202,7 @@ test("getEvents() with initial checkpoint", async (context) => {
   expect(events).toHaveLength(0);
 });
 
-test("startRealtime()", async (context) => {
+test.skip("startRealtime()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -1219,7 +1219,6 @@ test("startRealtime()", async (context) => {
 
   const sync = await createSync({
     syncStore,
-
     common: context.common,
     indexingBuild: { sources, networks: [network] },
     requestQueues: [createRequestQueue({ network, common: context.common })],

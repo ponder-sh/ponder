@@ -7,7 +7,6 @@ import {
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -246,13 +245,3 @@ export async function setupAnvil() {
     await testClient.revert({ id: emptySnapshotId });
   };
 }
-
-process.on("uncaughtException", (error: Error) => {
-  if (error instanceof ShutdownError) return;
-  throw error;
-});
-
-process.on("unhandledRejection", (error: Error) => {
-  if (error instanceof ShutdownError) return;
-  throw error;
-});
