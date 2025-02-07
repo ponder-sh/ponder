@@ -55,7 +55,7 @@ export type Database = {
   driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
   wrap: <T>(
-    options: { method: string; includeTraceLogs?: boolean },
+    options: { method: string; includeTraceLogs?: boolean; retry?: boolean },
     fn: () => Promise<T>,
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
@@ -401,7 +401,7 @@ export const createDatabase = async ({
             firstError = error;
           }
 
-          if (error instanceof NonRetryableError) {
+          if (error instanceof NonRetryableError || options.retry === false) {
             common.logger.warn({
               service: "database",
               msg: `Failed '${options.method}' database method (id=${id})`,
@@ -1151,7 +1151,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
     },
     async finalize({ checkpoint, db }) {
       await this.wrap(
-        { method: "finalize", includeTraceLogs: true },
+        { method: "finalize", includeTraceLogs: true, retry: false },
         async () => {
           await db
             .update(PONDER_META)

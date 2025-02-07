@@ -179,6 +179,7 @@ export async function run({
           break;
 
         case "finalize":
+          // TODO(kyle) not being retried
           await database.finalize({
             checkpoint: event.checkpoint,
             db: database.qb.drizzle,
@@ -344,10 +345,6 @@ export async function run({
               });
             }
 
-            // Persist the indexing store to the db if it is too full. The `finalized`
-            // checkpoint is used as a mutex. Any rows in the reorg table that may
-            // have been written because of raw sql access are deleted. Also must truncate
-            // the reorg tables that may have been written because of raw sql access.
             if (
               indexingCache.isInvalidated() ||
               (indexingCache.size > common.options.indexingCacheMaxBytes &&
@@ -368,6 +365,8 @@ export async function run({
                 service: "indexing",
                 msg: "Completed flush",
               });
+            } else {
+              // TODO(kyle) move spillover to cache
             }
           });
         } catch {

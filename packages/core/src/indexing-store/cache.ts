@@ -310,7 +310,10 @@ export const createIndexingCache = ({
 
       return database
         .wrap(
-          { method: `${getTableName(table) ?? "unknown"}.cache.find()` },
+          {
+            method: `${getTableName(table) ?? "unknown"}.cache.find()`,
+            retry: false,
+          },
           async () => {
             return db
               .select()
@@ -400,7 +403,7 @@ export const createIndexingCache = ({
             const values = insertValues.splice(0, batchSize);
 
             await database.wrap(
-              { method: `${getTableName(table)}.flush()` },
+              { method: `${getTableName(table)}.flush()`, retry: false },
               async () => {
                 await db
                   .insert(table)
@@ -440,6 +443,7 @@ export const createIndexingCache = ({
             await database.wrap(
               {
                 method: `${getTableName(table)}.flush()`,
+                retry: false,
               },
               async () => {
                 await db
