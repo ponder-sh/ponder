@@ -164,6 +164,19 @@ The optional `startBlock` and `endBlock` options specify the block range to inde
 
 If `endBlock` is defined, no events will be indexed after that block number. This option is useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
 
+## Block range
+
+The `startBlock` and `endBlock` options specify the block range that this interval should run in.
+
+| field          |               type                |                                                                 |
+| :------------- | :-------------------------------: | :-------------------------------------------------------------- |
+| **startBlock** | `number \| "latest" \| undefined` | **Default: `0`**. Block number or tag to start indexing.        |
+| **endBlock**   | `number \| "latest" \| undefined` | **Default: `undefined`**. Block number or tag to stop indexing. |
+
+The `"latest"{:ts}` option fetches the latest block during the build step and uses that block number. Use this option with `startBlock` to only index in realtime, or `endBlock` to only index historical data.
+
+When `endBlock` is `undefined{:ts}`, indexing will continue indefinitely in realtime. Set `endBlock` to index only a slice of history, or to enable faster feedback loops during development.
+
 ```ts filename="ponder.config.ts" {9}
 import { createConfig } from "ponder";
 import { http } from "viem";
