@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.4
+
+### Patch Changes
+
+- [#1485](https://github.com/ponder-sh/ponder/pull/1485) [`57eee3f9800674b2da71667749860d6d4e382632`](https://github.com/ponder-sh/ponder/commit/57eee3f9800674b2da71667749860d6d4e382632) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for the `"latest"` block tag as a `startBlock` or `endBlock` value in `ponder.config.ts`. This option fetches the latest block during the build step and uses that block number.
+
 ## 0.9.3
 
 ### Patch Changes
