@@ -1,46 +1,58 @@
-import { customType, PgCustomColumnBuilder } from "drizzle-orm/pg-core";
-import { type Hex, type ByteArray, hexToBytes, bytesToHex } from "viem";
+import {
+  type ColumnBaseConfig,
+  type ColumnBuilderBaseConfig,
+  type ColumnBuilderRuntimeConfig,
+  type MakeColumnConfig,
+  entityKind,
+} from "drizzle-orm";
+import {
+  type AnyPgTable,
+  PgColumn,
+  PgColumnBuilder,
+} from "drizzle-orm/pg-core";
 
-export type HexColumnMode = "hex" | "bytes";
-export type HexColumnConfig = {
-  mode?: HexColumnMode | undefined;
-};
+export type PgHexBuilderInitial<TName extends string> = PgHexBuilder<{
+  name: TName;
+  dataType: "string";
+  columnType: "PgHex";
+  data: `0x${string}`;
+  driverParam: string;
+  enumValues: undefined;
+  generated: undefined;
+}>;
 
-export type PgHexColumnBuilder<config extends HexColumnConfig> =
-  PgCustomColumnBuilder<{
-    name: string;
-    dataType: "custom";
-    columnType: "PgCustomColumn";
-    data: Hex;
-    driverParam: config["mode"] extends "bytes" ? ByteArray : Hex;
-    enumValues: undefined;
-  }>;
+export class PgHexBuilder<
+  T extends ColumnBuilderBaseConfig<"string", "PgHex">,
+> extends PgColumnBuilder<T> {
+  static readonly [entityKind]: string = "PgHexBuilder";
 
-export function hex<config extends HexColumnConfig>(
-  ...args: [name?: string, config?: config] | [config?: config]
-): PgHexColumnBuilder<config> {
-  const name = typeof args[0] === "string" ? (args.shift() as string) : "";
-  const config = args.shift() as config;
+  constructor(name: T["name"]) {
+    super(name, "string", "PgHex");
+  }
 
-  return customType<{
-    data: Hex;
-    driverData: config["mode"] extends "bytes" ? ByteArray : Hex;
-  }>({
-    dataType() {
-      return config?.mode === "bytes" ? "bytea" : "text";
-    },
-    toDriver(data: Hex): config["mode"] extends "bytes" ? ByteArray : Hex {
-      return (config?.mode === "bytes" ? hexToBytes(data) : data) as never;
-    },
-    fromDriver(
-      driverData: config["mode"] extends "bytes" ? ByteArray : Hex
-    ): Hex {
-      return config?.mode === "bytes"
-        ? bytesToHex(driverData as ByteArray)
-        : ((driverData as Hex).replace(
-            /^0x([0-9a-f](?:[0-9a-f]{2})*)$/i,
-            "0x0$1"
-          ) as Hex);
-    },
-  })(name ?? "");
+  /** @internal */
+  // @ts-ignore
+  override build<TTableName extends string>(
+    table: AnyPgTable<{ name: TTableName }>,
+  ): PgHex<MakeColumnConfig<T, TTableName>> {
+    return new PgHex<MakeColumnConfig<T, TTableName>>(
+      table,
+      this.config as ColumnBuilderRuntimeConfig<any, any>,
+    );
+  }
+}
+
+export class PgHex<
+  T extends ColumnBaseConfig<"string", "PgHex">,
+> extends PgColumn<T> {
+  static readonly [entityKind]: string = "PgHex";
+
+  getSQLType(): string {
+    return "text";
+  }
+
+  override mapToDriverValue(value: `0x${string}`) {
+    if (value.length % 2 === 0) return value.toLowerCase() as `0x${string}`;
+    return `0x0${value.slice(2)}`.toLowerCase() as `0x${string}`;
+  }
 }

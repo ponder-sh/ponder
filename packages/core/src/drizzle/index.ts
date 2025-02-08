@@ -30,15 +30,22 @@ import {
 } from "drizzle-orm/pg-core/columns/all";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
+import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 import { getColumnCasing } from "./kit/index.js";
-import { hex } from "./hex.js";
 
-export { hex };
+// @ts-ignore
+export function hex(): PgHexBuilderInitial<"">;
+export function hex<name extends string>(
+  columnName: name,
+): PgHexBuilderInitial<name>;
+export function hex(columnName?: string) {
+  return new PgHexBuilder(columnName ?? "");
+}
 
 // @ts-ignore
 export function bigint(): PgBigintBuilderInitial<"">;
 export function bigint<name extends string>(
-  columnName: name
+  columnName: name,
 ): PgBigintBuilderInitial<name>;
 export function bigint(columnName?: string) {
   return new PgBigintBuilder(columnName ?? "");
@@ -74,7 +81,7 @@ export const getTableNames = (schema: Schema) => {
 };
 
 export const getPrimaryKeyColumns = (
-  table: PgTable
+  table: PgTable,
 ): { sql: string; js: string }[] => {
   const primaryKeys = getTableConfig(table).primaryKeys;
 
@@ -95,7 +102,7 @@ export const getPrimaryKeyColumns = (
   }
 
   const pkColumn = Object.values(getTableColumns(table)).find(
-    (c) => c.primary
+    (c) => c.primary,
   )!;
 
   return [
@@ -118,10 +125,7 @@ export const primaryKey = <
 >({
   name,
   columns,
-}: {
-  name?: string;
-  columns: [column, ...columns];
-}) =>
+}: { name?: string; columns: [column, ...columns] }) =>
   drizzlePrimaryKey({ name, columns }) as PrimaryKeyBuilder<
     column[" name"] | columns[number][" name"]
   >;
@@ -204,7 +208,7 @@ export const onchainTable = <
 >(
   name: name,
   columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
-  extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra
+  extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
 ): OnchainTable<{
   name: name;
   schema: undefined;
@@ -227,10 +231,10 @@ export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 export interface OnchainEnum<TValues extends [string, ...string[]]> {
   (): PgEnumColumnBuilderInitial<"", TValues>;
   <TName extends string>(
-    name: TName
+    name: TName,
   ): PgEnumColumnBuilderInitial<TName, TValues>;
   <TName extends string>(
-    name?: TName
+    name?: TName,
   ): PgEnumColumnBuilderInitial<TName, TValues>;
 
   readonly enumName: string;
@@ -242,7 +246,7 @@ export interface OnchainEnum<TValues extends [string, ...string[]]> {
 
 export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
-  values: T | Writable<T>
+  values: T | Writable<T>,
 ): OnchainEnum<Writable<T>> & { [onchain]: true } => {
   const schema = process.env.PONDER_DATABASE_SCHEMA;
   const e = pgEnumWithSchema(enumName, values, schema);
@@ -268,7 +272,7 @@ function pgTableWithSchema<
     | ((self: BuildExtraConfigColumns<columns>) => PgTableExtraConfig)
     | undefined,
   schema: schema,
-  baseName = name
+  baseName = name,
 ): PgTableWithColumns<{
   name: name;
   schema: schema;
@@ -299,10 +303,10 @@ function pgTableWithSchema<
       // @ts-ignore
       rawTable[InlineForeignKeys].push(
         //@ts-ignore
-        ...colBuilder.buildForeignKeys(column, rawTable)
+        ...colBuilder.buildForeignKeys(column, rawTable),
       );
       return [name, column];
-    })
+    }),
   ) as unknown as BuildColumns<name, columns, "pg">;
 
   const builtColumnsForExtraConfig = Object.fromEntries(
@@ -313,7 +317,7 @@ function pgTableWithSchema<
       //@ts-ignore
       const column = colBuilder.buildExtraConfigColumn(rawTable);
       return [name, column];
-    })
+    }),
   ) as unknown as BuildExtraConfigColumns<columns>;
 
   const table = Object.assign(rawTable, builtColumns);
@@ -345,11 +349,11 @@ function pgTableWithSchema<
 function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
-  schema?: string
+  schema?: string,
 ): OnchainEnum<Writable<T>> {
   const enumInstance: OnchainEnum<Writable<T>> = Object.assign(
     <TName extends string>(
-      name?: TName
+      name?: TName,
     ): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
       new PgEnumColumnBuilder(name ?? ("" as TName), enumInstance),
     {
@@ -357,7 +361,7 @@ function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
       enumValues: values,
       schema,
       [isPgEnumSym]: true,
-    } as const
+    } as const,
   );
 
   return enumInstance;
