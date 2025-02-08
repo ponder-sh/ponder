@@ -30,16 +30,29 @@ import {
 } from "drizzle-orm/pg-core/columns/all";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
-import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
+import {
+  PgBytesBuilder,
+  type PgBytesBuilderInitial,
+  PgHexBuilder,
+  type PgHexBuilderInitial,
+} from "./hex.js";
 import { getColumnCasing } from "./kit/index.js";
 
-// @ts-ignore
-export function hex(): PgHexBuilderInitial<"">;
-export function hex<name extends string>(
-  columnName: name,
-): PgHexBuilderInitial<name>;
-export function hex(columnName?: string) {
-  return new PgHexBuilder(columnName ?? "");
+export type HexColumnMode = "hex" | "bytes";
+export type HexColumnConfig = {
+  mode?: HexColumnMode | undefined;
+};
+
+export function hex<config extends HexColumnConfig>(
+  ...args: [name?: string, config?: config] | [config?: config]
+): config["mode"] extends "bytes"
+  ? PgBytesBuilderInitial<string>
+  : PgHexBuilderInitial<string> {
+  const name = typeof args[0] === "string" ? (args.shift() as string) : "";
+  const config = args.shift() as config | undefined;
+  return (
+    config?.mode === "bytes" ? new PgBytesBuilder(name) : new PgHexBuilder(name)
+  ) as never;
 }
 
 // @ts-ignore
@@ -125,7 +138,10 @@ export const primaryKey = <
 >({
   name,
   columns,
-}: { name?: string; columns: [column, ...columns] }) =>
+}: {
+  name?: string;
+  columns: [column, ...columns];
+}) =>
   drizzlePrimaryKey({ name, columns }) as PrimaryKeyBuilder<
     column[" name"] | columns[number][" name"]
   >;

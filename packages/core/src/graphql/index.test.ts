@@ -79,6 +79,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       float: t.doublePrecision(),
       boolean: t.boolean(),
       hex: t.hex(),
+      bytes: t.hex({ mode: "bytes" }),
       bigint: t.bigint(),
 
       stringNotNull: t.text().notNull(),
@@ -86,6 +87,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       floatNotNull: t.doublePrecision().notNull(),
       booleanNotNull: t.boolean().notNull(),
       hexNotNull: t.hex().notNull(),
+      bytesNotNull: t.hex({ mode: "bytes" }).notNull(),
       bigintNotNull: t.bigint().notNull(),
 
       stringArray: t.text().array(),
@@ -117,6 +119,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     float: 0,
     boolean: false,
     hex: "0x0",
+    bytes: "0x",
     bigint: 0n,
 
     stringNotNull: "0",
@@ -124,6 +127,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     floatNotNull: 0,
     booleanNotNull: false,
     hexNotNull: "0x0",
+    bytesNotNull: "0x",
     bigintNotNull: 0n,
 
     stringArray: ["0"],
@@ -153,6 +157,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         float
         boolean
         hex
+        bytes
         bigint
 
         stringNotNull
@@ -160,6 +165,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         floatNotNull
         booleanNotNull
         hexNotNull
+        bytesNotNull
         bigintNotNull
 
         stringArray
@@ -189,6 +195,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       float: 0,
       boolean: false,
       hex: "0x00",
+      bytes: "0x",
       bigint: "0",
 
       stringNotNull: "0",
@@ -196,6 +203,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       floatNotNull: 0,
       booleanNotNull: false,
       hexNotNull: "0x00",
+      bytesNotNull: "0x",
       bigintNotNull: "0",
 
       stringArray: ["0"],
