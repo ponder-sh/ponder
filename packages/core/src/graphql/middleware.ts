@@ -1,10 +1,14 @@
+import { getMetadataStore } from "@/indexing-store/metadata.js";
+import type { Schema } from "@/internal/types.js";
+import type { ReadonlyDrizzle } from "@/types/db.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
-import { type YogaServerInstance, createYoga } from "graphql-yoga";
+import { type GraphQLSchema, printSchema } from "graphql";
+import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { buildDataLoaderCache } from "./index.js";
+import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**
  * Middleware for GraphQL with an interactive web view.
@@ -12,13 +16,20 @@ import { buildDataLoaderCache } from "./index.js";
  * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
  *
  * @example
- * import { ponder } from "ponder:registry";
- * import { graphql } from "ponder";
+ * import { db } from "ponder:api";
+ * import schema from "ponder:schema";
+ * import { graphql } from "@/index.js";
+ * import { Hono } from "hono";
  *
- * ponder.use("/graphql", graphql());
+ * const app = new Hono();
+ *
+ * app.use("/graphql", graphql({ db, schema }));
+ *
+ * export default app;
  *
  */
 export const graphql = (
+  { db, schema }: { db: ReadonlyDrizzle<Schema>; schema: Schema },
   {
     maxOperationTokens = 1000,
     maxOperationDepth = 100,
@@ -35,35 +46,36 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
-  let yoga: YogaServerInstance<any, any> | undefined = undefined;
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  generateSchema({ graphqlSchema }).catch(() => {});
+
+  const metadataStore = getMetadataStore({
+    database: globalThis.PONDER_DATABASE,
+  });
+
+  const yoga = createYoga({
+    graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
+    schema: graphqlSchema,
+    context: () => {
+      const getDataLoader = buildDataLoaderCache({ drizzle: db });
+
+      return { drizzle: db, metadataStore, getDataLoader };
+    },
+    maskedErrors: process.env.NODE_ENV === "production",
+    logging: false,
+    graphiql: false,
+    parserAndValidationCache: false,
+    plugins: [
+      maxTokensPlugin({ n: maxOperationTokens }),
+      maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
+      maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
+    ],
+  });
 
   return createMiddleware(async (c) => {
     if (c.req.method === "GET") {
       return c.html(graphiQLHtml(c.req.path));
-    }
-
-    if (yoga === undefined) {
-      const metadataStore = c.get("metadataStore");
-      const graphqlSchema = c.get("graphqlSchema");
-      const drizzle = c.get("db");
-
-      yoga = createYoga({
-        schema: graphqlSchema,
-        context: () => {
-          const getDataLoader = buildDataLoaderCache({ drizzle });
-          return { drizzle, metadataStore, getDataLoader };
-        },
-        graphqlEndpoint: c.req.path,
-        maskedErrors: process.env.NODE_ENV === "production",
-        logging: false,
-        graphiql: false,
-        parserAndValidationCache: false,
-        plugins: [
-          maxTokensPlugin({ n: maxOperationTokens }),
-          maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
-          maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
-        ],
-      });
     }
 
     const response = await yoga.handle(c.req.raw);
@@ -76,3 +88,22 @@ export const graphql = (
     return response;
   });
 };
+
+async function generateSchema({
+  graphqlSchema,
+}: { graphqlSchema: GraphQLSchema }) {
+  const fs = await import(/* webpackIgnore: true */ "node:fs");
+  const path = await import(/* webpackIgnore: true */ "node:path");
+
+  fs.mkdirSync(path.join(process.cwd(), "generated"), { recursive: true });
+  fs.writeFileSync(
+    path.join(process.cwd(), "generated", "schema.graphql"),
+    printSchema(graphqlSchema),
+    "utf-8",
+  );
+
+  // common.logger.debug({
+  //   service: "codegen",
+  //   msg: "Wrote new file at generated/schema.graphql",
+  // });
+}

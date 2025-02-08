@@ -1,25 +1,27 @@
-import type { Common } from "@/common/common.js";
-import type { Network } from "@/config/networks.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  BlockFilter,
+  Factory,
+  Filter,
+  FilterWithoutBlocks,
+  Fragment,
+  LogFactory,
+  LogFilter,
+  Network,
+  Source,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import {
+  isAddressFactory,
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-} from "@/sync-realtime/filter.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import { type Fragment, recoverFilter } from "@/sync/fragments.js";
-import {
-  type BlockFilter,
-  type Factory,
-  type Filter,
-  type FilterWithoutBlocks,
-  type LogFactory,
-  type LogFilter,
-  type TraceFilter,
-  type TransferFilter,
-  isAddressFactory,
-  shouldGetTransactionReceipt,
-} from "@/sync/source.js";
-import type { Source, TransactionFilter } from "@/sync/source.js";
+} from "@/sync/filter.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
+import { recoverFilter } from "@/sync/fragments.js";
 import type {
   SyncBlock,
   SyncLog,
@@ -59,7 +61,6 @@ export type HistoricalSync = {
    * that is synced.
    */
   sync(interval: Interval): Promise<SyncBlock | undefined>;
-  kill(): void;
 };
 
 type CreateHistoricalSyncParameters = {
@@ -74,7 +75,6 @@ type CreateHistoricalSyncParameters = {
 export const createHistoricalSync = async (
   args: CreateHistoricalSyncParameters,
 ): Promise<HistoricalSync> => {
-  let isKilled = false;
   /**
    * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
    */
@@ -432,8 +432,6 @@ export const createHistoricalSync = async (
       address: filter.address,
     });
 
-    if (isKilled) return;
-
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),
@@ -476,11 +474,7 @@ export const createHistoricalSync = async (
       ? await syncAddressFactory(filter.address, interval)
       : filter.address;
 
-    if (isKilled) return;
-
     const logs = await syncLogsDynamic({ filter, interval, address });
-
-    if (isKilled) return;
 
     const blocks = await Promise.all(
       logs.map((log) => syncBlock(hexToNumber(log.blockNumber))),
@@ -521,15 +515,11 @@ export const createHistoricalSync = async (
       transactionsCache.add(hash);
     }
 
-    if (isKilled) return;
-
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
       shouldUpdateCheckpoint: true,
       chainId: args.network.chainId,
     });
-
-    if (isKilled) return;
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
@@ -552,8 +542,6 @@ export const createHistoricalSync = async (
           return syncTransactionReceipts(blockHash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
-
-      if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
@@ -593,13 +581,9 @@ export const createHistoricalSync = async (
         )
       : undefined;
 
-    if (isKilled) return;
-
     const blocks = await Promise.all(
       intervalRange(interval).map((number) => syncBlock(number)),
     );
-
-    if (isKilled) return;
 
     const transactionHashes: Set<Hash> = new Set();
     const requiredBlocks: Set<SyncBlock> = new Set();
@@ -625,8 +609,6 @@ export const createHistoricalSync = async (
       transactionsCache.add(hash);
     }
 
-    if (isKilled) return;
-
     const transactionReceipts = await Promise.all(
       Array.from(requiredBlocks).map((block) => {
         const blockTransactionHashes = new Set(
@@ -637,8 +619,6 @@ export const createHistoricalSync = async (
         return syncTransactionReceipts(block.hash, blockTransactionHashes);
       }),
     ).then((receipts) => receipts.flat());
-
-    if (isKilled) return;
 
     await args.syncStore.insertTransactionReceipts({
       transactionReceipts,
@@ -713,14 +693,10 @@ export const createHistoricalSync = async (
       }),
     ).then((traces) => traces.flat());
 
-    if (isKilled) return;
-
     await args.syncStore.insertTraces({
       traces,
       chainId: args.network.chainId,
     });
-
-    if (isKilled) return;
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
@@ -733,8 +709,6 @@ export const createHistoricalSync = async (
           return syncTransactionReceipts(blockHash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
-
-      if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
@@ -856,13 +830,9 @@ export const createHistoricalSync = async (
             return;
           }
 
-          if (isKilled) return;
-
           await blockPromise;
         }),
       );
-
-      if (isKilled) return;
 
       const blocks = await Promise.all(blockCache.values());
 
@@ -881,8 +851,6 @@ export const createHistoricalSync = async (
         }),
       ]);
 
-      if (isKilled) return;
-
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
       if (args.network.disableCache === false) {
@@ -899,9 +867,6 @@ export const createHistoricalSync = async (
       transactionReceiptsCache.clear();
 
       return latestBlock;
-    },
-    kill() {
-      isKilled = true;
     },
   };
 };

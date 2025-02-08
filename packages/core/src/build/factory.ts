@@ -1,4 +1,4 @@
-import type { LogFactory } from "@/sync/source.js";
+import type { LogFactory } from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
 import { dedupe } from "@ponder/common";

@@ -1,18 +1,19 @@
 import { createBuild } from "@/build/index.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { createTelemetry } from "@/common/telemetry.js";
 import {
   type PonderApp,
   type PonderInternalSchema,
   createDatabase,
 } from "@/database/index.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
+import { createTelemetry } from "@/internal/telemetry.js";
 import { printTable } from "@/ui/Table.js";
 import { formatEta } from "@/utils/format.js";
 import { type SelectQueryBuilder, sql } from "kysely";
 import type { CliOptions } from "../ponder.js";
-import { setupShutdown } from "../utils/shutdown.js";
+import { createExit } from "../utils/exit.js";
 
 const emptySchemaBuild = {
   schema: {},
@@ -32,34 +33,31 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  const common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  const common = { options, logger, metrics, telemetry, shutdown };
 
-  const build = await createBuild({ common });
+  const build = await createBuild({ common, cliOptions });
 
-  const cleanup = async () => {
-    await build.kill();
-    await telemetry.kill();
-  };
+  const exit = createExit({ common });
 
-  const shutdown = setupShutdown({ common, cleanup });
-
-  const executeResult = await build.execute();
-
-  if (executeResult.configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
     return;
   }
 
-  const buildResult = build.preCompile(executeResult.configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed intial build", code: 1 });
     return;
   }
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common,
+    // Note: `namespace` is not used in this command
+    namespace: "public",
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });
@@ -135,7 +133,5 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
       })),
   });
 
-  await database.kill();
-
-  await shutdown({ reason: "Success", code: 0 });
+  await exit({ reason: "Success", code: 0 });
 }

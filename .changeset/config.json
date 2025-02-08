@@ -2,7 +2,15 @@
   "$schema": "https://unpkg.com/@changesets/config@2.3.0/schema.json",
   "changelog": ["@changesets/changelog-github", { "repo": "ponder-sh/ponder" }],
   "commit": false,
-  "fixed": [["ponder", "create-ponder", "eslint-config-ponder"]],
+  "fixed": [
+    [
+      "ponder",
+      "create-ponder",
+      "eslint-config-ponder",
+      "@ponder/client",
+      "@ponder/react"
+    ]
+  ],
   "ignore": [
     "@ponder/common",
     "ponder-examples-feature-accounts",
@@ -20,11 +28,18 @@
     "ponder-examples-reference-erc721",
     "ponder-examples-reference-erc1155",
     "ponder-examples-reference-erc4626",
+    "ponder-examples-with-client",
+    "ponder-examples-with-client-client",
+    "ponder-examples-with-client-ponder",
     "ponder-examples-with-foundry",
     "ponder-examples-with-foundry-ponder",
     "ponder-examples-with-foundry-foundry",
     "ponder-examples-with-nextjs",
+    "ponder-examples-with-nextjs-frontend",
     "ponder-examples-with-nextjs-ponder",
+    "ponder-examples-with-offchain",
+    "ponder-examples-with-offchain-offchain",
+    "ponder-examples-with-offchain-ponder",
     "ponder-examples-with-trpc",
     "ponder-examples-with-trpc-ponder",
     "ponder-examples-with-trpc-client"

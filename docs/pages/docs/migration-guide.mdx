@@ -7,6 +7,125 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 # Migration guide
 
+## 0.9
+
+### Breaking changes
+
+#### API function file is required
+
+The API function file `src/api/index.ts` is now required. The GraphQL API is no longer served by default.
+
+To achieve the same functionality as `<=0.8`, copy the following code into `src/api/index.ts`.
+
+```ts filename="src/api/index.ts"
+import { Hono } from "hono";
+import { graphql } from "ponder";
+
+const app = new Hono();
+
+app.use("/", graphql({ db, schema }));
+app.use("/graphql", graphql({ db, schema }));
+
+export default app;
+```
+
+#### Removed `ponder.get()`, `post()`, `use()`
+
+This release makes the API layer less opinionated. Just default export a normal Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
+
+The `ponder.get()`, `post()`, `use()` methods were removed. Now, use Hono's built-in routing system.
+
+<div className="code-columns">
+
+```ts filename="src/api/index.ts (<=0.8)"
+import { ponder } from "ponder:registry";
+
+ponder.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+```
+
+```ts filename="src/api/index.ts (0.9)"
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+
+export default app;
+```
+
+</div>
+
+#### Removed `c.db`
+
+The `c.db` object was removed from the Hono context. Now, use the `"ponder:api"` virtual module to access the readonly Drizzle database object.
+
+```ts filename="src/api/index.ts" {1,10}
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const account = await db
+    .select()
+    .from(schema.accounts)
+    .where(eq(schema.accounts.address, address))
+    .limit(1);
+
+  return c.json(account);
+});
+
+export default app;
+```
+
+### New features
+
+#### SQL client
+
+The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/query/client).
+
+#### `@ponder/react`
+
+The `@ponder/react` package uses Tanstack Query to
+
+#### `publicClients` in API functions
+
+API function files now have access to a new `"ponder:api"` virtual module. This module contains the `db` object and a new `publicClients` object, which contains a Viem [Public Client](https://viem.sh/docs/clients/public) for each network. These clients use the transports defined in `ponder.config.ts`.
+
+```ts filename="src/api/index.ts" {1,11}
+import { publicClients, db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/:chainId/:address", async (c) => {
+  const chainId = c.req.param("chainId");
+  const address = c.req.param("address");
+
+  const balance = await publicClients[chainId].getBalance({ address });
+
+  const account = await db.query.accounts.findFirst({
+    where: eq(schema.accounts.address, address),
+  });
+
+  return c.json({ balance, account });
+});
+
+export default app;
+```
+
+#### Event filters
+
+The `contracts.filter` property now supports multiple filters, and requires argument values. [Read more](/docs/contracts-and-networks#event-filter).
+
 ## 0.8
 
 <Callout type="warning">

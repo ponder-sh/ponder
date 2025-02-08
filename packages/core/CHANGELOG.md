@@ -1,5 +1,57 @@
 # ponder
 
+## 0.9.4
+
+### Patch Changes
+
+- [#1485](https://github.com/ponder-sh/ponder/pull/1485) [`57eee3f9800674b2da71667749860d6d4e382632`](https://github.com/ponder-sh/ponder/commit/57eee3f9800674b2da71667749860d6d4e382632) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for the `"latest"` block tag as a `startBlock` or `endBlock` value in `ponder.config.ts`. This option fetches the latest block during the build step and uses that block number.
+
+## 0.9.3
+
+### Patch Changes
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed metrics `ponder_indexing_total_seconds` and `ponder_indexing_completed_seconds`. Added metrics `ponder_historical_total_indexing_seconds`, `ponder_historical_cached_indexing_seconds`, and `ponder_historical_completed_indexing_seconds`. Renamed metric `ponder_indexing_completed_timestamp` to `ponder_indexing_timestamp`.
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved shutdown behavior and hot reload reliability.
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added debug and info-level logs to the realtime and historical sync to improve observability.
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a new optional `ordering` field to `ponder.config.ts`, which specifies how events across multiple chains should be ordered. The options are `"omnichain"` (default, current behavior) and `"multichain"` (new strategy, opt-in). [Read more](https://ponder.sh/docs/api-reference/config#event-ordering).
+
+## 0.9.2
+
+### Patch Changes
+
+- [#1479](https://github.com/ponder-sh/ponder/pull/1479) [`b7a6fcf1e74ec69404611a723adf6344b6d3614e`](https://github.com/ponder-sh/ponder/commit/b7a6fcf1e74ec69404611a723adf6344b6d3614e) Thanks [@typedarray](https://github.com/typedarray)! - Fixed peer dependency resolution issues with `kysely`.
+
+- [`3855a47dd4cb8199e7260969a57714a40c13c898`](https://github.com/ponder-sh/ponder/commit/3855a47dd4cb8199e7260969a57714a40c13c898) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where the process would crash with "crypto" is not defined on Node 18.
+
+- [#1482](https://github.com/ponder-sh/ponder/pull/1482) [`375e2935bf11f31aaa3825d257a7de5af4c08ae3`](https://github.com/ponder-sh/ponder/commit/375e2935bf11f31aaa3825d257a7de5af4c08ae3) Thanks [@shrugs](https://github.com/shrugs)! - Fixed a bug where `t.bigint().array()` column values greater than `Number.MAX_SAFE_INTEGER` would lose precision when using Postgres.
+
+## 0.9.1
+
+### Patch Changes
+
+- [#1473](https://github.com/ponder-sh/ponder/pull/1473) [`02756d0809ca57369c13e6988a3b275be70f3df9`](https://github.com/ponder-sh/ponder/commit/02756d0809ca57369c13e6988a3b275be70f3df9) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a Windows build error introduced in `0.9.0`.
+
+## 0.9.0
+
+### Minor Changes
+
+- [#1367](https://github.com/ponder-sh/ponder/pull/1367) [`68097b429752e429291b71e5d2722ee944b0915a`](https://github.com/ponder-sh/ponder/commit/68097b429752e429291b71e5d2722ee944b0915a) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.9`. Visit the [migration guide](https://ponder.sh/docs/migration-guide) for details.
+
+## 0.8.33
+
+### Patch Changes
+
+- [#1467](https://github.com/ponder-sh/ponder/pull/1467) [`32991725dd89cb1384f6de747c729b94bd0d4421`](https://github.com/ponder-sh/ponder/commit/32991725dd89cb1384f6de747c729b94bd0d4421) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improved rpc error retry logic.
+
+## 0.8.32
+
+### Patch Changes
+
+- [#1460](https://github.com/ponder-sh/ponder/pull/1460) [`e54f9b5ebf9595ce299d32d5389b9ac14ad1c852`](https://github.com/ponder-sh/ponder/commit/e54f9b5ebf9595ce299d32d5389b9ac14ad1c852) Thanks [@holic](https://github.com/holic)! - Improved logging for realtime sync errors.
+
 ## 0.8.31
 
 ### Patch Changes

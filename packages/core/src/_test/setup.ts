@@ -1,18 +1,23 @@
 import { buildSchema } from "@/build/schema.js";
-import type { Common } from "@/common/common.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { createTelemetry } from "@/common/telemetry.js";
-import type { DatabaseConfig } from "@/config/database.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import type { Schema } from "@/drizzle/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import {
   type MetadataStore,
   getMetadataStore,
 } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import type { Common } from "@/internal/common.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
+import { createTelemetry } from "@/internal/telemetry.js";
+import type {
+  DatabaseConfig,
+  IndexingBuild,
+  NamespaceBuild,
+  SchemaBuild,
+} from "@/internal/types.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -38,13 +43,13 @@ export function setupCommon(context: TestContext) {
   const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
   const logger = createLogger({ level: cliOptions.logLevel });
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  context.common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  context.common = { options, logger, metrics, telemetry, shutdown };
+}
 
-  return async () => {
-    await telemetry.kill();
-    await logger.kill();
-  };
+export function setupCleanup(context: TestContext) {
+  return context.common.shutdown.kill;
 }
 
 const pgliteInstances = new Map<number, PGlite>();
@@ -81,6 +86,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
       [databaseName],
     );
     await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    await client.query(`DROP ROLE IF EXISTS "ponder_${databaseName}_public"`);
     await client.query(`CREATE DATABASE "${databaseName}"`);
     await client.end();
 
@@ -167,75 +173,59 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-type DatabaseServiceSetup = {
-  buildId: string;
-  schema: Schema;
-  indexing: "realtime" | "historical";
-};
-const defaultDatabaseServiceSetup: DatabaseServiceSetup = {
-  buildId: "abc",
-  schema: {},
-  indexing: "historical",
-};
-
 export async function setupDatabaseServices(
   context: TestContext,
-  overrides: Partial<DatabaseServiceSetup> = {},
+  overrides: Partial<{
+    namespaceBuild: NamespaceBuild;
+    schemaBuild: Partial<SchemaBuild>;
+    indexingBuild: Partial<IndexingBuild>;
+  }> = {},
 ): Promise<{
   database: Database;
   syncStore: SyncStore;
   indexingStore: IndexingStore<"realtime">;
   metadataStore: MetadataStore;
-  cleanup: () => Promise<void>;
 }> {
-  const config = { ...defaultDatabaseServiceSetup, ...overrides };
-
   const { statements } = buildSchema({
-    schema: config.schema,
+    schema: overrides.schemaBuild?.schema ?? {},
   });
 
-  const database = createDatabase({
+  const database = await createDatabase({
     common: context.common,
+    namespace: overrides.namespaceBuild ?? "public",
     preBuild: {
       databaseConfig: context.databaseConfig,
-      namespace: "public",
     },
     schemaBuild: {
-      schema: config.schema,
+      schema: overrides.schemaBuild?.schema ?? {},
       statements,
     },
   });
 
-  await database.setup({ buildId: config.buildId });
+  await database.migrate({
+    buildId: overrides.indexingBuild?.buildId ?? "abc",
+  });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
     throw err;
   });
 
-  const syncStore = createSyncStore({
-    common: context.common,
-    db: database.qb.sync,
-  });
+  const syncStore = createSyncStore({ common: context.common, database });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
     database,
-    schema: config.schema,
   });
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.readonly,
-  });
-
-  const cleanup = () => database.kill();
+  const metadataStore = getMetadataStore({ database });
 
   return {
     database,
     indexingStore,
     syncStore,
     metadataStore,
-    cleanup,
   };
 }
 

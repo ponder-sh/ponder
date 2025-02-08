@@ -1,10 +1,9 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { buildGraphQLSchema } from "@/graphql/index.js";
-import type { Context } from "@/hono/context.js";
 import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -12,130 +11,122 @@ import { createServer } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
-
-test("port", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
-
-  const server1 = await createServer({
-    common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
-    database,
-  });
-
-  const server2 = await createServer({
-    common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
-    database,
-  });
-
-  expect(server2.port).toBeGreaterThanOrEqual(server1.port + 1);
-
-  await server1.kill();
-  await server2.kill();
-  await cleanup();
-});
+beforeEach(setupCleanup);
 
 test("listens on ipv4", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
-  const server = await createServer({
+  await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
-  const response = await fetch(`http://localhost:${server.port}/health`);
+  const response = await fetch(
+    `http://localhost:${context.common.options.port}/health`,
+  );
   expect(response.status).toBe(200);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("listens on ipv6", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
-  const server = await createServer({
+  await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
-  const response = await fetch(`http://[::1]:${server.port}/health`);
+  const response = await fetch(
+    `http://[::1]:${context.common.options.port}/health`,
+  );
   expect(response.status).toBe(200);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("not ready", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
   const response = await server.hono.request("/ready");
 
   expect(response.status).toBe(503);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("ready", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
   await getMetadataStore({
-    db: database.qb.user,
-  }).setStatus({});
+    database,
+  }).setStatus({
+    1: {
+      ready: true,
+      block: {
+        number: 1,
+        timestamp: 1,
+      },
+    },
+  });
 
   const response = await server.hono.request("/ready");
 
   expect(response.status).toBe(200);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("health", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
   const response = await server.hono.request("/health");
 
   expect(response.status).toBe(200);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("healthy PUT", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
@@ -144,36 +135,36 @@ test("healthy PUT", async (context) => {
   });
 
   expect(response.status).toBe(404);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("metrics", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(200);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("metrics error", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
@@ -183,18 +174,18 @@ test("metrics error", async (context) => {
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(500);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("metrics PUT", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
@@ -203,67 +194,56 @@ test("metrics PUT", async (context) => {
   });
 
   expect(response.status).toBe(404);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("metrics unmatched route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
-  await server.hono.request("/graphql");
   await server.hono.request("/unmatched");
 
   const response = await server.hono.request("/metrics");
 
   expect(response.status).toBe(200);
   const text = await response.text();
-  expect(text).toContain('path="/graphql"');
   expect(text).not.toContain('path="/unmatched"');
-
-  await server.kill();
-  await cleanup();
 });
 
 test("missing route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+
+      port: context.common.options.port,
+    },
     database,
   });
 
   const response = await server.hono.request("/kevin");
 
   expect(response.status).toBe(404);
-
-  await server.kill();
-  await cleanup();
 });
 
 test("custom api route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
     apiBuild: {
-      app: new Hono(),
-      routes: [
-        {
-          method: "GET",
-          pathOrHandlers: ["/hi", (c: Context) => c.text("hi")],
-        },
-      ],
+      app: new Hono().get("/hi", (c) => c.text("hi")),
+      port: context.common.options.port,
     },
     database,
   });
@@ -272,20 +252,16 @@ test("custom api route", async (context) => {
 
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
-
-  await server.kill();
-  await cleanup();
 });
 
 test("custom hono route", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const app = new Hono().get("/hi", (c) => c.text("hi"));
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app, routes: [] },
+    apiBuild: { app, port: context.common.options.port },
     database,
   });
 
@@ -293,9 +269,6 @@ test("custom hono route", async (context) => {
 
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
-
-  await server.kill();
-  await cleanup();
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually
@@ -305,12 +278,12 @@ test.skip("kill", async (context) => {
 
   const server = await createServer({
     common: context.common,
-    schemaBuild: { graphqlSchema: buildGraphQLSchema({}) },
-    apiBuild: { app: new Hono(), routes: [] },
+    apiBuild: {
+      app: new Hono(),
+      port: context.common.options.port,
+    },
     database,
   });
-
-  await server.kill();
 
   expect(() => server.hono.request("/health")).rejects.toThrow();
 });

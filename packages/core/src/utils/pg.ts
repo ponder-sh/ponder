@@ -1,6 +1,12 @@
-import type { Logger } from "@/common/logger.js";
+import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
 import { prettyPrint } from "./print.js";
+
+// The default parser for numeric[] (1231) seems to parse values as Number
+// or perhaps through JSON.parse(). Use the int8[] (1016) parser instead,
+// which properly returns an array of strings.
+const bigIntArrayParser = pg.types.getTypeParser(1016);
+pg.types.setTypeParser(1231, bigIntArrayParser);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
@@ -39,30 +45,14 @@ pg.Client.prototype.query = function query(
   }
 };
 
-class ReadonlyClient extends pg.Client {
-  // @ts-expect-error
-  override connect(
-    callback: (err: Error) => void | undefined,
-  ): void | Promise<void> {
-    if (callback) {
-      super.connect(() => {
-        this.query(
-          "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
-          callback,
-        );
-      });
-    } else {
-      return super.connect().then(async () => {
-        await this.query(
-          "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
-        );
-      });
-    }
-  }
-}
+export function createPool(config: PoolConfig, logger: Logger) {
+  const pool = new pg.Pool({
+    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
+    statement_timeout: 2 * 60 * 1000, // 2 minutes
+    ...config,
+  });
 
-function createErrorHandler(logger: Logger) {
-  return (error: Error) => {
+  function onError(error: Error) {
     const client = (error as any).client as any | undefined;
     const pid = (client?.processID as number | undefined) ?? "unknown";
     const applicationName =
@@ -77,23 +67,62 @@ function createErrorHandler(logger: Logger) {
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
-  };
-}
+  }
 
-export function createPool(config: PoolConfig, logger: Logger) {
-  const pool = new pg.Pool({
-    // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
-    statement_timeout: 2 * 60 * 1000, // 2 minutes
-    ...config,
-  });
+  function onNotice(notice: { message?: string; code?: string }) {
+    logger.debug({
+      service: "postgres",
+      msg: `notice: ${notice.message} (code: ${notice.code})`,
+    });
+  }
 
-  const onError = createErrorHandler(logger);
   pool.on("error", onError);
+  pool.on("connect", (client) => {
+    client.on("notice", onNotice);
+  });
 
   return pool;
 }
 
-export function createReadonlyPool(config: PoolConfig, logger: Logger) {
+export function createReadonlyPool(
+  config: PoolConfig,
+  logger: Logger,
+  namespace: string,
+) {
+  class ReadonlyClient extends pg.Client {
+    // @ts-expect-error
+    override connect(
+      callback: (err: Error) => void | undefined,
+    ): void | Promise<void> {
+      if (callback) {
+        super.connect(() => {
+          this.query(
+            `
+          SET search_path = "${namespace}";
+          SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
+          SET work_mem = '512MB';
+          SET statement_timeout = '500ms';
+          SET lock_timeout = '500ms';
+        `,
+            callback,
+          );
+        });
+      } else {
+        return super.connect().then(() =>
+          this.query(
+            `
+          SET search_path = "${namespace}";
+          SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
+          SET work_mem = '512MB';
+          SET statement_timeout = '500ms';
+          SET lock_timeout = '500ms';
+        `,
+          ).then(() => {}),
+        );
+      }
+    }
+  }
+
   const pool = new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 2 * 60 * 1000, // 2 minutes
@@ -102,8 +131,34 @@ export function createReadonlyPool(config: PoolConfig, logger: Logger) {
     ...config,
   });
 
-  const onError = createErrorHandler(logger);
+  function onError(error: Error) {
+    const client = (error as any).client as any | undefined;
+    const pid = (client?.processID as number | undefined) ?? "unknown";
+    const applicationName =
+      (client?.connectionParameters?.application_name as string | undefined) ??
+      "unknown";
+
+    logger.error({
+      service: "postgres",
+      msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
+      error,
+    });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  }
+
+  function onNotice(notice: { message?: string; code?: string }) {
+    logger.debug({
+      service: "postgres",
+      msg: `notice: ${notice.message} (code: ${notice.code})`,
+    });
+  }
+
   pool.on("error", onError);
+  pool.on("connect", (client) => {
+    client.on("notice", onNotice);
+  });
 
   return pool;
 }

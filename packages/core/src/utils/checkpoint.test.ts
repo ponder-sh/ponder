@@ -2,13 +2,14 @@ import { expect, test } from "vitest";
 
 import {
   type Checkpoint,
+  MAX_CHECKPOINT,
+  MAX_CHECKPOINT_STRING,
   checkpointMax,
   checkpointMin,
   decodeCheckpoint,
   encodeCheckpoint,
   isCheckpointEqual,
   isCheckpointGreaterThan,
-  maxCheckpoint,
 } from "./checkpoint.js";
 
 test("encodeCheckpoint produces expected encoding", () => {
@@ -60,10 +61,10 @@ test("decodeCheckpoint produces expected object", () => {
 });
 
 test("decodeCheckpoint decodes an encoded maxCheckpoint", () => {
-  const encoded = encodeCheckpoint(maxCheckpoint);
+  const encoded = MAX_CHECKPOINT_STRING;
   const decoded = decodeCheckpoint(encoded);
 
-  expect(decoded).toMatchObject(maxCheckpoint);
+  expect(decoded).toMatchObject(MAX_CHECKPOINT);
 });
 
 test("isCheckpointEqual returns true if checkpoints are the same", () => {

@@ -1,6 +1,6 @@
-import type { ApiBuild, SchemaBuild } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
 import type { Database } from "@/database/index.js";
+import type { Common } from "@/internal/common.js";
+import type { ApiBuild } from "@/internal/types.js";
 import { createServer } from "@/server/index.js";
 
 /**
@@ -8,13 +8,8 @@ import { createServer } from "@/server/index.js";
  */
 export async function runServer(params: {
   common: Common;
-  schemaBuild: SchemaBuild;
   apiBuild: ApiBuild;
   database: Database;
 }) {
-  const server = await createServer(params);
-
-  return async () => {
-    await server.kill();
-  };
+  await createServer(params);
 }

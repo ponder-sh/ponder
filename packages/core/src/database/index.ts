@@ -1,28 +1,30 @@
-import type { IndexingBuild, PreBuild, SchemaBuild } from "@/build/index.js";
-import type { Common } from "@/common/common.js";
-import { NonRetryableError } from "@/common/errors.js";
-import {
-  type Drizzle,
-  type Schema,
-  getPrimaryKeyColumns,
-  getTableNames,
-} from "@/drizzle/index.js";
+import { randomUUID } from "node:crypto";
+import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import type { Common } from "@/internal/common.js";
+import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
+import type {
+  IndexingBuild,
+  NamespaceBuild,
+  PreBuild,
+  Schema,
+  SchemaBuild,
+} from "@/internal/types.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
 } from "@/sync-store/migrations.js";
-import type { Status } from "@/sync/index.js";
+import type { Drizzle } from "@/types/db.js";
 import {
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
-import { createPool } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
+import { createPool, createReadonlyPool } from "@/utils/pg.js";
+import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import { getTableColumns } from "drizzle-orm";
@@ -30,50 +32,35 @@ import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import {
+  Kysely,
   Migrator,
   PostgresDialect,
   type Transaction,
   WithSchemaPlugin,
   sql,
 } from "kysely";
-import { KyselyPGlite } from "kysely-pglite";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import { HeadlessKysely } from "./kysely.js";
 
 export type Database = {
+  driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
-  drizzle: Drizzle<Schema>;
+  wrap: <T>(
+    options: { method: string; includeTraceLogs?: boolean },
+    fn: () => Promise<T>,
+  ) => Promise<T>;
+  /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
-  /**
-   * Prepare the database environment for a Ponder app.
-   *
-   * The core logic in this function reads the schema where the new
-   * app will live, and decides what to do. Metadata is stored in the
-   * "_ponder_meta" table, and any residual entries in this table are
-   * used to determine what action this function will take.
-   *
-   * - If schema is empty or no matching build_id, start
-   * - If matching build_id and unlocked, cache hit
-   * - Else, start
-   *
-   * Separate from this main control flow, two other actions can happen:
-   * - Tables corresponding to non-live apps will be dropped, with a 3 app buffer
-   * - Apps run with "ponder dev" will publish view immediately
-   *
-   * @returns The progress checkpoint that that app should start from.
-   */
-  setup(args: Pick<IndexingBuild, "buildId">): Promise<{
-    checkpoint: string;
-  }>;
+  /** Migrate the user schema. */
+  migrate({ buildId }: Pick<IndexingBuild, "buildId">): Promise<void>;
+  /** Determine the app checkpoint, possibly reverting unfinalized rows. */
+  recoverCheckpoint(): Promise<string>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
-  unlock(): Promise<void>;
-  kill(): Promise<void>;
 };
 
 export type PonderApp = {
@@ -83,19 +70,26 @@ export type PonderApp = {
   build_id: string;
   checkpoint: string;
   table_names: string[];
+  version: string;
 };
 
+const VERSION = "1";
+
 export type PonderInternalSchema = {
-  _ponder_meta:
-    | { key: "app"; value: PonderApp }
-    | { key: "status"; value: Status | null };
+  _ponder_meta: { key: "app"; value: PonderApp };
+  _ponder_status: {
+    network_name: string;
+    block_number: number | null;
+    block_timestamp: number | null;
+    ready: boolean;
+  };
 } & {
   [_: ReturnType<typeof getTableNames>[number]["sql"]]: unknown;
 } & {
   [_: ReturnType<typeof getTableNames>[number]["reorg"]]: unknown & {
     operation_id: number;
-    checkpoint: string;
     operation: 0 | 1 | 2;
+    checkpoint: string;
   };
 };
 
@@ -106,40 +100,48 @@ type PGliteDriver = {
 type PostgresDriver = {
   internal: Pool;
   user: Pool;
-  readonly: Pool;
   sync: Pool;
+  readonly: Pool;
+  listen: PoolClient | undefined;
 };
 
 type QueryBuilder = {
   /** For updating metadata and handling reorgs */
-  internal: HeadlessKysely<PonderInternalSchema>;
+  internal: Kysely<PonderInternalSchema>;
   /** For indexing-store methods in user code */
-  user: HeadlessKysely<any>;
-  /** Used in api functions */
-  readonly: HeadlessKysely<unknown>;
+  user: Kysely<any>;
   /** Used to interact with the sync-store */
-  sync: HeadlessKysely<PonderSyncSchema>;
+  sync: Kysely<PonderSyncSchema>;
+  drizzle: Drizzle<Schema>;
+  drizzleReadonly: Drizzle<Schema>;
 };
 
-export const createDatabase = ({
+export const createDatabase = async ({
   common,
+  namespace,
   preBuild,
   schemaBuild,
 }: {
   common: Common;
-  preBuild: PreBuild;
+  namespace: NamespaceBuild;
+  preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Database => {
+}): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   ////////
-  // Create drivers and orms
+  // Create schema, drivers, roles, and query builders
   ////////
 
   let driver: PGliteDriver | PostgresDriver;
   let qb: Database["qb"];
 
   const dialect = preBuild.databaseConfig.kind;
+
+  common.logger.info({
+    service: "database",
+    msg: `Using database schema '${namespace}'`,
+  });
 
   if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
@@ -149,13 +151,29 @@ export const createDatabase = ({
           : preBuild.databaseConfig.instance,
     };
 
-    const kyselyDialect = new KyselyPGlite(driver.instance).dialect;
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
+
+      if (dialect === "pglite") {
+        await (driver as PGliteDriver).instance.close();
+      }
+    });
+
+    const kyselyDialect = createPgliteKyselyDialect(driver.instance);
+
+    await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
+    await driver.instance.query(`SET search_path TO "${namespace}"`);
 
     qb = {
-      internal: new HeadlessKysely({
-        name: "internal",
-        common,
-        includeTraceLogs: true,
+      internal: new Kysely({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -164,11 +182,9 @@ export const createDatabase = ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
-      user: new HeadlessKysely({
-        name: "user",
-        common: common,
+      user: new Kysely({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -177,25 +193,9 @@ export const createDatabase = ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
-      readonly: new HeadlessKysely({
-        name: "readonly",
-        common: common,
-        dialect: kyselyDialect,
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "readonly",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
-      }),
-      sync: new HeadlessKysely<PonderSyncSchema>({
-        name: "sync",
-        common: common,
-        includeTraceLogs: true,
+      sync: new Kysely<PonderSyncSchema>({
         dialect: kyselyDialect,
         log(event) {
           if (event.level === "query") {
@@ -205,6 +205,14 @@ export const createDatabase = ({
           }
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
+      }),
+      drizzle: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      drizzleReadonly: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
       }),
     };
   } else {
@@ -221,7 +229,7 @@ export const createDatabase = ({
       internal: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${preBuild.namespace}_internal`,
+          application_name: `${namespace}_internal`,
           max: internalMax,
           statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
         },
@@ -230,18 +238,19 @@ export const createDatabase = ({
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${preBuild.namespace}_user`,
+          application_name: `${namespace}_user`,
           max: userMax,
         },
         common.logger,
       ),
-      readonly: createPool(
+      readonly: createReadonlyPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${preBuild.namespace}_readonly`,
+          application_name: `${namespace}_readonly`,
           max: readonlyMax,
         },
         common.logger,
+        namespace,
       ),
       sync: createPool(
         {
@@ -251,13 +260,34 @@ export const createDatabase = ({
         },
         common.logger,
       ),
-    };
+      listen: undefined,
+    } as PostgresDriver;
+
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
+
+      const d = driver as PostgresDriver;
+      d.listen?.release();
+      await Promise.all([
+        d.internal.end(),
+        d.user.end(),
+        d.readonly.end(),
+        d.sync.end(),
+      ]);
+    });
+
+    await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
-      internal: new HeadlessKysely({
-        name: "internal",
-        common: common,
-        includeTraceLogs: true,
+      internal: new Kysely({
         dialect: new PostgresDialect({ pool: driver.internal }),
         log(event) {
           if (event.level === "query") {
@@ -266,11 +296,9 @@ export const createDatabase = ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
-      user: new HeadlessKysely({
-        name: "user",
-        common: common,
+      user: new Kysely({
         dialect: new PostgresDialect({ pool: driver.user }),
         log(event) {
           if (event.level === "query") {
@@ -279,25 +307,9 @@ export const createDatabase = ({
             });
           }
         },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
+        plugins: [new WithSchemaPlugin(namespace)],
       }),
-      readonly: new HeadlessKysely({
-        name: "readonly",
-        common: common,
-        dialect: new PostgresDialect({ pool: driver.readonly }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "readonly",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin(preBuild.namespace)],
-      }),
-      sync: new HeadlessKysely<PonderSyncSchema>({
-        name: "sync",
-        common: common,
-        includeTraceLogs: true,
+      sync: new Kysely<PonderSyncSchema>({
         dialect: new PostgresDialect({ pool: driver.sync }),
         log(event) {
           if (event.level === "query") {
@@ -307,6 +319,14 @@ export const createDatabase = ({
           }
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
+      }),
+      drizzle: drizzleNodePg(driver.user, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      drizzleReadonly: drizzleNodePg(driver.readonly, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
       }),
     };
 
@@ -349,35 +369,19 @@ export const createDatabase = ({
     });
   }
 
-  const drizzle =
-    dialect === "pglite" || dialect === "pglite_test"
-      ? drizzlePglite((driver as PGliteDriver).instance, {
-          casing: "snake_case",
-          schema: schemaBuild.schema,
-        })
-      : drizzleNodePg((driver as PostgresDriver).user, {
-          casing: "snake_case",
-          schema: schemaBuild.schema,
-        });
-
   ////////
   // Helpers
   ////////
 
-  /**
-   * Undo operations in user tables by using the "reorg" tables.
-   *
-   * Note: "reorg" tables may contain operations that have not been applied to the
-   *       underlying tables, but only be 1 operation at most.
-   */
+  /** Undo operations in user tables by using the "reorg" tables. */
   const revert = async ({
+    tx,
     tableName,
     checkpoint,
-    tx,
   }: {
+    tx: Transaction<PonderInternalSchema>;
     tableName: ReturnType<typeof getTableNames>[number];
     checkpoint: string;
-    tx: Transaction<PonderInternalSchema>;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
       schemaBuild.schema[tableName.js] as PgTable,
@@ -456,36 +460,125 @@ export const createDatabase = ({
     });
   };
 
+  /** 'true' if `migrate` created new tables. */
+  let createdTables: boolean;
+
   const database = {
+    driver,
     qb,
-    drizzle,
-    async migrateSync() {
-      await qb.sync.wrap({ method: "migrateSyncStore" }, async () => {
-        // TODO: Probably remove this at 1.0 to speed up startup time.
-        // TODO(kevin) is the `WithSchemaPlugin` going to break this?
-        await moveLegacyTables({
-          common: common,
-          // @ts-expect-error
-          db: qb.internal,
-          newSchemaName: "ponder_sync",
-        });
+    // @ts-ignore
+    async wrap(options, fn) {
+      const RETRY_COUNT = 9;
+      const BASE_DURATION = 125;
 
-        const migrator = new Migrator({
-          db: qb.sync as any,
-          provider: postgresMigrationProvider,
-          migrationTableSchema: "ponder_sync",
-        });
+      // First error thrown is often the most useful
+      let firstError: any;
+      let hasError = false;
 
-        const { error } = await migrator.migrateToLatest();
-        if (error) throw error;
-      });
+      for (let i = 0; i <= RETRY_COUNT; i++) {
+        const endClock = startClock();
+
+        const id = randomUUID().slice(0, 8);
+        if (options.includeTraceLogs) {
+          common.logger.trace({
+            service: "database",
+            msg: `Started '${options.method}' database method (id=${id})`,
+          });
+        }
+
+        try {
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
+          const result = await fn();
+          common.metrics.ponder_database_method_duration.observe(
+            { method: options.method },
+            endClock(),
+          );
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+          return result;
+        } catch (_error) {
+          const error = _error as Error;
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
+          common.metrics.ponder_database_method_duration.observe(
+            { method: options.method },
+            endClock(),
+          );
+          common.metrics.ponder_database_method_error_total.inc({
+            method: options.method,
+          });
+
+          if (!hasError) {
+            hasError = true;
+            firstError = error;
+          }
+
+          if (error instanceof NonRetryableError) {
+            common.logger.warn({
+              service: "database",
+              msg: `Failed '${options.method}' database method (id=${id})`,
+              error,
+            });
+            throw error;
+          }
+
+          if (i === RETRY_COUNT) {
+            common.logger.warn({
+              service: "database",
+              msg: `Failed '${options.method}' database method after '${i + 1}' attempts (id=${id})`,
+              error,
+            });
+            throw firstError;
+          }
+
+          const duration = BASE_DURATION * 2 ** i;
+          common.logger.debug({
+            service: "database",
+            msg: `Failed '${options.method}' database method, retrying after ${duration} milliseconds (id=${id})`,
+            error,
+          });
+          await wait(duration);
+        } finally {
+          if (options.includeTraceLogs) {
+            common.logger.trace({
+              service: "database",
+              msg: `Completed '${options.method}' database method in ${Math.round(endClock())}ms (id=${id})`,
+            });
+          }
+        }
+      }
     },
-    async setup({ buildId }) {
-      common.logger.info({
-        service: "database",
-        msg: `Using database schema '${preBuild.namespace}'`,
-      });
+    async migrateSync() {
+      await this.wrap(
+        { method: "migrateSyncStore", includeTraceLogs: true },
+        async () => {
+          // TODO: Probably remove this at 1.0 to speed up startup time.
+          await moveLegacyTables({
+            common: common,
+            db: qb.internal,
+            newSchemaName: "ponder_sync",
+          });
 
+          const migrator = new Migrator({
+            db: qb.sync as any,
+            provider: postgresMigrationProvider,
+            migrationTableSchema: "ponder_sync",
+          });
+
+          const { error } = await migrator.migrateToLatest();
+          if (error) throw error;
+        },
+      );
+    },
+    async migrate({ buildId }) {
       ////////
       // Migrate
       ////////
@@ -518,58 +611,61 @@ export const createDatabase = ({
           .then((table) => table !== undefined);
 
         if (hasNamespaceLockTable) {
-          await qb.internal.wrap({ method: "migrate" }, async () => {
-            const namespaceCount = await qb.internal
-              .withSchema("ponder")
-              // @ts-ignore
-              .selectFrom("namespace_lock")
-              .select(sql`count(*)`.as("count"))
-              .executeTakeFirst();
-
-            const tableNames = await qb.internal
-              .withSchema("ponder")
-              // @ts-ignore
-              .selectFrom("namespace_lock")
-              // @ts-ignore
-              .select("schema")
-              // @ts-ignore
-              .where("namespace", "=", preBuild.namespace)
-              .executeTakeFirst()
-              .then((schema: any | undefined) =>
-                schema === undefined
-                  ? undefined
-                  : Object.keys(schema.schema.tables),
-              );
-            if (tableNames) {
-              for (const tableName of tableNames) {
-                await qb.internal.schema
-                  .dropTable(tableName)
-                  .ifExists()
-                  .cascade()
-                  .execute();
-              }
-
-              await qb.internal
+          await this.wrap(
+            { method: "migrate", includeTraceLogs: true },
+            async () => {
+              const namespaceCount = await qb.internal
                 .withSchema("ponder")
                 // @ts-ignore
-                .deleteFrom("namespace_lock")
+                .selectFrom("namespace_lock")
+                .select(sql`count(*)`.as("count"))
+                .executeTakeFirst();
+
+              const tableNames = await qb.internal
+                .withSchema("ponder")
+                // @ts-ignore
+                .selectFrom("namespace_lock")
+                // @ts-ignore
+                .select("schema")
                 // @ts-ignore
                 .where("namespace", "=", preBuild.namespace)
-                .execute();
+                .executeTakeFirst()
+                .then((schema: any | undefined) =>
+                  schema === undefined
+                    ? undefined
+                    : Object.keys(schema.schema.tables),
+                );
+              if (tableNames) {
+                for (const tableName of tableNames) {
+                  await qb.internal.schema
+                    .dropTable(tableName)
+                    .ifExists()
+                    .cascade()
+                    .execute();
+                }
 
-              if (namespaceCount!.count === 1) {
-                await qb.internal.schema
-                  .dropSchema("ponder")
-                  .cascade()
+                await qb.internal
+                  .withSchema("ponder")
+                  // @ts-ignore
+                  .deleteFrom("namespace_lock")
+                  // @ts-ignore
+                  .where("namespace", "=", preBuild.namespace)
                   .execute();
 
-                common.logger.debug({
-                  service: "database",
-                  msg: `Removed 'ponder' schema`,
-                });
+                if (namespaceCount!.count === 1) {
+                  await qb.internal.schema
+                    .dropSchema("ponder")
+                    .cascade()
+                    .execute();
+
+                  common.logger.debug({
+                    service: "database",
+                    msg: `Removed 'ponder' schema`,
+                  });
+                }
               }
-            }
-          });
+            },
+          );
         }
       }
 
@@ -587,12 +683,12 @@ export const createDatabase = ({
         // @ts-ignore
         .where("table_name", "=", "_ponder_meta")
         // @ts-ignore
-        .where("table_schema", "=", preBuild.namespace)
+        .where("table_schema", "=", namespace)
         .executeTakeFirst()
         .then((table) => table !== undefined);
 
       if (hasPonderMetaTable) {
-        await qb.internal.wrap({ method: "migrate" }, () =>
+        await this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.internal.transaction().execute(async (tx) => {
             const previousApps = await tx
               .selectFrom("_ponder_meta")
@@ -611,7 +707,7 @@ export const createDatabase = ({
               )
             ) {
               throw new NonRetryableError(
-                `Migration failed: Schema '${preBuild.namespace}' has an active app`,
+                `Migration failed: Schema '${namespace}' has an active app`,
               );
             }
 
@@ -652,41 +748,101 @@ export const createDatabase = ({
         );
       }
 
-      await qb.internal.wrap({ method: "setup" }, async () => {
-        await qb.internal.schema
-          .createSchema(preBuild.namespace)
-          .ifNotExists()
+      // 0.9 migration
+
+      if (hasPonderMetaTable) {
+        await qb.internal
+          .deleteFrom("_ponder_meta")
+          // @ts-ignore
+          .where("key", "=", "status")
           .execute();
 
-        // Create "_ponder_meta" table if it doesn't exist
-        await qb.internal.schema
-          .createTable("_ponder_meta")
-          .addColumn("key", "text", (col) => col.primaryKey())
-          .addColumn("value", "jsonb")
-          .ifNotExists()
-          .execute();
-      });
+        const version: string | undefined = await qb.internal
+          .selectFrom("_ponder_meta")
+          .select("value")
+          .where("key", "=", "app")
+          .executeTakeFirst()
+          .then((row) => row?.value.version);
+
+        if (version === undefined || Number(version) < Number(VERSION)) {
+          await qb.internal.schema
+            .dropTable("_ponder_status")
+            .ifExists()
+            .cascade()
+            .execute();
+        }
+      }
+
+      await this.wrap(
+        { method: "migrate", includeTraceLogs: true },
+        async () => {
+          await qb.internal.schema
+            .createTable("_ponder_meta")
+            .addColumn("key", "text", (col) => col.primaryKey())
+            .addColumn("value", "jsonb")
+            .ifNotExists()
+            .execute();
+
+          await qb.internal.schema
+            .createTable("_ponder_status")
+            .addColumn("network_name", "text", (col) => col.primaryKey())
+            .addColumn("block_number", "bigint")
+            .addColumn("block_timestamp", "bigint")
+            .addColumn("ready", "boolean", (col) => col.notNull())
+            .ifNotExists()
+            .execute();
+
+          const trigger = "status_trigger";
+          const notification = "status_notify()";
+          const channel = `${namespace}_status_channel`;
+
+          await sql
+            .raw(`
+        CREATE OR REPLACE FUNCTION "${namespace}".${notification}
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+        NOTIFY "${channel}";
+        RETURN NULL;
+        END;
+        $$;`)
+            .execute(qb.internal);
+
+          await sql
+            .raw(`
+          CREATE OR REPLACE TRIGGER "${trigger}"
+          AFTER INSERT OR UPDATE OR DELETE
+          ON "${namespace}"._ponder_status
+          FOR EACH STATEMENT
+          EXECUTE PROCEDURE "${namespace}".${notification};`)
+            .execute(qb.internal);
+        },
+      );
 
       const attempt = () =>
-        qb.internal.wrap({ method: "setup" }, () =>
+        this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.internal.transaction().execute(async (tx) => {
-            const previousApp = await tx
-              .selectFrom("_ponder_meta")
-              .where("key", "=", "app")
-              .select("value")
-              .executeTakeFirst()
-              .then((row) => row?.value as PonderApp | undefined);
-
-            const newApp = {
-              is_locked: 1,
-              is_dev: common.options.command === "dev" ? 1 : 0,
-              heartbeat_at: Date.now(),
-              build_id: buildId,
-              checkpoint: encodeCheckpoint(zeroCheckpoint),
-              table_names: getTableNames(schemaBuild.schema).map(
-                (tableName) => tableName.sql,
-              ),
-            } satisfies PonderApp;
+            const createTables = async () => {
+              for (
+                let i = 0;
+                i < schemaBuild.statements.tables.sql.length;
+                i++
+              ) {
+                await sql
+                  .raw(schemaBuild.statements.tables.sql[i]!)
+                  .execute(tx)
+                  .catch((_error) => {
+                    const error = _error as Error;
+                    if (!error.message.includes("already exists")) throw error;
+                    const e = new NonRetryableError(
+                      `Unable to create table '${namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                    );
+                    e.stack = undefined;
+                    throw e;
+                  });
+              }
+            };
 
             const createEnums = async () => {
               for (
@@ -701,7 +857,7 @@ export const createDatabase = ({
                     const error = _error as Error;
                     if (!error.message.includes("already exists")) throw error;
                     const e = new NonRetryableError(
-                      `Unable to create enum '${preBuild.namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                      `Unable to create enum '${namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
                     );
                     e.stack = undefined;
                     throw e;
@@ -709,28 +865,26 @@ export const createDatabase = ({
               }
             };
 
-            const createTables = async () => {
-              for (
-                let i = 0;
-                i < schemaBuild.statements.tables.sql.length;
-                i++
-              ) {
-                await sql
-                  .raw(schemaBuild.statements.tables.sql[i]!)
-                  .execute(tx)
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    const e = new NonRetryableError(
-                      `Unable to create table '${preBuild.namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
-                    );
-                    e.stack = undefined;
-                    throw e;
-                  });
-              }
-            };
+            const previousApp = await tx
+              .selectFrom("_ponder_meta")
+              .where("key", "=", "app")
+              .select("value")
+              .executeTakeFirst()
+              .then((row) => row?.value);
 
-            const dropTables = async () => {
+            createdTables = false;
+
+            if (previousApp === undefined) {
+              await createEnums();
+              await createTables();
+              createdTables = true;
+            } else if (
+              previousApp.is_dev === 1 ||
+              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
+                previousApp.build_id !== buildId) ||
+              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
+                previousApp.checkpoint === ZERO_CHECKPOINT_STRING)
+            ) {
               for (const tableName of getTableNames(schemaBuild.schema)) {
                 await tx.schema
                   .dropTable(tableName.sql)
@@ -743,203 +897,96 @@ export const createDatabase = ({
                   .ifExists()
                   .execute();
               }
-            };
-
-            const dropEnums = async () => {
               for (const enumName of schemaBuild.statements.enums.json) {
                 await tx.schema.dropType(enumName.name).ifExists().execute();
               }
-            };
 
-            // If schema is empty, create tables
-            // If schema is empty, create tables
-            if (previousApp === undefined) {
-              await tx
-                .insertInto("_ponder_meta")
-                .values({ key: "status", value: null })
-                .execute();
-              await tx
-                .insertInto("_ponder_meta")
-                .values({
-                  key: "app",
-                  value: newApp,
-                })
-                .execute();
-
-              await createEnums();
-              await createTables();
-
-              common.logger.info({
-                service: "database",
-                msg: `Created tables [${newApp.table_names.join(", ")}]`,
-              });
-
-              return {
-                status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
-              } as const;
-            }
-
-            // dev fast path
-            if (
-              previousApp.is_dev === 1 ||
-              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.build_id !== newApp.build_id) ||
-              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint))
-            ) {
-              await tx
-                .updateTable("_ponder_meta")
-                .set({ value: null })
-                .where("key", "=", "status")
-                .execute();
-              await tx
-                .updateTable("_ponder_meta")
-                .set({ value: newApp })
-                .where("key", "=", "app")
-                .execute();
-
-              await dropTables();
-              await dropEnums();
-
-              await createEnums();
-              await createTables();
-
-              common.logger.info({
-                service: "database",
-                msg: `Created tables [${newApp.table_names.join(", ")}]`,
-              });
-
-              return {
-                status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
-              } as const;
-            }
-
-            // If crash recovery is not possible, error
-            if (
-              common.options.command === "dev" ||
-              previousApp.build_id !== newApp.build_id
-            ) {
-              const error = new NonRetryableError(
-                `Schema '${preBuild.namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
-              );
-              error.stack = undefined;
-              throw error;
-            }
-
-            const isAppUnlocked =
-              previousApp.is_locked === 0 ||
-              previousApp.heartbeat_at +
-                common.options.databaseHeartbeatTimeout <=
-                Date.now();
-
-            // If app is locked, wait
-            if (isAppUnlocked === false) {
-              return {
-                status: "locked",
-                expiry:
-                  previousApp.heartbeat_at +
-                  common.options.databaseHeartbeatTimeout,
-              } as const;
-            }
-
-            // Crash recovery is possible, recover
-
-            if (previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint)) {
-              await tx
-                .updateTable("_ponder_meta")
-                .set({ value: null })
-                .where("key", "=", "status")
-                .execute();
-              await tx
-                .updateTable("_ponder_meta")
-                .set({ value: newApp })
-                .where("key", "=", "app")
-                .execute();
-
-              await dropTables();
-              await dropEnums();
-
-              await createEnums();
-              await createTables();
-
-              common.logger.info({
-                service: "database",
-                msg: `Created tables [${newApp.table_names.join(", ")}]`,
-              });
-
-              return {
-                status: "success",
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
-              } as const;
-            }
-
-            const checkpoint = previousApp.checkpoint;
-            newApp.checkpoint = checkpoint;
-
-            await tx
-              .updateTable("_ponder_meta")
-              .set({ value: null })
-              .where("key", "=", "status")
-              .execute();
-            await tx
-              .updateTable("_ponder_meta")
-              .set({ value: newApp })
-              .where("key", "=", "app")
-              .execute();
-
-            common.logger.info({
-              service: "database",
-              msg: `Detected crash recovery for build '${buildId}' in schema '${preBuild.namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
-            });
-
-            // Remove triggers
-
-            for (const tableName of getTableNames(schemaBuild.schema)) {
               await sql
-                .raw(
-                  `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
-                )
+                .raw(`TRUNCATE TABLE "${namespace}"."_ponder_status" CASCADE`)
                 .execute(tx);
+
+              await createEnums();
+              await createTables();
+              createdTables = true;
             }
 
-            // Remove indexes
+            if (createdTables) {
+              common.logger.info({
+                service: "database",
+                msg: `Created tables [${getTableNames(schemaBuild.schema)
+                  .map(({ sql }) => sql)
+                  .join(", ")}]`,
+              });
 
-            for (const indexStatement of schemaBuild.statements.indexes.json) {
-              await tx.schema
-                .dropIndex(indexStatement.data.name)
-                .ifExists()
+              // write metadata
+
+              const newApp = {
+                is_locked: 1,
+                is_dev: common.options.command === "dev" ? 1 : 0,
+                heartbeat_at: Date.now(),
+                build_id: buildId,
+                checkpoint: ZERO_CHECKPOINT_STRING,
+                table_names: getTableNames(schemaBuild.schema).map(
+                  ({ sql }) => sql,
+                ),
+                version: VERSION,
+              } satisfies PonderApp;
+
+              await tx
+                .insertInto("_ponder_meta")
+                .values({ key: "app", value: newApp })
+                .onConflict((oc) =>
+                  oc
+                    .column("key")
+                    // @ts-ignore
+                    .doUpdateSet({ value: newApp }),
+                )
                 .execute();
+            } else {
+              // schema one of: crash recovery, locked, error
+
+              if (
+                common.options.command === "dev" ||
+                previousApp!.build_id !== buildId
+              ) {
+                const error = new NonRetryableError(
+                  `Schema '${namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+                );
+                error.stack = undefined;
+                throw error;
+              }
+
+              // locked
+
+              const isAppUnlocked =
+                previousApp!.is_locked === 0 ||
+                previousApp!.heartbeat_at +
+                  common.options.databaseHeartbeatTimeout <=
+                  Date.now();
+
+              if (isAppUnlocked === false) {
+                return {
+                  status: "locked",
+                  expiry:
+                    previousApp!.heartbeat_at +
+                    common.options.databaseHeartbeatTimeout,
+                } as const;
+              }
+
+              // crash recovery
 
               common.logger.info({
                 service: "database",
-                msg: `Dropped index '${indexStatement.data.name}' in schema '${preBuild.namespace}'`,
+                msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp!.heartbeat_at)} ago`,
               });
             }
 
-            // Revert unfinalized data
+            await tx
+              .updateTable("_ponder_status")
+              .set({ block_number: null, block_timestamp: null, ready: false })
+              .execute();
 
-            const { blockTimestamp, chainId, blockNumber } =
-              decodeCheckpoint(checkpoint);
-
-            common.logger.info({
-              service: "database",
-              msg: `Reverting operations after finalized checkpoint (timestamp=${blockTimestamp} chainId=${chainId} block=${blockNumber})`,
-            });
-
-            for (const tableName of getTableNames(schemaBuild.schema)) {
-              await revert({
-                tableName,
-                checkpoint,
-                tx,
-              });
-            }
-
-            return {
-              status: "success",
-              checkpoint,
-            } as const;
+            return { status: "success" } as const;
           }),
         );
 
@@ -948,11 +995,11 @@ export const createDatabase = ({
         const duration = result.expiry - Date.now();
         common.logger.warn({
           service: "database",
-          msg: `Schema '${preBuild.namespace}' is locked by a different Ponder app`,
+          msg: `Schema '${namespace}' is locked by a different Ponder app`,
         });
         common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${preBuild.namespace} to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace} to expire...`,
         });
 
         await wait(duration);
@@ -960,7 +1007,7 @@ export const createDatabase = ({
         result = await attempt();
         if (result.status === "locked") {
           const error = new NonRetryableError(
-            `Failed to acquire lock on schema '${preBuild.namespace}'. A different Ponder app is actively using this schema.`,
+            `Failed to acquire lock on schema '${namespace}'. A different Ponder app is actively using this schema.`,
           );
           error.stack = undefined;
           throw error;
@@ -994,8 +1041,77 @@ export const createDatabase = ({
           });
         }
       }, common.options.databaseHeartbeatInterval);
+    },
+    async recoverCheckpoint() {
+      // new tables are empty
+      if (createdTables) return ZERO_CHECKPOINT_STRING;
 
-      return { checkpoint: result.checkpoint };
+      return this.wrap(
+        { method: "recoverCheckpoint", includeTraceLogs: true },
+        () =>
+          qb.internal.transaction().execute(async (tx) => {
+            const app = await tx
+              .selectFrom("_ponder_meta")
+              .where("key", "=", "app")
+              .select("value")
+              .executeTakeFirstOrThrow()
+              .then((row) => row.value);
+
+            if (app.checkpoint === ZERO_CHECKPOINT_STRING) {
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await sql
+                  .raw(
+                    `TRUNCATE TABLE "${namespace}"."${tableName.sql}", "${namespace}"."${tableName.reorg}" CASCADE`,
+                  )
+                  .execute(tx);
+              }
+            } else {
+              // Update metadata
+
+              app.is_locked = 1;
+              app.is_dev = common.options.command === "dev" ? 1 : 0;
+
+              await tx
+                .updateTable("_ponder_meta")
+                .set({ value: app })
+
+                .where("key", "=", "app")
+                .execute();
+
+              // Remove triggers
+
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await sql
+                  .raw(
+                    `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
+                  )
+                  .execute(tx);
+              }
+
+              // Remove indexes
+
+              for (const indexStatement of schemaBuild.statements.indexes
+                .json) {
+                await tx.schema
+                  .dropIndex(indexStatement.data.name)
+                  .ifExists()
+                  .execute();
+                common.logger.info({
+                  service: "database",
+                  msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
+                });
+              }
+
+              // Revert unfinalized data
+
+              for (const tableName of getTableNames(schemaBuild.schema)) {
+                await revert({ tableName, checkpoint: app.checkpoint, tx });
+              }
+            }
+
+            return app.checkpoint;
+          }),
+      );
     },
     async createIndexes() {
       for (const statement of schemaBuild.statements.indexes.sql) {
@@ -1003,92 +1119,97 @@ export const createDatabase = ({
       }
     },
     async createTriggers() {
-      await qb.internal.wrap({ method: "createTriggers" }, async () => {
-        for (const tableName of getTableNames(schemaBuild.schema)) {
-          const columns = getTableColumns(
-            schemaBuild.schema[tableName.js]! as PgTable,
-          );
+      await this.wrap(
+        { method: "createTriggers", includeTraceLogs: true },
+        async () => {
+          for (const tableName of getTableNames(schemaBuild.schema)) {
+            const columns = getTableColumns(
+              schemaBuild.schema[tableName.js]! as PgTable,
+            );
 
-          const columnNames = Object.values(columns).map(
-            (column) => `"${getColumnCasing(column, "snake_case")}"`,
-          );
+            const columnNames = Object.values(columns).map(
+              (column) => `"${getColumnCasing(column, "snake_case")}"`,
+            );
 
-          await sql
-            .raw(`
-CREATE OR REPLACE FUNCTION "${preBuild.namespace}".${tableName.triggerFn}
+            await sql
+              .raw(`
+CREATE OR REPLACE FUNCTION "${namespace}".${tableName.triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
+    INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
+    INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${preBuild.namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
+    INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql
 `)
-            .execute(qb.internal);
+              .execute(qb.internal);
 
-          await sql
-            .raw(`
+            await sql
+              .raw(`
           CREATE OR REPLACE TRIGGER "${tableName.trigger}"
-          AFTER INSERT OR UPDATE OR DELETE ON "${preBuild.namespace}"."${tableName.sql}"
-          FOR EACH ROW EXECUTE FUNCTION "${preBuild.namespace}".${tableName.triggerFn};
+          AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${tableName.sql}"
+          FOR EACH ROW EXECUTE FUNCTION "${namespace}".${tableName.triggerFn};
           `)
-            .execute(qb.internal);
-        }
-      });
+              .execute(qb.internal);
+          }
+        },
+      );
     },
     async removeTriggers() {
-      await qb.internal.wrap({ method: "removeTriggers" }, async () => {
-        for (const tableName of getTableNames(schemaBuild.schema)) {
-          await sql
-            .raw(
-              `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${preBuild.namespace}"."${tableName.sql}"`,
-            )
-            .execute(qb.internal);
-        }
-      });
+      await this.wrap(
+        { method: "removeTriggers", includeTraceLogs: true },
+        async () => {
+          for (const tableName of getTableNames(schemaBuild.schema)) {
+            await sql
+              .raw(
+                `DROP TRIGGER IF EXISTS "${tableName.trigger}" ON "${namespace}"."${tableName.sql}"`,
+              )
+              .execute(qb.internal);
+          }
+        },
+      );
     },
     async revert({ checkpoint }) {
-      await qb.internal.wrap({ method: "revert" }, () =>
+      await this.wrap({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           getTableNames(schemaBuild.schema).map((tableName) =>
-            qb.internal.transaction().execute((tx) =>
-              revert({
-                tableName,
-                checkpoint,
-                tx,
-              }),
-            ),
+            qb.internal
+              .transaction()
+              .execute((tx) => revert({ tx, tableName, checkpoint })),
           ),
         ),
       );
     },
     async finalize({ checkpoint }) {
-      await qb.internal.wrap({ method: "finalize" }, async () => {
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
-          })
-          .execute();
+      await this.wrap(
+        { method: "finalize", includeTraceLogs: true },
+        async () => {
+          await qb.internal
+            .updateTable("_ponder_meta")
+            .where("key", "=", "app")
+            .set({
+              value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
+            })
+            .execute();
 
-        await Promise.all(
-          getTableNames(schemaBuild.schema).map((tableName) =>
-            qb.internal
-              .deleteFrom(tableName.reorg)
-              .where("checkpoint", "<=", checkpoint)
-              .execute(),
-          ),
-        );
-      });
+          await Promise.all(
+            getTableNames(schemaBuild.schema).map((tableName) =>
+              qb.internal
+                .deleteFrom(tableName.reorg)
+                .where("checkpoint", "<=", checkpoint)
+                .execute(),
+            ),
+          );
+        },
+      );
 
       const decoded = decodeCheckpoint(checkpoint);
 
@@ -1100,58 +1221,37 @@ $$ LANGUAGE plpgsql
     async complete({ checkpoint }) {
       await Promise.all(
         getTableNames(schemaBuild.schema).map((tableName) =>
-          qb.internal.wrap({ method: "complete" }, async () => {
-            await qb.internal
-              .updateTable(tableName.reorg)
-              .set({ checkpoint })
-              .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
-              .execute();
-          }),
+          this.wrap(
+            { method: "complete", includeTraceLogs: true },
+            async () => {
+              await qb.internal
+                .updateTable(tableName.reorg)
+                .set({ checkpoint })
+                .where("checkpoint", "=", MAX_CHECKPOINT_STRING)
+                .execute();
+            },
+          ),
         ),
       );
     },
     async unlock() {
       clearInterval(heartbeatInterval);
 
-      await qb.internal.wrap({ method: "unlock" }, async () => {
-        await qb.internal
-          .updateTable("_ponder_meta")
-          .where("key", "=", "app")
-          .set({
-            value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
-          })
-          .execute();
-      });
-    },
-    async kill() {
-      await qb.internal.destroy();
-      await qb.user.destroy();
-      await qb.readonly.destroy();
-      await qb.sync.destroy();
-
-      if (dialect === "pglite") {
-        const d = driver as PGliteDriver;
-        await d.instance.close();
-      }
-
-      if (dialect === "pglite_test") {
-        // no-op, allow test harness to clean up the instance
-      }
-
-      if (dialect === "postgres") {
-        const d = driver as PostgresDriver;
-        await d.internal.end();
-        await d.user.end();
-        await d.readonly.end();
-        await d.sync.end();
-      }
-
-      common.logger.debug({
-        service: "database",
-        msg: "Closed connection to database",
-      });
+      await this.wrap(
+        { method: "unlock", includeTraceLogs: true },
+        async () => {
+          await qb.internal
+            .updateTable("_ponder_meta")
+            .where("key", "=", "app")
+            .set({
+              value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+            })
+            .execute();
+        },
+      );
     },
   } satisfies Database;
 
+  // @ts-ignore
   return database;
 };

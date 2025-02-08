@@ -3,7 +3,7 @@
   "scripts": {
     "bench:ponder:ci": "pnpm --filter \"./benchmarks\" bench:ponder:ci",
     "bench:subgraph:ci": "pnpm --filter \"./benchmarks\" bench:subgraph:ci",
-    "build": "pnpm --filter \"./packages/**\" --parallel build",
+    "build": "pnpm --filter \"./packages/**\" --recursive build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "format": "biome format . --write",
@@ -11,7 +11,7 @@
     "lint:fix": "pnpm lint --write",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
-    "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"
+    "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.8.1",

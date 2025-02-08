@@ -1,4 +1,4 @@
-export const Weth9Abi = [
+export const weth9Abi = [
   {
     constant: true,
     inputs: [],

@@ -1,14 +1,15 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { createDatabase } from "@/database/index.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
+import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createServer } from "@/server/index.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
-import { setupShutdown } from "../utils/shutdown.js";
+import { createExit } from "../utils/exit.js";
 
 export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -26,7 +27,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    await logger.kill();
     process.exit(1);
   }
 
@@ -37,48 +37,95 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  const common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  const common = { options, logger, metrics, telemetry, shutdown };
 
-  const build = await createBuild({ common });
+  const build = await createBuild({ common, cliOptions });
 
-  let cleanupReloadable = () => Promise.resolve();
+  const exit = createExit({ common });
+  const namespaceResult = build.namespaceCompile();
 
-  const cleanup = async () => {
-    await cleanupReloadable();
-    await telemetry.kill();
-  };
-
-  const shutdown = setupShutdown({ common, cleanup });
-
-  const executeResult = await build.execute();
-  await build.kill();
-
-  if (executeResult.configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.schemaResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.apiResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+  if (namespaceResult.status === "error") {
+    await exit({ reason: "Failed to initialize namespace", code: 1 });
+    return;
   }
 
-  const buildResult = mergeResults([
-    build.preCompile(executeResult.configResult.result),
-    build.compileSchema(executeResult.schemaResult.result),
-    build.compileApi({ apiResult: executeResult.apiResult.result }),
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const schemaResult = await build.executeSchema({
+    namespace: namespaceResult.result,
+  });
+  if (schemaResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const buildResult1 = mergeResults([
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
   ]);
 
-  if (buildResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+  if (buildResult1.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
-  const [preBuild, schemaBuild, apiBuild] = buildResult.result;
+  const [preBuild, schemaBuild] = buildResult1.result;
+
+  if (preBuild.databaseConfig.kind === "pglite") {
+    await exit({
+      reason: "The 'ponder serve' command does not support PGlite",
+      code: 1,
+    });
+    return;
+  }
+
+  const indexingResult = await build.executeIndexingFunctions();
+  if (indexingResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const indexingBuildResult = await build.compileIndexing({
+    configResult: configResult.result,
+    schemaResult: schemaResult.result,
+    indexingResult: indexingResult.result,
+  });
+
+  if (indexingBuildResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const database = await createDatabase({
+    common,
+    namespace: namespaceResult.result,
+    preBuild,
+    schemaBuild,
+  });
+
+  const apiResult = await build.executeApi({
+    indexingBuild: indexingBuildResult.result,
+    database,
+  });
+  if (apiResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const buildResult2 = await build.compileApi({ apiResult: apiResult.result });
+
+  if (buildResult2.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const apiBuild = buildResult2.result;
 
   telemetry.record({
     name: "lifecycle:session_start",
@@ -91,31 +138,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  if (preBuild.databaseConfig.kind === "pglite") {
-    await shutdown({
-      reason: "The 'ponder serve' command does not support PGlite",
-      code: 1,
-    });
-    return cleanup;
-  }
-
-  const database = createDatabase({
-    common,
-    preBuild,
-    schemaBuild,
-  });
-
-  const server = await createServer({
+  createServer({
     common,
     database,
-    schemaBuild,
     apiBuild,
   });
 
-  cleanupReloadable = async () => {
-    await server.kill();
-    await database.kill();
-  };
-
-  return cleanup;
+  return shutdown.kill;
 }

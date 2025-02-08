@@ -105,7 +105,7 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   };
 };
 
-export const zeroCheckpoint: Checkpoint = {
+export const ZERO_CHECKPOINT: Checkpoint = {
   blockTimestamp: 0,
   chainId: 0n,
   blockNumber: 0n,
@@ -114,7 +114,7 @@ export const zeroCheckpoint: Checkpoint = {
   eventIndex: 0n,
 };
 
-export const maxCheckpoint: Checkpoint = {
+export const MAX_CHECKPOINT: Checkpoint = {
   blockTimestamp: 99999_99999,
   chainId: 9999_9999_9999_9999n,
   blockNumber: 9999_9999_9999_9999n,
@@ -123,6 +123,10 @@ export const maxCheckpoint: Checkpoint = {
   eventIndex: 9999_9999_9999_9999n,
 };
 
+export const ZERO_CHECKPOINT_STRING = encodeCheckpoint(ZERO_CHECKPOINT);
+export const MAX_CHECKPOINT_STRING = encodeCheckpoint(MAX_CHECKPOINT);
+
+/**
 /**
  * Returns true if two checkpoints are equal.
  */
@@ -154,4 +158,14 @@ export const checkpointMin = (...checkpoints: Checkpoint[]) =>
     return isCheckpointGreaterThan(min, checkpoint) ? checkpoint : min;
   });
 
-export const LATEST = encodeCheckpoint(maxCheckpoint);
+export const LATEST = MAX_CHECKPOINT_STRING;
+
+/** Compute the minimum checkpoint, filtering out undefined */
+export const min = (...checkpoints: (string | undefined)[]) => {
+  return checkpoints.reduce((acc, cur) => {
+    if (cur === undefined) return acc;
+    if (acc === undefined) return cur;
+    if (acc < cur) return acc;
+    return cur;
+  })!;
+};

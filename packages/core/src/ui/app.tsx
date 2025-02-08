@@ -2,7 +2,7 @@ import type {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
-} from "@/common/metrics.js";
+} from "@/internal/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { Box, Text, render as inkRender } from "ink";
 import React from "react";
@@ -26,9 +26,9 @@ export const buildUiState = (): UiState => {
       hasError: false,
       overall: {
         completedSeconds: 0,
+        cachedSeconds: 0,
         totalSeconds: 0,
         progress: 0,
-        completedToTimestamp: 0,
         totalEvents: 0,
       },
       events: [],
@@ -121,10 +121,8 @@ const App = (ui: UiState) => {
                 (
                 {app.mode === "historical" ? (
                   <Text color="yellowBright">historical</Text>
-                ) : app.mode === "realtime" ? (
-                  <Text color="greenBright">live</Text>
                 ) : (
-                  <Text color="greenBright">complete</Text>
+                  <Text color="greenBright">live</Text>
                 )}
                 )
               </Text>
@@ -132,19 +130,23 @@ const App = (ui: UiState) => {
           </Box>
           <Text> </Text>
           <Box flexDirection="row">
-            <ProgressBar current={app.progress} end={1} width={48} />
+            <ProgressBar
+              current={app.mode === "realtime" ? 1 : app.progress}
+              end={1}
+              width={48}
+            />
             <Text>
               {" "}
-              {formatPercentage(app.progress)}
+              {formatPercentage(app.mode === "realtime" ? 1 : app.progress)}
               {app.eta === undefined || app.eta === 0
                 ? null
-                : ` (${formatEta(app.eta)} eta)`}
+                : ` (${formatEta(app.eta * 1_000)} eta)`}
             </Text>
           </Box>
           <Text> </Text>
 
           <Box flexDirection="column">
-            <Text bold>GraphQL </Text>
+            <Text bold>API functions </Text>
             <Box flexDirection="row">
               <Text>
                 Server live at http://{hostname}:{port}

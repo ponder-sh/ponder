@@ -1,0 +1,17 @@
+{
+  "name": "ponder-examples-with-offchain-offchain",
+  "private": true,
+  "type": "module",
+  "scripts": {},
+  "engines": {
+    "node": ">=18.14"
+  },
+  "dependencies": {
+    "@ponder/client": "workspace:*",
+    "drizzle-orm": "0.36.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.10.9",
+    "drizzle-kit": "0.30.1"
+  }
+}

@@ -1,6 +1,6 @@
+import type { FilterWithoutBlocks } from "@/internal/types.js";
 import { expect, test } from "vitest";
 import { getFragments, recoverFilter } from "./fragments.js";
-import type { FilterWithoutBlocks } from "./source.js";
 
 test("getFragments() block filter", () => {
   const fragments = getFragments({

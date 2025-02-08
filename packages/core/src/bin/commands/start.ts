@@ -1,15 +1,16 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { createLogger } from "@/common/logger.js";
-import { MetricsService } from "@/common/metrics.js";
-import { buildOptions } from "@/common/options.js";
-import { buildPayload, createTelemetry } from "@/common/telemetry.js";
 import { type Database, createDatabase } from "@/database/index.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
+import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
+import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
-import { setupShutdown } from "../utils/shutdown.js";
 
 export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -27,7 +28,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
-    await logger.kill();
     process.exit(1);
   }
 
@@ -38,65 +38,92 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const telemetry = createTelemetry({ options, logger });
-  const common = { options, logger, metrics, telemetry };
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  const common = { options, logger, metrics, telemetry, shutdown };
+  const exit = createExit({ common });
 
-  const build = await createBuild({ common });
-
-  let cleanupReloadable = () => Promise.resolve();
-  let cleanupReloadableServer = () => Promise.resolve();
+  const build = await createBuild({ common, cliOptions });
 
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
-  const cleanup = async () => {
-    await cleanupReloadable();
-    await cleanupReloadableServer();
-    if (database) {
-      await database.kill();
-    }
-    await telemetry.kill();
-  };
+  // const shutdown = setupShutdown({ common, cleanup });
 
-  const shutdown = setupShutdown({ common, cleanup });
-
-  const executeResult = await build.execute();
-  await build.kill();
-
-  if (executeResult.configResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.schemaResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.indexingResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
-  }
-  if (executeResult.apiResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+  const namespaceResult = build.namespaceCompile();
+  if (namespaceResult.status === "error") {
+    await exit({ reason: "Failed to initialize namespace", code: 1 });
+    return;
   }
 
-  const buildResult = mergeResults([
-    build.preCompile(executeResult.configResult.result),
-    build.compileSchema(executeResult.schemaResult.result),
-    await build.compileIndexing({
-      configResult: executeResult.configResult.result,
-      schemaResult: executeResult.schemaResult.result,
-      indexingResult: executeResult.indexingResult.result,
-    }),
-    build.compileApi({ apiResult: executeResult.apiResult.result }),
+  const configResult = await build.executeConfig();
+  if (configResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const schemaResult = await build.executeSchema({
+    namespace: namespaceResult.result,
+  });
+  if (schemaResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const buildResult1 = mergeResults([
+    build.preCompile(configResult.result),
+    build.compileSchema(schemaResult.result),
   ]);
 
-  if (buildResult.status === "error") {
-    await shutdown({ reason: "Failed intial build", code: 1 });
-    return cleanup;
+  if (buildResult1.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
   }
 
-  const [preBuild, schemaBuild, indexingBuild, apiBuild] = buildResult.result;
+  const [preBuild, schemaBuild] = buildResult1.result;
+
+  const indexingResult = await build.executeIndexingFunctions();
+  if (indexingResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const indexingBuildResult = await build.compileIndexing({
+    configResult: configResult.result,
+    schemaResult: schemaResult.result,
+    indexingResult: indexingResult.result,
+  });
+
+  if (indexingBuildResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  database = await createDatabase({
+    common,
+    namespace: namespaceResult.result,
+    preBuild,
+    schemaBuild,
+  });
+  await database.migrate(indexingBuildResult.result);
+
+  const apiResult = await build.executeApi({
+    indexingBuild: indexingBuildResult.result,
+    database,
+  });
+  if (apiResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+
+  const apiBuildResult = await build.compileApi({
+    apiResult: apiResult.result,
+  });
+
+  if (apiBuildResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
 
   telemetry.record({
     name: "lifecycle:session_start",
@@ -105,36 +132,30 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       ...buildPayload({
         preBuild,
         schemaBuild,
-        indexingBuild,
+        indexingBuild: indexingBuildResult.result,
       }),
     },
   });
 
-  database = createDatabase({
+  run({
     common,
+    database,
     preBuild,
     schemaBuild,
-  });
-
-  cleanupReloadable = await run({
-    common,
-    database,
-    schemaBuild,
-    indexingBuild,
+    indexingBuild: indexingBuildResult.result,
     onFatalError: () => {
-      shutdown({ reason: "Received fatal error", code: 1 });
+      exit({ reason: "Received fatal error", code: 1 });
     },
     onReloadableError: () => {
-      shutdown({ reason: "Encountered indexing error", code: 1 });
+      exit({ reason: "Encountered indexing error", code: 1 });
     },
   });
 
-  cleanupReloadableServer = await runServer({
+  runServer({
     common,
     database,
-    schemaBuild,
-    apiBuild,
+    apiBuild: apiBuildResult.result,
   });
 
-  return cleanup;
+  return shutdown.kill;
 }
