@@ -44,7 +44,7 @@ export type HexColumnConfig = {
 };
 
 export function hex<config extends HexColumnConfig>(
-  ...args: [name?: string, config?: config] | [config?: config]
+  ...args: [config?: config] | [name: string, config?: config]
 ): config["mode"] extends "bytes"
   ? PgBytesBuilderInitial<string>
   : PgHexBuilderInitial<string> {
