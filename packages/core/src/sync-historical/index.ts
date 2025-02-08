@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Factory,
@@ -109,18 +110,17 @@ export const createHistoricalSync = async (
   >();
 
   /**
-   * Data about the range passed to "eth_getLogs" for all log
-   *  filters and log factories.
+   * Data about the range passed to "eth_getLogs" share among all log
+   * filters and log factories.
    */
-  const getLogsRequestMetadata = new Map<
-    LogFilter | LogFactory,
-    {
-      /** Estimate optimal range to use for "eth_getLogs" requests */
-      estimatedRange: number;
-      /** Range suggested by an error message */
-      confirmedRange?: number;
-    }
-  >();
+  let logsRequestMetadata: {
+    /** Estimate optimal range to use for "eth_getLogs" requests */
+    estimatedRange: number;
+    /** Range suggested by an error message */
+    confirmedRange?: number;
+  } = {
+    estimatedRange: 500,
+  };
   /**
    * Intervals that have been completed for all filters in `args.sources`.
    *
@@ -164,13 +164,12 @@ export const createHistoricalSync = async (
   }): Promise<SyncLog[]> => {
     //  Use the recommended range if available, else don't chunk the interval at all.
 
-    const metadata = getLogsRequestMetadata.get(filter);
-    const intervals = metadata
-      ? getChunks({
-          interval,
-          maxChunkSize: metadata.confirmedRange ?? metadata.estimatedRange,
-        })
-      : [interval];
+    const intervals = getChunks({
+      interval,
+      maxChunkSize:
+        logsRequestMetadata.confirmedRange ??
+        logsRequestMetadata.estimatedRange,
+    });
 
     const topics =
       "eventSelector" in filter
@@ -254,12 +253,12 @@ export const createHistoricalSync = async (
               }', updating recommended range to ${range}.`,
             });
 
-            getLogsRequestMetadata.set(filter, {
+            logsRequestMetadata = {
               estimatedRange: range,
               confirmedRange: getLogsErrorResponse.isSuggestedRange
                 ? range
                 : undefined,
-            });
+            };
 
             return syncLogsDynamic({ address, interval, filter });
           }),
@@ -285,12 +284,9 @@ export const createHistoricalSync = async (
      * error has been received but the error didn't suggest a range.
      */
 
-    if (
-      getLogsRequestMetadata.has(filter) &&
-      getLogsRequestMetadata.get(filter)!.confirmedRange === undefined
-    ) {
-      getLogsRequestMetadata.get(filter)!.estimatedRange = Math.round(
-        getLogsRequestMetadata.get(filter)!.estimatedRange * 1.05,
+    if (logsRequestMetadata.confirmedRange === undefined) {
+      logsRequestMetadata.estimatedRange = Math.round(
+        logsRequestMetadata.estimatedRange * 1.05,
       );
     }
 
@@ -818,6 +814,10 @@ export const createHistoricalSync = async (
             }
           } catch (_error) {
             const error = _error as Error;
+
+            if (args.common.shutdown.isKilled) {
+              throw new ShutdownError();
+            }
 
             args.common.logger.error({
               service: "sync",
