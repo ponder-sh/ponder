@@ -805,7 +805,6 @@ export const createSync = async (params: {
         const filters = params.indexingBuild.sources
           .filter(({ filter }) => filter.chainId === network.chainId)
           .map(({ filter }) => filter);
-
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
@@ -1167,6 +1166,10 @@ export async function* getLocalEventGenerator(params: {
         cursor = queryCursor;
         yield { events, checkpoint: cursor };
       } catch (error) {
+        if (params.common.shutdown.isKilled) {
+          throw error;
+        }
+
         params.common.logger.warn({
           service: "sync",
           msg: `Failed '${params.network.name}' extract query for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
