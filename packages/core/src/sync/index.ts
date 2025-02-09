@@ -1168,7 +1168,7 @@ export async function* getLocalEventGenerator(params: {
         yield { events, checkpoint: cursor };
       } catch (error) {
         if (params.common.shutdown.isKilled) {
-          throw new ShutdownError();
+          throw error;
         }
 
         params.common.logger.warn({
