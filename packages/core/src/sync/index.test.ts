@@ -11,12 +11,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import type {
-  BlockFilter,
-  Filter,
-  Fragment,
-  RawEvent,
-} from "@/internal/types.js";
+import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import {
   MAX_CHECKPOINT_STRING,
@@ -52,24 +47,26 @@ test("splitEvents()", async () => {
     {
       chainId: 1,
       checkpoint: "0",
-      block: {
-        hash: "0x1",
-        timestamp: 1,
-        number: 1n,
+      event: {
+        block: {
+          hash: "0x1",
+          timestamp: 1,
+          number: 1n,
+        },
       },
-      sourceIndex: 0,
     },
     {
       chainId: 1,
       checkpoint: "0",
-      block: {
-        hash: "0x2",
-        timestamp: 2,
-        number: 2n,
+      event: {
+        block: {
+          hash: "0x2",
+          timestamp: 2,
+          number: 2n,
+        },
       },
-      sourceIndex: 0,
     },
-  ] as unknown as RawEvent[];
+  ] as unknown as Event[];
 
   const result = splitEvents(events);
 
@@ -79,14 +76,15 @@ test("splitEvents()", async () => {
         "checkpoint": "000000000100000000000000010000000000000001999999999999999999999999999999999",
         "events": [
           {
-            "block": {
-              "hash": "0x1",
-              "number": 1n,
-              "timestamp": 1,
-            },
             "chainId": 1,
             "checkpoint": "0",
-            "sourceIndex": 0,
+            "event": {
+              "block": {
+                "hash": "0x1",
+                "number": 1n,
+                "timestamp": 1,
+              },
+            },
           },
         ],
       },
@@ -94,14 +92,15 @@ test("splitEvents()", async () => {
         "checkpoint": "000000000200000000000000010000000000000002999999999999999999999999999999999",
         "events": [
           {
-            "block": {
-              "hash": "0x2",
-              "number": 2n,
-              "timestamp": 2,
-            },
             "chainId": 1,
             "checkpoint": "0",
-            "sourceIndex": 0,
+            "event": {
+              "block": {
+                "hash": "0x2",
+                "number": 2n,
+                "timestamp": 2,
+              },
+            },
           },
         ],
       },
@@ -893,10 +892,10 @@ test("getCachedBlock() with multiple filters", async () => {
 });
 
 test("mergeAsyncGeneratorsWithEventOrder()", async () => {
-  const p1 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
-  const p2 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
-  const p3 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
-  const p4 = promiseWithResolvers<{ events: RawEvent[]; checkpoint: string }>();
+  const p1 = promiseWithResolvers<{ events: Event[]; checkpoint: string }>();
+  const p2 = promiseWithResolvers<{ events: Event[]; checkpoint: string }>();
+  const p3 = promiseWithResolvers<{ events: Event[]; checkpoint: string }>();
+  const p4 = promiseWithResolvers<{ events: Event[]; checkpoint: string }>();
 
   async function* generator1() {
     yield await p1.promise;
@@ -908,7 +907,7 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
     yield await p4.promise;
   }
 
-  const results: { events: RawEvent[]; checkpoint: string }[] = [];
+  const results: { events: Event[]; checkpoint: string }[] = [];
   const generator = mergeAsyncGeneratorsWithEventOrder([
     generator1(),
     generator2(),
@@ -921,22 +920,22 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
   })();
 
   p1.resolve({
-    events: [{ checkpoint: "01" }, { checkpoint: "07" }] as RawEvent[],
+    events: [{ checkpoint: "01" }, { checkpoint: "07" }] as Event[],
     checkpoint: "10",
   });
   p3.resolve({
-    events: [{ checkpoint: "02" }, { checkpoint: "05" }] as RawEvent[],
+    events: [{ checkpoint: "02" }, { checkpoint: "05" }] as Event[],
     checkpoint: "06",
   });
 
   await new Promise((res) => setTimeout(res));
 
   p4.resolve({
-    events: [{ checkpoint: "08" }, { checkpoint: "11" }] as RawEvent[],
+    events: [{ checkpoint: "08" }, { checkpoint: "11" }] as Event[],
     checkpoint: "20",
   });
   p2.resolve({
-    events: [{ checkpoint: "08" }, { checkpoint: "13" }] as RawEvent[],
+    events: [{ checkpoint: "08" }, { checkpoint: "13" }] as Event[],
     checkpoint: "20",
   });
 
@@ -1255,7 +1254,7 @@ test("onEvent() multichain handles block", async (context) => {
   });
 
   const promise = promiseWithResolvers<void>();
-  const events: RawEvent[] = [];
+  const events: Event[] = [];
 
   await testClient.mine({ blocks: 1 });
 

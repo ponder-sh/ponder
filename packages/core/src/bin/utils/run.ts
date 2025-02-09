@@ -8,7 +8,6 @@ import type { Common } from "@/internal/common.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
@@ -135,12 +134,8 @@ export async function run({
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
     if (events.length > 0) {
-      const decodedEvents = decodeEvents(common, indexingBuild.sources, events);
-      const eventChunks = chunk(decodedEvents, 93);
-      common.logger.debug({
-        service: "app",
-        msg: `Decoded ${decodedEvents.length} events`,
-      });
+      const eventChunks = chunk(events, 93);
+
       for (const eventChunk of eventChunks) {
         const result = await indexingService.processEvents({
           events: eventChunk,
@@ -196,12 +191,12 @@ export async function run({
       if (eta === undefined || progress === undefined) {
         common.logger.info({
           service: "app",
-          msg: `Indexed ${decodedEvents.length} events`,
+          msg: `Indexed ${events.length} events`,
         });
       } else {
         common.logger.info({
           service: "app",
-          msg: `Indexed ${decodedEvents.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+          msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
         });
       }
 
@@ -306,24 +301,18 @@ export async function run({
                 Number(decodeCheckpoint(checkpoint).chainId),
             )!;
 
-            const decodedEvents = decodeEvents(
-              common,
-              indexingBuild.sources,
-              events,
-            );
-
             common.logger.debug({
               service: "app",
-              msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+              msg: `Decoded ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
 
             const result = await indexingService.processEvents({
-              events: decodedEvents,
+              events,
             });
 
             common.logger.info({
               service: "app",
-              msg: `Indexed ${decodedEvents.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+              msg: `Indexed ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
 
             if (result.status === "error") onReloadableError(result.error);
