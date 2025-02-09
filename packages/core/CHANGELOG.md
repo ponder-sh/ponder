@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.5
+
+### Patch Changes
+
+- [#1489](https://github.com/ponder-sh/ponder/pull/1489) [`36ed9e722e8416015d5f6172646028428c3c882f`](https://github.com/ponder-sh/ponder/commit/36ed9e722e8416015d5f6172646028428c3c882f) Thanks [@jaydenwindle](https://github.com/jaydenwindle)! - Improve error message when forgetting to export enum from `ponder.schema.ts`.
+
+- [#1494](https://github.com/ponder-sh/ponder/pull/1494) [`bfdac22887465b440f3c3075f16a490376c25350`](https://github.com/ponder-sh/ponder/commit/bfdac22887465b440f3c3075f16a490376c25350) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved eth_getLogs retry estimate and shutdown behavior.
+
 ## 0.9.4
 
 ### Patch Changes
