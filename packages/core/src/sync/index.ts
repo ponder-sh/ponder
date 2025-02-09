@@ -1,5 +1,4 @@
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
 import type {
   Factory,
   Filter,
