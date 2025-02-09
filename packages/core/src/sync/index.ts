@@ -1,5 +1,6 @@
 import type { Common } from "@/internal/common.js";
 import type {
+  Event,
   Factory,
   Filter,
   IndexingBuild,
@@ -52,11 +53,11 @@ import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
-import { buildEvents } from "./events.js";
+import { buildEvents, decodeEvents } from "./events.js";
 import { isAddressFactory } from "./filter.js";
 
 export type Sync = {
-  getEvents(): AsyncGenerator<RawEvent[]>;
+  getEvents(): AsyncGenerator<Event[]>;
   startRealtime(): Promise<void>;
   getStatus(): Status;
   seconds: Seconds;
@@ -68,7 +69,7 @@ export type RealtimeEvent =
       type: "block";
       checkpoint: string;
       status: Status;
-      events: RawEvent[];
+      events: Event[];
       network: Network;
     }
   | {
@@ -155,23 +156,23 @@ const getHistoricalLast = (
 };
 
 export const splitEvents = (
-  events: RawEvent[],
-): { checkpoint: string; events: RawEvent[] }[] => {
+  events: Event[],
+): { checkpoint: string; events: Event[] }[] => {
   let hash: Hash | undefined;
-  const result: { checkpoint: string; events: RawEvent[] }[] = [];
+  const result: { checkpoint: string; events: Event[] }[] = [];
 
   for (const event of events) {
-    if (hash === undefined || hash !== event.block.hash) {
+    if (hash === undefined || hash !== event.event.block.hash) {
       result.push({
         checkpoint: encodeCheckpoint({
           ...MAX_CHECKPOINT,
-          blockTimestamp: Number(event.block.timestamp),
+          blockTimestamp: Number(event.event.block.timestamp),
           chainId: BigInt(event.chainId),
-          blockNumber: event.block.number,
+          blockNumber: event.event.block.number,
         }),
         events: [],
       });
-      hash = event.block.hash;
+      hash = event.event.block.hash;
     }
 
     result[result.length - 1]!.events.push(event);
@@ -264,7 +265,7 @@ export const createSync = async (params: {
     events,
     checkpoint,
     network,
-  }: { events: RawEvent[]; checkpoint: string; network: Network }) => {
+  }: { events: Event[]; checkpoint: string; network: Network }) => {
     if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
       status[network.name]!.block = {
         timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
@@ -349,7 +350,18 @@ export const createSync = async (params: {
           ),
         });
 
-        return bufferAsyncGenerator(localEventGenerator, 1);
+        async function* decodeEventGenerator() {
+          for await (const { events, checkpoint } of localEventGenerator) {
+            const decodedEvents = decodeEvents(params.common, sources, events);
+            params.common.logger.debug({
+              service: "app",
+              msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
+            });
+            yield { events: decodedEvents, checkpoint };
+          }
+        }
+
+        return bufferAsyncGenerator(decodeEventGenerator(), 1);
       },
     );
 
@@ -403,10 +415,12 @@ export const createSync = async (params: {
     event: RealtimeSyncEvent,
     {
       network,
+      sources,
       syncProgress,
       realtimeSync,
     }: {
       network: Network;
+      sources: Source[];
       syncProgress: SyncProgress;
       realtimeSync: RealtimeSync;
     },
@@ -442,9 +456,20 @@ export const createSync = async (params: {
           pendingEvents = [];
           executedEvents = executedEvents.concat(readyEvents);
 
+          const decodedEvents = decodeEvents(
+            params.common,
+            sources,
+            readyEvents,
+          );
+
           params.common.logger.debug({
             service: "sync",
-            msg: `Sequenced ${readyEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+            msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+          });
+
+          params.common.logger.debug({
+            service: "sync",
+            msg: `Sequenced ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
           params
@@ -452,7 +477,7 @@ export const createSync = async (params: {
               type: "block",
               checkpoint,
               status: structuredClone(status),
-              events: readyEvents.sort((a, b) =>
+              events: decodedEvents.sort((a, b) =>
                 a.checkpoint < b.checkpoint ? -1 : 1,
               ),
               network,
@@ -495,9 +520,20 @@ export const createSync = async (params: {
               .filter(({ checkpoint }) => checkpoint > to);
             executedEvents = executedEvents.concat(readyEvents);
 
+            const decodedEvents = decodeEvents(
+              params.common,
+              sources,
+              readyEvents,
+            );
+
             params.common.logger.debug({
               service: "sync",
-              msg: `Sequenced ${readyEvents.length} '${network.name}' events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+              msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+            });
+
+            params.common.logger.debug({
+              service: "sync",
+              msg: `Sequenced ${decodedEvents.length} '${network.name}' events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
             });
 
             params
@@ -505,7 +541,7 @@ export const createSync = async (params: {
                 type: "block",
                 checkpoint: to,
                 status: structuredClone(status),
-                events: readyEvents.sort((a, b) =>
+                events: decodedEvents.sort((a, b) =>
                   a.checkpoint < b.checkpoint ? -1 : 1,
                 ),
                 network,
@@ -698,6 +734,7 @@ export const createSync = async (params: {
             .then((event) => {
               onRealtimeSyncEvent(event, {
                 network,
+                sources,
                 syncProgress,
                 realtimeSync,
               });
@@ -1525,8 +1562,8 @@ export const getCachedBlock = ({
  * @returns A single generator that yields events from all generators.
  */
 export async function* mergeAsyncGeneratorsWithEventOrder(
-  generators: AsyncGenerator<{ events: RawEvent[]; checkpoint: string }>[],
-): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }> {
+  generators: AsyncGenerator<{ events: Event[]; checkpoint: string }>[],
+): AsyncGenerator<{ events: Event[]; checkpoint: string }> {
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
   while (results.some((res) => res.done !== true)) {
@@ -1534,7 +1571,7 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
       ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
     );
 
-    const eventArrays: RawEvent[][] = [];
+    const eventArrays: Event[][] = [];
 
     for (const result of results) {
       if (result.done === false) {
