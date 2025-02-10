@@ -137,50 +137,38 @@ export async function run({
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
     if (events.length > 0) {
-      try {
-        await database.qb.drizzle.transaction(async (tx) => {
-          const historicalIndexingStore = createHistoricalIndexingStore({
-            common,
-            schemaBuild,
-            database,
-            indexingCache,
-            db: tx,
-          });
-          const eventChunks = chunk(events, 93);
-          for (const eventChunk of eventChunks) {
-            const result = await indexing.processEvents({
-              events: eventChunk,
-              db: historicalIndexingStore,
+      await database.retry(async () => {
+        try {
+          await database.qb.drizzle.transaction(async (tx) => {
+            const historicalIndexingStore = createHistoricalIndexingStore({
+              common,
+              schemaBuild,
+              database,
+              indexingCache,
+              db: tx,
             });
+            const eventChunks = chunk(events, 93);
+            for (const eventChunk of eventChunks) {
+              const result = await indexing.processEvents({
+                events: eventChunk,
+                db: historicalIndexingStore,
+              });
 
-            await historicalIndexingStore.queue.onIdle();
+              await historicalIndexingStore.queue.onIdle();
 
-            if (result.status === "error") {
-              onReloadableError(result.error);
-              return;
-            }
+              if (result.status === "error") {
+                onReloadableError(result.error);
+                return;
+              }
 
-            const checkpoint = decodeCheckpoint(
-              eventChunk[eventChunk.length - 1]!.checkpoint,
-            );
-
-            if (preBuild.ordering === "multichain") {
-              const network = indexingBuild.networks.find(
-                (network) => network.chainId === Number(checkpoint.chainId),
-              )!;
-              common.metrics.ponder_historical_completed_indexing_seconds.set(
-                { network: network.name },
-                Math.max(
-                  checkpoint.blockTimestamp - sync.seconds[network.name]!.start,
-                  0,
-                ),
+              const checkpoint = decodeCheckpoint(
+                eventChunk[eventChunk.length - 1]!.checkpoint,
               );
-              common.metrics.ponder_indexing_timestamp.set(
-                { network: network.name },
-                checkpoint.blockTimestamp,
-              );
-            } else {
-              for (const network of indexingBuild.networks) {
+
+              if (preBuild.ordering === "multichain") {
+                const network = indexingBuild.networks.find(
+                  (network) => network.chainId === Number(checkpoint.chainId),
+                )!;
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { network: network.name },
                   Math.max(
@@ -193,55 +181,71 @@ export async function run({
                   { network: network.name },
                   checkpoint.blockTimestamp,
                 );
+              } else {
+                for (const network of indexingBuild.networks) {
+                  common.metrics.ponder_historical_completed_indexing_seconds.set(
+                    { network: network.name },
+                    Math.max(
+                      checkpoint.blockTimestamp -
+                        sync.seconds[network.name]!.start,
+                      0,
+                    ),
+                  );
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { network: network.name },
+                    checkpoint.blockTimestamp,
+                  );
+                }
               }
+
+              // Note: allows for terminal and logs to be updated
+              await new Promise(setImmediate);
             }
 
-            // Note: allows for terminal and logs to be updated
-            await new Promise(setImmediate);
-          }
+            // underlying metrics collection is actually synchronous
+            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+            const { eta, progress } = await getAppProgress(common.metrics);
+            if (eta === undefined || progress === undefined) {
+              common.logger.info({
+                service: "app",
+                msg: `Indexed ${events.length} events`,
+              });
+            } else {
+              common.logger.info({
+                service: "app",
+                msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+              });
+            }
 
-          // underlying metrics collection is actually synchronous
-          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
-          if (eta === undefined || progress === undefined) {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.length} events`,
-            });
-          } else {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-            });
-          }
+            if (
+              indexingCache.isInvalidated() ||
+              (indexingCache.size > common.options.indexingCacheMaxBytes &&
+                events.length > 0) ||
+              (common.options.command === "dev" &&
+                lastFlush + 5_000 < Date.now() &&
+                events.length > 0)
+            ) {
+              indexingCache.prepare();
+              await indexingCache.flush({ db: tx });
+              await database.finalize({
+                checkpoint: events[events.length - 1]!.checkpoint,
+                db: tx,
+              });
+              lastFlush = Date.now();
 
-          if (
-            indexingCache.isInvalidated() ||
-            (indexingCache.size > common.options.indexingCacheMaxBytes &&
-              events.length > 0) ||
-            (common.options.command === "dev" &&
-              lastFlush + 5_000 < Date.now() &&
-              events.length > 0)
-          ) {
-            indexingCache.prepare();
-            await indexingCache.flush({ db: tx });
-            await database.finalize({
-              checkpoint: events[events.length - 1]!.checkpoint,
-              db: tx,
-            });
-            lastFlush = Date.now();
-
-            common.logger.debug({
-              service: "indexing",
-              msg: "Completed flush",
-            });
-          } else {
-            // TODO(kyle) move spillover to cache
-          }
-        });
-      } catch {
-        indexingCache.rollback();
-      }
+              common.logger.debug({
+                service: "indexing",
+                msg: "Completed flush",
+              });
+            } else {
+              // TODO(kyle) move spillover to cache
+            }
+          });
+        } catch (error) {
+          indexingCache.rollback();
+          throw error;
+        }
+      });
     }
 
     await database.setStatus(sync.getStatus());
@@ -257,12 +261,14 @@ export async function run({
     msg: "Completed all historical events, starting final flush",
   });
 
-  await database.qb.drizzle.transaction(async (tx) => {
-    await indexingCache.flush({ db: tx });
-    indexingCache.clear();
-    await database.finalize({
-      checkpoint: sync.getFinalizedCheckpoint(),
-      db: tx,
+  await database.retry(async () => {
+    await database.qb.drizzle.transaction(async (tx) => {
+      await indexingCache.flush({ db: tx });
+      indexingCache.clear();
+      await database.finalize({
+        checkpoint: sync.getFinalizedCheckpoint(),
+        db: tx,
+      });
     });
   });
 
@@ -366,8 +372,10 @@ export async function run({
       }
       case "reorg":
         await database.removeTriggers();
-        await database.qb.drizzle.transaction(async (tx) => {
-          await database.revert({ checkpoint: event.checkpoint, db: tx });
+        await database.retry(async () => {
+          await database.qb.drizzle.transaction(async (tx) => {
+            await database.revert({ checkpoint: event.checkpoint, db: tx });
+          });
         });
         await database.createTriggers();
 

@@ -41,10 +41,9 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
-        database.wrap(
+        database.record(
           {
             method: `${getTableName(table) ?? "unknown"}.find()`,
-            retry: false,
           },
           async () => {
             checkOnchainTable(table, "find");
@@ -60,10 +59,9 @@ export const createHistoricalIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               queue.add(() =>
-                database.wrap(
+                database.record(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
-                    retry: false,
                   },
                   async () => {
                     checkOnchainTable(table, "insert");
@@ -114,10 +112,9 @@ export const createHistoricalIndexingStore = ({
               ),
             onConflictDoUpdate: (valuesU: any) =>
               queue.add(() =>
-                database.wrap(
+                database.record(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
-                    retry: false,
                   },
                   async () => {
                     checkOnchainTable(table, "insert");
@@ -206,10 +203,9 @@ export const createHistoricalIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               queue
                 .add(() =>
-                  database.wrap(
+                  database.record(
                     {
                       method: `${getTableName(table) ?? "unknown"}.insert()`,
-                      retry: false,
                     },
                     async () => {
                       checkOnchainTable(table, "insert");
@@ -297,10 +293,9 @@ export const createHistoricalIndexingStore = ({
       return {
         set: (values: any) =>
           queue.add(() =>
-            database.wrap(
+            database.record(
               {
                 method: `${getTableName(table) ?? "unknown"}.update()`,
-                retry: false,
               },
               async () => {
                 checkOnchainTable(table, "update");
@@ -339,10 +334,9 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
-        database.wrap(
+        database.record(
           {
             method: `${getTableName(table) ?? "unknown"}.delete()`,
-            retry: false,
           },
           async () => {
             checkOnchainTable(table, "delete");
@@ -358,18 +352,15 @@ export const createHistoricalIndexingStore = ({
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
-        const res = await database.wrap(
-          { method: "sql", retry: false },
-          async () => {
-            try {
-              return await db._.session
-                .prepareQuery(query, undefined, undefined, method === "all")
-                .execute();
-            } catch (e) {
-              throw parseSqlError(e);
-            }
-          },
-        );
+        const res = await database.record({ method: "sql" }, async () => {
+          try {
+            return await db._.session
+              .prepareQuery(query, undefined, undefined, method === "all")
+              .execute();
+          } catch (e) {
+            throw parseSqlError(e);
+          }
+        });
 
         // @ts-ignore
         return { rows: res.rows.map((row) => Object.values(row)) };

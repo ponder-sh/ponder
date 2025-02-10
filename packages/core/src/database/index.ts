@@ -59,6 +59,11 @@ import prometheus from "prom-client";
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
+  retry: <T>(fn: () => Promise<T>) => Promise<T>;
+  record: <T>(
+    options: { method: string; includeTraceLogs?: boolean },
+    fn: () => Promise<T>,
+  ) => Promise<T>;
   wrap: <T>(
     options: { method: string; includeTraceLogs?: boolean },
     fn: () => Promise<T>,
@@ -384,7 +389,111 @@ export const createDatabase = async ({
   const database = {
     driver,
     qb,
-    // @ts-ignore
+    async retry(fn) {
+      const RETRY_COUNT = 9;
+      const BASE_DURATION = 125;
+
+      // First error thrown is often the most useful
+      let firstError: any;
+      let hasError = false;
+
+      for (let i = 0; i <= RETRY_COUNT; i++) {
+        try {
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
+          const result = await fn();
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+          return result;
+        } catch (_error) {
+          const error = _error as Error;
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
+          if (!hasError) {
+            hasError = true;
+            firstError = error;
+          }
+
+          if (error instanceof NonRetryableError) {
+            throw error;
+          }
+
+          if (i === RETRY_COUNT) {
+            throw firstError;
+          }
+
+          const duration = BASE_DURATION * 2 ** i;
+
+          await wait(duration);
+        }
+      }
+
+      throw "unreachable";
+    },
+    async record(options, fn) {
+      const endClock = startClock();
+
+      const id = randomUUID().slice(0, 8);
+      if (options.includeTraceLogs) {
+        common.logger.trace({
+          service: "database",
+          msg: `Started '${options.method}' database method (id=${id})`,
+        });
+      }
+
+      try {
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+
+        const result = await fn();
+        common.metrics.ponder_database_method_duration.observe(
+          { method: options.method },
+          endClock(),
+        );
+
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+        return result;
+      } catch (_error) {
+        const error = _error as Error;
+
+        if (common.shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+
+        common.metrics.ponder_database_method_duration.observe(
+          { method: options.method },
+          endClock(),
+        );
+        common.metrics.ponder_database_method_error_total.inc({
+          method: options.method,
+        });
+
+        common.logger.warn({
+          service: "database",
+          msg: `Failed '${options.method}' database method (id=${id})`,
+          error,
+        });
+
+        throw error;
+      } finally {
+        if (options.includeTraceLogs) {
+          common.logger.trace({
+            service: "database",
+            msg: `Completed '${options.method}' database method in ${Math.round(endClock())}ms (id=${id})`,
+          });
+        }
+      }
+    },
     async wrap(options, fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -473,6 +582,8 @@ export const createDatabase = async ({
           }
         }
       }
+
+      throw "unreachable";
     },
     async migrateSync() {
       await this.wrap(
@@ -1207,8 +1318,8 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       );
     },
     async finalize({ checkpoint, db }) {
-      await this.wrap(
-        { method: "finalize", includeTraceLogs: true, retry: false },
+      await this.record(
+        { method: "finalize", includeTraceLogs: true },
         async () => {
           await db
             .update(PONDER_META)
