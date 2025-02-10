@@ -789,21 +789,6 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3))(typescript@5.3.3)
 
-  packages/common:
-    devDependencies:
-      '@types/node':
-        specifier: ^20.11.24
-        version: 20.11.24
-      dotenv:
-        specifier: ^16.3.1
-        version: 16.4.5
-      tsup:
-        specifier: ^8.0.1
-        version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
-      vitest:
-        specifier: ^1.0.2
-        version: 1.0.2(@types/node@20.11.24)
-
   packages/core:
     dependencies:
       '@babel/code-frame':

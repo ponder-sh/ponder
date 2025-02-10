@@ -1,4 +1,4 @@
-import { promiseWithResolvers } from "@/utils/queue.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { expect, test } from "vitest";
 import { mergeAsyncGenerators } from "./generators.js";
 

@@ -1,5 +1,5 @@
-import { createQueue } from "@ponder/common";
 import { type Transport, type TransportConfig, createTransport } from "viem";
+import { createQueue } from "./utils/queue.js";
 
 /**
  * @description Creates a rate limited transport that throttles request throughput.

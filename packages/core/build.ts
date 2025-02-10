@@ -10,7 +10,6 @@ const PACKAGE_NAME = "@PONDER/CORE";
 const TSCONFIG = "tsconfig.build.json";
 const WATCH_DIRECTORY = "src";
 
-// Logging utilities
 const prefix = chalk.gray(`[${PACKAGE_NAME}]`);
 const log = {
   cli: (msg: string) => console.log(`${prefix} ${chalk.magenta("CLI")} ${msg}`),
@@ -117,7 +116,6 @@ async function watchMode() {
     log.cli(`Watching for changes in "${WATCH_DIRECTORY}"`);
   });
 
-  // Handle process termination
   process.on("SIGINT", () => {
     watcher.close().then(() => {
       log.cli("Watch mode terminated");
@@ -126,7 +124,6 @@ async function watchMode() {
   });
 }
 
-// Parse command line arguments
 const isWatchMode =
   process.argv.includes("--watch") || process.argv.includes("-w");
 
