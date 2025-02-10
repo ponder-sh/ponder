@@ -52,9 +52,10 @@
     "@tanstack/react-query": "^5.12.2",
     "@types/node": "^22.10.6",
     "@types/react": "^18.2.0",
-    "chalk": "^5.4.1",
     "chokidar": "^4.0.3",
     "execa": "^8.0.1",
+    "glob": "^10.3.10",
+    "picocolors": "^1.0.0",
     "react": "^18.2.0",
     "rimraf": "^5.0.5",
     "tsx": "^4.19.2"

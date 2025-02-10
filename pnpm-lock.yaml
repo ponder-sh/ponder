@@ -567,7 +567,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545
 
   examples/with-foundry/ponder:
     dependencies:
@@ -811,13 +811,13 @@ importers:
         version: 2.4.0
       '@hono/node-server':
         specifier: 1.13.3
-        version: 1.13.3
+        version: 1.13.3(hono@4.5.0)
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
       abitype:
         specifier: ^0.10.2
-        version: 0.10.3(zod@3.23.8)
+        version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -889,7 +889,7 @@ importers:
         version: 1.0.2(@types/node@20.11.24)
       vite-tsconfig-paths:
         specifier: 4.3.1
-        version: 4.3.1(vite@5.0.7(@types/node@20.11.24))
+        version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
     devDependencies:
       '@pgsql/types':
         specifier: 16.0.0
@@ -914,7 +914,7 @@ importers:
         version: 0.0.6
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2
+        version: 1.5.2(typescript@5.3.3)
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
@@ -1018,15 +1018,18 @@ importers:
       '@types/react':
         specifier: ^18.2.0
         version: 18.2.46
-      chalk:
-        specifier: ^5.4.1
-        version: 5.4.1
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      glob:
+        specifier: ^10.3.10
+        version: 10.3.10
+      picocolors:
+        specifier: ^1.0.0
+        version: 1.0.0
       react:
         specifier: ^18.2.0
         version: 18.2.0
@@ -5280,8 +5283,8 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545}
     version: 1.9.6
 
   form-data@2.3.3:
@@ -10543,7 +10546,9 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  '@hono/node-server@1.13.3': {}
+  '@hono/node-server@1.13.3(hono@4.5.0)':
+    dependencies:
+      hono: 4.5.0
 
   '@hono/trpc-server@0.3.2(@trpc/server@10.45.2)(hono@4.5.0)':
     dependencies:
@@ -11405,34 +11410,6 @@ snapshots:
       loupe: 2.3.7
       pretty-format: 29.7.0
 
-  '@wagmi/cli@1.5.2':
-    dependencies:
-      abitype: 0.8.7(zod@3.23.8)
-      abort-controller: 3.0.0
-      bundle-require: 3.1.2(esbuild@0.16.17)
-      cac: 6.7.14
-      change-case: 4.1.2
-      chokidar: 3.6.0
-      dedent: 0.7.0
-      detect-package-manager: 2.0.1
-      dotenv: 16.4.5
-      dotenv-expand: 10.0.0
-      esbuild: 0.16.17
-      execa: 6.1.0
-      find-up: 6.3.0
-      fs-extra: 10.1.0
-      globby: 13.2.2
-      node-fetch: 3.3.2
-      ora: 6.3.1
-      pathe: 1.1.1
-      picocolors: 1.0.0
-      prettier: 2.8.8
-      viem: 1.21.4(zod@3.23.8)
-      zod: 3.23.8
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
   '@wagmi/cli@1.5.2(typescript@5.3.3)':
     dependencies:
       abitype: 0.8.7(typescript@5.3.3)(zod@3.23.8)
@@ -11516,27 +11493,15 @@ snapshots:
       typescript: 5.3.3
       zod: 3.23.8
 
-  abitype@0.10.3(zod@3.23.8):
-    optionalDependencies:
-      zod: 3.23.8
-
   abitype@0.8.7(typescript@5.3.3)(zod@3.23.8):
     dependencies:
       typescript: 5.3.3
     optionalDependencies:
       zod: 3.23.8
 
-  abitype@0.8.7(zod@3.23.8):
-    optionalDependencies:
-      zod: 3.23.8
-
   abitype@0.9.8(typescript@5.3.3)(zod@3.23.8):
     optionalDependencies:
       typescript: 5.3.3
-      zod: 3.23.8
-
-  abitype@0.9.8(zod@3.23.8):
-    optionalDependencies:
       zod: 3.23.8
 
   abitype@1.0.5(typescript@5.0.4)(zod@3.23.8):
@@ -12611,10 +12576,6 @@ snapshots:
     optionalDependencies:
       supports-color: 8.1.1
 
-  debug@4.3.7:
-    dependencies:
-      ms: 2.1.3
-
   debug@4.3.7(supports-color@8.1.1):
     dependencies:
       ms: 2.1.3
@@ -13579,8 +13540,6 @@ snapshots:
 
   focus-visible@5.2.0: {}
 
-  follow-redirects@1.15.6: {}
-
   follow-redirects@1.15.6(debug@4.3.4):
     optionalDependencies:
       debug: 4.3.4(supports-color@8.1.1)
@@ -13596,7 +13555,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/3b20d60d14b343ee4f908cb8079495c07f5e8981: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545: {}
 
   form-data@2.3.3:
     dependencies:
@@ -14095,7 +14054,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.15.6
+      follow-redirects: 1.15.6(debug@4.3.4)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -17434,7 +17393,9 @@ snapshots:
       yn: 3.1.1
     optional: true
 
-  tsconfck@3.0.1: {}
+  tsconfck@3.0.1(typescript@5.3.3):
+    optionalDependencies:
+      typescript: 5.3.3
 
   tsconfig-paths@3.15.0:
     dependencies:
@@ -17820,21 +17781,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  viem@1.21.4(zod@3.23.8):
-    dependencies:
-      '@adraffy/ens-normalize': 1.10.0
-      '@noble/curves': 1.2.0
-      '@noble/hashes': 1.3.2
-      '@scure/bip32': 1.3.2
-      '@scure/bip39': 1.2.1
-      abitype: 0.9.8(zod@3.23.8)
-      isows: 1.0.3(ws@8.13.0)
-      ws: 8.13.0
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-
   viem@2.21.3(typescript@5.0.4)(zod@3.23.8):
     dependencies:
       '@adraffy/ens-normalize': 1.10.0
@@ -17874,7 +17820,7 @@ snapshots:
   vite-node@1.0.2(@types/node@20.11.24):
     dependencies:
       cac: 6.7.14
-      debug: 4.3.7
+      debug: 4.3.7(supports-color@8.1.1)
       pathe: 1.1.1
       picocolors: 1.0.0
       vite: 5.0.7(@types/node@20.11.24)
@@ -17888,11 +17834,11 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@4.3.1(vite@5.0.7(@types/node@20.11.24)):
+  vite-tsconfig-paths@4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)):
     dependencies:
-      debug: 4.3.7
+      debug: 4.3.7(supports-color@8.1.1)
       globrex: 0.1.2
-      tsconfck: 3.0.1
+      tsconfck: 3.0.1(typescript@5.3.3)
     optionalDependencies:
       vite: 5.0.7(@types/node@20.11.24)
     transitivePeerDependencies:
@@ -17918,7 +17864,7 @@ snapshots:
       acorn-walk: 8.3.1
       cac: 6.7.14
       chai: 4.3.10
-      debug: 4.3.7
+      debug: 4.3.7(supports-color@8.1.1)
       execa: 8.0.1
       local-pkg: 0.5.0
       magic-string: 0.30.5
