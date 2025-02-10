@@ -812,11 +812,13 @@ importers:
       '@hono/node-server':
         specifier: 1.13.3
         version: 1.13.3(hono@4.5.0)
+        version: 1.13.3(hono@4.5.0)
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
       abitype:
         specifier: ^0.10.2
+        version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
         version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
       commander:
         specifier: ^12.0.0
@@ -889,6 +891,7 @@ importers:
         version: 1.0.2(@types/node@20.11.24)
       vite-tsconfig-paths:
         specifier: 4.3.1
+        version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
         version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
     devDependencies:
       '@pgsql/types':
@@ -7833,6 +7836,7 @@ packages:
 
   shikiji@0.6.10:
     resolution: {integrity: sha512-WE+A5Y2ntM5hL3iJQujk97qr5Uj7PSIRXpQfrZ6h+JWPXZ8KBEDhFXc4lqNriaRq1WGOVPUT83XMOzmHiH3W8A==}
+    deprecated: Shikiji is merged back to Shiki v1.0, please migrate over to get the latest updates
 
   side-channel@1.0.4:
     resolution: {integrity: sha512-q5XPytqFEIKHkGdiMIrY10mvLRvnQh42/+GoBlFW3b2LXLE2xxJpZFdm94we0BaoV3RwJyGqg5wS7epxTv0Zvw==}
@@ -10566,6 +10570,9 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
+  '@hono/node-server@1.13.3(hono@4.5.0)':
+    dependencies:
+      hono: 4.5.0
   '@hono/node-server@1.13.3(hono@4.5.0)':
     dependencies:
       hono: 4.5.0
@@ -14093,6 +14100,7 @@ snapshots:
     dependencies:
       eventemitter3: 4.0.7
       follow-redirects: 1.15.6(debug@4.3.4)
+      follow-redirects: 1.15.6(debug@4.3.4)
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -17434,6 +17442,9 @@ snapshots:
   tsconfck@3.0.1(typescript@5.3.3):
     optionalDependencies:
       typescript: 5.3.3
+  tsconfck@3.0.1(typescript@5.3.3):
+    optionalDependencies:
+      typescript: 5.3.3
 
   tsconfig-paths@3.15.0:
     dependencies:
@@ -17865,6 +17876,7 @@ snapshots:
     dependencies:
       cac: 6.7.14
       debug: 4.3.7(supports-color@8.1.1)
+      debug: 4.3.7(supports-color@8.1.1)
       pathe: 1.1.1
       picocolors: 1.0.0
       vite: 5.0.7(@types/node@20.11.24)
@@ -17879,9 +17891,12 @@ snapshots:
       - terser
 
   vite-tsconfig-paths@4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)):
+  vite-tsconfig-paths@4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)):
     dependencies:
       debug: 4.3.7(supports-color@8.1.1)
+      debug: 4.3.7(supports-color@8.1.1)
       globrex: 0.1.2
+      tsconfck: 3.0.1(typescript@5.3.3)
       tsconfck: 3.0.1(typescript@5.3.3)
     optionalDependencies:
       vite: 5.0.7(@types/node@20.11.24)
@@ -17908,6 +17923,7 @@ snapshots:
       acorn-walk: 8.3.1
       cac: 6.7.14
       chai: 4.3.10
+      debug: 4.3.7(supports-color@8.1.1)
       debug: 4.3.7(supports-color@8.1.1)
       execa: 8.0.1
       local-pkg: 0.5.0

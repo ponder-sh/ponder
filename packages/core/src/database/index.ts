@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { IgnorableError, NonRetryableError } from "@/internal/errors.js";
+import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
   IndexingBuild,
   NamespaceBuild,
@@ -17,10 +17,9 @@ import {
 } from "@/sync-store/migrations.js";
 import type { Drizzle } from "@/types/db.js";
 import {
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
@@ -62,8 +61,6 @@ export type Database = {
   revert(args: { checkpoint: string }): Promise<void>;
   finalize(args: { checkpoint: string }): Promise<void>;
   complete(args: { checkpoint: string }): Promise<void>;
-  unlock(): Promise<void>;
-  kill(): Promise<void>;
 };
 
 export type PonderApp = {
@@ -91,8 +88,8 @@ export type PonderInternalSchema = {
 } & {
   [_: ReturnType<typeof getTableNames>[number]["reorg"]]: unknown & {
     operation_id: number;
-    checkpoint: string;
     operation: 0 | 1 | 2;
+    checkpoint: string;
   };
 };
 
@@ -127,11 +124,10 @@ export const createDatabase = async ({
 }: {
   common: Common;
   namespace: NamespaceBuild;
-  preBuild: PreBuild;
+  preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
-  let isKilled = false;
 
   ////////
   // Create schema, drivers, roles, and query builders
@@ -154,6 +150,22 @@ export const createDatabase = async ({
           ? createPglite(preBuild.databaseConfig.options)
           : preBuild.databaseConfig.instance,
     };
+
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
+
+      if (dialect === "pglite") {
+        await (driver as PGliteDriver).instance.close();
+      }
+    });
 
     const kyselyDialect = createPgliteKyselyDialect(driver.instance);
 
@@ -251,6 +263,27 @@ export const createDatabase = async ({
       listen: undefined,
     } as PostgresDriver;
 
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.internal
+        .updateTable("_ponder_meta")
+        .where("key", "=", "app")
+        .set({
+          value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))`,
+        })
+        .execute();
+
+      const d = driver as PostgresDriver;
+      d.listen?.release();
+      await Promise.all([
+        d.internal.end(),
+        d.user.end(),
+        d.readonly.end(),
+        d.sync.end(),
+      ]);
+    });
+
     await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
@@ -340,20 +373,15 @@ export const createDatabase = async ({
   // Helpers
   ////////
 
-  /**
-   * Undo operations in user tables by using the "reorg" tables.
-   *
-   * Note: "reorg" tables may contain operations that have not been applied to the
-   *       underlying tables, but only be 1 operation at most.
-   */
+  /** Undo operations in user tables by using the "reorg" tables. */
   const revert = async ({
+    tx,
     tableName,
     checkpoint,
-    tx,
   }: {
+    tx: Transaction<PonderInternalSchema>;
     tableName: ReturnType<typeof getTableNames>[number];
     checkpoint: string;
-    tx: Transaction<PonderInternalSchema>;
   }) => {
     const primaryKeyColumns = getPrimaryKeyColumns(
       schemaBuild.schema[tableName.js] as PgTable,
@@ -432,7 +460,8 @@ export const createDatabase = async ({
     });
   };
 
-  let checkpoint: string | undefined;
+  /** 'true' if `migrate` created new tables. */
+  let createdTables: boolean;
 
   const database = {
     driver,
@@ -458,14 +487,26 @@ export const createDatabase = async ({
         }
 
         try {
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
           const result = await fn();
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },
             endClock(),
           );
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
           return result;
         } catch (_error) {
           const error = _error as Error;
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
 
           common.metrics.ponder_database_method_duration.observe(
             { method: options.method },
@@ -474,14 +515,6 @@ export const createDatabase = async ({
           common.metrics.ponder_database_method_error_total.inc({
             method: options.method,
           });
-
-          if (isKilled) {
-            common.logger.trace({
-              service: "database",
-              msg: `Ignored error during '${options.method}' database method, service is killed (id=${id})`,
-            });
-            throw new IgnorableError();
-          }
 
           if (!hasError) {
             hasError = true;
@@ -839,7 +872,7 @@ export const createDatabase = async ({
               .executeTakeFirst()
               .then((row) => row?.value);
 
-            let createdTables = false;
+            createdTables = false;
 
             if (previousApp === undefined) {
               await createEnums();
@@ -850,7 +883,7 @@ export const createDatabase = async ({
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
                 previousApp.build_id !== buildId) ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.checkpoint === encodeCheckpoint(zeroCheckpoint))
+                previousApp.checkpoint === ZERO_CHECKPOINT_STRING)
             ) {
               for (const tableName of getTableNames(schemaBuild.schema)) {
                 await tx.schema
@@ -887,14 +920,12 @@ export const createDatabase = async ({
 
               // write metadata
 
-              checkpoint = encodeCheckpoint(zeroCheckpoint);
-
               const newApp = {
                 is_locked: 1,
                 is_dev: common.options.command === "dev" ? 1 : 0,
                 heartbeat_at: Date.now(),
                 build_id: buildId,
-                checkpoint: encodeCheckpoint(zeroCheckpoint),
+                checkpoint: ZERO_CHECKPOINT_STRING,
                 table_names: getTableNames(schemaBuild.schema).map(
                   ({ sql }) => sql,
                 ),
@@ -1012,9 +1043,8 @@ export const createDatabase = async ({
       }, common.options.databaseHeartbeatInterval);
     },
     async recoverCheckpoint() {
-      if (checkpoint !== undefined) {
-        return checkpoint;
-      }
+      // new tables are empty
+      if (createdTables) return ZERO_CHECKPOINT_STRING;
 
       return this.wrap(
         { method: "recoverCheckpoint", includeTraceLogs: true },
@@ -1027,7 +1057,7 @@ export const createDatabase = async ({
               .executeTakeFirstOrThrow()
               .then((row) => row.value);
 
-            if (app.checkpoint === encodeCheckpoint(zeroCheckpoint)) {
+            if (app.checkpoint === ZERO_CHECKPOINT_STRING) {
               for (const tableName of getTableNames(schemaBuild.schema)) {
                 await sql
                   .raw(
@@ -1108,13 +1138,13 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${encodeCheckpoint(maxCheckpoint)}');
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
     INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${encodeCheckpoint(maxCheckpoint)}');
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
     INSERT INTO "${namespace}"."${tableName.reorg}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${encodeCheckpoint(maxCheckpoint)}');
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
 END;
@@ -1151,13 +1181,9 @@ $$ LANGUAGE plpgsql
       await this.wrap({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           getTableNames(schemaBuild.schema).map((tableName) =>
-            qb.internal.transaction().execute((tx) =>
-              revert({
-                tableName,
-                checkpoint,
-                tx,
-              }),
-            ),
+            qb.internal
+              .transaction()
+              .execute((tx) => revert({ tx, tableName, checkpoint })),
           ),
         ),
       );
@@ -1201,7 +1227,7 @@ $$ LANGUAGE plpgsql
               await qb.internal
                 .updateTable(tableName.reorg)
                 .set({ checkpoint })
-                .where("checkpoint", "=", encodeCheckpoint(maxCheckpoint))
+                .where("checkpoint", "=", MAX_CHECKPOINT_STRING)
                 .execute();
             },
           ),
@@ -1223,32 +1249,6 @@ $$ LANGUAGE plpgsql
             .execute();
         },
       );
-    },
-    async kill() {
-      isKilled = true;
-
-      if (dialect === "pglite") {
-        const d = driver as PGliteDriver;
-        await d.instance.close();
-      }
-
-      if (dialect === "pglite_test") {
-        // no-op, allow test harness to clean up the instance
-      }
-
-      if (dialect === "postgres") {
-        const d = driver as PostgresDriver;
-        d.listen?.release();
-        await d.internal.end();
-        await d.user.end();
-        await d.readonly.end();
-        await d.sync.end();
-      }
-
-      common.logger.debug({
-        service: "database",
-        msg: "Closed connection to database",
-      });
     },
   } satisfies Database;
 

@@ -6,11 +6,15 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { Options } from "@/internal/options.js";
 import { createQueue } from "@/utils/queue.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+import { createQueueeeeeeeeeee }
+fromqueue.jsssssssssss;
+";
+import { startClock/utils/tttttttttttimer.js
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
+import { ShutdownError } from "./errors.js";
 import type { Logger } from "./logger.js";
+import type { Shutdown } from "./shutdown.js";
 import type { IndexingBuild } from "./types.js";
 import type { PreBuild, SchemaBuild } from "./types.js";
 
@@ -65,12 +69,12 @@ export type Telemetry = ReturnType<typeof createTelemetry>;
 export function createTelemetry({
   options,
   logger,
-}: { options: Options; logger: Logger }) {
+  shutdown,
+}: { options: Options; logger: Logger; shutdown: Shutdown }) {
   if (options.telemetryDisabled) {
     return {
       record: (_event: TelemetryEvent) => {},
       flush: async () => {},
-      kill: async () => {},
     };
   }
 
@@ -156,13 +160,12 @@ export function createTelemetry({
   let context: Awaited<ReturnType<typeof buildContext>> | undefined = undefined;
   const contextPromise = buildContext();
 
-  const controller = new AbortController();
-  let isKilled = false;
-
   const queue = createQueue({
     initialStart: true,
     concurrency: 10,
     worker: async (event: TelemetryEvent) => {
+      if (shutdown.isKilled) return;
+
       const endClock = startClock();
       try {
         if (context === undefined) context = await contextPromise;
@@ -182,7 +185,6 @@ export function createTelemetry({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body,
-          signal: controller.signal,
         });
         logger.trace({
           service: "telemetry",
@@ -190,6 +192,11 @@ export function createTelemetry({
         });
       } catch (error_) {
         const error = error_ as Error;
+
+        if (shutdown.isKilled) {
+          throw new ShutdownError();
+        }
+
         logger.trace({
           service: "telemetry",
           msg: `Failed to send '${event.name}' event after ${endClock()}ms`,
@@ -200,7 +207,6 @@ export function createTelemetry({
   });
 
   const record = (event: TelemetryEvent) => {
-    if (isKilled) return;
     queue.add(event);
   };
 
@@ -211,21 +217,16 @@ export function createTelemetry({
     });
   }, HEARTBEAT_INTERVAL_MS);
 
+  shutdown.add(() => {
+    clearInterval(heartbeatInterval);
+  });
+
   // Note that this method is only used for testing.
   const flush = async () => {
     await queue.onIdle();
   };
 
-  const kill = async () => {
-    clearInterval(heartbeatInterval);
-    isKilled = true;
-    // If there are any events in the queue that have not started, drop them.
-    queue.clear();
-    // Wait at most 1 second for any in-flight events to complete.
-    await Promise.race([queue.onIdle(), wait(1_000)]);
-  };
-
-  return { record, flush, kill };
+  return { record, flush };
 }
 
 async function getPackageManager() {

@@ -1,5 +1,31 @@
 # ponder
 
+## 0.9.5
+
+### Patch Changes
+
+- [#1489](https://github.com/ponder-sh/ponder/pull/1489) [`36ed9e722e8416015d5f6172646028428c3c882f`](https://github.com/ponder-sh/ponder/commit/36ed9e722e8416015d5f6172646028428c3c882f) Thanks [@jaydenwindle](https://github.com/jaydenwindle)! - Improve error message when forgetting to export enum from `ponder.schema.ts`.
+
+- [#1494](https://github.com/ponder-sh/ponder/pull/1494) [`bfdac22887465b440f3c3075f16a490376c25350`](https://github.com/ponder-sh/ponder/commit/bfdac22887465b440f3c3075f16a490376c25350) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved eth_getLogs retry estimate and shutdown behavior.
+
+## 0.9.4
+
+### Patch Changes
+
+- [#1485](https://github.com/ponder-sh/ponder/pull/1485) [`57eee3f9800674b2da71667749860d6d4e382632`](https://github.com/ponder-sh/ponder/commit/57eee3f9800674b2da71667749860d6d4e382632) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added support for the `"latest"` block tag as a `startBlock` or `endBlock` value in `ponder.config.ts`. This option fetches the latest block during the build step and uses that block number.
+
+## 0.9.3
+
+### Patch Changes
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed metrics `ponder_indexing_total_seconds` and `ponder_indexing_completed_seconds`. Added metrics `ponder_historical_total_indexing_seconds`, `ponder_historical_cached_indexing_seconds`, and `ponder_historical_completed_indexing_seconds`. Renamed metric `ponder_indexing_completed_timestamp` to `ponder_indexing_timestamp`.
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved shutdown behavior and hot reload reliability.
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added debug and info-level logs to the realtime and historical sync to improve observability.
+
+- [#1441](https://github.com/ponder-sh/ponder/pull/1441) [`626e5244aca1d32ad4686d434975e28b691f618b`](https://github.com/ponder-sh/ponder/commit/626e5244aca1d32ad4686d434975e28b691f618b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added a new optional `ordering` field to `ponder.config.ts`, which specifies how events across multiple chains should be ordered. The options are `"omnichain"` (default, current behavior) and `"multichain"` (new strategy, opt-in). [Read more](https://ponder.sh/docs/api-reference/config#event-ordering).
+
 ## 0.9.2
 
 ### Patch Changes

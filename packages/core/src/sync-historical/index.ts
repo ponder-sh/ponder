@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Factory,
@@ -61,7 +62,6 @@ export type HistoricalSync = {
    * that is synced.
    */
   sync(interval: Interval): Promise<SyncBlock | undefined>;
-  kill(): void;
 };
 
 type CreateHistoricalSyncParameters = {
@@ -76,7 +76,6 @@ type CreateHistoricalSyncParameters = {
 export const createHistoricalSync = async (
   args: CreateHistoricalSyncParameters,
 ): Promise<HistoricalSync> => {
-  let isKilled = false;
   /**
    * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
    */
@@ -111,18 +110,17 @@ export const createHistoricalSync = async (
   >();
 
   /**
-   * Data about the range passed to "eth_getLogs" for all log
-   *  filters and log factories.
+   * Data about the range passed to "eth_getLogs" share among all log
+   * filters and log factories.
    */
-  const getLogsRequestMetadata = new Map<
-    LogFilter | LogFactory,
-    {
-      /** Estimate optimal range to use for "eth_getLogs" requests */
-      estimatedRange: number;
-      /** Range suggested by an error message */
-      confirmedRange?: number;
-    }
-  >();
+  let logsRequestMetadata: {
+    /** Estimate optimal range to use for "eth_getLogs" requests */
+    estimatedRange: number;
+    /** Range suggested by an error message */
+    confirmedRange?: number;
+  } = {
+    estimatedRange: 500,
+  };
   /**
    * Intervals that have been completed for all filters in `args.sources`.
    *
@@ -166,13 +164,12 @@ export const createHistoricalSync = async (
   }): Promise<SyncLog[]> => {
     //  Use the recommended range if available, else don't chunk the interval at all.
 
-    const metadata = getLogsRequestMetadata.get(filter);
-    const intervals = metadata
-      ? getChunks({
-          interval,
-          maxChunkSize: metadata.confirmedRange ?? metadata.estimatedRange,
-        })
-      : [interval];
+    const intervals = getChunks({
+      interval,
+      maxChunkSize:
+        logsRequestMetadata.confirmedRange ??
+        logsRequestMetadata.estimatedRange,
+    });
 
     const topics =
       "eventSelector" in filter
@@ -256,12 +253,12 @@ export const createHistoricalSync = async (
               }', updating recommended range to ${range}.`,
             });
 
-            getLogsRequestMetadata.set(filter, {
+            logsRequestMetadata = {
               estimatedRange: range,
               confirmedRange: getLogsErrorResponse.isSuggestedRange
                 ? range
                 : undefined,
-            });
+            };
 
             return syncLogsDynamic({ address, interval, filter });
           }),
@@ -287,12 +284,9 @@ export const createHistoricalSync = async (
      * error has been received but the error didn't suggest a range.
      */
 
-    if (
-      getLogsRequestMetadata.has(filter) &&
-      getLogsRequestMetadata.get(filter)!.confirmedRange === undefined
-    ) {
-      getLogsRequestMetadata.get(filter)!.estimatedRange = Math.round(
-        getLogsRequestMetadata.get(filter)!.estimatedRange * 1.05,
+    if (logsRequestMetadata.confirmedRange === undefined) {
+      logsRequestMetadata.estimatedRange = Math.round(
+        logsRequestMetadata.estimatedRange * 1.05,
       );
     }
 
@@ -434,8 +428,6 @@ export const createHistoricalSync = async (
       address: filter.address,
     });
 
-    if (isKilled) return;
-
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
       logs: logs.map((log) => ({ log })),
@@ -478,11 +470,7 @@ export const createHistoricalSync = async (
       ? await syncAddressFactory(filter.address, interval)
       : filter.address;
 
-    if (isKilled) return;
-
     const logs = await syncLogsDynamic({ filter, interval, address });
-
-    if (isKilled) return;
 
     const blocks = await Promise.all(
       logs.map((log) => syncBlock(hexToNumber(log.blockNumber))),
@@ -523,15 +511,11 @@ export const createHistoricalSync = async (
       transactionsCache.add(hash);
     }
 
-    if (isKilled) return;
-
     await args.syncStore.insertLogs({
       logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
       shouldUpdateCheckpoint: true,
       chainId: args.network.chainId,
     });
-
-    if (isKilled) return;
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
@@ -554,8 +538,6 @@ export const createHistoricalSync = async (
           return syncTransactionReceipts(blockHash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
-
-      if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
@@ -595,13 +577,9 @@ export const createHistoricalSync = async (
         )
       : undefined;
 
-    if (isKilled) return;
-
     const blocks = await Promise.all(
       intervalRange(interval).map((number) => syncBlock(number)),
     );
-
-    if (isKilled) return;
 
     const transactionHashes: Set<Hash> = new Set();
     const requiredBlocks: Set<SyncBlock> = new Set();
@@ -627,8 +605,6 @@ export const createHistoricalSync = async (
       transactionsCache.add(hash);
     }
 
-    if (isKilled) return;
-
     const transactionReceipts = await Promise.all(
       Array.from(requiredBlocks).map((block) => {
         const blockTransactionHashes = new Set(
@@ -639,8 +615,6 @@ export const createHistoricalSync = async (
         return syncTransactionReceipts(block.hash, blockTransactionHashes);
       }),
     ).then((receipts) => receipts.flat());
-
-    if (isKilled) return;
 
     await args.syncStore.insertTransactionReceipts({
       transactionReceipts,
@@ -715,14 +689,10 @@ export const createHistoricalSync = async (
       }),
     ).then((traces) => traces.flat());
 
-    if (isKilled) return;
-
     await args.syncStore.insertTraces({
       traces,
       chainId: args.network.chainId,
     });
-
-    if (isKilled) return;
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
@@ -735,8 +705,6 @@ export const createHistoricalSync = async (
           return syncTransactionReceipts(blockHash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
-
-      if (isKilled) return;
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
@@ -847,6 +815,10 @@ export const createHistoricalSync = async (
           } catch (_error) {
             const error = _error as Error;
 
+            if (args.common.shutdown.isKilled) {
+              throw new ShutdownError();
+            }
+
             args.common.logger.error({
               service: "sync",
               msg: `Fatal error: Unable to sync '${args.network.name}' from ${interval[0]} to ${interval[1]}.`,
@@ -858,13 +830,9 @@ export const createHistoricalSync = async (
             return;
           }
 
-          if (isKilled) return;
-
           await blockPromise;
         }),
       );
-
-      if (isKilled) return;
 
       const blocks = await Promise.all(blockCache.values());
 
@@ -883,8 +851,6 @@ export const createHistoricalSync = async (
         }),
       ]);
 
-      if (isKilled) return;
-
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
       if (args.network.disableCache === false) {
@@ -901,9 +867,6 @@ export const createHistoricalSync = async (
       transactionReceiptsCache.clear();
 
       return latestBlock;
-    },
-    kill() {
-      isKilled = true;
     },
   };
 };

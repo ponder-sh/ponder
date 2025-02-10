@@ -284,8 +284,8 @@ export type BlockMetadata = {
 export type Network = {
   name: string;
   chainId: number;
-  chain: Chain;
   transport: ReturnType<Transport>;
+  chain: Chain;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
@@ -306,6 +306,8 @@ export type NamespaceBuild = string;
 export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
+  /** Ordering of events */
+  ordering: "omnichain" | "multichain";
 };
 
 export type SchemaBuild = {
@@ -342,6 +344,12 @@ export type Status = {
     block: { number: number; timestamp: number } | null;
     ready: boolean;
   };
+};
+
+// Seconds
+
+export type Seconds = {
+  [network: string]: { start: number; end: number; cached: number };
 };
 
 // Events

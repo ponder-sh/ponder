@@ -1,4 +1,5 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -10,6 +11,7 @@ import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("middleware serves request", async (context) => {
   const schema = {
@@ -24,10 +26,9 @@ test("middleware serves request", async (context) => {
     })),
   };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -81,8 +82,6 @@ test("middleware serves request", async (context) => {
       },
     },
   });
-
-  await cleanup();
 });
 
 test("middleware supports path other than /graphql using hono routing", async (context) => {
@@ -90,10 +89,9 @@ test("middleware supports path other than /graphql using hono routing", async (c
     table: onchainTable("table", (t) => ({ id: t.text().primaryKey() })),
   };
 
-  const { database, indexingStore, cleanup } = await setupDatabaseServices(
-    context,
-    { schemaBuild: { schema } },
-  );
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -119,8 +117,6 @@ test("middleware supports path other than /graphql using hono routing", async (c
   expect(await response.json()).toMatchObject({
     data: { table: { id: "0" } },
   });
-
-  await cleanup();
 });
 
 test("middleware throws error when extra filter is applied", async (context) => {
@@ -136,7 +132,7 @@ test("middleware throws error when extra filter is applied", async (context) => 
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -170,8 +166,6 @@ test("middleware throws error when extra filter is applied", async (context) => 
   expect(body.errors[0].message).toBe(
     'Unknown argument "doesntExist" on field "Query.table".',
   );
-
-  await cleanup();
 });
 
 test("graphQLMiddleware throws error for token limit", async (context) => {
@@ -181,7 +175,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -222,8 +216,6 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
   expect(body.errors[0].message).toBe(
     "Syntax Error: Token limit of 3 exceeded.",
   );
-
-  await cleanup();
 });
 
 test("graphQLMiddleware throws error for depth limit", async (context) => {
@@ -233,7 +225,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -274,8 +266,6 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
   expect(body.errors[0].message).toBe(
     "Syntax Error: Query depth limit of 5 exceeded, found 7.",
   );
-
-  await cleanup();
 });
 
 test("graphQLMiddleware throws error for max aliases", async (context) => {
@@ -285,7 +275,7 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -336,14 +326,12 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
   expect(body.errors[0].message).toBe(
     "Syntax Error: Aliases limit of 2 exceeded, found 3.",
   );
-
-  await cleanup();
 });
 
 test("graphQLMiddleware interactive", async (context) => {
   const schema = {};
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -358,6 +346,4 @@ test("graphQLMiddleware interactive", async (context) => {
   const response = await app.request("/graphql");
 
   expect(response.status).toBe(200);
-
-  await cleanup();
 });

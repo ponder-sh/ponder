@@ -72,7 +72,6 @@ export type Build = {
   startDev: (params: {
     onReload: (kind: "indexing" | "api") => void;
   }) => void;
-  kill: () => Promise<void>;
 };
 
 export const createBuild = async ({
@@ -132,6 +131,8 @@ export const createBuild = async ({
     server: { hmr: false },
     plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common.options)],
   });
+
+  common.shutdown.add(() => viteDevServer.close());
 
   // This is Vite boilerplate (initializes the Rollup container).
   await viteDevServer.pluginContainer.buildStart({});
@@ -373,6 +374,7 @@ export const createBuild = async ({
         status: "success",
         result: {
           databaseConfig: preBuild.databaseConfig,
+          ordering: preBuild.ordering,
         },
       } as const;
     },
@@ -584,13 +586,6 @@ export const createBuild = async ({
       };
 
       viteDevServer.watcher.on("change", onFileChange);
-    },
-    async kill() {
-      await viteDevServer?.close();
-      common.logger.debug({
-        service: "build",
-        msg: "Killed build service",
-      });
     },
   } satisfies Build;
 

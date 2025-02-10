@@ -5,20 +5,22 @@ import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 
 export type Config = {
+  database?: DatabaseConfig;
+  ordering?: "omnichain" | "multichain";
   networks: { [networkName: string]: NetworkConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   accounts: { [accountName: string]: AccountConfig<unknown> };
-  database?: DatabaseConfig;
   blocks: {
     [sourceName: string]: GetBlockFilter<unknown>;
   };
 };
 
 export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
+  database?: DatabaseConfig;
+  ordering?: "omnichain" | "multichain";
   networks: networks;
   contracts: contracts;
   accounts: accounts;
-  database?: DatabaseConfig;
   blocks: blocks;
 };
 
@@ -29,6 +31,7 @@ export const createConfig = <
   const blocks = {},
 >(config: {
   database?: DatabaseConfig;
+  ordering?: "omnichain" | "multichain";
   // TODO: add jsdoc to these properties.
   networks: NetworksConfig<Narrow<networks>>;
   contracts?: ContractsConfig<networks, Narrow<contracts>>;
@@ -62,9 +65,9 @@ type DatabaseConfig =
 
 type BlockConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
-  startBlock?: number;
+  startBlock?: number | "latest";
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-  endBlock?: number;
+  endBlock?: number | "latest";
 };
 
 type TransactionReceiptConfig = {
@@ -212,9 +215,9 @@ type AccountsConfig<networks, accounts> = {} extends accounts
 
 type BlockFilterConfig = {
   /** Block number at which to start indexing events (inclusive). If `undefined`, events will be processed from block 0. Default: `undefined`. */
-  startBlock?: number;
+  startBlock?: number | "latest";
   /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-  endBlock?: number;
+  endBlock?: number | "latest";
   interval?: number;
 };
 
