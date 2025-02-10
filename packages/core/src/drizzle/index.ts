@@ -1,24 +1,20 @@
-import type { Schema } from "@/internal/types.js";
-import { getTableColumns, getTableName, is } from "drizzle-orm";
-import { type PgColumn, PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { type TableConfig, getTableColumns, getTableName } from "drizzle-orm";
+import {
+  type PgColumn,
+  type PgTable,
+  type PgTableWithColumns,
+  getTableConfig,
+} from "drizzle-orm/pg-core";
 import { getColumnCasing, sqlToReorgTableName } from "./kit/index.js";
 
-export const getTableNames = (schema: Schema) => {
-  const tableNames = Object.entries(schema)
-    .filter(([, table]) => is(table, PgTable))
-    .map(([js, table]) => {
-      const sql = getTableName(table as PgTable);
+export const getTableNames = (table: PgTableWithColumns<TableConfig>) => {
+  const sql = getTableName(table);
 
-      return {
-        sql,
-        reorg: sqlToReorgTableName(sql),
-        trigger: sqlToReorgTableName(sql),
-        triggerFn: `operation_reorg__${sql}()`,
-        js,
-      } as const;
-    });
-
-  return tableNames;
+  return {
+    reorg: sqlToReorgTableName(sql),
+    trigger: sqlToReorgTableName(sql),
+    triggerFn: `operation_reorg__${sql}()`,
+  };
 };
 
 export const getPrimaryKeyColumns = (

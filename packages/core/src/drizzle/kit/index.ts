@@ -1,4 +1,4 @@
-import { SQL, is } from "drizzle-orm";
+import { SQL, type TableConfig, getTableName, is } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
@@ -9,11 +9,13 @@ import {
   PgSchema,
   type PgSequence,
   PgTable,
+  type PgTableWithColumns,
   PgView,
   getTableConfig,
   integer,
   isPgEnum,
   isPgSequence,
+  pgSchema,
   pgTable,
   serial,
   varchar,
@@ -36,6 +38,26 @@ export type SqlStatements = {
 
 export const sqlToReorgTableName = (tableName: string) =>
   `_reorg__${tableName}`;
+
+export const getReorgTable = <config extends TableConfig>(
+  table: PgTableWithColumns<config>,
+) => {
+  const schema = getTableConfig(table).schema;
+
+  if (schema && schema !== "public") {
+    return pgSchema(schema).table(sqlToReorgTableName(getTableName(table)), {
+      operation_id: serial().notNull().primaryKey(),
+      operation: integer().notNull().$type<0 | 1 | 2>(),
+      checkpoint: varchar({ length: 75 }).notNull(),
+    });
+  }
+
+  return pgTable(sqlToReorgTableName(getTableName(table)), {
+    operation_id: serial().notNull().primaryKey(),
+    operation: integer().notNull().$type<0 | 1 | 2>(),
+    checkpoint: varchar({ length: 75 }).notNull(),
+  });
+};
 
 export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
   const { tables, enums, schemas } = prepareFromExports(schema);

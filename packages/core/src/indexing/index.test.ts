@@ -16,18 +16,21 @@ import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFuncti
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { RawEvent } from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
+import { cachedTransport } from "@/sync/transport.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
+import {
+  checksumAddress,
+  createClient,
+  padHex,
+  parseEther,
+  toHex,
+  zeroAddress,
+} from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
-import {
-  type Context,
-  create,
-  processEvents,
-  processSetupEvents,
-  setIndexingStore,
-} from "./service.js";
+import { type Context, createIndexing } from "./index.js";
+import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -51,11 +54,11 @@ const { sources, networks } = await buildConfigAndIndexingFunctions({
 
 test("createIndexing()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -66,9 +69,7 @@ test("createIndexing()", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
-  expect(indexingService).toBeDefined();
+  expect(indexing).toBeDefined();
 });
 
 test("processSetupEvents() empty", async (context) => {
@@ -77,7 +78,7 @@ test("processSetupEvents() empty", async (context) => {
     schemaBuild: { schema },
   });
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -88,12 +89,7 @@ test("processSetupEvents() empty", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
+  const result = await indexing.processSetupEvents({ db: indexingStore });
 
   expect(result).toStrictEqual({ status: "success" });
 });
@@ -108,7 +104,7 @@ test("processSetupEvents()", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -119,12 +115,7 @@ test("processSetupEvents()", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
+  const result = await indexing.processSetupEvents({ db: indexingStore });
 
   expect(result).toStrictEqual({ status: "success" });
 
@@ -159,7 +150,7 @@ test("processEvent()", async (context) => {
     "Pair:Swap": vi.fn(),
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -169,8 +160,6 @@ test("processEvent()", async (context) => {
     requestQueues: [createRequestQueue({ network: networks[0]!, common })],
     syncStore,
   });
-
-  setIndexingStore(indexingService, indexingStore);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -197,9 +186,7 @@ test("processEvent()", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, {
-    events,
-  });
+  const result = await indexing.processEvents({ db: indexingStore, events });
   expect(result).toStrictEqual({ status: "success" });
 
   expect(
@@ -248,7 +235,7 @@ test("processEvents eventCount", async (context) => {
       vi.fn(),
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -258,8 +245,6 @@ test("processEvents eventCount", async (context) => {
     requestQueues: [createRequestQueue({ network: networks[0]!, common })],
     syncStore,
   });
-
-  setIndexingStore(indexingService, indexingStore);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -286,14 +271,20 @@ test("processEvents eventCount", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, {
-    events,
-  });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
-  expect(indexingService.eventCount).toStrictEqual({
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 1,
-  });
+  const metrics = await common.metrics.ponder_indexing_completed_events.get();
+
+  expect(metrics.values).toMatchInlineSnapshot(`
+    [
+      {
+        "labels": {
+          "event": "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+        },
+        "value": 1,
+      },
+    ]
+  `);
 });
 
 test("executeSetup() context.client", async (context) => {
@@ -310,34 +301,29 @@ test("executeSetup() context.client", async (context) => {
     },
   };
 
-  const indexingService = create({
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [requestQueue],
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
+  const getBalanceSpy = vi.spyOn(requestQueue, "request");
 
-  const getBalanceSpy = vi.spyOn(
-    indexingService.clientByChainId[1]!,
-    "getBalance",
-  );
-
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
+  const result = await indexing.processSetupEvents({ db: indexingStore });
 
   expect(result).toStrictEqual({ status: "success" });
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
-    address: BOB,
+    method: "eth_getBalance",
+    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "latest"],
   });
 });
 
@@ -355,7 +341,7 @@ test("executeSetup() context.db", async (context) => {
     },
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -366,14 +352,9 @@ test("executeSetup() context.db", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
+  const insertSpy = vi.spyOn(indexingStore, "insert");
 
-  const insertSpy = vi.spyOn(indexingService.currentEvent.context.db, "insert");
-
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
+  const result = await indexing.processSetupEvents({ db: indexingStore });
 
   expect(result).toStrictEqual({ status: "success" });
 
@@ -392,7 +373,7 @@ test("executeSetup() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       indexingFunctions: {
@@ -405,12 +386,7 @@ test("executeSetup() metrics", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
+  const result = await indexing.processSetupEvents({ db: indexingStore });
   expect(result).toStrictEqual({ status: "success" });
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
@@ -427,7 +403,7 @@ test("executeSetup() error", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -438,14 +414,9 @@ test("executeSetup() error", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
-  const result = await processSetupEvents(indexingService, {
-    sources,
-    networks,
-  });
+  const result = await indexing.processSetupEvents({ db: indexingStore });
   expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
 
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
@@ -463,7 +434,9 @@ test("processEvents() context.client", async (context) => {
     });
   };
 
-  const indexingService = create({
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       indexingFunctions: {
@@ -473,16 +446,11 @@ test("processEvents() context.client", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [requestQueue],
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
-  const getBalanceSpy = vi.spyOn(
-    indexingService.clientByChainId[1]!,
-    "getBalance",
-  );
+  const getBalanceSpy = vi.spyOn(requestQueue, "request");
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -509,14 +477,13 @@ test("processEvents() context.client", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, {
-    events,
-  });
+  const result = await indexing.processEvents({ db: indexingStore, events });
   expect(result).toStrictEqual({ status: "success" });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith({
-    address: BOB,
+    method: "eth_getBalance",
+    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "latest"],
   });
 });
 
@@ -535,7 +502,7 @@ test("processEvents() context.db", async (context) => {
     });
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       indexingFunctions: {
@@ -549,9 +516,7 @@ test("processEvents() context.db", async (context) => {
     syncStore,
   });
 
-  setIndexingStore(indexingService, indexingStore);
-
-  const insertSpy = vi.spyOn(indexingService.currentEvent.context.db, "insert");
+  const insertSpy = vi.spyOn(indexingStore, "insert");
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -578,9 +543,7 @@ test("processEvents() context.db", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, {
-    events,
-  });
+  const result = await indexing.processEvents({ db: indexingStore, events });
   expect(result).toStrictEqual({ status: "success" });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
@@ -596,7 +559,7 @@ test("processEvents() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       indexingFunctions: {
@@ -609,8 +572,6 @@ test("processEvents() metrics", async (context) => {
     requestQueues: [createRequestQueue({ network: networks[0]!, common })],
     syncStore,
   });
-
-  setIndexingStore(indexingService, indexingStore);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -637,8 +598,9 @@ test("processEvents() metrics", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await processEvents(indexingService, {
+  await indexing.processEvents({
     events,
+    db: indexingStore,
   });
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
@@ -656,7 +618,7 @@ test("processEvents() error", async (context) => {
       vi.fn(),
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       sources,
@@ -666,8 +628,6 @@ test("processEvents() error", async (context) => {
     requestQueues: [createRequestQueue({ network: networks[0]!, common })],
     syncStore,
   });
-
-  setIndexingStore(indexingService, indexingStore);
 
   indexingFunctions[
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
@@ -698,9 +658,7 @@ test("processEvents() error", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, {
-    events,
-  });
+  const result = await indexing.processEvents({ db: indexingStore, events });
 
   expect(result).toStrictEqual({
     status: "error",
@@ -732,7 +690,7 @@ test("processEvents() error with missing event object properties", async (contex
       throwError,
   };
 
-  const indexingService = create({
+  const indexing = createIndexing({
     common,
     indexingBuild: {
       indexingFunctions,
@@ -742,8 +700,6 @@ test("processEvents() error with missing event object properties", async (contex
     requestQueues: [createRequestQueue({ network, common: context.common })],
     syncStore,
   });
-
-  setIndexingStore(indexingService, indexingStore);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -770,7 +726,7 @@ test("processEvents() error with missing event object properties", async (contex
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await processEvents(indexingService, { events });
+  const result = await indexing.processEvents({ events, db: indexingStore });
 
   expect(result).toMatchInlineSnapshot(`
     {
@@ -782,24 +738,19 @@ test("processEvents() error with missing event object properties", async (contex
 
 test("ponderActions getBalance()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions: {},
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
 
-  setIndexingStore(indexingService, indexingStore);
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 0n!)) as ReadOnlyClient;
 
-  const balance = await indexingService.clientByChainId[1]!.getBalance({
+  const balance = await client.getBalance({
     address: BOB,
   });
 
@@ -808,26 +759,21 @@ test("ponderActions getBalance()", async (context) => {
 
 test("ponderActions getCode()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
   const { address } = await deployErc20({ sender: ALICE });
 
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions: {},
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
 
-  setIndexingStore(indexingService, indexingStore);
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 1n!)) as ReadOnlyClient;
 
-  const bytecode = await indexingService.clientByChainId[1]!.getCode({
+  const bytecode = await client.getCode({
     address,
   });
 
@@ -836,7 +782,7 @@ test("ponderActions getCode()", async (context) => {
 
 test("ponderActions getStorageAt()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -848,20 +794,15 @@ test("ponderActions getStorageAt()", async (context) => {
     sender: ALICE,
   });
 
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions: {},
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
 
-  setIndexingStore(indexingService, indexingStore);
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
 
-  const storage = await indexingService.clientByChainId[1]!.getStorageAt({
+  const storage = await client.getStorageAt({
     address,
     // totalSupply is in the third storage slot
     slot: toHex(2),
@@ -872,7 +813,7 @@ test("ponderActions getStorageAt()", async (context) => {
 
 test("ponderActions readContract()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -884,20 +825,15 @@ test("ponderActions readContract()", async (context) => {
     sender: ALICE,
   });
 
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions: {},
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
 
-  setIndexingStore(indexingService, indexingStore);
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
 
-  const totalSupply = await indexingService.clientByChainId[1]!.readContract({
+  const totalSupply = await client.readContract({
     abi: erc20ABI,
     functionName: "totalSupply",
     address,
@@ -908,7 +844,7 @@ test("ponderActions readContract()", async (context) => {
 
 test("ponderActions readContract() blockNumber", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -920,20 +856,15 @@ test("ponderActions readContract() blockNumber", async (context) => {
     sender: ALICE,
   });
 
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions: {},
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
 
-  setIndexingStore(indexingService, indexingStore);
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
 
-  const totalSupply = await indexingService.clientByChainId[1]!.readContract({
+  const totalSupply = await client.readContract({
     abi: erc20ABI,
     functionName: "totalSupply",
     address,
@@ -946,7 +877,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
 // Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
 test.skip("ponderActions multicall()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -958,20 +889,15 @@ test.skip("ponderActions multicall()", async (context) => {
     sender: ALICE,
   });
 
-  const indexingService = create({
-    common,
-    indexingBuild: {
-      sources,
-      networks,
-      indexingFunctions: {},
-    },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
-    syncStore,
-  });
+  const requestQueue = createRequestQueue({ network: networks[0]!, common });
 
-  setIndexingStore(indexingService, indexingStore);
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
 
-  const [totalSupply] = await indexingService.clientByChainId[1]!.multicall({
+  const [totalSupply] = await client.multicall({
     allowFailure: false,
     contracts: [
       {
