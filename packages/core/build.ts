@@ -1,4 +1,5 @@
-import { dirname } from "node:path";
+import fs from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import chalk from "chalk";
 import { watch } from "chokidar";
@@ -19,6 +20,20 @@ const log = {
     console.log(`${prefix} ${chalk.green("CLI")} ${msg}`),
   tsc: (msg: string) => console.log(`${prefix} ${chalk.blue("TSC")} ${msg}`),
 };
+
+const isWatchMode =
+  process.argv.includes("--watch") || process.argv.includes("-w");
+
+if (isWatchMode) {
+  watchMode().catch((error) => {
+    log.error(`Watch mode failed: ${error}`);
+    process.exit(1);
+  });
+} else {
+  build().then((success) => {
+    process.exit(success ? 0 : 1);
+  });
+}
 
 async function build() {
   try {
@@ -43,26 +58,13 @@ async function build() {
     if (tscResult.exitCode !== 0) {
       log.error("Build failed");
       return false;
+    } else {
+      log.cli("Completed tsc without error");
     }
 
-    const pathsResult = await execa(
-      "tsconfig-replace-paths",
-      ["--project", TSCONFIG],
-      {
-        reject: false,
-        stderr: "pipe",
-        stdout: "pipe",
-      },
-    );
-
-    `${pathsResult.stdout}\n${pathsResult.stderr}`
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .forEach((line) => log.tsc(line));
-
-    if (pathsResult.exitCode !== 0) {
-      log.error("Build failed");
+    const replacePathsResult = replaceAliasedPaths();
+    if (replacePathsResult.error) {
+      log.error(`Failed to replace import paths: ${replacePathsResult.error}`);
       return false;
     }
 
@@ -79,7 +81,7 @@ async function watchMode() {
   await build();
 
   const watcher = watch(WATCH_DIRECTORY, {
-    cwd: dirname(fileURLToPath(import.meta.url)),
+    cwd: path.dirname(fileURLToPath(import.meta.url)),
     persistent: true,
   });
 
@@ -124,16 +126,88 @@ async function watchMode() {
   });
 }
 
-const isWatchMode =
-  process.argv.includes("--watch") || process.argv.includes("-w");
+const importRegex = /from ['"](@\/[^'"]*)['"]/g;
 
-if (isWatchMode) {
-  watchMode().catch((error) => {
-    log.error(`Watch mode failed: ${error}`);
-    process.exit(1);
-  });
-} else {
-  build().then((success) => {
-    process.exit(success ? 0 : 1);
-  });
+function replaceAliasedPaths() {
+  try {
+    const directories = ["dist/esm", "dist/types"];
+
+    for (const dir of directories) {
+      let replacementCount = 0;
+
+      // Normalize the directory path for the current OS
+      const normalizedDir = path.normalize(dir);
+
+      // Get all files in the directory recursively
+      const filePaths = fs
+        .readdirSync(normalizedDir, {
+          recursive: true,
+          encoding: "utf8",
+          withFileTypes: true,
+        })
+        .filter((dirent) => dirent.isFile())
+        .map((dirent) => path.join(dirent.path, dirent.name));
+
+      for (const filePath of filePaths) {
+        const content = fs.readFileSync(filePath, "utf8");
+
+        // Get the corresponding source path relative to src directory
+        // Use posix-style paths for consistency in the relative path calculation
+        const relativePath = path
+          .relative(normalizedDir, filePath)
+          // Convert Windows backslashes to forward slashes for consistency
+          .split(path.sep)
+          .join("/");
+
+        const sourceFilePath = path.join("src", relativePath);
+        // Ensure we use forward slashes for the source directory path
+        const sourceFileDir = path
+          .dirname(sourceFilePath)
+          .split(path.sep)
+          .join("/");
+
+        // Replace all @/ imports with relative paths
+        const newContent = content.replace(
+          importRegex,
+          (_match, importPath) => {
+            // Remove @ prefix
+            const importWithoutAlias = importPath.replace("@/", "");
+            // Use forward slashes for the target path
+            const targetPath = path
+              .join("src", importWithoutAlias)
+              .split(path.sep)
+              .join("/");
+
+            // Create relative path from the source file to the target
+            // and ensure it uses forward slashes
+            let relativePath = path
+              .relative(sourceFileDir, targetPath)
+              .split(path.sep)
+              .join("/");
+
+            // Ensure the path starts with ./ or ../
+            if (!relativePath.startsWith(".")) {
+              relativePath = `./${relativePath}`;
+            }
+
+            replacementCount++;
+            return `from '${relativePath}'`;
+          },
+        );
+
+        if (newContent !== content) {
+          fs.writeFileSync(filePath, newContent);
+        }
+      }
+
+      log.cli(
+        `Replaced import paths in '${normalizedDir}' (${filePaths.length} files, ${replacementCount} replacements)`,
+      );
+    }
+
+    return { error: null };
+  } catch (e) {
+    const error = e as Error;
+    return { error };
+  }
 }

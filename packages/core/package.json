@@ -12,9 +12,11 @@
   "files": [
     "dist",
     "src/**/*.ts",
-    "!src/**/*.test.ts",
-    "!src/**/*.test-d.ts",
-    "!src/_test/**/*"
+    "!src/_test/**/*",
+    "!**/*.test.ts",
+    "!**/*.test-d.ts",
+    "!**/*.tsbuildinfo",
+    "CHANGELOG.md"
   ],
   "bin": {
     "ponder": "./dist/esm/bin/ponder.js"
@@ -24,8 +26,8 @@
   "typings": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js",
-      "types": "./dist/types/index.d.ts"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./virtual": {
       "types": "./src/types.d.ts"
