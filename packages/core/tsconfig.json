@@ -1,5 +1,11 @@
 {
   "extends": "./tsconfig.build.json",
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": []
+  "exclude": [],
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["src/*"],
+      "@ponder/utils": ["../utils/src"] // Required for end-to-end tests
+    }
+  }
 }
