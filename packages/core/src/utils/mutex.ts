@@ -1,4 +1,4 @@
-import { type Queue, createQueue } from "@ponder/common";
+import { type Queue, createQueue } from "@/utils/queue.js";
 
 export type Mutex<T, P> = ((params: T) => Promise<P>) & Queue<P, T>;
 

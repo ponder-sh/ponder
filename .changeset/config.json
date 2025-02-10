@@ -12,7 +12,6 @@
     ]
   ],
   "ignore": [
-    "@ponder/common",
     "ponder-examples-feature-accounts",
     "ponder-examples-feature-blocks",
     "ponder-examples-feature-factory",

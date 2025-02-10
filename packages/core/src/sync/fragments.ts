@@ -12,7 +12,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { dedupe } from "@ponder/common";
+import { dedupe } from "@/utils/dedupe.js";
 import type { Address, Hex } from "viem";
 import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 

@@ -1,7 +1,7 @@
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type { Network } from "@/internal/types.js";
-import { type Queue, createQueue } from "@ponder/common";
+import { type Queue, createQueue } from "@/utils/queue.js";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,

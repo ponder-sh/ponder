@@ -18,14 +18,15 @@
     "noUnusedParameters": true, // Not enabled by default in `strict` mode.
     "useDefineForClassFields": true, // Not enabled by default in `strict` mode unless we bump `target` to ES2022.
     "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
 
     // JavaScript support
     "allowJs": false,
     "checkJs": false,
 
     // Interop constraints
-    "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
 
     // Language and environment
     "moduleResolution": "NodeNext",

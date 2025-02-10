@@ -25,8 +25,8 @@ import {
 } from "@/sync/filter.js";
 import type { SyncBlock } from "@/types/sync.js";
 import { chains } from "@/utils/chains.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { dedupe } from "@ponder/common";
 import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 

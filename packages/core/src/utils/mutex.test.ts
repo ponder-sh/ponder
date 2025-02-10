@@ -1,4 +1,4 @@
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { expect, test, vi } from "vitest";
 import { createMutex, mutex } from "./mutex.js";
 

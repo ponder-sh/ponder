@@ -20,9 +20,9 @@ import {
 } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
-import { promiseWithResolvers } from "@ponder/common";
 import { beforeEach, expect, test, vi } from "vitest";
 import { getFragments } from "./fragments.js";
 import {

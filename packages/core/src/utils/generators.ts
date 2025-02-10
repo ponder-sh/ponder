@@ -1,4 +1,4 @@
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 
 /**
  * Merges multiple async generators into a single async generator.

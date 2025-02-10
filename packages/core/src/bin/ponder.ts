@@ -14,7 +14,7 @@ import { start } from "./commands/start.js";
 dotenv.config({ path: ".env.local" });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const packageJsonPath = resolve(__dirname, "../../package.json");
+const packageJsonPath = resolve(__dirname, "../../../package.json");
 const packageJson = JSON.parse(
   readFileSync(packageJsonPath, { encoding: "utf8" }),
 );

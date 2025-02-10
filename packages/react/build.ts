@@ -1,10 +1,8 @@
-/// <reference types="node" />
-
-import { dirname } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
-import chalk from "chalk";
 import { watch } from "chokidar";
 import { execa } from "execa";
+import pc from "picocolors";
 import { rimraf } from "rimraf";
 
 const PACKAGE_NAME = "@PONDER/REACT";
@@ -12,44 +10,53 @@ const PACKAGE_NAME = "@PONDER/REACT";
 const TSCONFIG = "tsconfig.build.json";
 const WATCH_DIRECTORY = "src";
 
-// Logging utilities
-const prefix = chalk.gray(`[${PACKAGE_NAME}]`);
+const prefix = pc.gray(`[${PACKAGE_NAME}]`);
 const log = {
-  cli: (msg: string) => console.log(`${prefix} ${chalk.magenta("CLI")} ${msg}`),
-  error: (msg: string) =>
-    console.error(`${prefix} ${chalk.red("ERROR")} ${msg}`),
-  success: (msg: string) =>
-    console.log(`${prefix} ${chalk.green("CLI")} ${msg}`),
-  tsc: (msg: string) => console.log(`${prefix} ${chalk.blue("TSC")} ${msg}`),
+  cli: (msg: string) => console.log(`${prefix} ${pc.magenta("CLI")} ${msg}`),
+  error: (msg: string) => console.error(`${prefix} ${pc.red("ERROR")} ${msg}`),
+  success: (msg: string) => console.log(`${prefix} ${pc.green("CLI")} ${msg}`),
+  tsc: (msg: string) => console.log(`${prefix} ${pc.blue("TSC")} ${msg}`),
 };
+
+const isWatchMode =
+  process.argv.includes("--watch") || process.argv.includes("-w");
+
+if (isWatchMode) {
+  watchMode().catch((error) => {
+    log.error(`Watch mode failed: ${error}`);
+    process.exit(1);
+  });
+} else {
+  build().then((success) => {
+    process.exit(success ? 0 : 1);
+  });
+}
 
 async function build() {
   try {
     log.cli("Build start");
     const startTime = Date.now();
 
-    // Clean dist folder
     await rimraf("dist");
     log.cli("Cleaned output folder");
 
-    // Run TypeScript compiler
-    const result = await execa("tsc", ["--project", TSCONFIG], {
+    const tscResult = await execa("tsc", ["--project", TSCONFIG], {
       reject: false,
       stderr: "pipe",
       stdout: "pipe",
     });
 
-    // Handle compiler output
-    const output = `${result.stdout}\n${result.stderr}`
+    `${tscResult.stdout}\n${tscResult.stderr}`
       .trim()
       .split("\n")
-      .filter(Boolean);
+      .filter(Boolean)
+      .forEach((line) => log.tsc(line));
 
-    output.forEach((line) => log.tsc(line));
-
-    if (result.exitCode !== 0) {
+    if (tscResult.exitCode !== 0) {
       log.error("Build failed");
       return false;
+    } else {
+      log.cli("Completed tsc without error");
     }
 
     const duration = Date.now() - startTime;
@@ -65,7 +72,7 @@ async function watchMode() {
   await build();
 
   const watcher = watch(WATCH_DIRECTORY, {
-    cwd: dirname(fileURLToPath(import.meta.url)),
+    cwd: path.dirname(fileURLToPath(import.meta.url)),
     persistent: true,
   });
 
@@ -102,26 +109,10 @@ async function watchMode() {
     log.cli(`Watching for changes in "${WATCH_DIRECTORY}"`);
   });
 
-  // Handle process termination
   process.on("SIGINT", () => {
     watcher.close().then(() => {
       log.cli("Watch mode terminated");
       process.exit(0);
     });
-  });
-}
-
-// Parse command line arguments
-const isWatchMode =
-  process.argv.includes("--watch") || process.argv.includes("-w");
-
-if (isWatchMode) {
-  watchMode().catch((error) => {
-    log.error(`Watch mode failed: ${error}`);
-    process.exit(1);
-  });
-} else {
-  build().then((success) => {
-    process.exit(success ? 0 : 1);
   });
 }

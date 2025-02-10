@@ -9,6 +9,7 @@ import {
 } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
+import { createQueue } from "@/utils/queue.js";
 import {
   type QueryWithTypings,
   type SQL,
@@ -20,7 +21,6 @@ import {
 } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { createQueue } from "../../../common/src/queue.js";
 import { normalizeColumn } from "./historical.js";
 import { type IndexingStore, parseSqlError } from "./index.js";
 
