@@ -1,9 +1,7 @@
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { watch } from "chokidar";
 import { execa } from "execa";
-import { glob } from "glob";
 import pc from "picocolors";
 import { rimraf } from "rimraf";
 

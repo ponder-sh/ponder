@@ -894,6 +894,9 @@ importers:
       '@pgsql/types':
         specifier: 16.0.0
         version: 16.0.0
+      '@ponder/client':
+        specifier: workspace:*
+        version: link:../client
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6
@@ -1024,9 +1027,6 @@ importers:
       execa:
         specifier: ^8.0.1
         version: 8.0.1
-      glob:
-        specifier: ^10.3.10
-        version: 10.3.10
       picocolors:
         specifier: ^1.0.0
         version: 1.0.0
