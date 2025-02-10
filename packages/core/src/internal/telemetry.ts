@@ -6,10 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { Options } from "@/internal/options.js";
 import { createQueue } from "@/utils/queue.js";
-import { createQueueeeeeeeeeee }
-fromqueue.jsssssssssss;
-";
-import { startClock/utils/tttttttttttimer.js
+import { startClock } from "@/utils/timer.js";
 import Conf from "conf";
 import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import { ShutdownError } from "./errors.js";
