@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import chalk from "chalk";
 import { watch } from "chokidar";
 import { execa } from "execa";
+import { glob } from "glob";
+import pc from "picocolors";
 import { rimraf } from "rimraf";
 
 const PACKAGE_NAME = "@PONDER/CORE";
@@ -11,14 +12,12 @@ const PACKAGE_NAME = "@PONDER/CORE";
 const TSCONFIG = "tsconfig.build.json";
 const WATCH_DIRECTORY = "src";
 
-const prefix = chalk.gray(`[${PACKAGE_NAME}]`);
+const prefix = pc.gray(`[${PACKAGE_NAME}]`);
 const log = {
-  cli: (msg: string) => console.log(`${prefix} ${chalk.magenta("CLI")} ${msg}`),
-  error: (msg: string) =>
-    console.error(`${prefix} ${chalk.red("ERROR")} ${msg}`),
-  success: (msg: string) =>
-    console.log(`${prefix} ${chalk.green("CLI")} ${msg}`),
-  tsc: (msg: string) => console.log(`${prefix} ${chalk.blue("TSC")} ${msg}`),
+  cli: (msg: string) => console.log(`${prefix} ${pc.magenta("CLI")} ${msg}`),
+  error: (msg: string) => console.error(`${prefix} ${pc.red("ERROR")} ${msg}`),
+  success: (msg: string) => console.log(`${prefix} ${pc.green("CLI")} ${msg}`),
+  tsc: (msg: string) => console.log(`${prefix} ${pc.blue("TSC")} ${msg}`),
 };
 
 const isWatchMode =
@@ -138,15 +137,7 @@ function replaceAliasedPaths() {
       // Normalize the directory path for the current OS
       const normalizedDir = path.normalize(dir);
 
-      // Get all files in the directory recursively
-      const filePaths = fs
-        .readdirSync(normalizedDir, {
-          recursive: true,
-          encoding: "utf8",
-          withFileTypes: true,
-        })
-        .filter((dirent) => dirent.isFile())
-        .map((dirent) => path.join(dirent.path, dirent.name));
+      const filePaths = glob.sync(`${normalizedDir}/**/*`, { nodir: true });
 
       for (const filePath of filePaths) {
         const content = fs.readFileSync(filePath, "utf8");
@@ -190,8 +181,13 @@ function replaceAliasedPaths() {
               relativePath = `./${relativePath}`;
             }
 
+            const replacementText = `from '${relativePath}'`;
+
+            // Useful for debugging.
+            // console.log({ file: filePath, old: _match, new: replacementText });
+
             replacementCount++;
-            return `from '${relativePath}'`;
+            return replacementText;
           },
         );
 

@@ -811,15 +811,13 @@ importers:
         version: 2.4.0
       '@hono/node-server':
         specifier: 1.13.3
-        version: 1.13.3(hono@4.5.0)
-        version: 1.13.3(hono@4.5.0)
+        version: 1.13.3
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
       abitype:
         specifier: ^0.10.2
-        version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
-        version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
+        version: 0.10.3(zod@3.23.8)
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -891,8 +889,7 @@ importers:
         version: 1.0.2(@types/node@20.11.24)
       vite-tsconfig-paths:
         specifier: 4.3.1
-        version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
-        version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24))
+        version: 4.3.1(vite@5.0.7(@types/node@20.11.24))
     devDependencies:
       '@pgsql/types':
         specifier: 16.0.0
@@ -917,10 +914,7 @@ importers:
         version: 0.0.6
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2(typescript@5.3.3)
-      chalk:
-        specifier: ^5.4.1
-        version: 5.4.1
+        version: 1.5.2
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
@@ -930,12 +924,6 @@ importers:
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
-      tsconfig-replace-paths:
-        specifier: ^0.0.14
-        version: 0.0.14
-      tsup:
-        specifier: ^8.0.1
-        version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@20.11.24)(typescript@5.3.3))(typescript@5.3.3)
       tsx:
         specifier: ^4.19.2
         version: 4.19.2
@@ -3319,9 +3307,6 @@ packages:
   '@types/fs-extra@11.0.4':
     resolution: {integrity: sha512-yTbItCNreRooED33qjunPthRcSjERP1r4MqCZc7wv0u2sUkzTFp45tgUfS5+r7FrZPdmCCNflLhVSP/o+SemsQ==}
 
-  '@types/glob@7.2.0':
-    resolution: {integrity: sha512-ZUxbzKl0IfJILTS6t7ip5fQQM/J3TJYubDm3nMbgubNNYS62eXeUpoLUC8/7fJNiFYHTrGPQn7hspDUzIHX3UA==}
-
   '@types/glob@8.1.0':
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
 
@@ -4203,9 +4188,6 @@ packages:
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
-
-  commander@3.0.2:
-    resolution: {integrity: sha512-Gar0ASD4BDyKC4hl4DwHqDrmvjoxWKZigVnAbn5H1owvm4CxCPdb0HQDehwNYMJpla5+M2tPmPARzhtYuwpHow==}
 
   commander@4.1.1:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
@@ -5470,10 +5452,6 @@ packages:
   globalthis@1.0.3:
     resolution: {integrity: sha512-sFdI5LyBiNTHjRd7cGPWapiHWMOXKyuBNX/cWJ3NfzrZQVa8GI/8cofCl74AOVqq9W5kNmguTIzJ/1s2gyI9wA==}
     engines: {node: '>= 0.4'}
-
-  globby@10.0.2:
-    resolution: {integrity: sha512-7dUi7RvCoT/xast/o/dLN53oqND4yk0nsHkhRgn9w65C4PofCLOoJ39iSOg+qVDdWQPIEj+eszMHQ+aLVwwQSg==}
-    engines: {node: '>=8'}
 
   globby@11.1.0:
     resolution: {integrity: sha512-jhIXaOzy1sb8IyocaruWSn1TjmnBVs8Ayhcy83rmxNJ8q2uWKCAj3CnJY+KpGSXCueAPc0i05kVvVKtP1t9S3g==}
@@ -7836,7 +7814,6 @@ packages:
 
   shikiji@0.6.10:
     resolution: {integrity: sha512-WE+A5Y2ntM5hL3iJQujk97qr5Uj7PSIRXpQfrZ6h+JWPXZ8KBEDhFXc4lqNriaRq1WGOVPUT83XMOzmHiH3W8A==}
-    deprecated: Shikiji is merged back to Shiki v1.0, please migrate over to get the latest updates
 
   side-channel@1.0.4:
     resolution: {integrity: sha512-q5XPytqFEIKHkGdiMIrY10mvLRvnQh42/+GoBlFW3b2LXLE2xxJpZFdm94we0BaoV3RwJyGqg5wS7epxTv0Zvw==}
@@ -8313,10 +8290,6 @@ packages:
 
   tsconfig-paths@3.15.0:
     resolution: {integrity: sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg==}
-
-  tsconfig-replace-paths@0.0.14:
-    resolution: {integrity: sha512-If9w1Z/HdSJkrZvCRSKHA3vAL3SwRWvI7rLmuTozlmKuBjPF/R8dWJku5C9ncOqiTOd8Dzd7SZ1cIYVZfpva8g==}
-    hasBin: true
 
   tslib@2.6.2:
     resolution: {integrity: sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==}
@@ -10570,12 +10543,7 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  '@hono/node-server@1.13.3(hono@4.5.0)':
-    dependencies:
-      hono: 4.5.0
-  '@hono/node-server@1.13.3(hono@4.5.0)':
-    dependencies:
-      hono: 4.5.0
+  '@hono/node-server@1.13.3': {}
 
   '@hono/trpc-server@0.3.2(@trpc/server@10.45.2)(hono@4.5.0)':
     dependencies:
@@ -11250,11 +11218,6 @@ snapshots:
       '@types/jsonfile': 6.1.4
       '@types/node': 20.11.24
 
-  '@types/glob@7.2.0':
-    dependencies:
-      '@types/minimatch': 5.1.2
-      '@types/node': 20.11.24
-
   '@types/glob@8.1.0':
     dependencies:
       '@types/minimatch': 5.1.2
@@ -11442,6 +11405,34 @@ snapshots:
       loupe: 2.3.7
       pretty-format: 29.7.0
 
+  '@wagmi/cli@1.5.2':
+    dependencies:
+      abitype: 0.8.7(zod@3.23.8)
+      abort-controller: 3.0.0
+      bundle-require: 3.1.2(esbuild@0.16.17)
+      cac: 6.7.14
+      change-case: 4.1.2
+      chokidar: 3.6.0
+      dedent: 0.7.0
+      detect-package-manager: 2.0.1
+      dotenv: 16.4.5
+      dotenv-expand: 10.0.0
+      esbuild: 0.16.17
+      execa: 6.1.0
+      find-up: 6.3.0
+      fs-extra: 10.1.0
+      globby: 13.2.2
+      node-fetch: 3.3.2
+      ora: 6.3.1
+      pathe: 1.1.1
+      picocolors: 1.0.0
+      prettier: 2.8.8
+      viem: 1.21.4(zod@3.23.8)
+      zod: 3.23.8
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@wagmi/cli@1.5.2(typescript@5.3.3)':
     dependencies:
       abitype: 0.8.7(typescript@5.3.3)(zod@3.23.8)
@@ -11525,15 +11516,27 @@ snapshots:
       typescript: 5.3.3
       zod: 3.23.8
 
+  abitype@0.10.3(zod@3.23.8):
+    optionalDependencies:
+      zod: 3.23.8
+
   abitype@0.8.7(typescript@5.3.3)(zod@3.23.8):
     dependencies:
       typescript: 5.3.3
     optionalDependencies:
       zod: 3.23.8
 
+  abitype@0.8.7(zod@3.23.8):
+    optionalDependencies:
+      zod: 3.23.8
+
   abitype@0.9.8(typescript@5.3.3)(zod@3.23.8):
     optionalDependencies:
       typescript: 5.3.3
+      zod: 3.23.8
+
+  abitype@0.9.8(zod@3.23.8):
+    optionalDependencies:
       zod: 3.23.8
 
   abitype@1.0.5(typescript@5.0.4)(zod@3.23.8):
@@ -12223,8 +12226,6 @@ snapshots:
 
   commander@2.20.3: {}
 
-  commander@3.0.2: {}
-
   commander@4.1.1: {}
 
   commander@7.2.0: {}
@@ -12609,6 +12610,10 @@ snapshots:
       ms: 2.1.2
     optionalDependencies:
       supports-color: 8.1.1
+
+  debug@4.3.7:
+    dependencies:
+      ms: 2.1.3
 
   debug@4.3.7(supports-color@8.1.1):
     dependencies:
@@ -13574,6 +13579,8 @@ snapshots:
 
   focus-visible@5.2.0: {}
 
+  follow-redirects@1.15.6: {}
+
   follow-redirects@1.15.6(debug@4.3.4):
     optionalDependencies:
       debug: 4.3.4(supports-color@8.1.1)
@@ -13771,17 +13778,6 @@ snapshots:
   globalthis@1.0.3:
     dependencies:
       define-properties: 1.2.1
-
-  globby@10.0.2:
-    dependencies:
-      '@types/glob': 7.2.0
-      array-union: 2.1.0
-      dir-glob: 3.0.1
-      fast-glob: 3.3.2
-      glob: 7.2.3
-      ignore: 5.3.0
-      merge2: 1.4.1
-      slash: 3.0.0
 
   globby@11.1.0:
     dependencies:
@@ -14099,8 +14095,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.15.6(debug@4.3.4)
-      follow-redirects: 1.15.6(debug@4.3.4)
+      follow-redirects: 1.15.6
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -17439,12 +17434,7 @@ snapshots:
       yn: 3.1.1
     optional: true
 
-  tsconfck@3.0.1(typescript@5.3.3):
-    optionalDependencies:
-      typescript: 5.3.3
-  tsconfck@3.0.1(typescript@5.3.3):
-    optionalDependencies:
-      typescript: 5.3.3
+  tsconfck@3.0.1: {}
 
   tsconfig-paths@3.15.0:
     dependencies:
@@ -17452,12 +17442,6 @@ snapshots:
       json5: 1.0.2
       minimist: 1.2.8
       strip-bom: 3.0.0
-
-  tsconfig-replace-paths@0.0.14:
-    dependencies:
-      commander: 3.0.2
-      globby: 10.0.2
-      json5: 2.2.3
 
   tslib@2.6.2: {}
 
@@ -17836,6 +17820,21 @@ snapshots:
       - utf-8-validate
       - zod
 
+  viem@1.21.4(zod@3.23.8):
+    dependencies:
+      '@adraffy/ens-normalize': 1.10.0
+      '@noble/curves': 1.2.0
+      '@noble/hashes': 1.3.2
+      '@scure/bip32': 1.3.2
+      '@scure/bip39': 1.2.1
+      abitype: 0.9.8(zod@3.23.8)
+      isows: 1.0.3(ws@8.13.0)
+      ws: 8.13.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
   viem@2.21.3(typescript@5.0.4)(zod@3.23.8):
     dependencies:
       '@adraffy/ens-normalize': 1.10.0
@@ -17875,8 +17874,7 @@ snapshots:
   vite-node@1.0.2(@types/node@20.11.24):
     dependencies:
       cac: 6.7.14
-      debug: 4.3.7(supports-color@8.1.1)
-      debug: 4.3.7(supports-color@8.1.1)
+      debug: 4.3.7
       pathe: 1.1.1
       picocolors: 1.0.0
       vite: 5.0.7(@types/node@20.11.24)
@@ -17890,14 +17888,11 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)):
-  vite-tsconfig-paths@4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)):
+  vite-tsconfig-paths@4.3.1(vite@5.0.7(@types/node@20.11.24)):
     dependencies:
-      debug: 4.3.7(supports-color@8.1.1)
-      debug: 4.3.7(supports-color@8.1.1)
+      debug: 4.3.7
       globrex: 0.1.2
-      tsconfck: 3.0.1(typescript@5.3.3)
-      tsconfck: 3.0.1(typescript@5.3.3)
+      tsconfck: 3.0.1
     optionalDependencies:
       vite: 5.0.7(@types/node@20.11.24)
     transitivePeerDependencies:
@@ -17923,8 +17918,7 @@ snapshots:
       acorn-walk: 8.3.1
       cac: 6.7.14
       chai: 4.3.10
-      debug: 4.3.7(supports-color@8.1.1)
-      debug: 4.3.7(supports-color@8.1.1)
+      debug: 4.3.7
       execa: 8.0.1
       local-pkg: 0.5.0
       magic-string: 0.30.5

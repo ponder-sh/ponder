@@ -93,12 +93,9 @@
     "@types/react": "^18.2.38",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
-    "chalk": "^5.4.1",
     "chokidar": "^4.0.3",
     "execa": "^8.0.1",
     "rimraf": "^5.0.5",
-    "tsconfig-replace-paths": "^0.0.14",
-    "tsup": "^8.0.1",
     "tsx": "^4.19.2",
     "vitest": "^1.0.2"
   },
