@@ -1,4 +1,4 @@
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { expect, test } from "vitest";
 import { bufferAsyncGenerator, mergeAsyncGenerators } from "./generators.js";
 

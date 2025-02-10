@@ -14,7 +14,7 @@ import {
 } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
-import { createQueue } from "@ponder/common";
+import { createQueue } from "@/utils/queue.js";
 import {
   type Column,
   type QueryWithTypings,
