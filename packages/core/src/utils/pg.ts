@@ -46,9 +46,30 @@ pg.Client.prototype.query = function query(
 };
 
 export function createPool(config: PoolConfig, logger: Logger) {
+  class Client extends pg.Client {
+    // @ts-expect-error
+    override connect(
+      callback: (err: Error) => void | undefined,
+    ): void | Promise<void> {
+      if (callback) {
+        super.connect(() => {
+          this.query("SET synchronous_commit = off;", callback);
+        });
+      } else {
+        return super
+          .connect()
+          .then(() =>
+            this.query("SET synchronous_commit = off;").then(() => {}),
+          );
+      }
+    }
+  }
+
   const pool = new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
     statement_timeout: 2 * 60 * 1000, // 2 minutes
+    // @ts-expect-error: The custom Client is an undocumented option.
+    Client: Client,
     ...config,
   });
 

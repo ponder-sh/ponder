@@ -10,6 +10,7 @@ import {
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { chunk } from "@/utils/chunk.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type Column,
@@ -54,25 +55,20 @@ export type IndexingCache = {
     | boolean
     | Promise<boolean>;
   /**
-   * Prepares the cache for ...
-   */
-  prepare: () => void;
-  /**
    * Writes all temporary data to the database.
-   *
-   * Note: it is assumed this function is called after `prepare`.
    */
   flush: (params: { db: Drizzle<Schema> }) => Promise<void>;
   /**
-   * ...
+   * Prepares the cache for the next iteration.
+   *
+   * Note: It is assumed this is called after `flush`
+   * because it clears the buffers.
+   */
+  prepare: () => void;
+  /**
+   * Marks the cache as incomplete.
    */
   invalidate: () => void;
-  /**
-   * Returns true if the cache is invalidated.
-   *
-   * Note: this also resets the invalidated state.
-   */
-  isInvalidated: () => boolean;
   /**
    * Remove spillover and buffer entries.
    */
@@ -81,10 +77,6 @@ export type IndexingCache = {
    * Deletes all entries from the cache.
    */
   clear: () => void;
-  /**
-   * Returns the estimated number of bytes in the cache.
-   */
-  size: number;
 };
 
 type Cache = Map<
@@ -249,7 +241,7 @@ export const createIndexingCache = ({
   const updateBuffer: Buffer = new Map();
 
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
-  let isInvalidated = false;
+
   let cacheBytes = 0;
   let spilloverBytes = 0;
 
@@ -398,15 +390,13 @@ export const createIndexingCache = ({
             msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
           });
 
-          while (insertValues.length > 0) {
-            const values = insertValues.splice(0, batchSize);
-
+          for (const insertChunk of chunk(insertValues, batchSize)) {
             await database.record(
               { method: `${getTableName(table)}.flush()` },
               async () => {
                 await db
                   .insert(table)
-                  .values(values.map(({ row }) => row))
+                  .values(insertChunk.map(({ row }) => row))
                   .catch((_error) => {
                     const error = _error as Error;
                     common.logger.error({
@@ -437,8 +427,7 @@ export const createIndexingCache = ({
             );
           }
 
-          while (updateValues.length > 0) {
-            const values = updateValues.splice(0, batchSize);
+          for (const updateChunk of chunk(updateValues, batchSize)) {
             await database.record(
               {
                 method: `${getTableName(table)}.flush()`,
@@ -446,7 +435,7 @@ export const createIndexingCache = ({
               async () => {
                 await db
                   .insert(table)
-                  .values(values.map(({ row }) => row))
+                  .values(updateChunk.map(({ row }) => row))
                   .onConflictDoUpdate({
                     // @ts-ignore
                     target: primaryKeys.map(({ js }) => table[js]),
@@ -464,9 +453,6 @@ export const createIndexingCache = ({
             );
           }
         }
-
-        insertBuffer.get(table)!.clear();
-        updateBuffer.get(table)!.clear();
       }
 
       if (flushCount > 0) {
@@ -519,6 +505,7 @@ export const createIndexingCache = ({
             row: entry.row,
           });
         }
+        tableBuffer.clear();
       }
 
       for (const [table, tableBuffer] of updateBuffer) {
@@ -532,15 +519,11 @@ export const createIndexingCache = ({
             row: entry.row,
           });
         }
+        tableBuffer.clear();
       }
     },
     invalidate() {
-      isInvalidated = true;
-    },
-    isInvalidated() {
-      const result = isInvalidated;
-      isInvalidated = false;
-      return result;
+      isCacheComplete = false;
     },
     rollback() {
       for (const tableSpillover of spillover.values()) {
@@ -576,9 +559,6 @@ export const createIndexingCache = ({
 
       cacheBytes = 0;
       spilloverBytes = 0;
-    },
-    get size() {
-      return cacheBytes + spilloverBytes;
     },
   };
 };

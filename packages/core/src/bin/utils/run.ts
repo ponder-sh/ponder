@@ -132,8 +132,6 @@ export async function run({
     }
   }
 
-  let lastFlush = Date.now();
-
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
     if (events.length > 0) {
@@ -217,30 +215,14 @@ export async function run({
               });
             }
 
-            if (
-              indexingCache.isInvalidated() ||
-              (indexingCache.size > common.options.indexingCacheMaxBytes &&
-                events.length > 0) ||
-              (common.options.command === "dev" &&
-                lastFlush + 5_000 < Date.now() &&
-                events.length > 0)
-            ) {
-              indexingCache.prepare();
-              await indexingCache.flush({ db: tx });
-              await database.finalize({
-                checkpoint: events[events.length - 1]!.checkpoint,
-                db: tx,
-              });
-              lastFlush = Date.now();
-
-              common.logger.debug({
-                service: "indexing",
-                msg: "Completed flush",
-              });
-            } else {
-              // TODO(kyle) move spillover to cache
-            }
+            await indexingCache.flush({ db: tx });
+            await database.finalize({
+              checkpoint: events[events.length - 1]!.checkpoint,
+              db: tx,
+            });
           });
+
+          indexingCache.prepare();
         } catch (error) {
           indexingCache.rollback();
           throw error;
