@@ -9,25 +9,21 @@ import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 export async function* mergeAsyncGenerators<T>(
   generators: AsyncGenerator<T>[],
 ): AsyncGenerator<T> {
-  const results: T[] = [];
-  let count = generators.length;
-  let pwr = promiseWithResolvers<void>();
+  const promises = generators.map((gen) => gen.next());
 
-  generators.map(async (generator) => {
-    for await (const result of generator) {
-      results.push(result);
-      pwr.resolve();
-    }
-    count--;
-    pwr.resolve();
-  });
+  while (promises.length > 0) {
+    const wrappedPromises = promises.map((promise, index) =>
+      promise.then((result) => ({ index, result })),
+    );
 
-  while (count > 0 || results.length > 0) {
-    if (results.length > 0) {
-      yield results.shift()!;
+    const { result, index } = await Promise.race(wrappedPromises);
+
+    if (result.done) {
+      generators.splice(index, 1);
+      promises.splice(index, 1);
     } else {
-      await pwr.promise;
-      pwr = promiseWithResolvers<void>();
+      yield result.value;
+      promises[index] = generators[index]!.next();
     }
   }
 }
