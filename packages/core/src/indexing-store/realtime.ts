@@ -4,7 +4,7 @@ import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
-import { createQueue } from "@ponder/common";
+import { createQueue } from "@/utils/queue.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { getCacheKey, getWhereCondition } from "./cache.js";

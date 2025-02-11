@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -12,27 +12,29 @@
   "files": [
     "dist",
     "src/**/*.ts",
-    "!src/**/*.test.ts",
-    "!src/**/*.test-d.ts",
-    "!src/_test/**/*"
+    "!src/_test/**/*",
+    "!**/*.test.ts",
+    "!**/*.test-d.ts",
+    "!**/*.tsbuildinfo",
+    "CHANGELOG.md"
   ],
   "bin": {
-    "ponder": "./dist/bin/ponder.js"
+    "ponder": "./dist/esm/bin/ponder.js"
   },
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "typings": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./virtual": {
       "types": "./src/types.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsx build.ts",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",
     "typecheck": "tsc --noEmit"
@@ -86,6 +88,7 @@
   },
   "devDependencies": {
     "@pgsql/types": "16.0.0",
+    "@ponder/client": "workspace:*",
     "@types/babel__code-frame": "^7.0.6",
     "@types/glob": "^8.1.0",
     "@types/node": "^20.10.0",
@@ -93,14 +96,11 @@
     "@types/react": "^18.2.38",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
+    "chokidar": "^4.0.3",
     "execa": "^8.0.1",
     "rimraf": "^5.0.5",
-    "tsup": "^8.0.1",
+    "tsx": "^4.19.2",
     "vitest": "^1.0.2"
-  },
-  "imports": {
-    "@ponder/common": "../common/index.ts",
-    "@ponder/client": "../client/index.ts"
   },
   "engines": {
     "node": ">=18.14"

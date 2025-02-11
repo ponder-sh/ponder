@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.6
+
+### Patch Changes
+
+- [#1500](https://github.com/ponder-sh/ponder/pull/1500) [`55735c31b8a2c0a5a57e9bbb9977fc8f13771055`](https://github.com/ponder-sh/ponder/commit/55735c31b8a2c0a5a57e9bbb9977fc8f13771055) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug when decoding events in realtime mode.
+
 ## 0.9.5
 
 ### Patch Changes

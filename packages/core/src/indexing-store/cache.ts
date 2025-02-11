@@ -66,20 +66,21 @@ export type IndexingCache = {
    */
   flush: (params: { client: PoolClient | PGlite }) => Promise<void>;
   /**
-   * Prepares the cache for the next iteration.
+   * Make all temporary data permanent and prepare the cache for
+   * the next iteration.
    *
    * Note: It is assumed this is called after `flush`
    * because it clears the buffers.
    */
-  prepare: () => void;
-  /**
-   * Marks the cache as incomplete.
-   */
-  invalidate: () => void;
+  commit: () => void;
   /**
    * Remove spillover and buffer entries.
    */
   rollback: () => void;
+  /**
+   * Marks the cache as incomplete.
+   */
+  invalidate: () => void;
   /**
    * Deletes all entries from the cache.
    */
@@ -307,7 +308,7 @@ export const createIndexingCache = ({
   let cacheBytes = 0;
   let spilloverBytes = 0;
 
-  /** LRU counter. */
+  // LRU counter
   let totalCacheOps = 0;
 
   common.logger.debug({
@@ -403,27 +404,37 @@ export const createIndexingCache = ({
       return row;
     },
     delete({ table, key, db }) {
-      const entry = cache.get(table)!.get(getCacheKey(table, key));
+      const inBuffer =
+        insertBuffer.get(table)!.delete(getCacheKey(table, key)) ||
+        updateBuffer.get(table)!.delete(getCacheKey(table, key));
 
-      if (entry) {
+      if (
+        cache.get(table)!.has(getCacheKey(table, key)) &&
+        cache.get(table)!.get(getCacheKey(table, key))
+      ) {
         cache.get(table)!.delete(getCacheKey(table, key));
+        isCacheComplete = false;
 
-        if (entry.row === null) {
-          return false;
-        }
+        return db
+          .delete(table)
+          .where(getWhereCondition(table, key))
+          .then(() => true);
+      }
 
-        if (isCacheComplete === false) {
-          return db
-            .delete(table)
-            .where(getWhereCondition(table, key))
-            .then(() => true);
-        }
+      if (cache.get(table)!.has(getCacheKey(table, key))) {
+        return inBuffer;
+      }
 
+      if (
+        spillover.get(table)!.has(getCacheKey(table, key)) &&
+        spillover.get(table)!.get(getCacheKey(table, key))
+      ) {
+        spillover.get(table)!.delete(getCacheKey(table, key));
         return true;
       }
 
       if (isCacheComplete) {
-        return false;
+        return inBuffer;
       }
 
       return db
@@ -438,6 +449,8 @@ export const createIndexingCache = ({
       const copy = getCopyHelper({ client });
 
       for (const table of cache.keys()) {
+        const tableSpillover = cache.get(table)!;
+
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
 
@@ -466,6 +479,17 @@ export const createIndexingCache = ({
                 throw new FlushError(error.message);
               }),
           );
+
+          for (const [key, entry] of insertBuffer.get(table)!) {
+            const bytes = getBytes(entry.row);
+            cacheBytes += bytes;
+            tableSpillover.set(key, {
+              bytes,
+              operationIndex: totalCacheOps++,
+              row: entry.row,
+            });
+          }
+          insertBuffer.get(table)!.clear();
         }
 
         if (updateValues.length > 0) {
@@ -525,6 +549,17 @@ export const createIndexingCache = ({
               }
             },
           );
+
+          for (const [key, entry] of updateBuffer.get(table)!) {
+            const bytes = getBytes(entry.row);
+            cacheBytes += bytes;
+            tableSpillover.set(key, {
+              bytes,
+              operationIndex: totalCacheOps++,
+              row: entry.row,
+            });
+          }
+          updateBuffer.get(table)!.clear();
         }
       }
 
@@ -535,9 +570,20 @@ export const createIndexingCache = ({
         });
       }
     },
-    prepare() {
+    commit() {
+      for (const [table, tableSpillover] of spillover) {
+        const tableCache = cache.get(table)!;
+        for (const [key, entry] of tableSpillover) {
+          tableCache.set(key, entry);
+        }
+        tableSpillover.clear();
+      }
+
+      cacheBytes += spilloverBytes;
+      spilloverBytes = 0;
+
       let cacheSize = 0;
-      for (const c of cache.values()) cacheSize += c.size;
+      for (const { size } of cache.values()) cacheSize += size;
 
       const flushIndex =
         totalCacheOps -
@@ -554,45 +600,6 @@ export const createIndexingCache = ({
             }
           }
         }
-      }
-
-      for (const [table, tableSpillover] of spillover) {
-        const tableCache = cache.get(table)!;
-        for (const [key, entry] of tableSpillover) {
-          tableCache.set(key, entry);
-        }
-        tableSpillover.clear();
-      }
-
-      cacheBytes += spilloverBytes;
-      spilloverBytes = 0;
-
-      for (const [table, tableBuffer] of insertBuffer) {
-        const tableCache = cache.get(table)!;
-        for (const [key, entry] of tableBuffer) {
-          const bytes = getBytes(entry.row);
-          cacheBytes += bytes;
-          tableCache.set(key, {
-            bytes,
-            operationIndex: totalCacheOps++,
-            row: entry.row,
-          });
-        }
-        tableBuffer.clear();
-      }
-
-      for (const [table, tableBuffer] of updateBuffer) {
-        const tableCache = cache.get(table)!;
-        for (const [key, entry] of tableBuffer) {
-          const bytes = getBytes(entry.row);
-          cacheBytes += bytes;
-          tableCache.set(key, {
-            bytes,
-            operationIndex: totalCacheOps++,
-            row: entry.row,
-          });
-        }
-        tableBuffer.clear();
       }
     },
     invalidate() {

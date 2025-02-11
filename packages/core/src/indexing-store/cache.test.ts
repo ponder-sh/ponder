@@ -97,7 +97,7 @@ test("flush() update", async (context) => {
     });
 
     await indexingCache.flush({ client });
-    indexingCache.prepare();
+    indexingCache.commit();
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,

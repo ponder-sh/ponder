@@ -7,8 +7,8 @@ import {
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
+import { createQueue } from "@/utils/queue.js";
 import type { PGlite } from "@electric-sql/pglite";
-import { createQueue } from "@ponder/common";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import type { PoolClient } from "pg";
@@ -149,7 +149,7 @@ export const createHistoricalIndexingStore = ({
                           rows.push(
                             indexingCache.set({
                               table,
-                              key: row,
+                              key: value,
                               row,
                               isUpdate: true,
                             }),
