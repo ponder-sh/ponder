@@ -222,7 +222,7 @@ export async function run({
             });
           });
 
-          indexingCache.prepare();
+          indexingCache.commit();
         } catch (error) {
           indexingCache.rollback();
           throw error;
@@ -300,6 +300,7 @@ export async function run({
           });
 
           for (const { checkpoint, events } of perBlockEvents) {
+            // TODO(kyle) use transaction
             const network = indexingBuild.networks.find(
               (network) =>
                 network.chainId ===

@@ -145,7 +145,7 @@ export const createHistoricalIndexingStore = ({
                           rows.push(
                             indexingCache.set({
                               table,
-                              key: row,
+                              key: value,
                               row,
                               isUpdate: true,
                             }),
