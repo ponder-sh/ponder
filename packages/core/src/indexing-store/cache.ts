@@ -253,8 +253,7 @@ export const getCopyText = (
         if (value === null || value === undefined) {
           result += "\\N";
         } else {
-          // TODO(kyle) replace escape characters
-          result += String(value);
+          result += String(value).replace(/\\/g, "\\\\");
         }
       }
       if (isLast === false) result += "\t";

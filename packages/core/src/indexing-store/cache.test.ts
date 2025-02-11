@@ -182,7 +182,7 @@ test("flush() encoding", async (context) => {
   });
 });
 
-test.skip("flush() encoding escape", async (context) => {
+test("flush() encoding escape", async (context) => {
   const schema = {
     test: onchainTable("test", (p) => ({
       backslash: p.text().primaryKey(),
@@ -210,23 +210,59 @@ test.skip("flush() encoding escape", async (context) => {
       client,
     });
 
-    await indexingStore.insert(schema.test).values([
-      // { backslash: "\\\\" },
-      // { backslash: "\\\\b" },
-      // { backslash: "\f" },
-      // { backslash: "\n" },
-      // { backslash: "\r" },
-      // { backslash: "\t" },
-      // { backslash: "\v" },
-      // { backslash: "\0" },
-      // { backslash: "\\x0" },
-    ]);
+    await indexingStore
+      .insert(schema.test)
+      .values([
+        { backslash: "\\" },
+        { backslash: "\\\\" },
+        { backslash: "\\b" },
+        { backslash: "\\f" },
+        { backslash: "\\n" },
+        { backslash: "\\r" },
+        { backslash: "\\t" },
+        { backslash: "\\v" },
+        { backslash: "\\00" },
+        { backslash: "\\x00" },
+      ]);
 
     await indexingCache.flush({ client });
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
 
-    expect(result).toMatchInlineSnapshot();
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "backslash": "\\",
+        },
+        {
+          "backslash": "\\\\",
+        },
+        {
+          "backslash": "\\b",
+        },
+        {
+          "backslash": "\\f",
+        },
+        {
+          "backslash": "\\n",
+        },
+        {
+          "backslash": "\\r",
+        },
+        {
+          "backslash": "\\t",
+        },
+        {
+          "backslash": "\\v",
+        },
+        {
+          "backslash": "\\00",
+        },
+        {
+          "backslash": "\\x00",
+        },
+      ]
+    `);
   });
 });
