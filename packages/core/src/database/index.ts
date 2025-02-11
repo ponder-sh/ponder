@@ -40,8 +40,10 @@ import {
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import {
+  type PgQueryResultHKT,
   PgTable,
   type PgTableWithColumns,
+  type PgTransaction,
   pgSchema,
   pgTable,
 } from "drizzle-orm/pg-core";
@@ -79,7 +81,10 @@ export type Database = {
   removeTriggers(): Promise<void>;
   getStatus: () => Promise<Status | null>;
   setStatus: (status: Status) => Promise<void>;
-  revert(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  revert(args: {
+    checkpoint: string;
+    tx: PgTransaction<PgQueryResultHKT, Schema>;
+  }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
   complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
@@ -1115,7 +1120,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               for (const indexStatement of schemaBuild.statements.indexes
                 .json) {
                 await tx.execute(
-                  sql.raw(`DROP INDEX IF EXISTS "${indexStatement.data.name}"`),
+                  sql.raw(
+                    `DROP INDEX IF EXISTS "${namespace}"."${indexStatement.data.name}"`,
+                  ),
                 );
                 common.logger.info({
                   service: "database",
@@ -1125,7 +1132,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
               // Revert unfinalized data
 
-              await this.revert({ checkpoint: app.checkpoint, db: tx });
+              await this.revert({ checkpoint: app.checkpoint, tx });
             }
 
             return app.checkpoint;
@@ -1241,13 +1248,14 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
           });
       });
     },
-    async revert({ checkpoint, db }) {
+    async revert({ checkpoint, tx }) {
       await this.wrap({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           tables.map(async (table) => {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-            const { rows } = await db.execute(
+            // @ts-ignore
+            const { rows } = await tx.execute<Schema>(
               sql.raw(
                 `DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}" WHERE checkpoint > '${checkpoint}' RETURNING *`,
               ),
@@ -1263,7 +1271,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
               if (log.operation === 0) {
                 // create
 
-                await db.delete(table).where(
+                await tx.delete(table).where(
                   and(
                     ...primaryKeyColumns.map(({ js, sql }) =>
                       // @ts-ignore
@@ -1280,7 +1288,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
                 log.checkpoint = undefined;
                 // @ts-ignore
                 log.operation = undefined;
-                await db
+                await tx
                   .update(table)
                   .set(log)
                   .where(
@@ -1300,7 +1308,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
                 log.checkpoint = undefined;
                 // @ts-ignore
                 log.operation = undefined;
-                await db
+                await tx
                   .insert(table)
                   .values(log)
                   .onConflictDoNothing({

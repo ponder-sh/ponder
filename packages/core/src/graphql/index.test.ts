@@ -18,7 +18,11 @@ beforeEach(setupCleanup);
 function buildContextValue(database: Database) {
   const drizzle = database.qb.drizzleReadonly;
   const getDataLoader = buildDataLoaderCache({ drizzle });
-  return { drizzle, getDataLoader, metadata: database };
+  return {
+    drizzle,
+    getDataLoader,
+    getStatus: () => database.getStatus(),
+  };
 }
 
 test("metadata", async (context) => {

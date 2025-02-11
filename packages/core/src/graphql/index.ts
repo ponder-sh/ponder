@@ -65,7 +65,7 @@ import { GraphQLJSON } from "./json.js";
 type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  metadata: Pick<Database, "getStatus">;
+  getStatus: Database["getStatus"];
   drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
@@ -395,7 +395,8 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const status = await context.metadata.getStatus();
+      console.log(context);
+      const status = await context.getStatus();
       return { status };
     },
   };

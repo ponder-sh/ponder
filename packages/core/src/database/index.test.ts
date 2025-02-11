@@ -724,9 +724,11 @@ test("revert()", async (context) => {
     db: database.qb.drizzle,
   });
 
-  await database.revert({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
+  await database.qb.drizzle.transaction(async (tx) => {
+    await database.revert({
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      tx,
+    });
   });
 
   const rows = await database.qb.drizzle.select().from(account);

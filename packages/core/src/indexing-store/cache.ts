@@ -286,8 +286,8 @@ export const createIndexingCache = ({
       }
 
       const entry =
-        cache.get(table)!.get(getCacheKey(table, key)) ??
-        spillover.get(table)!.get(getCacheKey(table, key));
+        spillover.get(table)!.get(getCacheKey(table, key)) ??
+        cache.get(table)!.get(getCacheKey(table, key));
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
@@ -347,10 +347,13 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.delete(getCacheKey(table, key));
 
       if (
-        cache.get(table)!.has(getCacheKey(table, key)) &&
-        cache.get(table)!.get(getCacheKey(table, key))
+        (cache.get(table)!.has(getCacheKey(table, key)) &&
+          cache.get(table)!.get(getCacheKey(table, key))) ||
+        (spillover.get(table)!.has(getCacheKey(table, key)) &&
+          spillover.get(table)!.get(getCacheKey(table, key)))
       ) {
         cache.get(table)!.delete(getCacheKey(table, key));
+        spillover.get(table)!.delete(getCacheKey(table, key));
         isCacheComplete = false;
 
         return db
@@ -359,16 +362,11 @@ export const createIndexingCache = ({
           .then(() => true);
       }
 
-      if (cache.get(table)!.has(getCacheKey(table, key))) {
-        return inBuffer;
-      }
-
       if (
-        spillover.get(table)!.has(getCacheKey(table, key)) &&
-        spillover.get(table)!.get(getCacheKey(table, key))
+        cache.get(table)!.has(getCacheKey(table, key)) ||
+        spillover.get(table)?.has(getCacheKey(table, key))
       ) {
-        spillover.get(table)!.delete(getCacheKey(table, key));
-        return true;
+        return inBuffer;
       }
 
       if (isCacheComplete) {
@@ -514,7 +512,7 @@ export const createIndexingCache = ({
 
       const flushIndex =
         totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheFlushRatio);
+        cacheSize * (1 - common.options.indexingCacheEvictRatio);
 
       if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
         isCacheComplete = false;
