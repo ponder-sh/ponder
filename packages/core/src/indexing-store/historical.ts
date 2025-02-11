@@ -7,7 +7,7 @@ import {
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
-import { createQueue } from "@ponder/common";
+import { createQueue } from "@/utils/queue.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import type { IndexingCache } from "./cache.js";

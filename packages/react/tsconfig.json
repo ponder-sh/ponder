@@ -1,8 +1,5 @@
 {
   "extends": "./tsconfig.build.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
-  "exclude": [],
-  "compilerOptions": {
-    "jsx": "preserve"
-  }
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": []
 }

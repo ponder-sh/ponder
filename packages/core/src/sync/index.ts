@@ -396,9 +396,9 @@ export const createSync = async (params: {
   }
 
   /** Events that have been executed but not finalized. */
-  let executedEvents: RawEvent[] = [];
+  let executedEvents: Event[] = [];
   /** Events that have not been executed. */
-  let pendingEvents: RawEvent[] = [];
+  let pendingEvents: Event[] = [];
 
   const realtimeMutex = createMutex();
 
@@ -428,7 +428,7 @@ export const createSync = async (params: {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
-          sources: params.indexingBuild.sources,
+          sources,
           chainId: network.chainId,
           blockWithEventData: event,
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
@@ -438,6 +438,12 @@ export const createSync = async (params: {
         params.common.logger.debug({
           service: "sync",
           msg: `Extracted ${events.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        const decodedEvents = decodeEvents(params.common, sources, events);
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
         });
 
         if (params.ordering === "multichain") {
@@ -452,20 +458,9 @@ export const createSync = async (params: {
             number: hexToNumber(event.block.number),
           };
 
-          const readyEvents = events.concat(pendingEvents);
+          const readyEvents = decodedEvents.concat(pendingEvents);
           pendingEvents = [];
           executedEvents = executedEvents.concat(readyEvents);
-
-          const decodedEvents = decodeEvents(
-            params.common,
-            sources,
-            readyEvents,
-          );
-
-          params.common.logger.debug({
-            service: "sync",
-            msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
-          });
 
           params.common.logger.debug({
             service: "sync",
@@ -513,23 +508,12 @@ export const createSync = async (params: {
             // Move ready events from pending to executed
 
             const readyEvents = pendingEvents
-              .concat(events)
+              .concat(decodedEvents)
               .filter(({ checkpoint }) => checkpoint < to);
             pendingEvents = pendingEvents
-              .concat(events)
+              .concat(decodedEvents)
               .filter(({ checkpoint }) => checkpoint > to);
             executedEvents = executedEvents.concat(readyEvents);
-
-            const decodedEvents = decodeEvents(
-              params.common,
-              sources,
-              readyEvents,
-            );
-
-            params.common.logger.debug({
-              service: "sync",
-              msg: `Decoded ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
-            });
 
             params.common.logger.debug({
               service: "sync",
@@ -564,7 +548,7 @@ export const createSync = async (params: {
                 }
               });
           } else {
-            pendingEvents = pendingEvents.concat(events);
+            pendingEvents = pendingEvents.concat(decodedEvents);
           }
         }
 
@@ -608,7 +592,7 @@ export const createSync = async (params: {
 
         let reorgedEvents = 0;
 
-        const isReorgedEvent = ({ chainId, block }: RawEvent) => {
+        const isReorgedEvent = ({ chainId, event: { block } }: Event) => {
           if (
             chainId === network.chainId &&
             Number(block.number) > hexToNumber(event.block.number)
@@ -839,9 +823,10 @@ export const createSync = async (params: {
       for (const network of params.indexingBuild.networks) {
         const { syncProgress, realtimeSync } = perNetworkSync.get(network)!;
 
-        const filters = params.indexingBuild.sources
-          .filter(({ filter }) => filter.chainId === network.chainId)
-          .map(({ filter }) => filter);
+        const sources = params.indexingBuild.sources.filter(
+          ({ filter }) => filter.chainId === network.chainId,
+        );
+        const filters = sources.map(({ filter }) => filter);
         status[network.name]!.block = {
           number: hexToNumber(syncProgress.current!.number),
           timestamp: hexToNumber(syncProgress.current!.timestamp),
@@ -873,12 +858,18 @@ export const createSync = async (params: {
             to,
           });
 
+          const decodedEvents = decodeEvents(
+            params.common,
+            sources,
+            events.events,
+          );
+
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted and scheduled ${events.events.length} '${network.name}' events`,
+            msg: `Extracted, decoded and scheduled ${events.events.length} '${network.name}' events`,
           });
 
-          pendingEvents = pendingEvents.concat(events.events);
+          pendingEvents = pendingEvents.concat(decodedEvents);
         }
 
         if (isSyncEnd(syncProgress)) {
