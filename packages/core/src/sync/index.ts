@@ -428,7 +428,7 @@ export const createSync = async (params: {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
-          sources: params.indexingBuild.sources,
+          sources,
           chainId: network.chainId,
           blockWithEventData: event,
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
