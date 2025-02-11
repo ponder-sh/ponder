@@ -4,7 +4,7 @@ import {
   RecordNotFoundError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@/utils/queue.js";
@@ -40,6 +40,8 @@ export const createHistoricalIndexingStore = ({
     concurrency: 1,
     worker: (fn) => fn(),
   });
+
+  let event: Event | undefined;
 
   return {
     // @ts-ignore
@@ -88,6 +90,7 @@ export const createHistoricalIndexingStore = ({
                               key: value,
                               row: value,
                               isUpdate: false,
+                              metadata: { event },
                             }),
                           );
                         }
@@ -109,6 +112,7 @@ export const createHistoricalIndexingStore = ({
                         key: values,
                         row: values,
                         isUpdate: false,
+                        metadata: { event },
                       });
                     }
                   },
@@ -152,6 +156,7 @@ export const createHistoricalIndexingStore = ({
                               key: value,
                               row,
                               isUpdate: true,
+                              metadata: { event },
                             }),
                           );
                         } else {
@@ -161,6 +166,7 @@ export const createHistoricalIndexingStore = ({
                               key: value,
                               row: value,
                               isUpdate: false,
+                              metadata: { event },
                             }),
                           );
                         }
@@ -190,6 +196,7 @@ export const createHistoricalIndexingStore = ({
                           key: values,
                           row,
                           isUpdate: true,
+                          metadata: { event },
                         });
                       }
 
@@ -198,6 +205,7 @@ export const createHistoricalIndexingStore = ({
                         key: values,
                         row: values,
                         isUpdate: false,
+                        metadata: { event },
                       });
                     }
                   },
@@ -217,13 +225,13 @@ export const createHistoricalIndexingStore = ({
                       if (Array.isArray(values)) {
                         const rows = [];
                         for (const value of values) {
-                          const row = await indexingCache.get({
-                            table,
-                            key: value,
-                            db,
-                          });
+                          // Note: optimistic assumption that no conflict exists
+                          // because error is recovered at flush time
 
-                          if (row) {
+                          if (
+                            indexingCache.has({ table, key: value }) &&
+                            indexingCache.get({ table, key: value, db })
+                          ) {
                             const error = new UniqueConstraintError(
                               `Unique constraint failed for '${getTableName(table)}'.`,
                             );
@@ -239,20 +247,19 @@ export const createHistoricalIndexingStore = ({
                               key: value,
                               row: value,
                               isUpdate: false,
+                              metadata: { event },
                             }),
                           );
                         }
                         return rows;
                       } else {
-                        const row = await indexingCache.get({
-                          table,
-                          key: values,
-                          db,
-                        });
+                        // Note: optimistic assumption that no conflict exists
+                        // because error is recovered at flush time
 
-                        // TODO(kyle) optimistically assume no conflict,
-                        // check for error at flush time
-                        if (row) {
+                        if (
+                          indexingCache.has({ table, key: values }) &&
+                          indexingCache.get({ table, key: values, db })
+                        ) {
                           const error = new UniqueConstraintError(
                             `Unique constraint failed for '${getTableName(table)}'.`,
                           );
@@ -267,6 +274,7 @@ export const createHistoricalIndexingStore = ({
                           key: values,
                           row: values,
                           isUpdate: false,
+                          metadata: { event },
                         });
                       }
                     },
@@ -329,6 +337,7 @@ export const createHistoricalIndexingStore = ({
                   key,
                   row,
                   isUpdate: true,
+                  metadata: { event },
                 });
               },
             ),
@@ -372,5 +381,8 @@ export const createHistoricalIndexingStore = ({
       { schema, casing: "snake_case" },
     ),
     queue,
+    set event(_event: Event | undefined) {
+      event = _event;
+    },
   };
 };

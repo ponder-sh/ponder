@@ -314,6 +314,7 @@ export const createIndexing = ({
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
+        db.event = event;
 
         eventCount[event.name]!++;
 

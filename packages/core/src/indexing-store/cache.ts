@@ -9,7 +9,7 @@ import {
   FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -54,6 +54,9 @@ export type IndexingCache = {
     key: object;
     row: { [key: string]: unknown };
     isUpdate: boolean;
+    metadata: {
+      event: Event | undefined;
+    };
   }) => { [key: string]: unknown };
   /**
    * Deletes the entry for `table` with `key`.
@@ -105,6 +108,9 @@ type Buffer = Map<
     string,
     {
       row: { [key: string]: unknown };
+      metadata: {
+        event: Event | undefined;
+      };
     }
   >
 >;
@@ -286,6 +292,33 @@ export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
   }
 };
 
+export const recoverBatchError = async <T>(
+  values: T[],
+  callback: (values: T[]) => Promise<unknown>,
+): Promise<
+  { status: "success" } | { status: "error"; error: Error; value: T }
+> => {
+  try {
+    await callback(values);
+    return { status: "success" };
+  } catch (error) {
+    if (values.length === 1) {
+      return { status: "error", error: error as Error, value: values[0]! };
+    }
+    const left = values.slice(0, Math.floor(values.length / 2));
+    const right = values.slice(Math.floor(values.length / 2));
+    const resultLeft = await recoverBatchError(left, callback);
+    if (resultLeft.status === "error") {
+      return resultLeft;
+    }
+    const resultRight = await recoverBatchError(right, callback);
+    if (resultRight.status === "error") {
+      return resultRight;
+    }
+    throw "unreachable";
+  }
+};
+
 export const createIndexingCache = ({
   common,
   database,
@@ -387,16 +420,18 @@ export const createIndexingCache = ({
           return row;
         });
     },
-    set({ table, key, row: _row, isUpdate }) {
+    set({ table, key, row: _row, isUpdate, metadata }) {
       const row = normalizeRow(table, _row, isUpdate);
 
       if (isUpdate) {
         updateBuffer.get(table)!.set(getCacheKey(table, key), {
           row: structuredClone(row),
+          metadata,
         });
       } else {
         insertBuffer.get(table)!.set(getCacheKey(table, key), {
           row: structuredClone(row),
+          metadata,
         });
       }
 

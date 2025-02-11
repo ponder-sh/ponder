@@ -596,7 +596,10 @@ export const createDatabase = async ({
         ).internal.connect();
         try {
           await client.query("BEGIN");
-          const tx = drizzleNodePg(client);
+          const tx = drizzleNodePg(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
           const result = await fn(client, tx);
           await client.query("COMMIT");
           return result;
@@ -610,7 +613,10 @@ export const createDatabase = async ({
         const client = (database.driver as { instance: PGlite }).instance;
         try {
           await client.query("BEGIN");
-          const tx = drizzlePglite(client);
+          const tx = drizzlePglite(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
           const result = await fn(client, tx);
           await client.query("COMMIT");
           return result;
