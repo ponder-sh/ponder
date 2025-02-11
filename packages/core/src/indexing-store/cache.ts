@@ -252,6 +252,7 @@ export const getCopyText = (
         if (value === null || value === undefined) {
           result += "\\N";
         } else {
+          // TODO(kyle) replace escape characters
           result += String(value);
         }
       }

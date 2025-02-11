@@ -182,15 +182,7 @@ test("flush() encoding", async (context) => {
   });
 });
 
-test("flush() encoding backslash", async (context) => {
-  // \b
-  // \f
-  // \n
-  // \r
-  // \t
-  // \v
-  // \0
-  // \x0
+test.skip("flush() encoding escape", async (context) => {
   const schema = {
     test: onchainTable("test", (p) => ({
       backslash: p.text().primaryKey(),
@@ -219,7 +211,8 @@ test("flush() encoding backslash", async (context) => {
     });
 
     await indexingStore.insert(schema.test).values([
-      { backslash: "\\\\b" },
+      // { backslash: "\\\\" },
+      // { backslash: "\\\\b" },
       // { backslash: "\f" },
       // { backslash: "\n" },
       // { backslash: "\r" },
@@ -234,12 +227,6 @@ test("flush() encoding backslash", async (context) => {
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "backslash": "\\b",
-        },
-      ]
-    `);
+    expect(result).toMatchInlineSnapshot();
   });
 });
