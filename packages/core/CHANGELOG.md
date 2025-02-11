@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.7
+
+### Patch Changes
+
+- [#1504](https://github.com/ponder-sh/ponder/pull/1504) [`ecef4427af4d2209ce98898b15a2f7e051134974`](https://github.com/ponder-sh/ponder/commit/ecef4427af4d2209ce98898b15a2f7e051134974) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a memory leak for apps with `ordering: "multichain"` introduced in v0.9.3.
+
 ## 0.9.6
 
 ### Patch Changes
