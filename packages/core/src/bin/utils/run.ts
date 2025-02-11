@@ -115,58 +115,75 @@ export async function run({
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
-    const historicalIndexingStore = createHistoricalIndexingStore({
-      common,
-      schemaBuild,
-      database,
-      indexingCache,
-      db: database.qb.drizzle,
-    });
-    const result = await indexing.processSetupEvents({
-      db: historicalIndexingStore,
-    });
+    await database.transaction(async (client, tx) => {
+      const historicalIndexingStore = createHistoricalIndexingStore({
+        common,
+        schemaBuild,
+        database,
+        indexingCache,
+        db: tx,
+        client,
+      });
+      const result = await indexing.processSetupEvents({
+        db: historicalIndexingStore,
+      });
 
-    if (result.status === "error") {
-      onReloadableError(result.error);
-      return;
-    }
+      if (result.status === "error") {
+        onReloadableError(result.error);
+        return;
+      }
+    });
   }
 
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
     if (events.length > 0) {
-      await database.retry(async () => {
-        try {
-          await database.qb.drizzle.transaction(async (tx) => {
-            const historicalIndexingStore = createHistoricalIndexingStore({
-              common,
-              schemaBuild,
-              database,
-              indexingCache,
-              db: tx,
+      await database
+        .transaction(async (client, tx) => {
+          const historicalIndexingStore = createHistoricalIndexingStore({
+            common,
+            schemaBuild,
+            database,
+            indexingCache,
+            db: tx,
+            client,
+          });
+
+          const eventChunks = chunk(events, 93);
+          for (const eventChunk of eventChunks) {
+            const result = await indexing.processEvents({
+              events: eventChunk,
+              db: historicalIndexingStore,
             });
-            const eventChunks = chunk(events, 93);
-            for (const eventChunk of eventChunks) {
-              const result = await indexing.processEvents({
-                events: eventChunk,
-                db: historicalIndexingStore,
-              });
 
-              await historicalIndexingStore.queue.onIdle();
+            await historicalIndexingStore.queue.onIdle();
 
-              if (result.status === "error") {
-                onReloadableError(result.error);
-                return;
-              }
+            if (result.status === "error") {
+              onReloadableError(result.error);
+              return;
+            }
 
-              const checkpoint = decodeCheckpoint(
-                eventChunk[eventChunk.length - 1]!.checkpoint,
+            const checkpoint = decodeCheckpoint(
+              eventChunk[eventChunk.length - 1]!.checkpoint,
+            );
+
+            if (preBuild.ordering === "multichain") {
+              const network = indexingBuild.networks.find(
+                (network) => network.chainId === Number(checkpoint.chainId),
+              )!;
+              common.metrics.ponder_historical_completed_indexing_seconds.set(
+                { network: network.name },
+                Math.max(
+                  checkpoint.blockTimestamp - sync.seconds[network.name]!.start,
+                  0,
+                ),
               );
-
-              if (preBuild.ordering === "multichain") {
-                const network = indexingBuild.networks.find(
-                  (network) => network.chainId === Number(checkpoint.chainId),
-                )!;
+              common.metrics.ponder_indexing_timestamp.set(
+                { network: network.name },
+                checkpoint.blockTimestamp,
+              );
+            } else {
+              for (const network of indexingBuild.networks) {
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { network: network.name },
                   Math.max(
@@ -179,55 +196,40 @@ export async function run({
                   { network: network.name },
                   checkpoint.blockTimestamp,
                 );
-              } else {
-                for (const network of indexingBuild.networks) {
-                  common.metrics.ponder_historical_completed_indexing_seconds.set(
-                    { network: network.name },
-                    Math.max(
-                      checkpoint.blockTimestamp -
-                        sync.seconds[network.name]!.start,
-                      0,
-                    ),
-                  );
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { network: network.name },
-                    checkpoint.blockTimestamp,
-                  );
-                }
               }
-
-              // Note: allows for terminal and logs to be updated
-              await new Promise(setImmediate);
             }
 
-            // underlying metrics collection is actually synchronous
-            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-            const { eta, progress } = await getAppProgress(common.metrics);
-            if (eta === undefined || progress === undefined) {
-              common.logger.info({
-                service: "app",
-                msg: `Indexed ${events.length} events`,
-              });
-            } else {
-              common.logger.info({
-                service: "app",
-                msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-              });
-            }
+            // Note: allows for terminal and logs to be updated
+            await new Promise(setImmediate);
+          }
 
-            await indexingCache.flush({ db: tx });
-            await database.finalize({
-              checkpoint: events[events.length - 1]!.checkpoint,
-              db: tx,
+          // underlying metrics collection is actually synchronous
+          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+          const { eta, progress } = await getAppProgress(common.metrics);
+          if (eta === undefined || progress === undefined) {
+            common.logger.info({
+              service: "app",
+              msg: `Indexed ${events.length} events`,
             });
-          });
+          } else {
+            common.logger.info({
+              service: "app",
+              msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+            });
+          }
 
-          indexingCache.prepare();
-        } catch (error) {
+          await indexingCache.flush({ client });
+
+          await database.finalize({
+            checkpoint: events[events.length - 1]!.checkpoint,
+            db: tx,
+          });
+        })
+        .catch((error) => {
           indexingCache.rollback();
           throw error;
-        }
-      });
+        });
+      indexingCache.prepare();
     }
 
     await database.setStatus(sync.getStatus());
@@ -243,16 +245,16 @@ export async function run({
     msg: "Completed all historical events, starting final flush",
   });
 
-  await database.retry(async () => {
-    await database.qb.drizzle.transaction(async (tx) => {
-      await indexingCache.flush({ db: tx });
-      indexingCache.clear();
-      await database.finalize({
-        checkpoint: sync.getFinalizedCheckpoint(),
-        db: tx,
-      });
+  await database.transaction(async (client, tx) => {
+    await indexingCache.flush({ client });
+
+    await database.finalize({
+      checkpoint: sync.getFinalizedCheckpoint(),
+      db: tx,
     });
   });
+
+  indexingCache.clear();
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized

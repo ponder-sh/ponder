@@ -7,9 +7,11 @@ import {
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
+import type { PGlite } from "@electric-sql/pglite";
 import { createQueue } from "@ponder/common";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
+import type { PoolClient } from "pg";
 import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
@@ -22,12 +24,14 @@ export const createHistoricalIndexingStore = ({
   schemaBuild: { schema },
   indexingCache,
   db,
+  client,
 }: {
   common: Common;
   database: Database;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
   db: Drizzle<Schema>;
+  client: PoolClient | PGlite;
 }): IndexingStore => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
@@ -347,7 +351,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await indexingCache.flush({ db });
+        await indexingCache.flush({ client });
         indexingCache.invalidate();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };

@@ -567,7 +567,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545
 
   examples/with-foundry/ponder:
     dependencies:
@@ -830,6 +830,9 @@ importers:
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
+      '@types/pg-copy-streams':
+        specifier: ^1.2.5
+        version: 1.2.5
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
@@ -875,6 +878,9 @@ importers:
       pg-connection-string:
         specifier: ^2.6.2
         version: 2.6.2
+      pg-copy-streams:
+        specifier: ^6.0.6
+        version: 6.0.6
       pg-query-emscripten:
         specifier: 5.1.0
         version: 5.1.0
@@ -3385,6 +3391,9 @@ packages:
   '@types/pbkdf2@3.1.2':
     resolution: {integrity: sha512-uRwJqmiXmh9++aSu1VNEn3iIxWOhd8AHXNSdlaLfdAAdSTY9jYVeGWnzejM3dvrkbqE3/hyQkQQ29IFATEGlew==}
 
+  '@types/pg-copy-streams@1.2.5':
+    resolution: {integrity: sha512-7D6/GYW2uHIaVU6S/5omI+6RZnwlZBpLQDZAH83xX1rjxAOK0f6/deKyyUTewxqts145VIGn6XWYz1YGf50G5g==}
+
   '@types/pg@8.10.9':
     resolution: {integrity: sha512-UksbANNE/f8w0wOMxVKKIrLCbEMV+oM1uKejmwXr39olg4xqcfBDbXxObJAt6XxHbDa4XTKOlUEcEltXDX+XLQ==}
 
@@ -5292,9 +5301,9 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75}
-    version: 1.9.5
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545}
+    version: 1.9.6
 
   form-data@2.3.3:
     resolution: {integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==}
@@ -7191,6 +7200,9 @@ packages:
 
   pg-connection-string@2.6.2:
     resolution: {integrity: sha512-ch6OwaeaPYcova4kKZ15sbJ2hKb/VP48ZD2gE7i1J+L4MspCtBMAx8nMgz7bksc7IojCIIWuEhHibSMFH8m8oA==}
+
+  pg-copy-streams@6.0.6:
+    resolution: {integrity: sha512-Z+Dd2C2NIDTsjyFKmc6a9QLlpM8tjpERx+43RSx0WmL7j3uNChERi3xSvZUL0hWJ1oRUn4S3fhyt3apdSrTyKQ==}
 
   pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -11296,6 +11308,11 @@ snapshots:
     dependencies:
       '@types/node': 20.11.24
 
+  '@types/pg-copy-streams@1.2.5':
+    dependencies:
+      '@types/node': 20.11.24
+      '@types/pg': 8.10.9
+
   '@types/pg@8.10.9':
     dependencies:
       '@types/node': 20.11.24
@@ -13565,7 +13582,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/999be66ec94c78090087f674bbf52ce1cca12b75: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/bf909b22fa55e244796dfa920c9639fdffa1c545: {}
 
   form-data@2.3.3:
     dependencies:
@@ -16127,6 +16144,10 @@ snapshots:
     optional: true
 
   pg-connection-string@2.6.2: {}
+
+  pg-copy-streams@6.0.6:
+    dependencies:
+      obuf: 1.1.2
 
   pg-int8@1.0.1: {}
 
