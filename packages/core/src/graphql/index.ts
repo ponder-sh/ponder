@@ -395,7 +395,6 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      console.log(context);
       const status = await context.getStatus();
       return { status };
     },
