@@ -71,6 +71,7 @@ const devCommand = new Command("dev")
     "-H, --hostname <HOSTNAME>",
     'Hostname for the web server (default: "0.0.0.0" or "::")',
   )
+  .option("--disable-ui", "Disable the terminal UI")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {

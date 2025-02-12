@@ -326,6 +326,22 @@ export const createSync = async (params: {
           ({ filter }) => filter.chainId === network.chainId,
         );
 
+        async function* decodeEventGenerator(
+          eventGenerator: AsyncGenerator<{
+            events: RawEvent[];
+            checkpoint: string;
+          }>,
+        ) {
+          for await (const { events, checkpoint } of eventGenerator) {
+            const decodedEvents = decodeEvents(params.common, sources, events);
+            params.common.logger.debug({
+              service: "app",
+              msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
+            });
+            yield { events: decodedEvents, checkpoint };
+          }
+        }
+
         const localSyncGenerator = getLocalSyncGenerator({
           common: params.common,
           network,
@@ -350,18 +366,10 @@ export const createSync = async (params: {
           ),
         });
 
-        async function* decodeEventGenerator() {
-          for await (const { events, checkpoint } of localEventGenerator) {
-            const decodedEvents = decodeEvents(params.common, sources, events);
-            params.common.logger.debug({
-              service: "app",
-              msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
-            });
-            yield { events: decodedEvents, checkpoint };
-          }
-        }
-
-        return bufferAsyncGenerator(decodeEventGenerator(), 1);
+        return bufferAsyncGenerator(
+          decodeEventGenerator(localEventGenerator),
+          1,
+        );
       },
     );
 
@@ -1185,7 +1193,7 @@ export async function* getLocalEventGenerator(params: {
           maxIncrease: 1.08,
         });
 
-        params.common.logger.debug({
+        params.common.logger.trace({
           service: "sync",
           msg: `Updated '${params.network.name}' extract query estimate to ${estimateSeconds} seconds`,
         });
@@ -1395,7 +1403,7 @@ export async function* getLocalSyncGenerator({
         100_000,
       );
 
-      common.logger.debug({
+      common.logger.trace({
         service: "sync",
         msg: `Updated '${network.name}' historical sync estimate to ${estimateRange} blocks`,
       });

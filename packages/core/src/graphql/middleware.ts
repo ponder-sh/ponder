@@ -56,9 +56,9 @@ export const graphql = (
       const getDataLoader = buildDataLoaderCache({ drizzle: db });
 
       return {
-        drizzle: db,
         getDataLoader,
-        metadata: globalThis.PONDER_DATABASE,
+        getStatus: () => globalThis.PONDER_DATABASE.getStatus(),
+        drizzle: db,
       };
     },
     maskedErrors: process.env.NODE_ENV === "production",

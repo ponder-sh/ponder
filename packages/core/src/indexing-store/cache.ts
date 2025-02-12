@@ -6,7 +6,6 @@ import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
-  FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
@@ -33,6 +32,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
+import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
   /**
@@ -347,8 +347,8 @@ export const createIndexingCache = ({
       }
 
       const entry =
-        cache.get(table)!.get(getCacheKey(table, key)) ??
-        spillover.get(table)!.get(getCacheKey(table, key));
+        spillover.get(table)!.get(getCacheKey(table, key)) ??
+        cache.get(table)!.get(getCacheKey(table, key));
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
@@ -408,10 +408,13 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.delete(getCacheKey(table, key));
 
       if (
-        cache.get(table)!.has(getCacheKey(table, key)) &&
-        cache.get(table)!.get(getCacheKey(table, key))
+        (cache.get(table)!.has(getCacheKey(table, key)) &&
+          cache.get(table)!.get(getCacheKey(table, key))) ||
+        (spillover.get(table)!.has(getCacheKey(table, key)) &&
+          spillover.get(table)!.get(getCacheKey(table, key)))
       ) {
         cache.get(table)!.delete(getCacheKey(table, key));
+        spillover.get(table)!.delete(getCacheKey(table, key));
         isCacheComplete = false;
 
         return db
@@ -420,16 +423,11 @@ export const createIndexingCache = ({
           .then(() => true);
       }
 
-      if (cache.get(table)!.has(getCacheKey(table, key))) {
-        return inBuffer;
-      }
-
       if (
-        spillover.get(table)!.has(getCacheKey(table, key)) &&
-        spillover.get(table)!.get(getCacheKey(table, key))
+        cache.get(table)!.has(getCacheKey(table, key)) ||
+        spillover.get(table)?.has(getCacheKey(table, key))
       ) {
-        spillover.get(table)!.delete(getCacheKey(table, key));
-        return true;
+        return inBuffer;
       }
 
       if (isCacheComplete) {
@@ -469,13 +467,8 @@ export const createIndexingCache = ({
           await database.record(
             { method: `${getTableName(table)}.flush()` },
             async () =>
-              copy(table, text).catch((_error) => {
-                const error = _error as Error;
-                common.logger.error({
-                  service: "indexing",
-                  msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                });
-                throw new FlushError(error.message);
+              copy(table, text).catch((error) => {
+                throw parseSqlError(error);
               }),
           );
 
@@ -540,11 +533,7 @@ export const createIndexingCache = ({
                 // @ts-ignore
                 await client.query(updateQuery);
               } catch (error) {
-                common.logger.error({
-                  service: "indexing",
-                  msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                });
-                throw new FlushError((error as Error).message);
+                throw parseSqlError(error);
               }
             },
           );
@@ -586,7 +575,7 @@ export const createIndexingCache = ({
 
       const flushIndex =
         totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheFlushRatio);
+        cacheSize * (1 - common.options.indexingCacheEvictRatio);
 
       if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
         isCacheComplete = false;

@@ -33,7 +33,7 @@ export type Options = {
   factoryAddressCountThreshold: number;
 
   indexingCacheMaxBytes: number;
-  indexingCacheFlushRatio: number;
+  indexingCacheEvictRatio: number;
 
   syncEventsQuerySize: number;
   syncHandoffStaleSeconds: number;
@@ -122,7 +122,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
         ) *
       1_024 *
       1_024,
-    indexingCacheFlushRatio: 0.35,
+    indexingCacheEvictRatio: 0.35,
 
     syncEventsQuerySize: 10_000,
     syncHandoffStaleSeconds: 300,
