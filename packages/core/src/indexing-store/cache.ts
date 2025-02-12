@@ -4,7 +4,6 @@ import { getColumnCasing } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
-  FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
@@ -26,6 +25,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
+import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
   /**
@@ -408,13 +408,13 @@ export const createIndexingCache = ({
                 await db
                   .insert(table)
                   .values(insertChunk.map(({ row }) => row))
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    common.logger.error({
+                  .catch((error) => {
+                    common.logger.warn({
                       service: "indexing",
-                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                      msg: "Internal error occurred while flushing cache",
+                      error: parseSqlError(error),
                     });
-                    throw new FlushError(error.message);
+                    throw parseSqlError(error);
                   });
               },
             );
@@ -463,13 +463,13 @@ export const createIndexingCache = ({
                     target: primaryKeys.map(({ js }) => table[js]),
                     set,
                   })
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    common.logger.error({
+                  .catch((error) => {
+                    common.logger.warn({
                       service: "indexing",
-                      msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
+                      msg: "Internal error occurred while flushing cache",
+                      error: parseSqlError(error),
                     });
-                    throw new FlushError(error.message);
+                    throw parseSqlError(error);
                   });
               },
             );
