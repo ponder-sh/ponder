@@ -254,6 +254,8 @@ export async function run({
     });
   });
 
+  indexingCache.clear();
+
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
