@@ -380,8 +380,6 @@ export const createIndexingCache = ({
         .then((result) => result.length > 0);
     },
     async flush({ db }) {
-      let flushCount = 0;
-
       for (const table of cache.keys()) {
         const batchSize = Math.round(
           common.options.databaseMaxQueryParameters /
@@ -393,14 +391,7 @@ export const createIndexingCache = ({
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
 
-        flushCount += insertValues.length + updateValues.length;
-
         if (insertValues.length > 0) {
-          common.logger.debug({
-            service: "indexing",
-            msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
-          });
-
           for (const insertChunk of chunk(insertValues, batchSize)) {
             await database.record(
               { method: `${getTableName(table)}.flush()` },
@@ -425,14 +416,14 @@ export const createIndexingCache = ({
             });
           }
           insertBuffer.get(table)!.clear();
+
+          common.logger.debug({
+            service: "database",
+            msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+          });
         }
 
         if (updateValues.length > 0) {
-          common.logger.debug({
-            service: "indexing",
-            msg: `Updating ${updateValues.length} cached '${getTableName(table)}' rows in the database`,
-          });
-
           const primaryKeys = getPrimaryKeyColumns(table);
           const set: { [column: string]: SQL } = {};
 
@@ -475,14 +466,12 @@ export const createIndexingCache = ({
             });
           }
           updateBuffer.get(table)!.clear();
-        }
-      }
 
-      if (flushCount > 0) {
-        common.logger.debug({
-          service: "indexing",
-          msg: `Flushed ${flushCount} rows to the database`,
-        });
+          common.logger.debug({
+            service: "database",
+            msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
+          });
+        }
       }
     },
     commit() {
