@@ -1,5 +1,5 @@
+import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
-import type { MetadataStore } from "@/indexing-store/metadata.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
@@ -65,7 +65,7 @@ import { GraphQLJSON } from "./json.js";
 type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  metadataStore: MetadataStore;
+  getStatus: Database["getStatus"];
   drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
@@ -395,7 +395,7 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const status = await context.metadataStore.getStatus();
+      const status = await context.getStatus();
       return { status };
     },
   };

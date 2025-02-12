@@ -22,7 +22,6 @@ import {
   type Transport,
   publicActions,
 } from "viem";
-import type { Service } from "./service.js";
 
 /** Viem actions where the `block` property is optional and implicit. */
 const blockDependentActions = [
@@ -161,9 +160,7 @@ export type ReadOnlyClient<
   >
 >;
 
-export const getPonderActions = (
-  contextState: Pick<Service["currentEvent"]["contextState"], "blockNumber">,
-) => {
+export const getPonderActions = (getBlockNumber: () => bigint) => {
   return <
     TTransport extends Transport = Transport,
     TChain extends Chain | undefined = Chain | undefined,
@@ -194,7 +191,7 @@ export const getPonderActions = (
           ...args,
           ...(cache === "immutable"
             ? { blockTag: "latest" }
-            : { blockNumber: userBlockNumber ?? contextState.blockNumber }),
+            : { blockNumber: userBlockNumber ?? getBlockNumber() }),
         } as Parameters<ReturnType<typeof publicActions>[action]>[0]);
     };
 

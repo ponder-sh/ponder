@@ -1,22 +1,22 @@
+import { onchain } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   CheckConstraintError,
+  InvalidStoreMethodError,
   NotNullConstraintError,
+  UndefinedTableError,
   UniqueConstraintError,
   getBaseError,
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
+import type { Queue } from "@/utils/queue.js";
+import type { Table } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 
-export type IndexingStore<policy extends "historical" | "realtime"> =
-  policy extends "realtime"
-    ? Db<Schema>
-    : Db<Schema> & {
-        /** Persist the cache to the database. */
-        flush: () => Promise<void>;
-        /** Return `true` if the cache size in bytes is above the limit specified by `option.indexingCacheMaxBytes`. */
-        isCacheFull: () => boolean;
-      };
+export type IndexingStore = Db<Schema> & {
+  queue: Queue<unknown, () => Promise<unknown>>;
+};
 
 export const parseSqlError = (e: any): Error => {
   let error = getBaseError(e);
@@ -37,4 +37,23 @@ export const parseSqlError = (e: any): Error => {
   }
 
   return error;
+};
+
+/** Throw an error if `table` is not an `onchainTable`. */
+export const checkOnchainTable = (
+  table: Table,
+  method: "find" | "insert" | "update" | "delete",
+) => {
+  if (table === undefined)
+    throw new UndefinedTableError(
+      `Table object passed to db.${method}() is undefined`,
+    );
+
+  if (onchain in table) return;
+
+  throw new InvalidStoreMethodError(
+    method === "find"
+      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
+      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
+  );
 };

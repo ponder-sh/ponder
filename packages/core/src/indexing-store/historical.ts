@@ -1,377 +1,56 @@
 import type { Database } from "@/database/index.js";
-import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
-import { getColumnCasing } from "@/drizzle/kit/index.js";
-import { onchain } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
-  BigIntSerializationError,
-  FlushError,
-  InvalidStoreMethodError,
-  NotNullConstraintError,
   RecordNotFoundError,
-  UndefinedTableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { SchemaBuild } from "@/internal/types.js";
+import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@/utils/queue.js";
-import {
-  type Column,
-  type QueryWithTypings,
-  type SQL,
-  type SQLWrapper,
-  type Table,
-  and,
-  eq,
-  getTableColumns,
-  getTableName,
-  sql,
-} from "drizzle-orm";
-import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { type IndexingStore, parseSqlError } from "./index.js";
-
-enum EntryType {
-  INSERT = 0,
-  UPDATE = 1,
-  FIND = 2,
-}
-
-/** Cache entries that need to be created in the database. */
-type InsertEntry = {
-  type: EntryType.INSERT;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown };
-};
-
-/** Cache entries that need to be updated in the database. */
-type UpdateEntry = {
-  type: EntryType.UPDATE;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown };
-};
-
-/**
- * Cache entries that mirror the database. Can be `null`,
- * meaning the entry doesn't exist.
- */
-type FindEntry = {
-  type: EntryType.FIND;
-  bytes: number;
-  operationIndex: number;
-  row: { [key: string]: unknown } | typeof empty;
-};
-
-// TODO(kyle) key interning
-type Key = string;
-type Entry = InsertEntry | UpdateEntry | FindEntry;
-type Cache = Map<Table, Map<Key, Entry>>;
-
-/** Empty state for indexing store */
-const empty = null;
-
-/** Throw an error if `table` is not an `onchainTable`. */
-const checkOnchainTable = (
-  table: Table,
-  method: "find" | "insert" | "update" | "delete",
-) => {
-  if (table === undefined)
-    throw new UndefinedTableError(
-      `Table object passed to db.${method}() is undefined`,
-    );
-
-  if (onchain in table) return;
-
-  throw new InvalidStoreMethodError(
-    method === "find"
-      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
-      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
-  );
-};
-
-/**
- * Returns true if the column has a "default" value that is used when no value is passed.
- * Handles `.default`, `.$defaultFn()`, `.$onUpdateFn()`.
- */
-const hasEmptyValue = (column: Column) => {
-  return column.hasDefault;
-};
-
-/**
- * Returns the "default" value for `column`.
- */
-const getEmptyValue = (column: Column, type: EntryType) => {
-  if (type === EntryType.UPDATE && column.onUpdateFn) {
-    return column.onUpdateFn();
-  }
-  if (column.default !== undefined) return column.default;
-  if (column.defaultFn !== undefined) return column.defaultFn();
-  if (column.onUpdateFn !== undefined) return column.onUpdateFn();
-
-  // TODO(kyle) is it an invariant that it doesn't get here
-
-  return undefined;
-};
-
-export const normalizeColumn = (
-  column: Column,
-  value: unknown,
-  type: EntryType,
-  // @ts-ignore
-): unknown => {
-  if (value === undefined) {
-    if (hasEmptyValue(column)) return getEmptyValue(column, type);
-    return null;
-  }
-  if (column.mapToDriverValue === undefined) return value;
-  try {
-    return column.mapFromDriverValue(column.mapToDriverValue(value));
-  } catch (e) {
-    if (
-      (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
-    ) {
-      const error = new BigIntSerializationError((e as Error).message);
-      error.meta.push(
-        "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
-      );
-      throw error;
-    }
-  }
-};
+import type { IndexingCache } from "./cache.js";
+import {
+  type IndexingStore,
+  checkOnchainTable,
+  parseSqlError,
+} from "./index.js";
 
 export const createHistoricalIndexingStore = ({
-  common,
-  schemaBuild: { schema },
   database,
-  isDatabaseEmpty,
+  schemaBuild: { schema },
+  indexingCache,
+  db,
 }: {
   common: Common;
-  schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-  isDatabaseEmpty: boolean;
-}): IndexingStore<"historical"> => {
+  schemaBuild: Pick<SchemaBuild, "schema">;
+  indexingCache: IndexingCache;
+  db: Drizzle<Schema>;
+}): IndexingStore => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
     browser: false,
     initialStart: true,
     concurrency: 1,
-    worker: (fn) => {
-      return fn();
-    },
+    worker: (fn) => fn(),
   });
 
-  const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
-  const cache: Cache = new Map();
-
-  for (const tableName of getTableNames(schema)) {
-    primaryKeysCache.set(
-      schema[tableName.js] as Table,
-      getPrimaryKeyColumns(schema[tableName.js] as PgTable),
-    );
-
-    cache.set(schema[tableName.js] as Table, new Map());
-  }
-
-  ////////
-  // Helper functions
-  ////////
-
-  const getCacheKey = (
-    table: Table,
-    row: { [key: string]: unknown },
-  ): string => {
-    const primaryKeys = primaryKeysCache.get(table)!;
-
-    return (
-      primaryKeys
-        // @ts-ignore
-        .map((pk) => normalizeColumn(table[pk.js], row[pk.js]))
-        .join("_")
-    );
-  };
-
-  const getCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
-    return cache.get(table)!.get(getCacheKey(table, row));
-  };
-
-  const setCacheEntry = (
-    table: Table,
-    userRow: { [key: string]: unknown },
-    entryType: Exclude<EntryType, { type: EntryType.FIND }>,
-    existingRow?: { [key: string]: unknown },
-  ): { [key: string]: unknown } => {
-    let row = structuredClone(userRow);
-
-    if (existingRow) {
-      for (const [key, value] of Object.entries(row)) {
-        existingRow[key] = value;
-      }
-      existingRow = normalizeRow(table, existingRow, entryType);
-      const bytes = getBytes(existingRow);
-
-      cacheBytes += bytes;
-
-      cache.get(table)!.set(getCacheKey(table, existingRow), {
-        type: entryType,
-        row: existingRow,
-        operationIndex: totalCacheOps++,
-        bytes,
-      });
-
-      return structuredClone(existingRow);
-    } else {
-      row = normalizeRow(table, row, entryType);
-      const bytes = getBytes(row);
-
-      cacheBytes += bytes;
-
-      cache.get(table)!.set(getCacheKey(table, row), {
-        type: entryType,
-        bytes,
-        operationIndex: totalCacheOps++,
-        row,
-      });
-
-      return structuredClone(row);
-    }
-  };
-
-  const deleteCacheEntry = (table: Table, row: { [key: string]: unknown }) => {
-    const entry = getCacheEntry(table, row);
-    if (entry) {
-      cacheBytes -= entry!.bytes;
-    }
-    return cache.get(table)!.delete(getCacheKey(table, row));
-  };
-
-  const normalizeRow = (
-    table: Table,
-    row: { [key: string]: unknown },
-    type: EntryType,
-  ) => {
-    for (const [columnName, column] of Object.entries(getTableColumns(table))) {
-      // not-null constraint
-      if (
-        type === EntryType.INSERT &&
-        (row[columnName] === undefined || row[columnName] === null) &&
-        column.notNull &&
-        hasEmptyValue(column) === false
-      ) {
-        const error = new NotNullConstraintError(
-          `Column '${getTableName(table)}.${columnName}' violates not-null constraint.`,
-        );
-        error.meta.push(
-          `db.${type === EntryType.INSERT ? "insert" : "update"} arguments:\n${prettyPrint(row)}`,
-        );
-        throw error;
-      }
-
-      row[columnName] = normalizeColumn(column, row[columnName], type);
-    }
-
-    return row;
-  };
-
-  const getBytes = (value: unknown) => {
-    // size of metadata
-    let size = 13;
-
-    if (typeof value === "number") {
-      size += 8;
-    } else if (typeof value === "string") {
-      size += 2 * value.length;
-    } else if (typeof value === "boolean") {
-      size += 4;
-    } else if (typeof value === "bigint") {
-      size += 48;
-    } else if (value === null || value === undefined) {
-      size += 8;
-    } else if (Array.isArray(value)) {
-      for (const e of value) {
-        size += getBytes(e);
-      }
-    } else {
-      for (const col of Object.values(value)) {
-        size += getBytes(col);
-      }
-    }
-
-    return size;
-  };
-
-  /** Estimated number of bytes used by cache. */
-  let cacheBytes = 0;
-  /** LRU counter. */
-  let totalCacheOps = 0;
-
-  const maxBytes = common.options.indexingCacheMaxBytes;
-  common.logger.debug({
-    service: "indexing",
-    msg: `Using a ${Math.round(maxBytes / (1024 * 1024))} MB indexing cache`,
-  });
-
-  /** Returns an sql where condition for `table` with `key`. */
-  const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
-    primaryKeysCache.get(table)!;
-
-    const conditions: SQLWrapper[] = [];
-
-    for (const { js } of primaryKeysCache.get(table)!) {
-      // @ts-ignore
-      conditions.push(eq(table[js]!, key[js]));
-    }
-
-    return and(...conditions)!;
-  };
-
-  const find = (table: Table, key: object) => {
-    return database.qb.drizzle
-      .select()
-      .from(table)
-      .where(getWhereCondition(table as PgTable, key))
-      .then((res) => (res.length === 0 ? null : res[0]!));
-  };
-
-  // @ts-ignore
-  const indexingStore = {
+  return {
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
-        database.wrap(
-          { method: `${getTableName(table) ?? "unknown"}.find()` },
+        database.record(
+          {
+            method: `${getTableName(table) ?? "unknown"}.find()`,
+          },
           async () => {
             checkOnchainTable(table, "find");
-
-            const entry = getCacheEntry(table, key);
-
-            if (entry) {
-              // update lru ordering
-              getCacheEntry(table, key)!.operationIndex = totalCacheOps++;
-
-              return entry.row;
-            } else {
-              if (isDatabaseEmpty) return null;
-
-              const row = await find(table, key);
-              const bytes = getBytes(row);
-
-              cacheBytes += bytes;
-
-              cache.get(table)!.set(getCacheKey(table, key), {
-                type: EntryType.FIND,
-                bytes,
-                operationIndex: totalCacheOps++,
-                row,
-              });
-
-              return find(table, key);
-            }
+            return indexingCache.get({ table, key, db });
           },
         ),
       ),
-
     // @ts-ignore
     insert(table: Table) {
       return {
@@ -380,7 +59,7 @@ export const createHistoricalIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               queue.add(() =>
-                database.wrap(
+                database.record(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -390,50 +69,50 @@ export const createHistoricalIndexingStore = ({
                     if (Array.isArray(values)) {
                       const rows = [];
                       for (const value of values) {
-                        const entry = getCacheEntry(table, value);
+                        const row = await indexingCache.get({
+                          table,
+                          key: value,
+                          db,
+                        });
 
-                        let row: { [key: string]: unknown } | null;
-
-                        if (entry?.row) {
-                          row = entry.row;
-                        } else {
-                          if (isDatabaseEmpty) row = null;
-                          else row = await find(table, value);
-                        }
-
-                        if (row === null) {
-                          rows.push(
-                            setCacheEntry(table, value, EntryType.INSERT),
-                          );
-                        } else {
+                        if (row) {
                           rows.push(null);
+                        } else {
+                          rows.push(
+                            indexingCache.set({
+                              table,
+                              key: value,
+                              row: value,
+                              isUpdate: false,
+                            }),
+                          );
                         }
                       }
                       return rows;
                     } else {
-                      const entry = getCacheEntry(table, values);
+                      const row = await indexingCache.get({
+                        table,
+                        key: values,
+                        db,
+                      });
 
-                      let row: { [key: string]: unknown } | null;
-
-                      if (entry?.row) {
-                        row = entry.row;
-                      } else {
-                        if (isDatabaseEmpty) row = null;
-                        else row = await find(table, values);
+                      if (row) {
+                        return null;
                       }
 
-                      if (row === null) {
-                        return setCacheEntry(table, values, EntryType.INSERT);
-                      }
-
-                      return null;
+                      return indexingCache.set({
+                        table,
+                        key: values,
+                        row: values,
+                        isUpdate: false,
+                      });
                     }
                   },
                 ),
               ),
             onConflictDoUpdate: (valuesU: any) =>
               queue.add(() =>
-                database.wrap(
+                database.record(
                   {
                     method: `${getTableName(table) ?? "unknown"}.insert()`,
                   },
@@ -443,85 +122,79 @@ export const createHistoricalIndexingStore = ({
                     if (Array.isArray(values)) {
                       const rows = [];
                       for (const value of values) {
-                        const entry = getCacheEntry(table, value);
-                        deleteCacheEntry(table, value);
+                        const row = await indexingCache.get({
+                          table,
+                          key: value,
+                          db,
+                        });
 
-                        let row: { [key: string]: unknown } | typeof empty;
-
-                        if (entry?.row) {
-                          row = entry.row;
-                        } else {
-                          if (isDatabaseEmpty) row = null;
-                          else row = await find(table, value);
-                        }
-
-                        if (row === null) {
+                        if (row) {
+                          if (typeof valuesU === "function") {
+                            for (const [key, value] of Object.entries(
+                              valuesU(row),
+                            )) {
+                              row[key] = value;
+                            }
+                          } else {
+                            for (const [key, value] of Object.entries(
+                              valuesU,
+                            )) {
+                              row[key] = value;
+                            }
+                          }
                           rows.push(
-                            setCacheEntry(table, value, EntryType.INSERT),
+                            indexingCache.set({
+                              table,
+                              key: value,
+                              row,
+                              isUpdate: true,
+                            }),
                           );
                         } else {
-                          if (typeof valuesU === "function") {
-                            rows.push(
-                              setCacheEntry(
-                                table,
-                                valuesU(row),
-                                entry?.type === EntryType.INSERT
-                                  ? EntryType.INSERT
-                                  : EntryType.UPDATE,
-                                row,
-                              ),
-                            );
-                          } else {
-                            rows.push(
-                              setCacheEntry(
-                                table,
-                                valuesU,
-                                entry?.type === EntryType.INSERT
-                                  ? EntryType.INSERT
-                                  : EntryType.UPDATE,
-                                row,
-                              ),
-                            );
-                          }
+                          rows.push(
+                            indexingCache.set({
+                              table,
+                              key: value,
+                              row: value,
+                              isUpdate: false,
+                            }),
+                          );
                         }
                       }
                       return rows;
                     } else {
-                      const entry = getCacheEntry(table, values);
-                      deleteCacheEntry(table, values);
+                      const row = await indexingCache.get({
+                        table,
+                        key: values,
+                        db,
+                      });
 
-                      let row: { [key: string]: unknown } | typeof empty;
-
-                      if (entry?.row) {
-                        row = entry.row;
-                      } else {
-                        if (isDatabaseEmpty) row = null;
-                        else row = await find(table, values);
-                      }
-
-                      if (row === null) {
-                        return setCacheEntry(table, values, EntryType.INSERT);
-                      } else {
+                      if (row) {
                         if (typeof valuesU === "function") {
-                          return setCacheEntry(
-                            table,
+                          for (const [key, value] of Object.entries(
                             valuesU(row),
-                            entry?.type === EntryType.INSERT
-                              ? EntryType.INSERT
-                              : EntryType.UPDATE,
-                            row,
-                          );
+                          )) {
+                            row[key] = value;
+                          }
                         } else {
-                          return setCacheEntry(
-                            table,
-                            valuesU,
-                            entry?.type === EntryType.INSERT
-                              ? EntryType.INSERT
-                              : EntryType.UPDATE,
-                            row,
-                          );
+                          for (const [key, value] of Object.entries(valuesU)) {
+                            row[key] = value;
+                          }
                         }
+                        return indexingCache.set({
+                          table,
+                          key: values,
+                          row,
+                          isUpdate: true,
+                        });
                       }
+
+                      return indexingCache.set({
+                        table,
+                        key: values,
+                        row: values,
+                        isUpdate: false,
+                      });
                     }
                   },
                 ),
@@ -530,7 +203,7 @@ export const createHistoricalIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               queue
                 .add(() =>
-                  database.wrap(
+                  database.record(
                     {
                       method: `${getTableName(table) ?? "unknown"}.insert()`,
                     },
@@ -540,7 +213,13 @@ export const createHistoricalIndexingStore = ({
                       if (Array.isArray(values)) {
                         const rows = [];
                         for (const value of values) {
-                          if (getCacheEntry(table, value)?.row) {
+                          const row = await indexingCache.get({
+                            table,
+                            key: value,
+                            db,
+                          });
+
+                          if (row) {
                             const error = new UniqueConstraintError(
                               `Unique constraint failed for '${getTableName(table)}'.`,
                             );
@@ -548,27 +227,28 @@ export const createHistoricalIndexingStore = ({
                               `db.insert arguments:\n${prettyPrint(value)}`,
                             );
                             throw error;
-                          } else if (isDatabaseEmpty === false) {
-                            const findResult = await find(table, value);
-
-                            if (findResult) {
-                              const error = new UniqueConstraintError(
-                                `Unique constraint failed for '${getTableName(table)}'.`,
-                              );
-                              error.meta.push(
-                                `db.insert arguments:\n${prettyPrint(value)}`,
-                              );
-                              throw error;
-                            }
                           }
 
                           rows.push(
-                            setCacheEntry(table, value, EntryType.INSERT),
+                            indexingCache.set({
+                              table,
+                              key: value,
+                              row: value,
+                              isUpdate: false,
+                            }),
                           );
                         }
                         return rows;
                       } else {
-                        if (getCacheEntry(table, values)?.row) {
+                        const row = await indexingCache.get({
+                          table,
+                          key: values,
+                          db,
+                        });
+
+                        // TODO(kyle) optimistically assume no conflict,
+                        // check for error at flush time
+                        if (row) {
                           const error = new UniqueConstraintError(
                             `Unique constraint failed for '${getTableName(table)}'.`,
                           );
@@ -576,21 +256,14 @@ export const createHistoricalIndexingStore = ({
                             `db.insert arguments:\n${prettyPrint(values)}`,
                           );
                           throw error;
-                        } else if (isDatabaseEmpty === false) {
-                          const findResult = await find(table, values);
-
-                          if (findResult) {
-                            const error = new UniqueConstraintError(
-                              `Unique constraint failed for '${getTableName(table)}'.`,
-                            );
-                            error.meta.push(
-                              `db.insert arguments:\n${prettyPrint(values)}`,
-                            );
-                            throw error;
-                          }
                         }
 
-                        return setCacheEntry(table, values, EntryType.INSERT);
+                        return indexingCache.set({
+                          table,
+                          key: values,
+                          row: values,
+                          isUpdate: false,
+                        });
                       }
                     },
                   ),
@@ -609,9 +282,7 @@ export const createHistoricalIndexingStore = ({
                 },
               ),
             // @ts-ignore
-          } satisfies ReturnType<
-            ReturnType<IndexingStore<"historical">["insert"]>["values"]
-          >;
+          } satisfies ReturnType<ReturnType<IndexingStore["insert"]>["values"]>;
 
           return inner;
         },
@@ -622,63 +293,39 @@ export const createHistoricalIndexingStore = ({
       return {
         set: (values: any) =>
           queue.add(() =>
-            database.wrap(
-              { method: `${getTableName(table) ?? "unknown"}.update()` },
+            database.record(
+              {
+                method: `${getTableName(table) ?? "unknown"}.update()`,
+              },
               async () => {
                 checkOnchainTable(table, "update");
 
-                const entry = getCacheEntry(table, key);
-                deleteCacheEntry(table, key);
+                const row = await indexingCache.get({ table, key, db });
 
-                let row: { [key: string]: unknown };
-
-                if (entry?.row) {
-                  row = entry.row;
-                } else {
-                  if (isDatabaseEmpty) {
-                    const error = new RecordNotFoundError(
-                      `No existing record found in table '${getTableName(table)}'`,
-                    );
-                    error.meta.push(
-                      `db.update arguments:\n${prettyPrint(key)}`,
-                    );
-                    throw error;
-                  }
-
-                  const findResult = await find(table, key);
-
-                  if (findResult) {
-                    row = findResult;
-                  } else {
-                    const error = new RecordNotFoundError(
-                      `No existing record found in table '${getTableName(table)}'`,
-                    );
-                    error.meta.push(
-                      `db.update arguments:\n${prettyPrint(key)}`,
-                    );
-                    throw error;
-                  }
+                if (row === null) {
+                  const error = new RecordNotFoundError(
+                    `No existing record found in table '${getTableName(table)}'`,
+                  );
+                  error.meta.push(`db.update arguments:\n${prettyPrint(key)}`);
+                  throw error;
                 }
 
                 if (typeof values === "function") {
-                  return setCacheEntry(
-                    table,
-                    values(row),
-                    entry?.type === EntryType.INSERT
-                      ? EntryType.INSERT
-                      : EntryType.UPDATE,
-                    row,
-                  );
+                  for (const [key, value] of Object.entries(values(row))) {
+                    row[key] = value;
+                  }
                 } else {
-                  return setCacheEntry(
-                    table,
-                    values,
-                    entry?.type === EntryType.INSERT
-                      ? EntryType.INSERT
-                      : EntryType.UPDATE,
-                    row,
-                  );
+                  for (const [key, value] of Object.entries(values)) {
+                    row[key] = value;
+                  }
                 }
+
+                return indexingCache.set({
+                  table,
+                  key,
+                  row,
+                  isUpdate: true,
+                });
               },
             ),
           ),
@@ -687,52 +334,27 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       queue.add(() =>
-        database.wrap(
-          { method: `${getTableName(table) ?? "unknown"}.delete()` },
+        database.record(
+          {
+            method: `${getTableName(table) ?? "unknown"}.delete()`,
+          },
           async () => {
             checkOnchainTable(table, "delete");
-
-            const entry = getCacheEntry(table, key);
-            deleteCacheEntry(table, key);
-
-            if (entry?.row) {
-              if (entry.type === EntryType.INSERT) {
-                return true;
-              }
-
-              await database.qb.drizzle
-                .delete(table)
-                .where(getWhereCondition(table, key));
-
-              return true;
-            } else {
-              if (isDatabaseEmpty) {
-                return false;
-              }
-
-              const deleteResult = await database.qb.drizzle
-                .delete(table as Table)
-                .where(getWhereCondition(table as Table, key))
-                .returning();
-
-              return deleteResult.length > 0;
-            }
+            return indexingCache.delete({ table, key, db });
           },
         ),
       ),
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await database.createTriggers();
-        await indexingStore.flush();
-        await database.removeTriggers();
-        isDatabaseEmpty = false;
+        await indexingCache.flush({ db });
+        indexingCache.invalidate();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
-        const res = await database.wrap({ method: "sql" }, async () => {
+        const res = await database.record({ method: "sql" }, async () => {
           try {
-            return await database.qb.drizzle._.session
+            return await db._.session
               .prepareQuery(query, undefined, undefined, method === "all")
               .execute();
           } catch (e) {
@@ -745,130 +367,6 @@ export const createHistoricalIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
-    async flush() {
-      await queue.add(async () => {
-        let cacheSize = 0;
-        for (const c of cache.values()) cacheSize += c.size;
-
-        const flushIndex =
-          totalCacheOps -
-          cacheSize * (1 - common.options.indexingCacheFlushRatio);
-        const shouldDelete = cacheBytes > maxBytes;
-        if (shouldDelete) isDatabaseEmpty = false;
-
-        const promises: Promise<void>[] = [];
-
-        for (const [table, tableCache] of cache) {
-          const batchSize = Math.round(
-            common.options.databaseMaxQueryParameters /
-              Object.keys(getTableColumns(table)).length,
-          );
-
-          const insertValues: InsertEntry["row"][] = [];
-          const updateValues: UpdateEntry["row"][] = [];
-
-          for (const [key, entry] of tableCache) {
-            if (entry.type === EntryType.INSERT) {
-              insertValues.push(entry.row);
-            }
-
-            if (entry.type === EntryType.UPDATE) {
-              updateValues.push(entry.row);
-            }
-
-            if (shouldDelete && entry.operationIndex < flushIndex) {
-              tableCache.delete(key);
-              cacheBytes -= entry.bytes;
-            }
-
-            entry.type = EntryType.FIND;
-          }
-
-          if (insertValues.length > 0) {
-            common.logger.debug({
-              service: "indexing",
-              msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
-            });
-
-            while (insertValues.length > 0) {
-              const values = insertValues.splice(0, batchSize);
-              promises.push(
-                database.wrap(
-                  { method: `${getTableName(table)}.flush()` },
-                  async () => {
-                    await database.qb.drizzle
-                      .insert(table)
-                      .values(values)
-                      .catch((_error) => {
-                        const error = _error as Error;
-                        common.logger.error({
-                          service: "indexing",
-                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        });
-                        throw new FlushError(error.message);
-                      });
-                  },
-                ),
-              );
-            }
-          }
-
-          if (updateValues.length > 0) {
-            common.logger.debug({
-              service: "indexing",
-              msg: `Updating ${updateValues.length} cached '${getTableName(table)}' rows in the database`,
-            });
-
-            const primaryKeys = primaryKeysCache.get(table)!;
-            const set: { [column: string]: SQL } = {};
-
-            for (const [columnName, column] of Object.entries(
-              getTableColumns(table),
-            )) {
-              set[columnName] = sql.raw(
-                `excluded."${getColumnCasing(column, "snake_case")}"`,
-              );
-            }
-
-            while (updateValues.length > 0) {
-              const values = updateValues.splice(0, batchSize);
-              promises.push(
-                database.wrap(
-                  {
-                    method: `${getTableName(table)}.flush()`,
-                  },
-                  async () => {
-                    await database.qb.drizzle
-                      .insert(table)
-                      .values(values)
-                      .onConflictDoUpdate({
-                        // @ts-ignore
-                        target: primaryKeys.map(({ js }) => table[js]),
-                        set,
-                      })
-                      .catch((_error) => {
-                        const error = _error as Error;
-                        common.logger.error({
-                          service: "indexing",
-                          msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                        });
-                        throw new FlushError(error.message);
-                      });
-                  },
-                ),
-              );
-            }
-          }
-        }
-
-        await Promise.all(promises);
-      });
-    },
-    isCacheFull() {
-      return cacheBytes > maxBytes;
-    },
-  } satisfies IndexingStore<"historical">;
-
-  // @ts-ignore
-  return indexingStore;
+    queue,
+  };
 };

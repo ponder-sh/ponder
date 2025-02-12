@@ -10,10 +10,12 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test } from "vitest";
+import { createIndexingCache } from "./cache.js";
 import { createHistoricalIndexingStore } from "./historical.js";
 
 beforeEach(setupCommon);
@@ -30,11 +32,19 @@ test("find", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     database,
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // empty
@@ -68,11 +78,19 @@ test("insert", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // single
@@ -213,11 +231,19 @@ test("update", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // setup
@@ -277,11 +303,19 @@ test("delete", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // no entry
@@ -311,61 +345,6 @@ test("delete", async (context) => {
   expect(result).toBe(null);
 });
 
-test("flush", async (context) => {
-  const schema = {
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    isDatabaseEmpty: true,
-  });
-
-  // insert
-
-  await indexingStore.insert(schema.account).values({
-    address: zeroAddress,
-    balance: 10n,
-  });
-
-  await indexingStore.flush();
-
-  let result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 10n,
-  });
-
-  // update
-
-  await indexingStore.update(schema.account, { address: zeroAddress }).set({
-    balance: 12n,
-  });
-
-  await indexingStore.flush();
-
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 12n,
-  });
-});
-
 test("sql", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -378,11 +357,19 @@ test("sql", async (context) => {
     schemaBuild: { schema },
   });
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // setup
@@ -405,14 +392,6 @@ test("sql", async (context) => {
       balance: 10n,
     },
   ]);
-
-  // triggers
-
-  const spy = vi.spyOn(database, "createTriggers");
-
-  await indexingStore.sql.select().from(schema.account);
-
-  expect(spy).toHaveBeenCalledOnce();
 
   // non-null constraint
 
@@ -454,11 +433,19 @@ test("sql followed by find", async (context) => {
     schemaBuild: { schema },
   });
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   await indexingStore.sql
@@ -485,11 +472,19 @@ test("onchain table", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // check error
@@ -512,11 +507,19 @@ test("missing rows", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // error
@@ -540,11 +543,19 @@ test("notNull", async (context) => {
     })),
   };
 
+  let indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   let indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // insert
@@ -567,11 +578,19 @@ test("notNull", async (context) => {
     })),
   };
 
+  indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   let error = await indexingStore
@@ -599,11 +618,19 @@ test("default", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -625,11 +652,19 @@ test("$default", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -654,11 +689,19 @@ test("$onUpdateFn", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   // insert
@@ -686,11 +729,19 @@ test("array", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   await indexingStore.insert(schema.account).values({
@@ -722,11 +773,19 @@ test("enum", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   await indexingStore.insert(schema.account).values({
@@ -756,11 +815,19 @@ test("json bigint", async (context) => {
     })),
   };
 
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
   const indexingStore = createHistoricalIndexingStore({
     common: context.common,
     database,
     schemaBuild: { schema },
-    isDatabaseEmpty: true,
+    indexingCache,
+    db: database.qb.drizzle,
   });
 
   const error = await indexingStore

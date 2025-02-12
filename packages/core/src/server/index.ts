@@ -1,6 +1,5 @@
 import http from "node:http";
 import type { Database } from "@/database/index.js";
-import { getMetadataStore } from "@/indexing-store/metadata.js";
 import type { Common } from "@/internal/common.js";
 import type { ApiBuild } from "@/internal/types.js";
 import { startClock } from "@/utils/timer.js";
@@ -24,10 +23,6 @@ export async function createServer({
   database: Database;
   apiBuild: ApiBuild;
 }): Promise<Server> {
-  // Create hono app
-
-  const metadataStore = getMetadataStore({ database });
-
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes
       // Filter out global middlewares
@@ -87,7 +82,7 @@ export async function createServer({
       return c.text("", 200);
     })
     .get("/ready", async (c) => {
-      const status = await metadataStore.getStatus();
+      const status = await database.getStatus();
 
       if (
         status !== null &&
@@ -99,7 +94,7 @@ export async function createServer({
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/status", async (c) => {
-      const status = await metadataStore.getStatus();
+      const status = await database.getStatus();
 
       return c.json(status);
     })

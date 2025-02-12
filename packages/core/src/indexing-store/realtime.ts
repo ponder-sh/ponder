@@ -1,47 +1,18 @@
 import type { Database } from "@/database/index.js";
-import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
-import { onchain } from "@/drizzle/onchain.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import type { Common } from "@/internal/common.js";
-import {
-  InvalidStoreMethodError,
-  RecordNotFoundError,
-  UndefinedTableError,
-} from "@/internal/errors.js";
+import { RecordNotFoundError } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue } from "@/utils/queue.js";
-import {
-  type QueryWithTypings,
-  type SQL,
-  type SQLWrapper,
-  type Table,
-  and,
-  eq,
-  getTableName,
-} from "drizzle-orm";
-import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { normalizeColumn } from "./historical.js";
-import { type IndexingStore, parseSqlError } from "./index.js";
-
-/** Throw an error if `table` is not an `onchainTable`. */
-const checkOnchainTable = (
-  table: Table,
-  method: "find" | "insert" | "update" | "delete",
-) => {
-  if (table === undefined)
-    throw new UndefinedTableError(
-      `Table object passed to db.${method}() is undefined`,
-    );
-
-  if (onchain in table) return;
-
-  throw new InvalidStoreMethodError(
-    method === "find"
-      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
-      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
-  );
-};
+import { getCacheKey, getWhereCondition } from "./cache.js";
+import {
+  type IndexingStore,
+  checkOnchainTable,
+  parseSqlError,
+} from "./index.js";
 
 export const createRealtimeIndexingStore = ({
   schemaBuild: { schema },
@@ -50,7 +21,7 @@ export const createRealtimeIndexingStore = ({
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
-}): IndexingStore<"realtime"> => {
+}): IndexingStore => {
   // Operation queue to make sure all queries are run in order, circumventing race conditions
   const queue = createQueue<unknown, () => Promise<unknown>>({
     browser: false,
@@ -61,47 +32,6 @@ export const createRealtimeIndexingStore = ({
     },
   });
 
-  const primaryKeysCache: Map<Table, { sql: string; js: string }[]> = new Map();
-
-  for (const tableName of getTableNames(schema)) {
-    primaryKeysCache.set(
-      schema[tableName.js] as Table,
-      getPrimaryKeyColumns(schema[tableName.js] as PgTable),
-    );
-  }
-
-  ////////
-  // Helper functions
-  ////////
-
-  const getCacheKey = (
-    table: Table,
-    row: { [key: string]: unknown },
-  ): string => {
-    const primaryKeys = primaryKeysCache.get(table)!;
-
-    return (
-      primaryKeys
-        // @ts-ignore
-        .map((pk) => normalizeColumn(table[pk.js], row[pk.js]))
-        .join("_")
-    );
-  };
-
-  /** Returns an sql where condition for `table` with `key`. */
-  const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
-    primaryKeysCache.get(table)!;
-
-    const conditions: SQLWrapper[] = [];
-
-    for (const { js } of primaryKeysCache.get(table)!) {
-      // @ts-ignore
-      conditions.push(eq(table[js]!, key[js]));
-    }
-
-    return and(...conditions)!;
-  };
-
   const find = (table: Table, key: object) => {
     return database.qb.drizzle
       .select()
@@ -110,8 +40,7 @@ export const createRealtimeIndexingStore = ({
       .then((res) => (res.length === 0 ? null : res[0]!));
   };
 
-  // @ts-ignore
-  const indexingStore = {
+  return {
     // @ts-ignore
     find: (table: Table, key) =>
       queue.add(() =>
@@ -190,10 +119,10 @@ export const createRealtimeIndexingStore = ({
                           .insert(table)
                           .values(values)
                           .onConflictDoUpdate({
-                            target: primaryKeysCache
-                              .get(table)!
+                            target: getPrimaryKeyColumns(table).map(
                               // @ts-ignore
-                              .map(({ js }) => table[js]),
+                              ({ js }) => table[js],
+                            ),
                             set: valuesU,
                           })
                           .returning()
@@ -306,9 +235,7 @@ export const createRealtimeIndexingStore = ({
                 },
               ),
             // @ts-ignore
-          } satisfies ReturnType<
-            ReturnType<IndexingStore<"realtime">["insert"]>["values"]
-          >;
+          } satisfies ReturnType<ReturnType<IndexingStore["insert"]>["values"]>;
 
           return inner;
         },
@@ -403,8 +330,5 @@ export const createRealtimeIndexingStore = ({
         }),
       { schema, casing: "snake_case" },
     ),
-  } satisfies IndexingStore<"realtime">;
-
-  // @ts-ignore
-  return indexingStore;
+  };
 };

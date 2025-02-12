@@ -1193,7 +1193,7 @@ export async function* getLocalEventGenerator(params: {
           maxIncrease: 1.08,
         });
 
-        params.common.logger.debug({
+        params.common.logger.trace({
           service: "sync",
           msg: `Updated '${params.network.name}' extract query estimate to ${estimateSeconds} seconds`,
         });
@@ -1403,7 +1403,7 @@ export async function* getLocalSyncGenerator({
         100_000,
       );
 
-      common.logger.debug({
+      common.logger.trace({
         service: "sync",
         msg: `Updated '${network.name}' historical sync estimate to ${estimateRange} blocks`,
       });
