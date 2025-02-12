@@ -3,6 +3,8 @@ import { pipeline } from "node:stream/promises";
 import type { Database } from "@/database/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import { addErrorMeta } from "@/indexing/index.js";
+import { toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
@@ -33,6 +35,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
+import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
   /**
@@ -504,8 +507,30 @@ export const createIndexingCache = ({
           await database.record(
             { method: `${getTableName(table)}.flush()` },
             async () =>
-              copy(table, text).catch((_error) => {
-                const error = _error as Error;
+              copy(table, text).catch((error) => {
+                // try to recover the event that caused the error
+                if (
+                  "where" in error &&
+                  (error.where as string).match(/line (\d+)/)
+                ) {
+                  const line = (error.where as string).match(/line (\d+)/)![1]!;
+                  const event = insertValues[Number(line) - 1]?.metadata.event;
+                  if (event) {
+                    error = parseSqlError(error);
+                    error.stack = undefined;
+                    addErrorMeta(error, toErrorMeta(event));
+
+                    common.logger.error({
+                      service: "indexing",
+                      msg: `Error while processing ${getTableName(table)}.insert() in event '${event.name}'`,
+                      error,
+                    });
+
+                    // TODO(kyle) don't log error in database.record
+                    throw error;
+                  }
+                }
+
                 common.logger.error({
                   service: "indexing",
                   msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
