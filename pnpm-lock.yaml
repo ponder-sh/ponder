@@ -775,9 +775,6 @@ importers:
 
   packages/client:
     dependencies:
-      drizzle-orm:
-        specifier: 0.39.3
-        version: 0.39.3(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(kysely@0.26.3)(pg@8.11.3)
       eventsource:
         specifier: ^3.0.5
         version: 3.0.5
@@ -785,6 +782,9 @@ importers:
         specifier: ^2.2.2
         version: 2.2.2
     devDependencies:
+      drizzle-orm:
+        specifier: 0.39.3
+        version: 0.39.3(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(kysely@0.26.3)(pg@8.11.3)
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(postcss@8.4.32)(ts-node@10.9.2(@types/node@22.10.6)(typescript@5.3.3))(typescript@5.3.3)
