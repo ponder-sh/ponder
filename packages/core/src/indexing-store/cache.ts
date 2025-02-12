@@ -409,11 +409,6 @@ export const createIndexingCache = ({
                   .insert(table)
                   .values(insertChunk.map(({ row }) => row))
                   .catch((error) => {
-                    common.logger.warn({
-                      service: "indexing",
-                      msg: "Internal error occurred while flushing cache",
-                      error: parseSqlError(error),
-                    });
                     throw parseSqlError(error);
                   });
               },
@@ -464,11 +459,6 @@ export const createIndexingCache = ({
                     set,
                   })
                   .catch((error) => {
-                    common.logger.warn({
-                      service: "indexing",
-                      msg: "Internal error occurred while flushing cache",
-                      error: parseSqlError(error),
-                    });
                     throw parseSqlError(error);
                   });
               },
