@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.8
+
+### Patch Changes
+
+- [#1510](https://github.com/ponder-sh/ponder/pull/1510) [`66dcd4d0a1aeeee63b54fe54dc12b5428f99f1e6`](https://github.com/ponder-sh/ponder/commit/66dcd4d0a1aeeee63b54fe54dc12b5428f99f1e6) Thanks [@kyscott18](https://github.com/kyscott18)! - Set statement timeout for graphql and ponder client queries to 30 seconds.
+
+- [#1488](https://github.com/ponder-sh/ponder/pull/1488) [`388cd50d52716cfe1b2e00afff0ae7e0da844822`](https://github.com/ponder-sh/ponder/commit/388cd50d52716cfe1b2e00afff0ae7e0da844822) Thanks [@jaydenwindle](https://github.com/jaydenwindle)! - Added `--disable-ui` CLI flag to `ponder dev`.
+
 ## 0.9.7
 
 ### Patch Changes
