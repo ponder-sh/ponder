@@ -250,12 +250,14 @@ export async function run({
     msg: "Completed all historical events, starting final flush",
   });
 
-  await database.transaction(async (client, tx) => {
-    await indexingCache.flush({ client });
+  await database.retry(async () => {
+    await database.transaction(async (client, tx) => {
+      await indexingCache.flush({ client });
 
-    await database.finalize({
-      checkpoint: sync.getFinalizedCheckpoint(),
-      db: tx,
+      await database.finalize({
+        checkpoint: sync.getFinalizedCheckpoint(),
+        db: tx,
+      });
     });
   });
 
