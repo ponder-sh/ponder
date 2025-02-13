@@ -388,16 +388,19 @@ export const createSync = async (params: {
           service: "sync",
           msg: `Sequenced ${events.length} '${network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
+
+        updateHistoricalStatus({ events, checkpoint, network });
       } else {
         params.common.logger.debug({
           service: "sync",
           msg: `Sequenced ${events.length} events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
+
+        for (const network of params.indexingBuild.networks) {
+          updateHistoricalStatus({ events, checkpoint, network });
+        }
       }
 
-      for (const network of params.indexingBuild.networks) {
-        updateHistoricalStatus({ events, checkpoint, network });
-      }
       yield events;
       cursor = checkpoint;
     }
