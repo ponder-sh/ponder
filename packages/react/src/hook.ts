@@ -9,11 +9,11 @@ import {
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
-import { type SQLWrapper, getPonderQueryOptions } from "./utils.js";
+import { getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {
-    queryFn: (db: Client["db"]) => Promise<result> & SQLWrapper;
+    queryFn: (db: Client["db"]) => Promise<result>;
   } & Omit<UseQueryOptions<result>, "queryFn" | "queryKey">,
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();
