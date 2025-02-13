@@ -246,30 +246,27 @@ export const getCopyText = (
   rows: { [key: string]: unknown }[],
 ) => {
   const columns = Object.entries(getTableColumns(table));
-  let result = "";
-
+  const results: string[] = [];
   for (const row of rows) {
-    for (let i = 0; i < columns.length; i++) {
-      const [columnName, column] = columns[i]!;
-      const isLast = i === columns.length - 1;
+    const values: string[] = [];
+    for (const [columnName, column] of columns) {
       let value = row[columnName];
       if (value === null || value === undefined) {
-        result += "\\N";
+        values.push("\\N");
       } else {
         if (column.mapToDriverValue !== undefined) {
           value = column.mapToDriverValue(value);
         }
         if (value === null || value === undefined) {
-          result += "\\N";
+          values.push("\\N");
         } else {
-          result += String(value).replace(/\\/g, "\\\\");
+          values.push(String(value).replace(/\\/g, "\\\\"));
         }
       }
-      if (isLast === false) result += "\t";
     }
-    result += "\n";
+    results.push(values.join("\t"));
   }
-  return result;
+  return results.join("\n");
 };
 
 export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
