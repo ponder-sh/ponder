@@ -133,12 +133,14 @@ export const createHistoricalIndexingStore = ({
                             for (const [key, value] of Object.entries(
                               valuesU(row),
                             )) {
+                              if (value === undefined) continue;
                               row[key] = value;
                             }
                           } else {
                             for (const [key, value] of Object.entries(
                               valuesU,
                             )) {
+                              if (value === undefined) continue;
                               row[key] = value;
                             }
                           }
@@ -174,10 +176,12 @@ export const createHistoricalIndexingStore = ({
                           for (const [key, value] of Object.entries(
                             valuesU(row),
                           )) {
+                            if (value === undefined) continue;
                             row[key] = value;
                           }
                         } else {
                           for (const [key, value] of Object.entries(valuesU)) {
+                            if (value === undefined) continue;
                             row[key] = value;
                           }
                         }
@@ -312,10 +316,12 @@ export const createHistoricalIndexingStore = ({
 
                 if (typeof values === "function") {
                   for (const [key, value] of Object.entries(values(row))) {
+                    if (value === undefined) continue;
                     row[key] = value;
                   }
                 } else {
                   for (const [key, value] of Object.entries(values)) {
+                    if (value === undefined) continue;
                     row[key] = value;
                   }
                 }
