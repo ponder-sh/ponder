@@ -201,7 +201,21 @@ export const normalizeRow = (
   return row;
 };
 
-export const getCacheKey = (table: Table, key: object): string => {
+export const getCacheKey = (
+  table: Table,
+  key: object,
+  cache?: Map<Table, [string, Column][]>,
+): string => {
+  if (cache) {
+    const primaryKeys = cache.get(table)!;
+    return (
+      primaryKeys
+        // @ts-ignore
+        .map(([pk, col]) => normalizeColumn(col, key[pk]))
+        .join("_")
+    );
+  }
+
   const primaryKeys = getPrimaryKeyColumns(table);
   return (
     primaryKeys
@@ -344,6 +358,8 @@ export const createIndexingCache = ({
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
 
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
 
   let cacheBytes = 0;
@@ -364,34 +380,38 @@ export const createIndexingCache = ({
     spillover.set(table, new Map());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
+
+    primaryKeyCache.set(table, []);
+    for (const { js } of getPrimaryKeyColumns(table)) {
+      primaryKeyCache.get(table)!.push([js, table[js]!]);
+    }
   }
 
   return {
     has({ table, key }) {
       if (isCacheComplete) return true;
+      const ck = getCacheKey(table, key, primaryKeyCache);
 
       return (
-        cache.get(table)!.has(getCacheKey(table, key)) ??
-        spillover.get(table)!.has(getCacheKey(table, key)) ??
-        insertBuffer.get(table)!.has(getCacheKey(table, key)) ??
-        updateBuffer.get(table)!.has(getCacheKey(table, key))
+        cache.get(table)!.has(ck) ??
+        spillover.get(table)!.has(ck) ??
+        insertBuffer.get(table)!.has(ck) ??
+        updateBuffer.get(table)!.has(ck)
       );
     },
     get({ table, key, db }) {
+      const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
       // are prioritized over insert entries
       const bufferEntry =
-        updateBuffer.get(table)!.get(getCacheKey(table, key)) ??
-        insertBuffer.get(table)!.get(getCacheKey(table, key));
+        updateBuffer.get(table)!.get(ck) ?? insertBuffer.get(table)!.get(ck);
 
       if (bufferEntry) {
         common.metrics.ponder_indexing_cache_hit.inc();
         return structuredClone(bufferEntry.row);
       }
 
-      const entry =
-        spillover.get(table)!.get(getCacheKey(table, key)) ??
-        cache.get(table)!.get(getCacheKey(table, key));
+      const entry = spillover.get(table)!.get(ck) ?? cache.get(table)!.get(ck);
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
@@ -426,7 +446,7 @@ export const createIndexingCache = ({
           const bytes = getBytes(row);
           spilloverBytes += bytes;
 
-          spillover.get(table)!.set(getCacheKey(table, key), {
+          spillover.get(table)!.set(ck, {
             bytes,
             operationIndex: totalCacheOps++,
             row: structuredClone(row),
@@ -436,14 +456,15 @@ export const createIndexingCache = ({
     },
     set({ table, key, row: _row, isUpdate, metadata }) {
       const row = normalizeRow(table, _row, isUpdate);
+      const ck = getCacheKey(table, key, primaryKeyCache);
 
       if (isUpdate) {
-        updateBuffer.get(table)!.set(getCacheKey(table, key), {
+        updateBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
           metadata,
         });
       } else {
-        insertBuffer.get(table)!.set(getCacheKey(table, key), {
+        insertBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
           metadata,
         });
@@ -452,18 +473,17 @@ export const createIndexingCache = ({
       return row;
     },
     delete({ table, key, db }) {
+      const ck = getCacheKey(table, key, primaryKeyCache);
       const inBuffer =
-        insertBuffer.get(table)!.delete(getCacheKey(table, key)) ||
-        updateBuffer.get(table)!.delete(getCacheKey(table, key));
+        insertBuffer.get(table)!.delete(ck) ||
+        updateBuffer.get(table)!.delete(ck);
 
       if (
-        (cache.get(table)!.has(getCacheKey(table, key)) &&
-          cache.get(table)!.get(getCacheKey(table, key))) ||
-        (spillover.get(table)!.has(getCacheKey(table, key)) &&
-          spillover.get(table)!.get(getCacheKey(table, key)))
+        (cache.get(table)!.has(ck) && cache.get(table)!.get(ck)) ||
+        (spillover.get(table)!.has(ck) && spillover.get(table)!.get(ck))
       ) {
-        cache.get(table)!.delete(getCacheKey(table, key));
-        spillover.get(table)!.delete(getCacheKey(table, key));
+        cache.get(table)!.delete(ck);
+        spillover.get(table)!.delete(ck);
         isCacheComplete = false;
 
         return db
@@ -472,10 +492,7 @@ export const createIndexingCache = ({
           .then(() => true);
       }
 
-      if (
-        cache.get(table)!.has(getCacheKey(table, key)) ||
-        spillover.get(table)?.has(getCacheKey(table, key))
-      ) {
+      if (cache.get(table)!.has(ck) || spillover.get(table)?.has(ck)) {
         return inBuffer;
       }
 
