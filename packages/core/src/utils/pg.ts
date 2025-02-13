@@ -122,9 +122,7 @@ export function createReadonlyPool(
           SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
-          SET statement_timeout = '500ms';
-          SET lock_timeout = '500ms';
-        `,
+          SET lock_timeout = '500ms';`,
             callback,
           );
         });
@@ -135,9 +133,7 @@ export function createReadonlyPool(
           SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
-          SET statement_timeout = '500ms';
-          SET lock_timeout = '500ms';
-        `,
+          SET lock_timeout = '500ms';`,
           ).then(() => {}),
         );
       }
@@ -146,7 +142,7 @@ export function createReadonlyPool(
 
   const pool = new pg.Pool({
     // https://stackoverflow.com/questions/59155572/how-to-set-query-timeout-in-relation-to-statement-timeout
-    statement_timeout: 2 * 60 * 1000, // 2 minutes
+    statement_timeout: 30 * 1000, // 30s
     // @ts-expect-error: The custom Client is an undocumented option.
     Client: ReadonlyClient,
     ...config,

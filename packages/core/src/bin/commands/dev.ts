@@ -65,7 +65,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     await apiShutdown.kill();
   });
 
-  createUi({ common: { ...common, shutdown } });
+  if (cliOptions.disableUi !== true) {
+    createUi({ common: { ...common, shutdown } });
+  }
 
   const exit = createExit({ common: { ...common, shutdown } });
 

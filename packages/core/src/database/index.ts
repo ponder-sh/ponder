@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
+import {
+  FlushError,
+  NonRetryableError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type {
   IndexingBuild,
   NamespaceBuild,
@@ -40,8 +44,10 @@ import {
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import {
+  type PgQueryResultHKT,
   PgTable,
   type PgTableWithColumns,
+  type PgTransaction,
   pgSchema,
   pgTable,
 } from "drizzle-orm/pg-core";
@@ -82,7 +88,10 @@ export type Database = {
   removeTriggers(): Promise<void>;
   getStatus: () => Promise<Status | null>;
   setStatus: (status: Status) => Promise<void>;
-  revert(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  revert(args: {
+    checkpoint: string;
+    tx: PgTransaction<PgQueryResultHKT, Schema>;
+  }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
   complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
@@ -481,11 +490,13 @@ export const createDatabase = async ({
           method: options.method,
         });
 
-        common.logger.warn({
-          service: "database",
-          msg: `Failed '${options.method}' database method (id=${id})`,
-          error,
-        });
+        if (error instanceof FlushError === false) {
+          common.logger.warn({
+            service: "database",
+            msg: `Failed '${options.method}' database method (id=${id})`,
+            error,
+          });
+        }
 
         throw error;
       } finally {
@@ -589,7 +600,6 @@ export const createDatabase = async ({
       throw "unreachable";
     },
     async transaction(fn) {
-      // TODO(kyle): retry
       if (dialect === "postgres") {
         const client = await (
           database.driver as { internal: Pool }
@@ -604,10 +614,10 @@ export const createDatabase = async ({
           await client.query("COMMIT");
           return result;
         } catch (error) {
-          await client?.query("ROLLBACK");
+          await client.query("ROLLBACK");
           throw error;
         } finally {
-          client?.release();
+          client.release();
         }
       } else {
         const client = (database.driver as { instance: PGlite }).instance;
@@ -1156,7 +1166,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               for (const indexStatement of schemaBuild.statements.indexes
                 .json) {
                 await tx.execute(
-                  sql.raw(`DROP INDEX IF EXISTS "${indexStatement.data.name}"`),
+                  sql.raw(
+                    `DROP INDEX IF EXISTS "${namespace}"."${indexStatement.data.name}"`,
+                  ),
                 );
                 common.logger.info({
                   service: "database",
@@ -1166,7 +1178,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
               // Revert unfinalized data
 
-              await this.revert({ checkpoint: app.checkpoint, db: tx });
+              await this.revert({ checkpoint: app.checkpoint, tx });
             }
 
             return app.checkpoint;
@@ -1282,13 +1294,14 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
           });
       });
     },
-    async revert({ checkpoint, db }) {
+    async revert({ checkpoint, tx }) {
       await this.wrap({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           tables.map(async (table) => {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-            const { rows } = await db.execute(
+            // @ts-ignore
+            const { rows } = await tx.execute<Schema>(
               sql.raw(
                 `DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}" WHERE checkpoint > '${checkpoint}' RETURNING *`,
               ),
@@ -1304,7 +1317,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
               if (log.operation === 0) {
                 // create
 
-                await db.delete(table).where(
+                await tx.delete(table).where(
                   and(
                     ...primaryKeyColumns.map(({ js, sql }) =>
                       // @ts-ignore
@@ -1321,7 +1334,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
                 log.checkpoint = undefined;
                 // @ts-ignore
                 log.operation = undefined;
-                await db
+                await tx
                   .update(table)
                   .set(log)
                   .where(
@@ -1341,7 +1354,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
                 log.checkpoint = undefined;
                 // @ts-ignore
                 log.operation = undefined;
-                await db
+                await tx
                   .insert(table)
                   .values(log)
                   .onConflictDoNothing({

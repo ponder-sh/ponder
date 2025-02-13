@@ -30,6 +30,8 @@ test("middleware serves request", async (context) => {
     schemaBuild: { schema },
   });
 
+  globalThis.PONDER_DATABASE = database;
+
   await indexingStore.insert(schema.table).values({
     id: "0",
     string: "0",
@@ -93,6 +95,8 @@ test("middleware supports path other than /graphql using hono routing", async (c
     schemaBuild: { schema },
   });
 
+  globalThis.PONDER_DATABASE = database;
+
   await indexingStore.insert(schema.table).values({
     id: "0",
   });
@@ -136,6 +140,8 @@ test("middleware throws error when extra filter is applied", async (context) => 
     schemaBuild: { schema },
   });
 
+  globalThis.PONDER_DATABASE = database;
+
   const app = new Hono().use(
     "/graphql",
     graphql({ schema, db: database.qb.drizzleReadonly }),
@@ -178,6 +184,8 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
   const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
+
+  globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
     "/graphql",
@@ -229,6 +237,8 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
     schemaBuild: { schema },
   });
 
+  globalThis.PONDER_DATABASE = database;
+
   const app = new Hono().use(
     "/graphql",
     graphql(
@@ -278,6 +288,8 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
   const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
+
+  globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
     "/graphql",
@@ -334,6 +346,8 @@ test("graphQLMiddleware interactive", async (context) => {
   const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
+
+  globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
     "/graphql",

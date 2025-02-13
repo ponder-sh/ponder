@@ -13,12 +13,11 @@ The CLI (provided by the `ponder` package) is the entrypoint for your project.
 Usage: ponder <command> [OPTIONS]
 
 Options:
-  --schema <SCHEMA>      Database schema
   --root <PATH>          Path to the project root directory (default: working directory)
   --config <PATH>        Path to the project config file (default: "ponder.config.ts")
   -v, --debug            Enable debug logs, e.g. realtime blocks, internal events
   -vv, --trace           Enable trace logs, e.g. db queries, indexing checkpoints
-  --log-level <LEVEL>    Minimum log level ("error", "warn", "info", "debug", or "trace") (default: "info")
+  --log-level <LEVEL>    Minimum log level ("error", "warn", "info", "debug", or "trace", default: "info")
   --log-format <FORMAT>  The log format ("pretty" or "json") (default: "pretty")
   -V, --version          Show the version number
   -h, --help             Show this help message
@@ -27,7 +26,7 @@ Commands:
   dev [options]          Start the development server with hot reloading
   start [options]        Start the production server
   serve [options]        Start the production HTTP server without the indexer
-  db list                List all deployments
+  db                     Database management commands
   codegen                Generate the ponder-env.d.ts file, then exit
 ```
 
@@ -44,8 +43,10 @@ Usage: ponder dev [options]
 Start the development server with hot reloading
 
 Options:
+  --schema <SCHEMA>          Database schema
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
+  --disable-ui               Disable the terminal UI
   -h, --help                 display help for command
 ```
 
@@ -62,6 +63,7 @@ Usage: ponder start [options]
 Start the production server
 
 Options:
+  --schema <SCHEMA>          Database schema
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
@@ -82,6 +84,7 @@ Usage: ponder serve [options]
 Start the production HTTP server without the indexer
 
 Options:
+  --schema <SCHEMA>          Database schema
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command

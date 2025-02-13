@@ -29,6 +29,7 @@ import {
   is,
 } from "drizzle-orm";
 import {
+  PgArray,
   PgTable,
   type PgTableWithColumns,
   getTableConfig,
@@ -152,6 +153,14 @@ export const normalizeColumn = (
   }
   if (column.mapToDriverValue === undefined) return value;
   try {
+    if (Array.isArray(value) && column instanceof PgArray) {
+      return value.map((v) =>
+        column.baseColumn.mapFromDriverValue(
+          column.baseColumn.mapToDriverValue(v),
+        ),
+      );
+    }
+
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   } catch (e) {
     if (
@@ -246,30 +255,27 @@ export const getCopyText = (
   rows: { [key: string]: unknown }[],
 ) => {
   const columns = Object.entries(getTableColumns(table));
-  let result = "";
-
+  const results: string[] = [];
   for (const row of rows) {
-    for (let i = 0; i < columns.length; i++) {
-      const [columnName, column] = columns[i]!;
-      const isLast = i === columns.length - 1;
+    const values: string[] = [];
+    for (const [columnName, column] of columns) {
       let value = row[columnName];
       if (value === null || value === undefined) {
-        result += "\\N";
+        values.push("\\N");
       } else {
         if (column.mapToDriverValue !== undefined) {
           value = column.mapToDriverValue(value);
         }
         if (value === null || value === undefined) {
-          result += "\\N";
+          values.push("\\N");
         } else {
-          result += String(value).replace(/\\/g, "\\\\");
+          values.push(String(value).replace(/\\/g, "\\\\"));
         }
       }
-      if (isLast === false) result += "\t";
     }
-    result += "\n";
+    results.push(values.join("\t"));
   }
-  return result;
+  return results.join("\n");
 };
 
 export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
@@ -383,8 +389,8 @@ export const createIndexingCache = ({
       }
 
       const entry =
-        cache.get(table)!.get(getCacheKey(table, key)) ??
-        spillover.get(table)!.get(getCacheKey(table, key));
+        spillover.get(table)!.get(getCacheKey(table, key)) ??
+        cache.get(table)!.get(getCacheKey(table, key));
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
@@ -446,10 +452,13 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.delete(getCacheKey(table, key));
 
       if (
-        cache.get(table)!.has(getCacheKey(table, key)) &&
-        cache.get(table)!.get(getCacheKey(table, key))
+        (cache.get(table)!.has(getCacheKey(table, key)) &&
+          cache.get(table)!.get(getCacheKey(table, key))) ||
+        (spillover.get(table)!.has(getCacheKey(table, key)) &&
+          spillover.get(table)!.get(getCacheKey(table, key)))
       ) {
         cache.get(table)!.delete(getCacheKey(table, key));
+        spillover.get(table)!.delete(getCacheKey(table, key));
         isCacheComplete = false;
 
         return db
@@ -458,16 +467,11 @@ export const createIndexingCache = ({
           .then(() => true);
       }
 
-      if (cache.get(table)!.has(getCacheKey(table, key))) {
-        return inBuffer;
-      }
-
       if (
-        spillover.get(table)!.has(getCacheKey(table, key)) &&
-        spillover.get(table)!.get(getCacheKey(table, key))
+        cache.get(table)!.has(getCacheKey(table, key)) ||
+        spillover.get(table)?.has(getCacheKey(table, key))
       ) {
-        spillover.get(table)!.delete(getCacheKey(table, key));
-        return true;
+        return inBuffer;
       }
 
       if (isCacheComplete) {
@@ -481,8 +485,6 @@ export const createIndexingCache = ({
         .then((result) => result.length > 0);
     },
     async flush({ client }) {
-      let flushCount = 0;
-
       const copy = getCopyHelper({ client });
 
       for (const table of cache.keys()) {
@@ -491,14 +493,7 @@ export const createIndexingCache = ({
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
 
-        flushCount += insertValues.length + updateValues.length;
-
         if (insertValues.length > 0) {
-          common.logger.debug({
-            service: "indexing",
-            msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
-          });
-
           const text = getCopyText(
             table,
             insertValues.map(({ row }) => row),
@@ -526,16 +521,11 @@ export const createIndexingCache = ({
                       error,
                     });
 
-                    // TODO(kyle) don't log error in database.record
-                    throw error;
+                    throw new FlushError(error.message);
                   }
                 }
 
-                common.logger.error({
-                  service: "indexing",
-                  msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                });
-                throw new FlushError(error.message);
+                throw parseSqlError(error);
               }),
           );
 
@@ -549,6 +539,11 @@ export const createIndexingCache = ({
             });
           }
           insertBuffer.get(table)!.clear();
+
+          common.logger.debug({
+            service: "database",
+            msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+          });
         }
 
         if (updateValues.length > 0) {
@@ -557,12 +552,7 @@ export const createIndexingCache = ({
           // 2. Copy into temp table
           // 3. Update target table with data from temp
 
-          common.logger.debug({
-            service: "indexing",
-            msg: `Updating ${updateValues.length} cached '${getTableName(table)}' rows in the database`,
-          });
           const primaryKeys = getPrimaryKeyColumns(table);
-
           const set = Object.values(getTableColumns(table))
             .map(
               (column) =>
@@ -600,11 +590,7 @@ export const createIndexingCache = ({
                 // @ts-ignore
                 await client.query(updateQuery);
               } catch (error) {
-                common.logger.error({
-                  service: "indexing",
-                  msg: "Internal error occurred while flushing cache. Please report this error here: https://github.com/ponder-sh/ponder/issues",
-                });
-                throw new FlushError((error as Error).message);
+                throw parseSqlError(error);
               }
             },
           );
@@ -619,14 +605,12 @@ export const createIndexingCache = ({
             });
           }
           updateBuffer.get(table)!.clear();
-        }
-      }
 
-      if (flushCount > 0) {
-        common.logger.debug({
-          service: "indexing",
-          msg: `Flushed ${flushCount} rows to the database`,
-        });
+          common.logger.debug({
+            service: "database",
+            msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
+          });
+        }
       }
     },
     commit() {
@@ -646,19 +630,27 @@ export const createIndexingCache = ({
 
       const flushIndex =
         totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheFlushRatio);
+        cacheSize * (1 - common.options.indexingCacheEvictRatio);
 
       if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
         isCacheComplete = false;
+
+        let rowCount = 0;
 
         for (const tableCache of cache.values()) {
           for (const [key, entry] of tableCache) {
             if (entry.operationIndex < flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
+              rowCount += 1;
             }
           }
         }
+
+        common.logger.debug({
+          service: "indexing",
+          msg: `Evicted ${rowCount} rows from the cache`,
+        });
       }
     },
     invalidate() {
