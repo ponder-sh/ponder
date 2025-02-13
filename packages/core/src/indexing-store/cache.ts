@@ -385,6 +385,7 @@ export const createIndexingCache = ({
         insertBuffer.get(table)!.get(getCacheKey(table, key));
 
       if (bufferEntry) {
+        common.metrics.ponder_indexing_cache_hit.inc();
         return structuredClone(bufferEntry.row);
       }
 
@@ -396,13 +397,17 @@ export const createIndexingCache = ({
         entry.operationIndex = totalCacheOps++;
 
         if (entry.row) {
+          common.metrics.ponder_indexing_cache_hit.inc();
           return structuredClone(entry.row);
         }
       }
 
       if (isCacheComplete) {
+        common.metrics.ponder_indexing_cache_hit.inc();
         return null;
       }
+
+      common.metrics.ponder_indexing_cache_miss.inc();
 
       return database
         .record(

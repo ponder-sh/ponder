@@ -30,6 +30,8 @@ export class MetricsService {
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
+  ponder_indexing_cache_hit: prometheus.Counter;
+  ponder_indexing_cache_miss: prometheus.Counter;
 
   ponder_sync_block: prometheus.Gauge<"network">;
   ponder_sync_is_realtime: prometheus.Gauge<"network">;
@@ -116,6 +118,16 @@ export class MetricsService {
       name: "ponder_indexing_abi_decoding_duration",
       help: "Total time spent decoding log arguments and call trace arguments and results",
       buckets: databaseQueryDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_cache_hit = new prometheus.Counter({
+      name: "ponder_indexing_cache_hit",
+      help: "Number of cache hits",
+      registers: [this.registry],
+    });
+    this.ponder_indexing_cache_miss = new prometheus.Counter({
+      name: "ponder_indexing_cache_miss",
+      help: "Number of cache misses",
       registers: [this.registry],
     });
 
