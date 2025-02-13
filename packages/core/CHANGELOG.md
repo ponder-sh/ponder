@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.10
+
+### Patch Changes
+
+- [#1514](https://github.com/ponder-sh/ponder/pull/1514) [`ad78e7c69374ffac17c9b410452fef0be226a402`](https://github.com/ponder-sh/ponder/commit/ad78e7c69374ffac17c9b410452fef0be226a402) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with parsing array column values.
+
 ## 0.9.9
 
 ### Patch Changes
