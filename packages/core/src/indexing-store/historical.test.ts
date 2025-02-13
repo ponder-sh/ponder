@@ -837,26 +837,28 @@ test("text array", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      database,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  const STRING_ARRAY_VALUE = "//U_W_U\\\\";
+    const STRING_ARRAY_VALUE = "//U_W_U\\\\";
 
-  await indexingStore.insert(schema.test).values({
-    address: zeroAddress,
-    textArray: [STRING_ARRAY_VALUE],
-  });
+    await indexingStore.insert(schema.test).values({
+      address: zeroAddress,
+      textArray: [STRING_ARRAY_VALUE],
+    });
 
-  const result = await indexingStore.find(schema.test, {
-    address: zeroAddress,
-  });
+    const result = await indexingStore.find(schema.test, {
+      address: zeroAddress,
+    });
 
-  expect(result).toMatchInlineSnapshot(`
+    expect(result).toMatchInlineSnapshot(`
     {
       "address": "0x0000000000000000000000000000000000000000",
       "textArray": [
@@ -864,6 +866,7 @@ test("text array", async (context) => {
       ],
     }
   `);
+  });
 });
 
 test("enum", async (context) => {
