@@ -4,7 +4,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainTable } from "@/drizzle/onchain.js";
+import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -117,10 +117,13 @@ test("flush() update", async (context) => {
 });
 
 test("flush() encoding", async (context) => {
+  const e = onchainEnum("e", ["a", "b", "c"]);
   const schema = {
+    e,
     test: onchainTable("test", (p) => ({
       hex: p.hex().primaryKey(),
       bigint: p.bigint().notNull(),
+      e: e().notNull(),
       array: p.integer().array().notNull(),
       json: p.json().notNull(),
       null: p.text(),
@@ -151,6 +154,7 @@ test("flush() encoding", async (context) => {
     await indexingStore.insert(schema.test).values({
       hex: zeroAddress,
       bigint: 10n,
+      e: "a",
       array: [1, 2, 4],
       json: { a: 1, b: 2 },
       null: null,
@@ -170,6 +174,7 @@ test("flush() encoding", async (context) => {
             4,
           ],
           "bigint": 10n,
+          "e": "a",
           "hex": "0x0000000000000000000000000000000000000000",
           "json": {
             "a": 1,
