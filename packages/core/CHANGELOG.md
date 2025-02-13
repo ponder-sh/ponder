@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.12
+
+### Patch Changes
+
+- [#1520](https://github.com/ponder-sh/ponder/pull/1520) [`f5d690aeeabea8449c76a5e042042bd0367a03fc`](https://github.com/ponder-sh/ponder/commit/f5d690aeeabea8449c76a5e042042bd0367a03fc) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with passing undefined values to `db.update().set()`.
+
 ## 0.9.11
 
 ### Patch Changes
