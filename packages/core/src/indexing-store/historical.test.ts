@@ -820,6 +820,52 @@ test("array", async (context) => {
   });
 });
 
+test("text array", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    test: onchainTable("test", (p) => ({
+      address: p.hex().primaryKey(),
+      textArray: p.text().array().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+    indexingCache,
+    db: database.qb.drizzle,
+  });
+
+  const STRING_ARRAY_VALUE = "//U_W_U\\\\";
+
+  await indexingStore.insert(schema.test).values({
+    address: zeroAddress,
+    textArray: [STRING_ARRAY_VALUE],
+  });
+
+  const result = await indexingStore.find(schema.test, {
+    address: zeroAddress,
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "textArray": [
+        "//U_W_U\\\\",
+      ],
+    }
+  `);
+});
+
 test("enum", async (context) => {
   const { database } = await setupDatabaseServices(context);
 

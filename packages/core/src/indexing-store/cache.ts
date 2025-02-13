@@ -26,6 +26,7 @@ import {
   is,
 } from "drizzle-orm";
 import {
+  PgArray,
   PgTable,
   type PgTableWithColumns,
   getTableConfig,
@@ -143,6 +144,14 @@ export const normalizeColumn = (
   }
   if (column.mapToDriverValue === undefined) return value;
   try {
+    if (Array.isArray(value) && column instanceof PgArray) {
+      return value.map((v) =>
+        column.baseColumn.mapFromDriverValue(
+          column.baseColumn.mapToDriverValue(v),
+        ),
+      );
+    }
+
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   } catch (e) {
     if (
@@ -441,8 +450,6 @@ export const createIndexingCache = ({
         .then((result) => result.length > 0);
     },
     async flush({ client }) {
-      let flushCount = 0;
-
       const copy = getCopyHelper({ client });
 
       for (const table of cache.keys()) {
@@ -451,14 +458,7 @@ export const createIndexingCache = ({
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
 
-        flushCount += insertValues.length + updateValues.length;
-
         if (insertValues.length > 0) {
-          common.logger.debug({
-            service: "indexing",
-            msg: `Inserting ${insertValues.length} cached '${getTableName(table)}' rows into the database`,
-          });
-
           const text = getCopyText(
             table,
             insertValues.map(({ row }) => row),
@@ -482,6 +482,11 @@ export const createIndexingCache = ({
             });
           }
           insertBuffer.get(table)!.clear();
+
+          common.logger.debug({
+            service: "database",
+            msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+          });
         }
 
         if (updateValues.length > 0) {
@@ -490,12 +495,7 @@ export const createIndexingCache = ({
           // 2. Copy into temp table
           // 3. Update target table with data from temp
 
-          common.logger.debug({
-            service: "indexing",
-            msg: `Updating ${updateValues.length} cached '${getTableName(table)}' rows in the database`,
-          });
           const primaryKeys = getPrimaryKeyColumns(table);
-
           const set = Object.values(getTableColumns(table))
             .map(
               (column) =>
@@ -548,14 +548,12 @@ export const createIndexingCache = ({
             });
           }
           updateBuffer.get(table)!.clear();
-        }
-      }
 
-      if (flushCount > 0) {
-        common.logger.debug({
-          service: "indexing",
-          msg: `Flushed ${flushCount} rows to the database`,
-        });
+          common.logger.debug({
+            service: "database",
+            msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
+          });
+        }
       }
     },
     commit() {
