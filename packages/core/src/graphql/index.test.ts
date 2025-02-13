@@ -2220,3 +2220,54 @@ test("snake case table and column names with where clause", async (context) => {
     },
   });
 });
+
+test("singular with hex primary key uses case insensitive where", async (context) => {
+  const account = onchainTable("account", (t) => ({
+    address: t.hex().primaryKey(),
+  }));
+
+  const schema = { account };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  const CHECKSUM_ADDRESS = "0x67BD7c89B54Fa52826186A57363A9303DB3E7626";
+  const LOWERCASE_ADDRESS = "0x67bd7c89b54fa52826186a57363a9303db3e7626";
+
+  await indexingStore
+    .insert(schema.account)
+    .values({ address: CHECKSUM_ADDRESS });
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      account(address: "${CHECKSUM_ADDRESS}") {
+        address
+      }
+      accounts(where: { address: "${CHECKSUM_ADDRESS}" }) {
+        items {
+          address
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    account: {
+      address: LOWERCASE_ADDRESS,
+    },
+    accounts: {
+      items: [
+        {
+          address: LOWERCASE_ADDRESS,
+        },
+      ],
+    },
+  });
+});
