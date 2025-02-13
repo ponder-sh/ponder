@@ -496,14 +496,22 @@ export const createIndexingCache = ({
       if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
         isCacheComplete = false;
 
+        let rowCount = 0;
+
         for (const tableCache of cache.values()) {
           for (const [key, entry] of tableCache) {
             if (entry.operationIndex < flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
+              rowCount += 1;
             }
           }
         }
+
+        common.logger.debug({
+          service: "indexing",
+          msg: `Evicted ${rowCount} rows from the cache`,
+        });
       }
     },
     invalidate() {
