@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.11
+
+### Patch Changes
+
+- [#1517](https://github.com/ponder-sh/ponder/pull/1517) [`452c6997466144b775f7f7e8e43715c6a1f287e1`](https://github.com/ponder-sh/ponder/commit/452c6997466144b775f7f7e8e43715c6a1f287e1) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where hex value arguments to singular query fields in GraphQL did not respect case-insensitive comparison.
+
+- [#1509](https://github.com/ponder-sh/ponder/pull/1509) [`e267f7e29d0996384590f898553e323499a8b616`](https://github.com/ponder-sh/ponder/commit/e267f7e29d0996384590f898553e323499a8b616) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed some (not all) type compatibility issues when using `@ponder/client` and `@ponder/react`.
+
 ## 0.9.10
 
 ### Patch Changes
