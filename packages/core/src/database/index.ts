@@ -608,10 +608,10 @@ export const createDatabase = async ({
           await client.query("COMMIT");
           return result;
         } catch (error) {
-          await client?.query("ROLLBACK");
+          await client.query("ROLLBACK");
           throw error;
         } finally {
-          client?.release();
+          client.release();
         }
       } else {
         const client = (database.driver as { instance: PGlite }).instance;
