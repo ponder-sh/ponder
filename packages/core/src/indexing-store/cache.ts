@@ -24,7 +24,7 @@ import {
   is,
   sql,
 } from "drizzle-orm";
-import { PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
+import { PgArray, PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
 import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
@@ -136,6 +136,14 @@ export const normalizeColumn = (
   }
   if (column.mapToDriverValue === undefined) return value;
   try {
+    if (Array.isArray(value) && column instanceof PgArray) {
+      return value.map((v) =>
+        column.baseColumn.mapFromDriverValue(
+          column.baseColumn.mapToDriverValue(v),
+        ),
+      );
+    }
+
     return column.mapFromDriverValue(column.mapToDriverValue(value));
   } catch (e) {
     if (
