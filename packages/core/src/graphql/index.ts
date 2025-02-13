@@ -1,5 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
+import { normalizeColumn } from "@/indexing-store/cache.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
@@ -743,7 +744,7 @@ const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
 function buildWhereConditions(
   where: Record<string, any> | undefined,
   columns: Record<string, Column>,
-): (SQL | undefined)[] {
+) {
   const conditions: (SQL | undefined)[] = [];
 
   if (where === undefined) return conditions;
@@ -991,13 +992,37 @@ export function buildDataLoaderCache({
             limit: encodedIds.length,
           });
 
-          return decodedRowFragments.map((decodedRowFragment) => {
-            return rows.find((row) =>
-              Object.entries(decodedRowFragment).every(
-                ([col, val]) => row[col] === val,
-              ),
-            );
-          });
+          // Now, we need to order the rows coming out of the database to match
+          // the order of the IDs passed in. To accomplish this, we need to do
+          // a comparison of the decoded row PK fragments with the database rows.
+          // This is tricky because the decoded row PK fragments are not normalized,
+          // so some comparisons will fail (eg for our PgHex column type).
+          // To fix this, we need to normalize the values before doing the comparison.
+          return (
+            decodedRowFragments
+              // Normalize the decoded row fragments
+              .map((fragment) =>
+                Object.fromEntries(
+                  Object.entries(fragment).map(([col, val]) => {
+                    const column = table.columns[col];
+                    if (column === undefined) {
+                      throw new Error(
+                        `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
+                      );
+                    }
+                    return [col, normalizeColumn(column, val, false)];
+                  }),
+                ),
+              )
+              // Find the database row corresponding to each normalized row fragment
+              .map((fragment) =>
+                rows.find((row) =>
+                  Object.entries(fragment).every(
+                    ([col, val]) => row[col] === val,
+                  ),
+                ),
+              )
+          );
         },
         { maxBatchSize: 1_000 },
       );
