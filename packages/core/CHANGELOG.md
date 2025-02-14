@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.14
+
+### Patch Changes
+
+- [#1530](https://github.com/ponder-sh/ponder/pull/1530) [`17e2d7b5096de3a4cd247bd07c4cdac0c72e50f3`](https://github.com/ponder-sh/ponder/commit/17e2d7b5096de3a4cd247bd07c4cdac0c72e50f3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed indexing metrics for apps with crash recovery.
+
+- [#1530](https://github.com/ponder-sh/ponder/pull/1530) [`d6d4bd541ae83aec6aa4cc2c940b1c6ff83984ea`](https://github.com/ponder-sh/ponder/commit/d6d4bd541ae83aec6aa4cc2c940b1c6ff83984ea) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `/status` response.
+
 ## 0.9.13
 
 ### Patch Changes
