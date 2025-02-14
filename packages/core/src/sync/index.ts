@@ -472,7 +472,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Sequenced ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+            msg: `Sequenced ${readyEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
           params
@@ -480,7 +480,7 @@ export const createSync = async (params: {
               type: "block",
               checkpoint,
               status: structuredClone(status),
-              events: decodedEvents.sort((a, b) =>
+              events: readyEvents.sort((a, b) =>
                 a.checkpoint < b.checkpoint ? -1 : 1,
               ),
               network,
@@ -525,7 +525,7 @@ export const createSync = async (params: {
 
             params.common.logger.debug({
               service: "sync",
-              msg: `Sequenced ${decodedEvents.length} '${network.name}' events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+              msg: `Sequenced ${readyEvents.length} events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
             });
 
             params
@@ -533,7 +533,7 @@ export const createSync = async (params: {
                 type: "block",
                 checkpoint: to,
                 status: structuredClone(status),
-                events: decodedEvents.sort((a, b) =>
+                events: readyEvents.sort((a, b) =>
                   a.checkpoint < b.checkpoint ? -1 : 1,
                 ),
                 network,
@@ -874,7 +874,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted, decoded and scheduled ${events.events.length} '${network.name}' events`,
+            msg: `Extracted, decoded and scheduled ${decodedEvents.length} '${network.name}' events`,
           });
 
           pendingEvents = pendingEvents.concat(decodedEvents);
