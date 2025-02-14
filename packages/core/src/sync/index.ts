@@ -806,7 +806,13 @@ export const createSync = async (params: {
             getOmnichainCheckpoint({ tag: "finalized" }),
           ),
         ).blockTimestamp,
-        cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
+        cached: decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+            params.initialCheckpoint,
+          ),
+        ).blockTimestamp,
       };
     }
   } else {
@@ -820,7 +826,13 @@ export const createSync = async (params: {
             getOmnichainCheckpoint({ tag: "finalized" }),
           ),
         ).blockTimestamp,
-        cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
+        cached: decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+            params.initialCheckpoint,
+          ),
+        ).blockTimestamp,
       };
     }
   }
