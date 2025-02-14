@@ -312,26 +312,26 @@ test("update", async (context) => {
       address: zeroAddress,
       balance: 22n,
     });
-  });
 
-  // undefined
+    // undefined
 
-  result = await indexingStore
-    .update(schema.account, { address: zeroAddress })
-    .set({ balance: undefined });
+    result = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set({ balance: undefined });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 22n,
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 22n,
+    });
 
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 22n,
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 22n,
+    });
   });
 });
 
