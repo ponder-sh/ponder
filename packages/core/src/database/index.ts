@@ -70,6 +70,9 @@ export type Database = {
     options: { method: string; includeTraceLogs?: boolean },
     fn: () => Promise<T>,
   ) => Promise<T>;
+  transaction: <T>(
+    fn: (client: PoolClient | PGlite, tx: Drizzle<Schema>) => Promise<T>,
+  ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
@@ -589,6 +592,43 @@ export const createDatabase = async ({
       }
 
       throw "unreachable";
+    },
+    async transaction(fn) {
+      if (dialect === "postgres") {
+        const client = await (
+          database.driver as { internal: Pool }
+        ).internal.connect();
+        try {
+          await client.query("BEGIN");
+          const tx = drizzleNodePg(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          const result = await fn(client, tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+      } else {
+        const client = (database.driver as { instance: PGlite }).instance;
+        try {
+          await client.query("BEGIN");
+          const tx = drizzlePglite(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          const result = await fn(client, tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client?.query("ROLLBACK");
+          throw error;
+        }
+      }
     },
     async migrateSync() {
       await this.wrap(

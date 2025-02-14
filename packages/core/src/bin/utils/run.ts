@@ -115,36 +115,43 @@ export async function run({
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
-    const historicalIndexingStore = createHistoricalIndexingStore({
-      common,
-      schemaBuild,
-      database,
-      indexingCache,
-      db: database.qb.drizzle,
-    });
-    const result = await indexing.processSetupEvents({
-      db: historicalIndexingStore,
-    });
+    await database.retry(async () => {
+      await database.transaction(async (client, tx) => {
+        const historicalIndexingStore = createHistoricalIndexingStore({
+          common,
+          schemaBuild,
+          database,
+          indexingCache,
+          db: tx,
+          client,
+        });
+        const result = await indexing.processSetupEvents({
+          db: historicalIndexingStore,
+        });
 
-    if (result.status === "error") {
-      onReloadableError(result.error);
-      return;
-    }
+        if (result.status === "error") {
+          onReloadableError(result.error);
+          return;
+        }
+      });
+    });
   }
 
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
     if (events.length > 0) {
       await database.retry(async () => {
-        try {
-          await database.qb.drizzle.transaction(async (tx) => {
+        await database
+          .transaction(async (client, tx) => {
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
               database,
               indexingCache,
               db: tx,
+              client,
             });
+
             const eventChunks = chunk(events, 93);
             for (const eventChunk of eventChunks) {
               const result = await indexing.processEvents({
@@ -215,19 +222,19 @@ export async function run({
               });
             }
 
-            await indexingCache.flush({ db: tx });
+            await indexingCache.flush({ client });
+
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
+          })
+          .catch((error) => {
+            indexingCache.rollback();
+            throw error;
           });
-
-          indexingCache.commit();
-        } catch (error) {
-          indexingCache.rollback();
-          throw error;
-        }
       });
+      indexingCache.commit();
     }
 
     await database.setStatus(sync.getStatus());
@@ -244,9 +251,9 @@ export async function run({
   });
 
   await database.retry(async () => {
-    await database.qb.drizzle.transaction(async (tx) => {
-      await indexingCache.flush({ db: tx });
-      indexingCache.clear();
+    await database.transaction(async (client, tx) => {
+      await indexingCache.flush({ client });
+
       await database.finalize({
         checkpoint: sync.getFinalizedCheckpoint(),
         db: tx,
