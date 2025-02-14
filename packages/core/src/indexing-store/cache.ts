@@ -511,22 +511,26 @@ export const createIndexingCache = ({
                 // try to recover the event that caused the error
                 if (
                   "where" in error &&
+                  typeof error.where === "string" &&
                   (error.where as string).match(/line (\d+)/)
                 ) {
-                  const line = (error.where as string).match(/line (\d+)/)![1]!;
-                  const event = insertValues[Number(line) - 1]?.metadata.event;
-                  if (event) {
-                    error = parseSqlError(error);
-                    error.stack = undefined;
-                    addErrorMeta(error, toErrorMeta(event));
+                  const line = (error.where as string).match(/line (\d+)/)![1];
+                  if (line !== undefined) {
+                    const event =
+                      insertValues[Number(line) - 1]?.metadata.event;
+                    if (event) {
+                      error = parseSqlError(error);
+                      error.stack = undefined;
+                      addErrorMeta(error, toErrorMeta(event));
 
-                    common.logger.error({
-                      service: "indexing",
-                      msg: `Error while processing ${getTableName(table)}.insert() in event '${event.name}'`,
-                      error,
-                    });
+                      common.logger.error({
+                        service: "indexing",
+                        msg: `Error while processing ${getTableName(table)}.insert() in event '${event.name}'`,
+                        error,
+                      });
 
-                    throw new FlushError(error.message);
+                      throw new FlushError(error.message);
+                    }
                   }
                 }
 
