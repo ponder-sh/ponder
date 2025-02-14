@@ -263,17 +263,8 @@ export const createSync = async (params: {
 
   const updateHistoricalStatus = ({
     events,
-    checkpoint,
     network,
-  }: { events: Event[]; checkpoint: string; network: Network }) => {
-    if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
-      status[network.name]!.block = {
-        timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
-        number: Number(decodeCheckpoint(checkpoint).blockNumber),
-      };
-      return;
-    }
-
+  }: { events: Event[]; network: Network }) => {
     let i = events.length - 1;
     while (i >= 0) {
       const event = events[i]!;
@@ -388,16 +379,18 @@ export const createSync = async (params: {
           service: "sync",
           msg: `Sequenced ${events.length} '${network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
+        updateHistoricalStatus({ events, network });
       } else {
         params.common.logger.debug({
           service: "sync",
           msg: `Sequenced ${events.length} events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
+
+        for (const network of params.indexingBuild.networks) {
+          updateHistoricalStatus({ events, network });
+        }
       }
 
-      for (const network of params.indexingBuild.networks) {
-        updateHistoricalStatus({ events, checkpoint, network });
-      }
       yield events;
       cursor = checkpoint;
     }
@@ -663,11 +656,7 @@ export const createSync = async (params: {
           });
 
           if (to < from) {
-            params.onRealtimeEvent({
-              type: "reorg",
-              checkpoint: to,
-              network,
-            });
+            params.onRealtimeEvent({ type: "reorg", checkpoint: to, network });
           }
         }
 
