@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
+import {
+  FlushError,
+  NonRetryableError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type {
   IndexingBuild,
   NamespaceBuild,
@@ -486,11 +490,13 @@ export const createDatabase = async ({
           method: options.method,
         });
 
-        common.logger.warn({
-          service: "database",
-          msg: `Failed '${options.method}' database method (id=${id})`,
-          error,
-        });
+        if (error instanceof FlushError === false) {
+          common.logger.warn({
+            service: "database",
+            msg: `Failed '${options.method}' database method (id=${id})`,
+            error,
+          });
+        }
 
         throw error;
       } finally {

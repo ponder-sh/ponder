@@ -6,6 +6,16 @@ import {
   transferEvent,
 } from "ponder:schema";
 
+ponder.on("ERC20:setup", async ({ context }) => {
+  await context.db.sql.insert(transferEvent).values({
+    id: "0x962f745be983499a2fec1224e2df755e0cb8d45b8939f6d8597557a75f764e35-0xda",
+    amount: 0n,
+    timestamp: 0,
+    from: "0x0000000000000000000000000000000000000000",
+    to: "0x0000000000000000000000000000000000000000",
+  });
+});
+
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db
     .insert(account)
@@ -20,8 +30,6 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
     .onConflictDoUpdate((row) => ({
       balance: row.balance + event.args.amount,
     }));
-
-  // throw new Error();
 
   // add row to "transfer_event".
   await context.db.insert(transferEvent).values({

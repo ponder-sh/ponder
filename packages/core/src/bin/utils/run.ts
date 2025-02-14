@@ -5,6 +5,7 @@ import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
+import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
@@ -222,7 +223,15 @@ export async function run({
               });
             }
 
-            await indexingCache.flush({ client });
+            try {
+              await indexingCache.flush({ client });
+            } catch (error) {
+              if (error instanceof FlushError) {
+                onReloadableError(error as Error);
+                return;
+              }
+              throw error;
+            }
 
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
@@ -252,7 +261,15 @@ export async function run({
 
   await database.retry(async () => {
     await database.transaction(async (client, tx) => {
-      await indexingCache.flush({ client });
+      try {
+        await indexingCache.flush({ client });
+      } catch (error) {
+        if (error instanceof FlushError) {
+          onReloadableError(error as Error);
+          return;
+        }
+        throw error;
+      }
 
       await database.finalize({
         checkpoint: sync.getFinalizedCheckpoint(),
