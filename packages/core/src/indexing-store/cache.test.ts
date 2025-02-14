@@ -215,59 +215,34 @@ test("flush() encoding escape", async (context) => {
       client,
     });
 
-    await indexingStore
-      .insert(schema.test)
-      .values([
-        { backslash: "\\" },
-        { backslash: "\\\\" },
-        { backslash: "\\b" },
-        { backslash: "\\f" },
-        { backslash: "\\n" },
-        { backslash: "\\r" },
-        { backslash: "\\t" },
-        { backslash: "\\v" },
-        { backslash: "\\00" },
-        { backslash: "\\x00" },
-      ]);
+    const values = [
+      { backslash: "\\\\" },
+      { backslash: "\\b" },
+      { backslash: "\\f" },
+      { backslash: "\\n" },
+      { backslash: "\\r" },
+      { backslash: "\\t" },
+      { backslash: "\\v" },
+      { backslash: "\\00" },
+      { backslash: "\\x00" },
+      { backslash: "\\" },
+      { backslash: "\b" },
+      { backslash: "\f" },
+      { backslash: "\n" },
+      { backslash: "\r" },
+      { backslash: "\t" },
+      { backslash: "\v" },
+      // { backslash: "\00" },
+      // { backslash: "\x00" },
+    ];
+
+    await indexingStore.insert(schema.test).values(values);
 
     await indexingCache.flush({ client });
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "backslash": "\\",
-        },
-        {
-          "backslash": "\\\\",
-        },
-        {
-          "backslash": "\\b",
-        },
-        {
-          "backslash": "\\f",
-        },
-        {
-          "backslash": "\\n",
-        },
-        {
-          "backslash": "\\r",
-        },
-        {
-          "backslash": "\\t",
-        },
-        {
-          "backslash": "\\v",
-        },
-        {
-          "backslash": "\\00",
-        },
-        {
-          "backslash": "\\x00",
-        },
-      ]
-    `);
+    expect(result).toStrictEqual(values);
   });
 });

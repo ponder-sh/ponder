@@ -283,7 +283,7 @@ export const getCopyText = (
         if (value === null || value === undefined) {
           values.push("\\N");
         } else {
-          values.push(String(value).replace(/\\/g, "\\\\"));
+          values.push(String(value).replace(/([\\\b\f\n\r\t\v])/g, "\\$1"));
         }
       }
     }
@@ -338,7 +338,7 @@ export const recoverBatchError = async <T>(
     if (resultRight.status === "error") {
       return resultRight;
     }
-    throw "unreachable";
+    return { status: "success" };
   }
 };
 
