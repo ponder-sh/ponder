@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
+import {
+  FlushError,
+  NonRetryableError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type {
   IndexingBuild,
   NamespaceBuild,
@@ -69,6 +73,9 @@ export type Database = {
   wrap: <T>(
     options: { method: string; includeTraceLogs?: boolean },
     fn: () => Promise<T>,
+  ) => Promise<T>;
+  transaction: <T>(
+    fn: (client: PoolClient | PGlite, tx: Drizzle<Schema>) => Promise<T>,
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
@@ -483,11 +490,13 @@ export const createDatabase = async ({
           method: options.method,
         });
 
-        common.logger.warn({
-          service: "database",
-          msg: `Failed '${options.method}' database method (id=${id})`,
-          error,
-        });
+        if (error instanceof FlushError === false) {
+          common.logger.warn({
+            service: "database",
+            msg: `Failed '${options.method}' database method (id=${id})`,
+            error,
+          });
+        }
 
         throw error;
       } finally {
@@ -589,6 +598,43 @@ export const createDatabase = async ({
       }
 
       throw "unreachable";
+    },
+    async transaction(fn) {
+      if (dialect === "postgres") {
+        const client = await (
+          database.driver as { internal: Pool }
+        ).internal.connect();
+        try {
+          await client.query("BEGIN");
+          const tx = drizzleNodePg(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          const result = await fn(client, tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+      } else {
+        const client = (database.driver as { instance: PGlite }).instance;
+        try {
+          await client.query("BEGIN");
+          const tx = drizzlePglite(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          const result = await fn(client, tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client?.query("ROLLBACK");
+          throw error;
+        }
+      }
     },
     async migrateSync() {
       await this.wrap(
