@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.13
+
+### Patch Changes
+
+- [#1528](https://github.com/ponder-sh/ponder/pull/1528) [`3c8aecebd9c0b697b5583adedfcf047db2e515ab`](https://github.com/ponder-sh/ponder/commit/3c8aecebd9c0b697b5583adedfcf047db2e515ab) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.9.6 causing realtime events to be missed.
+
 ## 0.9.12
 
 ### Patch Changes
