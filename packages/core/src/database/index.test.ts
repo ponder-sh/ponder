@@ -1,6 +1,5 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import { getReorgTable } from "@/drizzle/kit/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createShutdown } from "@/internal/shutdown.js";
@@ -515,8 +514,9 @@ test("finalize()", async (context) => {
 
   // reorg tables
 
-  const rows = await database.qb.drizzle.select().from(getReorgTable(account));
-
+  const { rows } = await database.qb.drizzle.execute(
+    sql`SELECT * FROM _reorg__account`,
+  );
   expect(rows).toHaveLength(2);
 
   // metadata

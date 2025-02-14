@@ -34,6 +34,7 @@ import {
   eq,
   getTableColumns,
   getTableName,
+  gt,
   is,
   lte,
   sql,
@@ -1254,15 +1255,12 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
           tables.map(async (table) => {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-            // @ts-ignore
-            const { rows } = await tx.execute<Schema>(
-              sql.raw(
-                `DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}" WHERE checkpoint > '${checkpoint}' RETURNING *`,
-              ),
-            );
+            const deleted = await tx
+              .delete(getReorgTable(table))
+              .where(gt(getReorgTable(table).checkpoint, checkpoint))
+              .returning();
 
-            const reversed = rows.sort(
-              // @ts-ignore
+            const reversed = deleted.sort(
               (a, b) => b.operation_id - a.operation_id,
             );
 
@@ -1319,7 +1317,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
 
             common.logger.info({
               service: "database",
-              msg: `Reverted ${rows.length} unfinalized operations from '${getTableName(table)}'`,
+              msg: `Reverted ${deleted.length} unfinalized operations from '${getTableName(table)}'`,
             });
           }),
         ),

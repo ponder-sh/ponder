@@ -1,7 +1,16 @@
-import { SQL, type TableConfig, getTableName, is } from "drizzle-orm";
+import {
+  SQL,
+  type TableConfig,
+  getTableColumns,
+  getTableName,
+  is,
+} from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
+  ExtraConfigColumn,
+  type PgColumn,
+  type PgColumnBuilder,
   PgDialect,
   type PgEnum,
   PgEnumColumn,
@@ -39,16 +48,42 @@ export type SqlStatements = {
 export const sqlToReorgTableName = (tableName: string) =>
   `_reorg__${tableName}`;
 
+const columnToBuilder = (column: PgColumn): PgColumnBuilder => {
+  return {
+    // @ts-ignore
+    build(table: AnyPgTable) {
+      return column;
+    },
+    buildExtraConfigColumn(table: AnyPgTable) {
+      // @ts-ignore
+      return new ExtraConfigColumn(table, column.config);
+    },
+    // @ts-ignore
+    buildForeignKeys(column: PgColumn, table: PgTable) {
+      return [];
+    },
+    // @ts-ignore
+    setName(name: string) {},
+  };
+};
+
 export const getReorgTable = <config extends TableConfig>(
   table: PgTableWithColumns<config>,
 ) => {
   const schema = getTableConfig(table).schema;
+  const columns = getTableColumns(table);
 
   if (schema && schema !== "public") {
     return pgSchema(schema).table(sqlToReorgTableName(getTableName(table)), {
       operation_id: serial().notNull().primaryKey(),
       operation: integer().notNull().$type<0 | 1 | 2>(),
       checkpoint: varchar({ length: 75 }).notNull(),
+      ...Object.fromEntries(
+        Object.keys(columns).map((key) => [
+          key,
+          columnToBuilder(columns[key]!),
+        ]),
+      ),
     });
   }
 
@@ -56,6 +91,9 @@ export const getReorgTable = <config extends TableConfig>(
     operation_id: serial().notNull().primaryKey(),
     operation: integer().notNull().$type<0 | 1 | 2>(),
     checkpoint: varchar({ length: 75 }).notNull(),
+    ...Object.fromEntries(
+      Object.keys(columns).map((key) => [key, columnToBuilder(columns[key]!)]),
+    ),
   });
 };
 
