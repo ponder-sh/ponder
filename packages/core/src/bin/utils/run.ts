@@ -160,8 +160,6 @@ export async function run({
                 db: historicalIndexingStore,
               });
 
-              await historicalIndexingStore.queue.onIdle();
-
               if (result.status === "error") {
                 onReloadableError(result.error);
                 return;
