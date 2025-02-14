@@ -523,36 +523,47 @@ export const createIndexingCache = ({
 
           await database.record(
             { method: `${getTableName(table)}.flush()` },
-            async () =>
-              copy(table, text).catch((error) => {
-                // try to recover the event that caused the error
-                if (
-                  "where" in error &&
-                  typeof error.where === "string" &&
-                  (error.where as string).match(/line (\d+)/)
-                ) {
-                  const line = (error.where as string).match(/line (\d+)/)![1];
-                  if (line !== undefined) {
-                    const event =
-                      insertValues[Number(line) - 1]?.metadata.event;
-                    if (event) {
-                      error = parseSqlError(error);
-                      error.stack = undefined;
-                      addErrorMeta(error, toErrorMeta(event));
+            async () => {
+              // @ts-ignore
+              await client.query("SAVEPOINT flush");
+              await copy(table, text).catch(async () => {
+                const result = await recoverBatchError(
+                  insertValues,
+                  async (values) => {
+                    // @ts-ignore
+                    await client.query("ROLLBACK to flush");
+                    const text = getCopyText(
+                      table,
+                      values.map(({ row }) => row),
+                    );
+                    await copy(table, text);
+                    // @ts-ignore
+                    await client.query("SAVEPOINT flush");
+                  },
+                );
 
-                      common.logger.error({
-                        service: "indexing",
-                        msg: `Error while processing ${getTableName(table)}.insert() in event '${event.name}'`,
-                        error,
-                      });
-
-                      throw new FlushError(error.message);
-                    }
-                  }
+                if (result.status === "success") {
+                  return;
                 }
 
-                throw parseSqlError(error);
-              }),
+                const error = parseSqlError(result.error);
+                error.stack = undefined;
+
+                if (result.value.metadata.event) {
+                  addErrorMeta(
+                    error,
+                    `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+                  );
+                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+                  common.logger.error({
+                    service: "indexing",
+                    msg: `Error while processing ${getTableName(table)}.insert() in event '${result.value.metadata.event.name}'`,
+                    error,
+                  });
+                }
+                throw new FlushError(error.message);
+              });
+            },
           );
 
           for (const [key, entry] of insertBuffer.get(table)!) {
@@ -599,25 +610,50 @@ export const createIndexingCache = ({
               WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
             `;
 
+          const text = getCopyText(
+            table,
+            updateValues.map(({ row }) => row),
+          );
+
           await database.record(
             { method: `${getTableName(table)}.flush()` },
             async () => {
-              try {
-                // @ts-ignore
-                await client.query(createTempTableQuery);
-                await copy(
-                  table,
-                  getCopyText(
-                    table,
-                    updateValues.map(({ row }) => row),
-                  ),
-                  false,
+              // @ts-ignore
+              await client.query(createTempTableQuery);
+              // @ts-ignore
+              await client.query("SAVEPOINT flush");
+              await copy(table, text, false).catch(async () => {
+                const result = await recoverBatchError(
+                  updateValues,
+                  async (values) => {
+                    // @ts-ignore
+                    await client.query("ROLLBACK to flush");
+                    const text = getCopyText(
+                      table,
+                      values.map(({ row }) => row),
+                    );
+                    await copy(table, text, false);
+                    // @ts-ignore
+                    await client.query("SAVEPOINT flush");
+                  },
                 );
-                // @ts-ignore
-                await client.query(updateQuery);
-              } catch (error) {
-                throw parseSqlError(error);
-              }
+
+                if (result.status === "success") {
+                  return;
+                }
+
+                const error = parseSqlError(result.error);
+                error.stack = undefined;
+
+                addErrorMeta(
+                  error,
+                  `db.update arguments:\n${prettyPrint(result.value.row)}`,
+                );
+
+                throw error;
+              });
+              // @ts-ignore
+              await client.query(updateQuery);
             },
           );
 
@@ -636,6 +672,11 @@ export const createIndexingCache = ({
             service: "database",
             msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
           });
+        }
+
+        if (insertValues.length > 0 || updateValues.length > 0) {
+          // @ts-ignore
+          await client.query("RELEASE flush");
         }
       }
     },
