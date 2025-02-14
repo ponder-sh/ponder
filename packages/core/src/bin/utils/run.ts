@@ -171,7 +171,8 @@ export async function run({
                   { network: network.name },
                   Math.max(
                     checkpoint.blockTimestamp -
-                      sync.seconds[network.name]!.start,
+                      sync.seconds[network.name]!.start -
+                      sync.seconds[network.name]!.cached,
                     0,
                   ),
                 );
@@ -185,7 +186,8 @@ export async function run({
                     { network: network.name },
                     Math.max(
                       checkpoint.blockTimestamp -
-                        sync.seconds[network.name]!.start,
+                        sync.seconds[network.name]!.start -
+                        sync.seconds[network.name]!.cached,
                       0,
                     ),
                   );
@@ -265,7 +267,9 @@ export async function run({
     common.metrics.ponder_historical_completed_indexing_seconds.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+        sync.seconds[network.name]!.end -
+          sync.seconds[network.name]!.start -
+          sync.seconds[network.name]!.cached,
         0,
       ),
     );
