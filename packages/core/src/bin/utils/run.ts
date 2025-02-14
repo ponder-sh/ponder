@@ -205,7 +205,9 @@ export async function run({
               }
 
               // Note: allows for terminal and logs to be updated
-              await new Promise(setImmediate);
+              if (preBuild.databaseConfig.kind === "pglite") {
+                await new Promise(setImmediate);
+              }
             }
 
             // underlying metrics collection is actually synchronous
