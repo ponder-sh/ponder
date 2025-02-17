@@ -263,17 +263,8 @@ export const createSync = async (params: {
 
   const updateHistoricalStatus = ({
     events,
-    checkpoint,
     network,
-  }: { events: Event[]; checkpoint: string; network: Network }) => {
-    if (Number(decodeCheckpoint(checkpoint).chainId) === network.chainId) {
-      status[network.name]!.block = {
-        timestamp: decodeCheckpoint(checkpoint).blockTimestamp,
-        number: Number(decodeCheckpoint(checkpoint).blockNumber),
-      };
-      return;
-    }
-
+  }: { events: Event[]; network: Network }) => {
     let i = events.length - 1;
     while (i >= 0) {
       const event = events[i]!;
@@ -388,8 +379,7 @@ export const createSync = async (params: {
           service: "sync",
           msg: `Sequenced ${events.length} '${network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
         });
-
-        updateHistoricalStatus({ events, checkpoint, network });
+        updateHistoricalStatus({ events, network });
       } else {
         params.common.logger.debug({
           service: "sync",
@@ -397,7 +387,7 @@ export const createSync = async (params: {
         });
 
         for (const network of params.indexingBuild.networks) {
-          updateHistoricalStatus({ events, checkpoint, network });
+          updateHistoricalStatus({ events, network });
         }
       }
 
@@ -475,7 +465,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Sequenced ${decodedEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
+            msg: `Sequenced ${readyEvents.length} '${network.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
           params
@@ -483,7 +473,7 @@ export const createSync = async (params: {
               type: "block",
               checkpoint,
               status: structuredClone(status),
-              events: decodedEvents.sort((a, b) =>
+              events: readyEvents.sort((a, b) =>
                 a.checkpoint < b.checkpoint ? -1 : 1,
               ),
               network,
@@ -528,7 +518,7 @@ export const createSync = async (params: {
 
             params.common.logger.debug({
               service: "sync",
-              msg: `Sequenced ${decodedEvents.length} '${network.name}' events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+              msg: `Sequenced ${readyEvents.length} events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
             });
 
             params
@@ -536,7 +526,7 @@ export const createSync = async (params: {
                 type: "block",
                 checkpoint: to,
                 status: structuredClone(status),
-                events: decodedEvents.sort((a, b) =>
+                events: readyEvents.sort((a, b) =>
                   a.checkpoint < b.checkpoint ? -1 : 1,
                 ),
                 network,
@@ -666,11 +656,7 @@ export const createSync = async (params: {
           });
 
           if (to < from) {
-            params.onRealtimeEvent({
-              type: "reorg",
-              checkpoint: to,
-              network,
-            });
+            params.onRealtimeEvent({ type: "reorg", checkpoint: to, network });
           }
         }
 
@@ -809,7 +795,13 @@ export const createSync = async (params: {
             getOmnichainCheckpoint({ tag: "finalized" }),
           ),
         ).blockTimestamp,
-        cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
+        cached: decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+            params.initialCheckpoint,
+          ),
+        ).blockTimestamp,
       };
     }
   } else {
@@ -823,7 +815,13 @@ export const createSync = async (params: {
             getOmnichainCheckpoint({ tag: "finalized" }),
           ),
         ).blockTimestamp,
-        cached: decodeCheckpoint(params.initialCheckpoint).blockTimestamp,
+        cached: decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+            params.initialCheckpoint,
+          ),
+        ).blockTimestamp,
       };
     }
   }
@@ -877,7 +875,7 @@ export const createSync = async (params: {
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Extracted, decoded and scheduled ${events.events.length} '${network.name}' events`,
+            msg: `Extracted, decoded and scheduled ${decodedEvents.length} '${network.name}' events`,
           });
 
           pendingEvents = pendingEvents.concat(decodedEvents);
