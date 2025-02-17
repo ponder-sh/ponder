@@ -395,7 +395,7 @@ export const createIndexingCache = ({
             Object.keys(getTableColumns(table)).length,
         );
 
-        const tableSpillover = cache.get(table)!;
+        const tableSpillover = spillover.get(table)!;
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
