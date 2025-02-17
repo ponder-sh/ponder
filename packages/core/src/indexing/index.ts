@@ -316,6 +316,8 @@ export const createIndexing = ({
         const event = events[i]!;
         db.event = event;
 
+        db.event = event;
+
         eventCount[event.name]!++;
 
         common.logger.trace({
