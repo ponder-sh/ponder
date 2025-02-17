@@ -36,6 +36,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
+import { recoverAccess } from "./access.js";
 import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
@@ -46,7 +47,11 @@ export type IndexingCache = {
   /**
    * Returns the entry for `table` with `key`.
    */
-  get: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
+  get: (params: {
+    table: Table;
+    key: object;
+    db: Drizzle<Schema>;
+  }) =>
     | { [key: string]: unknown }
     | null
     | Promise<{ [key: string]: unknown } | null>;
@@ -58,9 +63,6 @@ export type IndexingCache = {
     key: object;
     row: { [key: string]: unknown };
     isUpdate: boolean;
-    metadata: {
-      event: Event | undefined;
-    };
   }) => { [key: string]: unknown };
   /**
    * Deletes the entry for `table` with `key`.
@@ -92,6 +94,7 @@ export type IndexingCache = {
    * Deletes all entries from the cache.
    */
   clear: () => void;
+  event: Event | undefined;
 };
 
 type Cache = Map<
@@ -223,6 +226,10 @@ export const getCacheKey = (
       .map((pk) => normalizeColumn(table[pk.js], key[pk.js]))
       .join("_")
   );
+};
+
+export const getAccessKey = (access: { [key: string]: string }): string => {
+  return Object.values(access).join("_");
 };
 
 /** Returns an sql where condition for `table` with `key`. */
@@ -357,7 +364,8 @@ export const createIndexingCache = ({
   const spillover: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
-
+  const access = new Map<string, Map<Table, Map<string, number>>>();
+  let event: Event | undefined;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
@@ -373,9 +381,11 @@ export const createIndexingCache = ({
     msg: `Using a ${Math.round(common.options.indexingCacheMaxBytes / (1024 * 1024))} MB indexing cache`,
   });
 
-  for (const table of Object.values(schema).filter(
+  const tables = Object.values(schema).filter(
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-  )) {
+  );
+
+  for (const table of tables) {
     cache.set(table, new Map());
     spillover.set(table, new Map());
     insertBuffer.set(table, new Map());
@@ -400,6 +410,22 @@ export const createIndexingCache = ({
       );
     },
     get({ table, key, db }) {
+      if (event) {
+        if (access.has(event.name) === false) {
+          access.set(event.name, new Map());
+          for (const table of tables) {
+            access.get(event.name)!.set(table, new Map());
+          }
+        }
+
+        const a = recoverAccess(event, table, key, primaryKeyCache);
+        if (a) {
+          const tableAccess = access.get(event.name)!.get(table)!;
+          const ak = getAccessKey(a);
+          tableAccess.set(ak, (tableAccess.get(ak) ?? 0) + 1);
+        }
+      }
+
       const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
       // are prioritized over insert entries
@@ -454,19 +480,19 @@ export const createIndexingCache = ({
           return row;
         });
     },
-    set({ table, key, row: _row, isUpdate, metadata }) {
+    set({ table, key, row: _row, isUpdate }) {
       const row = normalizeRow(table, _row, isUpdate);
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       if (isUpdate) {
         updateBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
-          metadata,
+          metadata: { event },
         });
       } else {
         insertBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
-          metadata,
+          metadata: { event },
         });
       }
 
@@ -763,8 +789,13 @@ export const createIndexingCache = ({
         tableBuffer.clear();
       }
 
+      access.clear();
+
       cacheBytes = 0;
       spilloverBytes = 0;
+    },
+    set event(_event: Event | undefined) {
+      event = _event;
     },
   };
 };

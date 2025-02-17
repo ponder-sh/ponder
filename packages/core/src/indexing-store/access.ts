@@ -1,15 +1,15 @@
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import type { Event } from "@/internal/types.js";
-import type { Table } from "drizzle-orm";
+import type { Column, Table } from "drizzle-orm";
 
 export const recoverAccess = (
   event: Event,
   table: Table,
   key: object,
+  cache: Map<Table, [string, Column][]>,
 ): { [key: string]: string } | undefined => {
   const result: { [key: string]: string } = {};
 
-  for (const { js } of getPrimaryKeyColumns(table)) {
+  for (const [js] of cache.get(table)!) {
     // @ts-ignore
     const value = key[js]!;
 
@@ -17,22 +17,22 @@ export const recoverAccess = (
       case "block": {
         if (event.event.block.hash === value) {
           result[js] = "block.hash";
-          break;
+          continue;
         }
 
         if (event.event.block.number === value) {
           result[js] = "block.number";
-          break;
+          continue;
         }
 
         if (event.event.block.timestamp === value) {
           result[js] = "block.timestamp";
-          break;
+          continue;
         }
 
         if (event.event.block.miner === value) {
           result[js] = "block.miner";
-          break;
+          continue;
         }
 
         break;
@@ -41,47 +41,47 @@ export const recoverAccess = (
       case "transaction": {
         if (event.event.block.hash === value) {
           result[js] = "block.hash";
-          break;
+          continue;
         }
 
         if (event.event.block.number === value) {
           result[js] = "block.number";
-          break;
+          continue;
         }
 
         if (event.event.block.timestamp === value) {
           result[js] = "block.timestamp";
-          break;
+          continue;
         }
 
         if (event.event.block.miner === value) {
           result[js] = "block.miner";
-          break;
+          continue;
         }
 
         if (event.event.transaction.hash === value) {
           result[js] = "transaction.hash";
-          break;
+          continue;
         }
 
         if (event.event.transaction.from === value) {
           result[js] = "transaction.from";
-          break;
+          continue;
         }
 
         if (event.event.transaction.to === value) {
           result[js] = "transaction.to";
-          break;
+          continue;
         }
 
         if (event.event.transaction.transactionIndex === value) {
           result[js] = "transaction.transactionIndex";
-          break;
+          continue;
         }
 
         if (event.event.transactionReceipt?.contractAddress === value) {
           result[js] = "transactionReceipt.contractAddress";
-          break;
+          continue;
         }
 
         break;
@@ -96,66 +96,66 @@ export const recoverAccess = (
           }
         }
 
-        if (result[js]) break;
+        if (result[js]) continue;
 
         if (event.event.log.address === value) {
           result[js] = "log.address";
-          break;
+          continue;
         }
 
         if (event.event.log.id === value) {
           result[js] = "log.id";
-          break;
+          continue;
         }
 
         if (event.event.log.logIndex === value) {
           result[js] = "log.logIndex";
-          break;
+          continue;
         }
 
         if (event.event.block.hash === value) {
           result[js] = "block.hash";
-          break;
+          continue;
         }
 
         if (event.event.block.number === value) {
           result[js] = "block.number";
-          break;
+          continue;
         }
 
         if (event.event.block.timestamp === value) {
           result[js] = "block.timestamp";
-          break;
+          continue;
         }
 
         if (event.event.block.miner === value) {
           result[js] = "block.miner";
-          break;
+          continue;
         }
 
         if (event.event.transaction.hash === value) {
           result[js] = "transaction.hash";
-          break;
+          continue;
         }
 
         if (event.event.transaction.from === value) {
           result[js] = "transaction.from";
-          break;
+          continue;
         }
 
         if (event.event.transaction.to === value) {
           result[js] = "transaction.to";
-          break;
+          continue;
         }
 
         if (event.event.transaction.transactionIndex === value) {
           result[js] = "transaction.transactionIndex";
-          break;
+          continue;
         }
 
         if (event.event.transactionReceipt?.contractAddress === value) {
           result[js] = "transactionReceipt.contractAddress";
-          break;
+          continue;
         }
 
         break;
@@ -170,61 +170,61 @@ export const recoverAccess = (
           }
         }
 
-        if (result[js]) break;
+        if (result[js]) continue;
 
         if (event.event.trace.from === value) {
           result[js] = "trace.from";
-          break;
+          continue;
         }
 
         if (event.event.trace.id === value) {
           result[js] = "trace.id";
-          break;
+          continue;
         }
 
         if (event.event.block.hash === value) {
           result[js] = "block.hash";
-          break;
+          continue;
         }
 
         if (event.event.block.number === value) {
           result[js] = "block.number";
-          break;
+          continue;
         }
 
         if (event.event.block.timestamp === value) {
           result[js] = "block.timestamp";
-          break;
+          continue;
         }
 
         if (event.event.block.miner === value) {
           result[js] = "block.miner";
-          break;
+          continue;
         }
 
         if (event.event.transaction.hash === value) {
           result[js] = "transaction.hash";
-          break;
+          continue;
         }
 
         if (event.event.transaction.from === value) {
           result[js] = "transaction.from";
-          break;
+          continue;
         }
 
         if (event.event.transaction.to === value) {
           result[js] = "transaction.to";
-          break;
+          continue;
         }
 
         if (event.event.transaction.transactionIndex === value) {
           result[js] = "transaction.transactionIndex";
-          break;
+          continue;
         }
 
         if (event.event.transactionReceipt?.contractAddress === value) {
           result[js] = "transactionReceipt.contractAddress";
-          break;
+          continue;
         }
 
         break;
@@ -233,73 +233,72 @@ export const recoverAccess = (
       case "transfer": {
         if (event.event.transfer.from === value) {
           result[js] = "transfer.from";
-          break;
+          continue;
         }
 
         if (event.event.transfer.to === value) {
           result[js] = "transfer.to";
-          break;
+          continue;
         }
 
         if (event.event.trace.from === value) {
           result[js] = "trace.from";
-          break;
+          continue;
         }
 
         if (event.event.trace.id === value) {
           result[js] = "trace.id";
-          break;
+          continue;
         }
 
         if (event.event.block.hash === value) {
           result[js] = "block.hash";
-          break;
+          continue;
         }
 
         if (event.event.block.number === value) {
           result[js] = "block.number";
-          break;
+          continue;
         }
 
         if (event.event.block.timestamp === value) {
           result[js] = "block.timestamp";
-          break;
+          continue;
         }
 
         if (event.event.block.miner === value) {
           result[js] = "block.miner";
-          break;
+          continue;
         }
 
         if (event.event.transaction.hash === value) {
           result[js] = "transaction.hash";
-          break;
+          continue;
         }
 
         if (event.event.transaction.from === value) {
           result[js] = "transaction.from";
-          break;
+          continue;
         }
 
         if (event.event.transaction.to === value) {
           result[js] = "transaction.to";
-          break;
+          continue;
         }
 
         if (event.event.transaction.transactionIndex === value) {
           result[js] = "transaction.transactionIndex";
-          break;
+          continue;
         }
 
         if (event.event.transactionReceipt?.contractAddress === value) {
           result[js] = "transactionReceipt.contractAddress";
-          break;
+          continue;
         }
 
         break;
       }
     }
-
     return undefined;
   }
 

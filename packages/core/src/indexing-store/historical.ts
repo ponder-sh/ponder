@@ -4,7 +4,7 @@ import {
   RecordNotFoundError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
+import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -32,8 +32,6 @@ export const createHistoricalIndexingStore = ({
   db: Drizzle<Schema>;
   client: PoolClient | PGlite;
 }): IndexingStore => {
-  let event: Event | undefined;
-
   return {
     // @ts-ignore
     find: (table: Table, key) =>
@@ -66,6 +64,7 @@ export const createHistoricalIndexingStore = ({
                       const row = await indexingCache.get({
                         table,
                         key: value,
+
                         db,
                       });
 
@@ -78,7 +77,6 @@ export const createHistoricalIndexingStore = ({
                             key: value,
                             row: value,
                             isUpdate: false,
-                            metadata: { event },
                           }),
                         );
                       }
@@ -88,6 +86,7 @@ export const createHistoricalIndexingStore = ({
                     const row = await indexingCache.get({
                       table,
                       key: values,
+
                       db,
                     });
 
@@ -100,7 +99,6 @@ export const createHistoricalIndexingStore = ({
                       key: values,
                       row: values,
                       isUpdate: false,
-                      metadata: { event },
                     });
                   }
                 },
@@ -119,6 +117,7 @@ export const createHistoricalIndexingStore = ({
                       const row = await indexingCache.get({
                         table,
                         key: value,
+
                         db,
                       });
 
@@ -142,7 +141,6 @@ export const createHistoricalIndexingStore = ({
                             key: value,
                             row,
                             isUpdate: true,
-                            metadata: { event },
                           }),
                         );
                       } else {
@@ -152,7 +150,6 @@ export const createHistoricalIndexingStore = ({
                             key: value,
                             row: value,
                             isUpdate: false,
-                            metadata: { event },
                           }),
                         );
                       }
@@ -162,6 +159,7 @@ export const createHistoricalIndexingStore = ({
                     const row = await indexingCache.get({
                       table,
                       key: values,
+
                       db,
                     });
 
@@ -184,7 +182,6 @@ export const createHistoricalIndexingStore = ({
                         key: values,
                         row,
                         isUpdate: true,
-                        metadata: { event },
                       });
                     }
 
@@ -193,7 +190,6 @@ export const createHistoricalIndexingStore = ({
                       key: values,
                       row: values,
                       isUpdate: false,
-                      metadata: { event },
                     });
                   }
                 },
@@ -216,7 +212,12 @@ export const createHistoricalIndexingStore = ({
 
                         if (
                           indexingCache.has({ table, key: value }) &&
-                          indexingCache.get({ table, key: value, db })
+                          indexingCache.get({
+                            table,
+                            key: value,
+
+                            db,
+                          })
                         ) {
                           const error = new UniqueConstraintError(
                             `Unique constraint failed for '${getTableName(table)}'.`,
@@ -233,7 +234,6 @@ export const createHistoricalIndexingStore = ({
                             key: value,
                             row: value,
                             isUpdate: false,
-                            metadata: { event },
                           }),
                         );
                       }
@@ -244,7 +244,12 @@ export const createHistoricalIndexingStore = ({
 
                       if (
                         indexingCache.has({ table, key: values }) &&
-                        indexingCache.get({ table, key: values, db })
+                        indexingCache.get({
+                          table,
+                          key: values,
+
+                          db,
+                        })
                       ) {
                         const error = new UniqueConstraintError(
                           `Unique constraint failed for '${getTableName(table)}'.`,
@@ -260,7 +265,6 @@ export const createHistoricalIndexingStore = ({
                         key: values,
                         row: values,
                         isUpdate: false,
-                        metadata: { event },
                       });
                     }
                   },
@@ -296,7 +300,11 @@ export const createHistoricalIndexingStore = ({
             async () => {
               checkOnchainTable(table, "update");
 
-              const row = await indexingCache.get({ table, key, db });
+              const row = await indexingCache.get({
+                table,
+                key,
+                db,
+              });
 
               if (row === null) {
                 const error = new RecordNotFoundError(
@@ -323,7 +331,6 @@ export const createHistoricalIndexingStore = ({
                 key,
                 row,
                 isUpdate: true,
-                metadata: { event },
               });
             },
           ),
@@ -363,8 +370,5 @@ export const createHistoricalIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
-    set event(_event: Event | undefined) {
-      event = _event;
-    },
   };
 };

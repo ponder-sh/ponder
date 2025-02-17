@@ -158,6 +158,7 @@ export async function run({
               const result = await indexing.processEvents({
                 events: eventChunk,
                 db: historicalIndexingStore,
+                cache: indexingCache,
               });
 
               if (result.status === "error") {
