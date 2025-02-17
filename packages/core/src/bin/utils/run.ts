@@ -140,7 +140,7 @@ export async function run({
 
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
-    indexingCache.commit({ events, db: database.qb.drizzle });
+    await indexingCache.commit({ events, db: database.qb.drizzle });
     if (events.length > 0) {
       await database.retry(async () => {
         await database
