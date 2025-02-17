@@ -304,3 +304,13 @@ export const recoverAccess = (
 
   return result;
 };
+
+export const getAccess = <T extends object>(
+  base: T,
+  access: (keyof T | unknown)[],
+): unknown => {
+  if (access.length === 0) return base;
+  const a = access.splice(0, 1);
+  // @ts-ignore
+  return getAccess(base[a]!, access);
+};

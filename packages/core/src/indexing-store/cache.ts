@@ -14,6 +14,7 @@ import {
 import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { PGlite } from "@electric-sql/pglite";
 import {
@@ -27,6 +28,7 @@ import {
   getTableColumns,
   getTableName,
   is,
+  or,
 } from "drizzle-orm";
 import {
   PgArray,
@@ -36,7 +38,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
-import { recoverAccess } from "./access.js";
+import { getAccess, recoverAccess } from "./access.js";
 import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
@@ -81,7 +83,7 @@ export type IndexingCache = {
    * Note: It is assumed this is called after `flush`
    * because it clears the buffers.
    */
-  commit: () => void;
+  commit: (params: { events: Event[]; db: Drizzle<Schema> }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -97,17 +99,7 @@ export type IndexingCache = {
   event: Event | undefined;
 };
 
-type Cache = Map<
-  Table,
-  Map<
-    string,
-    {
-      bytes: number;
-      operationIndex: number;
-      row: { [key: string]: unknown } | null;
-    }
-  >
->;
+type Cache = Map<Table, Map<string, { [key: string]: unknown } | null>>;
 
 type Buffer = Map<
   Table,
@@ -115,10 +107,22 @@ type Buffer = Map<
     string,
     {
       row: { [key: string]: unknown };
-      metadata: {
-        event: Event | undefined;
-      };
+      metadata: { event: Event | undefined };
     }
+  >
+>;
+
+type Access = Map<
+  string,
+  Map<
+    Table,
+    Map<
+      string,
+      {
+        access: { [key: string]: string };
+        count: number;
+      }
+    >
   >
 >;
 
@@ -244,33 +248,6 @@ export const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
   return and(...conditions)!;
 };
 
-const getBytes = (value: unknown) => {
-  // size of metadata
-  let size = 13;
-
-  if (typeof value === "number") {
-    size += 8;
-  } else if (typeof value === "string") {
-    size += 2 * value.length;
-  } else if (typeof value === "boolean") {
-    size += 4;
-  } else if (typeof value === "bigint") {
-    size += 48;
-  } else if (value === null || value === undefined) {
-    size += 8;
-  } else if (Array.isArray(value)) {
-    for (const e of value) {
-      size += getBytes(e);
-    }
-  } else {
-    for (const col of Object.values(value)) {
-      size += getBytes(col);
-    }
-  }
-
-  return size;
-};
-
 export const getCopyText = (
   table: Table,
   rows: { [key: string]: unknown }[],
@@ -364,17 +341,10 @@ export const createIndexingCache = ({
   const spillover: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
-  const access = new Map<string, Map<Table, Map<string, number>>>();
-  let event: Event | undefined;
+  const access: Access = new Map();
   const primaryKeyCache = new Map<Table, [string, Column][]>();
-
-  let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
-
-  let cacheBytes = 0;
-  let spilloverBytes = 0;
-
-  // LRU counter
-  let totalCacheOps = 0;
+  let event: Event | undefined;
+  const isCacheComplete = new Map<Table, boolean>();
 
   common.logger.debug({
     service: "indexing",
@@ -390,7 +360,7 @@ export const createIndexingCache = ({
     spillover.set(table, new Map());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
-
+    isCacheComplete.set(table, checkpoint === ZERO_CHECKPOINT_STRING);
     primaryKeyCache.set(table, []);
     for (const { js } of getPrimaryKeyColumns(table)) {
       primaryKeyCache.get(table)!.push([js, table[js]!]);
@@ -422,7 +392,10 @@ export const createIndexingCache = ({
         if (a) {
           const tableAccess = access.get(event.name)!.get(table)!;
           const ak = getAccessKey(a);
-          tableAccess.set(ak, (tableAccess.get(ak) ?? 0) + 1);
+          tableAccess.set(ak, {
+            access: a,
+            count: (tableAccess.get(ak)?.count ?? 0) + 1,
+          });
         }
       }
 
@@ -439,13 +412,9 @@ export const createIndexingCache = ({
 
       const entry = spillover.get(table)!.get(ck) ?? cache.get(table)!.get(ck);
 
-      if (entry) {
-        entry.operationIndex = totalCacheOps++;
-
-        if (entry.row) {
-          common.metrics.ponder_indexing_cache_hit.inc();
-          return structuredClone(entry.row);
-        }
+      if (entry !== undefined) {
+        common.metrics.ponder_indexing_cache_hit.inc();
+        return structuredClone(entry);
       }
 
       if (isCacheComplete) {
@@ -454,31 +423,21 @@ export const createIndexingCache = ({
       }
 
       common.metrics.ponder_indexing_cache_miss.inc();
-
-      return database
-        .record(
-          {
-            method: `${getTableName(table) ?? "unknown"}.cache.find()`,
-          },
-          async () => {
-            return db
-              .select()
-              .from(table)
-              .where(getWhereCondition(table, key))
-              .then((res) => (res.length === 0 ? null : res[0]!));
-          },
-        )
-        .then((row) => {
-          const bytes = getBytes(row);
-          spilloverBytes += bytes;
-
-          spillover.get(table)!.set(ck, {
-            bytes,
-            operationIndex: totalCacheOps++,
-            row: structuredClone(row),
-          });
-          return row;
-        });
+      return database.record(
+        {
+          method: `${getTableName(table) ?? "unknown"}.cache.find()`,
+        },
+        () =>
+          db
+            .select()
+            .from(table)
+            .where(getWhereCondition(table, key))
+            .then((res) => (res.length === 0 ? null : res[0]!))
+            .then((row) => {
+              spillover.get(table)!.set(ck, structuredClone(row));
+              return row;
+            }),
+      );
     },
     set({ table, key, row: _row, isUpdate }) {
       const row = normalizeRow(table, _row, isUpdate);
@@ -510,7 +469,7 @@ export const createIndexingCache = ({
       ) {
         cache.get(table)!.delete(ck);
         spillover.get(table)!.delete(ck);
-        isCacheComplete = false;
+        isCacheComplete.set(table, false);
 
         return db
           .delete(table)
@@ -536,7 +495,7 @@ export const createIndexingCache = ({
       const copy = getCopyHelper({ client });
 
       for (const table of cache.keys()) {
-        const tableSpillover = cache.get(table)!;
+        const tableSpillover = spillover.get(table)!;
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
@@ -597,13 +556,7 @@ export const createIndexingCache = ({
           );
 
           for (const [key, entry] of insertBuffer.get(table)!) {
-            const bytes = getBytes(entry.row);
-            cacheBytes += bytes;
-            tableSpillover.set(key, {
-              bytes,
-              operationIndex: totalCacheOps++,
-              row: entry.row,
-            });
+            tableSpillover.set(key, entry.row);
           }
           insertBuffer.get(table)!.clear();
 
@@ -692,13 +645,7 @@ export const createIndexingCache = ({
           );
 
           for (const [key, entry] of updateBuffer.get(table)!) {
-            const bytes = getBytes(entry.row);
-            cacheBytes += bytes;
-            tableSpillover.set(key, {
-              bytes,
-              operationIndex: totalCacheOps++,
-              row: entry.row,
-            });
+            tableSpillover.set(key, entry.row);
           }
           updateBuffer.get(table)!.clear();
 
@@ -714,7 +661,51 @@ export const createIndexingCache = ({
         }
       }
     },
-    commit() {
+    async commit({ events, db }) {
+      // Use historical accesses + next event batch to determine which
+      // rows are going to be accessed, and preload them into the cache.
+
+      const cachePrediction = new Map<
+        Table,
+        Map<string, { [key: string]: unknown }>
+      >();
+
+      for (const table of tables) {
+        cachePrediction.set(table, new Map());
+      }
+
+      const eventsPerName = new Map<string, Event[]>();
+      for (const event of events) {
+        if (eventsPerName.has(event.name)) {
+          eventsPerName.get(event.name)!.push(event);
+        } else {
+          eventsPerName.set(event.name, [event]);
+        }
+      }
+
+      for (const [eventName, events] of eventsPerName) {
+        for (const table of tables) {
+          const tableAccess = access.get(eventName)?.get(table);
+          if (tableAccess) {
+            for (const { access } of tableAccess.values()) {
+              for (const event of events) {
+                const prediction: { [key: string]: unknown } = {};
+                for (const [key, value] of Object.entries(access)) {
+                  prediction[key] = getAccess(event.event, value.split("."));
+                }
+
+                cachePrediction
+                  .get(table)!
+                  .set(
+                    getCacheKey(table, prediction, primaryKeyCache),
+                    prediction,
+                  );
+              }
+            }
+          }
+        }
+      }
+
       for (const [table, tableSpillover] of spillover) {
         const tableCache = cache.get(table)!;
         for (const [key, entry] of tableSpillover) {
@@ -723,39 +714,58 @@ export const createIndexingCache = ({
         tableSpillover.clear();
       }
 
-      cacheBytes += spilloverBytes;
-      spilloverBytes = 0;
-
-      let cacheSize = 0;
-      for (const { size } of cache.values()) cacheSize += size;
-
-      const flushIndex =
-        totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheEvictRatio);
-
-      if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
-        isCacheComplete = false;
-
-        let rowCount = 0;
-
-        for (const tableCache of cache.values()) {
-          for (const [key, entry] of tableCache) {
-            if (entry.operationIndex < flushIndex) {
-              tableCache.delete(key);
-              cacheBytes -= entry.bytes;
-              rowCount += 1;
-            }
+      for (const [table, tableCache] of cache) {
+        for (const key of tableCache.keys()) {
+          if (cachePrediction.get(table)!.has(key)) {
+            cachePrediction.get(table)!.delete(key);
+          } else {
+            tableCache.delete(key);
+            isCacheComplete.set(table, false);
           }
         }
-
-        common.logger.debug({
-          service: "indexing",
-          msg: `Evicted ${rowCount} rows from the cache`,
-        });
       }
+
+      // TODO(kyle) backtest, add misses to spillover
+
+      await Promise.all(
+        Array.from(cachePrediction.entries())
+          .filter(([, tablePredictions]) => tablePredictions.size > 0)
+          .map(([table, tablePredictions]) => {
+            const conditions = dedupe(
+              Array.from(tablePredictions),
+              ([key]) => key,
+            ).map(([, prediction]) => getWhereCondition(table, prediction));
+
+            return db
+              .select()
+              .from(table)
+              .where(or(...conditions))
+              .then((results) => {
+                const resultsPerKey = new Map<
+                  string,
+                  { [key: string]: unknown }
+                >();
+                for (const result of results) {
+                  const ck = getCacheKey(table, result, primaryKeyCache);
+                  resultsPerKey.set(ck, result);
+                }
+
+                const tableCache = cache.get(table)!;
+                for (const key of tablePredictions.keys()) {
+                  if (resultsPerKey.has(key)) {
+                    tableCache.set(key, resultsPerKey.get(key)!);
+                  } else {
+                    tableCache.set(key, null);
+                  }
+                }
+              });
+          }),
+      );
     },
     invalidate() {
-      isCacheComplete = false;
+      for (const table of cache.keys()) {
+        isCacheComplete.set(table, false);
+      }
     },
     rollback() {
       for (const tableSpillover of spillover.values()) {
@@ -769,8 +779,6 @@ export const createIndexingCache = ({
       for (const tableBuffer of updateBuffer.values()) {
         tableBuffer.clear();
       }
-
-      spilloverBytes = 0;
     },
     clear() {
       for (const tableCache of cache.values()) {
@@ -790,9 +798,6 @@ export const createIndexingCache = ({
       }
 
       access.clear();
-
-      cacheBytes = 0;
-      spilloverBytes = 0;
     },
     set event(_event: Event | undefined) {
       event = _event;
