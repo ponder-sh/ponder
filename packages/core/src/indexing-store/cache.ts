@@ -423,6 +423,9 @@ export const createIndexingCache = ({
               operationIndex: totalCacheOps++,
               row: entry.row,
             });
+            // Clean the spillover for this entry since it's been added to the cache
+            spillover.get(table)!.delete(key);
+            spilloverBytes -= cacheBytes;
           }
           insertBuffer.get(table)!.clear();
 
@@ -473,6 +476,9 @@ export const createIndexingCache = ({
               operationIndex: totalCacheOps++,
               row: entry.row,
             });
+            // Clean the spillover for this entry since it's been added to the cache
+            spillover.get(table)!.delete(key);
+            spilloverBytes -= cacheBytes;
           }
           updateBuffer.get(table)!.clear();
 
