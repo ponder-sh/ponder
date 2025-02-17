@@ -546,6 +546,10 @@ export const createIndexingCache = ({
                   return;
                 }
 
+                // Note: rollback so that the connection is available for other queries
+                // @ts-ignore
+                await client.query("ROLLBACK to flush");
+
                 const error = parseSqlError(result.error);
                 error.stack = undefined;
 
@@ -641,6 +645,10 @@ export const createIndexingCache = ({
                 if (result.status === "success") {
                   return;
                 }
+
+                // Note: rollback so that the connection is available for other queries
+                // @ts-ignore
+                await client.query("ROLLBACK to flush");
 
                 const error = parseSqlError(result.error);
                 error.stack = undefined;
