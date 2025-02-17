@@ -134,6 +134,7 @@ export const normalizeColumn = (
     if (hasEmptyValue(column)) return getEmptyValue(column, isUpdate);
     return null;
   }
+  if (value === null) return null;
   if (column.mapToDriverValue === undefined) return value;
   try {
     if (Array.isArray(value) && column instanceof PgArray) {

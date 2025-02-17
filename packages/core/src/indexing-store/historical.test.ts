@@ -580,11 +580,25 @@ test("notNull", async (context) => {
 
   // insert
 
-  await indexingStore.insert(schema.account).values({ address: zeroAddress });
+  let result = await indexingStore
+    .insert(schema.account)
+    .values({ address: zeroAddress });
 
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+  expect(result).toStrictEqual({ address: zeroAddress, balance: null });
+
+  result = await indexingStore
+    .find(schema.account, {
+      address: zeroAddress,
+    })
+    .then((result) => result!);
+
+  expect(result).toStrictEqual({ address: zeroAddress, balance: null });
+
+  // update
+
+  result = await indexingStore
+    .update(schema.account, { address: zeroAddress })
+    .set({});
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: null });
 
