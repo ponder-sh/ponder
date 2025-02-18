@@ -2,6 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -22,11 +23,18 @@ import {
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import type {
+  BlockEvent,
+  LogEvent,
+  RawEvent,
+  TraceEvent,
+  TransferEvent,
+} from "@/internal/types.js";
+import type { LogFactory, LogFilter } from "@/internal/types.js";
 import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
-  encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
+  MAX_CHECKPOINT_STRING,
+  ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -46,19 +54,16 @@ import {
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
 import { beforeEach, expect, test } from "vitest";
 import {
-  type BlockEvent,
-  type LogEvent,
-  type RawEvent,
-  type TraceEvent,
-  type TransferEvent,
   buildEvents,
+  decodeEventLog,
   decodeEvents,
+  removeNullCharacters,
 } from "./events.js";
-import { type LogFactory, type LogFilter, getChildAddress } from "./source.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("decodeEvents() log", async (context) => {
   const { common } = context;
@@ -85,7 +90,7 @@ test("decodeEvents() log", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -132,7 +137,7 @@ test("decodeEvents() log error", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -161,7 +166,7 @@ test("decodeEvents() block", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {
       number: 1n,
     } as RawEvent["block"],
@@ -193,7 +198,7 @@ test("decodeEvents() transfer", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 3,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -239,7 +244,7 @@ test("decodeEvents() transaction", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 0,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -268,7 +273,7 @@ test("decodeEvents() trace", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 1,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -318,7 +323,7 @@ test("decodeEvents() trace error", async (context) => {
   const rawEvent = {
     chainId: 1,
     sourceIndex: 1,
-    checkpoint: encodeCheckpoint(zeroCheckpoint),
+    checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -347,7 +352,7 @@ test("decodeEvents() trace error", async (context) => {
 });
 
 test("buildEvents() matches getEvents() log", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -394,8 +399,8 @@ test("buildEvents() matches getEvents() log", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -416,12 +421,10 @@ test("buildEvents() matches getEvents() log", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() log factory", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -492,8 +495,8 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -514,12 +517,10 @@ test("buildEvents() matches getEvents() log factory", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() block", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -544,8 +545,8 @@ test("buildEvents() matches getEvents() block", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -566,12 +567,10 @@ test("buildEvents() matches getEvents() block", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() transfer", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -640,8 +639,8 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -663,12 +662,10 @@ test("buildEvents() matches getEvents() transfer", async (context) => {
   expect(events1).toHaveLength(2);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() transaction", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -711,8 +708,8 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -733,12 +730,10 @@ test("buildEvents() matches getEvents() transaction", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
-
-  await cleanup();
 });
 
 test("buildEvents() matches getEvents() trace", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -810,8 +805,8 @@ test("buildEvents() matches getEvents() trace", async (context) => {
 
   const { events: events1 } = await syncStore.getEvents({
     filters: sources.map((s) => s.filter),
-    from: encodeCheckpoint(zeroCheckpoint),
-    to: encodeCheckpoint(maxCheckpoint),
+    from: ZERO_CHECKPOINT_STRING,
+    to: MAX_CHECKPOINT_STRING,
     limit: 10,
   });
 
@@ -832,6 +827,67 @@ test("buildEvents() matches getEvents() trace", async (context) => {
   expect(events1).toHaveLength(1);
 
   expect(events2).toStrictEqual(events1);
+});
 
-  await cleanup();
+test("removeNullCharacters removes null characters", () => {
+  // NameRegistered event from this transaction contains null characters:
+  // https://etherscan.io/tx/0x2e67be22d5e700e61e102b926f28ba451c53a6cd6438c53b43dbb783c2081a12#eventlog
+  const log = {
+    topics: [
+      "0xca6abbe9d7f11422cb6ca7629fbf6fe9efb1c621f71ce8f02b9f2a230097404f",
+      "0x56e1003dc29ff83445ba93c493f4a76570eb667494e78c6974a745593131ae2a",
+      "0x0000000000000000000000008504a09352555ff1acf9c8a8d9fb5fdcc4161cbc",
+    ],
+    data: "0x0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000697a5dd2a81dc000000000000000000000000000000000000000000000000000000006457430e000000000000000000000000000000000000000000000000000000000000001174656e63656e74636c7562000000000000000000000000000000000000000000",
+  } as const;
+
+  const abiItem = {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "string",
+        name: "name",
+        type: "string",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "label",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "cost",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "expires",
+        type: "uint256",
+      },
+    ],
+    name: "NameRegistered",
+    type: "event",
+  } as const;
+
+  const args = decodeEventLog({
+    abiItem,
+    topics: log.topics as unknown as [signature: Hex, ...args: Hex[]],
+    data: log.data,
+  });
+
+  expect(args.name).toBe("tencentclub\x00\x00\x00\x00\x00\x00");
+
+  const cleanedArgs = removeNullCharacters(args);
+
+  expect((cleanedArgs as any).name).toBe("tencentclub");
 });

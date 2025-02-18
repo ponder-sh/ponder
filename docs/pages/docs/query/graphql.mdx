@@ -12,13 +12,41 @@ import { Callout } from "nextra/components";
   [documentation](https://graphql.org/learn/) for an overview.
 </Callout>
 
-Ponder automatically generates a GraphQL schema based on your `ponder.schema.ts` file that uses efficient resolver logic to avoid common performance pitfalls.
+Ponder has built-in support for generating a GraphQL schema based on your `ponder.schema.ts` file that uses efficient resolver logic to avoid common performance pitfalls.
+
+## Register GraphQL middleware
+
+<Callout type="warning">
+  Starting from version `0.9.0`, the GraphQL API is not served by default and
+  must be defined in an [API function](/docs/query/api-functions).
+</Callout>
+
+To use the standard GraphQL API, register the `graphql` middleware exported from `ponder`.
+
+```ts filename="src/api/index.ts" {4,8-9}
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+import { graphql } from "ponder";
+
+const app = new Hono();
+
+app.use("/", graphql({ db, schema }));
+app.use("/graphql", graphql({ db, schema }));
+
+export default app;
+```
 
 ## GraphiQL
 
 With the dev server running, open `http://localhost:42069` in your browser to use the [GraphiQL](https://github.com/graphql/graphiql/tree/main/packages/graphiql#graphiql) interface. GraphiQL is a useful tool for exploring your schema and testing queries during development.
 
 ## Schema generation
+
+<Callout type="info">
+  Starting from version `0.9.0`, `schema.graphql` is generated automatically
+  when `graphql()` gets executed. It is not generated with `ponder codegen`.
+</Callout>
 
 The GraphQL schema includes a **singular** and a **plural** query field for each table in `ponder.schema.ts`.
 

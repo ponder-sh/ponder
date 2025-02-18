@@ -1,28 +1,28 @@
-import type { IndexingBuild, SchemaBuild } from "@/build/index.js";
-import { runCodegen } from "@/common/codegen.js";
-import type { Common } from "@/common/common.js";
-import { getAppProgress } from "@/common/metrics.js";
+import { runCodegen } from "@/bin/utils/codegen.js";
 import type { Database } from "@/database/index.js";
+import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
-import { getMetadataStore } from "@/indexing-store/metadata.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import { createIndexingService } from "@/indexing/index.js";
+import { createIndexing } from "@/indexing/index.js";
+import type { Common } from "@/internal/common.js";
+import { getAppProgress } from "@/internal/metrics.js";
+import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import type { Event } from "@/sync/events.js";
-import { decodeEvents } from "@/sync/events.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import {
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  encodeCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
+import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
-import { createQueue } from "@ponder/common";
+import { createRequestQueue } from "@/utils/requestQueue.js";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
   common,
+  preBuild,
   schemaBuild,
   indexingBuild,
   database,
@@ -30,278 +30,370 @@ export async function run({
   onReloadableError,
 }: {
   common: Common;
+  preBuild: PreBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  let isKilled = false;
+  const initialCheckpoint = await database.recoverCheckpoint();
+  await database.migrateSync();
 
-  const { checkpoint: initialCheckpoint } = await database.setup(indexingBuild);
+  runCodegen({ common });
 
-  const syncStore = createSyncStore({
-    common,
-    db: database.qb.sync,
-  });
+  const requestQueues = indexingBuild.networks.map((network) =>
+    createRequestQueue({ network, common }),
+  );
 
-  const metadataStore = getMetadataStore({
-    db: database.qb.user,
-  });
+  const syncStore = createSyncStore({ common, database });
 
-  // This can be a long-running operation, so it's best to do it after
-  // starting the server so the app can become responsive more quickly.
-  const chainIds = [...new Set(indexingBuild.networks.map((n) => n.chainId))];
-  await database.migrateSync({ chainIds });
+  const realtimeMutex = createMutex();
 
-  runCodegen({ common, graphqlSchema: schemaBuild.graphqlSchema });
-
-  // Note: can throw
   const sync = await createSync({
     common,
+    indexingBuild,
+    requestQueues,
     syncStore,
-    networks: indexingBuild.networks,
-    sources: indexingBuild.sources,
-    // Note: this is not great because it references the
-    // `realtimeQueue` which isn't defined yet
     onRealtimeEvent: (realtimeEvent) => {
-      return realtimeQueue.add(realtimeEvent);
+      if (realtimeEvent.type === "reorg") {
+        realtimeMutex.clear();
+      }
+
+      return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
     initialCheckpoint,
+    ordering: preBuild.ordering,
   });
 
-  const handleEvents = async (events: Event[], checkpoint: string) => {
-    if (events.length === 0) return { status: "success" } as const;
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    requestQueues,
+    syncStore,
+  });
 
-    indexingService.updateTotalSeconds(decodeCheckpoint(checkpoint));
+  const indexingCache = createIndexingCache({
+    common,
+    database,
+    schemaBuild,
+    checkpoint: initialCheckpoint,
+  });
 
-    return await indexingService.processEvents({ events });
-  };
+  await database.setStatus(sync.getStatus());
 
-  const realtimeQueue = createQueue({
-    initialStart: true,
-    browser: false,
-    concurrency: 1,
-    worker: async (event: RealtimeEvent) => {
-      switch (event.type) {
-        case "block": {
+  for (const network of indexingBuild.networks) {
+    const label = { network: network.name };
+    common.metrics.ponder_historical_total_indexing_seconds.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+        0,
+      ),
+    );
+    common.metrics.ponder_historical_cached_indexing_seconds.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.cached - sync.seconds[network.name]!.start,
+        0,
+      ),
+    );
+    common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+    common.metrics.ponder_indexing_timestamp.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.cached,
+        sync.seconds[network.name]!.start,
+      ),
+    );
+  }
+
+  common.metrics.ponder_historical_start_timestamp.set(Date.now());
+
+  // Reset the start timestamp so the eta estimate doesn't include
+  // the startup time.
+  common.metrics.start_timestamp = Date.now();
+
+  // If the initial checkpoint is zero, we need to run setup events.
+  if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
+    const historicalIndexingStore = createHistoricalIndexingStore({
+      common,
+      schemaBuild,
+      database,
+      indexingCache,
+      db: database.qb.drizzle,
+    });
+    const result = await indexing.processSetupEvents({
+      db: historicalIndexingStore,
+    });
+
+    if (result.status === "error") {
+      onReloadableError(result.error);
+      return;
+    }
+  }
+
+  // Run historical indexing until complete.
+  for await (const events of sync.getEvents()) {
+    if (events.length > 0) {
+      await database.retry(async () => {
+        try {
+          await database.qb.drizzle.transaction(async (tx) => {
+            const historicalIndexingStore = createHistoricalIndexingStore({
+              common,
+              schemaBuild,
+              database,
+              indexingCache,
+              db: tx,
+            });
+            const eventChunks = chunk(events, 93);
+            for (const eventChunk of eventChunks) {
+              const result = await indexing.processEvents({
+                events: eventChunk,
+                db: historicalIndexingStore,
+              });
+
+              await historicalIndexingStore.queue.onIdle();
+
+              if (result.status === "error") {
+                onReloadableError(result.error);
+                return;
+              }
+
+              const checkpoint = decodeCheckpoint(
+                eventChunk[eventChunk.length - 1]!.checkpoint,
+              );
+
+              if (preBuild.ordering === "multichain") {
+                const network = indexingBuild.networks.find(
+                  (network) => network.chainId === Number(checkpoint.chainId),
+                )!;
+                common.metrics.ponder_historical_completed_indexing_seconds.set(
+                  { network: network.name },
+                  Math.max(
+                    checkpoint.blockTimestamp -
+                      sync.seconds[network.name]!.start -
+                      sync.seconds[network.name]!.cached,
+                    0,
+                  ),
+                );
+                common.metrics.ponder_indexing_timestamp.set(
+                  { network: network.name },
+                  checkpoint.blockTimestamp,
+                );
+              } else {
+                for (const network of indexingBuild.networks) {
+                  common.metrics.ponder_historical_completed_indexing_seconds.set(
+                    { network: network.name },
+                    Math.max(
+                      checkpoint.blockTimestamp -
+                        sync.seconds[network.name]!.start -
+                        sync.seconds[network.name]!.cached,
+                      0,
+                    ),
+                  );
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { network: network.name },
+                    checkpoint.blockTimestamp,
+                  );
+                }
+              }
+
+              // Note: allows for terminal and logs to be updated
+              await new Promise(setImmediate);
+            }
+
+            // underlying metrics collection is actually synchronous
+            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+            const { eta, progress } = await getAppProgress(common.metrics);
+            if (eta === undefined || progress === undefined) {
+              common.logger.info({
+                service: "app",
+                msg: `Indexed ${events.length} events`,
+              });
+            } else {
+              common.logger.info({
+                service: "app",
+                msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+              });
+            }
+
+            await indexingCache.flush({ db: tx });
+            await database.finalize({
+              checkpoint: events[events.length - 1]!.checkpoint,
+              db: tx,
+            });
+          });
+
+          indexingCache.commit();
+        } catch (error) {
+          indexingCache.rollback();
+          throw error;
+        }
+      });
+    }
+
+    await database.setStatus(sync.getStatus());
+  }
+
+  // Persist the indexing store to the db. The `finalized`
+  // checkpoint is used as a mutex. Any rows in the reorg table that may
+  // have been written because of raw sql access are deleted. Also must truncate
+  // the reorg tables that may have been written because of raw sql access.
+
+  common.logger.debug({
+    service: "indexing",
+    msg: "Completed all historical events, starting final flush",
+  });
+
+  await database.retry(async () => {
+    await database.qb.drizzle.transaction(async (tx) => {
+      await indexingCache.flush({ db: tx });
+      indexingCache.clear();
+      await database.finalize({
+        checkpoint: sync.getFinalizedCheckpoint(),
+        db: tx,
+      });
+    });
+  });
+
+  indexingCache.clear();
+
+  // Manually update metrics to fix a UI bug that occurs when the end
+  // checkpoint is between the last processed event and the finalized
+  // checkpoint.
+
+  for (const network of indexingBuild.networks) {
+    const label = { network: network.name };
+    common.metrics.ponder_historical_completed_indexing_seconds.set(
+      label,
+      Math.max(
+        sync.seconds[network.name]!.end -
+          sync.seconds[network.name]!.start -
+          sync.seconds[network.name]!.cached,
+        0,
+      ),
+    );
+    common.metrics.ponder_indexing_timestamp.set(
+      { network: network.name },
+      sync.seconds[network.name]!.end,
+    );
+  }
+
+  common.metrics.ponder_historical_end_timestamp.set(Date.now());
+
+  // Become healthy
+  common.logger.info({
+    service: "indexing",
+    msg: "Completed historical indexing",
+  });
+
+  const realtimeIndexingStore = createRealtimeIndexingStore({
+    common,
+    schemaBuild,
+    database,
+  });
+
+  const onRealtimeEvent = realtimeMutex(async (event: RealtimeEvent) => {
+    switch (event.type) {
+      case "block": {
+        if (event.events.length > 0) {
           // Events must be run block-by-block, so that `database.complete` can accurately
           // update the temporary `checkpoint` value set in the trigger.
-          for (const events of splitEvents(event.events)) {
-            const result = await handleEvents(
-              decodeEvents(common, indexingBuild.sources, events),
-              event.checkpoint,
-            );
+
+          const perBlockEvents = splitEvents(event.events);
+
+          common.logger.debug({
+            service: "app",
+            msg: `Partitioned events into ${perBlockEvents.length} blocks`,
+          });
+
+          for (const { checkpoint, events } of perBlockEvents) {
+            const network = indexingBuild.networks.find(
+              (network) =>
+                network.chainId ===
+                Number(decodeCheckpoint(checkpoint).chainId),
+            )!;
+
+            common.logger.debug({
+              service: "app",
+              msg: `Decoded ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+            });
+
+            const result = await indexing.processEvents({
+              events,
+              db: realtimeIndexingStore,
+            });
+
+            common.logger.info({
+              service: "app",
+              msg: `Indexed ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+            });
 
             if (result.status === "error") onReloadableError(result.error);
 
             // Set reorg table `checkpoint` column for newly inserted rows.
-            await database.complete({ checkpoint: event.checkpoint });
+            await database.complete({ checkpoint, db: database.qb.drizzle });
+
+            if (preBuild.ordering === "multichain") {
+              const network = indexingBuild.networks.find(
+                (network) =>
+                  network.chainId ===
+                  Number(decodeCheckpoint(checkpoint).chainId),
+              )!;
+
+              common.metrics.ponder_indexing_timestamp.set(
+                { network: network.name },
+                decodeCheckpoint(checkpoint).blockTimestamp,
+              );
+            } else {
+              for (const network of indexingBuild.networks) {
+                common.metrics.ponder_indexing_timestamp.set(
+                  { network: network.name },
+                  decodeCheckpoint(checkpoint).blockTimestamp,
+                );
+              }
+            }
           }
-
-          await metadataStore.setStatus(event.status);
-
-          break;
-        }
-        case "reorg":
-          await database.removeTriggers();
-          await database.revert({ checkpoint: event.checkpoint });
-          await database.createTriggers();
-
-          break;
-
-        case "finalize":
-          await database.finalize({ checkpoint: event.checkpoint });
-          break;
-
-        default:
-          never(event);
-      }
-    },
-  });
-
-  const indexingService = createIndexingService({
-    indexingFunctions: indexingBuild.indexingFunctions,
-    common,
-    sources: indexingBuild.sources,
-    networks: indexingBuild.networks,
-    sync,
-  });
-
-  const historicalIndexingStore = createHistoricalIndexingStore({
-    common,
-    database,
-    schema: schemaBuild.schema,
-    initialCheckpoint,
-  });
-
-  indexingService.setIndexingStore(historicalIndexingStore);
-
-  await metadataStore.setStatus(sync.getStatus());
-
-  const start = async () => {
-    // If the initial checkpoint is zero, we need to run setup events.
-    if (encodeCheckpoint(zeroCheckpoint) === initialCheckpoint) {
-      const result = await indexingService.processSetupEvents({
-        sources: indexingBuild.sources,
-        networks: indexingBuild.networks,
-      });
-      if (result.status === "killed") {
-        return;
-      } else if (result.status === "error") {
-        onReloadableError(result.error);
-        return;
-      }
-    }
-
-    // Track the last processed checkpoint, used to set metrics
-    let end: string | undefined;
-    let lastFlush = Date.now();
-
-    // Run historical indexing until complete.
-    for await (const { events, checkpoint } of sync.getEvents()) {
-      end = checkpoint;
-
-      const decodedEvents = decodeEvents(common, indexingBuild.sources, events);
-      const result = await handleEvents(decodedEvents, checkpoint);
-
-      // underlying metrics collection is actually synchronous
-      // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-      const { eta, progress } = await getAppProgress(common.metrics);
-      if (events.length > 0) {
-        if (eta === undefined || progress === undefined) {
-          common.logger.info({
-            service: "app",
-            msg: `Indexed ${events.length} events`,
-          });
-        } else {
-          common.logger.info({
-            service: "app",
-            msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta)} remaining`,
-          });
-        }
-      }
-
-      // Persist the indexing store to the db if it is too full. The `finalized`
-      // checkpoint is used as a mutex. Any rows in the reorg table that may
-      // have been written because of raw sql access are deleted. Also must truncate
-      // the reorg tables that may have been written because of raw sql access.
-      if (
-        (historicalIndexingStore.isCacheFull() && events.length > 0) ||
-        (common.options.command === "dev" &&
-          lastFlush + 5_000 < Date.now() &&
-          events.length > 0)
-      ) {
-        if (historicalIndexingStore.isCacheFull()) {
-          common.logger.debug({
-            service: "indexing",
-            msg: `Indexing cache has exceeded ${common.options.indexingCacheMaxBytes} MB limit, starting flush`,
-          });
-        } else {
-          common.logger.debug({
-            service: "indexing",
-            msg: "Dev server periodic flush triggered, starting flush",
-          });
         }
 
+        await database.setStatus(event.status);
+
+        break;
+      }
+      case "reorg":
+        await database.removeTriggers();
+        await database.retry(async () => {
+          await database.qb.drizzle.transaction(async (tx) => {
+            await database.revert({ checkpoint: event.checkpoint, tx });
+          });
+        });
+        await database.createTriggers();
+
+        break;
+
+      case "finalize":
         await database.finalize({
-          checkpoint: encodeCheckpoint(zeroCheckpoint),
+          checkpoint: event.checkpoint,
+          db: database.qb.drizzle,
         });
-        await historicalIndexingStore.flush();
-        await database.complete({
-          checkpoint: encodeCheckpoint(zeroCheckpoint),
-        });
-        await database.finalize({
-          checkpoint: events[events.length - 1]!.checkpoint,
-        });
-        lastFlush = Date.now();
+        break;
 
-        common.logger.debug({
-          service: "indexing",
-          msg: "Completed flush",
-        });
-      }
-
-      await metadataStore.setStatus(sync.getStatus());
-      if (result.status === "killed") {
-        return;
-      } else if (result.status === "error") {
-        onReloadableError(result.error);
-        return;
-      }
+      default:
+        never(event);
     }
+  });
 
-    if (isKilled) return;
+  await database.createIndexes();
+  await database.createTriggers();
 
-    // Persist the indexing store to the db. The `finalized`
-    // checkpoint is used as a mutex. Any rows in the reorg table that may
-    // have been written because of raw sql access are deleted. Also must truncate
-    // the reorg tables that may have been written because of raw sql access.
+  await sync.startRealtime();
 
-    common.logger.debug({
-      service: "indexing",
-      msg: "Completed all historical events, starting final flush",
-    });
+  await database.setStatus(sync.getStatus());
 
-    await database.finalize({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
-    await historicalIndexingStore.flush();
-    await database.complete({ checkpoint: encodeCheckpoint(zeroCheckpoint) });
-    await database.finalize({ checkpoint: sync.getFinalizedCheckpoint() });
-
-    // Manually update metrics to fix a UI bug that occurs when the end
-    // checkpoint is between the last processed event and the finalized
-    // checkpoint.
-    const start = sync.getStartCheckpoint();
-    common.metrics.ponder_indexing_completed_seconds.set(
-      decodeCheckpoint(end ?? start).blockTimestamp -
-        decodeCheckpoint(start).blockTimestamp,
-    );
-    common.metrics.ponder_indexing_total_seconds.set(
-      decodeCheckpoint(end ?? start).blockTimestamp -
-        decodeCheckpoint(start).blockTimestamp,
-    );
-    common.metrics.ponder_indexing_completed_timestamp.set(
-      decodeCheckpoint(end ?? start).blockTimestamp,
-    );
-
-    // Become healthy
-    common.logger.info({
-      service: "indexing",
-      msg: "Completed historical indexing",
-    });
-
-    await database.createIndexes();
-    await database.createTriggers();
-
-    indexingService.setIndexingStore(
-      createRealtimeIndexingStore({
-        database,
-        schema: schemaBuild.schema,
-        common,
-      }),
-    );
-
-    await sync.startRealtime();
-
-    await metadataStore.setStatus(sync.getStatus());
-
-    common.logger.info({
-      service: "server",
-      msg: "Started responding as healthy",
-    });
-  };
-
-  const startPromise = start();
-
-  return async () => {
-    isKilled = true;
-    indexingService.kill();
-    await sync.kill();
-    realtimeQueue.pause();
-    realtimeQueue.clear();
-    await realtimeQueue.onIdle();
-    await startPromise;
-    await database.unlock();
-  };
+  common.logger.info({
+    service: "server",
+    msg: "Started returning 200 responses from /ready endpoint",
+  });
 }

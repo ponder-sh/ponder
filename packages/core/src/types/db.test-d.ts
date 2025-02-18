@@ -1,4 +1,4 @@
-import { onchainTable, primaryKey } from "@/drizzle/index.js";
+import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { test } from "vitest";
 import type { Delete, Find, Insert, Key, Update } from "./db.js";
 

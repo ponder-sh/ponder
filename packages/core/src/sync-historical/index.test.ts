@@ -2,6 +2,7 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
@@ -25,7 +26,12 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { encodeFunctionData, encodeFunctionResult, toHex } from "viem";
+import {
+  encodeFunctionData,
+  encodeFunctionResult,
+  toHex,
+  zeroAddress,
+} from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
@@ -33,9 +39,10 @@ import { createHistoricalSync } from "./index.js";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("createHistoricalSync()", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -61,12 +68,10 @@ test("createHistoricalSync()", async (context) => {
   });
 
   expect(historicalSync).toBeDefined();
-
-  await cleanup();
 });
 
 test("sync() with log filter", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -111,12 +116,10 @@ test("sync() with log filter", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("sync() with log filter and transaction receipts", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -165,12 +168,10 @@ test("sync() with log filter and transaction receipts", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("sync() with block filter", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -212,12 +213,10 @@ test("sync() with block filter", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("sync() with log factory", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -272,12 +271,10 @@ test("sync() with log factory", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("sync() with trace filter", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -370,12 +367,10 @@ test("sync() with trace filter", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-
-  await cleanup();
 });
 
 test("sync() with transaction filter", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -431,12 +426,10 @@ test("sync() with transaction filter", async (context) => {
 
   // transaction:from and transaction:to
   expect(intervals).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("sync() with transfer filter", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -513,12 +506,10 @@ test("sync() with transfer filter", async (context) => {
 
   // transfer:from and transfer:to
   expect(intervals).toHaveLength(2);
-
-  await cleanup();
 });
 
 test("sync() with many filters", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -571,12 +562,10 @@ test("sync() with many filters", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(2);
-
-  await cleanup();
 });
 
-test("sync() with cache hit", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+test("sync() with cache", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -626,12 +615,116 @@ test("sync() with cache hit", async (context) => {
 
   await historicalSync.sync([1, 2]);
   expect(spy).toHaveBeenCalledTimes(0);
+});
 
-  await cleanup();
+test("sync() with partial cache", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  let historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 2]);
+
+  // re-instantiate `historicalSync` to reset the cached intervals
+
+  let spy = vi.spyOn(requestQueue, "request");
+
+  // @ts-ignore
+  sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
+
+  historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await historicalSync.sync([1, 2]);
+  expect(spy).toHaveBeenCalledTimes(2);
+
+  expect(spy).toHaveBeenCalledWith({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: [zeroAddress],
+        fromBlock: "0x1",
+        toBlock: "0x2",
+        topics: [
+          [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        ],
+      },
+    ],
+  });
+
+  // re-instantiate `historicalSync` to reset the cached intervals
+
+  spy = vi.spyOn(requestQueue, "request");
+
+  historicalSync = await createHistoricalSync({
+    common: context.common,
+    network,
+    sources,
+    syncStore,
+    requestQueue,
+    onFatalError: () => {},
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  await historicalSync.sync([1, 3]);
+  expect(spy).toHaveBeenCalledTimes(2);
+
+  expect(spy).toHaveBeenCalledWith({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: [address, zeroAddress],
+        fromBlock: "0x3",
+        toBlock: "0x3",
+        topics: [
+          [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        ],
+      },
+    ],
+  });
 });
 
 test("syncBlock() with cache", async (context) => {
-  const { cleanup, syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -674,12 +767,10 @@ test("syncBlock() with cache", async (context) => {
   // 1 "eth_getLogs" request and only 2 "eth_getBlockByNumber" requests
   // because the erc20 and block sources share the block 2
   expect(spy).toHaveBeenCalledTimes(3);
-
-  await cleanup();
 });
 
 test("syncAddress() handles many addresses", async (context) => {
-  const { cleanup, syncStore, database } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const network = getNetwork();
   const requestQueue = createRequestQueue({
@@ -725,15 +816,6 @@ test("syncAddress() handles many addresses", async (context) => {
   await historicalSync.sync([1, 13]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  // 1 swap
-  expect(logs).toHaveLength(1);
-
-  const childAddresses = await database.qb.sync
-    .selectFrom("factory_address")
-    .selectAll()
-    .execute();
-  // 11 pair creations
-  expect(childAddresses).toHaveLength(11);
-
-  await cleanup();
+  // 11 pair creations and 1 swap
+  expect(logs).toHaveLength(12);
 });

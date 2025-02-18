@@ -477,49 +477,10 @@ Tip: On Etherscan, there is a link to the current implementation contract on the
 
 ## Event filter
 
-The `filter` option filters for events by signature and indexed argument values. This makes it possible to index events emitted by _any contract on the network_ that match the specified signature and arguments.
-
-### By event name or signature
-
-The `filter.event` option accepts an event name (or list of event names) present in the provided ABI.
-
-```ts filename="ponder.config.ts" {14}
-import { createConfig } from "ponder";
-import { http } from "viem";
-
-import { ERC20Abi } from "./abis/ERC20";
-
-export default createConfig({
-  networks: {
-    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
-  },
-  contracts: {
-    ERC20: {
-      abi: ERC20Abi,
-      network: "mainnet",
-      filter: { event: "Transfer" },
-      //        ^? "Transfer" | "Approval" | ("Transfer" | "Approval")[]
-      startBlock: 18500000,
-      endBlock: 18505000,
-    },
-  },
-});
-```
-
-The indexing functions you write will run for all events matching the filter, regardless of which contract emitted them.
-
-```ts filename="src/index.ts"
-import { ponder } from "ponder:registry";
-
-ponder.on("ERC20:Transfer", async ({ event }) => {
-  // This is the address of the contract that emitted the event.
-  // With this config, it could be any ERC20 contract on mainnet.
-  event.log.address;
-  //        ^? string
-});
-```
-
-### By indexed argument value
+<Callout type="info">
+  Ponder will automatically filter out event signatures that don't have a
+  registered indexing function.
+</Callout>
 
 You can use the `filter.event` and `filter.args` options together to filter for events that have specific indexed argument values. Each indexed argument field accepts a single value or a list of values to match.
 
@@ -569,11 +530,15 @@ ponder.on("ERC20:Transfer", async ({ event }) => {
 });
 ```
 
+<Callout type="info">
+  Multiple filters can be specified by passing an array of filter objects.
+</Callout>
+
 ## Call traces
 
 The `includeCallTraces{:ts}` option specifies whether to enable call trace indexing for a contract. By default, call traces are **disabled**.
 
-After enabling this option, each function in the contract ABI will become available as an indexing function event name. [Read more](/docs/indexing/call-traces) about call traces.
+After enabling this option, each function in the contract ABI will become available as an indexing function event name. [Read more](/docs/call-traces) about call traces.
 
 <div className="code-columns">
 
@@ -651,12 +616,14 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 
 The optional `startBlock` and `endBlock` options specify the block range to index.
 
-| Option       | Default          |
-| :----------- | :--------------- |
-| `startBlock` | `0{:ts}`         |
-| `endBlock`   | `undefined{:ts}` |
+| field          |               type                |                                                                                                               |
+| :------------- | :-------------------------------: | :------------------------------------------------------------------------------------------------------------ |
+| **startBlock** | `number \| "latest" \| undefined` | **Default: `0`**. Block number or tag to start indexing. Usually set to the contract deployment block number. |
+| **endBlock**   | `number \| "latest" \| undefined` | **Default: `undefined`**. Block number or tag to stop indexing.                                               |
 
-If `endBlock` is `undefined{:ts}`, the contract will be indexed in realtime. If `endBlock` is defined, no events will be indexed after that block. This option can be useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
+The `"latest"{:ts}` option fetches the latest block during the build step and uses that block number. Use this option with `startBlock` to only index in realtime, or `endBlock` to only index historical data.
+
+When `endBlock` is `undefined{:ts}`, indexing will continue indefinitely in realtime. Set `endBlock` to index only a slice of history, or to enable faster feedback loops during development.
 
 ```ts filename="ponder.config.ts" {15-16}
 import { createConfig } from "ponder";
@@ -673,7 +640,7 @@ export default createConfig({
       abi: BlitmapAbi,
       network: "mainnet",
       address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
-      startBlock: 12439123,
+      startBlock: "latest",
       endBlock: 16500000,
     },
   },

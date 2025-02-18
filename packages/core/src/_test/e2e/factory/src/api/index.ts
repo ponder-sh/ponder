@@ -1,4 +1,10 @@
-import { ponder } from "ponder:registry";
-import { graphql } from "@/index.js";
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { client } from "@/index.js";
+import { Hono } from "hono";
 
-ponder.use("/graphql", graphql());
+const app = new Hono();
+
+app.use("/sql/*", client({ db, schema }));
+
+export default app;

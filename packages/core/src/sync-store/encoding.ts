@@ -1,4 +1,4 @@
-import type { FragmentId } from "@/sync/fragments.js";
+import type { FragmentId } from "@/internal/types.js";
 import type {
   SyncBlock,
   SyncLog,
@@ -8,9 +8,9 @@ import type {
 } from "@/types/sync.js";
 import {
   EVENT_TYPES,
+  MAX_CHECKPOINT,
+  ZERO_CHECKPOINT,
   encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { ColumnType, Generated, Insertable } from "kysely";
@@ -55,9 +55,9 @@ export const encodeBlock = ({
       blockTimestamp: hexToNumber(block.timestamp),
       chainId: BigInt(chainId),
       blockNumber: hexToBigInt(block.number),
-      transactionIndex: maxCheckpoint.transactionIndex,
+      transactionIndex: MAX_CHECKPOINT.transactionIndex,
       eventType: EVENT_TYPES.blocks,
-      eventIndex: zeroCheckpoint.eventIndex,
+      eventIndex: ZERO_CHECKPOINT.eventIndex,
     }),
     baseFeePerGas: block.baseFeePerGas
       ? hexToBigInt(block.baseFeePerGas)
@@ -180,7 +180,7 @@ export const encodeTransaction = ({
       blockNumber: hexToBigInt(transaction.blockNumber),
       transactionIndex: hexToBigInt(transaction.transactionIndex),
       eventType: EVENT_TYPES.transactions,
-      eventIndex: zeroCheckpoint.eventIndex,
+      eventIndex: ZERO_CHECKPOINT.eventIndex,
     }),
     chainId,
     blockHash: transaction.blockHash,
@@ -315,8 +315,10 @@ export function encodeTrace({
     input: trace.input,
     functionSelector: trace.input.slice(0, 10) as Hex,
     output: trace.output ?? null,
-    revertReason: trace.revertReason ?? null,
-    error: trace.error ?? null,
+    revertReason: trace.revertReason
+      ? trace.revertReason.replace(/\0/g, "")
+      : null,
+    error: trace.error ? trace.error.replace(/\0/g, "") : null,
     value: trace.value ? hexToBigInt(trace.value) : null,
     index: trace.index,
     subcalls: trace.subcalls,

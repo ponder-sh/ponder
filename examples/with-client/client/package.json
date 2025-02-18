@@ -2,16 +2,17 @@
   "name": "ponder-examples-with-client-client",
   "private": true,
   "type": "module",
-  "scripts": {},
-  "dependencies": {
-    "drizzle-orm": "0.34.1",
-    "pg": "^8.11.3",
-    "tsx": "^4.19.2"
+  "scripts": {
+    "start": "tsx src/index.ts"
   },
   "engines": {
     "node": ">=18.14"
   },
+  "dependencies": {
+    "@ponder/client": "workspace:*"
+  },
   "devDependencies": {
-    "@types/pg": "^8.10.9"
+    "@types/pg": "^8.10.9",
+    "tsx": "^4.19.2"
   }
 }

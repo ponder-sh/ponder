@@ -8,14 +8,12 @@ import {
 import { deployFactory } from "@/_test/simulate.js";
 import { createPair } from "@/_test/simulate.js";
 import { swapPair } from "@/_test/simulate.js";
-import {
-  getFreePort,
-  postGraphql,
-  waitForIndexedBlock,
-} from "@/_test/utils.js";
+import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
+import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test } from "vitest";
+import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "factory");
 beforeEach(() => {
@@ -39,12 +37,14 @@ test(
   "factory",
   async () => {
     const port = await getFreePort();
+    const client = createClient(`http://localhost:${port}/sql`, { schema });
 
-    const cleanup = await start({
+    const shutdown = await start({
       cliOptions: {
         ...cliOptions,
         command: "start",
         port,
+        version: "0.0.0",
       },
     });
 
@@ -61,29 +61,16 @@ test(
       sender: ALICE,
     });
 
-    await waitForIndexedBlock(port, "mainnet", 3);
-
-    let response = await postGraphql(
+    await waitForIndexedBlock({
       port,
-      `
-      swapEvents {
-        items {
-          id
-          pair
-          from
-          to
-        }
-      }
-      `,
-    );
+      networkName: "mainnet",
+      block: { number: 3 },
+    });
 
-    expect(response.status).toBe(200);
-    let body = (await response.json()) as any;
-    expect(body.errors).toBe(undefined);
-    let swapEvents = body.data.swapEvents.items;
+    let result = await client.db.select().from(schema.swapEvent);
 
-    expect(swapEvents).toHaveLength(1);
-    expect(swapEvents[0]).toMatchObject({
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
       id: expect.any(String),
       from: ALICE.toLowerCase(),
       to: ALICE.toLowerCase(),
@@ -98,30 +85,17 @@ test(
       sender: ALICE,
     });
 
-    await waitForIndexedBlock(port, "mainnet", 4);
-
-    response = await postGraphql(
+    await waitForIndexedBlock({
       port,
-      `
-      swapEvents {
-        items {
-          id
-          pair
-          from
-          to
-        }
-      }
-      `,
-    );
+      networkName: "mainnet",
+      block: { number: 4 },
+    });
 
-    expect(response.status).toBe(200);
-    body = (await response.json()) as any;
-    expect(body.errors).toBe(undefined);
-    swapEvents = body.data.swapEvents.items;
+    result = await client.db.select().from(schema.swapEvent);
 
-    expect(swapEvents).toHaveLength(2);
+    expect(result).toHaveLength(2);
 
-    await cleanup();
+    await shutdown!();
   },
   { timeout: 15_000 },
 );

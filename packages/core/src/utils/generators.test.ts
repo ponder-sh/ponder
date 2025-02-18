@@ -1,8 +1,8 @@
-import { promiseWithResolvers } from "@ponder/common";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { expect, test } from "vitest";
-import { mergeAsyncGenerators } from "./generators.js";
+import { bufferAsyncGenerator, mergeAsyncGenerators } from "./generators.js";
 
-test("mergeAsyncGenerators", async () => {
+test("mergeAsyncGenerators()", async () => {
   const p1 = promiseWithResolvers<number>();
   const p2 = promiseWithResolvers<number>();
   const p3 = promiseWithResolvers<number>();
@@ -37,7 +37,7 @@ test("mergeAsyncGenerators", async () => {
   expect(results).toStrictEqual([1, 2, 3, 4]);
 });
 
-test("mergeAsyncGenerators results", async () => {
+test("mergeAsyncGenerators() yields all results", async () => {
   const p1 = promiseWithResolvers<number>();
   const p2 = promiseWithResolvers<number>();
   const p3 = promiseWithResolvers<number>();
@@ -67,14 +67,91 @@ test("mergeAsyncGenerators results", async () => {
 
   p1.resolve(1);
   p2.resolve(2);
-  await new Promise((res) => setTimeout(res));
   p3.resolve(3);
   p4.resolve(4);
-  await new Promise((res) => setTimeout(res));
 
   lock.resolve();
 
   await new Promise((res) => setTimeout(res));
 
-  expect(results).toStrictEqual([1, 2, 3, 4]);
+  expect(results).toStrictEqual([1, 3, 2, 4]);
+});
+
+test("bufferAsyncGenerator() prefetches results", async () => {
+  let sum = 0;
+
+  async function* inputGenerator() {
+    yield;
+    sum += 1;
+    yield;
+    sum += 1;
+    yield;
+    sum += 1;
+    yield;
+    sum += 1;
+  }
+
+  const generator = bufferAsyncGenerator(inputGenerator(), 2);
+
+  let result = await generator.next();
+  expect(result.done).toBe(false);
+  expect(sum).toBe(2);
+
+  result = await generator.next();
+  expect(result.done).toBe(false);
+  expect(sum).toBe(3);
+
+  result = await generator.next();
+  expect(result.done).toBe(false);
+  expect(sum).toBe(4);
+
+  result = await generator.next();
+  expect(result.done).toBe(false);
+  expect(sum).toBe(4);
+
+  result = await generator.next();
+  expect(result.done).toBe(true);
+});
+
+test("bufferAsyncGenerator() yields all results", async () => {
+  const p1 = promiseWithResolvers<number>();
+  const p2 = promiseWithResolvers<number>();
+  const p3 = promiseWithResolvers<number>();
+  const p4 = promiseWithResolvers<number>();
+
+  async function* inputGenerator() {
+    yield await p1.promise;
+    yield await p2.promise;
+    yield await p3.promise;
+    yield await p4.promise;
+  }
+
+  const generator = bufferAsyncGenerator(inputGenerator(), 2);
+
+  let resultPromise = generator.next();
+  p1.resolve(1);
+  let result = await resultPromise;
+  expect(result.done).toBe(false);
+  expect(result.value).toBe(1);
+
+  resultPromise = generator.next();
+  p2.resolve(2);
+  result = await resultPromise;
+  expect(result.done).toBe(false);
+  expect(result.value).toBe(2);
+
+  resultPromise = generator.next();
+  p3.resolve(3);
+  result = await resultPromise;
+  expect(result.done).toBe(false);
+  expect(result.value).toBe(3);
+
+  resultPromise = generator.next();
+  p4.resolve(4);
+  result = await resultPromise;
+  expect(result.done).toBe(false);
+  expect(result.value).toBe(4);
+
+  result = await generator.next();
+  expect(result.done).toBe(true);
 });

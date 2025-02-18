@@ -1,5 +1,7 @@
 export type Result<T> =
-  | { status: "success"; result: T }
+  | ([T] extends [never]
+      ? { status: "success" }
+      : { status: "success"; result: T })
   | { status: "error"; error: Error };
 
 export type MergeResults<T extends readonly Result<any>[]> =

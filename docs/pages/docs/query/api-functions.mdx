@@ -16,26 +16,26 @@ API functions are built on top of [Hono](https://hono.dev/), a fast and lightwei
 These example apps demonstrate how to use API functions.
 
 - [**Basic**](https://github.com/ponder-sh/ponder/tree/main/examples/feature-api-functions/src/api/index.ts) - An ERC20 app that responds to `GET` requests and uses [Drizzle](#query-the-database) to build custom SQL queries.
-- [**tRPC**](https://github.com/ponder-sh/ponder/tree/main/examples/with-trpc/client/index.ts) - An app that creates a [tRPC](https://trpc.io) server and a script that uses a tRPC client with end-to-end type safety.
+- [**With offchain data**](https://github.com/ponder-sh/ponder/tree/main/examples/with-offchain/src/api/index.ts) - An app that includes data from offchain sources.
 
 ## Get started
 
 <Steps>
-
-### Upgrade to `>=0.5.0`
-
-API functions are available starting from version `0.5.0`. Read the [migration guide](/docs/migration-guide#050) for more details.
 
 ### Create `src/api/index.ts` file
 
 To enable API functions, create a file named `src/api/index.ts` with the following code. You can register API functions in any `.ts` file in the `src/api/` directory.
 
 ```ts filename="src/api/index.ts"
-import { ponder } from "ponder:registry";
+import { Hono } from "hono";
 
-ponder.get("/hello", (c) => {
+const app = new Hono();
+
+app.get("/hello", (c) => {
   return c.text("Hello, world!");
 });
+
+export default app;
 ```
 
 ### Send a request
@@ -49,63 +49,76 @@ Hello, world!
 ### Register GraphQL middleware
 
 <Callout type="warning">
-  Once you create an API function file, you have "opted in" to API functions and
-  your app **will not** serve the standard GraphQL API by default.
+  Starting from version `0.9.0`, API functions are required and no GraphQL API
+  is served by default.
 </Callout>
 
-To continue using the standard GraphQL API, register the `graphql` middleware exported from `ponder`.
+To use the standard GraphQL API, register the `graphql` middleware exported from `ponder`. [Read more](/docs/query/graphql) about GraphQL in Ponder.
 
-```ts filename="src/api/index.ts" {2,4-5}
-import { ponder } from "ponder:registry";
+```ts filename="src/api/index.ts" {4,8-9}
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
 import { graphql } from "ponder";
 
-ponder.use("/", graphql());
-ponder.use("/graphql", graphql());
+const app = new Hono();
 
-// ...
+app.use("/", graphql({ db, schema }));
+app.use("/graphql", graphql({ db, schema }));
+
+export default app;
 ```
 
 </Steps>
 
 ## Query the database
 
-The API function context includes a ready-to-use Drizzle database client at `c.db`. To query the database, import table objects from `ponder.schema.ts` and pass them to `c.db.select()` or use relational queries.
+The API function context includes a ready-to-use Drizzle database client exported from `ponder:api`. To query the database, import table objects from `ponder:schema` and pass them to `db.select()` or use relational queries.
 
 ### Select
 
 Here's a simple query using the Drizzle `select` query builder.
 
 ```ts filename="src/api/index.ts"
-import { ponder } from "ponder:registry";
-import { accounts } from "ponder:schema";
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
 
-ponder.get("/account/:address", async (c) => {
+const app = new Hono();
+
+app.get("/account/:address", async (c) => {
   const address = c.req.param("address");
 
-  const account = await c.db
+  const account = await db
     .select()
-    .from(accounts)
-    .where(eq(accounts.address, address))
+    .from(schema.accounts)
+    .where(eq(schema.accounts.address, address))
     .limit(1);
 
   return c.json(account);
 });
+
+export default app;
 ```
 
 To build more complex queries, use `join`, `groupBy`, `where`, `orderBy`, `limit`, and other methods. Drizzle's filter & conditional operators (like `eq`, `gte`, and `or`) are re-exported by `ponder`. Visit the Drizzle [documentation](https://orm.drizzle.team/docs/select) for more details.
 
 ### Relational queries
 
-Drizzle's relational query builder (AKA Drizzle Queries) offers a great developer experience for complex queries. The `c.db.query` object exposes the raw Drizzle relational query builder.
+Drizzle's relational query builder (AKA Drizzle Queries) offers a great developer experience for complex queries. The `db.query` object exposes the raw Drizzle relational query builder.
 
 Here's an example that uses the relational query builder in an API function to find the 10 largest trades in the past hour joined with the account that made the trade. Visit the Drizzle Queries [documentation](https://orm.drizzle.team/docs/rqb) for more details.
 
 ```ts filename="src/api/index.ts"
+import { db } from "ponder:api";
 import { accounts, tradeEvents } from "ponder:schema";
+import { Hono } from "hono";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 
-ponder.get("/hot-trades", async (c) => {
-  const trades = await c.db.query.tradeEvents.findMany({
+const app = new Hono();
+
+app.get("/hot-trades", async (c) => {
+  const trades = await db.query.tradeEvents.findMany({
     where: (table, { gt, gte, and }) =>
       and(
         gt(table.amount, 1_000n),
@@ -117,100 +130,35 @@ ponder.get("/hot-trades", async (c) => {
 
   return c.json(trades);
 });
+
+export default app;
 ```
 
-## API reference
+### Send RPC requests
 
-### `get()`
+The API function context also includes a [Viem client](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts`.
 
-Use `ponder.get()` to handle HTTP `GET` requests. The `c` context object contains the request, response helpers, and the database connection.
+```ts filename="src/api/index.ts" {1,11}
+import { publicClients, db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
 
-```ts filename="src/api/index.ts" {5}
-import { ponder } from "ponder:registry";
-import { accounts } from "ponder:schema";
-import { eq } from "ponder";
+const app = new Hono();
 
-ponder.get("/account/:address", async (c) => {
+app.get("/account/:chainId/:address", async (c) => {
+  const chainId = c.req.param("chainId");
   const address = c.req.param("address");
 
-  const account = await c.db
-    .select()
-    .from(accounts)
-    .where(eq(accounts.address, address))
-    .first();
+  const balance = await publicClients[chainId].getBalance({ address });
 
-  if (account) {
-    return c.json(account);
-  } else {
-    return c.status(404).json({ error: "Account not found" });
-  }
-});
-```
+  const account = await db.query.accounts.findFirst({
+    where: eq(schema.accounts.address, address),
+  });
 
-### `post()`
-
-<Callout type="info">
-  API functions cannot write to the database, even when handling `POST`
-  requests.
-</Callout>
-
-Use `ponder.post()` to handle HTTP `POST` requests.
-
-In this example, we calculate the volume of transfers for each recipient within a given time range. The `fromTimestamp` and `toTimestamp` parameters are passed in the request body.
-
-```ts filename="src/api/index.ts" {5}
-import { ponder } from "ponder:registry";
-import { transferEvents } from "ponder:schema";
-import { and, gte, sum } from "ponder";
-
-ponder.post("/volume", async (c) => {
-  const body = await c.req.json();
-  const { fromTimestamp, toTimestamp } = body;
-
-  const volumeChartData = await c.db
-    .select({
-      to: transferEvents.toId,
-      volume: sum(transferEvents.amount),
-    })
-    .from(transferEvents)
-    .groupBy(transferEvents.toId)
-    .where(
-      and(
-        gte(transferEvents.timestamp, fromTimestamp),
-        lte(transferEvents.timestamp, toTimestamp)
-      )
-    )
-    .limit(1);
-
-  return c.json(volumeChartData);
-});
-```
-
-### `use()`
-
-Use `ponder.use(...){:ts}` to add middleware to your API functions. Middleware functions can modify the request and response objects, add logs, authenticate requests, and more. [Read more](https://hono.dev/docs/guides/middleware) about Hono middleware.
-
-```ts filename="src/api/index.ts" {3}
-import { ponder } from "ponder:registry";
-
-ponder.use((c, next) => {
-  console.log("Request received:", c.req.url);
-  return next();
-});
-```
-
-### `hono`
-
-Use `ponder.hono` to access the underlying Hono instance.
-
-```ts filename="src/api/index.ts" {3}
-import { ponder } from "ponder:registry";
-
-ponder.hono.notFound((c) => {
-  return c.text("Custom 404 Message", 404);
+  return c.json({ balance, account });
 });
 
-// ...
+export default app;
 ```
 
 ## Reserved routes

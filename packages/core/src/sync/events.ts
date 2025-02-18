@@ -1,11 +1,11 @@
-import type { Common } from "@/common/common.js";
-import {
-  isBlockFilterMatched,
-  isLogFilterMatched,
-  isTraceFilterMatched,
-  isTransactionFilterMatched,
-  isTransferFilterMatched,
-} from "@/sync-realtime/filter.js";
+import type { Common } from "@/internal/common.js";
+import type {
+  BlockFilter,
+  Event,
+  Factory,
+  RawEvent,
+  Source,
+} from "@/internal/types.js";
 import type { BlockWithEventData } from "@/sync-realtime/index.js";
 import type {
   Block,
@@ -13,7 +13,6 @@ import type {
   Trace,
   Transaction,
   TransactionReceipt,
-  Transfer,
 } from "@/types/eth.js";
 import type {
   SyncBlock,
@@ -24,9 +23,9 @@ import type {
 } from "@/types/sync.js";
 import {
   EVENT_TYPES,
+  MAX_CHECKPOINT,
+  ZERO_CHECKPOINT,
   encodeCheckpoint,
-  maxCheckpoint,
-  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
@@ -45,122 +44,13 @@ import {
   hexToNumber,
 } from "viem";
 import {
-  type BlockFilter,
-  type Factory,
-  type Source,
-  isAddressFactory,
-  shouldGetTransactionReceipt,
-} from "./source.js";
-
-export type RawEvent = {
-  chainId: number;
-  sourceIndex: number;
-  checkpoint: string;
-  log?: Log;
-  block: Block;
-  transaction?: Transaction;
-  transactionReceipt?: TransactionReceipt;
-  trace?: Trace;
-};
-
-export type Event =
-  | LogEvent
-  | BlockEvent
-  | TransactionEvent
-  | TransferEvent
-  | TraceEvent;
-
-export type SetupEvent = {
-  type: "setup";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:setup` */
-  name: string;
-
-  block: bigint;
-};
-
-export type LogEvent = {
-  type: "log";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:${safeName}` */
-  name: string;
-
-  event: {
-    name: string;
-    args: any;
-    log: Log;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
-
-export type BlockEvent = {
-  type: "block";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:block` */
-  name: string;
-
-  event: {
-    block: Block;
-  };
-};
-
-export type TransactionEvent = {
-  type: "transaction";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}.{safeName}()` */
-  name: string;
-
-  event: {
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
-
-export type TransferEvent = {
-  type: "transfer";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
-
-  event: {
-    transfer: Transfer;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-    trace: Trace;
-  };
-};
-
-export type TraceEvent = {
-  type: "trace";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
-
-  event: {
-    args: any;
-    result: any;
-    trace: Trace;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
+  isBlockFilterMatched,
+  isLogFilterMatched,
+  isTraceFilterMatched,
+  isTransactionFilterMatched,
+  isTransferFilterMatched,
+} from "./filter.js";
+import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 
 /**
  * Create `RawEvent`s from raw data types
@@ -231,14 +121,18 @@ export const buildEvents = ({
                   }),
                   log: convertLog(log),
                   block: convertBlock(block),
-                  transaction: convertTransaction(
-                    transactionCache.get(log.transactionHash)!,
-                  ),
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
-                    ? convertTransactionReceipt(
-                        transactionReceiptCache.get(log.transactionHash)!,
+                  transaction: transactionCache.has(log.transactionHash)
+                    ? convertTransaction(
+                        transactionCache.get(log.transactionHash)!,
                       )
                     : undefined,
+                  transactionReceipt:
+                    transactionReceiptCache.has(log.transactionHash) &&
+                    shouldGetTransactionReceipt(filter)
+                      ? convertTransactionReceipt(
+                          transactionReceiptCache.get(log.transactionHash)!,
+                        )
+                      : undefined,
                   trace: undefined,
                 });
               }
@@ -435,9 +329,9 @@ export const buildEvents = ({
               blockTimestamp: hexToNumber(block.timestamp),
               chainId: BigInt(filter.chainId),
               blockNumber: hexToBigInt(block.number),
-              transactionIndex: maxCheckpoint.transactionIndex,
+              transactionIndex: MAX_CHECKPOINT.transactionIndex,
               eventType: EVENT_TYPES.blocks,
-              eventIndex: zeroCheckpoint.eventIndex,
+              eventIndex: ZERO_CHECKPOINT.eventIndex,
             }),
             block: convertBlock(block),
             log: undefined,
@@ -498,7 +392,7 @@ export const decodeEvents = (
 
                 event: {
                   name: safeName,
-                  args,
+                  args: removeNullCharacters(args),
                   log: event.log!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -554,8 +448,8 @@ export const decodeEvents = (
                 name: `${source.name}.${safeName}`,
 
                 event: {
-                  args,
-                  result,
+                  args: removeNullCharacters(args),
+                  result: removeNullCharacters(result),
                   trace: event.trace!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -659,7 +553,7 @@ export const decodeEvents = (
 };
 
 /** @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99 */
-function decodeEventLog({
+export function decodeEventLog({
   abiItem,
   topics,
   data,
@@ -727,6 +621,26 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
     return value;
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
+}
+
+export function removeNullCharacters(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    return obj.replace(/\0/g, "");
+  }
+  if (Array.isArray(obj)) {
+    // Recursively handle array elements
+    return obj.map(removeNullCharacters);
+  }
+  if (obj && typeof obj === "object") {
+    // Recursively handle object properties
+    const newObj: { [key: string]: unknown } = {};
+    for (const [key, val] of Object.entries(obj)) {
+      newObj[key] = removeNullCharacters(val);
+    }
+    return newObj;
+  }
+  // For other types (number, boolean, null, undefined, etc.), return as-is
+  return obj;
 }
 
 const convertBlock = (block: SyncBlock): Block => ({

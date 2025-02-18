@@ -1,10 +1,8 @@
+import { setupAnvil } from "@/_test/setup.js";
+import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
-import {
-  type LogFactory,
-  type LogFilter,
-  type TraceFilter,
-  shouldGetTransactionReceipt,
-} from "@/sync/source.js";
+import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
   http,
   type Address,
@@ -13,8 +11,8 @@ import {
   toFunctionSelector,
   zeroAddress,
 } from "viem";
-import { expect, test } from "vitest";
-import { type Config, createConfig } from "../config/config.js";
+import { beforeEach, expect, test } from "vitest";
+import { type Config, createConfig } from "../config/index.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
@@ -36,6 +34,8 @@ const bytes1 =
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 
+beforeEach(setupAnvil);
+
 test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
     networks: {
@@ -45,7 +45,6 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
       a: {
         network: { mainnet: {} },
         abi: [event0, event1],
-        filter: { event: ["Event0", "Event1"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -76,9 +75,6 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
       a: {
         network: { mainnet: {} },
         abi: [event1, event1Overloaded],
-        filter: {
-          event: ["Event1()", "Event1(bytes32 indexed)"],
-        },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -115,9 +111,6 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
           },
         },
         abi: [event1, event1Overloaded],
-        filter: {
-          event: ["Event1()", "Event1(bytes32 indexed)"],
-        },
       },
     },
   });
@@ -158,7 +151,7 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
   expect(sources.length).toBe(2);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for event with args", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for event filter", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -185,13 +178,14 @@ test("buildConfigAndIndexingFunctions() builds topics for event with args", asyn
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
+  expect(sources).toHaveLength(1);
+  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
     toEventSelector(event0),
-  ]);
+  );
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for event with unnamed parameters", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
   const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -199,11 +193,19 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
     contracts: {
       a: {
         network: { mainnet: {} },
-        abi: [event1Overloaded],
-        filter: {
-          event: "Event1",
-          args: [[bytes1, bytes2]],
-        },
+        abi: [event0, event1Overloaded],
+        filter: [
+          {
+            event: "Event1",
+            args: [[bytes1, bytes2]],
+          },
+          {
+            event: "Event0",
+            args: {
+              arg: bytes1,
+            },
+          },
+        ],
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -213,16 +215,24 @@ test("buildConfigAndIndexingFunctions() builds topics for event with unnamed par
 
   const { sources } = await buildConfigAndIndexingFunctions({
     config,
-    rawIndexingFunctions: [{ name: "a:Event1", fn: () => {} }],
+    rawIndexingFunctions: [
+      { name: "a:Event0", fn: () => {} },
+      { name: "a:Event1", fn: () => {} },
+    ],
   });
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
+  expect(sources).toHaveLength(2);
+  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
     toEventSelector(event1Overloaded),
-  ]);
+  );
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject([
     bytes1,
     bytes2,
   ]);
+  expect((sources[1]!.filter as LogFilter).topic0).toMatchObject(
+    toEventSelector(event0),
+  );
+  expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
@@ -233,7 +243,6 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
     contracts: {
       a: {
         abi: [event0],
-        filter: { event: ["Event0"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -263,7 +272,6 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
       a: {
         network: "mainnet",
         abi: [event0],
-        filter: { event: ["Event0"] },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -276,7 +284,7 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(sources[0]!.networkName).toBe("mainnet");
+  expect(sources[0]!.network.name).toBe("mainnet");
 });
 
 test("buildConfigAndIndexingFunctions() validates network name", async () => {
@@ -333,35 +341,6 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() validates against multiple events and indexed argument values", async () => {
-  const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
-    },
-    contracts: {
-      a: {
-        network: "mainnet",
-        abi: [event0, event1],
-        filter: {
-          event: ["Event0", "Event1"],
-          // @ts-expect-error
-          args: [bytes1],
-        },
-      },
-    },
-  }) as any;
-
-  const result = await safeBuildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Event filter for contract 'a' cannot contain indexed argument values if multiple events are provided.",
-  );
-});
-
 test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     networks: {
@@ -371,9 +350,12 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
       a: {
         network: "mainnet",
         abi: [event0],
+        // @ts-expect-error
         filter: {
-          // @ts-expect-error
           event: "Event2",
+          args: {
+            arg: "0x",
+          },
         },
       },
     },
@@ -486,6 +468,31 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   });
 
   expect(sources[0]?.filter.fromBlock).toBe(undefined);
+});
+
+test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http(`http://127.0.0.1:8545/${poolId}`),
+      },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        abi: [event0, event1],
+        startBlock: "latest",
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(sources[0]?.filter.fromBlock).toBeTypeOf("number");
 });
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
@@ -637,8 +644,8 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
 
   expect(sources).toHaveLength(2);
 
-  expect(sources[0]?.networkName).toBe("mainnet");
-  expect(sources[1]?.networkName).toBe("mainnet");
+  expect(sources[0]?.network.name).toBe("mainnet");
+  expect(sources[1]?.network.name).toBe("mainnet");
 
   expect(sources[0]?.name).toBe("a");
   expect(sources[1]?.name).toBe("a");
@@ -674,7 +681,7 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
 
   expect(sources).toHaveLength(1);
 
-  expect(sources[0]?.networkName).toBe("mainnet");
+  expect(sources[0]?.network.name).toBe("mainnet");
   expect(sources[0]?.name).toBe("a");
   expect(sources[0]?.filter.type).toBe("block");
   // @ts-ignore

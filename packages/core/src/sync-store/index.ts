@@ -1,7 +1,20 @@
-import type { Common } from "@/common/common.js";
-import type { HeadlessKysely } from "@/database/kysely.js";
-import type { RawEvent } from "@/sync/events.js";
-import { type FragmentId, getFragmentIds } from "@/sync/fragments.js";
+import type { Database } from "@/database/index.js";
+import type { Common } from "@/internal/common.js";
+import { NonRetryableError } from "@/internal/errors.js";
+import type {
+  BlockFilter,
+  Factory,
+  Filter,
+  FilterWithoutBlocks,
+  Fragment,
+  FragmentId,
+  LogFactory,
+  LogFilter,
+  RawEvent,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
 import {
   type BlockFilter,
   type Factory,
@@ -51,7 +64,7 @@ import {
 export type SyncStore = {
   insertIntervals(args: {
     intervals: {
-      filter: Filter;
+      filter: FilterWithoutBlocks;
       interval: Interval;
     }[];
     chainId: number;
@@ -130,119 +143,136 @@ export type SyncStore = {
 
 export const createSyncStore = ({
   common,
-  db,
+  database,
 }: {
   common: Common;
-  db: HeadlessKysely<PonderSyncSchema>;
+  database: Database;
 }): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
-    await db.wrap({ method: "insertIntervals" }, async () => {
-      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
-      const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
+    await database.wrap(
+      { method: "insertIntervals", includeTraceLogs: true },
+      async () => {
+        const perFragmentIntervals = new Map<FragmentId, Interval[]>();
+        const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
 
-      // dedupe and merge matching fragments
+        // dedupe and merge matching fragments
 
-      for (const { filter, interval } of intervals) {
-        for (const fragment of getFragmentIds(filter)) {
-          if (perFragmentIntervals.has(fragment.id) === false) {
-            perFragmentIntervals.set(fragment.id, []);
+        for (const { filter, interval } of intervals) {
+          for (const fragment of getFragments(filter)) {
+            const fragmentId = fragmentToId(fragment.fragment);
+            if (perFragmentIntervals.has(fragmentId) === false) {
+              perFragmentIntervals.set(fragmentId, []);
+            }
+
+            perFragmentIntervals.get(fragmentId)!.push(interval);
           }
-
-          perFragmentIntervals.get(fragment.id)!.push(interval);
         }
-      }
 
-      // NOTE: In order to force proper range union behavior, `interval[1]` must
-      // be rounded up.
+        // NOTE: In order to force proper range union behavior, `interval[1]` must
+        // be rounded up.
 
-      for (const [fragmentId, intervals] of perFragmentIntervals) {
-        const numranges = intervals
-          .map((interval) => {
-            const start = interval[0];
-            const end = interval[1] + 1;
-            return `numrange(${start}, ${end}, '[]')`;
-          })
-          .join(", ");
+        for (const [fragmentId, intervals] of perFragmentIntervals) {
+          const numranges = intervals
+            .map((interval) => {
+              const start = interval[0];
+              const end = interval[1] + 1;
+              return `numrange(${start}, ${end}, '[]')`;
+            })
+            .join(", ");
 
-        values.push({
-          fragment_id: fragmentId,
-          chain_id: chainId,
-          blocks: ksql.raw(`nummultirange(${numranges})`),
-        });
-      }
+          values.push({
+            fragment_id: fragmentId,
+            chain_id: chainId,
+            blocks: ksql.raw(`nummultirange(${numranges})`),
+          });
+        }
 
-      await db
-        .insertInto("intervals")
-        .values(values)
-        .onConflict((oc) =>
-          oc.column("fragment_id").doUpdateSet({
-            blocks: ksql`intervals.blocks + excluded.blocks`,
-          }),
-        )
-        .execute();
-    });
+        await database.qb.sync
+          .insertInto("intervals")
+          .values(values)
+          .onConflict((oc) =>
+            oc.column("fragment_id").doUpdateSet({
+              blocks: ksql`intervals.blocks + excluded.blocks`,
+            }),
+          )
+          .execute();
+      },
+    );
   },
   getIntervals: async ({ filters }) =>
-    db.wrap({ method: "getIntervals" }, async () => {
-      let query:
-        | SelectQueryBuilder<
-            PonderSyncSchema,
-            "intervals",
-            { merged_blocks: string | null; filter: string }
-          >
-        | undefined;
+    database.wrap(
+      { method: "getIntervals", includeTraceLogs: true },
+      async () => {
+        let query:
+          | SelectQueryBuilder<
+              PonderSyncSchema,
+              "intervals",
+              { merged_blocks: string | null; filter: string; fragment: string }
+            >
+          | undefined;
 
-      for (let i = 0; i < filters.length; i++) {
-        const filter = filters[i]!;
-        const fragments = getFragmentIds(filter);
-        for (const fragment of fragments) {
-          const _query = db
-            .selectFrom(
-              db
-                .selectFrom("intervals")
-                .select(ksql`unnest(blocks)`.as("blocks"))
-                .where("fragment_id", "in", fragment.adjacent)
-                .as("unnested"),
-            )
-            .select([
-              ksql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
-              ksql.raw(`'${i}'`).as("filter"),
-            ]);
-          // @ts-ignore
-          query = query === undefined ? _query : query.unionAll(_query);
+        for (let i = 0; i < filters.length; i++) {
+          const filter = filters[i]!;
+          const fragments = getFragments(filter);
+          for (let j = 0; j < fragments.length; j++) {
+            const fragment = fragments[j]!;
+            const _query = database.qb.sync
+              .selectFrom(
+                database.qb.sync
+                  .selectFrom("intervals")
+                  .select(ksql`unnest(blocks)`.as("blocks"))
+                  .where("fragment_id", "in", fragment.adjacentIds)
+                  .as("unnested"),
+              )
+              .select([
+                ksql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
+                ksql.raw(`'${i}'`).as("filter"),
+                ksql.raw(`'${j}'`).as("fragment"),
+              ]);
+            // @ts-ignore
+            query = query === undefined ? _query : query.unionAll(_query);
+          }
         }
-      }
 
-      const rows = await query!.execute();
+        const rows = await query!.execute();
 
-      const result: Map<Filter, Interval[]> = new Map();
+        const result = new Map<
+          Filter,
+          { fragment: Fragment; intervals: Interval[] }[]
+        >();
 
-      // intervals use "union" for the same fragment, and
-      // "intersection" for the same filter
+        // NOTE: `interval[1]` must be rounded down in order to offset the previous
+        // rounding.
 
-      // NOTE: `interval[1]` must be rounded down in order to offset the previous
-      // rounding.
+        for (let i = 0; i < filters.length; i++) {
+          const filter = filters[i]!;
+          const fragments = getFragments(filter);
+          result.set(filter, []);
+          for (let j = 0; j < fragments.length; j++) {
+            const fragment = fragments[j]!;
+            const intervals = rows
+              .filter((row) => row.filter === `${i}`)
+              .filter((row) => row.fragment === `${j}`)
+              .map((row) =>
+                (row.merged_blocks
+                  ? (JSON.parse(
+                      `[${row.merged_blocks.slice(1, -1)}]`,
+                    ) as Interval[])
+                  : []
+                ).map((interval) => [interval[0], interval[1] - 1] as Interval),
+              )[0]!;
 
-      for (let i = 0; i < filters.length; i++) {
-        const filter = filters[i]!;
-        const intervals = rows
-          .filter((row) => row.filter === `${i}`)
-          .map((row) =>
-            (row.merged_blocks
-              ? (JSON.parse(
-                  `[${row.merged_blocks.slice(1, -1)}]`,
-                ) as Interval[])
-              : []
-            ).map((interval) => [interval[0], interval[1] - 1] as Interval),
-          );
+            result
+              .get(filter)!
+              .push({ fragment: fragment.fragment, intervals });
+          }
+        }
 
-        result.set(filter, intervalIntersectionMany(intervals));
-      }
-
-      return result;
-    }),
+        return result;
+      },
+    ),
   insertChildAddresses: async ({ factory, data }) =>
     db.wrap({ method: "insertChildAddresses" }, async () => {
       if (data.length === 0) return;
@@ -366,26 +396,29 @@ export const createSyncStore = ({
   },
   insertBlocks: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
-    await db.wrap({ method: "insertBlocks" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
-      );
+    await database.wrap(
+      { method: "insertBlocks", includeTraceLogs: true },
+      async () => {
+        // Calculate `batchSize` based on how many parameters the
+        // input will have
+        const batchSize = Math.floor(
+          common.options.databaseMaxQueryParameters /
+            Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
+        );
 
-      for (let i = 0; i < blocks.length; i += batchSize) {
-        await db
-          .insertInto(`block_${chainId}`)
-          .values(
-            blocks
-              .slice(i, i + batchSize)
-              .map((block) => encodeBlock({ block, chainId })),
-          )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
-          .execute();
-      }
-    });
+        for (let i = 0; i < blocks.length; i += batchSize) {
+          await db
+            .insertInto(`block_${chainId}`)
+            .values(
+              blocks
+                .slice(i, i + batchSize)
+                .map((block) => encodeBlock({ block, chainId })),
+            )
+            .onConflict((oc) => oc.column("checkpoint").doNothing())
+            .execute();
+        }
+      },
+    );
   },
   hasBlock: async ({ hash, chainId }) =>
     db.wrap({ method: "hasBlock" }, async () => {
@@ -398,38 +431,41 @@ export const createSyncStore = ({
     }),
   insertTransactions: async ({ transactions, chainId }) => {
     if (transactions.length === 0) return;
-    await db.wrap({ method: "insertTransactions" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(
-            encodeTransaction({
-              transaction: transactions[0]!.transaction,
-              block: transactions[0]!.block,
-              chainId,
-            }),
-          ).length,
-      );
+    await database.wrap(
+      { method: "insertTransactions", includeTraceLogs: true },
+      async () => {
+        // Calculate `batchSize` based on how many parameters the
+        // input will have
+        const batchSize = Math.floor(
+          common.options.databaseMaxQueryParameters /
+            Object.keys(
+              encodeTransaction({
+                transaction: transactions[0]!.transaction,
+                block: transactions[0]!.block,
+                chainId,
+              }),
+            ).length,
+        );
 
-      // As an optimization for the migration, transactions inserted before 0.8 do not
-      // contain a checkpoint. However, for correctness the checkpoint must be inserted
-      // for new transactions (using onConflictDoUpdate).
+        // As an optimization for the migration, transactions inserted before 0.8 do not
+        // contain a checkpoint. However, for correctness the checkpoint must be inserted
+        // for new transactions (using onConflictDoUpdate).
 
-      for (let i = 0; i < transactions.length; i += batchSize) {
-        await db
-          .insertInto(`transaction_${chainId}`)
-          .values(
-            transactions
-              .slice(i, i + batchSize)
-              .map(({ transaction, block }) =>
-                encodeTransaction({ transaction, block, chainId }),
-              ),
-          )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
-          .execute();
-      }
-    });
+        for (let i = 0; i < transactions.length; i += batchSize) {
+          await db
+            .insertInto(`transaction_${chainId}`)
+            .values(
+              transactions
+                .slice(i, i + batchSize)
+                .map(({ transaction, block }) =>
+                  encodeTransaction({ transaction, block, chainId }),
+                ),
+            )
+            .onConflict((oc) => oc.column("checkpoint").doNothing())
+            .execute();
+        }
+      },
+    );
   },
   hasTransaction: async ({ hash, chainId }) =>
     db.wrap({ method: "hasTransaction" }, async () => {
@@ -442,38 +478,41 @@ export const createSyncStore = ({
     }),
   insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
     if (transactionReceipts.length === 0) return;
-    await db.wrap({ method: "insertTransactionReceipts" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(
-            encodeTransactionReceipt({
-              transactionReceipt: transactionReceipts[0]!,
-              chainId,
-            }),
-          ).length,
-      );
+    await database.wrap(
+      { method: "insertTransactionReceipts", includeTraceLogs: true },
+      async () => {
+        // Calculate `batchSize` based on how many parameters the
+        // input will have
+        const batchSize = Math.floor(
+          common.options.databaseMaxQueryParameters /
+            Object.keys(
+              encodeTransactionReceipt({
+                transactionReceipt: transactionReceipts[0]!,
+                chainId,
+              }),
+            ).length,
+        );
 
-      for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-        await db
-          .insertInto(`transaction_receipt_${chainId}`)
-          .values(
-            transactionReceipts
-              .slice(i, i + batchSize)
-              .map((transactionReceipt) =>
-                encodeTransactionReceipt({
-                  transactionReceipt,
-                  chainId,
-                }),
-              ),
-          )
-          .onConflict((oc) =>
-            oc.columns(["block_number", "transaction_index"]).doNothing(),
-          )
-          .execute();
-      }
-    });
+        for (let i = 0; i < transactionReceipts.length; i += batchSize) {
+          await db
+            .insertInto(`transaction_receipt_${chainId}`)
+            .values(
+              transactionReceipts
+                .slice(i, i + batchSize)
+                .map((transactionReceipt) =>
+                  encodeTransactionReceipt({
+                    transactionReceipt,
+                    chainId,
+                  }),
+                ),
+            )
+            .onConflict((oc) =>
+              oc.columns(["block_number", "transaction_index"]).doNothing(),
+            )
+            .execute();
+        }
+      },
+    );
   },
   hasTransactionReceipt: async ({ hash, chainId }) =>
     db.wrap({ method: "hasTransactionReceipt" }, async () => {
@@ -486,40 +525,43 @@ export const createSyncStore = ({
     }),
   insertTraces: async ({ traces, chainId }) => {
     if (traces.length === 0) return;
-    await db.wrap({ method: "insertTraces" }, async () => {
-      // Calculate `batchSize` based on how many parameters the
-      // input will have
-      const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters /
-          Object.keys(
-            encodeTrace({
-              trace: traces[0]!.trace.trace,
-              block: traces[0]!.block,
-              transaction: traces[0]!.transaction,
-              chainId,
-            }),
-          ).length,
-      );
+    await database.wrap(
+      { method: "insertTraces", includeTraceLogs: true },
+      async () => {
+        // Calculate `batchSize` based on how many parameters the
+        // input will have
+        const batchSize = Math.floor(
+          common.options.databaseMaxQueryParameters /
+            Object.keys(
+              encodeTrace({
+                trace: traces[0]!.trace.trace,
+                block: traces[0]!.block,
+                transaction: traces[0]!.transaction,
+                chainId,
+              }),
+            ).length,
+        );
 
-      for (let i = 0; i < traces.length; i += batchSize) {
-        await db
-          .insertInto(`trace_${chainId}`)
-          .values(
-            traces
-              .slice(i, i + batchSize)
-              .map(({ trace, block, transaction }) =>
-                encodeTrace({
-                  trace: trace.trace,
-                  block,
-                  transaction,
-                  chainId,
-                }),
-              ),
-          )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
-          .execute();
-      }
-    });
+        for (let i = 0; i < traces.length; i += batchSize) {
+          await db
+            .insertInto(`trace_${chainId}`)
+            .values(
+              traces
+                .slice(i, i + batchSize)
+                .map(({ trace, block, transaction }) =>
+                  encodeTrace({
+                    trace: trace.trace,
+                    block,
+                    transaction,
+                    chainId,
+                  }),
+                ),
+            )
+            .onConflict((oc) => oc.column("checkpoint").doNothing())
+            .execute();
+        }
+      },
+    );
   },
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     db.wrap({ method: "insertRpcRequestResult" }, async () => {

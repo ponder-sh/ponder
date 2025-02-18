@@ -1,5 +1,8 @@
-import type { Drizzle, OnchainTable, Schema } from "@/drizzle/index.js";
-import type { MetadataStore } from "@/indexing-store/metadata.js";
+import type { Database } from "@/database/index.js";
+import type { OnchainTable } from "@/drizzle/onchain.js";
+import { normalizeColumn } from "@/indexing-store/cache.js";
+import type { Schema } from "@/internal/types.js";
+import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
@@ -63,7 +66,7 @@ import { GraphQLJSON } from "./json.js";
 type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  metadataStore: MetadataStore;
+  getStatus: Database["getStatus"];
   drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
@@ -79,7 +82,9 @@ type PluralArgs = {
 const DEFAULT_LIMIT = 50 as const;
 const MAX_LIMIT = 1000 as const;
 
-export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
+export function buildGraphQLSchema({
+  schema,
+}: { schema: Schema }): GraphQLSchema {
   const tablesConfig = extractTablesRelationalConfig(
     schema,
     createTableRelationsHelpers,
@@ -391,7 +396,7 @@ export function buildGraphQLSchema(schema: Schema): GraphQLSchema {
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const status = await context.metadataStore.getStatus();
+      const status = await context.getStatus();
       return { status };
     },
   };
@@ -453,7 +458,7 @@ const columnToGraphQLCore = (
     const enumType = enumTypes[column.enum.enumName];
     if (enumType === undefined) {
       throw new Error(
-        `Internal error: Expected to find a GraphQL enum named "${column.enum.enumName}"`,
+        `Internal error: Expected to find a GraphQL enum named "${column.enum.enumName}". This may happen if "${column.enum.enumName}" has not been exported from your Ponder schema`,
       );
     }
 
@@ -739,7 +744,7 @@ const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
 function buildWhereConditions(
   where: Record<string, any> | undefined,
   columns: Record<string, Column>,
-): (SQL | undefined)[] {
+) {
   const conditions: (SQL | undefined)[] = [];
 
   if (where === undefined) return conditions;
@@ -957,7 +962,7 @@ function buildCursorCondition(
 
 export function buildDataLoaderCache({
   drizzle,
-}: { drizzle: Drizzle<Schema> }) {
+}: { drizzle: ReadonlyDrizzle<Schema> }) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
     DataLoader<string, any> | undefined
@@ -987,13 +992,37 @@ export function buildDataLoaderCache({
             limit: encodedIds.length,
           });
 
-          return decodedRowFragments.map((decodedRowFragment) => {
-            return rows.find((row) =>
-              Object.entries(decodedRowFragment).every(
-                ([col, val]) => row[col] === val,
-              ),
-            );
-          });
+          // Now, we need to order the rows coming out of the database to match
+          // the order of the IDs passed in. To accomplish this, we need to do
+          // a comparison of the decoded row PK fragments with the database rows.
+          // This is tricky because the decoded row PK fragments are not normalized,
+          // so some comparisons will fail (eg for our PgHex column type).
+          // To fix this, we need to normalize the values before doing the comparison.
+          return (
+            decodedRowFragments
+              // Normalize the decoded row fragments
+              .map((fragment) =>
+                Object.fromEntries(
+                  Object.entries(fragment).map(([col, val]) => {
+                    const column = table.columns[col];
+                    if (column === undefined) {
+                      throw new Error(
+                        `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
+                      );
+                    }
+                    return [col, normalizeColumn(column, val, false)];
+                  }),
+                ),
+              )
+              // Find the database row corresponding to each normalized row fragment
+              .map((fragment) =>
+                rows.find((row) =>
+                  Object.entries(fragment).every(
+                    ([col, val]) => row[col] === val,
+                  ),
+                ),
+              )
+          );
         },
         { maxBatchSize: 1_000 },
       );
