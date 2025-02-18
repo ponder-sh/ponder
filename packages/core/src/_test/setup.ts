@@ -35,6 +35,7 @@ export function setupCommon(context: TestContext) {
     root: "",
     logLevel: "silent",
     logFormat: "pretty",
+    version: "0.0.0",
   } as const;
   const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
   const logger = createLogger({ level: cliOptions.logLevel });

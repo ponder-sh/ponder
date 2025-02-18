@@ -43,6 +43,18 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const common = { options, logger, metrics, telemetry, shutdown };
   const exit = createExit({ common });
 
+  if (options.version) {
+    metrics.ponder_version_info.set(
+      {
+        version: options.version.version,
+        major: options.version.major,
+        minor: options.version.minor,
+        patch: options.version.patch,
+      },
+      1,
+    );
+  }
+
   const build = await createBuild({ common, cliOptions });
 
   // biome-ignore lint/style/useConst: <explanation>
@@ -136,6 +148,15 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
       }),
     },
   });
+
+  metrics.ponder_settings_info.set(
+    {
+      ordering: preBuild.ordering,
+      database: preBuild.databaseConfig.kind,
+      command: cliOptions.command,
+    },
+    1,
+  );
 
   run({
     common,
