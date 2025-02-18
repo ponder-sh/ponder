@@ -815,9 +815,6 @@ importers:
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
-      '@types/semver':
-        specifier: ^7.5.8
-        version: 7.5.8
       abitype:
         specifier: ^0.10.2
         version: 0.10.3(typescript@5.3.3)(zod@3.23.8)
@@ -918,6 +915,9 @@ importers:
       '@types/react':
         specifier: ^18.2.38
         version: 18.2.46
+      '@types/semver':
+        specifier: ^7.5.8
+        version: 7.5.8
       '@viem/anvil':
         specifier: ^0.0.6
         version: 0.0.6
@@ -7765,7 +7765,6 @@ packages:
 
   shikiji@0.6.10:
     resolution: {integrity: sha512-WE+A5Y2ntM5hL3iJQujk97qr5Uj7PSIRXpQfrZ6h+JWPXZ8KBEDhFXc4lqNriaRq1WGOVPUT83XMOzmHiH3W8A==}
-    deprecated: Shikiji is merged back to Shiki v1.0, please migrate over to get the latest updates
 
   side-channel@1.0.4:
     resolution: {integrity: sha512-q5XPytqFEIKHkGdiMIrY10mvLRvnQh42/+GoBlFW3b2LXLE2xxJpZFdm94we0BaoV3RwJyGqg5wS7epxTv0Zvw==}
