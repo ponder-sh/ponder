@@ -23,7 +23,7 @@ export class MetricsService {
   ponder_version_info: prometheus.Gauge<
     "version" | "major" | "minor" | "patch"
   >;
-  ponder_settings_info: prometheus.Gauge<"ordering">;
+  ponder_settings_info: prometheus.Gauge<"ordering" | "database" | "command">;
 
   ponder_historical_start_timestamp: prometheus.Gauge;
   ponder_historical_end_timestamp: prometheus.Gauge;
@@ -87,7 +87,7 @@ export class MetricsService {
     this.ponder_settings_info = new prometheus.Gauge({
       name: "ponder_settings_info",
       help: "Ponder settings information",
-      labelNames: ["ordering"] as const,
+      labelNames: ["ordering", "database", "command"] as const,
       registers: [this.registry],
     });
 

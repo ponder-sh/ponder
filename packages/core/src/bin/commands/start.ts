@@ -149,7 +149,14 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  metrics.ponder_settings_info.set({ ordering: preBuild.ordering }, 1);
+  metrics.ponder_settings_info.set(
+    {
+      ordering: preBuild.ordering,
+      database: preBuild.databaseConfig.kind,
+      command: cliOptions.command,
+    },
+    1,
+  );
 
   run({
     common,

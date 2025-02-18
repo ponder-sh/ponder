@@ -218,7 +218,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         metrics.resetApiMetrics();
-        metrics.ponder_settings_info.set({ ordering: preBuild.ordering }, 1);
+        metrics.ponder_settings_info.set(
+          {
+            ordering: preBuild.ordering,
+            database: preBuild.databaseConfig.kind,
+            command: cliOptions.command,
+          },
+          1,
+        );
 
         runServer({
           common: { ...common, shutdown: apiShutdown },

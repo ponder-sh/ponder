@@ -150,6 +150,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
+  metrics.ponder_settings_info.set(
+    {
+      database: preBuild.databaseConfig.kind,
+      command: cliOptions.command,
+    },
+    1,
+  );
+
   createServer({
     common,
     database,
