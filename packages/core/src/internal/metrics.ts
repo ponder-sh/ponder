@@ -93,12 +93,12 @@ export class MetricsService {
 
     this.ponder_historical_start_timestamp = new prometheus.Gauge({
       name: "ponder_historical_start_timestamp",
-      help: "Timestamp at which the historical indexing started",
+      help: "Timestamp at which historical indexing started",
       registers: [this.registry],
     });
     this.ponder_historical_end_timestamp = new prometheus.Gauge({
       name: "ponder_historical_end_timestamp",
-      help: "Timestamp at which the historical indexing ended",
+      help: "Timestamp at which historical indexing ended",
       registers: [this.registry],
     });
 

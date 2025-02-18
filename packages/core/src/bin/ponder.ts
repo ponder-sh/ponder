@@ -78,6 +78,7 @@ const devCommand = new Command("dev")
     const cliOptions = {
       ...command.optsWithGlobals(),
       command: command.name(),
+      version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await dev({ cliOptions });
   });
@@ -113,6 +114,7 @@ const serveCommand = new Command("serve")
     const cliOptions = {
       ...command.optsWithGlobals(),
       command: command.name(),
+      version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await serve({ cliOptions });
   });
@@ -126,6 +128,7 @@ const listCommand = new Command("list")
     const cliOptions = {
       ...command.optsWithGlobals(),
       command: command.name(),
+      version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await list({ cliOptions });
   });
@@ -137,6 +140,7 @@ const codegenCommand = new Command("codegen")
     const cliOptions = {
       ...command.optsWithGlobals(),
       command: command.name(),
+      version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await codegen({ cliOptions });
   });

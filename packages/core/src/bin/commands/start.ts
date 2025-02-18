@@ -7,7 +7,6 @@ import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { mergeResults } from "@/utils/result.js";
-import { parse } from "semver";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
@@ -44,14 +43,13 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const common = { options, logger, metrics, telemetry, shutdown };
   const exit = createExit({ common });
 
-  const version = parse(cliOptions.version);
-  if (version) {
+  if (options.version) {
     metrics.ponder_version_info.set(
       {
-        version: version.version,
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
+        version: options.version.version,
+        major: options.version.major,
+        minor: options.version.minor,
+        patch: options.version.patch,
       },
       1,
     );
