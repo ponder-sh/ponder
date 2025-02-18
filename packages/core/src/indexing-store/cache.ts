@@ -593,7 +593,7 @@ export const createIndexingCache = ({
             cacheBytes += bytes;
             tableSpillover.set(key, {
               bytes,
-              operationIndex: totalCacheOps++,
+              operationIndex: 0,
               row: entry.row,
             });
           }
