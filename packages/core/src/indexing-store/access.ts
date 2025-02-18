@@ -9,8 +9,6 @@ export const recoverAccess = (
 ): { [key: string]: string } | undefined => {
   const result: { [key: string]: string } = {};
 
-  // TODO(kyle) add chain id and network name
-
   const eq = (
     target: bigint | string | number | boolean | null | undefined,
     value: bigint | string | number | boolean | null | undefined,
@@ -24,6 +22,11 @@ export const recoverAccess = (
   for (const [js] of cache.get(table)!) {
     // @ts-ignore
     const value = key[js]!;
+
+    if (eq(event.chainId, value)) {
+      result[js] = "chainId";
+      continue;
+    }
 
     switch (event.type) {
       case "block": {

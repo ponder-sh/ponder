@@ -708,7 +708,11 @@ export const createIndexingCache = ({
               for (const event of events) {
                 const prediction: { [key: string]: unknown } = {};
                 for (const [key, value] of Object.entries(access)) {
-                  prediction[key] = getAccess(event.event, value.split("."));
+                  if (value === "chainId") {
+                    prediction[key] = event.chainId;
+                  } else {
+                    prediction[key] = getAccess(event.event, value.split("."));
+                  }
                 }
 
                 cachePrediction
