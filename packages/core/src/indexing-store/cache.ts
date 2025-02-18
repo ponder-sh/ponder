@@ -157,6 +157,7 @@ export const normalizeColumn = (
     if (hasEmptyValue(column)) return getEmptyValue(column, isUpdate);
     return null;
   }
+  if (value === null) return null;
   if (column.mapToDriverValue === undefined) return value;
   try {
     if (Array.isArray(value) && column instanceof PgArray) {
@@ -524,7 +525,7 @@ export const createIndexingCache = ({
       const copy = getCopyHelper({ client });
 
       for (const table of cache.keys()) {
-        const tableSpillover = cache.get(table)!;
+        const tableSpillover = spillover.get(table)!;
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());

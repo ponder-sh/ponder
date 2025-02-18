@@ -91,6 +91,14 @@ test("flush() update", async (context) => {
       client,
     });
 
+    // mutate the cache to skip hot loops
+
+    indexingCache.invalidate();
+
+    await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,

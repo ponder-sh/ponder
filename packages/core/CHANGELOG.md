@@ -1,5 +1,17 @@
 # ponder
 
+## 0.9.16
+
+### Patch Changes
+
+- [#1537](https://github.com/ponder-sh/ponder/pull/1537) [`89a451b5361aba47bf2463a0f1a38a3570e9daa6`](https://github.com/ponder-sh/ponder/commit/89a451b5361aba47bf2463a0f1a38a3570e9daa6) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where the indexing cache would sometimes use stale values.
+
+## 0.9.15
+
+### Patch Changes
+
+- [#1533](https://github.com/ponder-sh/ponder/pull/1533) [`00f1ec17e891d46559596391bbfe893a3ca51fc8`](https://github.com/ponder-sh/ponder/commit/00f1ec17e891d46559596391bbfe893a3ca51fc8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed result of context.db with null values.
+
 ## 0.9.14
 
 ### Patch Changes
