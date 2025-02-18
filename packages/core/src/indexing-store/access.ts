@@ -10,6 +10,7 @@ export const recoverAccess = (
   const result: { [key: string]: string } = {};
 
   // TODO(kyle) add chain id and network name
+  // TODO(kyle) normalize to string before comparison
 
   for (const [js] of cache.get(table)!) {
     // @ts-ignore
