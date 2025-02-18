@@ -1,9 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import {
-  RecordNotFoundError,
-  UniqueConstraintError,
-} from "@/internal/errors.js";
+import { RecordNotFoundError } from "@/internal/errors.js";
 import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -214,19 +211,6 @@ export const createHistoricalIndexingStore = ({
                         // Note: optimistic assumption that no conflict exists
                         // because error is recovered at flush time
 
-                        if (
-                          indexingCache.has({ table, key: value }) &&
-                          indexingCache.get({ table, key: value, db })
-                        ) {
-                          const error = new UniqueConstraintError(
-                            `Unique constraint failed for '${getTableName(table)}'.`,
-                          );
-                          error.meta.push(
-                            `db.insert arguments:\n${prettyPrint(value)}`,
-                          );
-                          throw error;
-                        }
-
                         rows.push(
                           indexingCache.set({
                             table,
@@ -241,19 +225,6 @@ export const createHistoricalIndexingStore = ({
                     } else {
                       // Note: optimistic assumption that no conflict exists
                       // because error is recovered at flush time
-
-                      if (
-                        indexingCache.has({ table, key: values }) &&
-                        indexingCache.get({ table, key: values, db })
-                      ) {
-                        const error = new UniqueConstraintError(
-                          `Unique constraint failed for '${getTableName(table)}'.`,
-                        );
-                        error.meta.push(
-                          `db.insert arguments:\n${prettyPrint(values)}`,
-                        );
-                        throw error;
-                      }
 
                       return indexingCache.set({
                         table,
