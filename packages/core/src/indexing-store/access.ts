@@ -9,6 +9,8 @@ export const recoverAccess = (
 ): { [key: string]: string } | undefined => {
   const result: { [key: string]: string } = {};
 
+  // TODO(kyle) add chain id and network name
+
   for (const [js] of cache.get(table)!) {
     // @ts-ignore
     const value = key[js]!;

@@ -337,14 +337,16 @@ export const createIndexingCache = ({
   schemaBuild: Pick<SchemaBuild, "schema">;
   checkpoint: string;
 }): IndexingCache => {
+  const isCacheComplete = new Map<Table, boolean>();
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
   const cache: Cache = new Map();
   const spillover: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
   const access: Access = new Map();
-  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
   let event: Event | undefined;
-  const isCacheComplete = new Map<Table, boolean>();
 
   common.logger.debug({
     service: "indexing",
@@ -369,9 +371,8 @@ export const createIndexingCache = ({
 
   return {
     has({ table, key }) {
-      if (isCacheComplete) return true;
+      if (isCacheComplete.get(table)) return true;
       const ck = getCacheKey(table, key, primaryKeyCache);
-
       return (
         cache.get(table)!.has(ck) ??
         spillover.get(table)!.has(ck) ??
@@ -387,6 +388,8 @@ export const createIndexingCache = ({
             access.get(event.name)!.set(table, new Map());
           }
         }
+
+        // TODO(kyle) this seems like a lot of work to do for every event
 
         const a = recoverAccess(event, table, key, primaryKeyCache);
         if (a) {
@@ -410,14 +413,22 @@ export const createIndexingCache = ({
         return structuredClone(bufferEntry.row);
       }
 
-      const entry = spillover.get(table)!.get(ck) ?? cache.get(table)!.get(ck);
+      const cacheEntry = cache.get(table)!.get(ck);
+      const spilloverEntry = spillover.get(table)!.get(ck);
+
+      const entry =
+        cacheEntry !== undefined
+          ? cacheEntry
+          : spilloverEntry !== undefined
+            ? spilloverEntry
+            : undefined;
 
       if (entry !== undefined) {
         common.metrics.ponder_indexing_cache_hit.inc();
         return structuredClone(entry);
       }
 
-      if (isCacheComplete) {
+      if (isCacheComplete.get(table)) {
         common.metrics.ponder_indexing_cache_hit.inc();
         return null;
       }
@@ -432,11 +443,11 @@ export const createIndexingCache = ({
             .select()
             .from(table)
             .where(getWhereCondition(table, key))
-            .then((res) => (res.length === 0 ? null : res[0]!))
-            .then((row) => {
-              spillover.get(table)!.set(ck, structuredClone(row));
-              return row;
-            }),
+            .then((res) => (res.length === 0 ? null : res[0]!)),
+        // .then((row) => {
+        //   spillover.get(table)!.set(ck, structuredClone(row));
+        //   return row;
+        // }),
       );
     },
     set({ table, key, row: _row, isUpdate }) {
@@ -481,7 +492,7 @@ export const createIndexingCache = ({
         return inBuffer;
       }
 
-      if (isCacheComplete) {
+      if (isCacheComplete.get(table)) {
         return inBuffer;
       }
 
@@ -495,8 +506,7 @@ export const createIndexingCache = ({
       const copy = getCopyHelper({ client });
 
       for (const table of cache.keys()) {
-        const tableSpillover = spillover.get(table)!;
-
+        const tableCache = cache.get(table)!;
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
 
@@ -556,7 +566,7 @@ export const createIndexingCache = ({
           );
 
           for (const [key, entry] of insertBuffer.get(table)!) {
-            tableSpillover.set(key, entry.row);
+            tableCache.set(key, entry.row);
           }
           insertBuffer.get(table)!.clear();
 
@@ -645,7 +655,7 @@ export const createIndexingCache = ({
           );
 
           for (const [key, entry] of updateBuffer.get(table)!) {
-            tableSpillover.set(key, entry.row);
+            tableCache.set(key, entry.row);
           }
           updateBuffer.get(table)!.clear();
 
@@ -687,7 +697,14 @@ export const createIndexingCache = ({
         for (const table of tables) {
           const tableAccess = access.get(eventName)?.get(table);
           if (tableAccess) {
-            for (const { access } of tableAccess.values()) {
+            const sortedTableAccess = Array.from(tableAccess.values()).sort(
+              (a, b) => b.count - a.count,
+            );
+
+            let isPredictionFull = false;
+
+            for (const { access } of sortedTableAccess) {
+              if (isPredictionFull) break;
               for (const event of events) {
                 const prediction: { [key: string]: unknown } = {};
                 for (const [key, value] of Object.entries(access)) {
@@ -700,18 +717,15 @@ export const createIndexingCache = ({
                     getCacheKey(table, prediction, primaryKeyCache),
                     prediction,
                   );
+
+                if (cachePrediction.get(table)!.size > 20 * events.length) {
+                  isPredictionFull = true;
+                  break;
+                }
               }
             }
           }
         }
-      }
-
-      for (const [table, tableSpillover] of spillover) {
-        const tableCache = cache.get(table)!;
-        for (const [key, entry] of tableSpillover) {
-          tableCache.set(key, entry);
-        }
-        tableSpillover.clear();
       }
 
       for (const [table, tableCache] of cache) {
@@ -725,8 +739,6 @@ export const createIndexingCache = ({
         }
       }
 
-      // TODO(kyle) backtest, add misses to spillover
-
       await Promise.all(
         Array.from(cachePrediction.entries())
           .filter(([, tablePredictions]) => tablePredictions.size > 0)
@@ -736,29 +748,33 @@ export const createIndexingCache = ({
               ([key]) => key,
             ).map(([, prediction]) => getWhereCondition(table, prediction));
 
-            return db
-              .select()
-              .from(table)
-              .where(or(...conditions))
-              .then((results) => {
-                const resultsPerKey = new Map<
-                  string,
-                  { [key: string]: unknown }
-                >();
-                for (const result of results) {
-                  const ck = getCacheKey(table, result, primaryKeyCache);
-                  resultsPerKey.set(ck, result);
-                }
+            return database.record(
+              { method: `${getTableName(table)}.cache.load()` },
+              () =>
+                db
+                  .select()
+                  .from(table)
+                  .where(or(...conditions))
+                  .then((results) => {
+                    const resultsPerKey = new Map<
+                      string,
+                      { [key: string]: unknown }
+                    >();
+                    for (const result of results) {
+                      const ck = getCacheKey(table, result, primaryKeyCache);
+                      resultsPerKey.set(ck, result);
+                    }
 
-                const tableCache = cache.get(table)!;
-                for (const key of tablePredictions.keys()) {
-                  if (resultsPerKey.has(key)) {
-                    tableCache.set(key, resultsPerKey.get(key)!);
-                  } else {
-                    tableCache.set(key, null);
-                  }
-                }
-              });
+                    const tableCache = cache.get(table)!;
+                    for (const key of tablePredictions.keys()) {
+                      if (resultsPerKey.has(key)) {
+                        tableCache.set(key, resultsPerKey.get(key)!);
+                      } else {
+                        tableCache.set(key, null);
+                      }
+                    }
+                  }),
+            );
           }),
       );
     },
@@ -768,6 +784,10 @@ export const createIndexingCache = ({
       }
     },
     rollback() {
+      for (const tableCache of cache.values()) {
+        tableCache.clear();
+      }
+
       for (const tableSpillover of spillover.values()) {
         tableSpillover.clear();
       }

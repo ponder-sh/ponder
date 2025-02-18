@@ -159,7 +159,6 @@ export const createHistoricalIndexingStore = ({
                     const row = await indexingCache.get({
                       table,
                       key: values,
-
                       db,
                     });
 
@@ -244,12 +243,7 @@ export const createHistoricalIndexingStore = ({
 
                       if (
                         indexingCache.has({ table, key: values }) &&
-                        indexingCache.get({
-                          table,
-                          key: values,
-
-                          db,
-                        })
+                        indexingCache.get({ table, key: values, db })
                       ) {
                         const error = new UniqueConstraintError(
                           `Unique constraint failed for '${getTableName(table)}'.`,
