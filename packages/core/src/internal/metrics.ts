@@ -20,6 +20,9 @@ export class MetricsService {
   start_timestamp: number;
   rps: { [network: string]: { count: number; timestamp: number }[] };
 
+  ponder_historical_start_timestamp: prometheus.Gauge;
+  ponder_historical_end_timestamp: prometheus.Gauge;
+
   ponder_historical_total_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_cached_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_completed_indexing_seconds: prometheus.Gauge<"network">;
@@ -69,6 +72,17 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
+
+    this.ponder_historical_start_timestamp = new prometheus.Gauge({
+      name: "ponder_historical_start_timestamp",
+      help: "Timestamp at which the historical indexing started",
+      registers: [this.registry],
+    });
+    this.ponder_historical_end_timestamp = new prometheus.Gauge({
+      name: "ponder_historical_end_timestamp",
+      help: "Timestamp at which the historical indexing ended",
+      registers: [this.registry],
+    });
 
     this.ponder_historical_total_indexing_seconds = new prometheus.Gauge({
       name: "ponder_historical_total_indexing_seconds",
