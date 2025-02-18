@@ -46,7 +46,11 @@ export type IndexingCache = {
   /**
    * Returns the entry for `table` with `key`.
    */
-  get: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
+  get: (params: {
+    table: Table;
+    key: object;
+    db: Drizzle<Schema>;
+  }) =>
     | { [key: string]: unknown }
     | null
     | Promise<{ [key: string]: unknown } | null>;
@@ -65,9 +69,11 @@ export type IndexingCache = {
   /**
    * Deletes the entry for `table` with `key`.
    */
-  delete: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
-    | boolean
-    | Promise<boolean>;
+  delete: (params: {
+    table: Table;
+    key: object;
+    db: Drizzle<Schema>;
+  }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
    */
@@ -189,7 +195,9 @@ export const normalizeRow = (
       hasEmptyValue(column) === false
     ) {
       const error = new NotNullConstraintError(
-        `Column '${getTableName(table)}.${columnName}' violates not-null constraint.`,
+        `Column '${getTableName(
+          table,
+        )}.${columnName}' violates not-null constraint.`,
       );
       error.meta.push(`db.insert arguments:\n${prettyPrint(row)}`);
       throw error;
@@ -296,7 +304,9 @@ export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
   if (client instanceof PGlite) {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
-        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"`
+        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
+            table,
+          )}"`
         : `"${getTableName(table)}"`;
       await client.query(`COPY ${target} FROM '/dev/blob'`, [], {
         blob: new Blob([text]),
@@ -305,7 +315,9 @@ export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
   } else {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
-        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"`
+        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
+            table,
+          )}"`
         : `"${getTableName(table)}"`;
       await pipeline(
         Readable.from(text),
@@ -370,7 +382,9 @@ export const createIndexingCache = ({
 
   common.logger.debug({
     service: "indexing",
-    msg: `Using a ${Math.round(common.options.indexingCacheMaxBytes / (1024 * 1024))} MB indexing cache`,
+    msg: `Using a ${Math.round(
+      common.options.indexingCacheMaxBytes / (1024 * 1024),
+    )} MB indexing cache`,
   });
 
   for (const table of Object.values(schema).filter(
@@ -526,7 +540,8 @@ export const createIndexingCache = ({
             async () => {
               // @ts-ignore
               await client.query("SAVEPOINT flush");
-              await copy(table, text).catch(async () => {
+              await copy(table, text).catch(async (error) => {
+                console.error(error);
                 const result = await recoverBatchError(
                   insertValues,
                   async (values) => {
@@ -550,7 +565,7 @@ export const createIndexingCache = ({
                 // @ts-ignore
                 await client.query("ROLLBACK to flush");
 
-                const error = parseSqlError(result.error);
+                error = parseSqlError(result.error);
                 error.stack = undefined;
 
                 if (result.value.metadata.event) {
@@ -561,7 +576,9 @@ export const createIndexingCache = ({
                   addErrorMeta(error, toErrorMeta(result.value.metadata.event));
                   common.logger.error({
                     service: "indexing",
-                    msg: `Error while processing ${getTableName(table)}.insert() in event '${result.value.metadata.event.name}'`,
+                    msg: `Error while processing ${getTableName(
+                      table,
+                    )}.insert() in event '${result.value.metadata.event.name}'`,
                     error,
                   });
                 }
@@ -583,7 +600,9 @@ export const createIndexingCache = ({
 
           common.logger.debug({
             service: "database",
-            msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+            msg: `Inserted ${insertValues.length} '${getTableName(
+              table,
+            )}' rows`,
           });
         }
 
@@ -597,21 +616,30 @@ export const createIndexingCache = ({
           const set = Object.values(getTableColumns(table))
             .map(
               (column) =>
-                `"${getColumnCasing(column, "snake_case")}" = source."${getColumnCasing(column, "snake_case")}"`,
+                `"${getColumnCasing(
+                  column,
+                  "snake_case",
+                )}" = source."${getColumnCasing(column, "snake_case")}"`,
             )
             .join(",\n");
 
           const createTempTableQuery = `
               CREATE TEMP TABLE "${getTableName(table)}" 
               ON COMMIT DROP
-              AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}"
+              AS SELECT * FROM "${
+                getTableConfig(table).schema ?? "public"
+              }"."${getTableName(table)}"
               WITH NO DATA;
             `;
           const updateQuery = `
-              UPDATE "${getTableConfig(table).schema ?? "public"}"."${getTableName(table)}" as target
+              UPDATE "${
+                getTableConfig(table).schema ?? "public"
+              }"."${getTableName(table)}" as target
               SET ${set}
               FROM "${getTableName(table)}" as source
-              WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")};
+              WHERE ${primaryKeys
+                .map(({ sql }) => `target."${sql}" = source."${sql}"`)
+                .join(" AND ")};
             `;
 
           const text = getCopyText(
@@ -626,7 +654,8 @@ export const createIndexingCache = ({
               await client.query(createTempTableQuery);
               // @ts-ignore
               await client.query("SAVEPOINT flush");
-              await copy(table, text, false).catch(async () => {
+              await copy(table, text, false).catch(async (error) => {
+                console.error(error);
                 const result = await recoverBatchError(
                   updateValues,
                   async (values) => {
@@ -650,7 +679,7 @@ export const createIndexingCache = ({
                 // @ts-ignore
                 await client.query("ROLLBACK to flush");
 
-                const error = parseSqlError(result.error);
+                error = parseSqlError(result.error);
                 error.stack = undefined;
 
                 addErrorMeta(
