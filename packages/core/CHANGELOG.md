@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.17
+
+### Patch Changes
+
+- [#1539](https://github.com/ponder-sh/ponder/pull/1539) [`8b44612a16ebf40cb26d5fdfa9ccb75fb1963c91`](https://github.com/ponder-sh/ponder/commit/8b44612a16ebf40cb26d5fdfa9ccb75fb1963c91) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bug with `disableCache` missing events.
+
 ## 0.9.16
 
 ### Patch Changes
