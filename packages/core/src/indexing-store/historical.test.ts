@@ -36,7 +36,6 @@ test("find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -45,7 +44,6 @@ test("find", async (context) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
-      database,
       indexingCache,
       db: tx,
       client,
@@ -96,7 +94,6 @@ test("insert", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -104,7 +101,6 @@ test("insert", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -252,7 +248,6 @@ test("update", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -260,7 +255,6 @@ test("update", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -347,7 +341,6 @@ test("delete", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -355,7 +348,6 @@ test("delete", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -404,7 +396,6 @@ test("sql", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -412,7 +403,6 @@ test("sql", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -489,7 +479,6 @@ test("sql followed by find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -497,7 +486,6 @@ test("sql followed by find", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -531,7 +519,6 @@ test("onchain table", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -539,7 +526,6 @@ test("onchain table", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -569,7 +555,6 @@ test("missing rows", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -577,7 +562,6 @@ test("missing rows", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -608,7 +592,6 @@ test("notNull", async (context) => {
 
   let indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -616,7 +599,6 @@ test("notNull", async (context) => {
   await database.transaction(async (client, tx) => {
     let indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -659,14 +641,12 @@ test("notNull", async (context) => {
 
     indexingCache = createIndexingCache({
       common: context.common,
-      database,
       schemaBuild: { schema },
       checkpoint: ZERO_CHECKPOINT_STRING,
     });
 
     indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -701,7 +681,6 @@ test("default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -709,7 +688,7 @@ test("default", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -738,7 +717,6 @@ test("$default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -746,7 +724,7 @@ test("$default", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -778,7 +756,6 @@ test("$onUpdateFn", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -786,7 +763,7 @@ test("$onUpdateFn", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -821,7 +798,6 @@ test("array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -829,7 +805,7 @@ test("array", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -866,7 +842,6 @@ test("text array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -874,7 +849,6 @@ test("text array", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -917,7 +891,6 @@ test("enum", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -925,7 +898,6 @@ test("enum", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -962,7 +934,6 @@ test("json bigint", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -970,7 +941,6 @@ test("json bigint", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,

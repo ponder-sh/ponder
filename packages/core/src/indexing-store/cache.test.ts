@@ -29,7 +29,6 @@ test("flush() insert", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -37,7 +36,6 @@ test("flush() insert", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -76,7 +74,6 @@ test("flush() update", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -84,7 +81,7 @@ test("flush() update", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -144,7 +141,6 @@ test("flush() encoding", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -152,7 +148,6 @@ test("flush() encoding", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -208,7 +203,6 @@ test("flush() encoding escape", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -216,7 +210,6 @@ test("flush() encoding escape", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,

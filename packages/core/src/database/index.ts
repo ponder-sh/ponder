@@ -2,11 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import {
-  FlushError,
-  NonRetryableError,
-  ShutdownError,
-} from "@/internal/errors.js";
+import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
   IndexingBuild,
   NamespaceBuild,
@@ -490,13 +486,11 @@ export const createDatabase = async ({
           method: options.method,
         });
 
-        if (error instanceof FlushError === false) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed '${options.method}' database method (id=${id})`,
-            error,
-          });
-        }
+        common.logger.warn({
+          service: "database",
+          msg: `Failed '${options.method}' database method (id=${id})`,
+          error,
+        });
 
         throw error;
       } finally {
@@ -1247,7 +1241,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       );
     },
     getStatus() {
-      return this.wrap({ method: "_ponder_status.get()" }, async () => {
+      return this.wrap({ method: "getStatus" }, async () => {
         const result = await this.qb.drizzle.select().from(PONDER_STATUS);
 
         if (result.length === 0) {
@@ -1273,7 +1267,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       });
     },
     setStatus(status) {
-      return this.wrap({ method: "_ponder_status.set()" }, async () => {
+      return this.wrap({ method: "setStatus" }, async () => {
         await this.qb.drizzle
           .insert(PONDER_STATUS)
           .values(

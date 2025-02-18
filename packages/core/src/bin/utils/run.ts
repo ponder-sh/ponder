@@ -77,7 +77,6 @@ export async function run({
 
   const indexingCache = createIndexingCache({
     common,
-    database,
     schemaBuild,
     checkpoint: initialCheckpoint,
   });
@@ -121,7 +120,6 @@ export async function run({
         const historicalIndexingStore = createHistoricalIndexingStore({
           common,
           schemaBuild,
-          database,
           indexingCache,
           db: tx,
           client,
@@ -147,7 +145,6 @@ export async function run({
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
-              database,
               indexingCache,
               db: tx,
               client,
