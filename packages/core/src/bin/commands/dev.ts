@@ -11,6 +11,7 @@ import type { IndexingBuild } from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import { type Result, mergeResults } from "@/utils/result.js";
+import { parse } from "semver";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
@@ -54,6 +55,19 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry };
+
+  const version = parse(cliOptions.version);
+  if (version) {
+    metrics.ponder_version_info.set(
+      {
+        version: version.version,
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+      },
+      1,
+    );
+  }
 
   const build = await createBuild({
     common: { ...common, shutdown },
@@ -206,6 +220,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         metrics.resetApiMetrics();
+        metrics.ponder_settings_info.set({ ordering: preBuild.ordering }, 1);
 
         runServer({
           common: { ...common, shutdown: apiShutdown },

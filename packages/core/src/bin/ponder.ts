@@ -57,6 +57,7 @@ const ponder = new Command("ponder")
 
 type GlobalOptions = {
   command: "dev" | "start" | "serve" | "codegen";
+  version: string;
 } & ReturnType<typeof ponder.opts>;
 
 const devCommand = new Command("dev")
@@ -94,6 +95,7 @@ const startCommand = new Command("start")
     const cliOptions = {
       ...command.optsWithGlobals(),
       command: command.name(),
+      version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await start({ cliOptions });
   });

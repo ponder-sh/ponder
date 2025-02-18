@@ -8,6 +8,7 @@ import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createServer } from "@/server/index.js";
 import { mergeResults } from "@/utils/result.js";
+import { parse } from "semver";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -40,6 +41,19 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
+
+  const version = parse(cliOptions.version);
+  if (version) {
+    metrics.ponder_version_info.set(
+      {
+        version: version.version,
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+      },
+      1,
+    );
+  }
 
   const build = await createBuild({ common, cliOptions });
 
