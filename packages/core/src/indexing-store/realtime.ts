@@ -35,7 +35,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     find: (table: Table, key) =>
       database.retry(async () => {
-        common.metrics.ponder_indexing_store_count.inc({
+        common.metrics.ponder_indexing_store_queries_total.inc({
           table: getTableName(table),
           method: "find",
         });
@@ -50,7 +50,7 @@ export const createRealtimeIndexingStore = ({
           const inner = {
             onConflictDoNothing: () =>
               database.retry(async () => {
-                common.metrics.ponder_indexing_store_count.inc({
+                common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
                 });
@@ -91,7 +91,7 @@ export const createRealtimeIndexingStore = ({
               }),
             onConflictDoUpdate: (valuesU: any) =>
               database.retry(async () => {
-                common.metrics.ponder_indexing_store_count.inc({
+                common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
                 });
@@ -180,7 +180,7 @@ export const createRealtimeIndexingStore = ({
             then: (onFulfilled, onRejected) =>
               database
                 .retry(async () => {
-                  common.metrics.ponder_indexing_store_count.inc({
+                  common.metrics.ponder_indexing_store_queries_total.inc({
                     table: getTableName(table),
                     method: "insert",
                   });
@@ -221,7 +221,7 @@ export const createRealtimeIndexingStore = ({
       return {
         set: (values: any) =>
           database.retry(async () => {
-            common.metrics.ponder_indexing_store_count.inc({
+            common.metrics.ponder_indexing_store_queries_total.inc({
               table: getTableName(table),
               method: "update",
             });
@@ -266,7 +266,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     delete: (table: Table, key) =>
       database.retry(async () => {
-        common.metrics.ponder_indexing_store_count.inc({
+        common.metrics.ponder_indexing_store_queries_total.inc({
           table: getTableName(table),
           method: "delete",
         });

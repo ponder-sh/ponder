@@ -33,7 +33,7 @@ export const createHistoricalIndexingStore = ({
   return {
     // @ts-ignore
     find: (table: Table, key) => {
-      common.metrics.ponder_indexing_store_count.inc({
+      common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
@@ -48,7 +48,7 @@ export const createHistoricalIndexingStore = ({
           // @ts-ignore
           const inner = {
             onConflictDoNothing: async () => {
-              common.metrics.ponder_indexing_store_count.inc({
+              common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -99,7 +99,7 @@ export const createHistoricalIndexingStore = ({
               }
             },
             onConflictDoUpdate: async (valuesU: any) => {
-              common.metrics.ponder_indexing_store_count.inc({
+              common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -187,7 +187,7 @@ export const createHistoricalIndexingStore = ({
             },
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) => {
-              common.metrics.ponder_indexing_store_count.inc({
+              common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -247,7 +247,7 @@ export const createHistoricalIndexingStore = ({
     update(table: Table, key) {
       return {
         set: async (values: any) => {
-          common.metrics.ponder_indexing_store_count.inc({
+          common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
           });
@@ -287,7 +287,7 @@ export const createHistoricalIndexingStore = ({
     },
     // @ts-ignore
     delete: async (table: Table, key) => {
-      common.metrics.ponder_indexing_store_count.inc({
+      common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });

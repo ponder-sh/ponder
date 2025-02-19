@@ -420,7 +420,7 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.get(ck) ?? insertBuffer.get(table)!.get(ck);
 
       if (bufferEntry) {
-        common.metrics.ponder_indexing_cache_access.inc({
+        common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: "hit",
         });
@@ -433,7 +433,7 @@ export const createIndexingCache = ({
         entry.operationIndex = totalCacheOps++;
 
         if (entry.row) {
-          common.metrics.ponder_indexing_cache_access.inc({
+          common.metrics.ponder_indexing_cache_requests_total.inc({
             table: getTableName(table),
             type: "hit",
           });
@@ -442,14 +442,14 @@ export const createIndexingCache = ({
       }
 
       if (isCacheComplete) {
-        common.metrics.ponder_indexing_cache_access.inc({
+        common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: "hit",
         });
         return null;
       }
 
-      common.metrics.ponder_indexing_cache_access.inc({
+      common.metrics.ponder_indexing_cache_requests_total.inc({
         table: getTableName(table),
         type: "miss",
       });
@@ -473,7 +473,7 @@ export const createIndexingCache = ({
           return row;
         });
 
-      common.metrics.ponder_indexing_cache_duration.observe(
+      common.metrics.ponder_indexing_cache_query_duration.observe(
         {
           table: getTableName(table),
           method: "find",
@@ -599,7 +599,7 @@ export const createIndexingCache = ({
             throw new FlushError(error.message);
           });
 
-          common.metrics.ponder_indexing_cache_duration.observe(
+          common.metrics.ponder_indexing_cache_query_duration.observe(
             {
               table: getTableName(table),
               method: "flush",
@@ -711,7 +711,7 @@ export const createIndexingCache = ({
           // @ts-ignore
           await client.query(updateQuery);
 
-          common.metrics.ponder_indexing_cache_duration.observe(
+          common.metrics.ponder_indexing_cache_query_duration.observe(
             {
               table: getTableName(table),
               method: "flush",

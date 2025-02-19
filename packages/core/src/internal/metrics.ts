@@ -30,9 +30,11 @@ export class MetricsService {
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
-  ponder_indexing_cache_access: prometheus.Counter<"table" | "type">;
-  ponder_indexing_cache_duration: prometheus.Histogram<"table" | "method">;
-  ponder_indexing_store_count: prometheus.Counter<"table" | "method">;
+  ponder_indexing_cache_requests_total: prometheus.Counter<"table" | "type">;
+  ponder_indexing_cache_query_duration: prometheus.Histogram<
+    "table" | "method"
+  >;
+  ponder_indexing_store_queries_total: prometheus.Counter<"table" | "method">;
   ponder_indexing_store_raw_sql_duration: prometheus.Histogram;
 
   ponder_sync_block: prometheus.Gauge<"network">;
@@ -122,21 +124,21 @@ export class MetricsService {
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_cache_duration = new prometheus.Histogram({
-      name: "ponder_indexing_cache_duration",
+    this.ponder_indexing_cache_query_duration = new prometheus.Histogram({
+      name: "ponder_indexing_cache_query_duration",
       help: "Duration of cache operations",
       labelNames: ["table", "method"] as const,
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_cache_access = new prometheus.Counter({
-      name: "ponder_indexing_cache_access",
+    this.ponder_indexing_cache_requests_total = new prometheus.Counter({
+      name: "ponder_indexing_cache_requests_total",
       help: "Number of cache accesses",
       labelNames: ["table", "type"] as const,
       registers: [this.registry],
     });
-    this.ponder_indexing_store_count = new prometheus.Counter({
-      name: "ponder_indexing_store_count",
+    this.ponder_indexing_store_queries_total = new prometheus.Counter({
+      name: "ponder_indexing_store_queries_total",
       help: "Number of indexing store operations",
       labelNames: ["table", "method"] as const,
       registers: [this.registry],
