@@ -17,6 +17,7 @@ function getDatabase() {
 
 export default createConfig({
   database: getDatabase(),
+  ordering: "multichain",
   networks: {
     mainnet: {
       chainId: 1,

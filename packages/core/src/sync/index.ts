@@ -30,7 +30,6 @@ import {
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
-import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
@@ -357,10 +356,7 @@ export const createSync = async (params: {
           ),
         });
 
-        return bufferAsyncGenerator(
-          decodeEventGenerator(localEventGenerator),
-          1,
-        );
+        return decodeEventGenerator(localEventGenerator);
       },
     );
 
@@ -862,9 +858,10 @@ export const createSync = async (params: {
 
         if (to > from) {
           const events = await params.syncStore.getEvents({
-            filters,
+            sources,
             from,
             to,
+            chainId: network.chainId,
           });
 
           const decodedEvents = decodeEvents(
@@ -1145,9 +1142,6 @@ export async function* getLocalEventGenerator(params: {
   limit: number;
 }): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }> {
   let cursor = params.from;
-  // Estimate optimal range (seconds) to query at a time, eventually
-  // used to determine `to` passed to `getEvents`.
-  let estimateSeconds = 1_000;
 
   params.common.logger.debug({
     service: "sync",
@@ -1158,71 +1152,24 @@ export async function* getLocalEventGenerator(params: {
     params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
   )) {
-    let consecutiveErrors = 0;
     while (cursor < min(syncCheckpoint, params.to)) {
-      const estimateCheckpoint = encodeCheckpoint({
-        ...ZERO_CHECKPOINT,
-        chainId: BigInt(params.network.chainId),
-        blockTimestamp: Math.min(
-          decodeCheckpoint(cursor).blockTimestamp + estimateSeconds,
-          MAX_CHECKPOINT.blockTimestamp,
-        ),
+      const to = min(syncCheckpoint, params.to);
+
+      const { events, cursor: queryCursor } = await params.syncStore.getEvents({
+        sources: params.sources,
+        from: cursor,
+        to,
+        chainId: params.network.chainId,
+        limit: params.limit,
       });
-      const to = min(syncCheckpoint, estimateCheckpoint, params.to);
-      try {
-        const { events, cursor: queryCursor } =
-          await params.syncStore.getEvents({
-            filters: params.sources.map(({ filter }) => filter),
-            from: cursor,
-            to,
-            limit: params.limit,
-          });
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Extracted ${events.length} '${params.network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
-        });
+      params.common.logger.debug({
+        service: "sync",
+        msg: `Extracted ${events.length} '${params.network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
+      });
 
-        estimateSeconds = estimate({
-          from: decodeCheckpoint(cursor).blockTimestamp,
-          to: decodeCheckpoint(queryCursor).blockTimestamp,
-          target: params.limit,
-          result: events.length,
-          min: 10,
-          max: 86_400,
-          prev: estimateSeconds,
-          maxIncrease: 1.08,
-        });
-
-        params.common.logger.trace({
-          service: "sync",
-          msg: `Updated '${params.network.name}' extract query estimate to ${estimateSeconds} seconds`,
-        });
-
-        consecutiveErrors = 0;
-        cursor = queryCursor;
-        yield { events, checkpoint: cursor };
-      } catch (error) {
-        if (params.common.shutdown.isKilled) {
-          throw error;
-        }
-
-        params.common.logger.warn({
-          service: "sync",
-          msg: `Failed '${params.network.name}' extract query for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
-          error: error as Error,
-        });
-
-        // Handle errors by reducing the requested range by 10x
-        estimateSeconds = Math.max(10, Math.round(estimateSeconds / 10));
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Updated '${params.network.name}' getEvents query estimate to ${estimateSeconds} seconds`,
-        });
-
-        if (++consecutiveErrors > 4) throw error;
-      }
+      cursor = queryCursor;
+      yield { events, checkpoint: cursor };
     }
   }
 }

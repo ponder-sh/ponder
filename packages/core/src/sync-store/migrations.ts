@@ -1274,6 +1274,112 @@ GROUP BY fragment_id, chain_id
         .execute();
     },
   },
+  "2025_02_19_0_primary_key": {
+    async up(db) {
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("checkpoint", (qb) => qb.setNotNull())
+        .execute();
+    },
+  },
+  "2025_02_19_1": {
+    async up(db) {
+      await db.schema.dropIndex("logAddressIndex").ifExists().execute();
+      await db.schema.dropIndex("logBlockHashIndex").ifExists().execute();
+      await db.schema.dropIndex("logBlockNumberIndex").ifExists().execute();
+      await db.schema.dropIndex("logChainIdIndex").ifExists().execute();
+      await db.schema.dropIndex("logTopic0Index").ifExists().execute();
+      await db.schema
+        .dropIndex("log_transaction_hash_index")
+        .ifExists()
+        .execute();
+    },
+  },
+  "2025_02_19_2": {
+    async up(db) {
+      await db.schema.dropIndex("logs_checkpoint_index").ifExists().execute();
+      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
+      await db.schema
+        .alterTable("logs")
+        .addPrimaryKeyConstraint("logs_pkey", ["checkpoint"])
+        .execute();
+    },
+  },
+  "2025_02_19_3": {
+    async up(db) {
+      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
+
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+
+      await db.schema
+        .alterTable("logs")
+        .addPrimaryKeyConstraint("logs_pkey", ["blockNumber", "logIndex"])
+        .execute();
+    },
+  },
+  "2025_02_19_4": {
+    async up(db) {
+      await db.schema.dropIndex("blockChainIdIndex").execute();
+      await db.schema.dropIndex("blockCheckpointIndex").execute();
+      await db.schema.dropIndex("blockNumberIndex").execute();
+
+      await db.schema
+        .alterTable("blocks")
+        .dropConstraint("blocks_pkey")
+        .execute();
+
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("number", (qb) => qb.setDataType("bigint"))
+        .execute();
+
+      await db.schema
+        .alterTable("blocks")
+        .addPrimaryKeyConstraint("blocks_pkey", ["number"])
+        .execute();
+    },
+  },
+  "2025_02_19_5": {
+    async up(db) {
+      await db.schema.dropIndex("transactions_checkpoint_index").execute();
+
+      await db.schema
+        .alterTable("transactions")
+        .dropConstraint("transactions_pkey")
+        .execute();
+
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+
+      await db.schema
+        .alterTable("transactions")
+        .addPrimaryKeyConstraint("transactions_pkey", [
+          "blockNumber",
+          "transactionIndex",
+        ])
+        .execute();
+    },
+  },
+  "2025_02_19_6": {
+    async up(db) {
+      await db.schema
+        .createIndex("logs_block_join_index")
+        .on("logs")
+        .column("blockNumber")
+        .execute();
+
+      await db.schema
+        .createIndex("logs_transaction_join_index")
+        .on("logs")
+        .columns(["blockNumber", "transactionIndex"])
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

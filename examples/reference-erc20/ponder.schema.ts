@@ -16,7 +16,7 @@ export const transferEvent = onchainTable(
   (t) => ({
     id: t.text().primaryKey(),
     amount: t.bigint().notNull(),
-    timestamp: t.integer().notNull(),
+    timestamp: t.integer(),
     from: t.hex().notNull(),
     to: t.hex().notNull(),
   }),
@@ -53,7 +53,7 @@ export const allowance = onchainTable(
 export const approvalEvent = onchainTable("approval_event", (t) => ({
   id: t.text().primaryKey(),
   amount: t.bigint().notNull(),
-  timestamp: t.integer().notNull(),
+  timestamp: t.integer(),
   owner: t.hex().notNull(),
   spender: t.hex().notNull(),
 }));

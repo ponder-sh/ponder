@@ -25,7 +25,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db.insert(transferEvent).values({
     id: event.log.id,
     amount: event.args.amount,
-    timestamp: Number(event.block.timestamp),
+    // timestamp: Number(event.block.timestamp),
     from: event.args.from,
     to: event.args.to,
   });
@@ -46,7 +46,7 @@ ponder.on("ERC20:Approval", async ({ event, context }) => {
   await context.db.insert(approvalEvent).values({
     id: event.log.id,
     amount: event.args.amount,
-    timestamp: Number(event.block.timestamp),
+    // timestamp: Number(event.block.timestamp),
     owner: event.args.owner,
     spender: event.args.spender,
   });
