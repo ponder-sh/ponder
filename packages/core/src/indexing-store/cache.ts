@@ -350,43 +350,22 @@ export const createIndexingCache = ({
 
       return row;
     },
-    delete({ table, key, db }) {
-      const inBuffer =
-        insertBuffer.get(table)!.delete(getCacheKey(table, key)) ||
-        updateBuffer.get(table)!.delete(getCacheKey(table, key));
+    async delete({ table, key, db }) {
+      const ck = getCacheKey(table, key);
 
-      if (
-        (cache.get(table)!.has(getCacheKey(table, key)) &&
-          cache.get(table)!.get(getCacheKey(table, key))) ||
-        (spillover.get(table)!.has(getCacheKey(table, key)) &&
-          spillover.get(table)!.get(getCacheKey(table, key)))
-      ) {
-        cache.get(table)!.delete(getCacheKey(table, key));
-        spillover.get(table)!.delete(getCacheKey(table, key));
-        isCacheComplete = false;
+      const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
+      const inUpdateBuffer = updateBuffer.get(table)!.delete(ck);
 
-        return db
-          .delete(table)
-          .where(getWhereCondition(table, key))
-          .then(() => true);
-      }
+      cache.get(table)!.delete(ck);
+      spillover.get(table)!.delete(ck);
 
-      if (
-        cache.get(table)!.has(getCacheKey(table, key)) ||
-        spillover.get(table)?.has(getCacheKey(table, key))
-      ) {
-        return inBuffer;
-      }
-
-      if (isCacheComplete) {
-        return inBuffer;
-      }
-
-      return db
+      const inDb = await db
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning()
         .then((result) => result.length > 0);
+
+      return inInsertBuffer || inUpdateBuffer || inDb;
     },
     async flush({ db }) {
       for (const table of cache.keys()) {

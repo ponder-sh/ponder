@@ -314,14 +314,15 @@ test("update", async (context) => {
 });
 
 test("delete", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -351,6 +352,9 @@ test("delete", async (context) => {
   await indexingStore
     .insert(schema.account)
     .values({ address: zeroAddress, balance: 12n });
+  await indexingStore
+    .update(schema.account, { address: zeroAddress })
+    .set({ balance: 12n });
 
   deleted = await indexingStore.delete(schema.account, {
     address: zeroAddress,
