@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.19
+
+### Patch Changes
+
+- [#1546](https://github.com/ponder-sh/ponder/pull/1546) [`f8f2994381d7a62c3ec60682d384d8a7018e46f1`](https://github.com/ponder-sh/ponder/commit/f8f2994381d7a62c3ec60682d384d8a7018e46f1) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug where GraphQL queries filtering on `null` values did not work.
+
 ## 0.9.18
 
 ### Patch Changes
