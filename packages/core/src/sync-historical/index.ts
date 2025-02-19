@@ -22,7 +22,7 @@ import {
   isTransferFilterMatched,
 } from "@/sync/filter.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
-import { recoverFilter } from "@/sync/fragments.js";
+import { getFragments, recoverFilter } from "@/sync/fragments.js";
 import type {
   SyncBlock,
   SyncLog,
@@ -134,6 +134,9 @@ export const createHistoricalSync = async (
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
       intervalsCache.set(filter, []);
+      for (const { fragment } of getFragments(filter)) {
+        intervalsCache.get(filter)!.push({ fragment, intervals: [] });
+      }
     }
   } else {
     intervalsCache = await args.syncStore.getIntervals({

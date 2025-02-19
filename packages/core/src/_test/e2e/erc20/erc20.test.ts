@@ -43,6 +43,7 @@ test(
         ...cliOptions,
         command: "start",
         port,
+        version: "0.0.0",
       },
     });
 

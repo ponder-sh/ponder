@@ -55,6 +55,18 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry };
 
+  if (options.version) {
+    metrics.ponder_version_info.set(
+      {
+        version: options.version.version,
+        major: options.version.major,
+        minor: options.version.minor,
+        patch: options.version.patch,
+      },
+      1,
+    );
+  }
+
   const build = await createBuild({
     common: { ...common, shutdown },
     cliOptions,
@@ -206,6 +218,14 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         metrics.resetApiMetrics();
+        metrics.ponder_settings_info.set(
+          {
+            ordering: preBuild.ordering,
+            database: preBuild.databaseConfig.kind,
+            command: cliOptions.command,
+          },
+          1,
+        );
 
         runServer({
           common: { ...common, shutdown: apiShutdown },

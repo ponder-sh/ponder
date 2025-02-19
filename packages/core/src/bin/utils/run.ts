@@ -109,6 +109,8 @@ export async function run({
     );
   }
 
+  common.metrics.ponder_historical_start_timestamp.set(Date.now());
+
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
   common.metrics.start_timestamp = Date.now();
@@ -299,6 +301,8 @@ export async function run({
       sync.seconds[network.name]!.end,
     );
   }
+
+  common.metrics.ponder_historical_end_timestamp.set(Date.now());
 
   // Become healthy
   common.logger.info({

@@ -2,10 +2,11 @@ import path from "node:path";
 import v8 from "node:v8";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
+import { type SemVer, parse } from "semver";
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list";
-
+  version: SemVer | null;
   configFile: string;
   schemaFile: string;
   apiDir: string;
@@ -78,7 +79,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   return {
     command: cliOptions.command,
-
+    version: parse(cliOptions.version),
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),

@@ -20,6 +20,14 @@ export class MetricsService {
   start_timestamp: number;
   rps: { [network: string]: { count: number; timestamp: number }[] };
 
+  ponder_version_info: prometheus.Gauge<
+    "version" | "major" | "minor" | "patch"
+  >;
+  ponder_settings_info: prometheus.Gauge<"ordering" | "database" | "command">;
+
+  ponder_historical_start_timestamp: prometheus.Gauge;
+  ponder_historical_end_timestamp: prometheus.Gauge;
+
   ponder_historical_total_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_cached_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_completed_indexing_seconds: prometheus.Gauge<"network">;
@@ -75,6 +83,30 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
+
+    this.ponder_version_info = new prometheus.Gauge({
+      name: "ponder_version_info",
+      help: "Ponder version information",
+      labelNames: ["version", "major", "minor", "patch"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_settings_info = new prometheus.Gauge({
+      name: "ponder_settings_info",
+      help: "Ponder settings information",
+      labelNames: ["ordering", "database", "command"] as const,
+      registers: [this.registry],
+    });
+
+    this.ponder_historical_start_timestamp = new prometheus.Gauge({
+      name: "ponder_historical_start_timestamp",
+      help: "Timestamp at which historical indexing started",
+      registers: [this.registry],
+    });
+    this.ponder_historical_end_timestamp = new prometheus.Gauge({
+      name: "ponder_historical_end_timestamp",
+      help: "Timestamp at which historical indexing ended",
+      registers: [this.registry],
+    });
 
     this.ponder_historical_total_indexing_seconds = new prometheus.Gauge({
       name: "ponder_historical_total_indexing_seconds",
@@ -293,6 +325,9 @@ export class MetricsService {
     this.start_timestamp = Date.now();
     this.rps = {};
 
+    this.ponder_settings_info.reset();
+    this.ponder_historical_start_timestamp.reset();
+    this.ponder_historical_end_timestamp.reset();
     this.ponder_historical_total_indexing_seconds.reset();
     this.ponder_historical_cached_indexing_seconds.reset();
     this.ponder_historical_completed_indexing_seconds.reset();
