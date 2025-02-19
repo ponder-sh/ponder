@@ -487,39 +487,25 @@ export const createIndexingCache = ({
 
       return row;
     },
-    delete({ table, key, db }) {
+    async delete({ table, key, db }) {
       const ck = getCacheKey(table, key, primaryKeyCache);
+
       const inBuffer =
         insertBuffer.get(table)!.delete(ck) ||
         updateBuffer.get(table)!.delete(ck);
 
-      if (
-        (cache.get(table)!.has(ck) && cache.get(table)!.get(ck)) ||
-        (spillover.get(table)!.has(ck) && spillover.get(table)!.get(ck))
-      ) {
-        cache.get(table)!.delete(ck);
-        spillover.get(table)!.delete(ck);
-        isCacheComplete = false;
+      cache.get(table)!.delete(ck);
+      spillover.get(table)!.delete(ck);
 
-        return db
-          .delete(table)
-          .where(getWhereCondition(table, key))
-          .then(() => true);
-      }
-
-      if (cache.get(table)!.has(ck) || spillover.get(table)?.has(ck)) {
-        return inBuffer;
-      }
-
-      if (isCacheComplete) {
-        return inBuffer;
-      }
-
-      return db
+      const inDb = await db
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning()
         .then((result) => result.length > 0);
+
+      isCacheComplete = false;
+
+      return inBuffer || inDb;
     },
     async flush({ client }) {
       const copy = getCopyHelper({ client });

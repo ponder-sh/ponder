@@ -336,14 +336,15 @@ test("update", async (context) => {
 });
 
 test("delete", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
