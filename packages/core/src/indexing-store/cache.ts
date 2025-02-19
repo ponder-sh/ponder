@@ -365,8 +365,6 @@ export const createIndexingCache = ({
         .returning()
         .then((result) => result.length > 0);
 
-      isCacheComplete = false;
-
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
     async flush({ db }) {
