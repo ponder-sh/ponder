@@ -366,13 +366,15 @@ export const createSyncStore = ({
 
       for (let i = 0; i < logs.length; i += batchSize) {
         await database.qb.sync
-          .insertInto("logs")
+          .insertInto("log")
           .values(
             logs
               .slice(i, i + batchSize)
               .map(({ log, block }) => encodeLog({ log, block, chainId })),
           )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .onConflict((oc) =>
+            oc.columns(["chain_id", "checkpoint"]).doNothing(),
+          )
           .execute();
       }
     });
@@ -388,13 +390,15 @@ export const createSyncStore = ({
 
       for (let i = 0; i < blocks.length; i += batchSize) {
         await database.qb.sync
-          .insertInto("blocks")
+          .insertInto("block")
           .values(
             blocks
               .slice(i, i + batchSize)
               .map((block) => encodeBlock({ block, chainId })),
           )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .onConflict((oc) =>
+            oc.columns(["chain_id", "checkpoint"]).doNothing(),
+          )
           .execute();
       }
     });
@@ -402,7 +406,7 @@ export const createSyncStore = ({
   hasBlock: async ({ hash }) =>
     database.wrap({ method: "hasBlock" }, async () => {
       return await database.qb.sync
-        .selectFrom("blocks")
+        .selectFrom("block")
         .select("hash")
         .where("hash", "=", hash)
         .executeTakeFirst()
@@ -429,7 +433,7 @@ export const createSyncStore = ({
 
       for (let i = 0; i < transactions.length; i += batchSize) {
         await database.qb.sync
-          .insertInto("transactions")
+          .insertInto("transaction")
           .values(
             transactions
               .slice(i, i + batchSize)
@@ -437,7 +441,9 @@ export const createSyncStore = ({
                 encodeTransaction({ transaction, block, chainId }),
               ),
           )
-          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .onConflict((oc) =>
+            oc.columns(["chain_id", "checkpoint"]).doNothing(),
+          )
           .execute();
       }
     });
@@ -445,9 +451,9 @@ export const createSyncStore = ({
   hasTransaction: async ({ hash }) =>
     database.wrap({ method: "hasTransaction" }, async () => {
       return await database.qb.sync
-        .selectFrom("transactions")
-        .select("hash")
-        .where("hash", "=", hash)
+        .selectFrom("transaction")
+        .select("transaction_hash")
+        .where("transaction_hash", "=", hash)
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
@@ -467,7 +473,7 @@ export const createSyncStore = ({
 
       for (let i = 0; i < transactionReceipts.length; i += batchSize) {
         await database.qb.sync
-          .insertInto("transactionReceipts")
+          .insertInto("transaction_receipt")
           .values(
             transactionReceipts
               .slice(i, i + batchSize)
@@ -475,7 +481,11 @@ export const createSyncStore = ({
                 encodeTransactionReceipt({ transactionReceipt, chainId }),
               ),
           )
-          .onConflict((oc) => oc.column("transactionHash").doNothing())
+          .onConflict((oc) =>
+            oc
+              .columns(["chain_id", "block_number", "transaction_index"])
+              .doNothing(),
+          )
           .execute();
       }
     });
@@ -483,9 +493,9 @@ export const createSyncStore = ({
   hasTransactionReceipt: async ({ hash }) =>
     database.wrap({ method: "hasTransactionReceipt" }, async () => {
       return await database.qb.sync
-        .selectFrom("transactionReceipts")
-        .select("transactionHash")
-        .where("transactionHash", "=", hash)
+        .selectFrom("transaction_receipt")
+        .select("transaction_hash")
+        .where("transaction_hash", "=", hash)
         .executeTakeFirst()
         .then((result) => result !== undefined);
     }),
@@ -507,7 +517,7 @@ export const createSyncStore = ({
 
       for (let i = 0; i < traces.length; i += batchSize) {
         await database.qb.sync
-          .insertInto("traces")
+          .insertInto("trace")
           .values(
             traces
               .slice(i, i + batchSize)
@@ -520,7 +530,9 @@ export const createSyncStore = ({
                 }),
               ),
           )
-          .onConflict((oc) => oc.column("id").doNothing())
+          .onConflict((oc) =>
+            oc.columns(["chain_id", "checkpoint"]).doNothing(),
+          )
           .execute();
       }
     });
@@ -569,20 +581,21 @@ export const createSyncStore = ({
   pruneByChain: async ({ chainId }) =>
     database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
       database.qb.sync.transaction().execute(async (tx) => {
-        await tx.deleteFrom("logs").where("chainId", "=", chainId).execute();
-        await tx.deleteFrom("blocks").where("chainId", "=", chainId).execute();
+        // NOTE: This can be made much faster by dropping partitions instead of deleting rows.
+        await tx.deleteFrom("log").where("chain_id", "=", chainId).execute();
+        await tx.deleteFrom("block").where("chain_id", "=", chainId).execute();
         await tx
           .deleteFrom("rpc_request_results")
           .where("chain_id", "=", chainId)
           .execute();
-        await tx.deleteFrom("traces").where("chainId", "=", chainId).execute();
+        await tx.deleteFrom("trace").where("chain_id", "=", chainId).execute();
         await tx
-          .deleteFrom("transactions")
-          .where("chainId", "=", chainId)
+          .deleteFrom("transaction")
+          .where("chain_id", "=", chainId)
           .execute();
         await tx
-          .deleteFrom("transactionReceipts")
-          .where("chainId", "=", chainId)
+          .deleteFrom("transaction_receipt")
+          .where("chain_id", "=", chainId)
           .execute();
       }),
     ),
@@ -664,80 +677,80 @@ export const createSyncStore = ({
         ]),
       )
       // Join blocks
-      .innerJoin("blocks", (join) =>
-        join.onRef("event.block_number", "=", "blocks.number"),
+      .innerJoin("block", (join) =>
+        join.onRef("event.block_number", "=", "block.number"),
       )
       .select([
         // "blocks.number as block_number", // Selected above
-        "blocks.hash as block_hash",
-        "blocks.parentHash as block_parentHash",
-        "blocks.timestamp as block_timestamp",
-        "blocks.baseFeePerGas as block_baseFeePerGas",
-        "blocks.difficulty as block_difficulty",
-        "blocks.extraData as block_extraData",
-        "blocks.gasLimit as block_gasLimit",
-        "blocks.gasUsed as block_gasUsed",
-        "blocks.logsBloom as block_logsBloom",
-        "blocks.miner as block_miner",
-        "blocks.mixHash as block_mixHash",
-        "blocks.nonce as block_nonce",
-        "blocks.receiptsRoot as block_receiptsRoot",
-        "blocks.sha3Uncles as block_sha3Uncles",
-        "blocks.size as block_size",
-        "blocks.stateRoot as block_stateRoot",
-        "blocks.totalDifficulty as block_totalDifficulty",
-        "blocks.transactionsRoot as block_transactionsRoot",
+        "block.hash as block_hash",
+        "block.parent_hash as block_parentHash",
+        "block.timestamp as block_timestamp",
+        "block.base_fee_per_gas as block_baseFeePerGas",
+        "block.difficulty as block_difficulty",
+        "block.extra_data as block_extraData",
+        "block.gas_limit as block_gasLimit",
+        "block.gas_used as block_gasUsed",
+        "block.logs_bloom as block_logsBloom",
+        "block.miner as block_miner",
+        "block.mix_hash as block_mixHash",
+        "block.nonce as block_nonce",
+        "block.receipts_root as block_receiptsRoot",
+        "block.sha3_uncles as block_sha3Uncles",
+        "block.size as block_size",
+        "block.state_root as block_stateRoot",
+        "block.total_difficulty as block_totalDifficulty",
+        "block.transactions_root as block_transactionsRoot",
       ])
       // Join transactions
-      .leftJoin("transactions", (join) =>
+      .leftJoin("transaction", (join) =>
         join
-          .onRef("event.block_number", "=", "transactions.blockNumber")
-          .onRef("event.tx_index", "=", "transactions.transactionIndex"),
+          .onRef("event.block_number", "=", "transaction.block_number")
+          .onRef("event.tx_index", "=", "transaction.transaction_index"),
       )
       .select([
         // "transactions.transactionIndex as tx_index", // Selected above
-        "transactions.hash as tx_hash",
-        "transactions.from as tx_from",
-        "transactions.to as tx_to",
-        "transactions.type as tx_type",
-        "transactions.input as tx_input",
-        "transactions.value as tx_value",
-        "transactions.nonce as tx_nonce",
-        "transactions.gas as tx_gas",
-        "transactions.gasPrice as tx_gasPrice",
-        "transactions.maxFeePerGas as tx_maxFeePerGas",
-        "transactions.maxPriorityFeePerGas as tx_maxPriorityFeePerGas",
-        "transactions.r as tx_r",
-        "transactions.s as tx_s",
-        "transactions.v as tx_v",
-        "transactions.accessList as tx_accessList",
+        "transaction.transaction_hash as tx_hash",
+        "transaction.from as tx_from",
+        "transaction.to as tx_to",
+        "transaction.type as tx_type",
+        "transaction.input as tx_input",
+        "transaction.value as tx_value",
+        "transaction.nonce as tx_nonce",
+        "transaction.gas as tx_gas",
+        "transaction.gas_price as tx_gasPrice",
+        "transaction.max_fee_per_gas as tx_maxFeePerGas",
+        "transaction.max_priority_fee_per_gas as tx_maxPriorityFeePerGas",
+        "transaction.r as tx_r",
+        "transaction.s as tx_s",
+        "transaction.v as tx_v",
+        "transaction.access_list as tx_accessList",
       ])
       // Join transaction receipts
       .$if(joinInfo.receipts, (qb) =>
         qb
-          .leftJoin("transactionReceipts", (join) =>
+          .leftJoin("transaction_receipt", (join) =>
             join
               .onRef(
                 "event.block_number",
                 "=",
-                "transactionReceipts.blockNumber",
+                "transaction_receipt.block_number",
               )
               .onRef(
                 "event.tx_index",
                 "=",
-                "transactionReceipts.transactionIndex",
+                "transaction_receipt.transaction_index",
               ),
           )
           .select([
-            "transactionReceipts.status as tx_receipt_status",
-            "transactionReceipts.contractAddress as tx_receipt_contractAddress",
-            "transactionReceipts.cumulativeGasUsed as tx_receipt_cumulativeGasUsed",
-            "transactionReceipts.effectiveGasPrice as tx_receipt_effectiveGasPrice",
-            "transactionReceipts.from as tx_receipt_from",
-            "transactionReceipts.gasUsed as tx_receipt_gasUsed",
-            "transactionReceipts.logsBloom as tx_receipt_logsBloom",
-            "transactionReceipts.to as tx_receipt_to",
-            "transactionReceipts.type as tx_receipt_type",
+            "transaction_receipt.status as tx_receipt_status",
+            "transaction_receipt.contract_address as tx_receipt_contractAddress",
+            "transaction_receipt.cumulative_gas_used as tx_receipt_cumulativeGasUsed",
+            "transaction_receipt.effective_gas_price as tx_receipt_effectiveGasPrice",
+            "transaction_receipt.from as tx_receipt_from",
+            "transaction_receipt.gas_used as tx_receipt_gasUsed",
+            "transaction_receipt.logs_bloom as tx_receipt_logsBloom",
+            "transaction_receipt.to as tx_receipt_to",
+            "transaction_receipt.type as tx_receipt_type",
           ]),
       )
       .where("event.checkpoint", ">", from)
@@ -745,27 +758,19 @@ export const createSyncStore = ({
       .orderBy("event.checkpoint", "asc")
       .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-    const rows = await database.wrap(
-      {
-        method: "getEvents",
-        // shouldRetry(error) {
-        //   return error.message.includes("statement timeout") === false;
-        // },
-      },
-      async () => {
-        // const planText = await query.explain("text", ksql`analyze, buffers`);
-        // const prettyPlanText = planText
-        //   .map((line) => line["QUERY PLAN"])
-        //   .join("\n");
-        // console.log(prettyPlanText);
+    const rows = await database.wrap({ method: "getEvents" }, async () => {
+      const planText = await query.explain("text", ksql`analyze, buffers`);
+      const prettyPlanText = planText
+        .map((line) => line["QUERY PLAN"])
+        .join("\n");
+      console.log(prettyPlanText);
 
-        // const planJson = await query.explain("json", ksql`analyze`);
-        // const prettyPlanJson = JSON.stringify(planJson, null, 2);
-        // console.log(prettyPlanJson);
+      // const planJson = await query.explain("json", ksql`analyze`);
+      // const prettyPlanJson = JSON.stringify(planJson, null, 2);
+      // console.log(prettyPlanJson);
 
-        return await query.execute();
-      },
-    );
+      return await query.execute();
+    });
 
     type RowType = (typeof rows)[number];
 
@@ -984,7 +989,7 @@ const logSQL = (
   joinInfo: { logs: boolean; traces: boolean },
 ) =>
   db
-    .selectFrom("logs")
+    .selectFrom("log")
     // Filters
     .$call((qb) => {
       for (const idx of [0, 1, 2, 3] as const) {
@@ -993,40 +998,40 @@ const logSQL = (
         if (raw === null) continue;
         const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
         if (Array.isArray(topic)) {
-          qb = qb.where(`logs.topic${idx}`, "in", topic);
+          qb = qb.where(`log.topic${idx}`, "in", topic);
         } else {
-          qb = qb.where(`logs.topic${idx}`, "=", topic);
+          qb = qb.where(`log.topic${idx}`, "=", topic);
         }
       }
       return qb;
     })
-    .$call((qb) => addressSQL(db, qb, filter.address, "logs.address"))
+    .$call((qb) => addressSQL(db, qb, filter.address, "log.address"))
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("logs.blockNumber", ">=", filter.fromBlock!.toString()),
+      qb.where("log.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("logs.blockNumber", "<=", filter.toBlock!.toString()),
+      qb.where("log.block_number", "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      "logs.checkpoint as checkpoint",
-      "logs.chainId as chain_id",
+      "log.checkpoint as checkpoint",
+      "log.chain_id as chain_id",
 
-      "logs.blockNumber as block_number",
-      "logs.transactionIndex as tx_index",
+      "log.block_number as block_number",
+      "log.transaction_index as tx_index",
     ])
     // Logs
     .$call((qb) =>
       qb.select([
-        "logs.logIndex as log_index",
-        "logs.address as log_address",
-        "logs.data as log_data",
-        "logs.topic0 as log_topic0",
-        "logs.topic1 as log_topic1",
-        "logs.topic2 as log_topic2",
-        "logs.topic3 as log_topic3",
+        "log.log_index as log_index",
+        "log.address as log_address",
+        "log.data as log_data",
+        "log.topic0 as log_topic0",
+        "log.topic1 as log_topic1",
+        "log.topic2 as log_topic2",
+        "log.topic3 as log_topic3",
       ]),
     )
     // Traces
@@ -1040,27 +1045,27 @@ const blockSQL = (
   joinInfo: { logs: boolean; traces: boolean },
 ) =>
   db
-    .selectFrom("blocks")
+    .selectFrom("block")
     // Filters
     .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
       qb.where(
-        ksql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
+        ksql`(block.number - ${filter.offset}) % ${filter.interval} = 0`,
       ),
     )
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("blocks.number", ">=", filter.fromBlock!.toString()),
+      qb.where("block.number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("blocks.number", "<=", filter.toBlock!.toString()),
+      qb.where("block.number", "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      "blocks.checkpoint as checkpoint",
-      "blocks.chainId as chain_id",
+      "block.checkpoint as checkpoint",
+      "block.chain_id as chain_id",
 
-      "blocks.number as block_number",
+      "block.number as block_number",
       ksql`null::integer`.as("tx_index"),
     ])
     // Logs
@@ -1075,42 +1080,42 @@ const transactionSQL = (
   joinInfo: { logs: boolean; traces: boolean },
 ) =>
   db
-    .selectFrom("transactions")
+    .selectFrom("transaction")
     // Filters
-    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "transactions.from"))
-    .$call((qb) => addressSQL(db, qb, filter.toAddress, "transactions.to"))
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "transaction.from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "transaction.to"))
     .$if(filter.includeReverted === false, (qb) =>
       qb
-        .leftJoin("transactionReceipts", (join) =>
+        .leftJoin("transaction_receipt", (join) =>
           join
             .onRef(
-              "transactions.blockNumber",
+              "transaction.block_number",
               "=",
-              "transactionReceipts.blockNumber",
+              "transaction_receipt.block_number",
             )
             .onRef(
-              "transactions.transactionIndex",
+              "transaction.transaction_index",
               "=",
-              "transactionReceipts.transactionIndex",
+              "transaction_receipt.transaction_index",
             ),
         )
-        .where("transactionReceipts.status", "=", "0x1"),
+        .where("transaction_receipt.status", "=", "0x1"),
     )
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("transactions.blockNumber", ">=", filter.fromBlock!.toString()),
+      qb.where("transaction.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("transactions.blockNumber", "<=", filter.toBlock!.toString()),
+      qb.where("transaction.block_number", "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      "transactions.checkpoint as checkpoint",
-      "transactions.chainId as chain_id",
+      "transaction.checkpoint as checkpoint",
+      "transaction.chain_id as chain_id",
 
-      "transactions.blockNumber as block_number",
-      "transactions.transactionIndex as tx_index",
+      "transaction.block_number as block_number",
+      "transaction.transaction_index as tx_index",
     ])
     // Logs
     .$if(joinInfo.logs, (qb) => selectLogColumnsAsNull(qb))
@@ -1124,50 +1129,50 @@ const transferSQL = (
   joinInfo: { logs: boolean; traces: boolean },
 ) =>
   db
-    .selectFrom("traces")
+    .selectFrom("trace")
     // Filters
-    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "traces.from"))
-    .$call((qb) => addressSQL(db, qb, filter.toAddress, "traces.to"))
-    .where("traces.value", ">", "0")
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "trace.from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "trace.to"))
+    .where("trace.value", ">", "0")
     .$if(filter.includeReverted === false, (qb) =>
-      qb.where("traces.isReverted", "=", 0),
+      qb.where("trace.is_reverted", "=", 0),
     )
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("traces.blockNumber", ">=", filter.fromBlock!.toString()),
+      qb.where("trace.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("traces.blockNumber", "<=", filter.toBlock!.toString()),
+      qb.where("trace.block_number", "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      "traces.checkpoint as checkpoint",
-      "traces.chainId as chain_id",
+      "trace.checkpoint as checkpoint",
+      "trace.chain_id as chain_id",
 
-      "traces.blockNumber as block_number",
-      "traces.transactionIndex as tx_index",
+      "trace.block_number as block_number",
+      "trace.transaction_index as tx_index",
     ])
     // Logs
     .$if(joinInfo.logs, (qb) => selectLogColumnsAsNull(qb))
     // Traces
     .$call((qb) =>
       qb.select([
-        "traces.index as trace_index",
-        "traces.type as trace_callType",
-        "traces.from as trace_from",
-        "traces.to as trace_to",
-        "traces.value as trace_value",
-        "traces.functionSelector as trace_functionSelector",
-        "traces.isReverted as trace_isReverted",
+        "trace.index as trace_index",
+        "trace.type as trace_callType",
+        "trace.from as trace_from",
+        "trace.to as trace_to",
+        "trace.value as trace_value",
+        "trace.function_selector as trace_functionSelector",
+        "trace.is_reverted as trace_isReverted",
 
-        "traces.gas as trace_gas",
-        "traces.gasUsed as trace_gasUsed",
-        "traces.input as trace_input",
-        "traces.output as trace_output",
-        "traces.error as trace_error",
-        "traces.revertReason as trace_revertReason",
-        "traces.subcalls as trace_subcalls",
+        "trace.gas as trace_gas",
+        "trace.gas_used as trace_gasUsed",
+        "trace.input as trace_input",
+        "trace.output as trace_output",
+        "trace.error as trace_error",
+        "trace.revert_reason as trace_revertReason",
+        "trace.subcalls as trace_subcalls",
       ]),
     ) as unknown as FilterQb;
 
@@ -1178,67 +1183,67 @@ const traceSQL = (
   joinInfo: { logs: boolean; traces: boolean },
 ) =>
   db
-    .selectFrom("traces")
+    .selectFrom("trace")
     // Filters
-    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "traces.from"))
-    .$call((qb) => addressSQL(db, qb, filter.toAddress, "traces.to"))
+    .$call((qb) => addressSQL(db, qb, filter.fromAddress, "trace.from"))
+    .$call((qb) => addressSQL(db, qb, filter.toAddress, "trace.to"))
     .$if(filter.includeReverted === false, (qb) =>
-      qb.where("traces.isReverted", "=", 0),
+      qb.where("trace.is_reverted", "=", 0),
     )
     .$if(filter.callType !== undefined, (qb) =>
-      qb.where("traces.type", "=", filter.callType!),
+      qb.where("trace.type", "=", filter.callType!),
     )
     .$if(filter.functionSelector !== undefined, (qb) => {
       if (Array.isArray(filter.functionSelector)) {
         return qb.where(
-          "traces.functionSelector",
+          "trace.function_selector",
           "in",
           filter.functionSelector!,
         );
       } else {
         return qb.where(
-          "traces.functionSelector",
+          "trace.function_selector",
           "=",
           filter.functionSelector!,
         );
       }
     })
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where("traces.blockNumber", ">=", filter.fromBlock!.toString()),
+      qb.where("trace.block_number", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where("traces.blockNumber", "<=", filter.toBlock!.toString()),
+      qb.where("trace.block_number", "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      "traces.checkpoint as checkpoint",
-      "traces.chainId as chain_id",
+      "trace.checkpoint as checkpoint",
+      "trace.chain_id as chain_id",
 
-      "traces.blockNumber as block_number",
-      "traces.transactionIndex as tx_index",
+      "trace.block_number as block_number",
+      "trace.transaction_index as tx_index",
     ])
     // Logs
     .$if(joinInfo.logs, (qb) => selectLogColumnsAsNull(qb))
     // Traces
     .$call((qb) =>
       qb.select([
-        "traces.index as trace_index",
-        "traces.type as trace_callType",
-        "traces.from as trace_from",
-        "traces.to as trace_to",
-        "traces.value as trace_value",
-        "traces.functionSelector as trace_functionSelector",
-        "traces.isReverted as trace_isReverted",
+        "trace.index as trace_index",
+        "trace.type as trace_callType",
+        "trace.from as trace_from",
+        "trace.to as trace_to",
+        "trace.value as trace_value",
+        "trace.function_selector as trace_functionSelector",
+        "trace.is_reverted as trace_isReverted",
 
-        "traces.gas as trace_gas",
-        "traces.gasUsed as trace_gasUsed",
-        "traces.input as trace_input",
-        "traces.output as trace_output",
-        "traces.error as trace_error",
-        "traces.revertReason as trace_revertReason",
-        "traces.subcalls as trace_subcalls",
+        "trace.gas as trace_gas",
+        "trace.gas_used as trace_gasUsed",
+        "trace.input as trace_input",
+        "trace.output as trace_output",
+        "trace.error as trace_error",
+        "trace.revert_reason as trace_revertReason",
+        "trace.subcalls as trace_subcalls",
       ]),
     ) as unknown as FilterQb;
 
