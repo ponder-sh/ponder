@@ -202,8 +202,7 @@ export async function setupDatabaseServices(
     buildId: overrides.indexingBuild?.buildId ?? "abc",
   });
 
-  const chainIds = [1];
-  await database.migrateSync({ chainIds }).catch((err) => {
+  await database.migrateSync().catch((err) => {
     console.log(err);
     throw err;
   });

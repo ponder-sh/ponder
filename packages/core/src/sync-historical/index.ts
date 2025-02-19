@@ -425,18 +425,21 @@ export const createHistoricalSync = async (
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
   const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
-    const logs = await syncLogsDynamic({
+    await syncLogsDynamic({
       filter,
       interval,
       address: filter.address,
     });
 
+    // TODO: Add factory logs
+    throw new Error("Factories not supported on this commit");
+
     // Insert `logs` into the sync-store
-    await args.syncStore.insertLogs({
-      logs: logs.map((log) => ({ log })),
-      shouldUpdateCheckpoint: false,
-      chainId: args.network.chainId,
-    });
+    // await args.syncStore.insertLogs({
+    //   logs: logs.map((log) => ({ log })),
+    //   shouldUpdateCheckpoint: false,
+    //   chainId: args.network.chainId,
+    // });
   };
 
   /**
@@ -452,7 +455,7 @@ export const createHistoricalSync = async (
 
     // Query the sync-store for all addresses that match `filter`.
     const addresses = await args.syncStore.getChildAddresses({
-      factory: filter,
+      filter,
       limit: args.common.options.factoryAddressCountThreshold,
     });
 

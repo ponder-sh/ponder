@@ -683,9 +683,7 @@ export const createSync = async (params: {
           msg: `Deleting cache records for '${network.name}'`,
         });
 
-        await params.syncStore.pruneByChain({
-          chainId: network.chainId,
-        });
+        await params.syncStore.pruneByChain({ chainId: network.chainId });
       }
 
       const historicalSync = await createHistoricalSync({
@@ -1032,13 +1030,14 @@ export const getPerChainOnRealtimeSyncEvent = ({
             ),
             chainId: network.chainId,
           }),
-          syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
-              factoryLogs.map((log) => ({ log })),
-            ),
-            shouldUpdateCheckpoint: false,
-            chainId: network.chainId,
-          }),
+          // TODO: Add factory logs
+          // syncStore.insertLogs({
+          //   logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
+          //     factoryLogs.map((log) => ({ log })),
+          //   ),
+          //   shouldUpdateCheckpoint: false,
+          //   chainId: network.chainId,
+          // }),
           syncStore.insertTransactions({
             transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
               transactions.map((transaction) => ({

@@ -13,7 +13,7 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { ColumnType, Generated, Insertable } from "kysely";
+import type { ColumnType, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
@@ -138,8 +138,7 @@ export const encodeLog = ({
 type TransactionsTable = {
   hash: Hash;
   chainId: number;
-  /** `checkpoint` will be null for transactions inserted before 0.8. This is to avoid a very slow migration. */
-  checkpoint: string | null;
+  checkpoint: string;
   blockHash: Hash;
   blockNumber: ColumnType<string, string | bigint, string | bigint>;
   from: Address;
@@ -344,26 +343,28 @@ type IntervalTable = {
   blocks: string;
 };
 
-type FactoryTable = {
-  integer_id: Generated<number>;
-  factory_id: string;
-};
+///  WIP FACTORY DESIGN ///
 
-type FactoryAddressTable = {
-  id: Generated<number>;
-  factory_integer_id: number;
-  address: string;
-  block_number: ColumnType<string, string | bigint, string | bigint>;
-};
+// type FactoryTable = {
+//   integer_id: Generated<number>;
+//   factory_id: string;
+// };
+
+// type FactoryAddressTable = {
+//   id: Generated<number>;
+//   factory_integer_id: number;
+//   address: string;
+//   block_number: ColumnType<string, string | bigint, string | bigint>;
+// };
 
 export type PonderSyncSchema = {
   intervals: IntervalTable;
-  [key: `block_${number}`]: BlocksTable;
-  [key: `log_${number}`]: LogsTable;
-  [key: `transaction_${number}`]: TransactionsTable;
-  [key: `transaction_receipt_${number}`]: TransactionReceiptsTable;
-  [key: `trace_${number}`]: TracesTable;
-  [key: `rpc_request_${number}`]: RpcRequestResultsTable;
-  [key: `factory_${number}`]: FactoryTable;
-  [key: `factory_address_${number}`]: FactoryAddressTable;
+  blocks: BlocksTable;
+  logs: LogsTable;
+  transactions: TransactionsTable;
+  transactionReceipts: TransactionReceiptsTable;
+  traces: TracesTable;
+  rpc_request_results: RpcRequestResultsTable;
+  // factory: FactoryTable;
+  // factory_address: FactoryAddressTable;
 };

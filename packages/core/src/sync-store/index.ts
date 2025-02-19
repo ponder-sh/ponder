@@ -1,6 +1,5 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Factory,
@@ -8,7 +7,6 @@ import type {
   FilterWithoutBlocks,
   Fragment,
   FragmentId,
-  LogFactory,
   LogFilter,
   RawEvent,
   TraceFilter,
@@ -16,16 +14,10 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import {
-  type BlockFilter,
-  type Factory,
-  type Filter,
-  type LogFilter,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
   isAddressFactory,
   shouldGetTransactionReceipt,
-} from "@/sync/source.js";
+} from "@/sync/filter.js";
+import { fragmentToId, getFragments } from "@/sync/fragments.js";
 import type { Trace } from "@/types/eth.js";
 import type {
   LightBlock,
@@ -36,7 +28,7 @@ import type {
   SyncTransactionReceipt,
 } from "@/types/sync.js";
 import type { NonNull } from "@/types/utils.js";
-import { type Interval, intervalIntersectionMany } from "@/utils/interval.js";
+import type { Interval } from "@/utils/interval.js";
 import {
   type QueryCreator,
   type SelectQueryBuilder,
@@ -63,25 +55,23 @@ import {
 
 export type SyncStore = {
   insertIntervals(args: {
-    intervals: {
-      filter: FilterWithoutBlocks;
-      interval: Interval;
-    }[];
+    intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
     chainId: number;
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
-  }): Promise<Map<Filter, Interval[]>>;
-  insertChildAddresses(args: {
-    factory: Factory;
-    data: { address: Address; blockNumber: bigint }[];
-  }): Promise<void>;
+  }): Promise<Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>>;
+  // insertChildAddresses(args: {
+  //   filter: Factory;
+  //   data: { address: Address; blockNumber: bigint }[];
+  //   chainId: number;
+  // }): Promise<void>;
   getChildAddresses(args: {
-    factory: Factory;
+    filter: Factory;
     limit?: number;
   }): Promise<Address[]>;
   filterChildAddresses(args: {
-    factory: Factory;
+    filter: Factory;
     addresses: Address[];
   }): Promise<Set<Address>>;
   insertLogs(args: {
@@ -90,22 +80,19 @@ export type SyncStore = {
   }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   /** Return true if the block receipt is present in the database. */
-  hasBlock(args: { hash: Hash; chainId: number }): Promise<boolean>;
+  hasBlock(args: { hash: Hash }): Promise<boolean>;
   insertTransactions(args: {
     transactions: { transaction: SyncTransaction; block: SyncBlock }[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction is present in the database. */
-  hasTransaction(args: { hash: Hash; chainId: number }): Promise<boolean>;
+  hasTransaction(args: { hash: Hash }): Promise<boolean>;
   insertTransactionReceipts(args: {
     transactionReceipts: SyncTransactionReceipt[];
     chainId: number;
   }): Promise<void>;
   /** Return true if the transaction receipt is present in the database. */
-  hasTransactionReceipt(args: {
-    hash: Hash;
-    chainId: number;
-  }): Promise<boolean>;
+  hasTransactionReceipt(args: { hash: Hash }): Promise<boolean>;
   insertTraces(args: {
     traces: {
       trace: SyncTrace;
@@ -128,16 +115,13 @@ export type SyncStore = {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
-  pruneByChain(args: {
-    fromBlock: number;
-    chainId: number;
-  }): Promise<void>;
+  pruneByChain(args: { chainId: number }): Promise<void>;
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
   getEvents(args: {
     filters: Filter[];
     from: string;
     to: string;
-    limit: number;
+    limit?: number;
   }): Promise<{ events: RawEvent[]; cursor: string }>;
 };
 
@@ -273,105 +257,104 @@ export const createSyncStore = ({
         return result;
       },
     ),
-  insertChildAddresses: async ({ factory, data }) =>
-    db.wrap({ method: "insertChildAddresses" }, async () => {
-      if (data.length === 0) return;
+  // insertChildAddresses: async ({ factory, data, chainId }) =>
+  //   db.wrap({ method: "insertChildAddresses" }, async () => {
+  //     if (data.length === 0) return;
 
-      const chainId = factory.chainId;
-      const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
+  //     const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
 
-      await db
-        .with("factory_insert", (db) =>
-          db
-            .insertInto(`factory_${chainId}`)
-            .values({ factory_id: factoryId })
-            .onConflict((oc) =>
-              oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
-            )
-            .returning("integer_id"),
-        )
-        .insertInto(`factory_address_${chainId}`)
-        .values(
-          data.map(({ address, blockNumber }) => ({
-            factory_integer_id: ksql`(SELECT integer_id FROM factory_insert)`,
-            address: address.toLowerCase(),
-            block_number: blockNumber,
-          })),
-        )
-        .execute();
+  //     await db
+  //       .with("factory_insert", (db) =>
+  //         db
+  //           .insertInto("factory")
+  //           .values({ factory_id: factoryId })
+  //           .onConflict((oc) =>
+  //             oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
+  //           )
+  //           .returning("integer_id"),
+  //       )
+  //       .insertInto("factory_address")
+  //       .values(
+  //         data.map(({ address, blockNumber }) => ({
+  //           factory_integer_id: ksql`(SELECT integer_id FROM factory_insert)`,
+  //           address: address.toLowerCase(),
+  //           block_number: blockNumber,
+  //         })),
+  //       )
+  //       .execute();
+  //   }),
+  getChildAddresses: (_args) =>
+    database.wrap({ method: "getChildAddresses" }, async () => {
+      return [] as Address[];
+      // const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
+
+      // const rows = await database.qb.sync
+      //   .with("factory_insert", (db) =>
+      //     db
+      //       .insertInto("factory")
+      //       .values({ factory_id: factoryId })
+      //       .onConflict((oc) =>
+      //         oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
+      //       )
+      //       .returning("integer_id"),
+      //   )
+      //   .selectFrom("factory_address")
+      //   .select(["address"])
+      //   .where(
+      //     "factory_address.factory_integer_id",
+      //     "=",
+      //     ksql`(SELECT integer_id FROM factory_insert)`,
+      //   )
+      //   .orderBy("address asc")
+      //   .$if(limit !== undefined, (qb) => qb.limit(limit!))
+      //   .execute();
+
+      // return rows.map(({ address }) => address as Address);
     }),
-  getChildAddresses: ({ factory, limit }) =>
-    db.wrap({ method: "getChildAddresses" }, async () => {
-      const chainId = factory.chainId;
-      const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
+  filterChildAddresses: (_args) =>
+    database.wrap({ method: "filterChildAddresses" }, async () => {
+      return new Set<Address>();
+      // const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
 
-      const rows = await db
-        .with("factory_insert", (db) =>
-          db
-            .insertInto(`factory_${chainId}`)
-            .values({ factory_id: factoryId })
-            .onConflict((oc) =>
-              oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
-            )
-            .returning("integer_id"),
-        )
-        .selectFrom(`factory_address_${chainId}`)
-        .select(["address"])
-        .where(
-          ksql.ref(`factory_address_${chainId}.factory_integer_id`),
-          "=",
-          ksql`(SELECT integer_id FROM factory_insert)`,
-        )
-        .orderBy("address asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!))
-        .execute();
+      // const result = await db
+      //   .with("factory_insert", (db) =>
+      //     db
+      //       .insertInto("factory")
+      //       .values({ factory_id: factoryId })
+      //       .onConflict((oc) =>
+      //         oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
+      //       )
+      //       .returning("integer_id"),
+      //   )
+      //   .with("child_address", (db) =>
+      //     db
+      //       .selectFrom("factory_address")
+      //       .select(["address"])
+      //       .where(
+      //         "factory_address.factory_integer_id",
+      //         "=",
+      //         ksql`(SELECT integer_id FROM factory_insert)`,
+      //       ),
+      //   )
+      //   .with(
+      //     "filter_address(address)",
+      //     () =>
+      //       ksql`( values ${ksql.join(addresses.map((a) => ksql`( ${ksql.val(a)} )`))} )`,
+      //   )
+      //   .selectFrom("filter_address")
+      //   .where(
+      //     "filter_address.address",
+      //     "in",
+      //     ksql`(SELECT address FROM child_address)`,
+      //   )
+      //   .selectAll()
+      //   .execute();
 
-      return rows.map(({ address }) => address as Address);
-    }),
-  filterChildAddresses: ({ factory, addresses }) =>
-    db.wrap({ method: "filterChildAddresses" }, async () => {
-      const chainId = factory.chainId;
-      const factoryId = `${factory.address}_${factory.eventSelector}_${factory.childAddressLocation}`;
-
-      const result = await db
-        .with("factory_insert", (db) =>
-          db
-            .insertInto(`factory_${chainId}`)
-            .values({ factory_id: factoryId })
-            .onConflict((oc) =>
-              oc.column("factory_id").doUpdateSet({ factory_id: factoryId }),
-            )
-            .returning("integer_id"),
-        )
-        .with("child_address", (db) =>
-          db
-            .selectFrom(`factory_address_${chainId}`)
-            .select(["address"])
-            .where(
-              ksql.ref(`factory_address_${chainId}.factory_integer_id`),
-              "=",
-              ksql`(SELECT integer_id FROM factory_insert)`,
-            ),
-        )
-        .with(
-          "filter_address(address)",
-          () =>
-            ksql`( values ${ksql.join(addresses.map((a) => ksql`( ${ksql.val(a)} )`))} )`,
-        )
-        .selectFrom("filter_address")
-        .where(
-          "filter_address.address",
-          "in",
-          ksql`(SELECT address FROM child_address)`,
-        )
-        .selectAll()
-        .execute();
-
-      return new Set<Address>([...result.map(({ address }) => address)]);
+      // return new Set<Address>([...result.map(({ address }) => address)]);
     }),
   insertLogs: async ({ logs, chainId }) => {
     if (logs.length === 0) return;
-    await db.wrap({ method: "insertLogs" }, async () => {
+    await database.wrap({ method: "insertLogs" }, async () => {
       // Calculate `batchSize` based on how many parameters the
       // input will have
       const batchSize = Math.floor(
@@ -382,8 +365,8 @@ export const createSyncStore = ({
       );
 
       for (let i = 0; i < logs.length; i += batchSize) {
-        await db
-          .insertInto(`log_${chainId}`)
+        await database.qb.sync
+          .insertInto("logs")
           .values(
             logs
               .slice(i, i + batchSize)
@@ -396,34 +379,30 @@ export const createSyncStore = ({
   },
   insertBlocks: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
-    await database.wrap(
-      { method: "insertBlocks", includeTraceLogs: true },
-      async () => {
-        // Calculate `batchSize` based on how many parameters the
-        // input will have
-        const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
-            Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
-        );
+    await database.wrap({ method: "insertBlocks" }, async () => {
+      // Calculate `batchSize` based on how many parameters the input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
+      );
 
-        for (let i = 0; i < blocks.length; i += batchSize) {
-          await db
-            .insertInto(`block_${chainId}`)
-            .values(
-              blocks
-                .slice(i, i + batchSize)
-                .map((block) => encodeBlock({ block, chainId })),
-            )
-            .onConflict((oc) => oc.column("checkpoint").doNothing())
-            .execute();
-        }
-      },
-    );
+      for (let i = 0; i < blocks.length; i += batchSize) {
+        await database.qb.sync
+          .insertInto("blocks")
+          .values(
+            blocks
+              .slice(i, i + batchSize)
+              .map((block) => encodeBlock({ block, chainId })),
+          )
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .execute();
+      }
+    });
   },
-  hasBlock: async ({ hash, chainId }) =>
-    db.wrap({ method: "hasBlock" }, async () => {
-      return await db
-        .selectFrom(`block_${chainId}`)
+  hasBlock: async ({ hash }) =>
+    database.wrap({ method: "hasBlock" }, async () => {
+      return await database.qb.sync
+        .selectFrom("blocks")
         .select("hash")
         .where("hash", "=", hash)
         .executeTakeFirst()
@@ -431,46 +410,42 @@ export const createSyncStore = ({
     }),
   insertTransactions: async ({ transactions, chainId }) => {
     if (transactions.length === 0) return;
-    await database.wrap(
-      { method: "insertTransactions", includeTraceLogs: true },
-      async () => {
-        // Calculate `batchSize` based on how many parameters the
-        // input will have
-        const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
-            Object.keys(
-              encodeTransaction({
-                transaction: transactions[0]!.transaction,
-                block: transactions[0]!.block,
-                chainId,
-              }),
-            ).length,
-        );
+    await database.wrap({ method: "insertTransactions" }, async () => {
+      // Calculate `batchSize` based on how many parameters the input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTransaction({
+              transaction: transactions[0]!.transaction,
+              block: transactions[0]!.block,
+              chainId,
+            }),
+          ).length,
+      );
 
-        // As an optimization for the migration, transactions inserted before 0.8 do not
-        // contain a checkpoint. However, for correctness the checkpoint must be inserted
-        // for new transactions (using onConflictDoUpdate).
+      // As an optimization for the migration, transactions inserted before 0.8 do not
+      // contain a checkpoint. However, for correctness the checkpoint must be inserted
+      // for new transactions (using onConflictDoUpdate).
 
-        for (let i = 0; i < transactions.length; i += batchSize) {
-          await db
-            .insertInto(`transaction_${chainId}`)
-            .values(
-              transactions
-                .slice(i, i + batchSize)
-                .map(({ transaction, block }) =>
-                  encodeTransaction({ transaction, block, chainId }),
-                ),
-            )
-            .onConflict((oc) => oc.column("checkpoint").doNothing())
-            .execute();
-        }
-      },
-    );
+      for (let i = 0; i < transactions.length; i += batchSize) {
+        await database.qb.sync
+          .insertInto("transactions")
+          .values(
+            transactions
+              .slice(i, i + batchSize)
+              .map(({ transaction, block }) =>
+                encodeTransaction({ transaction, block, chainId }),
+              ),
+          )
+          .onConflict((oc) => oc.column("checkpoint").doNothing())
+          .execute();
+      }
+    });
   },
-  hasTransaction: async ({ hash, chainId }) =>
-    db.wrap({ method: "hasTransaction" }, async () => {
-      return await db
-        .selectFrom(`transaction_${chainId}`)
+  hasTransaction: async ({ hash }) =>
+    database.wrap({ method: "hasTransaction" }, async () => {
+      return await database.qb.sync
+        .selectFrom("transactions")
         .select("hash")
         .where("hash", "=", hash)
         .executeTakeFirst()
@@ -478,46 +453,37 @@ export const createSyncStore = ({
     }),
   insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
     if (transactionReceipts.length === 0) return;
-    await database.wrap(
-      { method: "insertTransactionReceipts", includeTraceLogs: true },
-      async () => {
-        // Calculate `batchSize` based on how many parameters the
-        // input will have
-        const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
-            Object.keys(
-              encodeTransactionReceipt({
-                transactionReceipt: transactionReceipts[0]!,
-                chainId,
-              }),
-            ).length,
-        );
+    await database.wrap({ method: "insertTransactionReceipts" }, async () => {
+      // Calculate `batchSize` based on how many parameters the input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTransactionReceipt({
+              transactionReceipt: transactionReceipts[0]!,
+              chainId,
+            }),
+          ).length,
+      );
 
-        for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-          await db
-            .insertInto(`transaction_receipt_${chainId}`)
-            .values(
-              transactionReceipts
-                .slice(i, i + batchSize)
-                .map((transactionReceipt) =>
-                  encodeTransactionReceipt({
-                    transactionReceipt,
-                    chainId,
-                  }),
-                ),
-            )
-            .onConflict((oc) =>
-              oc.columns(["block_number", "transaction_index"]).doNothing(),
-            )
-            .execute();
-        }
-      },
-    );
+      for (let i = 0; i < transactionReceipts.length; i += batchSize) {
+        await database.qb.sync
+          .insertInto("transactionReceipts")
+          .values(
+            transactionReceipts
+              .slice(i, i + batchSize)
+              .map((transactionReceipt) =>
+                encodeTransactionReceipt({ transactionReceipt, chainId }),
+              ),
+          )
+          .onConflict((oc) => oc.column("transactionHash").doNothing())
+          .execute();
+      }
+    });
   },
-  hasTransactionReceipt: async ({ hash, chainId }) =>
-    db.wrap({ method: "hasTransactionReceipt" }, async () => {
-      return await db
-        .selectFrom(`transaction_receipt_${chainId}`)
+  hasTransactionReceipt: async ({ hash }) =>
+    database.wrap({ method: "hasTransactionReceipt" }, async () => {
+      return await database.qb.sync
+        .selectFrom("transactionReceipts")
         .select("transactionHash")
         .where("transactionHash", "=", hash)
         .executeTakeFirst()
@@ -525,106 +491,98 @@ export const createSyncStore = ({
     }),
   insertTraces: async ({ traces, chainId }) => {
     if (traces.length === 0) return;
-    await database.wrap(
-      { method: "insertTraces", includeTraceLogs: true },
-      async () => {
-        // Calculate `batchSize` based on how many parameters the
-        // input will have
-        const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
-            Object.keys(
-              encodeTrace({
-                trace: traces[0]!.trace.trace,
-                block: traces[0]!.block,
-                transaction: traces[0]!.transaction,
-                chainId,
-              }),
-            ).length,
-        );
+    await database.wrap({ method: "insertTraces" }, async () => {
+      // Calculate `batchSize` based on how many parameters the input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTrace({
+              trace: traces[0]!.trace.trace,
+              block: traces[0]!.block,
+              transaction: traces[0]!.transaction,
+              chainId,
+            }),
+          ).length,
+      );
 
-        for (let i = 0; i < traces.length; i += batchSize) {
-          await db
-            .insertInto(`trace_${chainId}`)
-            .values(
-              traces
-                .slice(i, i + batchSize)
-                .map(({ trace, block, transaction }) =>
-                  encodeTrace({
-                    trace: trace.trace,
-                    block,
-                    transaction,
-                    chainId,
-                  }),
-                ),
-            )
-            .onConflict((oc) => oc.column("checkpoint").doNothing())
-            .execute();
-        }
-      },
-    );
+      for (let i = 0; i < traces.length; i += batchSize) {
+        await database.qb.sync
+          .insertInto("traces")
+          .values(
+            traces
+              .slice(i, i + batchSize)
+              .map(({ trace, block, transaction }) =>
+                encodeTrace({
+                  trace: trace.trace,
+                  block,
+                  transaction,
+                  chainId,
+                }),
+              ),
+          )
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+    });
   },
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
-    db.wrap({ method: "insertRpcRequestResult" }, async () => {
-      await db
-        .insertInto(`rpc_request_${chainId}`)
+    database.wrap({ method: "insertRpcRequestResult" }, async () => {
+      await database.qb.sync
+        .insertInto("rpc_request_results")
         .values({
           request,
           block_number: blockNumber,
           chain_id: chainId,
           result,
         })
-        .onConflict((oc) => oc.column("request_hash").doUpdateSet({ result }))
+        .onConflict((oc) =>
+          oc.columns(["request_hash", "chain_id"]).doUpdateSet({ result }),
+        )
         .execute();
     }),
   getRpcRequestResult: async ({ request, chainId }) =>
-    db.wrap({ method: "getRpcRequestResult" }, async () => {
-      const row = await db
-        .selectFrom(`rpc_request_${chainId}`)
+    database.wrap({ method: "getRpcRequestResult" }, async () => {
+      const result = await database.qb.sync
+        .selectFrom("rpc_request_results")
         .select("result")
+
         .where("request_hash", "=", ksql`MD5(${request})`)
+        .where("chain_id", "=", chainId)
         .executeTakeFirst();
 
-      return row?.result;
+      return result?.result;
     }),
   pruneRpcRequestResult: async ({ blocks, chainId }) =>
-    db.wrap({ method: "pruneRpcRequestResult" }, async () => {
+    database.wrap({ method: "pruneRpcRequestResult" }, async () => {
       if (blocks.length === 0) return;
 
       const numbers = blocks.map(({ number }) =>
         hexToBigInt(number).toString(),
       );
 
-      await db
-        .deleteFrom(`rpc_request_${chainId}`)
+      await database.qb.sync
+        .deleteFrom("rpc_request_results")
+        .where("chain_id", "=", chainId)
         .where("block_number", "in", numbers)
         .execute();
     }),
-  pruneByChain: async ({ fromBlock, chainId }) =>
-    db.wrap({ method: "pruneByChain" }, () =>
-      db.transaction().execute(async (tx) => {
+  pruneByChain: async ({ chainId }) =>
+    database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
+      database.qb.sync.transaction().execute(async (tx) => {
+        await tx.deleteFrom("logs").where("chainId", "=", chainId).execute();
+        await tx.deleteFrom("blocks").where("chainId", "=", chainId).execute();
         await tx
-          .deleteFrom(`log_${chainId}`)
-          .where("blockNumber", ">=", fromBlock.toString())
+          .deleteFrom("rpc_request_results")
+          .where("chain_id", "=", chainId)
+          .execute();
+        await tx.deleteFrom("traces").where("chainId", "=", chainId).execute();
+        await tx
+          .deleteFrom("transactions")
+          .where("chainId", "=", chainId)
           .execute();
         await tx
-          .deleteFrom(`block_${chainId}`)
-          .where("number", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom(`rpc_request_${chainId}`)
-          .where("block_number", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom(`trace_${chainId}`)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom(`transaction_${chainId}`)
-          .where("blockNumber", ">=", fromBlock.toString())
-          .execute();
-        await tx
-          .deleteFrom(`transaction_receipt_${chainId}`)
-          .where("blockNumber", ">=", fromBlock.toString())
+          .deleteFrom("transactionReceipts")
+          .where("chainId", "=", chainId)
           .execute();
       }),
     ),
@@ -650,7 +608,9 @@ export const createSyncStore = ({
               : traceSQL(filter, db, i, joinInfo);
     };
 
-    let filterQuery = db.with("filter_0", (db) => filterCte(db, 0));
+    let filterQuery = database.qb.sync.with("filter_0", (db) =>
+      filterCte(db, 0),
+    );
     for (let i = 1; i < filters.length; i++) {
       filterQuery = filterQuery.with(`filter_${i}`, (db) => filterCte(db, i));
     }
@@ -783,15 +743,14 @@ export const createSyncStore = ({
       .where("event.checkpoint", ">", from)
       .where("event.checkpoint", "<=", to)
       .orderBy("event.checkpoint", "asc")
-      // .orderBy("event.filter_index", "asc")
-      .limit(limit);
+      .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-    const rows = await db.wrap(
+    const rows = await database.wrap(
       {
         method: "getEvents",
-        shouldRetry(error) {
-          return error.message.includes("statement timeout") === false;
-        },
+        // shouldRetry(error) {
+        //   return error.message.includes("statement timeout") === false;
+        // },
       },
       async () => {
         // const planText = await query.explain("text", ksql`analyze, buffers`);
@@ -1023,10 +982,9 @@ const logSQL = (
   db: QueryCreator<PonderSyncSchema>,
   index: number,
   joinInfo: { logs: boolean; traces: boolean },
-) => {
-  const table = `log_${filter.chainId}` as const;
-  const result = db
-    .selectFrom(table)
+) =>
+  db
+    .selectFrom("logs")
     // Filters
     .$call((qb) => {
       for (const idx of [0, 1, 2, 3] as const) {
@@ -1035,56 +993,53 @@ const logSQL = (
         if (raw === null) continue;
         const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
         if (Array.isArray(topic)) {
-          qb = qb.where(`${table}.topic${idx}`, "in", topic);
+          qb = qb.where(`logs.topic${idx}`, "in", topic);
         } else {
-          qb = qb.where(`${table}.topic${idx}`, "=", topic);
+          qb = qb.where(`logs.topic${idx}`, "=", topic);
         }
       }
       return qb;
     })
-    .$call((qb) => addressSQL(db, qb, filter.address, `${table}.address`))
+    .$call((qb) => addressSQL(db, qb, filter.address, "logs.address"))
     .$if(filter.fromBlock !== undefined, (qb) =>
-      qb.where(`${table}.blockNumber`, ">=", filter.fromBlock!.toString()),
+      qb.where("logs.blockNumber", ">=", filter.fromBlock!.toString()),
     )
     .$if(filter.toBlock !== undefined, (qb) =>
-      qb.where(`${table}.blockNumber`, "<=", filter.toBlock!.toString()),
+      qb.where("logs.blockNumber", "<=", filter.toBlock!.toString()),
     )
     // Joins and selects
     // Base
     .select([
       ksql.raw(index.toString()).$castTo<number>().as("filter_index"),
-      `${table}.checkpoint as checkpoint`,
-      `${table}.chainId as chain_id`,
+      "logs.checkpoint as checkpoint",
+      "logs.chainId as chain_id",
 
-      `${table}.blockNumber as block_number`,
-      `${table}.transactionIndex as tx_index`,
+      "logs.blockNumber as block_number",
+      "logs.transactionIndex as tx_index",
     ])
     // Logs
     .$call((qb) =>
       qb.select([
-        `${table}.logIndex as log_index`,
-        `${table}.address as log_address`,
-        `${table}.data as log_data`,
-        `${table}.topic0 as log_topic0`,
-        `${table}.topic1 as log_topic1`,
-        `${table}.topic2 as log_topic2`,
-        `${table}.topic3 as log_topic3`,
+        "logs.logIndex as log_index",
+        "logs.address as log_address",
+        "logs.data as log_data",
+        "logs.topic0 as log_topic0",
+        "logs.topic1 as log_topic1",
+        "logs.topic2 as log_topic2",
+        "logs.topic3 as log_topic3",
       ]),
     )
     // Traces
     .$if(joinInfo.traces, (qb) => selectTraceColumnsAsNull(qb))
-    .orderBy("checkpoint", "asc");
-
-  return result as FilterQb;
-};
+    .orderBy("checkpoint", "asc") as FilterQb;
 
 const blockSQL = (
   filter: BlockFilter,
   db: QueryCreator<PonderSyncSchema>,
   index: number,
   joinInfo: { logs: boolean; traces: boolean },
-) => {
-  const result = db
+) =>
+  db
     .selectFrom("blocks")
     // Filters
     .$if(filter !== undefined && filter.interval !== undefined, (qb) =>
@@ -1111,10 +1066,7 @@ const blockSQL = (
     // Logs
     .$if(joinInfo.logs, (qb) => selectLogColumnsAsNull(qb))
     // Traces
-    .$if(joinInfo.traces, (qb) => selectTraceColumnsAsNull(qb));
-
-  return result as FilterQb;
-};
+    .$if(joinInfo.traces, (qb) => selectTraceColumnsAsNull(qb)) as FilterQb;
 
 const transactionSQL = (
   filter: TransactionFilter,
@@ -1325,7 +1277,7 @@ const selectTraceColumnsAsNull = (
   ]);
 
 const addressSQL = (
-  db: QueryCreator<PonderSyncSchema>,
+  _db: QueryCreator<PonderSyncSchema>,
   qb: SelectQueryBuilder<PonderSyncSchema, any, {}>,
   address: LogFilter["address"],
   column:
@@ -1338,20 +1290,21 @@ const addressSQL = (
 ) => {
   if (typeof address === "string") return qb.where(column, "=", address);
   if (isAddressFactory(address)) {
-    const factoryId = `${address.address}_${address.eventSelector}_${address.childAddressLocation}`;
-    return qb.where(
-      column,
-      "in",
-      db
-        .selectFrom("factory_address")
-        .select(["address"])
-        .distinct()
-        .where(
-          "factory_address.factory_integer_id",
-          "=",
-          ksql`(SELECT integer_id FROM ponder_sync.factory WHERE factory_id = ${factoryId})`,
-        ),
-    );
+    throw new Error("Factories not supported on this commit");
+    // const factoryId = `${address.address}_${address.eventSelector}_${address.childAddressLocation}`;
+    // return qb.where(
+    //   column,
+    //   "in",
+    //   db
+    //     .selectFrom("factory_address")
+    //     .select(["address"])
+    //     .distinct()
+    //     .where(
+    //       "factory_address.factory_integer_id",
+    //       "=",
+    //       ksql`(SELECT integer_id FROM ponder_sync.factory WHERE factory_id = ${factoryId})`,
+    //     ),
+    // );
   }
   if (Array.isArray(address)) return qb.where(column, "in", address);
 
