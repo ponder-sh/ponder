@@ -303,19 +303,20 @@ export const createHistoricalIndexingStore = ({
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
 
-        const result = await db._.session
-          .prepareQuery(query, undefined, undefined, method === "all")
-          .execute()
-          .catch((error) => {
-            throw parseSqlError(error);
-          });
+        try {
+          const result = await db._.session
+            .prepareQuery(query, undefined, undefined, method === "all")
+            .execute();
 
-        common.metrics.ponder_indexing_store_raw_sql_duration.observe(
-          endClock(),
-        );
+          common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+            endClock(),
+          );
 
-        // @ts-ignore
-        return { rows: result.rows.map((row) => Object.values(row)) };
+          // @ts-ignore
+          return { rows: result.rows.map((row) => Object.values(row)) };
+        } catch (error) {
+          throw parseSqlError(error);
+        }
       },
       { schema, casing: "snake_case" },
     ),

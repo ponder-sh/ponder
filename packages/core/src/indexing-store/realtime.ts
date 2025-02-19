@@ -283,23 +283,26 @@ export const createRealtimeIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         const query: QueryWithTypings = { sql: _sql, params, typings };
-        const endClock = startClock();
 
-        const result = await database.retry(async () => {
-          return await database.qb.drizzle._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
-            .execute()
-            .catch((error) => {
-              throw parseSqlError(error);
-            });
-        });
+        try {
+          return await database.retry(async () => {
+            const endClock = startClock();
 
-        common.metrics.ponder_indexing_store_raw_sql_duration.observe(
-          endClock(),
-        );
-
-        // @ts-ignore
-        return { rows: result.rows.map((row) => Object.values(row)) };
+            const result = await database.qb.drizzle._.session
+              .prepareQuery(query, undefined, undefined, method === "all")
+              .execute()
+              .catch((error) => {
+                throw parseSqlError(error);
+              });
+            common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+              endClock(),
+            );
+            // @ts-ignore
+            return { rows: result.rows.map((row) => Object.values(row)) };
+          });
+        } catch (error) {
+          throw parseSqlError(error);
+        }
       },
       { schema, casing: "snake_case" },
     ),

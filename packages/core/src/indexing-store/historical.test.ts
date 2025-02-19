@@ -435,16 +435,14 @@ test("sql", async (context) => {
     // @ts-ignore
     await client.query("SAVEPOINT test");
 
-    // @ts-ignore
-    let error = await indexingStore.sql
-      .insert(schema.account)
-      .values({
-        address: "0x0000000000000000000000000000000000000001",
-        balance: undefined,
-      })
-      .catch((error) => error);
-
-    expect(error).instanceOf(NotNullConstraintError);
+    await expect(
+      async () =>
+        // @ts-ignore
+        await indexingStore.sql.insert(schema.account).values({
+          address: "0x0000000000000000000000000000000000000001",
+          balance: undefined,
+        }),
+    ).rejects.toThrowError(NotNullConstraintError);
 
     // TODO(kyle) check constraint
 
@@ -453,15 +451,12 @@ test("sql", async (context) => {
     // @ts-ignore
     await client.query("ROLLBACK TO test");
 
-    error = await indexingStore.sql
-      .insert(schema.account)
-      .values({
-        address: zeroAddress,
-        balance: 10n,
-      })
-      .catch((error) => error);
-
-    expect(error).instanceOf(UniqueConstraintError);
+    await expect(
+      async () =>
+        await indexingStore.sql
+          .insert(schema.account)
+          .values({ address: zeroAddress, balance: 10n }),
+    ).rejects.toThrowError(UniqueConstraintError);
   });
 });
 
@@ -534,12 +529,11 @@ test("onchain table", async (context) => {
 
     // check error
 
-    const error = await indexingStore
-      // @ts-ignore
-      .find(schema.account, { address: zeroAddress })
-      .catch((error) => error);
-
-    expect(error).toBeDefined();
+    expect(() =>
+      indexingStore
+        // @ts-ignore
+        .find(schema.account, { address: zeroAddress }),
+    ).toThrow();
   });
 });
 
@@ -570,13 +564,13 @@ test("missing rows", async (context) => {
 
     // error
 
-    const error = await indexingStore
-      .insert(schema.account)
-      // @ts-ignore
-      .values({ address: zeroAddress })
-      .catch((error) => error);
-
-    expect(error).toBeDefined();
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          // @ts-ignore
+          .values({ address: zeroAddress }),
+    ).rejects.toThrow();
   });
 });
 
@@ -653,19 +647,19 @@ test("notNull", async (context) => {
       client,
     });
 
-    let error = await indexingStore
-      .insert(schema.account)
-      .values({ address: zeroAddress })
-      .catch((error) => error);
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress }),
+    ).rejects.toThrow();
 
-    expect(error).toBeDefined();
-
-    error = await indexingStore
-      .insert(schema.account)
-      .values({ address: zeroAddress, balance: null })
-      .catch((error) => error);
-
-    expect(error).toBeDefined();
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress, balance: null }),
+    ).rejects.toThrow();
   });
 });
 
@@ -947,16 +941,11 @@ test("json bigint", async (context) => {
       client,
     });
 
-    const error = await indexingStore
-      .insert(schema.account)
-      .values({
-        address: zeroAddress,
-        metadata: {
-          balance: 10n,
-        },
-      })
-      .catch((error) => error);
-
-    expect(error).toBeInstanceOf(BigIntSerializationError);
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress, metadata: { balance: 10n } }),
+    ).rejects.toThrowError(BigIntSerializationError);
   });
 });
