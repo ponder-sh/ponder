@@ -30,8 +30,12 @@ export class MetricsService {
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
-  ponder_indexing_cache_hit: prometheus.Counter;
-  ponder_indexing_cache_miss: prometheus.Counter;
+  ponder_indexing_cache_requests_total: prometheus.Counter<"table" | "type">;
+  ponder_indexing_cache_query_duration: prometheus.Histogram<
+    "table" | "method"
+  >;
+  ponder_indexing_store_queries_total: prometheus.Counter<"table" | "method">;
+  ponder_indexing_store_raw_sql_duration: prometheus.Histogram;
 
   ponder_sync_block: prometheus.Gauge<"network">;
   ponder_sync_is_realtime: prometheus.Gauge<"network">;
@@ -120,14 +124,29 @@ export class MetricsService {
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_cache_hit = new prometheus.Counter({
-      name: "ponder_indexing_cache_hit",
-      help: "Number of cache hits",
+    this.ponder_indexing_cache_query_duration = new prometheus.Histogram({
+      name: "ponder_indexing_cache_query_duration",
+      help: "Duration of cache operations",
+      labelNames: ["table", "method"] as const,
+      buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
-    this.ponder_indexing_cache_miss = new prometheus.Counter({
-      name: "ponder_indexing_cache_miss",
-      help: "Number of cache misses",
+    this.ponder_indexing_cache_requests_total = new prometheus.Counter({
+      name: "ponder_indexing_cache_requests_total",
+      help: "Number of cache accesses",
+      labelNames: ["table", "type"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_store_queries_total = new prometheus.Counter({
+      name: "ponder_indexing_store_queries_total",
+      help: "Number of indexing store operations",
+      labelNames: ["table", "method"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_store_raw_sql_duration = new prometheus.Histogram({
+      name: "ponder_indexing_store_raw_sql_duration",
+      help: "Duration of raw SQL store operations",
+      buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
 

@@ -36,7 +36,6 @@ test("find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -45,7 +44,6 @@ test("find", async (context) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
-      database,
       indexingCache,
       db: tx,
       client,
@@ -96,7 +94,6 @@ test("insert", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -104,7 +101,6 @@ test("insert", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -252,7 +248,6 @@ test("update", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -260,7 +255,6 @@ test("update", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -348,7 +342,6 @@ test("delete", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -356,7 +349,6 @@ test("delete", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -405,7 +397,6 @@ test("sql", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -413,7 +404,6 @@ test("sql", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -446,16 +436,14 @@ test("sql", async (context) => {
     // @ts-ignore
     await client.query("SAVEPOINT test");
 
-    // @ts-ignore
-    let error = await indexingStore.sql
-      .insert(schema.account)
-      .values({
-        address: "0x0000000000000000000000000000000000000001",
-        balance: undefined,
-      })
-      .catch((error) => error);
-
-    expect(error).instanceOf(NotNullConstraintError);
+    await expect(
+      async () =>
+        // @ts-ignore
+        await indexingStore.sql.insert(schema.account).values({
+          address: "0x0000000000000000000000000000000000000001",
+          balance: undefined,
+        }),
+    ).rejects.toThrowError(NotNullConstraintError);
 
     // TODO(kyle) check constraint
 
@@ -464,15 +452,12 @@ test("sql", async (context) => {
     // @ts-ignore
     await client.query("ROLLBACK TO test");
 
-    error = await indexingStore.sql
-      .insert(schema.account)
-      .values({
-        address: zeroAddress,
-        balance: 10n,
-      })
-      .catch((error) => error);
-
-    expect(error).instanceOf(UniqueConstraintError);
+    await expect(
+      async () =>
+        await indexingStore.sql
+          .insert(schema.account)
+          .values({ address: zeroAddress, balance: 10n }),
+    ).rejects.toThrowError(UniqueConstraintError);
   });
 });
 
@@ -490,7 +475,6 @@ test("sql followed by find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -498,7 +482,6 @@ test("sql followed by find", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -532,7 +515,6 @@ test("onchain table", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -540,7 +522,6 @@ test("onchain table", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -549,12 +530,11 @@ test("onchain table", async (context) => {
 
     // check error
 
-    const error = await indexingStore
-      // @ts-ignore
-      .find(schema.account, { address: zeroAddress })
-      .catch((error) => error);
-
-    expect(error).toBeDefined();
+    expect(() =>
+      indexingStore
+        // @ts-ignore
+        .find(schema.account, { address: zeroAddress }),
+    ).toThrow();
   });
 });
 
@@ -570,7 +550,6 @@ test("missing rows", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -578,7 +557,6 @@ test("missing rows", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -587,13 +565,13 @@ test("missing rows", async (context) => {
 
     // error
 
-    const error = await indexingStore
-      .insert(schema.account)
-      // @ts-ignore
-      .values({ address: zeroAddress })
-      .catch((error) => error);
-
-    expect(error).toBeDefined();
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          // @ts-ignore
+          .values({ address: zeroAddress }),
+    ).rejects.toThrow();
   });
 });
 
@@ -609,7 +587,6 @@ test("notNull", async (context) => {
 
   let indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -617,7 +594,6 @@ test("notNull", async (context) => {
   await database.transaction(async (client, tx) => {
     let indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -660,33 +636,31 @@ test("notNull", async (context) => {
 
     indexingCache = createIndexingCache({
       common: context.common,
-      database,
       schemaBuild: { schema },
       checkpoint: ZERO_CHECKPOINT_STRING,
     });
 
     indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
       client,
     });
 
-    let error = await indexingStore
-      .insert(schema.account)
-      .values({ address: zeroAddress })
-      .catch((error) => error);
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress }),
+    ).rejects.toThrow();
 
-    expect(error).toBeDefined();
-
-    error = await indexingStore
-      .insert(schema.account)
-      .values({ address: zeroAddress, balance: null })
-      .catch((error) => error);
-
-    expect(error).toBeDefined();
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress, balance: null }),
+    ).rejects.toThrow();
   });
 });
 
@@ -702,7 +676,6 @@ test("default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -710,7 +683,7 @@ test("default", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -739,7 +712,6 @@ test("$default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -747,7 +719,7 @@ test("$default", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -779,7 +751,6 @@ test("$onUpdateFn", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -787,7 +758,7 @@ test("$onUpdateFn", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -822,7 +793,6 @@ test("array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -830,7 +800,7 @@ test("array", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
+
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -867,7 +837,6 @@ test("text array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -875,7 +844,6 @@ test("text array", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -918,7 +886,6 @@ test("enum", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -926,7 +893,6 @@ test("enum", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -963,7 +929,6 @@ test("json bigint", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
@@ -971,23 +936,17 @@ test("json bigint", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-      database,
       schemaBuild: { schema },
       indexingCache,
       db: tx,
       client,
     });
 
-    const error = await indexingStore
-      .insert(schema.account)
-      .values({
-        address: zeroAddress,
-        metadata: {
-          balance: 10n,
-        },
-      })
-      .catch((error) => error);
-
-    expect(error).toBeInstanceOf(BigIntSerializationError);
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress, metadata: { balance: 10n } }),
+    ).rejects.toThrowError(BigIntSerializationError);
   });
 });
