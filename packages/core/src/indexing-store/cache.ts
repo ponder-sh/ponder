@@ -502,11 +502,10 @@ export const createIndexingCache = ({
       return row;
     },
     async delete({ table, key, db }) {
-      const ck = getCacheKey(table, key, primaryKeyCache);
+      const ck = getCacheKey(table, key);
 
-      const inBuffer =
-        insertBuffer.get(table)!.delete(ck) ||
-        updateBuffer.get(table)!.delete(ck);
+      const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
+      const inUpdateBuffer = updateBuffer.get(table)!.delete(ck);
 
       cache.get(table)!.delete(ck);
       spillover.get(table)!.delete(ck);
@@ -517,9 +516,7 @@ export const createIndexingCache = ({
         .returning()
         .then((result) => result.length > 0);
 
-      isCacheComplete = false;
-
-      return inBuffer || inDb;
+      return inInsertBuffer || inUpdateBuffer || inDb;
     },
     async flush({ client }) {
       const copy = getCopyHelper({ client });
