@@ -109,7 +109,8 @@ export async function run({
     );
   }
 
-  common.metrics.ponder_historical_start_timestamp.set(Date.now());
+  const startTimestamp = Math.round(Date.now() / 1000);
+  common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
 
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
@@ -281,7 +282,8 @@ export async function run({
     );
   }
 
-  common.metrics.ponder_historical_end_timestamp.set(Date.now());
+  const endTimestamp = Math.round(Date.now() / 1000);
+  common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
   // Become healthy
   common.logger.info({
