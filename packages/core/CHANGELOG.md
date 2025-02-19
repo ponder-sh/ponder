@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.18
+
+### Patch Changes
+
+- [#1544](https://github.com/ponder-sh/ponder/pull/1544) [`ea793aeed7c3555df7115fed164a1070c06f2bf7`](https://github.com/ponder-sh/ponder/commit/ea793aeed7c3555df7115fed164a1070c06f2bf7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `db.delete()` sometimes not persisting to the database.
+
+- [#1541](https://github.com/ponder-sh/ponder/pull/1541) [`953b45991780edc4c224a74d002d421eedf0fbb1`](https://github.com/ponder-sh/ponder/commit/953b45991780edc4c224a74d002d421eedf0fbb1) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_historical_start_timestamp_seconds`, `ponder_historical_end_timestamp_seconds`, `ponder_version_info`, and `ponder_settings_info` metrics.
+
 ## 0.9.17
 
 ### Patch Changes
