@@ -353,9 +353,8 @@ export const createIndexingCache = ({
     async delete({ table, key, db }) {
       const ck = getCacheKey(table, key);
 
-      const inBuffer =
-        insertBuffer.get(table)!.delete(getCacheKey(table, key)) ||
-        updateBuffer.get(table)!.delete(getCacheKey(table, key));
+      const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
+      const inUpdateBuffer = updateBuffer.get(table)!.delete(ck);
 
       cache.get(table)!.delete(ck);
       spillover.get(table)!.delete(ck);
@@ -368,7 +367,7 @@ export const createIndexingCache = ({
 
       isCacheComplete = false;
 
-      return inBuffer || inDb;
+      return inInsertBuffer || inUpdateBuffer || inDb;
     },
     async flush({ db }) {
       for (const table of cache.keys()) {

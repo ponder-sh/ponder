@@ -352,6 +352,9 @@ test("delete", async (context) => {
   await indexingStore
     .insert(schema.account)
     .values({ address: zeroAddress, balance: 12n });
+  await indexingStore
+    .update(schema.account, { address: zeroAddress })
+    .set({ balance: 12n });
 
   deleted = await indexingStore.delete(schema.account, {
     address: zeroAddress,
