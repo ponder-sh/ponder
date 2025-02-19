@@ -292,24 +292,6 @@ export const createDatabase = async ({
       listen: undefined,
     } as PostgresDriver;
 
-    common.shutdown.add(async () => {
-      clearInterval(heartbeatInterval);
-
-      await qb.drizzle
-        .update(PONDER_META)
-        .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
-        .where(eq(PONDER_META.key, "app"));
-
-      const d = driver as PostgresDriver;
-      d.listen?.release();
-      await Promise.all([
-        d.internal.end(),
-        d.user.end(),
-        d.readonly.end(),
-        d.sync.end(),
-      ]);
-    });
-
     await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
@@ -344,6 +326,24 @@ export const createDatabase = async ({
         schema: schemaBuild.schema,
       }),
     };
+
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.drizzle
+        .update(PONDER_META)
+        .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
+        .where(eq(PONDER_META.key, "app"));
+
+      const d = driver as PostgresDriver;
+      d.listen?.release();
+      await Promise.all([
+        d.internal.end(),
+        d.user.end(),
+        d.readonly.end(),
+        d.sync.end(),
+      ]);
+    });
 
     // Register Postgres-only metrics
     const d = driver as PostgresDriver;
