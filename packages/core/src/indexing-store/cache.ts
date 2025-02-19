@@ -554,58 +554,60 @@ export const createIndexingCache = ({
 
           // @ts-ignore
           await client.query("SAVEPOINT flush");
-          await copy(table, text).catch(async (error) => {
-            console.error(error);
-            const result = await recoverBatchError(
-              insertValues,
-              async (values) => {
-                // @ts-ignore
-                await client.query("ROLLBACK to flush");
-                const text = getCopyText(
-                  table,
-                  values.map(({ row }) => row),
-                );
-                await copy(table, text);
-                // @ts-ignore
-                await client.query("SAVEPOINT flush");
-              },
-            );
-
-            if (result.status === "success") {
-              return;
-            }
-
-            // Note: rollback so that the connection is available for other queries
-            // @ts-ignore
-            await client.query("ROLLBACK to flush");
-
-            error = parseSqlError(result.error);
-            error.stack = undefined;
-
-            if (result.value.metadata.event) {
-              addErrorMeta(
-                error,
-                `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+          await copy(table, text)
+            .catch(async (error) => {
+              console.error(error);
+              const result = await recoverBatchError(
+                insertValues,
+                async (values) => {
+                  // @ts-ignore
+                  await client.query("ROLLBACK to flush");
+                  const text = getCopyText(
+                    table,
+                    values.map(({ row }) => row),
+                  );
+                  await copy(table, text);
+                  // @ts-ignore
+                  await client.query("SAVEPOINT flush");
+                },
               );
-              addErrorMeta(error, toErrorMeta(result.value.metadata.event));
-              common.logger.error({
-                service: "indexing",
-                msg: `Error while processing ${getTableName(
-                  table,
-                )}.insert() in event '${result.value.metadata.event.name}'`,
-                error,
-              });
-            }
-            throw new FlushError(error.message);
-          });
 
-          common.metrics.ponder_indexing_cache_query_duration.observe(
-            {
-              table: getTableName(table),
-              method: "flush",
-            },
-            endClock(),
-          );
+              if (result.status === "success") {
+                return;
+              }
+
+              // Note: rollback so that the connection is available for other queries
+              // @ts-ignore
+              await client.query("ROLLBACK to flush");
+
+              error = parseSqlError(result.error);
+              error.stack = undefined;
+
+              if (result.value.metadata.event) {
+                addErrorMeta(
+                  error,
+                  `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+                );
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+                common.logger.error({
+                  service: "indexing",
+                  msg: `Error while processing ${getTableName(
+                    table,
+                  )}.insert() in event '${result.value.metadata.event.name}'`,
+                  error,
+                });
+              }
+              throw new FlushError(error.message);
+            })
+            .finally(() => {
+              common.metrics.ponder_indexing_cache_query_duration.observe(
+                {
+                  table: getTableName(table),
+                  method: "flush",
+                },
+                endClock(),
+              );
+            });
 
           for (const [key, entry] of insertBuffer.get(table)!) {
             const bytes = getBytes(entry.row);
@@ -669,56 +671,57 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          // @ts-ignore
-          await client.query(createTempTableQuery);
-          // @ts-ignore
-          await client.query("SAVEPOINT flush");
-          await copy(table, text, false).catch(async (error) => {
-            console.error(error);
-            const result = await recoverBatchError(
-              updateValues,
-              async (values) => {
-                // @ts-ignore
-                await client.query("ROLLBACK to flush");
-                const text = getCopyText(
-                  table,
-                  values.map(({ row }) => row),
-                );
-                await copy(table, text, false);
-                // @ts-ignore
-                await client.query("SAVEPOINT flush");
-              },
-            );
-
-            if (result.status === "success") {
-              return;
-            }
-
-            // Note: rollback so that the connection is available for other queries
+          try {
             // @ts-ignore
-            await client.query("ROLLBACK to flush");
+            await client.query(createTempTableQuery);
+            // @ts-ignore
+            await client.query("SAVEPOINT flush");
+            await copy(table, text, false).catch(async (error) => {
+              console.error(error);
+              const result = await recoverBatchError(
+                updateValues,
+                async (values) => {
+                  // @ts-ignore
+                  await client.query("ROLLBACK to flush");
+                  const text = getCopyText(
+                    table,
+                    values.map(({ row }) => row),
+                  );
+                  await copy(table, text, false);
+                  // @ts-ignore
+                  await client.query("SAVEPOINT flush");
+                },
+              );
 
-            error = parseSqlError(result.error);
-            error.stack = undefined;
+              if (result.status === "success") {
+                return;
+              }
 
-            addErrorMeta(
-              error,
-              `db.update arguments:\n${prettyPrint(result.value.row)}`,
+              // Note: rollback so that the connection is available for other queries
+              // @ts-ignore
+              await client.query("ROLLBACK to flush");
+
+              error = parseSqlError(result.error);
+              error.stack = undefined;
+
+              addErrorMeta(
+                error,
+                `db.update arguments:\n${prettyPrint(result.value.row)}`,
+              );
+
+              throw error;
+            });
+            // @ts-ignore
+            await client.query(updateQuery);
+          } finally {
+            common.metrics.ponder_indexing_cache_query_duration.observe(
+              {
+                table: getTableName(table),
+                method: "flush",
+              },
+              endClock(),
             );
-
-            throw error;
-          });
-          // @ts-ignore
-          await client.query(updateQuery);
-
-          common.metrics.ponder_indexing_cache_query_duration.observe(
-            {
-              table: getTableName(table),
-              method: "flush",
-            },
-            endClock(),
-          );
-
+          }
           for (const [key, entry] of updateBuffer.get(table)!) {
             const bytes = getBytes(entry.row);
             cacheBytes += bytes;

@@ -293,10 +293,12 @@ export const createRealtimeIndexingStore = ({
               .execute()
               .catch((error) => {
                 throw parseSqlError(error);
+              })
+              .finally(() => {
+                common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+                  endClock(),
+                );
               });
-            common.metrics.ponder_indexing_store_raw_sql_duration.observe(
-              endClock(),
-            );
             // @ts-ignore
             return { rows: result.rows.map((row) => Object.values(row)) };
           });
