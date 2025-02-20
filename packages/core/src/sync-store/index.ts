@@ -344,7 +344,7 @@ export const createSyncStore = ({
                 .map(({ log, block }) => encodeLog({ log, block, chainId })),
             )
             .onConflict((oc) =>
-              oc.column("id").$call((qb) =>
+              oc.columns(["blockNumber", "logIndex"]).$call((qb) =>
                 shouldUpdateCheckpoint
                   ? qb.doUpdateSet((eb) => ({
                       checkpoint: eb.ref("excluded.checkpoint"),
@@ -377,7 +377,7 @@ export const createSyncStore = ({
                 .slice(i, i + batchSize)
                 .map((block) => encodeBlock({ block, chainId })),
             )
-            .onConflict((oc) => oc.column("hash").doNothing())
+            .onConflict((oc) => oc.column("number").doNothing())
             .execute();
         }
       },
@@ -425,9 +425,11 @@ export const createSyncStore = ({
                 ),
             )
             .onConflict((oc) =>
-              oc.column("hash").doUpdateSet((eb) => ({
-                checkpoint: eb.ref("excluded.checkpoint"),
-              })),
+              oc
+                .columns(["blockNumber", "transactionIndex"])
+                .doUpdateSet((eb) => ({
+                  checkpoint: eb.ref("excluded.checkpoint"),
+                })),
             )
             .execute();
         }
@@ -627,13 +629,24 @@ export const createSyncStore = ({
       let logIndex = 0;
       let transactionIndex = 0;
       for (const block of blocksRows) {
-        if (block.checkpoint! > supremum) break;
+        if (
+          Number(block.number) >
+            Number(decodeCheckpoint(supremum).blockNumber) ||
+          logIndex === logsRows.length ||
+          transactionIndex === transactionsRows.length
+        ) {
+          break;
+        }
 
         const logs: SyncLog[] = [];
         const transactions: SyncTransaction[] = [];
 
-        while (logsRows[logIndex]!.blockNumber === block.number) {
+        while (
+          logIndex < logsRows.length &&
+          logsRows[logIndex]!.blockNumber === block.number
+        ) {
           const log = logsRows[logIndex]!;
+          // @ts-ignore
           logs.push({
             address: log.address,
             blockHash: log.blockHash,
@@ -654,6 +667,7 @@ export const createSyncStore = ({
         }
 
         while (
+          transactionIndex < transactionsRows.length &&
           transactionsRows[transactionIndex]!.blockNumber === block.number
         ) {
           const transaction = transactionsRows[transactionIndex]!;
@@ -716,12 +730,6 @@ export const createSyncStore = ({
           }),
         );
       }
-
-      console.log({
-        logs: logsRows.length,
-        blocks: blocksRows.length,
-        transactions: transactionsRows.length,
-      });
 
       // TODO(kyle) maybe incorrect
       const length = Math.max(
