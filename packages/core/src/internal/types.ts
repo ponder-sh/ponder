@@ -448,7 +448,7 @@ export type LogEvent = {
   name: string;
 
   event: {
-    name: string;
+    id: string;
     args: any;
     log: Log;
     block: Block;
@@ -466,6 +466,7 @@ export type BlockEvent = {
   name: string;
 
   event: {
+    id: string;
     block: Block;
   };
 };
@@ -479,6 +480,7 @@ export type TransactionEvent = {
   name: string;
 
   event: {
+    id: string;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
@@ -494,6 +496,7 @@ export type TransferEvent = {
   name: string;
 
   event: {
+    id: string;
     transfer: Transfer;
     block: Block;
     transaction: Transaction;
@@ -511,6 +514,7 @@ export type TraceEvent = {
   name: string;
 
   event: {
+    id: string;
     args: any;
     result: any;
     trace: Trace;

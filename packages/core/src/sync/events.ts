@@ -376,7 +376,7 @@ export const decodeEvents = (
                 name: `${source.name}:${safeName}`,
 
                 event: {
-                  name: safeName,
+                  id: event.checkpoint,
                   args: removeNullCharacters(args),
                   log: event.log!,
                   block: event.block,
@@ -433,6 +433,7 @@ export const decodeEvents = (
                 name: `${source.name}.${safeName}`,
 
                 event: {
+                  id: event.checkpoint,
                   args: removeNullCharacters(args),
                   result: removeNullCharacters(result),
                   trace: event.trace!,
@@ -476,6 +477,7 @@ export const decodeEvents = (
               name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
 
               event: {
+                id: event.checkpoint,
                 block: event.block,
                 transaction: event.transaction!,
                 transactionReceipt: event.transactionReceipt,
@@ -496,6 +498,7 @@ export const decodeEvents = (
               name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
 
               event: {
+                id: event.checkpoint,
                 transfer: {
                   from: event.trace!.from,
                   to: event.trace!.to!,
@@ -521,6 +524,7 @@ export const decodeEvents = (
           checkpoint: event.checkpoint,
           name: `${source.name}:block`,
           event: {
+            id: event.checkpoint,
             block: event.block,
           },
         });
