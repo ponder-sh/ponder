@@ -1,6 +1,5 @@
-import type { LogFilter } from "@/internal/types.js";
+import type { LogFilter, SyncBlock } from "@/internal/types.js";
 import { isAddressFactory } from "@/sync/filter.js";
-import type { SyncBlock } from "@/types/sync.js";
 import { type Hex, hexToBytes, hexToNumber, keccak256 } from "viem";
 
 export const zeroLogsBloom =

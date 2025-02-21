@@ -4,11 +4,13 @@ import type {
   Factory,
   Filter,
   IndexingBuild,
+  LightBlock,
   Network,
   RawEvent,
   Seconds,
   Source,
   Status,
+  SyncBlock,
 } from "@/internal/types.js";
 import {
   type HistoricalSync,
@@ -20,7 +22,6 @@ import {
   createRealtimeSync,
 } from "@/sync-realtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import type { LightBlock, SyncBlock } from "@/types/sync.js";
 import {
   type Checkpoint,
   MAX_CHECKPOINT,
@@ -52,7 +53,15 @@ import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
-import { buildEvents, decodeEvents } from "./events.js";
+import {
+  buildEvents,
+  decodeEvents,
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTraceToInternal,
+  syncTransactionReceiptToInternal,
+  syncTransactionToInternal,
+} from "./events.js";
 import { isAddressFactory } from "./filter.js";
 
 export type Sync = {
@@ -427,7 +436,26 @@ export const createSync = async (params: {
         const events = buildEvents({
           sources,
           chainId: network.chainId,
-          blockWithEventData: event,
+          blockData: {
+            block: syncBlockToInternal({ block: event.block }),
+            logs: event.logs.map((log) => syncLogToInternal({ log })),
+            transactions: event.transactions.map((transaction) =>
+              syncTransactionToInternal({ transaction }),
+            ),
+            transactionReceipts: event.transactionReceipts.map(
+              (transactionReceipt) =>
+                syncTransactionReceiptToInternal({ transactionReceipt }),
+            ),
+            traces: event.traces.map((trace) =>
+              syncTraceToInternal({
+                trace,
+                block: event.block,
+                transaction: event.transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              }),
+            ),
+          },
           finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
           unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
         });
@@ -981,7 +1009,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         common.metrics.ponder_sync_block.set(
           { network: network.name },
-          hexToNumber(syncProgress.current.number),
+          hexToNumber(syncProgress.current!.number),
         );
 
         unfinalizedBlocks.push(event);
@@ -1024,25 +1052,16 @@ export const getPerChainOnRealtimeSyncEvent = ({
             chainId: network.chainId,
           }),
           syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ logs, block }) =>
-              logs.map((log) => ({ log, block })),
-            ),
-            shouldUpdateCheckpoint: true,
+            logs: finalizedBlocks.flatMap(({ logs }) => logs),
             chainId: network.chainId,
           }),
           syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ factoryLogs }) =>
-              factoryLogs.map((log) => ({ log })),
-            ),
-            shouldUpdateCheckpoint: false,
+            logs: finalizedBlocks.flatMap(({ factoryLogs }) => factoryLogs),
             chainId: network.chainId,
           }),
           syncStore.insertTransactions({
-            transactions: finalizedBlocks.flatMap(({ transactions, block }) =>
-              transactions.map((transaction) => ({
-                transaction,
-                block,
-              })),
+            transactions: finalizedBlocks.flatMap(
+              ({ transactions }) => transactions,
             ),
             chainId: network.chainId,
           }),
@@ -1110,7 +1129,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         common.metrics.ponder_sync_block.set(
           { network: network.name },
-          hexToNumber(syncProgress.current.number),
+          hexToNumber(syncProgress.current!.number),
         );
 
         // Remove all reorged data

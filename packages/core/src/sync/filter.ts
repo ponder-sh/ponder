@@ -2,8 +2,16 @@ import type {
   BlockFilter,
   Factory,
   Filter,
+  InternalBlock,
+  InternalLog,
+  InternalTrace,
+  InternalTransaction,
   LogFactory,
   LogFilter,
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
@@ -13,14 +21,8 @@ import type {
   TransactionReceipt,
   Trace as UserTrace,
 } from "@/types/eth.js";
-import type {
-  SyncBlock,
-  SyncLog,
-  SyncTrace,
-  SyncTransaction,
-} from "@/types/sync.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { type Address, hexToBigInt, hexToNumber } from "viem";
+import type { Address } from "viem";
 
 /** Returns true if `address` is an address filter. */
 export const isAddressFactory = (
@@ -94,7 +96,7 @@ const isValueMatched = <T extends string>(
 export const isLogFactoryMatched = ({
   filter,
   log,
-}: { filter: LogFactory; log: SyncLog }): boolean => {
+}: { filter: LogFactory; log: InternalLog | SyncLog }): boolean => {
   const addresses = Array.isArray(filter.address)
     ? filter.address
     : [filter.address];
@@ -113,19 +115,17 @@ export const isLogFactoryMatched = ({
  */
 export const isLogFilterMatched = ({
   filter,
-  block,
   log,
   childAddresses,
 }: {
   filter: LogFilter;
-  block: SyncBlock;
-  log: SyncLog;
+  log: InternalLog | SyncLog;
   childAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    Number(log.blockNumber) < (filter.fromBlock ?? 0) ||
+    Number(log.blockNumber) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
@@ -163,21 +163,20 @@ export const isLogFilterMatched = ({
  */
 export const isTransactionFilterMatched = ({
   filter,
-  block,
   transaction,
   fromChildAddresses,
   toChildAddresses,
 }: {
   filter: TransactionFilter;
-  block: Pick<SyncBlock, "number">;
-  transaction: SyncTransaction;
+  transaction: InternalTransaction | SyncTransaction;
   fromChildAddresses?: Set<Address> | Set<Address>[];
   toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    Number(transaction.blockNumber) < (filter.fromBlock ?? 0) ||
+    Number(transaction.blockNumber) >
+      (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
@@ -247,21 +246,21 @@ export const isTransactionFilterMatched = ({
  */
 export const isTraceFilterMatched = ({
   filter,
-  block,
   trace,
+  block,
   fromChildAddresses,
   toChildAddresses,
 }: {
   filter: TraceFilter;
-  block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  trace: InternalTrace | SyncTrace["trace"];
+  block: InternalBlock | SyncBlock;
   fromChildAddresses?: Set<Address> | Set<Address>[];
   toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    Number(block.number) < (filter.fromBlock ?? 0) ||
+    Number(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
@@ -295,13 +294,13 @@ export const isTraceFilterMatched = ({
     if (Array.isArray(toChildAddresses)) {
       if (
         toChildAddresses.every(
-          (address) => isValueMatched(address, trace.to) === false,
+          (address) => isValueMatched(address, trace.to ?? undefined) === false,
         )
       ) {
         return false;
       }
     } else {
-      if (isValueMatched(toChildAddresses, trace.to) === false) {
+      if (isValueMatched(toChildAddresses, trace.to ?? undefined) === false) {
         return false;
       }
     }
@@ -309,7 +308,7 @@ export const isTraceFilterMatched = ({
     if (
       isValueMatched(
         filter.toAddress as Address | Address[] | undefined,
-        trace.to,
+        trace.to ?? undefined,
       ) === false
     ) {
       return false;
@@ -332,26 +331,26 @@ export const isTraceFilterMatched = ({
  */
 export const isTransferFilterMatched = ({
   filter,
-  block,
   trace,
+  block,
   fromChildAddresses,
   toChildAddresses,
 }: {
   filter: TransferFilter;
-  block: Pick<SyncBlock, "number">;
-  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
+  trace: InternalTrace | SyncTrace["trace"];
+  block: InternalBlock | SyncBlock;
   fromChildAddresses?: Set<Address> | Set<Address>[];
   toChildAddresses?: Set<Address> | Set<Address>[];
 }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    Number(block.number) < (filter.fromBlock ?? 0) ||
+    Number(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
-  if (trace.value === undefined || hexToBigInt(trace.value) === 0n) {
+  if (trace.value === undefined || trace.value === 0n) {
     return false;
   }
 
@@ -384,13 +383,13 @@ export const isTransferFilterMatched = ({
     if (Array.isArray(toChildAddresses)) {
       if (
         toChildAddresses.every(
-          (address) => isValueMatched(address, trace.to) === false,
+          (address) => isValueMatched(address, trace.to ?? undefined) === false,
         )
       ) {
         return false;
       }
     } else {
-      if (isValueMatched(toChildAddresses, trace.to) === false) {
+      if (isValueMatched(toChildAddresses, trace.to ?? undefined) === false) {
         return false;
       }
     }
@@ -398,7 +397,7 @@ export const isTransferFilterMatched = ({
     if (
       isValueMatched(
         filter.toAddress as Address | Address[] | undefined,
-        trace.to,
+        trace.to ?? undefined,
       ) === false
     ) {
       return false;
@@ -416,19 +415,16 @@ export const isTransferFilterMatched = ({
 export const isBlockFilterMatched = ({
   filter,
   block,
-}: {
-  filter: BlockFilter;
-  block: SyncBlock;
-}): boolean => {
+}: { filter: BlockFilter; block: InternalBlock | SyncBlock }): boolean => {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    Number(block.number) < (filter.fromBlock ?? 0) ||
+    Number(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
   ) {
     return false;
   }
 
-  return (hexToNumber(block.number) - filter.offset) % filter.interval === 0;
+  return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
 
 export const defaultBlockFilterInclude: Exclude<
@@ -483,7 +479,6 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Trans
   ];
 
 const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
-  "trace.id",
   "trace.traceIndex",
   "trace.type",
   "trace.from",
@@ -499,7 +494,6 @@ const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
 
 export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
   [
-    "log.id",
     "log.address",
     "log.data",
     "log.logIndex",

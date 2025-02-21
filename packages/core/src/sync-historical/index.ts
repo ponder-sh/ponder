@@ -10,6 +10,10 @@ import type {
   LogFilter,
   Network,
   Source,
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransactionReceipt,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
@@ -23,12 +27,6 @@ import {
 } from "@/sync/filter.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { getFragments, recoverFilter } from "@/sync/fragments.js";
-import type {
-  SyncBlock,
-  SyncLog,
-  SyncTrace,
-  SyncTransactionReceipt,
-} from "@/types/sync.js";
 import {
   type Interval,
   getChunks,
@@ -433,8 +431,7 @@ export const createHistoricalSync = async (
 
     // Insert `logs` into the sync-store
     await args.syncStore.insertLogs({
-      logs: logs.map((log) => ({ log })),
-      shouldUpdateCheckpoint: false,
+      logs,
       chainId: args.network.chainId,
     });
   };
@@ -515,8 +512,7 @@ export const createHistoricalSync = async (
     }
 
     await args.syncStore.insertLogs({
-      logs: logs.map((log, i) => ({ log, block: blocks[i]! })),
-      shouldUpdateCheckpoint: true,
+      logs,
       chainId: args.network.chainId,
     });
 
@@ -592,7 +588,6 @@ export const createHistoricalSync = async (
         if (
           isTransactionFilterMatched({
             filter,
-            block,
             transaction,
             fromChildAddresses,
             toChildAddresses,
@@ -647,8 +642,8 @@ export const createHistoricalSync = async (
           filter.type === "trace"
             ? isTraceFilterMatched({
                 filter,
-                block: { number: toHex(number) },
                 trace: trace.trace,
+                block,
                 fromChildAddresses: fromChildAddresses
                   ? new Set(fromChildAddresses)
                   : undefined,
@@ -658,8 +653,8 @@ export const createHistoricalSync = async (
               })
             : isTransferFilterMatched({
                 filter,
-                block: { number: toHex(number) },
                 trace: trace.trace,
+                block,
                 fromChildAddresses: fromChildAddresses
                   ? new Set(fromChildAddresses)
                   : undefined,
@@ -843,12 +838,9 @@ export const createHistoricalSync = async (
         args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
         args.syncStore.insertTransactions({
           transactions: blocks.flatMap((block) =>
-            block.transactions
-              .filter(({ hash }) => transactionsCache.has(hash))
-              .map((transaction) => ({
-                transaction,
-                block,
-              })),
+            block.transactions.filter(({ hash }) =>
+              transactionsCache.has(hash),
+            ),
           ),
           chainId: args.network.chainId,
         }),

@@ -29,8 +29,9 @@ import type {
   Factory,
   LogFactory,
   LogFilter,
+  SyncTrace,
+  SyncTransaction,
 } from "@/internal/types.js";
-import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
   MAX_CHECKPOINT,
   MAX_CHECKPOINT_STRING,

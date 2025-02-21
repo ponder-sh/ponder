@@ -21,11 +21,12 @@ import type {
   BlockFilter,
   LogFactory,
   LogFilter,
+  SyncLog,
+  SyncTrace,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type { SyncLog, SyncTrace } from "@/types/sync.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import {

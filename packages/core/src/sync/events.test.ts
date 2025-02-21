@@ -26,12 +26,14 @@ import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFuncti
 import type {
   BlockEvent,
   LogEvent,
+  LogFactory,
+  LogFilter,
   RawEvent,
+  SyncTrace,
+  SyncTransaction,
   TraceEvent,
   TransferEvent,
 } from "@/internal/types.js";
-import type { LogFactory, LogFilter } from "@/internal/types.js";
-import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
 import {
   MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT_STRING,
@@ -93,7 +95,6 @@ test("decodeEvents() log", async (context) => {
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
-      id: "test",
       data,
       topics,
     },
@@ -140,7 +141,6 @@ test("decodeEvents() log error", async (context) => {
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
-      id: "test",
       data: "0x0" as Hex,
       topics,
     },

@@ -4,9 +4,15 @@ import type {
   BlockFilter,
   Factory,
   Filter,
+  LightBlock,
   LogFilter,
   Network,
   Source,
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+  SyncTransactionReceipt,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
@@ -23,14 +29,6 @@ import {
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
-import type {
-  LightBlock,
-  SyncBlock,
-  SyncLog,
-  SyncTrace,
-  SyncTransaction,
-  SyncTransactionReceipt,
-} from "@/types/sync.js";
 import { mutex } from "@/utils/mutex.js";
 import type { Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
@@ -228,14 +226,7 @@ export const createRealtimeSync = (
             ]
           : undefined;
 
-        if (
-          isLogFilterMatched({
-            filter,
-            block,
-            log,
-            childAddresses,
-          })
-        ) {
+        if (isLogFilterMatched({ filter, log, childAddresses })) {
           matchedFilters.add(filter);
           isMatched = true;
         }
@@ -264,8 +255,8 @@ export const createRealtimeSync = (
         if (
           isTransferFilterMatched({
             filter,
-            block: { number: block.number },
             trace: trace.trace,
+            block,
             fromChildAddresses,
             toChildAddresses,
           })
@@ -293,8 +284,8 @@ export const createRealtimeSync = (
         if (
           isTraceFilterMatched({
             filter,
-            block: { number: block.number },
             trace: trace.trace,
+            block,
             fromChildAddresses,
             toChildAddresses,
           })
@@ -337,7 +328,6 @@ export const createRealtimeSync = (
         if (
           isTransactionFilterMatched({
             filter,
-            block,
             transaction,
             fromChildAddresses,
             toChildAddresses,
@@ -773,7 +763,7 @@ export const createRealtimeSync = (
       let isMatched = false;
 
       for (const filter of logFilters) {
-        if (isLogFilterMatched({ filter, block, log })) {
+        if (isLogFilterMatched({ filter, log })) {
           isMatched = true;
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
@@ -799,13 +789,7 @@ export const createRealtimeSync = (
     traces = traces.filter((trace) => {
       let isMatched = false;
       for (const filter of transferFilters) {
-        if (
-          isTransferFilterMatched({
-            filter,
-            block: { number: block.number },
-            trace: trace.trace,
-          })
-        ) {
+        if (isTransferFilterMatched({ filter, trace: trace.trace, block })) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
           if (shouldGetTransactionReceipt(filter)) {
@@ -817,13 +801,7 @@ export const createRealtimeSync = (
       }
 
       for (const filter of traceFilters) {
-        if (
-          isTraceFilterMatched({
-            filter,
-            block: { number: block.number },
-            trace: trace.trace,
-          })
-        ) {
+        if (isTraceFilterMatched({ filter, trace: trace.trace, block })) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
           if (shouldGetTransactionReceipt(filter)) {
@@ -844,7 +822,7 @@ export const createRealtimeSync = (
     const transactions = block.transactions.filter((transaction) => {
       let isMatched = requiredTransactions.has(transaction.hash);
       for (const filter of transactionFilters) {
-        if (isTransactionFilterMatched({ filter, block, transaction })) {
+        if (isTransactionFilterMatched({ filter, transaction })) {
           requiredTransactions.add(transaction.hash);
           requiredTransactionReceipts.add(transaction.hash);
           isMatched = true;

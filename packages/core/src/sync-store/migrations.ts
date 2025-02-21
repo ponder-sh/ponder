@@ -1276,6 +1276,14 @@ GROUP BY fragment_id, chain_id
   },
   "2025_02_19_0_primary_key": {
     async up(db) {
+      // 1. drop unused indexes
+      // 2. drop primary key
+      // 3. drop unused columns
+      // 4. update column types
+      // 5. rename tables and columns
+      // 6. create new primary key
+      // 7. reset metadata
+
       await db.schema.dropIndex("logAddressIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockHashIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockNumberIndex").ifExists().execute();
@@ -1286,59 +1294,487 @@ GROUP BY fragment_id, chain_id
         .ifExists()
         .execute();
       await db.schema.dropIndex("logs_checkpoint_index").ifExists().execute();
-
-      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
-
-      await db.schema
-        .alterTable("logs")
-        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
-        .execute();
-
-      await db.schema
-        .alterTable("logs")
-        .addPrimaryKeyConstraint("logs_pkey", ["blockNumber", "logIndex"])
-        .execute();
-
       await db.schema.dropIndex("blockChainIdIndex").execute();
       await db.schema.dropIndex("blockCheckpointIndex").execute();
       await db.schema.dropIndex("blockNumberIndex").execute();
+      await db.schema.dropIndex("transactions_checkpoint_index").execute();
+      await db.schema.dropIndex("trace_block_hash_index").ifExists().execute();
+      await db.schema
+        .dropIndex("trace_block_number_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("trace_chain_id_index").ifExists().execute();
+      await db.schema.dropIndex("trace_checkpoint_index").ifExists().execute();
+      await db.schema.dropIndex("trace_from_index").ifExists().execute();
+      await db.schema
+        .dropIndex("trace_function_selector_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("trace_is_reverted_index").ifExists().execute();
+      await db.schema.dropIndex("trace_to_index").ifExists().execute();
+      await db.schema
+        .dropIndex("trace_transaction_hash_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("trace_type_index").ifExists().execute();
+      await db.schema.dropIndex("trace_value_index").ifExists().execute();
 
+      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
       await db.schema
         .alterTable("blocks")
         .dropConstraint("blocks_pkey")
         .execute();
-
-      await db.schema
-        .alterTable("blocks")
-        .alterColumn("number", (qb) => qb.setDataType("bigint"))
-        .execute();
-
-      await db.schema
-        .alterTable("blocks")
-        .addPrimaryKeyConstraint("blocks_pkey", ["number"])
-        .execute();
-
-      await db.schema.dropIndex("transactions_checkpoint_index").execute();
-
       await db.schema
         .alterTable("transactions")
         .dropConstraint("transactions_pkey")
         .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropConstraint("transactionReceipts_pkey")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .dropConstraint("traces_pkey")
+        .execute();
 
+      await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+      await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
+      await db.schema.alterTable("logs").dropColumn("id").execute();
+      await db.schema.alterTable("logs").dropColumn("blockHash").execute();
+      await db.schema
+        .alterTable("logs")
+        .dropColumn("transactionHash")
+        .execute();
+      await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropColumn("checkpoint")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropColumn("blockHash")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropColumn("blockHash")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropColumn("transactionHash")
+        .execute();
+      await db.schema.alterTable("traces").dropColumn("id").execute();
+      await db.schema.alterTable("traces").dropColumn("checkpoint").execute();
+      await db.schema
+        .alterTable("traces")
+        .dropColumn("transactionHash")
+        .execute();
+      await db.schema.alterTable("traces").dropColumn("blockHash").execute();
+      await db.schema
+        .alterTable("traces")
+        .dropColumn("functionSelector")
+        .execute();
+      await db.schema.alterTable("traces").dropColumn("isReverted").execute();
+
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("number", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("timestamp", (qb) => qb.setDataType("bigint"))
+        .execute();
       await db.schema
         .alterTable("transactions")
         .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
         .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
 
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("logIndex", "log_index")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("parentHash", "parent_hash")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("logsBloom", "logs_bloom")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("gasUsed", "gas_used")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("gasLimit", "gas_limit")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("baseFeePerGas", "base_fee_per_gas")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("mixHash", "mix_hash")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("stateRoot", "state_root")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("receiptsRoot", "receipts_root")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("transactionsRoot", "transactions_root")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("sha3Uncles", "sha3_uncles")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("totalDifficulty", "total_difficulty")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("extraData", "extra_data")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("gasPrice", "gas_price")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("maxFeePerGas", "max_fee_per_gas")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("maxPriorityFeePerGas", "max_priority_fee_per_gas")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("accessList", "access_list")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .renameTo("transaction_receipts")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("contractAddress", "contract_address")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("logsBloom", "logs_bloom")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("gasUsed", "gas_used")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("cumulativeGasUsed", "cumulative_gas_used")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("effectiveGasPrice", "effective_gas_price")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("index", "trace_index")
+        .execute();
+      // await db.schema
+      //   .alterTable("traces")
+      //   .renameColumn("transactionIndex", "transaction_index")
+      //   .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("gasUsed", "gas_used")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("revertReason", "revert_reason")
+        .execute();
+
+      await db.schema
+        .alterTable("logs")
+        .addPrimaryKeyConstraint("logs_pkey", [
+          "chain_id",
+          "block_number",
+          "log_index",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .addPrimaryKeyConstraint("blocks_pkey", ["chain_id", "number"])
+        .execute();
       await db.schema
         .alterTable("transactions")
         .addPrimaryKeyConstraint("transactions_pkey", [
-          "blockNumber",
-          "transactionIndex",
+          "chain_id",
+          "block_number",
+          "transaction_index",
         ])
         .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .addPrimaryKeyConstraint("transaction_receipts_pkey", [
+          "chain_id",
+          "block_number",
+          "transaction_index",
+        ])
+        .execute();
+      // TODO(kyle) migrate traces.checkpoint
+      await db.schema
+        .alterTable("traces")
+        .addColumn("transaction_index", "bigint", (b) => b.notNull())
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .addPrimaryKeyConstraint("traces_pkey", [
+          "chain_id",
+          "block_number",
+          "transaction_index",
+          "trace_index",
+        ])
+        .execute();
+
+      await sql`ANALYZE ponder_sync.logs`.execute(db);
+      await sql`ANALYZE ponder_sync.blocks`.execute(db);
+      await sql`ANALYZE ponder_sync.transactions`.execute(db);
+      await sql`ANALYZE ponder_sync.transaction_receipts`.execute(db);
+      await sql`ANALYZE ponder_sync.traces`.execute(db);
+
+      await sql`REINDEX TABLE ponder_sync.logs`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.blocks`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.transaction_receipts`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
     },
   },
+  // "2025_02_20_0_compression": {
+  //   async up(db) {
+  //     await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+  //     await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
+  //     await db.schema.alterTable("logs").dropColumn("id").execute();
+  //     await db.schema.alterTable("logs").dropColumn("blockHash").execute();
+  //     await db.schema
+  //       .alterTable("logs")
+  //       .dropColumn("transactionHash")
+  //       .execute();
+  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN address TYPE bytea USING decode(substring(address from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic0" TYPE bytea USING decode(substring("topic0" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic1" TYPE bytea USING decode(substring("topic1" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic2" TYPE bytea USING decode(substring("topic2" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic3" TYPE bytea USING decode(substring("topic3" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+
+  //     await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "hash" TYPE bytea USING decode(substring("hash" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "parentHash" TYPE bytea USING decode(substring("parentHash" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "stateRoot" TYPE bytea USING decode(substring("stateRoot" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "transactionsRoot" TYPE bytea USING decode(substring("transactionsRoot" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "receiptsRoot" TYPE bytea USING decode(substring("receiptsRoot" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "sha3Uncles" TYPE bytea USING decode(substring("sha3Uncles" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "logsBloom" TYPE bytea USING decode(substring("logsBloom" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "mixHash" TYPE bytea USING decode(substring("mixHash" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "nonce" TYPE bytea USING decode(substring("nonce" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "extraData" TYPE bytea USING decode(substring("extraData" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+
+  //     await db.schema
+  //       .alterTable("transactions")
+  //       .dropColumn("checkpoint")
+  //       .execute();
+  //     await db.schema
+  //       .alterTable("transactions")
+  //       .dropColumn("blockHash")
+  //       .execute();
+  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "hash" TYPE bytea USING decode(substring("hash" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "from" TYPE bytea USING decode(substring("from" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "to" TYPE bytea USING decode(substring("to" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "input" TYPE bytea USING decode(substring("input" from 3), 'hex')`.execute(
+  //     //   db,
+  //     // );
+  //     // await sql`
+  //     // ALTER TABLE ponder_sync.transactions ALTER COLUMN "r" TYPE bytea
+  //     // USING decode(
+  //     //   CASE
+  //     //     WHEN length(r) % 2 = 1 THEN lpad(substring(r from 3), length(r) - 1, '0')
+  //     //     ELSE substring(r from 3)
+  //     //   END,
+  //     //   'hex')`.execute(db);
+  //     // await sql`
+  //     // ALTER TABLE ponder_sync.transactions ALTER COLUMN "s" TYPE bytea
+  //     // USING decode(
+  //     //   CASE
+  //     //     WHEN length(s) % 2 = 1 THEN lpad(substring(s from 3), length(s) - 1, '0')
+  //     //     ELSE substring(s from 3)
+  //     //   END,
+  //     //   'hex')`.execute(db);
+  //   },
+  // },
+  // "2025_02_20_1_compression": {
+  //   async up(db) {
+  //     await db.schema.alterTable("logs").dropColumn("id").execute();
+
+  //     await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN data TYPE bytea USING decode(substring(data from 3), 'hex')`.execute(
+  //       db,
+  //     );
+  //   },
+  // },
+  // "2025_02_20_2_compression": {
+  //   async up(db) {
+  //     await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN miner TYPE bytea USING decode(substring(miner from 3), 'hex')`.execute(
+  //       db,
+  //     );
+  //   },
+  // },
+  // "2025_02_20_3_va": {
+  //   async up(db) {
+  //     await sql`ANALYZE ponder_sync.logs`.execute(db);
+  //     await sql`ANALYZE ponder_sync.blocks`.execute(db);
+  //     await sql`ANALYZE ponder_sync.transactions`.execute(db);
+  //   },
+  // },
+  // "2025_02_21_0_chain_id": {
+  //   async up(db) {
+  //     await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
+  //     await db.schema
+  //       .alterTable("logs")
+  //       .addPrimaryKeyConstraint("logs_pkey", [
+  //         "chainId",
+  //         "blockNumber",
+  //         "logIndex",
+  //       ])
+  //       .execute();
+
+  //     await db.schema
+  //       .alterTable("blocks")
+  //       .dropConstraint("blocks_pkey")
+  //       .execute();
+  //     await db.schema
+  //       .alterTable("blocks")
+  //       .addPrimaryKeyConstraint("blocks_pkey", ["chainId", "number"])
+  //       .execute();
+
+  //     await db.schema
+  //       .alterTable("transactions")
+  //       .dropConstraint("transactions_pkey")
+  //       .execute();
+  //     await db.schema
+  //       .alterTable("transactions")
+  //       .addPrimaryKeyConstraint("transactions_pkey", [
+  //         "chainId",
+  //         "blockNumber",
+  //         "transactionIndex",
+  //       ])
+  //       .execute();
+
+  //     await sql`REINDEX TABLE ponder_sync.logs`.execute(db);
+  //     await sql`REINDEX TABLE ponder_sync.blocks`.execute(db);
+  //     await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
+
+  //     await sql`ANALYZE ponder_sync.logs`.execute(db);
+  //     await sql`ANALYZE ponder_sync.blocks`.execute(db);
+  //     await sql`ANALYZE ponder_sync.transactions`.execute(db);
+  //   },
+  // },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
