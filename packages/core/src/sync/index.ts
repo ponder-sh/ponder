@@ -1555,13 +1555,10 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
 ): AsyncGenerator<{ events: Event[]; checkpoint: string }> {
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
-  console.log("results", results.length);
-
   while (results.some((res) => res.done !== true)) {
     const supremum = min(
       ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
     );
-    console.log("supremum", supremum);
 
     const eventArrays: Event[][] = [];
 
