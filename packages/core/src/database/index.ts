@@ -55,9 +55,7 @@ import {
   WithSchemaPlugin,
   sql as ksql,
 } from "kysely";
-import { PostgresJSDialect } from "kysely-postgres-js";
 import type { Pool, PoolClient } from "pg";
-import postgres from "postgres";
 import prometheus from "prom-client";
 
 export type Database = {
@@ -110,7 +108,7 @@ type PGliteDriver = {
 type PostgresDriver = {
   internal: Pool;
   user: Pool;
-  sync: postgres.Sql;
+  sync: Pool;
   readonly: Pool;
   listen: PoolClient | undefined;
 };
@@ -251,7 +249,7 @@ export const createDatabase = async ({
     const equalMax = Math.floor(
       (preBuild.databaseConfig.poolConfig.max - internalMax) / 3,
     );
-    const [readonlyMax, userMax] =
+    const [readonlyMax, userMax, syncMax] =
       common.options.command === "serve"
         ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
         : [equalMax, equalMax, equalMax];
@@ -283,7 +281,14 @@ export const createDatabase = async ({
         common.logger,
         namespace,
       ),
-      sync: postgres(preBuild.databaseConfig.poolConfig.connectionString!),
+      sync: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: "ponder_sync",
+          max: syncMax,
+        },
+        common.logger,
+      ),
       listen: undefined,
     } as PostgresDriver;
 
@@ -302,7 +307,7 @@ export const createDatabase = async ({
         plugins: [new WithSchemaPlugin(namespace)],
       }),
       sync: new Kysely<PonderSyncSchema>({
-        dialect: new PostgresJSDialect({ postgres: driver.sync }),
+        dialect: new PostgresDialect({ pool: driver.sync }),
         log(event) {
           if (event.level === "query") {
             common.metrics.ponder_postgres_query_total.inc({
@@ -353,8 +358,8 @@ export const createDatabase = async ({
       collect() {
         this.set({ pool: "internal", kind: "idle" }, d.internal.idleCount);
         this.set({ pool: "internal", kind: "total" }, d.internal.totalCount);
-        // this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
-        // this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+        this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+        this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
         this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
         this.set({ pool: "user", kind: "total" }, d.user.totalCount);
         this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
@@ -372,7 +377,7 @@ export const createDatabase = async ({
       registers: [common.metrics.registry],
       collect() {
         this.set({ pool: "internal" }, d.internal.waitingCount);
-        // this.set({ pool: "sync" }, d.sync.waitingCount);
+        this.set({ pool: "sync" }, d.sync.waitingCount);
         this.set({ pool: "user" }, d.user.waitingCount);
         this.set({ pool: "readonly" }, d.readonly.waitingCount);
       },

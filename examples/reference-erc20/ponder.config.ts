@@ -3,7 +3,6 @@ import { http } from "viem";
 import { erc20ABI } from "./abis/erc20ABI";
 
 export default createConfig({
-  ordering: "multichain",
   networks: {
     mainnet: {
       chainId: 1,
