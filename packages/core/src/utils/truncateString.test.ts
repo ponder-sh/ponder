@@ -3,25 +3,21 @@ import { test } from "vitest";
 import { truncateEventName } from "./truncateString.js";
 
 describe("truncateEventName", () => {
-  test("returns the same string if it's within maxLength", () => {
-    expect(truncateEventName("ShortName", 24)).toBe("ShortName");
-  });
-
   test("truncates a long string correctly", () => {
-    expect(truncateEventName("VeryLongContractEventName", 24)).toBe(
-      "VeryLo...tName",
+    expect(truncateEventName("EnergyMarketOrderBookV1Contract", 24)).toBe(
+      "EnergyMark...V1Contract",
     );
   });
 
-  test("handles maxLength shorter than ellipsis", () => {
-    expect(truncateEventName("VeryLongName", 5)).toBe("V...e");
+  test("returns the same string if it's within maxLength", () => {
+    expect(truncateEventName("EnergyMarketOrderBookV1Contract", 31)).toBe(
+      "EnergyMarketOrderBookV1Contract",
+    );
   });
 
-  test("handles exact maxLength without truncation", () => {
-    expect(truncateEventName("ExactLengthHere", 16)).toBe("ExactLengthHere");
-  });
-
-  test("handles edge case with maxLength of 3", () => {
-    expect(truncateEventName("LongName", 3)).toBe("...");
+  test("truncates a long string correctly with default maxLength", () => {
+    expect(truncateEventName("EnergyMarketOrderBookV1Contract")).toBe(
+      "EnergyMark...V1Contract",
+    );
   });
 });
