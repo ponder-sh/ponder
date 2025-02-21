@@ -19,6 +19,12 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
+import {
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTransactionReceiptToInternal,
+  syncTransactionToInternal,
+} from "@/sync/events.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { fragmentToId, getFragments } from "@/sync/fragments.js";
 import {
@@ -32,11 +38,6 @@ import type { InsertObject } from "kysely";
 import { type Address, type Hex, hexToBigInt } from "viem";
 import {
   type PonderSyncSchema,
-  decodeBlock,
-  decodeLog,
-  decodeTrace,
-  decodeTransaction,
-  decodeTransactionReceipt,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -142,13 +143,13 @@ const logFactorySQL = (
       })().as("childAddress"),
     )
     .distinct()
-    .$call((qb) => {
-      if (Array.isArray(factory.address)) {
-        return qb.where("address", "in", factory.address);
-      }
-      return qb.where("address", "=", factory.address);
-    })
-    .where("topic0", "=", factory.eventSelector)
+    // .$call((qb) => {
+    //   if (Array.isArray(factory.address)) {
+    //     return qb.where("address", "in", factory.address);
+    //   }
+    //   return qb.where("address", "=", factory.address);
+    // })
+    // .where("topic0", "=", factory.eventSelector)
     .where("chain_id", "=", factory.chainId);
 
 export const createSyncStore = ({
@@ -593,23 +594,19 @@ export const createSyncStore = ({
         .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
       const [
-        logsRows,
         blocksRows,
         transactionsRows,
         transactionReceiptsRows,
+        logsRows,
         tracesRows,
       ] = await Promise.all([
-        shouldQueryLogs ? logsQ.execute() : [],
         shouldQueryBlocks ? blocksQ.execute() : [],
         shouldQueryTransactions ? transactionsQ.execute() : [],
         shouldQueryTransactionReceipts ? transactionReceiptsQ.execute() : [],
+        shouldQueryLogs ? logsQ.execute() : [],
         shouldQueryTraces ? tracesQ.execute() : [],
       ]);
-
       const supremum = Math.min(
-        logsRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(logsRows[logsRows.length - 1]!.block_number),
         blocksRows.length === 0
           ? Number.POSITIVE_INFINITY
           : Number(blocksRows[blocksRows.length - 1]!.number),
@@ -622,6 +619,9 @@ export const createSyncStore = ({
               transactionReceiptsRows[transactionReceiptsRows.length - 1]!
                 .block_number,
             ),
+        logsRows.length === 0
+          ? Number.POSITIVE_INFINITY
+          : Number(logsRows[logsRows.length - 1]!.block_number),
         tracesRows.length === 0
           ? Number.POSITIVE_INFINITY
           : Number(tracesRows[tracesRows.length - 1]!.block_number),
@@ -636,7 +636,7 @@ export const createSyncStore = ({
       }[] = [];
       let transactionIndex = 0;
       let transactionReceiptIndex = 0;
-      let traceIndex = 0;
+      // const traceIndex = 0;
       let logIndex = 0;
       for (const block of blocksRows) {
         if (Number(block.number) > supremum) {
@@ -653,7 +653,11 @@ export const createSyncStore = ({
           transactionsRows[transactionIndex]!.block_number === block.number
         ) {
           const transaction = transactionsRows[transactionIndex]!;
-          transactions.push(decodeTransaction({ transaction }));
+          transactions.push(
+            syncTransactionToInternal({
+              transaction: transaction.body,
+            }),
+          );
           transactionIndex++;
         }
 
@@ -665,7 +669,9 @@ export const createSyncStore = ({
           const transactionReceipt =
             transactionReceiptsRows[transactionReceiptIndex]!;
           transactionReceipts.push(
-            decodeTransactionReceipt({ transactionReceipt }),
+            syncTransactionReceiptToInternal({
+              transactionReceipt: transactionReceipt.body,
+            }),
           );
           transactionReceiptIndex++;
         }
@@ -675,21 +681,21 @@ export const createSyncStore = ({
           logsRows[logIndex]!.block_number === block.number
         ) {
           const log = logsRows[logIndex]!;
-          logs.push(decodeLog({ log }));
+          logs.push(syncLogToInternal({ log: log.body }));
           logIndex++;
         }
 
-        while (
-          traceIndex < tracesRows.length &&
-          tracesRows[traceIndex]!.block_number === block.number
-        ) {
-          const trace = tracesRows[traceIndex]!;
-          traces.push(decodeTrace({ trace }));
-          traceIndex++;
-        }
+        // while (
+        //   traceIndex < tracesRows.length &&
+        //   tracesRows[traceIndex]!.block_number === block.number
+        // ) {
+        //   const trace = tracesRows[traceIndex]!;
+        //   traces.push(syncTraceToInternal({ trace: trace.body }));
+        //   traceIndex++;
+        // }
 
         blockData.push({
-          block: decodeBlock({ block }),
+          block: syncBlockToInternal({ block: block.body }),
           logs,
           transactions,
           traces,
