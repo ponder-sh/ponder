@@ -55,7 +55,9 @@ import {
   WithSchemaPlugin,
   sql as ksql,
 } from "kysely";
+import { PostgresJSDialect } from "kysely-postgres-js";
 import type { Pool, PoolClient } from "pg";
+import postgres from "postgres";
 import prometheus from "prom-client";
 
 export type Database = {
@@ -108,7 +110,7 @@ type PGliteDriver = {
 type PostgresDriver = {
   internal: Pool;
   user: Pool;
-  sync: Pool;
+  sync: postgres.Sql;
   readonly: Pool;
   listen: PoolClient | undefined;
 };
@@ -281,14 +283,7 @@ export const createDatabase = async ({
         common.logger,
         namespace,
       ),
-      sync: createPool(
-        {
-          ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace}_sync`,
-          max: userMax,
-        },
-        common.logger,
-      ),
+      sync: postgres(preBuild.databaseConfig.poolConfig.connectionString!),
       listen: undefined,
     } as PostgresDriver;
 
@@ -307,7 +302,7 @@ export const createDatabase = async ({
         plugins: [new WithSchemaPlugin(namespace)],
       }),
       sync: new Kysely<PonderSyncSchema>({
-        dialect: new PostgresDialect({ pool: driver.sync }),
+        dialect: new PostgresJSDialect({ postgres: driver.sync }),
         log(event) {
           if (event.level === "query") {
             common.metrics.ponder_postgres_query_total.inc({

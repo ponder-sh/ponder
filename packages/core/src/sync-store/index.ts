@@ -32,6 +32,11 @@ import type { InsertObject } from "kysely";
 import { type Address, type Hex, hexToBigInt } from "viem";
 import {
   type PonderSyncSchema,
+  // decodeBlock,
+  // decodeLog,
+  // decodeTrace,
+  // decodeTransaction,
+  // decodeTransactionReceipt,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -137,13 +142,13 @@ const logFactorySQL = (
       })().as("childAddress"),
     )
     .distinct()
-    // .$call((qb) => {
-    //   if (Array.isArray(factory.address)) {
-    //     return qb.where("address", "in", factory.address);
-    //   }
-    //   return qb.where("address", "=", factory.address);
-    // })
-    // .where("topic0", "=", factory.eventSelector)
+    .$call((qb) => {
+      if (Array.isArray(factory.address)) {
+        return qb.where("address", "in", factory.address);
+      }
+      return qb.where("address", "=", factory.address);
+    })
+    .where("topic0", "=", factory.eventSelector)
     .where("chain_id", "=", factory.chainId);
 
 export const createSyncStore = ({
@@ -588,19 +593,23 @@ export const createSyncStore = ({
         .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
       const [
+        logsRows,
         blocksRows,
         transactionsRows,
         transactionReceiptsRows,
-        logsRows,
         tracesRows,
       ] = await Promise.all([
+        shouldQueryLogs ? logsQ.execute() : [],
         shouldQueryBlocks ? blocksQ.execute() : [],
         shouldQueryTransactions ? transactionsQ.execute() : [],
         shouldQueryTransactionReceipts ? transactionReceiptsQ.execute() : [],
-        shouldQueryLogs ? logsQ.execute() : [],
         shouldQueryTraces ? tracesQ.execute() : [],
       ]);
+
       const supremum = Math.min(
+        logsRows.length === 0
+          ? Number.POSITIVE_INFINITY
+          : Number(logsRows[logsRows.length - 1]!.block_number),
         blocksRows.length === 0
           ? Number.POSITIVE_INFINITY
           : Number(blocksRows[blocksRows.length - 1]!.number),
@@ -613,9 +622,6 @@ export const createSyncStore = ({
               transactionReceiptsRows[transactionReceiptsRows.length - 1]!
                 .block_number,
             ),
-        logsRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(logsRows[logsRows.length - 1]!.block_number),
         tracesRows.length === 0
           ? Number.POSITIVE_INFINITY
           : Number(tracesRows[tracesRows.length - 1]!.block_number),
