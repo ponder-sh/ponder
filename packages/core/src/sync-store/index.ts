@@ -541,7 +541,7 @@ export const createSyncStore = ({
         .selectFrom("blocks")
         .selectAll()
         .where("chain_id", "=", chainId)
-        .where("number", ">", fromBlock)
+        .where("number", ">=", fromBlock)
         .where("number", "<=", toBlock)
         .orderBy("number", "asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -550,7 +550,7 @@ export const createSyncStore = ({
         .selectFrom("transactions")
         .selectAll()
         .where("chain_id", "=", chainId)
-        .where("block_number", ">", fromBlock)
+        .where("block_number", ">=", fromBlock)
         // .where("transaction_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
         // .where("transaction_index", "<=", Number(toEventIndex))
@@ -561,7 +561,7 @@ export const createSyncStore = ({
       const transactionReceiptsQ = database.qb.sync
         .selectFrom("transaction_receipts")
         .selectAll()
-        .where("block_number", ">", fromBlock)
+        .where("block_number", ">=", fromBlock)
         // .where("transaction_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
         // .where("transaction_index", "<=", Number(toEventIndex))
@@ -573,7 +573,7 @@ export const createSyncStore = ({
         .selectFrom("logs")
         .selectAll()
         .where("chain_id", "=", chainId)
-        .where("block_number", ">", fromBlock)
+        .where("block_number", ">=", fromBlock)
         // .where("log_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
         // .where("log_index", "<=", Number(toEventIndex))
@@ -584,7 +584,7 @@ export const createSyncStore = ({
       const tracesQ = database.qb.sync
         .selectFrom("traces")
         .selectAll()
-        .where("block_number", ">", fromBlock)
+        .where("block_number", ">=", fromBlock)
         // .where("trace_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
         // .where("trace_index", "<=", Number(toEventIndex))
@@ -709,12 +709,12 @@ export const createSyncStore = ({
       ) {
         cursor = to;
       } else {
-        blockData.pop();
+        const lastBlock = blockData[blockData.length - 1]!.block;
         cursor = encodeCheckpoint({
           ...ZERO_CHECKPOINT,
-          // TODO(kyle) this currently only works for multichain
+          blockTimestamp: Number(lastBlock.timestamp),
           chainId: BigInt(chainId),
-          blockNumber: BigInt(supremum - 1),
+          blockNumber: BigInt(lastBlock.number),
         });
       }
 
