@@ -1613,168 +1613,125 @@ GROUP BY fragment_id, chain_id
       await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
     },
   },
-  // "2025_02_20_0_compression": {
-  //   async up(db) {
-  //     await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
-  //     await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
-  //     await db.schema.alterTable("logs").dropColumn("id").execute();
-  //     await db.schema.alterTable("logs").dropColumn("blockHash").execute();
-  //     await db.schema
-  //       .alterTable("logs")
-  //       .dropColumn("transactionHash")
-  //       .execute();
-  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN address TYPE bytea USING decode(substring(address from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic0" TYPE bytea USING decode(substring("topic0" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic1" TYPE bytea USING decode(substring("topic1" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic2" TYPE bytea USING decode(substring("topic2" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic3" TYPE bytea USING decode(substring("topic3" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
+  "2025_02_21_0_bytea": {
+    async up(db) {
+      await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "address" TYPE bytea USING decode(substring("address" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "data" TYPE bytea USING decode(substring("data" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic0" TYPE bytea USING decode(substring("topic0" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic1" TYPE bytea USING decode(substring("topic1" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic2" TYPE bytea USING decode(substring("topic2" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN "topic3" TYPE bytea USING decode(substring("topic3" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "hash" TYPE bytea USING decode(substring("hash" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "parent_hash" TYPE bytea USING decode(substring("parent_hash" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN miner TYPE bytea USING decode(substring(miner from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "state_root" TYPE bytea USING decode(substring("state_root" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "transactions_root" TYPE bytea USING decode(substring("transactions_root" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "receipts_root" TYPE bytea USING decode(substring("receipts_root" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "sha3_uncles" TYPE bytea USING decode(substring("sha3_uncles" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "logs_bloom" TYPE bytea USING decode(substring("logs_bloom" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "mix_hash" TYPE bytea USING decode(substring("mix_hash" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "nonce" TYPE bytea USING decode(substring("nonce" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "extra_data" TYPE bytea USING decode(substring("extra_data" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "hash" TYPE bytea USING decode(substring("hash" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "from" TYPE bytea USING decode(substring("from" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "to" TYPE bytea USING decode(substring("to" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "input" TYPE bytea USING decode(substring("input" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`
+          ALTER TABLE ponder_sync.transactions ALTER COLUMN "r" TYPE bytea
+          USING decode(
+            CASE
+              WHEN length(r) % 2 = 1 THEN lpad(substring(r from 3), length(r) - 1, '0')
+              ELSE substring(r from 3)
+            END,
+            'hex')`.execute(db);
+      await sql`
+          ALTER TABLE ponder_sync.transactions ALTER COLUMN "s" TYPE bytea
+          USING decode(
+            CASE
+              WHEN length(s) % 2 = 1 THEN lpad(substring(s from 3), length(s) - 1, '0')
+              ELSE substring(s from 3)
+            END,
+            'hex')`.execute(db);
+      await sql`ALTER TABLE ponder_sync.transaction_receipts ALTER COLUMN "from" TYPE bytea USING decode(substring("from" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transaction_receipts ALTER COLUMN "to" TYPE bytea USING decode(substring("to" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transaction_receipts ALTER COLUMN "contract_address" TYPE bytea USING decode(substring("contract_address" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.transaction_receipts ALTER COLUMN "logs_bloom" TYPE bytea USING decode(substring("logs_bloom" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.traces ALTER COLUMN "from" TYPE bytea USING decode(substring("from" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.traces ALTER COLUMN "to" TYPE bytea USING decode(substring("to" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.traces ALTER COLUMN "input" TYPE bytea USING decode(substring("input" from 3), 'hex')`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ponder_sync.traces ALTER COLUMN "output" TYPE bytea USING decode(substring("output" from 3), 'hex')`.execute(
+        db,
+      );
 
-  //     await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "hash" TYPE bytea USING decode(substring("hash" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "parentHash" TYPE bytea USING decode(substring("parentHash" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "stateRoot" TYPE bytea USING decode(substring("stateRoot" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "transactionsRoot" TYPE bytea USING decode(substring("transactionsRoot" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "receiptsRoot" TYPE bytea USING decode(substring("receiptsRoot" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "sha3Uncles" TYPE bytea USING decode(substring("sha3Uncles" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "logsBloom" TYPE bytea USING decode(substring("logsBloom" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "mixHash" TYPE bytea USING decode(substring("mixHash" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "nonce" TYPE bytea USING decode(substring("nonce" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN "extraData" TYPE bytea USING decode(substring("extraData" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
+      await sql`ANALYZE ponder_sync.logs`.execute(db);
+      await sql`ANALYZE ponder_sync.blocks`.execute(db);
+      await sql`ANALYZE ponder_sync.transactions`.execute(db);
+      await sql`ANALYZE ponder_sync.transaction_receipts`.execute(db);
+      await sql`ANALYZE ponder_sync.traces`.execute(db);
 
-  //     await db.schema
-  //       .alterTable("transactions")
-  //       .dropColumn("checkpoint")
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transactions")
-  //       .dropColumn("blockHash")
-  //       .execute();
-  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "hash" TYPE bytea USING decode(substring("hash" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "from" TYPE bytea USING decode(substring("from" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "to" TYPE bytea USING decode(substring("to" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`ALTER TABLE ponder_sync.transactions ALTER COLUMN "input" TYPE bytea USING decode(substring("input" from 3), 'hex')`.execute(
-  //     //   db,
-  //     // );
-  //     // await sql`
-  //     // ALTER TABLE ponder_sync.transactions ALTER COLUMN "r" TYPE bytea
-  //     // USING decode(
-  //     //   CASE
-  //     //     WHEN length(r) % 2 = 1 THEN lpad(substring(r from 3), length(r) - 1, '0')
-  //     //     ELSE substring(r from 3)
-  //     //   END,
-  //     //   'hex')`.execute(db);
-  //     // await sql`
-  //     // ALTER TABLE ponder_sync.transactions ALTER COLUMN "s" TYPE bytea
-  //     // USING decode(
-  //     //   CASE
-  //     //     WHEN length(s) % 2 = 1 THEN lpad(substring(s from 3), length(s) - 1, '0')
-  //     //     ELSE substring(s from 3)
-  //     //   END,
-  //     //   'hex')`.execute(db);
-  //   },
-  // },
-  // "2025_02_20_1_compression": {
-  //   async up(db) {
-  //     await db.schema.alterTable("logs").dropColumn("id").execute();
-
-  //     await sql`ALTER TABLE ponder_sync.logs ALTER COLUMN data TYPE bytea USING decode(substring(data from 3), 'hex')`.execute(
-  //       db,
-  //     );
-  //   },
-  // },
-  // "2025_02_20_2_compression": {
-  //   async up(db) {
-  //     await sql`ALTER TABLE ponder_sync.blocks ALTER COLUMN miner TYPE bytea USING decode(substring(miner from 3), 'hex')`.execute(
-  //       db,
-  //     );
-  //   },
-  // },
-  // "2025_02_20_3_va": {
-  //   async up(db) {
-  //     await sql`ANALYZE ponder_sync.logs`.execute(db);
-  //     await sql`ANALYZE ponder_sync.blocks`.execute(db);
-  //     await sql`ANALYZE ponder_sync.transactions`.execute(db);
-  //   },
-  // },
-  // "2025_02_21_0_chain_id": {
-  //   async up(db) {
-  //     await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
-  //     await db.schema
-  //       .alterTable("logs")
-  //       .addPrimaryKeyConstraint("logs_pkey", [
-  //         "chainId",
-  //         "blockNumber",
-  //         "logIndex",
-  //       ])
-  //       .execute();
-
-  //     await db.schema
-  //       .alterTable("blocks")
-  //       .dropConstraint("blocks_pkey")
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("blocks")
-  //       .addPrimaryKeyConstraint("blocks_pkey", ["chainId", "number"])
-  //       .execute();
-
-  //     await db.schema
-  //       .alterTable("transactions")
-  //       .dropConstraint("transactions_pkey")
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transactions")
-  //       .addPrimaryKeyConstraint("transactions_pkey", [
-  //         "chainId",
-  //         "blockNumber",
-  //         "transactionIndex",
-  //       ])
-  //       .execute();
-
-  //     await sql`REINDEX TABLE ponder_sync.logs`.execute(db);
-  //     await sql`REINDEX TABLE ponder_sync.blocks`.execute(db);
-  //     await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
-
-  //     await sql`ANALYZE ponder_sync.logs`.execute(db);
-  //     await sql`ANALYZE ponder_sync.blocks`.execute(db);
-  //     await sql`ANALYZE ponder_sync.transactions`.execute(db);
-  //   },
-  // },
+      await sql`REINDEX TABLE ponder_sync.logs`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.blocks`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.transaction_receipts`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

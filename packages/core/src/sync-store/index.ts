@@ -32,11 +32,11 @@ import type { InsertObject } from "kysely";
 import { type Address, type Hex, hexToBigInt } from "viem";
 import {
   type PonderSyncSchema,
-  decodeBlock,
-  decodeLog,
-  decodeTrace,
-  decodeTransaction,
-  decodeTransactionReceipt,
+  // decodeBlock,
+  // decodeLog,
+  // decodeTrace,
+  // decodeTransaction,
+  // decodeTransactionReceipt,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -634,68 +634,68 @@ export const createSyncStore = ({
         transactionReceipts: InternalTransactionReceipt[];
         traces: InternalTrace[];
       }[] = [];
-      let transactionIndex = 0;
-      let transactionReceiptIndex = 0;
-      let traceIndex = 0;
-      let logIndex = 0;
-      for (const block of blocksRows) {
-        if (Number(block.number) > supremum) {
-          break;
-        }
+      // let transactionIndex = 0;
+      // let transactionReceiptIndex = 0;
+      // let traceIndex = 0;
+      // let logIndex = 0;
+      // for (const block of blocksRows) {
+      //   if (Number(block.number) > supremum) {
+      //     break;
+      //   }
 
-        const transactions: InternalTransaction[] = [];
-        const transactionReceipts: InternalTransactionReceipt[] = [];
-        const logs: InternalLog[] = [];
-        const traces: InternalTrace[] = [];
+      //   const transactions: InternalTransaction[] = [];
+      //   const transactionReceipts: InternalTransactionReceipt[] = [];
+      //   const logs: InternalLog[] = [];
+      //   const traces: InternalTrace[] = [];
 
-        while (
-          transactionIndex < transactionsRows.length &&
-          transactionsRows[transactionIndex]!.block_number === block.number
-        ) {
-          const transaction = transactionsRows[transactionIndex]!;
-          transactions.push(decodeTransaction({ transaction }));
-          transactionIndex++;
-        }
+      //   while (
+      //     transactionIndex < transactionsRows.length &&
+      //     transactionsRows[transactionIndex]!.block_number === block.number
+      //   ) {
+      //     const transaction = transactionsRows[transactionIndex]!;
+      //     transactions.push(decodeTransaction({ transaction }));
+      //     transactionIndex++;
+      //   }
 
-        while (
-          transactionReceiptIndex < transactionReceiptsRows.length &&
-          transactionReceiptsRows[transactionReceiptIndex]!.block_number ===
-            block.number
-        ) {
-          const transactionReceipt =
-            transactionReceiptsRows[transactionReceiptIndex]!;
-          transactionReceipts.push(
-            decodeTransactionReceipt({ transactionReceipt }),
-          );
-          transactionReceiptIndex++;
-        }
+      //   while (
+      //     transactionReceiptIndex < transactionReceiptsRows.length &&
+      //     transactionReceiptsRows[transactionReceiptIndex]!.block_number ===
+      //       block.number
+      //   ) {
+      //     const transactionReceipt =
+      //       transactionReceiptsRows[transactionReceiptIndex]!;
+      //     transactionReceipts.push(
+      //       decodeTransactionReceipt({ transactionReceipt }),
+      //     );
+      //     transactionReceiptIndex++;
+      //   }
 
-        while (
-          logIndex < logsRows.length &&
-          logsRows[logIndex]!.block_number === block.number
-        ) {
-          const log = logsRows[logIndex]!;
-          logs.push(decodeLog({ log }));
-          logIndex++;
-        }
+      //   while (
+      //     logIndex < logsRows.length &&
+      //     logsRows[logIndex]!.block_number === block.number
+      //   ) {
+      //     const log = logsRows[logIndex]!;
+      //     logs.push(decodeLog({ log }));
+      //     logIndex++;
+      //   }
 
-        while (
-          traceIndex < tracesRows.length &&
-          tracesRows[traceIndex]!.block_number === block.number
-        ) {
-          const trace = tracesRows[traceIndex]!;
-          traces.push(decodeTrace({ trace }));
-          traceIndex++;
-        }
+      //   while (
+      //     traceIndex < tracesRows.length &&
+      //     tracesRows[traceIndex]!.block_number === block.number
+      //   ) {
+      //     const trace = tracesRows[traceIndex]!;
+      //     traces.push(decodeTrace({ trace }));
+      //     traceIndex++;
+      //   }
 
-        blockData.push({
-          block: decodeBlock({ block }),
-          logs,
-          transactions,
-          traces,
-          transactionReceipts,
-        });
-      }
+      //   blockData.push({
+      //     block: decodeBlock({ block }),
+      //     logs,
+      //     transactions,
+      //     traces,
+      //     transactionReceipts,
+      //   });
+      // }
 
       let cursor: string;
       if (
