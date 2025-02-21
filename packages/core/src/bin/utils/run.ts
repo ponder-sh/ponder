@@ -18,7 +18,6 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { startClock } from "@/utils/timer.js";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -48,9 +47,6 @@ export async function run({
   );
 
   const syncStore = createSyncStore({ common, database });
-  // await database.qb.drizzle.execute(sql`ANALYZE ponder_sync.logs`);
-  // await database.qb.drizzle.execute(sql`ANALYZE ponder_sync.blocks`);
-  // await database.qb.drizzle.execute(sql`ANALYZE ponder_sync.transactions`);
 
   const realtimeMutex = createMutex();
 
@@ -138,8 +134,6 @@ export async function run({
       return;
     }
   }
-
-  const endClock = startClock();
 
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
@@ -241,10 +235,8 @@ export async function run({
       });
     }
 
-    // await database.setStatus(sync.getStatus());
+    await database.setStatus(sync.getStatus());
   }
-
-  console.log(endClock(), Math.round(((13332 + 4274) * 1000) / endClock()));
 
   // Persist the indexing store to the db. The `finalized`
   // checkpoint is used as a mutex. Any rows in the reorg table that may

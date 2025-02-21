@@ -6,19 +6,20 @@ import type {
   FilterWithoutBlocks,
   Fragment,
   FragmentId,
+  InternalBlock,
   InternalLog,
+  InternalTrace,
   InternalTransaction,
+  InternalTransactionReceipt,
   LightBlock,
   LogFactory,
-  RawEvent,
-  Source,
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
-import { buildEvents } from "@/sync/events.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { fragmentToId, getFragments } from "@/sync/fragments.js";
 import {
   ZERO_CHECKPOINT,
@@ -33,7 +34,9 @@ import {
   type PonderSyncSchema,
   decodeBlock,
   decodeLog,
+  decodeTrace,
   decodeTransaction,
+  decodeTransactionReceipt,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -82,13 +85,22 @@ export type SyncStore = {
     chainId: number;
   }): Promise<void>;
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
-  getEvents(args: {
-    sources: Source[];
+  getEventBlockData(args: {
+    filters: Filter[];
     from: string;
     to: string;
     chainId: number;
     limit?: number;
-  }): Promise<{ events: RawEvent[]; cursor: string }>;
+  }): Promise<{
+    blockData: {
+      block: InternalBlock;
+      logs: InternalLog[];
+      transactions: InternalTransaction[];
+      transactionReceipts: InternalTransactionReceipt[];
+      traces: InternalTrace[];
+    }[];
+    cursor: string;
+  }>;
   insertRpcRequestResult(args: {
     request: string;
     chainId: number;
@@ -495,40 +507,35 @@ export const createSyncStore = ({
       },
     );
   },
-  getEvents: async ({ sources, from, to, chainId, limit }) =>
+  getEventBlockData: async ({ filters, from, to, chainId, limit }) =>
     database.wrap({ method: "getEvents", includeTraceLogs: true }, async () => {
+      // Note: `from` and `to` must be chain-specific
       const fromBlock = Number(decodeCheckpoint(from).blockNumber);
-      const fromEventIndex =
-        decodeCheckpoint(from).eventIndex > 2147483647n
-          ? 2147483647n
-          : decodeCheckpoint(from).eventIndex;
+      // const fromEventIndex =
+      //   decodeCheckpoint(from).eventIndex > 2147483647n
+      //     ? 2147483647n
+      //     : decodeCheckpoint(from).eventIndex;
       const toBlock = Number(decodeCheckpoint(to).blockNumber);
-      const toEventIndex =
-        decodeCheckpoint(to).eventIndex > 2147483647n
-          ? 2147483647n
-          : decodeCheckpoint(to).eventIndex;
+      // const toEventIndex =
+      //   decodeCheckpoint(to).eventIndex > 2147483647n
+      //     ? 2147483647n
+      //     : decodeCheckpoint(to).eventIndex;
 
       // TODO(kyle) use relative density heuristics to set
       // different limits for each query
 
-      // TODO(kyle) use filters to determine which queries to run
-
-      // TODO(kyle) how to know block number when using omnichain ordering?
-      // make sure `from` and `to` are chain-specific
+      const shouldQueryBlocks = true;
+      const shouldQueryLogs = filters.some((f) => f.type === "log");
+      const shouldQueryTraces = filters.some((f) => f.type === "trace");
+      const shouldQueryTransactions =
+        filters.some((f) => f.type === "transaction") ||
+        shouldQueryLogs ||
+        shouldQueryTraces;
+      const shouldQueryTransactionReceipts = filters.some(
+        shouldGetTransactionReceipt,
+      );
 
       // TODO(kyle) prepared statements
-
-      const logsQ = database.qb.sync
-        .selectFrom("logs")
-        .selectAll()
-        .where("chain_id", "=", chainId)
-        .where("block_number", ">", fromBlock)
-        .where("log_index", ">", Number(fromEventIndex))
-        .where("block_number", "<=", toBlock)
-        .where("log_index", "<=", Number(toEventIndex))
-        .orderBy("block_number", "asc")
-        .orderBy("log_index", "asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
       const blocksQ = database.qb.sync
         .selectFrom("blocks")
@@ -544,9 +551,9 @@ export const createSyncStore = ({
         .selectAll()
         .where("chain_id", "=", chainId)
         .where("block_number", ">", fromBlock)
-        .where("transaction_index", ">", Number(fromEventIndex))
+        // .where("transaction_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
-        .where("transaction_index", "<=", Number(toEventIndex))
+        // .where("transaction_index", "<=", Number(toEventIndex))
         .orderBy("block_number", "asc")
         .orderBy("transaction_index", "asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -555,20 +562,32 @@ export const createSyncStore = ({
         .selectFrom("transaction_receipts")
         .selectAll()
         .where("block_number", ">", fromBlock)
-        .where("transaction_index", ">", Number(fromEventIndex))
+        // .where("transaction_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
-        .where("transaction_index", "<=", Number(toEventIndex))
+        // .where("transaction_index", "<=", Number(toEventIndex))
         .orderBy("block_number", "asc")
         .orderBy("transaction_index", "asc")
+        .$if(limit !== undefined, (qb) => qb.limit(limit!));
+
+      const logsQ = database.qb.sync
+        .selectFrom("logs")
+        .selectAll()
+        .where("chain_id", "=", chainId)
+        .where("block_number", ">", fromBlock)
+        // .where("log_index", ">", Number(fromEventIndex))
+        .where("block_number", "<=", toBlock)
+        // .where("log_index", "<=", Number(toEventIndex))
+        .orderBy("block_number", "asc")
+        .orderBy("log_index", "asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
       const tracesQ = database.qb.sync
         .selectFrom("traces")
         .selectAll()
         .where("block_number", ">", fromBlock)
-        .where("trace_index", ">", Number(fromEventIndex))
+        // .where("trace_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
-        .where("trace_index", "<=", Number(toEventIndex))
+        // .where("trace_index", "<=", Number(toEventIndex))
         .orderBy("block_number", "asc")
         .orderBy("trace_index", "asc")
         .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -580,11 +599,11 @@ export const createSyncStore = ({
         transactionReceiptsRows,
         tracesRows,
       ] = await Promise.all([
-        logsQ.execute(),
-        blocksQ.execute(),
-        transactionsQ.execute(),
-        transactionReceiptsQ.execute(),
-        tracesQ.execute(),
+        shouldQueryLogs ? logsQ.execute() : [],
+        shouldQueryBlocks ? blocksQ.execute() : [],
+        shouldQueryTransactions ? transactionsQ.execute() : [],
+        shouldQueryTransactionReceipts ? transactionReceiptsQ.execute() : [],
+        shouldQueryTraces ? tracesQ.execute() : [],
       ]);
 
       const supremum = Math.min(
@@ -608,20 +627,48 @@ export const createSyncStore = ({
           : Number(tracesRows[tracesRows.length - 1]!.block_number),
       );
 
-      const events: RawEvent[] = [];
-      let logIndex = 0;
+      const blockData: {
+        block: InternalBlock;
+        logs: InternalLog[];
+        transactions: InternalTransaction[];
+        transactionReceipts: InternalTransactionReceipt[];
+        traces: InternalTrace[];
+      }[] = [];
       let transactionIndex = 0;
+      let transactionReceiptIndex = 0;
+      let traceIndex = 0;
+      let logIndex = 0;
       for (const block of blocksRows) {
-        if (
-          Number(block.number) > supremum ||
-          logIndex === logsRows.length ||
-          transactionIndex === transactionsRows.length
-        ) {
+        if (Number(block.number) > supremum) {
           break;
         }
 
-        const logs: InternalLog[] = [];
         const transactions: InternalTransaction[] = [];
+        const transactionReceipts: InternalTransactionReceipt[] = [];
+        const logs: InternalLog[] = [];
+        const traces: InternalTrace[] = [];
+
+        while (
+          transactionIndex < transactionsRows.length &&
+          transactionsRows[transactionIndex]!.block_number === block.number
+        ) {
+          const transaction = transactionsRows[transactionIndex]!;
+          transactions.push(decodeTransaction({ transaction }));
+          transactionIndex++;
+        }
+
+        while (
+          transactionReceiptIndex < transactionReceiptsRows.length &&
+          transactionReceiptsRows[transactionReceiptIndex]!.block_number ===
+            block.number
+        ) {
+          const transactionReceipt =
+            transactionReceiptsRows[transactionReceiptIndex]!;
+          transactionReceipts.push(
+            decodeTransactionReceipt({ transactionReceipt }),
+          );
+          transactionReceiptIndex++;
+        }
 
         while (
           logIndex < logsRows.length &&
@@ -633,49 +680,45 @@ export const createSyncStore = ({
         }
 
         while (
-          transactionIndex < transactionsRows.length &&
-          transactionsRows[transactionIndex]!.block_number === block.number
+          traceIndex < tracesRows.length &&
+          tracesRows[traceIndex]!.block_number === block.number
         ) {
-          const transaction = transactionsRows[transactionIndex]!;
-          transactions.push(decodeTransaction({ transaction }));
-          transactionIndex++;
+          const trace = tracesRows[traceIndex]!;
+          traces.push(decodeTrace({ trace }));
+          traceIndex++;
         }
 
-        events.push(
-          ...buildEvents({
-            sources,
-            blockData: {
-              block: decodeBlock({ block }),
-              logs,
-              transactions,
-              traces: [],
-              transactionReceipts: [],
-            },
-            finalizedChildAddresses: new Map(),
-            unfinalizedChildAddresses: new Map(),
-            chainId,
-          }),
-        );
-      }
-
-      // TODO(kyle) maybe incorrect
-      const length = Math.max(
-        logsRows.length,
-        blocksRows.length,
-        transactionsRows.length,
-      );
-
-      let cursor: string;
-      if (length !== limit) {
-        cursor = to;
-      } else {
-        cursor = encodeCheckpoint({
-          ...ZERO_CHECKPOINT,
-          blockNumber: BigInt(supremum),
+        blockData.push({
+          block: decodeBlock({ block }),
+          logs,
+          transactions,
+          traces,
+          transactionReceipts,
         });
       }
 
-      return { events, cursor };
+      let cursor: string;
+      if (
+        Math.max(
+          logsRows.length,
+          blocksRows.length,
+          transactionsRows.length,
+          transactionReceiptsRows.length,
+          tracesRows.length,
+        ) !== limit
+      ) {
+        cursor = to;
+      } else {
+        blockData.pop();
+        cursor = encodeCheckpoint({
+          ...ZERO_CHECKPOINT,
+          // TODO(kyle) this currently only works for multichain
+          chainId: BigInt(chainId),
+          blockNumber: BigInt(supremum - 1),
+        });
+      }
+
+      return { blockData, cursor };
     }),
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     database.wrap(

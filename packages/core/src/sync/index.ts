@@ -885,18 +885,24 @@ export const createSync = async (params: {
         const to = min(finalized, end);
 
         if (to > from) {
-          const events = await params.syncStore.getEvents({
-            sources,
+          const { blockData } = await params.syncStore.getEventBlockData({
+            filters: sources.map(({ filter }) => filter),
             from,
             to,
             chainId: network.chainId,
           });
 
-          const decodedEvents = decodeEvents(
-            params.common,
-            sources,
-            events.events,
+          const events = blockData.flatMap((bd) =>
+            buildEvents({
+              sources,
+              blockData: bd,
+              finalizedChildAddresses: new Map(),
+              unfinalizedChildAddresses: new Map(),
+              chainId: network.chainId,
+            }),
           );
+
+          const decodedEvents = decodeEvents(params.common, sources, events);
 
           params.common.logger.debug({
             service: "sync",
@@ -1174,18 +1180,32 @@ export async function* getLocalEventGenerator(params: {
     while (cursor < min(syncCheckpoint, params.to)) {
       const to = min(syncCheckpoint, params.to);
 
-      const { events, cursor: queryCursor } = await params.syncStore.getEvents({
-        sources: params.sources,
-        from: cursor,
-        to,
-        chainId: params.network.chainId,
-        limit: params.limit,
-      });
+      const { blockData, cursor: queryCursor } =
+        await params.syncStore.getEventBlockData({
+          filters: params.sources.map(({ filter }) => filter),
+          from: cursor,
+          to,
+          chainId: params.network.chainId,
+          limit: params.limit,
+        });
+
+      const events = blockData.flatMap((bd) =>
+        buildEvents({
+          sources: params.sources,
+          blockData: bd,
+          finalizedChildAddresses: new Map(),
+          unfinalizedChildAddresses: new Map(),
+          chainId: params.network.chainId,
+        }),
+      );
 
       params.common.logger.debug({
         service: "sync",
         msg: `Extracted ${events.length} '${params.network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
       });
+
+      // 4274 + 13332 = 17606
+      // 4998 + 4989 + 4993 + 2426 = 17406
 
       cursor = queryCursor;
       yield { events, checkpoint: cursor };
@@ -1535,10 +1555,13 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
 ): AsyncGenerator<{ events: Event[]; checkpoint: string }> {
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
+  console.log("results", results.length);
+
   while (results.some((res) => res.done !== true)) {
     const supremum = min(
       ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
     );
+    console.log("supremum", supremum);
 
     const eventArrays: Event[][] = [];
 
