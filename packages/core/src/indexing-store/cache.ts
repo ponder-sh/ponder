@@ -741,9 +741,11 @@ export const createIndexingCache = ({
       let cacheSize = 0;
       for (const { size } of cache.values()) cacheSize += size;
 
-      const flushIndex =
+      const flushIndex = Math.max(
         totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheEvictRatio);
+          cacheSize * (1 - common.options.indexingCacheEvictRatio),
+        0,
+      );
 
       if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
         isCacheComplete = false;
@@ -752,7 +754,7 @@ export const createIndexingCache = ({
 
         for (const tableCache of cache.values()) {
           for (const [key, entry] of tableCache) {
-            if (entry.operationIndex < flushIndex) {
+            if (entry.operationIndex <= flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
               rowCount += 1;
