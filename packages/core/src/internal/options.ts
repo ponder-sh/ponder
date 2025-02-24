@@ -2,10 +2,11 @@ import path from "node:path";
 import v8 from "node:v8";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
+import { type SemVer, parse } from "semver";
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list";
-
+  version: SemVer | null;
   configFile: string;
   schemaFile: string;
   apiDir: string;
@@ -78,7 +79,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
   return {
     command: cliOptions.command,
-
+    version: parse(cliOptions.version),
     rootDir,
     configFile: path.join(rootDir, cliOptions.config),
     schemaFile: path.join(rootDir, "ponder.schema.ts"),
@@ -108,20 +109,22 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     // v8.getHeapStatistics().heap_size_limit / 8, bucketed closest to 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:
-      2 **
-        Math.min(
-          Math.max(
-            Math.round(
-              Math.log2(
-                v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 8,
+      process.env.PONDER_CACHE_BYTES !== undefined
+        ? Number(process.env.PONDER_CACHE_BYTES)
+        : 2 **
+            Math.min(
+              Math.max(
+                Math.round(
+                  Math.log2(
+                    v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 8,
+                  ),
+                ),
+                7,
               ),
-            ),
-            7,
-          ),
-          11,
-        ) *
-      1_024 *
-      1_024,
+              11,
+            ) *
+          1_024 *
+          1_024,
     indexingCacheEvictRatio: 0.35,
 
     syncEventsQuerySize: 10_000,

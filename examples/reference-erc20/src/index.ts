@@ -21,8 +21,6 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
       balance: row.balance + event.args.amount,
     }));
 
-  // throw new Error();
-
   // add row to "transfer_event".
   await context.db.insert(transferEvent).values({
     id: event.log.id,

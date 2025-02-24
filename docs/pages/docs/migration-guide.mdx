@@ -18,6 +18,8 @@ The API function file `src/api/index.ts` is now required. The GraphQL API is no 
 To achieve the same functionality as `<=0.8`, copy the following code into `src/api/index.ts`.
 
 ```ts filename="src/api/index.ts"
+import { db } from "ponder:api";
+import schema from "ponder:schema";
 import { Hono } from "hono";
 import { graphql } from "ponder";
 

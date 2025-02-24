@@ -70,6 +70,9 @@ export type Database = {
     options: { method: string; includeTraceLogs?: boolean },
     fn: () => Promise<T>,
   ) => Promise<T>;
+  transaction: <T>(
+    fn: (client: PoolClient | PGlite, tx: Drizzle<Schema>) => Promise<T>,
+  ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
@@ -292,24 +295,6 @@ export const createDatabase = async ({
       listen: undefined,
     } as PostgresDriver;
 
-    common.shutdown.add(async () => {
-      clearInterval(heartbeatInterval);
-
-      await qb.drizzle
-        .update(PONDER_META)
-        .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
-        .where(eq(PONDER_META.key, "app"));
-
-      const d = driver as PostgresDriver;
-      d.listen?.release();
-      await Promise.all([
-        d.internal.end(),
-        d.user.end(),
-        d.readonly.end(),
-        d.sync.end(),
-      ]);
-    });
-
     await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
@@ -344,6 +329,24 @@ export const createDatabase = async ({
         schema: schemaBuild.schema,
       }),
     };
+
+    common.shutdown.add(async () => {
+      clearInterval(heartbeatInterval);
+
+      await qb.drizzle
+        .update(PONDER_META)
+        .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
+        .where(eq(PONDER_META.key, "app"));
+
+      const d = driver as PostgresDriver;
+      d.listen?.release();
+      await Promise.all([
+        d.internal.end(),
+        d.user.end(),
+        d.readonly.end(),
+        d.sync.end(),
+      ]);
+    });
 
     // Register Postgres-only metrics
     const d = driver as PostgresDriver;
@@ -589,6 +592,43 @@ export const createDatabase = async ({
       }
 
       throw "unreachable";
+    },
+    async transaction(fn) {
+      if (dialect === "postgres") {
+        const client = await (
+          database.driver as { internal: Pool }
+        ).internal.connect();
+        try {
+          await client.query("BEGIN");
+          const tx = drizzleNodePg(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          const result = await fn(client, tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+      } else {
+        const client = (database.driver as { instance: PGlite }).instance;
+        try {
+          await client.query("BEGIN");
+          const tx = drizzlePglite(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          const result = await fn(client, tx);
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client?.query("ROLLBACK");
+          throw error;
+        }
+      }
     },
     async migrateSync() {
       await this.wrap(
@@ -1201,7 +1241,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       );
     },
     getStatus() {
-      return this.wrap({ method: "_ponder_status.get()" }, async () => {
+      return this.wrap({ method: "getStatus" }, async () => {
         const result = await this.qb.drizzle.select().from(PONDER_STATUS);
 
         if (result.length === 0) {
@@ -1227,7 +1267,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       });
     },
     setStatus(status) {
-      return this.wrap({ method: "_ponder_status.set()" }, async () => {
+      return this.wrap({ method: "setStatus" }, async () => {
         await this.qb.drizzle
           .insert(PONDER_STATUS)
           .values(

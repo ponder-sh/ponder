@@ -26,6 +26,8 @@ import {
   gte,
   inArray,
   is,
+  isNotNull,
+  isNull,
   like,
   lt,
   lte,
@@ -807,7 +809,11 @@ function buildWhereConditions(
             ),
           );
         } else {
-          conditions.push(eq(column, rawValue));
+          if (rawValue === null) {
+            conditions.push(isNull(column));
+          } else {
+            conditions.push(eq(column, rawValue));
+          }
         }
         break;
       case "_not":
@@ -821,7 +827,11 @@ function buildWhereConditions(
             ),
           );
         } else {
-          conditions.push(ne(column, rawValue));
+          if (rawValue === null) {
+            conditions.push(isNotNull(column));
+          } else {
+            conditions.push(ne(column, rawValue));
+          }
         }
         break;
       case "_in":

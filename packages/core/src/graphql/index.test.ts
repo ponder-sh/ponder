@@ -969,6 +969,64 @@ test("filter universal", async (context) => {
   });
 });
 
+test("filter null equality", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.bigint().primaryKey(),
+    nullable: t.text(),
+  }));
+  const schema = { person };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values([{ id: 1n, nullable: "a" }, { id: 2n, nullable: "b" }, { id: 3n }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      persons(where: { nullable: null }) {
+        items {
+          id
+          nullable
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "3", nullable: null }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { nullable_not: null }) {
+        items {
+          id
+          nullable
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: {
+      items: [
+        { id: "1", nullable: "a" },
+        { id: "2", nullable: "b" },
+      ],
+    },
+  });
+});
+
 test("filter singular", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.hex().primaryKey(),

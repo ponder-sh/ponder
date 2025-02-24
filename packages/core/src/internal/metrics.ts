@@ -20,6 +20,14 @@ export class MetricsService {
   start_timestamp: number;
   rps: { [network: string]: { count: number; timestamp: number }[] };
 
+  ponder_version_info: prometheus.Gauge<
+    "version" | "major" | "minor" | "patch"
+  >;
+  ponder_settings_info: prometheus.Gauge<"ordering" | "database" | "command">;
+
+  ponder_historical_start_timestamp_seconds: prometheus.Gauge;
+  ponder_historical_end_timestamp_seconds: prometheus.Gauge;
+
   ponder_historical_total_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_cached_indexing_seconds: prometheus.Gauge<"network">;
   ponder_historical_completed_indexing_seconds: prometheus.Gauge<"network">;
@@ -30,6 +38,12 @@ export class MetricsService {
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
   ponder_indexing_abi_decoding_duration: prometheus.Histogram;
+  ponder_indexing_cache_requests_total: prometheus.Counter<"table" | "type">;
+  ponder_indexing_cache_query_duration: prometheus.Histogram<
+    "table" | "method"
+  >;
+  ponder_indexing_store_queries_total: prometheus.Counter<"table" | "method">;
+  ponder_indexing_store_raw_sql_duration: prometheus.Histogram;
 
   ponder_sync_block: prometheus.Gauge<"network">;
   ponder_sync_is_realtime: prometheus.Gauge<"network">;
@@ -69,6 +83,30 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
+
+    this.ponder_version_info = new prometheus.Gauge({
+      name: "ponder_version_info",
+      help: "Ponder version information",
+      labelNames: ["version", "major", "minor", "patch"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_settings_info = new prometheus.Gauge({
+      name: "ponder_settings_info",
+      help: "Ponder settings information",
+      labelNames: ["ordering", "database", "command"] as const,
+      registers: [this.registry],
+    });
+
+    this.ponder_historical_start_timestamp_seconds = new prometheus.Gauge({
+      name: "ponder_historical_start_timestamp_seconds",
+      help: "Timestamp at which historical indexing started",
+      registers: [this.registry],
+    });
+    this.ponder_historical_end_timestamp_seconds = new prometheus.Gauge({
+      name: "ponder_historical_end_timestamp_seconds",
+      help: "Timestamp at which historical indexing ended",
+      registers: [this.registry],
+    });
 
     this.ponder_historical_total_indexing_seconds = new prometheus.Gauge({
       name: "ponder_historical_total_indexing_seconds",
@@ -115,6 +153,31 @@ export class MetricsService {
     this.ponder_indexing_abi_decoding_duration = new prometheus.Histogram({
       name: "ponder_indexing_abi_decoding_duration",
       help: "Total time spent decoding log arguments and call trace arguments and results",
+      buckets: databaseQueryDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_cache_query_duration = new prometheus.Histogram({
+      name: "ponder_indexing_cache_query_duration",
+      help: "Duration of cache operations",
+      labelNames: ["table", "method"] as const,
+      buckets: databaseQueryDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_cache_requests_total = new prometheus.Counter({
+      name: "ponder_indexing_cache_requests_total",
+      help: "Number of cache accesses",
+      labelNames: ["table", "type"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_store_queries_total = new prometheus.Counter({
+      name: "ponder_indexing_store_queries_total",
+      help: "Number of indexing store operations",
+      labelNames: ["table", "method"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_store_raw_sql_duration = new prometheus.Histogram({
+      name: "ponder_indexing_store_raw_sql_duration",
+      help: "Duration of raw SQL store operations",
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
@@ -262,6 +325,9 @@ export class MetricsService {
     this.start_timestamp = Date.now();
     this.rps = {};
 
+    this.ponder_settings_info.reset();
+    this.ponder_historical_start_timestamp_seconds.reset();
+    this.ponder_historical_end_timestamp_seconds.reset();
     this.ponder_historical_total_indexing_seconds.reset();
     this.ponder_historical_cached_indexing_seconds.reset();
     this.ponder_historical_completed_indexing_seconds.reset();

@@ -8,14 +8,13 @@ import {
   UniqueConstraintError,
   getBaseError,
 } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
+import type { Event, Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
-import type { Queue } from "@/utils/queue.js";
 import type { Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 
 export type IndexingStore = Db<Schema> & {
-  queue: Queue<unknown, () => Promise<unknown>>;
+  event: Event | undefined;
 };
 
 export const parseSqlError = (e: any): Error => {
