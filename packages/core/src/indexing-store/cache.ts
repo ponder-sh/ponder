@@ -594,6 +594,7 @@ export const createIndexingCache = ({
           for (const [key, entry] of insertBuffer.get(table)!) {
             const bytes = getBytes(entry.row);
             cacheBytes += bytes;
+            totalCacheOps++;
             tableSpillover.set(key, {
               bytes,
               operationIndex: 0,
@@ -752,7 +753,7 @@ export const createIndexingCache = ({
 
         for (const tableCache of cache.values()) {
           for (const [key, entry] of tableCache) {
-            if (entry.operationIndex < flushIndex) {
+            if (entry.operationIndex <= flushIndex) {
               tableCache.delete(key);
               cacheBytes -= entry.bytes;
               rowCount += 1;
