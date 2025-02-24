@@ -32,10 +32,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
-import {
-  bufferAsyncGenerator,
-  mergeAsyncGenerators,
-} from "@/utils/generators.js";
+import { bufferAsyncGenerator } from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
@@ -364,31 +361,17 @@ export const createSync = async (params: {
       },
     );
 
-    const mergeAsync =
-      params.ordering === "multichain"
-        ? mergeAsyncGenerators
-        : mergeAsyncGeneratorsWithEventOrder;
+    for await (const {
+      events,
+      checkpoint,
+    } of mergeAsyncGeneratorsWithEventOrder(eventGenerators)) {
+      params.common.logger.debug({
+        service: "sync",
+        msg: `Sequenced ${events.length} events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
+      });
 
-    for await (const { events, checkpoint } of mergeAsync(eventGenerators)) {
-      if (params.ordering === "multichain") {
-        const network = params.indexingBuild.networks.find(
-          (network) =>
-            network.chainId === Number(decodeCheckpoint(checkpoint).chainId),
-        )!;
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Sequenced ${events.length} '${network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
-        });
+      for (const network of params.indexingBuild.networks) {
         updateHistoricalStatus({ events, network });
-      } else {
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Sequenced ${events.length} events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
-        });
-
-        for (const network of params.indexingBuild.networks) {
-          updateHistoricalStatus({ events, network });
-        }
       }
 
       yield events;
@@ -783,47 +766,24 @@ export const createSync = async (params: {
     status[network.name] = { block: null, ready: false };
   }
 
-  if (params.ordering === "multichain") {
-    for (const network of params.indexingBuild.networks) {
-      seconds[network.name] = {
-        start: decodeCheckpoint(
-          getMultichainCheckpoint({ tag: "start", network })!,
-        ).blockTimestamp,
-        end: decodeCheckpoint(
-          min(
-            getOmnichainCheckpoint({ tag: "end" }),
-            getOmnichainCheckpoint({ tag: "finalized" }),
-          ),
-        ).blockTimestamp,
-        cached: decodeCheckpoint(
-          min(
-            getOmnichainCheckpoint({ tag: "end" }),
-            getOmnichainCheckpoint({ tag: "finalized" }),
-            params.initialCheckpoint,
-          ),
-        ).blockTimestamp,
-      };
-    }
-  } else {
-    for (const network of params.indexingBuild.networks) {
-      seconds[network.name] = {
-        start: decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
-          .blockTimestamp,
-        end: decodeCheckpoint(
-          min(
-            getOmnichainCheckpoint({ tag: "end" }),
-            getOmnichainCheckpoint({ tag: "finalized" }),
-          ),
-        ).blockTimestamp,
-        cached: decodeCheckpoint(
-          min(
-            getOmnichainCheckpoint({ tag: "end" }),
-            getOmnichainCheckpoint({ tag: "finalized" }),
-            params.initialCheckpoint,
-          ),
-        ).blockTimestamp,
-      };
-    }
+  for (const network of params.indexingBuild.networks) {
+    seconds[network.name] = {
+      start: decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
+        .blockTimestamp,
+      end: decodeCheckpoint(
+        min(
+          getOmnichainCheckpoint({ tag: "end" }),
+          getOmnichainCheckpoint({ tag: "finalized" }),
+        ),
+      ).blockTimestamp,
+      cached: decodeCheckpoint(
+        min(
+          getOmnichainCheckpoint({ tag: "end" }),
+          getOmnichainCheckpoint({ tag: "finalized" }),
+          params.initialCheckpoint,
+        ),
+      ).blockTimestamp,
+    };
   }
 
   return {
