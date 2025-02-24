@@ -1,5 +1,15 @@
 # ponder
 
+## 0.9.21
+
+### Patch Changes
+
+- [#1554](https://github.com/ponder-sh/ponder/pull/1554) [`37be92975a985a296b08355b809a5256236bba8e`](https://github.com/ponder-sh/ponder/commit/37be92975a985a296b08355b809a5256236bba8e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where crash recovery during historical indexing did not work when using `ordering: "multichain"`.
+
+- [#1555](https://github.com/ponder-sh/ponder/pull/1555) [`035899c90545ce46cf8bbccf62f91600ede8a7cc`](https://github.com/ponder-sh/ponder/commit/035899c90545ce46cf8bbccf62f91600ede8a7cc) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression with evicting cached indexing data introduced in v0.9.20.
+
+- [#1550](https://github.com/ponder-sh/ponder/pull/1550) [`f1231b3cd108cf5e380b47c118863be27bbb4467`](https://github.com/ponder-sh/ponder/commit/f1231b3cd108cf5e380b47c118863be27bbb4467) Thanks [@farrellh1](https://github.com/farrellh1)! - Fixed display of long event names in terminal ui.
+
 ## 0.9.20
 
 ### Patch Changes
