@@ -509,225 +509,235 @@ export const createSyncStore = ({
     );
   },
   getEventBlockData: async ({ filters, from, to, chainId, limit }) =>
-    database.wrap({ method: "getEvents", includeTraceLogs: true }, async () => {
-      // Note: `from` and `to` must be chain-specific
-      const fromBlock = Number(decodeCheckpoint(from).blockNumber);
-      // const fromEventIndex =
-      //   decodeCheckpoint(from).eventIndex > 2147483647n
-      //     ? 2147483647n
-      //     : decodeCheckpoint(from).eventIndex;
-      const toBlock = Number(decodeCheckpoint(to).blockNumber);
-      // const toEventIndex =
-      //   decodeCheckpoint(to).eventIndex > 2147483647n
-      //     ? 2147483647n
-      //     : decodeCheckpoint(to).eventIndex;
+    database.wrap(
+      { method: "getEventBlockData", includeTraceLogs: true },
+      async () => {
+        // Note: `from` and `to` must be chain-specific
+        const fromBlock = Number(decodeCheckpoint(from).blockNumber);
+        // const fromEventIndex =
+        //   decodeCheckpoint(from).eventIndex > 2147483647n
+        //     ? 2147483647n
+        //     : decodeCheckpoint(from).eventIndex;
+        const toBlock = Number(decodeCheckpoint(to).blockNumber);
+        // const toEventIndex =
+        //   decodeCheckpoint(to).eventIndex > 2147483647n
+        //     ? 2147483647n
+        //     : decodeCheckpoint(to).eventIndex;
 
-      // TODO(kyle) use relative density heuristics to set
-      // different limits for each query
+        // TODO(kyle) use relative density heuristics to set
+        // different limits for each query
 
-      const shouldQueryBlocks = true;
-      const shouldQueryLogs = filters.some((f) => f.type === "log");
-      const shouldQueryTraces = filters.some((f) => f.type === "trace");
-      const shouldQueryTransactions =
-        filters.some((f) => f.type === "transaction") ||
-        shouldQueryLogs ||
-        shouldQueryTraces;
-      const shouldQueryTransactionReceipts = filters.some(
-        shouldGetTransactionReceipt,
-      );
+        const shouldQueryBlocks = true;
+        const shouldQueryLogs = filters.some((f) => f.type === "log");
+        const shouldQueryTraces = filters.some((f) => f.type === "trace");
+        const shouldQueryTransactions =
+          filters.some((f) => f.type === "transaction") ||
+          shouldQueryLogs ||
+          shouldQueryTraces;
+        const shouldQueryTransactionReceipts = filters.some(
+          shouldGetTransactionReceipt,
+        );
 
-      // TODO(kyle) prepared statements
+        // TODO(kyle) prepared statements
 
-      const blocksQ = database.qb.sync
-        .selectFrom("blocks")
-        .selectAll()
-        .where("chain_id", "=", chainId)
-        .where("number", ">=", fromBlock)
-        .where("number", "<=", toBlock)
-        .orderBy("number", "asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!));
+        const blocksQ = database.qb.sync
+          .selectFrom("blocks")
+          .selectAll()
+          .where("chain_id", "=", chainId)
+          .where("number", ">", fromBlock)
+          .where("number", "<=", toBlock)
+          .orderBy("number", "asc")
+          .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-      const transactionsQ = database.qb.sync
-        .selectFrom("transactions")
-        .selectAll()
-        .where("chain_id", "=", chainId)
-        .where("block_number", ">=", fromBlock)
-        // .where("transaction_index", ">", Number(fromEventIndex))
-        .where("block_number", "<=", toBlock)
-        // .where("transaction_index", "<=", Number(toEventIndex))
-        .orderBy("block_number", "asc")
-        .orderBy("transaction_index", "asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!));
+        const transactionsQ = database.qb.sync
+          .selectFrom("transactions")
+          .selectAll()
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">", fromBlock)
+          // .where("transaction_index", ">", Number(fromEventIndex))
+          .where("block_number", "<=", toBlock)
+          // .where("transaction_index", "<=", Number(toEventIndex))
+          .orderBy("block_number", "asc")
+          .orderBy("transaction_index", "asc")
+          .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-      const transactionReceiptsQ = database.qb.sync
-        .selectFrom("transaction_receipts")
-        .selectAll()
-        .where("chain_id", "=", chainId)
-        .where("block_number", ">=", fromBlock)
-        // .where("transaction_index", ">", Number(fromEventIndex))
-        .where("block_number", "<=", toBlock)
-        // .where("transaction_index", "<=", Number(toEventIndex))
-        .orderBy("block_number", "asc")
-        .orderBy("transaction_index", "asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!));
+        const transactionReceiptsQ = database.qb.sync
+          .selectFrom("transaction_receipts")
+          .selectAll()
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">", fromBlock)
+          // .where("transaction_index", ">", Number(fromEventIndex))
+          .where("block_number", "<=", toBlock)
+          // .where("transaction_index", "<=", Number(toEventIndex))
+          .orderBy("block_number", "asc")
+          .orderBy("transaction_index", "asc")
+          .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-      const logsQ = database.qb.sync
-        .selectFrom("logs")
-        .selectAll()
-        .where("chain_id", "=", chainId)
-        .where("block_number", ">=", fromBlock)
-        // .where("log_index", ">", Number(fromEventIndex))
-        .where("block_number", "<=", toBlock)
-        // .where("log_index", "<=", Number(toEventIndex))
-        .orderBy("block_number", "asc")
-        .orderBy("log_index", "asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!));
+        const logsQ = database.qb.sync
+          .selectFrom("logs")
+          .selectAll()
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">", fromBlock)
+          // .where("log_index", ">", Number(fromEventIndex))
+          .where("block_number", "<=", toBlock)
+          // .where("log_index", "<=", Number(toEventIndex))
+          .orderBy("block_number", "asc")
+          .orderBy("log_index", "asc")
+          .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-      const tracesQ = database.qb.sync
-        .selectFrom("traces")
-        .selectAll()
-        .where("chain_id", "=", chainId)
-        .where("block_number", ">=", fromBlock)
-        // .where("trace_index", ">", Number(fromEventIndex))
-        .where("block_number", "<=", toBlock)
-        // .where("trace_index", "<=", Number(toEventIndex))
-        .orderBy("block_number", "asc")
-        .orderBy("trace_index", "asc")
-        .$if(limit !== undefined, (qb) => qb.limit(limit!));
+        const tracesQ = database.qb.sync
+          .selectFrom("traces")
+          .selectAll()
+          .where("chain_id", "=", chainId)
+          .where("block_number", ">", fromBlock)
+          // .where("trace_index", ">", Number(fromEventIndex))
+          .where("block_number", "<=", toBlock)
+          // .where("trace_index", "<=", Number(toEventIndex))
+          .orderBy("block_number", "asc")
+          .orderBy("trace_index", "asc")
+          .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-      const [
-        blocksRows,
-        transactionsRows,
-        transactionReceiptsRows,
-        logsRows,
-        tracesRows,
-      ] = await Promise.all([
-        shouldQueryBlocks ? blocksQ.execute() : [],
-        shouldQueryTransactions ? transactionsQ.execute() : [],
-        shouldQueryTransactionReceipts ? transactionReceiptsQ.execute() : [],
-        shouldQueryLogs ? logsQ.execute() : [],
-        shouldQueryTraces ? tracesQ.execute() : [],
-      ]);
-      const supremum = Math.min(
-        blocksRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(blocksRows[blocksRows.length - 1]!.number),
-        transactionsRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(transactionsRows[transactionsRows.length - 1]!.block_number),
-        transactionReceiptsRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(
-              transactionReceiptsRows[transactionReceiptsRows.length - 1]!
-                .block_number,
-            ),
-        logsRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(logsRows[logsRows.length - 1]!.block_number),
-        tracesRows.length === 0
-          ? Number.POSITIVE_INFINITY
-          : Number(tracesRows[tracesRows.length - 1]!.block_number),
-      );
+        const [
+          blocksRows,
+          transactionsRows,
+          transactionReceiptsRows,
+          logsRows,
+          tracesRows,
+        ] = await Promise.all([
+          shouldQueryBlocks ? blocksQ.execute() : [],
+          shouldQueryTransactions ? transactionsQ.execute() : [],
+          shouldQueryTransactionReceipts ? transactionReceiptsQ.execute() : [],
+          shouldQueryLogs ? logsQ.execute() : [],
+          shouldQueryTraces ? tracesQ.execute() : [],
+        ]);
 
-      const blockData: {
-        block: InternalBlock;
-        logs: InternalLog[];
-        transactions: InternalTransaction[];
-        transactionReceipts: InternalTransactionReceipt[];
-        traces: InternalTrace[];
-      }[] = [];
-      let transactionIndex = 0;
-      let transactionReceiptIndex = 0;
-      // const traceIndex = 0;
-      let logIndex = 0;
-      for (const block of blocksRows) {
-        if (Number(block.number) > supremum) {
-          break;
+        const supremum = Math.min(
+          blocksRows.length === 0
+            ? Number.POSITIVE_INFINITY
+            : Number(blocksRows[blocksRows.length - 1]!.number),
+          transactionsRows.length === 0
+            ? Number.POSITIVE_INFINITY
+            : Number(
+                transactionsRows[transactionsRows.length - 1]!.block_number,
+              ),
+          transactionReceiptsRows.length === 0
+            ? Number.POSITIVE_INFINITY
+            : Number(
+                transactionReceiptsRows[transactionReceiptsRows.length - 1]!
+                  .block_number,
+              ),
+          logsRows.length === 0
+            ? Number.POSITIVE_INFINITY
+            : Number(logsRows[logsRows.length - 1]!.block_number),
+          tracesRows.length === 0
+            ? Number.POSITIVE_INFINITY
+            : Number(tracesRows[tracesRows.length - 1]!.block_number),
+        );
+
+        const blockData: {
+          block: InternalBlock;
+          logs: InternalLog[];
+          transactions: InternalTransaction[];
+          transactionReceipts: InternalTransactionReceipt[];
+          traces: InternalTrace[];
+        }[] = [];
+        let transactionIndex = 0;
+        let transactionReceiptIndex = 0;
+        // const traceIndex = 0;
+        let logIndex = 0;
+        for (const block of blocksRows) {
+          if (Number(block.number) > supremum) {
+            break;
+          }
+
+          const transactions: InternalTransaction[] = [];
+          const transactionReceipts: InternalTransactionReceipt[] = [];
+          const logs: InternalLog[] = [];
+          const traces: InternalTrace[] = [];
+
+          while (
+            transactionIndex < transactionsRows.length &&
+            transactionsRows[transactionIndex]!.block_number === block.number
+          ) {
+            const transaction = transactionsRows[transactionIndex]!;
+            transactions.push(
+              syncTransactionToInternal({
+                transaction: transaction.body,
+              }),
+            );
+            transactionIndex++;
+          }
+
+          while (
+            transactionReceiptIndex < transactionReceiptsRows.length &&
+            transactionReceiptsRows[transactionReceiptIndex]!.block_number ===
+              block.number
+          ) {
+            const transactionReceipt =
+              transactionReceiptsRows[transactionReceiptIndex]!;
+            transactionReceipts.push(
+              syncTransactionReceiptToInternal({
+                transactionReceipt: transactionReceipt.body,
+              }),
+            );
+            transactionReceiptIndex++;
+          }
+
+          while (
+            logIndex < logsRows.length &&
+            logsRows[logIndex]!.block_number === block.number
+          ) {
+            const log = logsRows[logIndex]!;
+            logs.push(syncLogToInternal({ log: log.body }));
+            logIndex++;
+          }
+
+          // while (
+          //   traceIndex < tracesRows.length &&
+          //   tracesRows[traceIndex]!.block_number === block.number
+          // ) {
+          //   const trace = tracesRows[traceIndex]!;
+          //   traces.push(syncTraceToInternal({ trace: trace.body }));
+          //   traceIndex++;
+          // }
+
+          blockData.push({
+            block: syncBlockToInternal({ block: block.body }),
+            logs,
+            transactions,
+            traces,
+            transactionReceipts,
+          });
         }
 
-        const transactions: InternalTransaction[] = [];
-        const transactionReceipts: InternalTransactionReceipt[] = [];
-        const logs: InternalLog[] = [];
-        const traces: InternalTrace[] = [];
-
-        while (
-          transactionIndex < transactionsRows.length &&
-          transactionsRows[transactionIndex]!.block_number === block.number
+        let cursor: string;
+        if (
+          Math.max(
+            logsRows.length,
+            blocksRows.length,
+            transactionsRows.length,
+            transactionReceiptsRows.length,
+            tracesRows.length,
+          ) !== limit
         ) {
-          const transaction = transactionsRows[transactionIndex]!;
-          transactions.push(
-            syncTransactionToInternal({
-              transaction: transaction.body,
-            }),
-          );
-          transactionIndex++;
+          cursor = to;
+        } else {
+          blockData.pop();
+
+          // Note: this relies on limit > 1
+          const lastBlock = blockData[blockData.length - 1]!.block;
+
+          cursor = encodeCheckpoint({
+            ...ZERO_CHECKPOINT,
+            blockTimestamp: Number(lastBlock.timestamp),
+            chainId: BigInt(chainId),
+            blockNumber: BigInt(lastBlock.number),
+          });
         }
 
-        while (
-          transactionReceiptIndex < transactionReceiptsRows.length &&
-          transactionReceiptsRows[transactionReceiptIndex]!.block_number ===
-            block.number
-        ) {
-          const transactionReceipt =
-            transactionReceiptsRows[transactionReceiptIndex]!;
-          transactionReceipts.push(
-            syncTransactionReceiptToInternal({
-              transactionReceipt: transactionReceipt.body,
-            }),
-          );
-          transactionReceiptIndex++;
-        }
-
-        while (
-          logIndex < logsRows.length &&
-          logsRows[logIndex]!.block_number === block.number
-        ) {
-          const log = logsRows[logIndex]!;
-          logs.push(syncLogToInternal({ log: log.body }));
-          logIndex++;
-        }
-
-        // while (
-        //   traceIndex < tracesRows.length &&
-        //   tracesRows[traceIndex]!.block_number === block.number
-        // ) {
-        //   const trace = tracesRows[traceIndex]!;
-        //   traces.push(syncTraceToInternal({ trace: trace.body }));
-        //   traceIndex++;
-        // }
-
-        blockData.push({
-          block: syncBlockToInternal({ block: block.body }),
-          logs,
-          transactions,
-          traces,
-          transactionReceipts,
-        });
-      }
-
-      let cursor: string;
-      if (
-        Math.max(
-          logsRows.length,
-          blocksRows.length,
-          transactionsRows.length,
-          transactionReceiptsRows.length,
-          tracesRows.length,
-        ) !== limit
-      ) {
-        cursor = to;
-      } else {
-        const lastBlock = blockData[blockData.length - 1]!.block;
-        cursor = encodeCheckpoint({
-          ...ZERO_CHECKPOINT,
-          blockTimestamp: Number(lastBlock.timestamp),
-          chainId: BigInt(chainId),
-          blockNumber: BigInt(lastBlock.number),
-        });
-      }
-
-      return { blockData, cursor };
-    }),
+        return { blockData, cursor };
+      },
+    ),
   insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
     database.wrap(
       { method: "insertRpcRequestResult", includeTraceLogs: true },

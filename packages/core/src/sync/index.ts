@@ -365,7 +365,10 @@ export const createSync = async (params: {
           ),
         });
 
-        return decodeEventGenerator(localEventGenerator);
+        return bufferAsyncGenerator(
+          decodeEventGenerator(localEventGenerator),
+          1,
+        );
       },
     );
 
@@ -1203,9 +1206,6 @@ export async function* getLocalEventGenerator(params: {
         service: "sync",
         msg: `Extracted ${events.length} '${params.network.name}' events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(queryCursor).blockTimestamp}]`,
       });
-
-      // 4274 + 13332 = 17606
-      // 4998 + 4989 + 4993 + 2426 = 17406
 
       cursor = queryCursor;
       yield { events, checkpoint: cursor };
