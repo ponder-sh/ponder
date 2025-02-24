@@ -562,6 +562,7 @@ export const createSyncStore = ({
       const transactionReceiptsQ = database.qb.sync
         .selectFrom("transaction_receipts")
         .selectAll()
+        .where("chain_id", "=", chainId)
         .where("block_number", ">=", fromBlock)
         // .where("transaction_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
@@ -585,6 +586,7 @@ export const createSyncStore = ({
       const tracesQ = database.qb.sync
         .selectFrom("traces")
         .selectAll()
+        .where("chain_id", "=", chainId)
         .where("block_number", ">=", fromBlock)
         // .where("trace_index", ">", Number(fromEventIndex))
         .where("block_number", "<=", toBlock)
