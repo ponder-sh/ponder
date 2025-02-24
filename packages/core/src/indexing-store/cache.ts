@@ -594,6 +594,7 @@ export const createIndexingCache = ({
           for (const [key, entry] of insertBuffer.get(table)!) {
             const bytes = getBytes(entry.row);
             cacheBytes += bytes;
+            totalCacheOps++;
             tableSpillover.set(key, {
               bytes,
               operationIndex: 0,
@@ -741,11 +742,9 @@ export const createIndexingCache = ({
       let cacheSize = 0;
       for (const { size } of cache.values()) cacheSize += size;
 
-      const flushIndex = Math.max(
+      const flushIndex =
         totalCacheOps -
-          cacheSize * (1 - common.options.indexingCacheEvictRatio),
-        0,
-      );
+        cacheSize * (1 - common.options.indexingCacheEvictRatio);
 
       if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
         isCacheComplete = false;
