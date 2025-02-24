@@ -539,7 +539,6 @@ export const createIndexingCache = ({
           await client.query("SAVEPOINT flush");
           await copy(table, text)
             .catch(async (error) => {
-              console.error(error);
               const result = await recoverBatchError(
                 insertValues,
                 async (values) => {
@@ -660,7 +659,6 @@ export const createIndexingCache = ({
             // @ts-ignore
             await client.query("SAVEPOINT flush");
             await copy(table, text, false).catch(async (error) => {
-              console.error(error);
               const result = await recoverBatchError(
                 updateValues,
                 async (values) => {
