@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.20
+
+### Patch Changes
+
+- [#1522](https://github.com/ponder-sh/ponder/pull/1522) [`74eb695c996723cb20e43f78b04aed64c1e685de`](https://github.com/ponder-sh/ponder/commit/74eb695c996723cb20e43f78b04aed64c1e685de) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_indexing_cache_requests_total`, `ponder_indexing_cache_query_duration`, `ponder_indexing_store_queries_total` and `ponder_indexing_store_raw_sql_duration` metrics.
+
+- [#1522](https://github.com/ponder-sh/ponder/pull/1522) [`74eb695c996723cb20e43f78b04aed64c1e685de`](https://github.com/ponder-sh/ponder/commit/74eb695c996723cb20e43f78b04aed64c1e685de) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
 ## 0.9.19
 
 ### Patch Changes
