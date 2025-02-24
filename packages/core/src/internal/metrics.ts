@@ -1,4 +1,4 @@
-import { truncateEventName } from "@/utils/truncateString.js";
+import { truncateEventName } from "@/utils/truncate.js";
 import prometheus from "prom-client";
 
 const databaseQueryDurationMs = [
