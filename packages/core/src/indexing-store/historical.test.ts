@@ -23,8 +23,6 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("find", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -32,40 +30,56 @@ test("find", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    schemaBuild: { schema },
-    database,
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    // empty
+
+    let result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toBe(null);
+
+    // with entry
+
+    await indexingStore
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
+
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+    // force db query
+
+    indexingCache.clear();
+    indexingCache.invalidate();
+
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toBe(null);
   });
-
-  // empty
-
-  let result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toBe(null);
-
-  // with entry
-
-  await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress, balance: 10n });
-
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 });
 
 test("insert", async (context) => {
@@ -80,144 +94,145 @@ test("insert", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  // single
+    // single
 
-  let result: any = await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress, balance: 10n });
+    let result: any = await indexingStore
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
 
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+    expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+    expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
-  // multiple
+    // multiple
 
-  result = await indexingStore.insert(schema.account).values([
-    { address: "0x0000000000000000000000000000000000000001", balance: 12n },
-    { address: "0x0000000000000000000000000000000000000002", balance: 52n },
-  ]);
+    result = await indexingStore.insert(schema.account).values([
+      { address: "0x0000000000000000000000000000000000000001", balance: 12n },
+      { address: "0x0000000000000000000000000000000000000002", balance: 52n },
+    ]);
 
-  expect(result).toStrictEqual([
-    { address: "0x0000000000000000000000000000000000000001", balance: 12n },
-    { address: "0x0000000000000000000000000000000000000002", balance: 52n },
-  ]);
+    expect(result).toStrictEqual([
+      { address: "0x0000000000000000000000000000000000000001", balance: 12n },
+      { address: "0x0000000000000000000000000000000000000002", balance: 52n },
+    ]);
 
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000001",
-  });
-
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000001",
-    balance: 12n,
-  });
-
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000002",
-  });
-
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000002",
-    balance: 52n,
-  });
-
-  // on conflict do nothing
-
-  result = await indexingStore
-    .insert(schema.account)
-    .values({
+    result = await indexingStore.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
-      balance: 44n,
-    })
-    .onConflictDoNothing();
+    });
 
-  expect(result).toBe(null);
+    expect(result).toStrictEqual({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000001",
-  });
+    result = await indexingStore.find(schema.account, {
+      address: "0x0000000000000000000000000000000000000002",
+    });
 
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000001",
-    balance: 12n,
-  });
+    expect(result).toStrictEqual({
+      address: "0x0000000000000000000000000000000000000002",
+      balance: 52n,
+    });
 
-  result = await indexingStore
-    .insert(schema.account)
-    .values([
-      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+    // on conflict do nothing
+
+    result = await indexingStore
+      .insert(schema.account)
+      .values({
+        address: "0x0000000000000000000000000000000000000001",
+        balance: 44n,
+      })
+      .onConflictDoNothing();
+
+    expect(result).toBe(null);
+
+    result = await indexingStore.find(schema.account, {
+      address: "0x0000000000000000000000000000000000000001",
+    });
+
+    expect(result).toStrictEqual({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
+
+    result = await indexingStore
+      .insert(schema.account)
+      .values([
+        { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+        { address: "0x0000000000000000000000000000000000000003", balance: 0n },
+      ])
+      .onConflictDoNothing();
+
+    expect(result).toStrictEqual([
+      null,
       { address: "0x0000000000000000000000000000000000000003", balance: 0n },
-    ])
-    .onConflictDoNothing();
+    ]);
 
-  expect(result).toStrictEqual([
-    null,
-    { address: "0x0000000000000000000000000000000000000003", balance: 0n },
-  ]);
-
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000001",
-  });
-
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000001",
-    balance: 12n,
-  });
-
-  // on conflict do update
-
-  await indexingStore
-    .insert(schema.account)
-    .values({
+    result = await indexingStore.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
-      balance: 90n,
-    })
-    .onConflictDoUpdate({
+    });
+
+    expect(result).toStrictEqual({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
+
+    // on conflict do update
+
+    await indexingStore
+      .insert(schema.account)
+      .values({
+        address: "0x0000000000000000000000000000000000000001",
+        balance: 90n,
+      })
+      .onConflictDoUpdate({
+        balance: 16n,
+      });
+
+    result = await indexingStore.find(schema.account, {
+      address: "0x0000000000000000000000000000000000000001",
+    });
+
+    expect(result).toStrictEqual({
+      address: "0x0000000000000000000000000000000000000001",
       balance: 16n,
     });
 
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000001",
-  });
+    await indexingStore
+      .insert(schema.account)
+      .values([
+        { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+        { address: "0x0000000000000000000000000000000000000002", balance: 0n },
+      ])
+      .onConflictDoUpdate((row) => ({
+        balance: row.balance + 16n,
+      }));
 
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000001",
-    balance: 16n,
-  });
+    result = await indexingStore.find(schema.account, {
+      address: "0x0000000000000000000000000000000000000001",
+    });
 
-  await indexingStore
-    .insert(schema.account)
-    .values([
-      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
-      { address: "0x0000000000000000000000000000000000000002", balance: 0n },
-    ])
-    .onConflictDoUpdate((row) => ({
-      balance: row.balance + 16n,
-    }));
-
-  result = await indexingStore.find(schema.account, {
-    address: "0x0000000000000000000000000000000000000001",
-  });
-
-  expect(result).toStrictEqual({
-    address: "0x0000000000000000000000000000000000000001",
-    balance: 32n,
+    expect(result).toStrictEqual({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 32n,
+    });
   });
 });
 
@@ -233,83 +248,84 @@ test("update", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  // setup
+    // setup
 
-  await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress, balance: 10n });
+    await indexingStore
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
 
-  // no function
+    // no function
 
-  let result: any = await indexingStore
-    .update(schema.account, { address: zeroAddress })
-    .set({ balance: 12n });
+    let result: any = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set({ balance: 12n });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 12n,
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 12n,
+    });
 
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 12n,
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 12n,
+    });
 
-  // function
+    // function
 
-  result = await indexingStore
-    .update(schema.account, { address: zeroAddress })
-    .set((row) => ({ balance: row.balance + 10n }));
+    result = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set((row) => ({ balance: row.balance + 10n }));
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 22n,
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 22n,
+    });
 
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 22n,
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 22n,
+    });
 
-  // undefined
+    // undefined
 
-  result = await indexingStore
-    .update(schema.account, { address: zeroAddress })
-    .set({ balance: undefined });
+    result = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set({ balance: undefined });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 22n,
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 22n,
+    });
 
-  result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balance: 22n,
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 22n,
+    });
   });
 });
 
@@ -326,47 +342,48 @@ test("delete", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    // no entry
+
+    let deleted = await indexingStore.delete(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(deleted).toBe(false);
+
+    // entry
+
+    await indexingStore
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 12n });
+    await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set({ balance: 12n });
+
+    deleted = await indexingStore.delete(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(deleted).toBe(true);
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toBe(null);
   });
-
-  // no entry
-
-  let deleted = await indexingStore.delete(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(deleted).toBe(false);
-
-  // entry
-
-  await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress, balance: 12n });
-  await indexingStore
-    .update(schema.account, { address: zeroAddress })
-    .set({ balance: 12n });
-
-  deleted = await indexingStore.delete(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(deleted).toBe(true);
-
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toBe(null);
 });
 
 test("sql", async (context) => {
@@ -383,66 +400,68 @@ test("sql", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  // setup
+    // setup
 
-  await indexingStore.insert(schema.account).values({
-    address: zeroAddress,
-    balance: 10n,
-  });
-
-  // select
-
-  const result = await indexingStore.sql
-    .select()
-    .from(schema.account)
-    .where(eq(schema.account.address, zeroAddress));
-
-  expect(result).toStrictEqual([
-    {
+    await indexingStore.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
-    },
-  ]);
+    });
 
-  // non-null constraint
+    // select
 
-  // @ts-ignore
-  let error = await indexingStore.sql
-    .insert(schema.account)
-    .values({
-      address: "0x0000000000000000000000000000000000000001",
-      balance: undefined,
-    })
-    .catch((error) => error);
+    const result = await indexingStore.sql
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.address, zeroAddress));
 
-  expect(error).instanceOf(NotNullConstraintError);
+    expect(result).toStrictEqual([
+      {
+        address: zeroAddress,
+        balance: 10n,
+      },
+    ]);
 
-  // TODO(kyle) check constraint
+    // non-null constraint
 
-  // unique constraint
+    // @ts-ignore
+    await client.query("SAVEPOINT test");
 
-  error = await indexingStore.sql
-    .insert(schema.account)
-    .values({
-      address: zeroAddress,
-      balance: 10n,
-    })
-    .catch((error) => error);
+    await expect(
+      async () =>
+        // @ts-ignore
+        await indexingStore.sql.insert(schema.account).values({
+          address: "0x0000000000000000000000000000000000000001",
+          balance: undefined,
+        }),
+    ).rejects.toThrowError(NotNullConstraintError);
 
-  expect(error).instanceOf(UniqueConstraintError);
+    // TODO(kyle) check constraint
+
+    // unique constraint
+
+    // @ts-ignore
+    await client.query("ROLLBACK TO test");
+
+    await expect(
+      async () =>
+        await indexingStore.sql
+          .insert(schema.account)
+          .values({ address: zeroAddress, balance: 10n }),
+    ).rejects.toThrowError(UniqueConstraintError);
+  });
 });
 
 test("sql followed by find", async (context) => {
@@ -459,30 +478,31 @@ test("sql followed by find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  await indexingStore.sql
-    .insert(schema.account)
-    .values({ address: zeroAddress, balance: 10n });
+    await indexingStore.sql
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
 
-  const row = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    const row = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(row).toStrictEqual({
-    address: zeroAddress,
-    balance: 10n,
+    expect(row).toStrictEqual({
+      address: zeroAddress,
+      balance: 10n,
+    });
   });
 });
 
@@ -498,27 +518,27 @@ test("onchain table", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    // check error
+
+    expect(() =>
+      indexingStore
+        // @ts-ignore
+        .find(schema.account, { address: zeroAddress }),
+    ).toThrow();
   });
-
-  // check error
-
-  const error = await indexingStore
-    // @ts-ignore
-    .find(schema.account, { address: zeroAddress })
-    .catch((error) => error);
-
-  expect(error).toBeDefined();
 });
 
 test("missing rows", async (context) => {
@@ -533,28 +553,29 @@ test("missing rows", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    // error
+
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          // @ts-ignore
+          .values({ address: zeroAddress }),
+    ).rejects.toThrow();
   });
-
-  // error
-
-  const error = await indexingStore
-    .insert(schema.account)
-    // @ts-ignore
-    .values({ address: zeroAddress })
-    .catch((error) => error);
-
-  expect(error).toBeDefined();
 });
 
 test("notNull", async (context) => {
@@ -569,81 +590,81 @@ test("notNull", async (context) => {
 
   let indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  let indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    let indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    // insert
+
+    let result = await indexingStore
+      .insert(schema.account)
+      .values({ address: zeroAddress });
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: null });
+
+    result = await indexingStore
+      .find(schema.account, {
+        address: zeroAddress,
+      })
+      .then((result) => result!);
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: null });
+
+    // update
+
+    result = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set({});
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: null });
+
+    // error
+
+    schema = {
+      // @ts-ignore
+      account: onchainTable("account", (p) => ({
+        address: p.hex().primaryKey(),
+        balance: p.bigint().notNull(),
+      })),
+    };
+
+    indexingCache = createIndexingCache({
+      common: context.common,
+      schemaBuild: { schema },
+      checkpoint: ZERO_CHECKPOINT_STRING,
+    });
+
+    indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress }),
+    ).rejects.toThrow();
+
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress, balance: null }),
+    ).rejects.toThrow();
   });
-
-  // insert
-
-  let result = await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress });
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: null });
-
-  result = await indexingStore
-    .find(schema.account, {
-      address: zeroAddress,
-    })
-    .then((result) => result!);
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: null });
-
-  // update
-
-  result = await indexingStore
-    .update(schema.account, { address: zeroAddress })
-    .set({});
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: null });
-
-  // error
-
-  schema = {
-    // @ts-ignore
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  indexingCache = createIndexingCache({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
-  });
-
-  indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
-
-  let error = await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress })
-    .catch((error) => error);
-
-  expect(error).toBeDefined();
-
-  error = await indexingStore
-    .insert(schema.account)
-    .values({ address: zeroAddress, balance: null })
-    .catch((error) => error);
-
-  expect(error).toBeDefined();
 });
 
 test("default", async (context) => {
@@ -658,26 +679,28 @@ test("default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({ address: zeroAddress });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: 0 });
   });
-
-  await indexingStore.insert(schema.account).values({ address: zeroAddress });
-
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 0 });
 });
 
 test("$default", async (context) => {
@@ -692,26 +715,28 @@ test("$default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({ address: zeroAddress });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
   });
-
-  await indexingStore.insert(schema.account).values({ address: zeroAddress });
-
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 });
 
 test("$onUpdateFn", async (context) => {
@@ -729,30 +754,32 @@ test("$onUpdateFn", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    // insert
+
+    await indexingStore.insert(schema.account).values({ address: zeroAddress });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+    // update
   });
-
-  // insert
-
-  await indexingStore.insert(schema.account).values({ address: zeroAddress });
-
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
-
-  expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  // update
 });
 
 test("array", async (context) => {
@@ -769,34 +796,36 @@ test("array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
 
-  await indexingStore.insert(schema.account).values({
-    address: zeroAddress,
-    balances: [20n],
-  });
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      balances: [20n],
+    });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    balances: [20n],
-  });
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  // TODO(kyle) fixed size
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balances: [20n],
+    });
+
+    // TODO(kyle) fixed size
+  });
 });
 
 test("text array", async (context) => {
@@ -811,31 +840,31 @@ test("text array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  const STRING_ARRAY_VALUE = "//U_W_U\\\\";
+    const STRING_ARRAY_VALUE = "//U_W_U\\\\";
 
-  await indexingStore.insert(schema.test).values({
-    address: zeroAddress,
-    textArray: [STRING_ARRAY_VALUE],
-  });
+    await indexingStore.insert(schema.test).values({
+      address: zeroAddress,
+      textArray: [STRING_ARRAY_VALUE],
+    });
 
-  const result = await indexingStore.find(schema.test, {
-    address: zeroAddress,
-  });
+    const result = await indexingStore.find(schema.test, {
+      address: zeroAddress,
+    });
 
-  expect(result).toMatchInlineSnapshot(`
+    expect(result).toMatchInlineSnapshot(`
     {
       "address": "0x0000000000000000000000000000000000000000",
       "textArray": [
@@ -843,6 +872,7 @@ test("text array", async (context) => {
       ],
     }
   `);
+  });
 });
 
 test("enum", async (context) => {
@@ -859,34 +889,35 @@ test("enum", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
-  });
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
 
-  await indexingStore.insert(schema.account).values({
-    address: zeroAddress,
-    mood: "ok",
-  });
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      mood: "ok",
+    });
 
-  const result = await indexingStore.find(schema.account, {
-    address: zeroAddress,
-  });
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
 
-  expect(result).toStrictEqual({
-    address: zeroAddress,
-    mood: "ok",
-  });
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      mood: "ok",
+    });
 
-  // TODO(kyle) error
+    // TODO(kyle) error
+  });
 });
 
 test("json bigint", async (context) => {
@@ -901,28 +932,24 @@ test("json bigint", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
-    database,
     schemaBuild: { schema },
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  const indexingStore = createHistoricalIndexingStore({
-    common: context.common,
-    database,
-    schemaBuild: { schema },
-    indexingCache,
-    db: database.qb.drizzle,
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await expect(
+      async () =>
+        await indexingStore
+          .insert(schema.account)
+          .values({ address: zeroAddress, metadata: { balance: 10n } }),
+    ).rejects.toThrowError(BigIntSerializationError);
   });
-
-  const error = await indexingStore
-    .insert(schema.account)
-    .values({
-      address: zeroAddress,
-      metadata: {
-        balance: 10n,
-      },
-    })
-    .catch((error) => error);
-
-  expect(error).toBeInstanceOf(BigIntSerializationError);
 });

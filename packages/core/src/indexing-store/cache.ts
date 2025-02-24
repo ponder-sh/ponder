@@ -1,16 +1,21 @@
-import type { Database } from "@/database/index.js";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import { addErrorMeta } from "@/indexing/index.js";
+import { toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BigIntSerializationError,
+  FlushError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
+import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { chunk } from "@/utils/chunk.js";
 import { prettyPrint } from "@/utils/print.js";
+import { startClock } from "@/utils/timer.js";
+import { PGlite } from "@electric-sql/pglite";
 import {
   type Column,
   type SQL,
@@ -22,9 +27,15 @@ import {
   getTableColumns,
   getTableName,
   is,
-  sql,
 } from "drizzle-orm";
-import { PgArray, PgTable, type PgTableWithColumns } from "drizzle-orm/pg-core";
+import {
+  PgArray,
+  PgTable,
+  type PgTableWithColumns,
+  getTableConfig,
+} from "drizzle-orm/pg-core";
+import type { PoolClient } from "pg";
+import copy from "pg-copy-streams";
 import { parseSqlError } from "./index.js";
 
 export type IndexingCache = {
@@ -35,7 +46,11 @@ export type IndexingCache = {
   /**
    * Returns the entry for `table` with `key`.
    */
-  get: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
+  get: (params: {
+    table: Table;
+    key: object;
+    db: Drizzle<Schema>;
+  }) =>
     | { [key: string]: unknown }
     | null
     | Promise<{ [key: string]: unknown } | null>;
@@ -47,17 +62,22 @@ export type IndexingCache = {
     key: object;
     row: { [key: string]: unknown };
     isUpdate: boolean;
+    metadata: {
+      event: Event | undefined;
+    };
   }) => { [key: string]: unknown };
   /**
    * Deletes the entry for `table` with `key`.
    */
-  delete: (params: { table: Table; key: object; db: Drizzle<Schema> }) =>
-    | boolean
-    | Promise<boolean>;
+  delete: (params: {
+    table: Table;
+    key: object;
+    db: Drizzle<Schema>;
+  }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
    */
-  flush: (params: { db: Drizzle<Schema> }) => Promise<void>;
+  flush: (params: { client: PoolClient | PGlite }) => Promise<void>;
   /**
    * Make all temporary data permanent and prepare the cache for
    * the next iteration.
@@ -98,6 +118,9 @@ type Buffer = Map<
     string,
     {
       row: { [key: string]: unknown };
+      metadata: {
+        event: Event | undefined;
+      };
     }
   >
 >;
@@ -173,7 +196,9 @@ export const normalizeRow = (
       hasEmptyValue(column) === false
     ) {
       const error = new NotNullConstraintError(
-        `Column '${getTableName(table)}.${columnName}' violates not-null constraint.`,
+        `Column '${getTableName(
+          table,
+        )}.${columnName}' violates not-null constraint.`,
       );
       error.meta.push(`db.insert arguments:\n${prettyPrint(row)}`);
       throw error;
@@ -185,7 +210,21 @@ export const normalizeRow = (
   return row;
 };
 
-export const getCacheKey = (table: Table, key: object): string => {
+export const getCacheKey = (
+  table: Table,
+  key: object,
+  cache?: Map<Table, [string, Column][]>,
+): string => {
+  if (cache) {
+    const primaryKeys = cache.get(table)!;
+    return (
+      primaryKeys
+        // @ts-ignore
+        .map(([pk, col]) => normalizeColumn(col, key[pk]))
+        .join("_")
+    );
+  }
+
   const primaryKeys = getPrimaryKeyColumns(table);
   return (
     primaryKeys
@@ -234,14 +273,94 @@ const getBytes = (value: unknown) => {
   return size;
 };
 
+export const getCopyText = (
+  table: Table,
+  rows: { [key: string]: unknown }[],
+) => {
+  const columns = Object.entries(getTableColumns(table));
+  const results: string[] = [];
+  for (const row of rows) {
+    const values: string[] = [];
+    for (const [columnName, column] of columns) {
+      let value = row[columnName];
+      if (value === null || value === undefined) {
+        values.push("\\N");
+      } else {
+        if (column.mapToDriverValue !== undefined) {
+          value = column.mapToDriverValue(value);
+        }
+        if (value === null || value === undefined) {
+          values.push("\\N");
+        } else {
+          values.push(String(value).replace(/([\\\b\f\n\r\t\v])/g, "\\$1"));
+        }
+      }
+    }
+    results.push(values.join("\t"));
+  }
+  return results.join("\n");
+};
+
+export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
+  if (client instanceof PGlite) {
+    return async (table: Table, text: string, includeSchema = true) => {
+      const target = includeSchema
+        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
+            table,
+          )}"`
+        : `"${getTableName(table)}"`;
+      await client.query(`COPY ${target} FROM '/dev/blob'`, [], {
+        blob: new Blob([text]),
+      });
+    };
+  } else {
+    return async (table: Table, text: string, includeSchema = true) => {
+      const target = includeSchema
+        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
+            table,
+          )}"`
+        : `"${getTableName(table)}"`;
+      await pipeline(
+        Readable.from(text),
+        client.query(copy.from(`COPY ${target} FROM STDIN`)),
+      );
+    };
+  }
+};
+
+export const recoverBatchError = async <T>(
+  values: T[],
+  callback: (values: T[]) => Promise<unknown>,
+): Promise<
+  { status: "success" } | { status: "error"; error: Error; value: T }
+> => {
+  try {
+    await callback(values);
+    return { status: "success" };
+  } catch (error) {
+    if (values.length === 1) {
+      return { status: "error", error: error as Error, value: values[0]! };
+    }
+    const left = values.slice(0, Math.floor(values.length / 2));
+    const right = values.slice(Math.floor(values.length / 2));
+    const resultLeft = await recoverBatchError(left, callback);
+    if (resultLeft.status === "error") {
+      return resultLeft;
+    }
+    const resultRight = await recoverBatchError(right, callback);
+    if (resultRight.status === "error") {
+      return resultRight;
+    }
+    return { status: "success" };
+  }
+};
+
 export const createIndexingCache = ({
   common,
-  database,
   schemaBuild: { schema },
   checkpoint,
 }: {
   common: Common;
-  database: Database;
   schemaBuild: Pick<SchemaBuild, "schema">;
   checkpoint: string;
 }): IndexingCache => {
@@ -249,6 +368,8 @@ export const createIndexingCache = ({
   const spillover: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
 
@@ -260,7 +381,9 @@ export const createIndexingCache = ({
 
   common.logger.debug({
     service: "indexing",
-    msg: `Using a ${Math.round(common.options.indexingCacheMaxBytes / (1024 * 1024))} MB indexing cache`,
+    msg: `Using a ${Math.round(
+      common.options.indexingCacheMaxBytes / (1024 * 1024),
+    )} MB indexing cache`,
   });
 
   for (const table of Object.values(schema).filter(
@@ -270,81 +393,109 @@ export const createIndexingCache = ({
     spillover.set(table, new Map());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
+
+    primaryKeyCache.set(table, []);
+    for (const { js } of getPrimaryKeyColumns(table)) {
+      primaryKeyCache.get(table)!.push([js, table[js]!]);
+    }
   }
 
   return {
     has({ table, key }) {
       if (isCacheComplete) return true;
+      const ck = getCacheKey(table, key, primaryKeyCache);
 
       return (
-        cache.get(table)!.has(getCacheKey(table, key)) ??
-        spillover.get(table)!.has(getCacheKey(table, key)) ??
-        insertBuffer.get(table)!.has(getCacheKey(table, key)) ??
-        updateBuffer.get(table)!.has(getCacheKey(table, key))
+        cache.get(table)!.has(ck) ??
+        spillover.get(table)!.has(ck) ??
+        insertBuffer.get(table)!.has(ck) ??
+        updateBuffer.get(table)!.has(ck)
       );
     },
-    get({ table, key, db }) {
+    async get({ table, key, db }) {
+      const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
       // are prioritized over insert entries
       const bufferEntry =
-        updateBuffer.get(table)!.get(getCacheKey(table, key)) ??
-        insertBuffer.get(table)!.get(getCacheKey(table, key));
+        updateBuffer.get(table)!.get(ck) ?? insertBuffer.get(table)!.get(ck);
 
       if (bufferEntry) {
+        common.metrics.ponder_indexing_cache_requests_total.inc({
+          table: getTableName(table),
+          type: "hit",
+        });
         return structuredClone(bufferEntry.row);
       }
 
-      const entry =
-        spillover.get(table)!.get(getCacheKey(table, key)) ??
-        cache.get(table)!.get(getCacheKey(table, key));
+      const entry = spillover.get(table)!.get(ck) ?? cache.get(table)!.get(ck);
 
       if (entry) {
         entry.operationIndex = totalCacheOps++;
 
         if (entry.row) {
+          common.metrics.ponder_indexing_cache_requests_total.inc({
+            table: getTableName(table),
+            type: "hit",
+          });
           return structuredClone(entry.row);
         }
       }
 
       if (isCacheComplete) {
+        common.metrics.ponder_indexing_cache_requests_total.inc({
+          table: getTableName(table),
+          type: "hit",
+        });
         return null;
       }
 
-      return database
-        .record(
-          {
-            method: `${getTableName(table) ?? "unknown"}.cache.find()`,
-          },
-          async () => {
-            return db
-              .select()
-              .from(table)
-              .where(getWhereCondition(table, key))
-              .then((res) => (res.length === 0 ? null : res[0]!));
-          },
-        )
+      common.metrics.ponder_indexing_cache_requests_total.inc({
+        table: getTableName(table),
+        type: "miss",
+      });
+
+      const endClock = startClock();
+
+      const result = await db
+        .select()
+        .from(table)
+        .where(getWhereCondition(table, key))
+        .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
           const bytes = getBytes(row);
           spilloverBytes += bytes;
 
-          spillover.get(table)!.set(getCacheKey(table, key), {
+          spillover.get(table)!.set(ck, {
             bytes,
             operationIndex: totalCacheOps++,
             row: structuredClone(row),
           });
           return row;
         });
+
+      common.metrics.ponder_indexing_cache_query_duration.observe(
+        {
+          table: getTableName(table),
+          method: "find",
+        },
+        endClock(),
+      );
+
+      return result;
     },
-    set({ table, key, row: _row, isUpdate }) {
+    set({ table, key, row: _row, isUpdate, metadata }) {
       const row = normalizeRow(table, _row, isUpdate);
+      const ck = getCacheKey(table, key, primaryKeyCache);
 
       if (isUpdate) {
-        updateBuffer.get(table)!.set(getCacheKey(table, key), {
+        updateBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
+          metadata,
         });
       } else {
-        insertBuffer.get(table)!.set(getCacheKey(table, key), {
+        insertBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
+          metadata,
         });
       }
 
@@ -367,39 +518,85 @@ export const createIndexingCache = ({
 
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
-    async flush({ db }) {
-      for (const table of cache.keys()) {
-        const batchSize = Math.round(
-          common.options.databaseMaxQueryParameters /
-            Object.keys(getTableColumns(table)).length,
-        );
+    async flush({ client }) {
+      const copy = getCopyHelper({ client });
 
+      for (const table of cache.keys()) {
         const tableSpillover = spillover.get(table)!;
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
 
         if (insertValues.length > 0) {
-          for (const insertChunk of chunk(insertValues, batchSize)) {
-            await database.record(
-              { method: `${getTableName(table)}.flush()` },
-              async () => {
-                await db
-                  .insert(table)
-                  .values(insertChunk.map(({ row }) => row))
-                  .catch((error) => {
-                    throw parseSqlError(error);
-                  });
-              },
-            );
-          }
+          const text = getCopyText(
+            table,
+            insertValues.map(({ row }) => row),
+          );
+
+          const endClock = startClock();
+
+          // @ts-ignore
+          await client.query("SAVEPOINT flush");
+          await copy(table, text)
+            .catch(async (error) => {
+              const result = await recoverBatchError(
+                insertValues,
+                async (values) => {
+                  // @ts-ignore
+                  await client.query("ROLLBACK to flush");
+                  const text = getCopyText(
+                    table,
+                    values.map(({ row }) => row),
+                  );
+                  await copy(table, text);
+                  // @ts-ignore
+                  await client.query("SAVEPOINT flush");
+                },
+              );
+
+              if (result.status === "success") {
+                return;
+              }
+
+              // Note: rollback so that the connection is available for other queries
+              // @ts-ignore
+              await client.query("ROLLBACK to flush");
+
+              error = parseSqlError(result.error);
+              error.stack = undefined;
+
+              if (result.value.metadata.event) {
+                addErrorMeta(
+                  error,
+                  `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+                );
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+                common.logger.error({
+                  service: "indexing",
+                  msg: `Error while processing ${getTableName(
+                    table,
+                  )}.insert() in event '${result.value.metadata.event.name}'`,
+                  error,
+                });
+              }
+              throw new FlushError(error.message);
+            })
+            .finally(() => {
+              common.metrics.ponder_indexing_cache_query_duration.observe(
+                {
+                  table: getTableName(table),
+                  method: "flush",
+                },
+                endClock(),
+              );
+            });
 
           for (const [key, entry] of insertBuffer.get(table)!) {
             const bytes = getBytes(entry.row);
             cacheBytes += bytes;
             tableSpillover.set(key, {
               bytes,
-              operationIndex: totalCacheOps++,
+              operationIndex: 0,
               row: entry.row,
             });
           }
@@ -407,43 +604,105 @@ export const createIndexingCache = ({
 
           common.logger.debug({
             service: "database",
-            msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+            msg: `Inserted ${insertValues.length} '${getTableName(
+              table,
+            )}' rows`,
           });
         }
 
         if (updateValues.length > 0) {
+          // Steps for flushing "update" entries:
+          // 1. Create temp table
+          // 2. Copy into temp table
+          // 3. Update target table with data from temp
+
           const primaryKeys = getPrimaryKeyColumns(table);
-          const set: { [column: string]: SQL } = {};
+          const set = Object.values(getTableColumns(table))
+            .map(
+              (column) =>
+                `"${getColumnCasing(
+                  column,
+                  "snake_case",
+                )}" = source."${getColumnCasing(column, "snake_case")}"`,
+            )
+            .join(",\n");
 
-          for (const [columnName, column] of Object.entries(
-            getTableColumns(table),
-          )) {
-            set[columnName] = sql.raw(
-              `excluded."${getColumnCasing(column, "snake_case")}"`,
-            );
-          }
+          const createTempTableQuery = `
+              CREATE TEMP TABLE "${getTableName(table)}" 
+              ON COMMIT DROP
+              AS SELECT * FROM "${
+                getTableConfig(table).schema ?? "public"
+              }"."${getTableName(table)}"
+              WITH NO DATA;
+            `;
+          const updateQuery = `
+              UPDATE "${
+                getTableConfig(table).schema ?? "public"
+              }"."${getTableName(table)}" as target
+              SET ${set}
+              FROM "${getTableName(table)}" as source
+              WHERE ${primaryKeys
+                .map(({ sql }) => `target."${sql}" = source."${sql}"`)
+                .join(" AND ")};
+            `;
 
-          for (const updateChunk of chunk(updateValues, batchSize)) {
-            await database.record(
+          const text = getCopyText(
+            table,
+            updateValues.map(({ row }) => row),
+          );
+
+          const endClock = startClock();
+
+          try {
+            // @ts-ignore
+            await client.query(createTempTableQuery);
+            // @ts-ignore
+            await client.query("SAVEPOINT flush");
+            await copy(table, text, false).catch(async (error) => {
+              const result = await recoverBatchError(
+                updateValues,
+                async (values) => {
+                  // @ts-ignore
+                  await client.query("ROLLBACK to flush");
+                  const text = getCopyText(
+                    table,
+                    values.map(({ row }) => row),
+                  );
+                  await copy(table, text, false);
+                  // @ts-ignore
+                  await client.query("SAVEPOINT flush");
+                },
+              );
+
+              if (result.status === "success") {
+                return;
+              }
+
+              // Note: rollback so that the connection is available for other queries
+              // @ts-ignore
+              await client.query("ROLLBACK to flush");
+
+              error = parseSqlError(result.error);
+              error.stack = undefined;
+
+              addErrorMeta(
+                error,
+                `db.update arguments:\n${prettyPrint(result.value.row)}`,
+              );
+
+              throw error;
+            });
+            // @ts-ignore
+            await client.query(updateQuery);
+          } finally {
+            common.metrics.ponder_indexing_cache_query_duration.observe(
               {
-                method: `${getTableName(table)}.flush()`,
+                table: getTableName(table),
+                method: "flush",
               },
-              async () => {
-                await db
-                  .insert(table)
-                  .values(updateChunk.map(({ row }) => row))
-                  .onConflictDoUpdate({
-                    // @ts-ignore
-                    target: primaryKeys.map(({ js }) => table[js]),
-                    set,
-                  })
-                  .catch((error) => {
-                    throw parseSqlError(error);
-                  });
-              },
+              endClock(),
             );
           }
-
           for (const [key, entry] of updateBuffer.get(table)!) {
             const bytes = getBytes(entry.row);
             cacheBytes += bytes;
@@ -459,6 +718,11 @@ export const createIndexingCache = ({
             service: "database",
             msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
           });
+        }
+
+        if (insertValues.length > 0 || updateValues.length > 0) {
+          // @ts-ignore
+          await client.query("RELEASE flush");
         }
       }
     },
