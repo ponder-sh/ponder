@@ -247,3 +247,49 @@ test("flush() encoding escape", async (context) => {
     expect(result).toStrictEqual(values);
   });
 });
+
+test("commit() evicts rows", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
+  context.common.options.indexingCacheMaxBytes = 0;
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    await indexingCache.flush({ client });
+    indexingCache.commit();
+
+    const result = indexingCache.has({
+      table: schema.account,
+      key: { address: zeroAddress },
+    });
+
+    expect(result).toBe(false);
+  });
+});

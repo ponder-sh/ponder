@@ -169,10 +169,7 @@ export async function run({
                 eventChunk[eventChunk.length - 1]!.checkpoint,
               );
 
-              if (preBuild.ordering === "multichain") {
-                const network = indexingBuild.networks.find(
-                  (network) => network.chainId === Number(checkpoint.chainId),
-                )!;
+              for (const network of indexingBuild.networks) {
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { network: network.name },
                   Math.max(
@@ -186,22 +183,6 @@ export async function run({
                   { network: network.name },
                   checkpoint.blockTimestamp,
                 );
-              } else {
-                for (const network of indexingBuild.networks) {
-                  common.metrics.ponder_historical_completed_indexing_seconds.set(
-                    { network: network.name },
-                    Math.max(
-                      checkpoint.blockTimestamp -
-                        sync.seconds[network.name]!.start -
-                        sync.seconds[network.name]!.cached,
-                      0,
-                    ),
-                  );
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { network: network.name },
-                    checkpoint.blockTimestamp,
-                  );
-                }
               }
 
               // Note: allows for terminal and logs to be updated
