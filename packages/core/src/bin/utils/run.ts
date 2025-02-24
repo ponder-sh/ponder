@@ -5,6 +5,7 @@ import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
+import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
@@ -76,7 +77,6 @@ export async function run({
 
   const indexingCache = createIndexingCache({
     common,
-    database,
     schemaBuild,
     checkpoint: initialCheckpoint,
   });
@@ -118,44 +118,47 @@ export async function run({
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
-    const historicalIndexingStore = createHistoricalIndexingStore({
-      common,
-      schemaBuild,
-      database,
-      indexingCache,
-      db: database.qb.drizzle,
-    });
-    const result = await indexing.processSetupEvents({
-      db: historicalIndexingStore,
-    });
+    await database.retry(async () => {
+      await database.transaction(async (client, tx) => {
+        const historicalIndexingStore = createHistoricalIndexingStore({
+          common,
+          schemaBuild,
+          indexingCache,
+          db: tx,
+          client,
+        });
+        const result = await indexing.processSetupEvents({
+          db: historicalIndexingStore,
+        });
 
-    if (result.status === "error") {
-      onReloadableError(result.error);
-      return;
-    }
+        if (result.status === "error") {
+          onReloadableError(result.error);
+          return;
+        }
+      });
+    });
   }
 
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
     if (events.length > 0) {
       await database.retry(async () => {
-        try {
-          await database.qb.drizzle.transaction(async (tx) => {
+        await database
+          .transaction(async (client, tx) => {
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
-              database,
               indexingCache,
               db: tx,
+              client,
             });
+
             const eventChunks = chunk(events, 93);
             for (const eventChunk of eventChunks) {
               const result = await indexing.processEvents({
                 events: eventChunk,
                 db: historicalIndexingStore,
               });
-
-              await historicalIndexingStore.queue.onIdle();
 
               if (result.status === "error") {
                 onReloadableError(result.error);
@@ -202,7 +205,9 @@ export async function run({
               }
 
               // Note: allows for terminal and logs to be updated
-              await new Promise(setImmediate);
+              if (preBuild.databaseConfig.kind === "pglite") {
+                await new Promise(setImmediate);
+              }
             }
 
             // underlying metrics collection is actually synchronous
@@ -220,19 +225,27 @@ export async function run({
               });
             }
 
-            await indexingCache.flush({ db: tx });
+            try {
+              await indexingCache.flush({ client });
+            } catch (error) {
+              if (error instanceof FlushError) {
+                onReloadableError(error as Error);
+                return;
+              }
+              throw error;
+            }
+
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
+          })
+          .catch((error) => {
+            indexingCache.rollback();
+            throw error;
           });
-
-          indexingCache.commit();
-        } catch (error) {
-          indexingCache.rollback();
-          throw error;
-        }
       });
+      indexingCache.commit();
     }
 
     await database.setStatus(sync.getStatus());
@@ -249,9 +262,17 @@ export async function run({
   });
 
   await database.retry(async () => {
-    await database.qb.drizzle.transaction(async (tx) => {
-      await indexingCache.flush({ db: tx });
-      indexingCache.clear();
+    await database.transaction(async (client, tx) => {
+      try {
+        await indexingCache.flush({ client });
+      } catch (error) {
+        if (error instanceof FlushError) {
+          onReloadableError(error as Error);
+          return;
+        }
+        throw error;
+      }
+
       await database.finalize({
         checkpoint: sync.getFinalizedCheckpoint(),
         db: tx,
