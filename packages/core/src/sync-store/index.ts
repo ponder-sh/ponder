@@ -20,12 +20,6 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
-import {
-  syncBlockToInternal,
-  syncLogToInternal,
-  syncTransactionReceiptToInternal,
-  syncTransactionToInternal,
-} from "@/sync/events.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { fragmentToId, getFragments } from "@/sync/fragments.js";
 import {
@@ -39,6 +33,10 @@ import type { InsertObject } from "kysely";
 import { type Address, type Hex, hexToBigInt } from "viem";
 import {
   type PonderSyncSchema,
+  decodeBlock,
+  decodeLog,
+  decodeTransaction,
+  decodeTransactionReceipt,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -651,7 +649,7 @@ export const createSyncStore = ({
         }[] = [];
         let transactionIndex = 0;
         let transactionReceiptIndex = 0;
-        // const traceIndex = 0;
+        // let traceIndex = 0;
         let logIndex = 0;
         for (const block of blocksRows) {
           if (Number(block.number) > supremum) {
@@ -668,11 +666,7 @@ export const createSyncStore = ({
             transactionsRows[transactionIndex]!.block_number === block.number
           ) {
             const transaction = transactionsRows[transactionIndex]!;
-            transactions.push(
-              syncTransactionToInternal({
-                transaction: transaction.body,
-              }),
-            );
+            transactions.push(decodeTransaction({ transaction }));
             transactionIndex++;
           }
 
@@ -684,9 +678,7 @@ export const createSyncStore = ({
             const transactionReceipt =
               transactionReceiptsRows[transactionReceiptIndex]!;
             transactionReceipts.push(
-              syncTransactionReceiptToInternal({
-                transactionReceipt: transactionReceipt.body,
-              }),
+              decodeTransactionReceipt({ transactionReceipt }),
             );
             transactionReceiptIndex++;
           }
@@ -696,7 +688,7 @@ export const createSyncStore = ({
             logsRows[logIndex]!.block_number === block.number
           ) {
             const log = logsRows[logIndex]!;
-            logs.push(syncLogToInternal({ log: log.body }));
+            logs.push(decodeLog({ log }));
             logIndex++;
           }
 
@@ -710,7 +702,7 @@ export const createSyncStore = ({
           // }
 
           blockData.push({
-            block: syncBlockToInternal({ block: block.body }),
+            block: decodeBlock({ block }),
             logs,
             transactions,
             traces,

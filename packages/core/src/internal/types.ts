@@ -1,4 +1,5 @@
 import type { SqlStatements } from "@/drizzle/kit/index.js";
+import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type {
   Block,
@@ -13,6 +14,7 @@ import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Hono } from "hono";
+import type { Selectable } from "kysely";
 import type { PoolConfig } from "pg";
 import type {
   Abi,
@@ -380,6 +382,14 @@ export type LightBlock = Pick<
   SyncBlock,
   "hash" | "parentHash" | "number" | "timestamp"
 >;
+
+export type DbBlock = Selectable<PonderSyncSchema["blocks"]>;
+export type DbLog = Selectable<PonderSyncSchema["logs"]>;
+export type DbTransaction = Selectable<PonderSyncSchema["transactions"]>;
+export type DbTransactionReceipt = Selectable<
+  PonderSyncSchema["transaction_receipts"]
+>;
+export type DbTrace = Selectable<PonderSyncSchema["traces"]>;
 
 export type InternalBlock = Block;
 export type InternalLog = Log & {
