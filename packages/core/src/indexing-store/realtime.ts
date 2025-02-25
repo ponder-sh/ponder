@@ -7,12 +7,12 @@ import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { getCacheKey, getWhereCondition } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
   parseSqlError,
 } from "./index.js";
+import { getCacheKey, getWhereCondition } from "./utils.js";
 
 export const createRealtimeIndexingStore = ({
   common,
