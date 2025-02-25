@@ -110,7 +110,24 @@ test("flush() update", async (context) => {
 
     await indexingCache.flush({ client });
 
-    const result = await indexingStore.find(schema.account, {
+    let result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      balance: 12n,
+    });
+
+    // flush again to make sure temp tables are cleaned up
+
+    await indexingStore.update(schema.account, { address: zeroAddress }).set({
+      balance: 12n,
+    });
+
+    await indexingCache.flush({ client });
+
+    result = await indexingStore.find(schema.account, {
       address: zeroAddress,
     });
 
