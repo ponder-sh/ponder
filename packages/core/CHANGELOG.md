@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.22
+
+### Patch Changes
+
+- [#1557](https://github.com/ponder-sh/ponder/pull/1557) [`3b92c7312889398986e82da543b5872ef15a27f5`](https://github.com/ponder-sh/ponder/commit/3b92c7312889398986e82da543b5872ef15a27f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in v0.9.20 that caused an error when using raw sql queries.
+
 ## 0.9.21
 
 ### Patch Changes
