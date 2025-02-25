@@ -629,7 +629,7 @@ export const createIndexingCache = ({
             .join(",\n");
 
           const createTempTableQuery = `
-              CREATE TEMP TABLE "${getTableName(table)}" 
+              CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
               ON COMMIT DROP
               AS SELECT * FROM "${
                 getTableConfig(table).schema ?? "public"
@@ -646,6 +646,7 @@ export const createIndexingCache = ({
                 .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                 .join(" AND ")};
             `;
+          const truncateQuery = `TRUNCATE TABLE "${getTableName(table)}" CASCADE`;
 
           const text = getCopyText(
             table,
@@ -695,6 +696,8 @@ export const createIndexingCache = ({
             });
             // @ts-ignore
             await client.query(updateQuery);
+            // @ts-ignore
+            await client.query(truncateQuery);
           } finally {
             common.metrics.ponder_indexing_cache_query_duration.observe(
               {
