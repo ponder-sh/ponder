@@ -311,15 +311,16 @@ export const createSync = async (params: {
         ? params.initialCheckpoint
         : getOmnichainCheckpoint({ tag: "start" })!;
 
-    const to = min(
-      getOmnichainCheckpoint({ tag: "end" }),
-      getOmnichainCheckpoint({ tag: "finalized" }),
-    );
-
     const eventGenerators = Array.from(perNetworkSync.entries()).map(
       ([network, { syncProgress, historicalSync }]) => {
         const sources = params.indexingBuild.sources.filter(
           ({ filter }) => filter.chainId === network.chainId,
+        );
+
+        // TODO(kyle) use omnichain checkpoints
+        const to = min(
+          getMultichainCheckpoint({ tag: "end", network }),
+          getMultichainCheckpoint({ tag: "finalized", network }),
         );
 
         async function* decodeEventGenerator(
@@ -833,47 +834,47 @@ export const createSync = async (params: {
         // finalized checkpoint and add them to pendingEvents. These events are synced during
         // the historical phase, but must be indexed in the realtime phase because events
         // synced in realtime on other chains might be ordered before them.
-        const from = getOmnichainCheckpoint({ tag: "finalized" })!;
+        // const from = getOmnichainCheckpoint({ tag: "finalized" })!;
 
-        const finalized = getChainCheckpoint({
-          syncProgress,
-          network,
-          tag: "finalized",
-        })!;
-        const end = getChainCheckpoint({
-          syncProgress,
-          network,
-          tag: "end",
-        })!;
-        const to = min(finalized, end);
+        // const finalized = getChainCheckpoint({
+        //   syncProgress,
+        //   network,
+        //   tag: "finalized",
+        // })!;
+        // const end = getChainCheckpoint({
+        //   syncProgress,
+        //   network,
+        //   tag: "end",
+        // })!;
+        // const to = min(finalized, end);
 
-        if (to > from) {
-          const { blockData } = await params.syncStore.getEventBlockData({
-            filters: sources.map(({ filter }) => filter),
-            from,
-            to,
-            chainId: network.chainId,
-          });
+        // if (to > from) {
+        //   const { blockData } = await params.syncStore.getEventBlockData({
+        //     filters: sources.map(({ filter }) => filter),
+        //     from,
+        //     to,
+        //     chainId: network.chainId,
+        //   });
 
-          const events = blockData.flatMap((bd) =>
-            buildEvents({
-              sources,
-              blockData: bd,
-              finalizedChildAddresses: new Map(),
-              unfinalizedChildAddresses: new Map(),
-              chainId: network.chainId,
-            }),
-          );
+        //   const events = blockData.flatMap((bd) =>
+        //     buildEvents({
+        //       sources,
+        //       blockData: bd,
+        //       finalizedChildAddresses: new Map(),
+        //       unfinalizedChildAddresses: new Map(),
+        //       chainId: network.chainId,
+        //     }),
+        //   );
 
-          const decodedEvents = decodeEvents(params.common, sources, events);
+        //   const decodedEvents = decodeEvents(params.common, sources, events);
 
-          params.common.logger.debug({
-            service: "sync",
-            msg: `Extracted, decoded and scheduled ${decodedEvents.length} '${network.name}' events`,
-          });
+        //   params.common.logger.debug({
+        //     service: "sync",
+        //     msg: `Extracted, decoded and scheduled ${decodedEvents.length} '${network.name}' events`,
+        //   });
 
-          pendingEvents = pendingEvents.concat(decodedEvents);
-        }
+        //   pendingEvents = pendingEvents.concat(decodedEvents);
+        // }
 
         if (isSyncEnd(syncProgress)) {
           params.common.metrics.ponder_sync_is_complete.set(
@@ -934,6 +935,7 @@ export const createSync = async (params: {
             msg: `Initialized '${network.name}' realtime sync with ${initialChildAddresses.size} factory child addresses`,
           });
 
+          // TODO(kyle) move this after all events have been scheduled
           realtimeSync.start({ syncProgress, initialChildAddresses });
         }
       }

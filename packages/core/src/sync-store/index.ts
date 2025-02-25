@@ -1,5 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
+import { NonRetryableError } from "@/internal/errors.js";
 import type {
   Factory,
   Filter,
@@ -523,6 +524,13 @@ export const createSyncStore = ({
         //   decodeCheckpoint(to).eventIndex > 2147483647n
         //     ? 2147483647n
         //     : decodeCheckpoint(to).eventIndex;
+
+        if (
+          decodeCheckpoint(from).chainId !== BigInt(chainId) ||
+          decodeCheckpoint(to).chainId !== BigInt(chainId)
+        ) {
+          throw new NonRetryableError("Invalid checkpoint chainId");
+        }
 
         // TODO(kyle) use relative density heuristics to set
         // different limits for each query
