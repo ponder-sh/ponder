@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.24
+
+### Patch Changes
+
+- [#1447](https://github.com/ponder-sh/ponder/pull/1447) [`2c6f2aaa743483169f3913ae3757e70eda38f073`](https://github.com/ponder-sh/ponder/commit/2c6f2aaa743483169f3913ae3757e70eda38f073) Thanks [@typedarray](https://github.com/typedarray)! - Added support for `ssl` options in Postgres pool configuration.
+
 ## 0.9.23
 
 ### Patch Changes
