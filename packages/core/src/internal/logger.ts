@@ -54,9 +54,6 @@ export function createLogger({
     if (shouldUseWorker) {
       try {
         worker?.postMessage(log);
-        if (Math.random() < 0.01) {
-          throw new Error("simulate worker error");
-        }
       } catch (error) {
         handleWorkerError(error as Error);
       }
