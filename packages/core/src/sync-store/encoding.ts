@@ -397,15 +397,9 @@ export const decodeTrace = ({ trace }: { trace: DbTrace }): InternalTrace => ({
 });
 
 type RpcRequestResultsTable = {
-  request: string;
-  request_hash: ColumnType<string, undefined>;
+  request_hash: string;
   chain_id: number;
-  // TODO(kyle) number?
-  block_number: ColumnType<
-    string | undefined,
-    string | bigint | undefined,
-    string | bigint | undefined
-  >;
+  block_number: number | undefined;
   result: string;
 };
 
