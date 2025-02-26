@@ -1,5 +1,69 @@
 # create-ponder
 
+## 0.9.23
+
+## 0.9.22
+
+## 0.9.21
+
+## 0.9.20
+
+## 0.9.19
+
+## 0.9.18
+
+## 0.9.17
+
+## 0.9.16
+
+## 0.9.15
+
+## 0.9.14
+
+## 0.9.13
+
+## 0.9.12
+
+## 0.9.11
+
+## 0.9.10
+
+## 0.9.9
+
+## 0.9.8
+
+## 0.9.7
+
+## 0.9.6
+
+## 0.9.5
+
+## 0.9.4
+
+## 0.9.3
+
+## 0.9.2
+
+## 0.9.1
+
+## 0.9.0
+
+### Minor Changes
+
+- [#1367](https://github.com/ponder-sh/ponder/pull/1367) [`68097b429752e429291b71e5d2722ee944b0915a`](https://github.com/ponder-sh/ponder/commit/68097b429752e429291b71e5d2722ee944b0915a) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.9`. Visit the [migration guide](https://ponder.sh/docs/migration-guide) for details.
+
+## 0.8.33
+
+## 0.8.32
+
+## 0.8.31
+
+## 0.8.30
+
+## 0.8.29
+
+## 0.8.28
+
 ## 0.8.27
 
 ## 0.8.26

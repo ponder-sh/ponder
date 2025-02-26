@@ -1,83 +1,20 @@
-import { dedupe } from "@ponder/common";
+import type {
+  BlockFilter,
+  Factory,
+  FilterAddress,
+  FilterWithoutBlocks,
+  Fragment,
+  FragmentAddress,
+  FragmentAddressId,
+  FragmentId,
+  LogFilter,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
+} from "@/internal/types.js";
+import { dedupe } from "@/utils/dedupe.js";
 import type { Address, Hex } from "viem";
-import {
-  type BlockFilter,
-  type Factory,
-  type FilterAddress,
-  type FilterWithoutBlocks,
-  type LogFilter,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
-  isAddressFactory,
-  shouldGetTransactionReceipt,
-} from "./source.js";
-
-type FragmentAddress =
-  | Address
-  | {
-      address: Address;
-      eventSelector: Factory["eventSelector"];
-      childAddressLocation: Factory["childAddressLocation"];
-    }
-  | null;
-
-type FragmentAddressId =
-  | Address
-  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
-  | null;
-type FragmentTopic = Hex | null;
-
-export type Fragment =
-  | {
-      type: "block";
-      chainId: number;
-      interval: number;
-      offset: number;
-    }
-  | {
-      type: "transaction";
-      chainId: number;
-      fromAddress: FragmentAddress;
-      toAddress: FragmentAddress;
-    }
-  | {
-      type: "trace";
-      chainId: number;
-      fromAddress: FragmentAddress;
-      toAddress: FragmentAddress;
-      functionSelector: Hex | null;
-      includeTransactionReceipts: boolean;
-    }
-  | {
-      type: "log";
-      chainId: number;
-      address: FragmentAddress;
-      topic0: FragmentTopic;
-      topic1: FragmentTopic;
-      topic2: FragmentTopic;
-      topic3: FragmentTopic;
-      includeTransactionReceipts: boolean;
-    }
-  | {
-      type: "transfer";
-      chainId: number;
-      fromAddress: FragmentAddress;
-      toAddress: FragmentAddress;
-      includeTransactionReceipts: boolean;
-    };
-
-export type FragmentId =
-  /** block_{chainId}_{interval}_{offset} */
-  | `block_${number}_${number}_${number}`
-  /** transaction_{chainId}_{fromAddress}_{toAddress} */
-  | `transaction_${number}_${FragmentAddressId}_${FragmentAddressId}`
-  /** trace_{chainId}_{fromAddress}_{toAddress}_{functionSelector}_{includeReceipts} */
-  | `trace_${number}_${FragmentAddressId}_${FragmentAddressId}_${Hex | null}_${0 | 1}`
-  /** log_{chainId}_{address}_{topic0}_{topic1}_{topic2}_{topic3}_{includeReceipts} */
-  | `log_${number}_${FragmentAddressId}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
-  /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
-  | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`;
+import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 
 export const getFragments = (
   filter: FilterWithoutBlocks,

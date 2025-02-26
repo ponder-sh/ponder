@@ -1,18 +1,29 @@
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+import { createClient, sum } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = new pg.Client(process.env.DATABASE_URL);
-await client.connect();
-const db = drizzle(client, { schema, casing: "snake_case" });
+const client = createClient("http://localhost:42069/sql", { schema });
 
-const response = await db
-  //  ^?
-  .select()
+const result = await client.db
+  .select({ sum: sum(schema.account.balance) })
   .from(schema.account)
-  .where(
-    eq(schema.account.address, "0xC1894e6a52c4C7Ac5b2e0b25583Ea48bf45DA14a"),
-  );
+  .execute();
 
-console.log(response);
+console.log(result);
+
+const { unsubscribe } = client.live(
+  (db) =>
+    db
+      .select({ sum: sum(schema.account.balance) })
+      .from(schema.account)
+      .execute(),
+  (data) => {
+    console.log(data);
+  },
+  (error) => {
+    console.error(error);
+  },
+);
+
+setTimeout(() => {
+  unsubscribe();
+}, 10_000);

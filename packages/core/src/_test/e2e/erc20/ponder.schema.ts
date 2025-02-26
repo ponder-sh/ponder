@@ -1,4 +1,4 @@
-import { onchainTable } from "../../../drizzle/index.js";
+import { onchainTable } from "../../../drizzle/onchain.js";
 
 export const account = onchainTable("account", (t) => ({
   address: t.hex().primaryKey(),

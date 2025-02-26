@@ -1,14 +1,15 @@
 import {
+  setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NotNullConstraintError,
   UniqueConstraintError,
-} from "@/common/errors.js";
-import { onchainEnum, onchainTable } from "@/drizzle/index.js";
+} from "@/internal/errors.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
@@ -17,6 +18,7 @@ import { createRealtimeIndexingStore } from "./realtime.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
+beforeEach(setupCleanup);
 
 test("find", async (context) => {
   const schema = {
@@ -26,14 +28,14 @@ test("find", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // empty
@@ -55,8 +57,6 @@ test("find", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("insert", async (context) => {
@@ -67,14 +67,14 @@ test("insert", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // single
@@ -203,8 +203,6 @@ test("insert", async (context) => {
     address: "0x0000000000000000000000000000000000000001",
     balance: 32n,
   });
-
-  await cleanup();
 });
 
 test("update", async (context) => {
@@ -215,14 +213,14 @@ test("update", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // setup
@@ -270,8 +268,6 @@ test("update", async (context) => {
     address: zeroAddress,
     balance: 22n,
   });
-
-  await cleanup();
 });
 
 test("delete", async (context) => {
@@ -282,14 +278,14 @@ test("delete", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // no entry
@@ -317,8 +313,6 @@ test("delete", async (context) => {
   });
 
   expect(result).toBe(null);
-
-  await cleanup();
 });
 
 test("sql", async (context) => {
@@ -329,14 +323,14 @@ test("sql", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // setup
@@ -386,12 +380,10 @@ test("sql", async (context) => {
     .catch((error) => error);
 
   expect(error).instanceOf(UniqueConstraintError);
-
-  await cleanup();
 });
 
 test("onchain table", async (context) => {
-  const { database, cleanup } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const schema = {
     account: pgTable("account", (p) => ({
@@ -403,7 +395,7 @@ test("onchain table", async (context) => {
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // check error
@@ -414,8 +406,6 @@ test("onchain table", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("missing rows", async (context) => {
@@ -426,14 +416,14 @@ test("missing rows", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // error
@@ -445,8 +435,6 @@ test("missing rows", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("notNull", async (context) => {
@@ -456,14 +444,14 @@ test("notNull", async (context) => {
       balance: p.bigint(),
     })),
   };
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   let indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // insert
@@ -489,7 +477,7 @@ test("notNull", async (context) => {
   indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   let error = await indexingStore
@@ -505,8 +493,6 @@ test("notNull", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeDefined();
-
-  await cleanup();
 });
 
 test("default", async (context) => {
@@ -517,14 +503,14 @@ test("default", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -534,8 +520,6 @@ test("default", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("$default", async (context) => {
@@ -546,14 +530,14 @@ test("$default", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -563,8 +547,6 @@ test("$default", async (context) => {
   });
 
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await cleanup();
 });
 
 test("$onUpdateFn", async (context) => {
@@ -578,14 +560,14 @@ test("$onUpdateFn", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   // insert
@@ -599,8 +581,6 @@ test("$onUpdateFn", async (context) => {
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 
   // update
-
-  await cleanup();
 });
 
 test("array", async (context) => {
@@ -611,8 +591,8 @@ test("array", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   // dynamic size
@@ -620,7 +600,7 @@ test("array", async (context) => {
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   await indexingStore.insert(schema.account).values({
@@ -638,8 +618,6 @@ test("array", async (context) => {
   });
 
   // TODO(kyle) fixed size
-
-  await cleanup();
 });
 
 test("enum", async (context) => {
@@ -652,14 +630,14 @@ test("enum", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   await indexingStore.insert(schema.account).values({
@@ -677,8 +655,6 @@ test("enum", async (context) => {
   });
 
   // TODO(kyle) error
-
-  await cleanup();
 });
 
 test("json bigint", async (context) => {
@@ -689,14 +665,14 @@ test("json bigint", async (context) => {
     })),
   };
 
-  const { database, cleanup } = await setupDatabaseServices(context, {
-    schema,
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
   });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     database,
-    schema,
+    schemaBuild: { schema },
   });
 
   const error = await indexingStore
@@ -710,6 +686,42 @@ test("json bigint", async (context) => {
     .catch((error) => error);
 
   expect(error).toBeInstanceOf(BigIntSerializationError);
+});
 
-  await cleanup();
+const BIGINT_MAX = 2n ** 256n - 1n;
+// https://github.com/ponder-sh/ponder/issues/1475#issuecomment-2625967710
+const BIGINT_LARGE =
+  81043282338925483631878461732084420541800751556297842951124152226153187811344n;
+
+test("bigint array", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      balances: t.bigint().array().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    balances: [1n, BIGINT_LARGE, BIGINT_MAX],
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balances: [1n, BIGINT_LARGE, BIGINT_MAX],
+  });
 });

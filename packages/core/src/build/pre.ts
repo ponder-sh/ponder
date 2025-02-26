@@ -1,8 +1,8 @@
 import path from "node:path";
-import { BuildError } from "@/common/errors.js";
-import type { Options } from "@/common/options.js";
-import type { Config } from "@/config/config.js";
-import type { DatabaseConfig } from "@/config/database.js";
+import type { Config } from "@/config/index.js";
+import { BuildError } from "@/internal/errors.js";
+import type { Options } from "@/internal/options.js";
+import type { DatabaseConfig } from "@/internal/types.js";
 import parse from "pg-connection-string";
 
 function getDatabaseName(connectionString: string) {
@@ -18,6 +18,7 @@ export function buildPre({
   options: Pick<Options, "rootDir" | "ponderDir">;
 }): {
   databaseConfig: DatabaseConfig;
+  ordering: NonNullable<Config["ordering"]>;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
 } {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
@@ -113,6 +114,7 @@ export function buildPre({
   return {
     databaseConfig,
     logs,
+    ordering: config.ordering ?? "omnichain",
   };
 }
 
@@ -132,6 +134,7 @@ export function safeBuildPre({
     return {
       status: "success",
       databaseConfig: result.databaseConfig,
+      ordering: result.ordering,
       logs: result.logs,
     } as const;
   } catch (_error) {
