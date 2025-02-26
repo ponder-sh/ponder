@@ -92,13 +92,13 @@ export const buildEvents = ({
             for (const log of logs) {
               if (
                 isLogFilterMatched({ filter, log }) &&
-                isAddressFactory(filter.address)
+                (isAddressFactory(filter.address)
                   ? isAddressMatched({
                       address: log.address,
                       blockNumber: Number(block.number),
                       childAddresses: childAddresses.get(filter.address)!,
                     })
-                  : true
+                  : true)
               ) {
                 events.push({
                   chainId: filter.chainId,
@@ -385,7 +385,7 @@ export const decodeEvents = (
               } else {
                 common.logger.warn({
                   service: "app",
-                  msg: `Unable to decode log, skipping it. id: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
               }
             }

@@ -221,13 +221,13 @@ export const createRealtimeSync = (
       for (const filter of logFilters) {
         if (
           isLogFilterMatched({ filter, log }) &&
-          isAddressFactory(filter.address)
+          (isAddressFactory(filter.address)
             ? isAddressMatched({
                 address: log.address,
                 blockNumber: hexToNumber(block.number),
                 childAddresses: childAddresses.get(filter.address)!,
               })
-            : true
+            : true)
         ) {
           matchedFilters.add(filter);
           isMatched = true;
@@ -687,8 +687,9 @@ export const createRealtimeSync = (
 
     // Record `blockChildAddresses` that contain factory child addresses
     const blockChildAddresses = new Map<Factory, Set<Address>>();
-    for (const log of logs) {
-      for (const filter of factories) {
+    for (const filter of factories) {
+      blockChildAddresses.set(filter, new Set<Address>());
+      for (const log of logs) {
         const address = getChildAddress({ log, factory: filter });
         if (isLogFactoryMatched({ filter, log })) {
           blockChildAddresses.get(filter)!.add(address);

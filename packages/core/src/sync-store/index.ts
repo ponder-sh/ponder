@@ -13,7 +13,6 @@ import type {
   InternalTransaction,
   InternalTransactionReceipt,
   LightBlock,
-  LogFactory,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -30,7 +29,7 @@ import {
 import type { Interval } from "@/utils/interval.js";
 import { type SelectQueryBuilder, sql as ksql, sql } from "kysely";
 import type { InsertObject } from "kysely";
-import { type Address, type Hex, hexToBigInt } from "viem";
+import { type Address, hexToBigInt } from "viem";
 import {
   type PonderSyncSchema,
   decodeBlock,
@@ -57,10 +56,6 @@ export type SyncStore = {
     chainId: number;
   }): Promise<void>;
   getChildAddresses(args: { filter: Factory }): Promise<Map<Address, number>>;
-  filterChildAddresses(args: {
-    filter: Factory;
-    addresses: Address[];
-  }): Promise<Set<Address>>;
   insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   insertTransactions(args: {
@@ -111,39 +106,6 @@ export type SyncStore = {
   }): Promise<void>;
   pruneByChain(args: { chainId: number }): Promise<void>;
 };
-
-const logFactorySQL = (
-  qb: SelectQueryBuilder<PonderSyncSchema, "logs", {}>,
-  factory: LogFactory,
-) =>
-  qb
-    .select(
-      (() => {
-        if (factory.childAddressLocation.startsWith("offset")) {
-          const childAddressOffset = Number(
-            factory.childAddressLocation.substring(6),
-          );
-          const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
-          const length = 20 * 2;
-          return ksql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
-        } else {
-          const start = 2 + 12 * 2 + 1;
-          const length = 20 * 2;
-          return ksql<Hex>`'0x' || substring(${ksql.ref(
-            factory.childAddressLocation,
-          )} from ${start}::integer for ${length}::integer)`;
-        }
-      })().as("childAddress"),
-    )
-    .distinct()
-    // .$call((qb) => {
-    //   if (Array.isArray(factory.address)) {
-    //     return qb.where("address", "in", factory.address);
-    //   }
-    //   return qb.where("address", "=", factory.address);
-    // })
-    // .where("topic0", "=", factory.eventSelector)
-    .where("chain_id", "=", factory.chainId);
 
 export const createSyncStore = ({
   common,
@@ -295,7 +257,12 @@ export const createSyncStore = ({
           }
         }
 
-        await database.qb.sync.insertInto("factories").values(values).execute();
+        if (values.length > 0) {
+          await database.qb.sync
+            .insertInto("factories")
+            .values(values)
+            .execute();
+        }
       },
     ),
   getChildAddresses: ({ filter }) =>
@@ -304,48 +271,23 @@ export const createSyncStore = ({
       () => {
         const filterId = JSON.stringify(filter);
 
-        return (
-          database.qb.sync
-            .selectFrom("factories")
-            .select(["address", sql<number>`block_number`.as("blockNumber")])
-            .where("factory_hash", "=", sql`MD5(${filterId})`)
-            // TODO(kyle) block_number filter
-            .execute()
-            .then(
-              (rows) =>
-                new Map(
-                  rows.map(({ address, blockNumber }) => [
-                    address,
-                    blockNumber,
-                  ]),
-                ),
-            )
-        );
-      },
-    ),
-  filterChildAddresses: ({ filter, addresses }) =>
-    database.wrap(
-      { method: "filterChildAddresses", includeTraceLogs: true },
-      async () => {
-        const result = await database.qb.sync
-          .with(
-            "addresses(address)",
-            () =>
-              ksql`( values ${ksql.join(addresses.map((a) => ksql`( ${ksql.val(a)} )`))} )`,
-          )
-          .with("childAddresses", (db) =>
-            db.selectFrom("logs").$call((qb) => logFactorySQL(qb, filter)),
-          )
-          .selectFrom("addresses")
-          .where(
-            "addresses.address",
-            "in",
-            ksql`(SELECT "childAddress" FROM "childAddresses")`,
-          )
-          .selectAll()
-          .execute();
-
-        return new Set<Address>([...result.map(({ address }) => address)]);
+        return database.qb.sync
+          .selectFrom("factories")
+          .select(["address", sql<number>`block_number`.as("blockNumber")])
+          .where("factory_hash", "=", sql`MD5(${filterId})`)
+          .execute()
+          .then((rows) => {
+            const result = new Map<Address, number>();
+            for (const { address, blockNumber } of rows) {
+              if (
+                result.has(address) === false ||
+                result.get(address)! > blockNumber
+              ) {
+                result.set(address, blockNumber);
+              }
+            }
+            return result;
+          });
       },
     ),
   insertLogs: async ({ logs, chainId }) => {

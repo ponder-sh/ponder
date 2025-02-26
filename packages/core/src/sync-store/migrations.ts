@@ -1883,6 +1883,12 @@ GROUP BY fragment_id, chain_id
         .addColumn("block_number", "bigint", (col) => col.notNull())
         .addColumn("address", "text", (col) => col.notNull())
         .execute();
+
+      await db.schema
+        .createIndex("factories_factory_hash_index")
+        .on("factories")
+        .column("factory_hash")
+        .execute();
     },
   },
 };
