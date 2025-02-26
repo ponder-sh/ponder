@@ -29,7 +29,7 @@ import {
 import type { Interval } from "@/utils/interval.js";
 import { type SelectQueryBuilder, sql as ksql, sql } from "kysely";
 import type { InsertObject } from "kysely";
-import { type Address, hexToBigInt } from "viem";
+import { type Address, hexToNumber } from "viem";
 import {
   type PonderSyncSchema,
   decodeBlock,
@@ -94,7 +94,7 @@ export type SyncStore = {
   insertRpcRequestResult(args: {
     request: string;
     chainId: number;
-    blockNumber: bigint | undefined;
+    blockNumber: number | undefined;
     result: string;
   }): Promise<void>;
   getRpcRequestResult(args: { request: string; chainId: number }): Promise<
@@ -713,9 +713,9 @@ export const createSyncStore = ({
         await database.qb.sync
           .insertInto("rpc_request_results")
           .values({
-            request,
-            block_number: blockNumber,
+            request_hash: sql`MD5(${request})`,
             chain_id: chainId,
+            block_number: blockNumber,
             result,
           })
           .onConflict((oc) =>
@@ -738,15 +738,12 @@ export const createSyncStore = ({
         return result?.result;
       },
     ),
-  pruneRpcRequestResult: async ({ blocks, chainId }) =>
-    database.wrap(
+  pruneRpcRequestResult: async ({ blocks, chainId }) => {
+    if (blocks.length === 0) return;
+    return database.wrap(
       { method: "pruneRpcRequestResult", includeTraceLogs: true },
       async () => {
-        if (blocks.length === 0) return;
-
-        const numbers = blocks.map(({ number }) =>
-          hexToBigInt(number).toString(),
-        );
+        const numbers = blocks.map(({ number }) => hexToNumber(number));
 
         await database.qb.sync
           .deleteFrom("rpc_request_results")
@@ -754,7 +751,8 @@ export const createSyncStore = ({
           .where("block_number", "in", numbers)
           .execute();
       },
-    ),
+    );
+  },
   pruneByChain: async ({ chainId }) =>
     database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
       database.qb.sync.transaction().execute(async (tx) => {

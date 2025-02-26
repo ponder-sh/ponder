@@ -2,8 +2,7 @@ import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import type { Hex, Transport } from "viem";
-import { custom, hexToBigInt, maxUint256 } from "viem";
+import { type Hex, type Transport, custom, hexToNumber } from "viem";
 
 /** RPC methods that reference a block. */
 const blockDependentMethods = new Set([
@@ -81,8 +80,8 @@ export const cachedTransport = ({
               blockNumber === undefined
                 ? undefined
                 : blockNumber === "latest"
-                  ? maxUint256
-                  : hexToBigInt(blockNumber),
+                  ? 0
+                  : hexToNumber(blockNumber),
           };
 
           const cachedResult = await syncStore.getRpcRequestResult(cacheKey);
