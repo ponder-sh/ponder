@@ -1,127 +1,99 @@
-import type { Prettify } from "@/types/utils.js";
-import pc from "picocolors";
-import { type DestinationStream, type LevelWithSilent, pino } from "pino";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
+import {
+  type Log,
+  type LogLevel,
+  type LogMode,
+  type LogOptions,
+  formatLogJson,
+  formatLogPretty,
+  levelKeyToValue,
+} from "./logger-utils.js";
 
-export type LogMode = "pretty" | "json";
-export type LogLevel = Prettify<LevelWithSilent>;
 export type Logger = ReturnType<typeof createLogger>;
-
-type Log = {
-  // Pino properties
-  level: 60 | 50 | 40 | 30 | 20 | 10;
-  time: number;
-
-  service: string;
-  msg: string;
-
-  error?: Error;
-};
 
 export function createLogger({
   level,
   mode = "pretty",
-}: { level: LogLevel; mode?: LogMode }) {
-  const stream: DestinationStream = {
-    write(logString: string) {
-      if (mode === "json") {
-        console.log(logString.trimEnd());
-        return;
-      }
+  useWorker = false,
+}: {
+  level: LogLevel;
+  mode?: LogMode;
+  useWorker?: boolean;
+}) {
+  let worker: Worker | undefined = undefined;
+  let workerTerminatePromise: Promise<number> | undefined = undefined;
+  let shouldUseWorker = useWorker;
 
-      const log = JSON.parse(logString) as Log;
-      const prettyLog = format(log);
-      console.log(prettyLog);
-    },
+  const handleWorkerError = (error: Error) => {
+    workerTerminatePromise = worker?.terminate();
+    shouldUseWorker = false;
+
+    const errorLog = {
+      time: Date.now(),
+      level: 50 as const,
+      service: "logger",
+      msg: "Logger worker error, falling back to main thread",
+      error: error as Error,
+    };
+
+    const formatted =
+      mode === "json" ? formatLogJson(errorLog) : formatLogPretty(errorLog);
+    console.log(formatted);
   };
 
-  const logger = pino(
-    {
-      level,
-      serializers: {
-        error: pino.stdSerializers.wrapErrorSerializer((error) => {
-          error.meta = Array.isArray(error.meta)
-            ? error.meta.join("\n")
-            : error.meta;
-          //@ts-ignore
-          error.type = undefined;
-          return error;
-        }),
-      },
-      // Removes "pid" and "hostname" properties from the log.
-      base: undefined,
-    },
-    stream,
-  );
+  if (useWorker) {
+    const __dirname = fileURLToPath(new URL(".", import.meta.url));
+    const workerFilePath = path.join(__dirname, "logger-worker.js");
+    worker = new Worker(workerFilePath, { workerData: { mode: mode } });
+    worker.on("error", handleWorkerError);
+  }
+
+  const write = (log: Log) => {
+    if (shouldUseWorker) {
+      try {
+        worker?.postMessage(log);
+        if (Math.random() < 0.01) {
+          throw new Error("simulate worker error");
+        }
+      } catch (error) {
+        handleWorkerError(error as Error);
+      }
+    } else {
+      const formatted =
+        mode === "json" ? formatLogJson(log) : formatLogPretty(log);
+      console.log(formatted);
+    }
+  };
+
+  const levelValue = levelKeyToValue[level];
 
   return {
-    fatal(options: Omit<Log, "level" | "time">) {
-      logger.fatal(options);
+    fatal(options: LogOptions) {
+      if (levelValue <= 60) write({ ...options, time: Date.now(), level: 60 });
     },
-    error(options: Omit<Log, "level" | "time">) {
-      logger.error(options);
+    error(options: LogOptions) {
+      if (levelValue <= 50) write({ ...options, time: Date.now(), level: 50 });
     },
-    warn(options: Omit<Log, "level" | "time">) {
-      logger.warn(options);
+    warn(options: LogOptions) {
+      if (levelValue <= 40) write({ ...options, time: Date.now(), level: 40 });
     },
-    info(options: Omit<Log, "level" | "time">) {
-      logger.info(options);
+    info(options: LogOptions) {
+      if (levelValue <= 30) write({ ...options, time: Date.now(), level: 30 });
     },
-    debug(options: Omit<Log, "level" | "time">) {
-      logger.debug(options);
+    debug(options: LogOptions) {
+      if (levelValue <= 20) write({ ...options, time: Date.now(), level: 20 });
     },
-    trace(options: Omit<Log, "level" | "time">) {
-      logger.trace(options);
+    trace(options: LogOptions) {
+      if (levelValue <= 10) write({ ...options, time: Date.now(), level: 10 });
     },
-    flush: () => new Promise((resolve) => logger.flush(resolve)),
+    flush: async () => {
+      if (workerTerminatePromise !== undefined) {
+        await workerTerminatePromise;
+      } else {
+        await worker?.terminate();
+      }
+    },
   };
 }
-
-const levels = {
-  60: { label: "FATAL", colorLabel: pc.bgRed("FATAL") },
-  50: { label: "ERROR", colorLabel: pc.red("ERROR") },
-  40: { label: "WARN ", colorLabel: pc.yellow("WARN ") },
-  30: { label: "INFO ", colorLabel: pc.green("INFO ") },
-  20: { label: "DEBUG", colorLabel: pc.blue("DEBUG") },
-  10: { label: "TRACE", colorLabel: pc.gray("TRACE") },
-} as const;
-
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "numeric",
-  second: "numeric",
-});
-
-const format = (log: Log) => {
-  const time = timeFormatter.format(new Date(log.time));
-  const levelObject = levels[log.level ?? 30];
-
-  let prettyLog: string[];
-  if (pc.isColorSupported) {
-    const level = levelObject.colorLabel;
-    const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
-    const messageText = pc.reset(log.msg);
-
-    prettyLog = [`${pc.gray(time)} ${level} ${service} ${messageText}`];
-  } else {
-    const level = levelObject.label;
-    const service = log.service ? log.service.padEnd(10, " ") : "";
-
-    prettyLog = [`${time} ${level} ${service} ${log.msg}`];
-  }
-
-  if (log.error) {
-    if (log.error.stack) {
-      prettyLog.push(log.error.stack);
-    } else {
-      prettyLog.push(`${log.error.name}: ${log.error.message}`);
-    }
-
-    if ("where" in log.error) {
-      prettyLog.push(`where: ${log.error.where as string}`);
-    }
-    if ("meta" in log.error) {
-      prettyLog.push(log.error.meta as string);
-    }
-  }
-  return prettyLog.join("\n");
-};

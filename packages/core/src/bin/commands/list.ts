@@ -28,6 +28,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const logger = createLogger({
     level: options.logLevel,
     mode: options.logFormat,
+    useWorker: !options.enableUi,
   });
 
   const metrics = new MetricsService();

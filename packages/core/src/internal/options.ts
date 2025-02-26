@@ -1,12 +1,13 @@
 import path from "node:path";
 import v8 from "node:v8";
 import type { CliOptions } from "@/bin/ponder.js";
-import type { LevelWithSilent } from "pino";
 import { type SemVer, parse } from "semver";
+import type { LogLevel } from "./logger-utils.js";
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list";
   version: SemVer | null;
+
   configFile: string;
   schemaFile: string;
   apiDir: string;
@@ -24,8 +25,10 @@ export type Options = {
   telemetryDisabled: boolean;
   telemetryConfigDir: string | undefined;
 
-  logLevel: LevelWithSilent;
+  logLevel: LogLevel;
   logFormat: "json" | "pretty";
+
+  enableUi: boolean;
 
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
@@ -48,9 +51,9 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     rootDir = path.resolve(".");
   }
 
-  let logLevel: LevelWithSilent;
+  let logLevel: LogLevel;
   if (cliOptions.logLevel) {
-    logLevel = cliOptions.logLevel as LevelWithSilent;
+    logLevel = cliOptions.logLevel as LogLevel;
   } else if (cliOptions.trace === true) {
     logLevel = "trace";
   } else if (cliOptions.debug === true) {
@@ -61,12 +64,15 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
       process.env.PONDER_LOG_LEVEL,
     )
   ) {
-    logLevel = process.env.PONDER_LOG_LEVEL as LevelWithSilent;
+    logLevel = process.env.PONDER_LOG_LEVEL as LogLevel;
   } else {
     logLevel = "info";
   }
 
   if (["list", "codegen"].includes(cliOptions.command)) logLevel = "error";
+
+  const enableUi =
+    cliOptions.command === "dev" && cliOptions.disableUi !== true;
 
   const port =
     process.env.PORT !== undefined
@@ -99,6 +105,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     logLevel,
     logFormat: cliOptions.logFormat! as Options["logFormat"],
+
+    enableUi,
 
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
