@@ -34,7 +34,7 @@ export const _eth_getBlockByNumber = (
       params: [
         typeof blockNumber === "number"
           ? numberToHex(blockNumber)
-          : blockNumber ?? blockTag,
+          : (blockNumber ?? blockTag),
         true,
       ],
     })

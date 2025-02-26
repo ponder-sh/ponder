@@ -67,6 +67,7 @@ export function buildPre({
       const poolConfig = {
         max: config.database.poolConfig?.max ?? 30,
         connectionString,
+        ssl: config.database.ssl,
       };
 
       databaseConfig = { kind: "postgres", poolConfig };

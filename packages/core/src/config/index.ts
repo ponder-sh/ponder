@@ -1,3 +1,4 @@
+import type { ConnectionOptions } from "node:tls";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
@@ -54,6 +55,7 @@ type DatabaseConfig =
       kind: "postgres";
       /** Postgres database connection string. Default: `DATABASE_PRIVATE_URL` > `DATABASE_URL` environment variable. */
       connectionString?: string;
+      ssl?: boolean | ConnectionOptions | undefined;
       /** Postgres pool configuration passed to `node-postgres`. */
       poolConfig?: {
         /** Maximum number of clients in the pool. Default: `30`. */
