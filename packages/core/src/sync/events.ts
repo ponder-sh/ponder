@@ -38,6 +38,7 @@ import {
   hexToNumber,
 } from "viem";
 import {
+  isAddressMatched,
   isBlockFilterMatched,
   isLogFilterMatched,
   isTraceFilterMatched,
@@ -52,8 +53,7 @@ import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 export const buildEvents = ({
   sources,
   blockData: { block, logs, transactions, transactionReceipts, traces },
-  finalizedChildAddresses,
-  unfinalizedChildAddresses,
+  childAddresses,
   chainId,
 }: {
   sources: Source[];
@@ -64,8 +64,7 @@ export const buildEvents = ({
     transactionReceipts: InternalTransactionReceipt[];
     traces: InternalTrace[];
   };
-  finalizedChildAddresses: Map<Factory, Set<Address>>;
-  unfinalizedChildAddresses: Map<Factory, Set<Address>>;
+  childAddresses: Map<Factory, Map<Address, number>>;
   chainId: number;
 }) => {
   const events: RawEvent[] = [];
@@ -93,14 +92,13 @@ export const buildEvents = ({
             for (const log of logs) {
               if (
                 isLogFilterMatched({ filter, log }) &&
-                (isAddressFactory(filter.address)
-                  ? finalizedChildAddresses
-                      .get(filter.address)!
-                      .has(log.address) ||
-                    unfinalizedChildAddresses
-                      .get(filter.address)!
-                      .has(log.address)
-                  : true)
+                isAddressFactory(filter.address)
+                  ? isAddressMatched({
+                      address: log.address,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.address)!,
+                    })
+                  : true
               ) {
                 events.push({
                   chainId: filter.chainId,
@@ -132,28 +130,26 @@ export const buildEvents = ({
 
           case "trace": {
             for (const trace of traces) {
-              const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.fromAddress)!,
-                    unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ]
-                : undefined;
-
-              const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.toAddress)!,
-                    unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ]
-                : undefined;
-
               if (
                 isTraceFilterMatched({
                   filter,
                   trace,
                   block,
-                  fromChildAddresses,
-                  toChildAddresses,
                 }) &&
+                (isAddressFactory(filter.fromAddress)
+                  ? isAddressMatched({
+                      address: trace.from,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                    })
+                  : true) &&
+                (isAddressFactory(filter.toAddress)
+                  ? isAddressMatched({
+                      address: trace.to ?? undefined,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.toAddress)!,
+                    })
+                  : true) &&
                 (filter.callType === undefined
                   ? true
                   : filter.callType === trace.type) &&
@@ -196,27 +192,25 @@ export const buildEvents = ({
         switch (filter.type) {
           case "transaction": {
             for (const transaction of transactions) {
-              const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.fromAddress)!,
-                    unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ]
-                : undefined;
-
-              const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.toAddress)!,
-                    unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ]
-                : undefined;
-
               if (
                 isTransactionFilterMatched({
                   filter,
                   transaction,
-                  fromChildAddresses,
-                  toChildAddresses,
                 }) &&
+                (isAddressFactory(filter.fromAddress)
+                  ? isAddressMatched({
+                      address: transaction.from,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                    })
+                  : true) &&
+                (isAddressFactory(filter.toAddress)
+                  ? isAddressMatched({
+                      address: transaction.to ?? undefined,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.toAddress)!,
+                    })
+                  : true) &&
                 (filter.includeReverted
                   ? true
                   : transactionReceiptCache.get(transaction.transactionIndex)!
@@ -248,28 +242,26 @@ export const buildEvents = ({
 
           case "transfer": {
             for (const trace of traces) {
-              const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.fromAddress)!,
-                    unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ]
-                : undefined;
-
-              const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.toAddress)!,
-                    unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ]
-                : undefined;
-
               if (
                 isTransferFilterMatched({
                   filter,
                   trace,
                   block,
-                  fromChildAddresses,
-                  toChildAddresses,
                 }) &&
+                (isAddressFactory(filter.fromAddress)
+                  ? isAddressMatched({
+                      address: trace.from,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                    })
+                  : true) &&
+                (isAddressFactory(filter.toAddress)
+                  ? isAddressMatched({
+                      address: trace.to ?? undefined,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.toAddress)!,
+                    })
+                  : true) &&
                 (filter.includeReverted ? true : trace.error === undefined)
               ) {
                 const transaction = transactionCache.get(

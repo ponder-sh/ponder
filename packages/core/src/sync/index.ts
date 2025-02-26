@@ -443,8 +443,7 @@ export const createSync = async (params: {
               }),
             ),
           },
-          finalizedChildAddresses: realtimeSync.finalizedChildAddresses,
-          unfinalizedChildAddresses: realtimeSync.unfinalizedChildAddresses,
+          childAddresses: realtimeSync.childAddresses,
         });
 
         params.common.logger.debug({
@@ -887,17 +886,24 @@ export const createSync = async (params: {
             1,
           );
 
-          const initialChildAddresses = new Map<Factory, Set<Address>>();
+          const initialChildAddresses = new Map<
+            Factory,
+            Map<Address, number>
+          >();
 
           for (const filter of filters) {
             switch (filter.type) {
               case "log":
                 if (isAddressFactory(filter.address)) {
-                  const addresses = await params.syncStore.getChildAddresses({
-                    filter: filter.address,
-                  });
+                  const childAddresses =
+                    await params.syncStore.getChildAddresses({
+                      filter: filter.address,
+                    });
 
-                  initialChildAddresses.set(filter.address, new Set(addresses));
+                  initialChildAddresses.set(
+                    filter.address,
+                    new Map(childAddresses),
+                  );
                 }
                 break;
 
@@ -905,24 +911,26 @@ export const createSync = async (params: {
               case "transfer":
               case "trace":
                 if (isAddressFactory(filter.fromAddress)) {
-                  const addresses = await params.syncStore.getChildAddresses({
-                    filter: filter.fromAddress,
-                  });
+                  const childAddresses =
+                    await params.syncStore.getChildAddresses({
+                      filter: filter.fromAddress,
+                    });
 
                   initialChildAddresses.set(
                     filter.fromAddress,
-                    new Set(addresses),
+                    new Map(childAddresses),
                   );
                 }
 
                 if (isAddressFactory(filter.toAddress)) {
-                  const addresses = await params.syncStore.getChildAddresses({
-                    filter: filter.toAddress,
-                  });
+                  const childAddresses =
+                    await params.syncStore.getChildAddresses({
+                      filter: filter.toAddress,
+                    });
 
                   initialChildAddresses.set(
                     filter.toAddress,
-                    new Set(addresses),
+                    new Map(childAddresses),
                   );
                 }
 
@@ -1015,19 +1023,26 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
+        const childAddresses = new Map<Factory, Map<Address, number>>();
+
+        for (const block of finalizedBlocks) {
+          for (const [factory, addresses] of block.childAddresses) {
+            childAddresses.set(factory, new Map());
+            for (const address of addresses) {
+              if (childAddresses.get(factory)!.has(address) === false) {
+                childAddresses
+                  .get(factory)!
+                  .set(address, hexToNumber(block.block.number));
+              }
+            }
+          }
+        }
+
         await Promise.all([
           syncStore.insertBlocks({
             blocks: finalizedBlocks
               .filter(({ hasMatchedFilter }) => hasMatchedFilter)
               .map(({ block }) => block),
-            chainId: network.chainId,
-          }),
-          syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ logs }) => logs),
-            chainId: network.chainId,
-          }),
-          syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ factoryLogs }) => factoryLogs),
             chainId: network.chainId,
           }),
           syncStore.insertTransactions({
@@ -1042,6 +1057,10 @@ export const getPerChainOnRealtimeSyncEvent = ({
             ),
             chainId: network.chainId,
           }),
+          syncStore.insertLogs({
+            logs: finalizedBlocks.flatMap(({ logs }) => logs),
+            chainId: network.chainId,
+          }),
           syncStore.insertTraces({
             traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
               traces.map((trace) => ({
@@ -1052,6 +1071,10 @@ export const getPerChainOnRealtimeSyncEvent = ({
                 )!,
               })),
             ),
+            chainId: network.chainId,
+          }),
+          syncStore.insertChildAddresses({
+            childAddresses,
             chainId: network.chainId,
           }),
         ]);
@@ -1142,6 +1165,49 @@ export async function* getLocalEventGenerator(params: {
     params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
   )) {
+    const initialChildAddresses = new Map<Factory, Map<Address, number>>();
+
+    for (const filter of params.sources.map(({ filter }) => filter)) {
+      switch (filter.type) {
+        case "log":
+          if (isAddressFactory(filter.address)) {
+            const childAddresses = await params.syncStore.getChildAddresses({
+              filter: filter.address,
+            });
+
+            initialChildAddresses.set(filter.address, new Map(childAddresses));
+          }
+          break;
+
+        case "transaction":
+        case "transfer":
+        case "trace":
+          if (isAddressFactory(filter.fromAddress)) {
+            const childAddresses = await params.syncStore.getChildAddresses({
+              filter: filter.fromAddress,
+            });
+
+            initialChildAddresses.set(
+              filter.fromAddress,
+              new Map(childAddresses),
+            );
+          }
+
+          if (isAddressFactory(filter.toAddress)) {
+            const childAddresses = await params.syncStore.getChildAddresses({
+              filter: filter.toAddress,
+            });
+
+            initialChildAddresses.set(
+              filter.toAddress,
+              new Map(childAddresses),
+            );
+          }
+
+          break;
+      }
+    }
+
     while (cursor < min(syncCheckpoint, params.to)) {
       const to = min(syncCheckpoint, params.to);
 
@@ -1158,8 +1224,7 @@ export async function* getLocalEventGenerator(params: {
         buildEvents({
           sources: params.sources,
           blockData: bd,
-          finalizedChildAddresses: new Map(),
-          unfinalizedChildAddresses: new Map(),
+          childAddresses: initialChildAddresses,
           chainId: params.network.chainId,
         }),
       );

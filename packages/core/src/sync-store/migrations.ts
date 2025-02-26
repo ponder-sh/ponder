@@ -1869,6 +1869,22 @@ GROUP BY fragment_id, chain_id
   //     await sql`ANALYZE ponder_sync.traces`.execute(db);
   //   },
   // },
+  "2025_02_26_0_factories": {
+    async up(db) {
+      // TODO(kyle) truncate intervals with factories
+
+      await db.schema
+        .createTable("factories")
+        .addColumn("id", "int2", (col) =>
+          col.generatedAlwaysAsIdentity().primaryKey(),
+        )
+        .addColumn("factory_hash", "text", (col) => col.notNull())
+        .addColumn("chain_id", "bigint", (col) => col.notNull())
+        .addColumn("block_number", "bigint", (col) => col.notNull())
+        .addColumn("address", "text", (col) => col.notNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

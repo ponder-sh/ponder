@@ -397,6 +397,14 @@ type RpcRequestResultsTable = {
   result: string;
 };
 
+type FactoriesTable = {
+  id: ColumnType<number, undefined>;
+  factory_hash: string;
+  chain_id: number;
+  block_number: number;
+  address: Address;
+};
+
 type IntervalTable = {
   fragment_id: FragmentId;
   chain_id: number;
@@ -411,6 +419,6 @@ export type PonderSyncSchema = {
   traces: TracesTable;
 
   rpc_request_results: RpcRequestResultsTable;
-
+  factories: FactoriesTable;
   intervals: IntervalTable;
 };

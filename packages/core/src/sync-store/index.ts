@@ -28,7 +28,7 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import type { Interval } from "@/utils/interval.js";
-import { type SelectQueryBuilder, sql as ksql } from "kysely";
+import { type SelectQueryBuilder, sql as ksql, sql } from "kysely";
 import type { InsertObject } from "kysely";
 import { type Address, type Hex, hexToBigInt } from "viem";
 import {
@@ -46,27 +46,22 @@ import {
 
 export type SyncStore = {
   insertIntervals(args: {
-    intervals: {
-      filter: FilterWithoutBlocks;
-      interval: Interval;
-    }[];
+    intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
     chainId: number;
   }): Promise<void>;
   getIntervals(args: {
     filters: Filter[];
   }): Promise<Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>>;
-  getChildAddresses(args: {
-    filter: Factory;
-    limit?: number;
-  }): Promise<Address[]>;
+  insertChildAddresses(args: {
+    childAddresses: Map<Factory, Map<Address, number>>;
+    chainId: number;
+  }): Promise<void>;
+  getChildAddresses(args: { filter: Factory }): Promise<Map<Address, number>>;
   filterChildAddresses(args: {
     filter: Factory;
     addresses: Address[];
   }): Promise<Set<Address>>;
-  insertLogs(args: {
-    logs: SyncLog[];
-    chainId: number;
-  }): Promise<void>;
+  insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   insertTransactions(args: {
     transactions: SyncTransaction[];
@@ -107,10 +102,9 @@ export type SyncStore = {
     blockNumber: bigint | undefined;
     result: string;
   }): Promise<void>;
-  getRpcRequestResult(args: {
-    request: string;
-    chainId: number;
-  }): Promise<string | undefined>;
+  getRpcRequestResult(args: { request: string; chainId: number }): Promise<
+    string | undefined
+  >;
   pruneRpcRequestResult(args: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
@@ -283,18 +277,50 @@ export const createSyncStore = ({
         return result;
       },
     ),
-  getChildAddresses: ({ filter, limit }) =>
+  insertChildAddresses: ({ childAddresses, chainId }) =>
+    database.wrap(
+      { method: "insertChildAddresses", includeTraceLogs: true },
+      async () => {
+        const values: InsertObject<PonderSyncSchema, "factories">[] = [];
+        for (const [factory, addresses] of childAddresses) {
+          const filterId = JSON.stringify(factory);
+
+          for (const [address, blockNumber] of addresses) {
+            values.push({
+              factory_hash: sql`MD5(${filterId})`,
+              chain_id: chainId,
+              block_number: blockNumber,
+              address: address,
+            });
+          }
+        }
+
+        await database.qb.sync.insertInto("factories").values(values).execute();
+      },
+    ),
+  getChildAddresses: ({ filter }) =>
     database.wrap(
       { method: "getChildAddresses", includeTraceLogs: true },
-      async () => {
-        return await database.qb.sync
-          .selectFrom("logs")
-          .$call((qb) => logFactorySQL(qb, filter))
-          .$if(limit !== undefined, (qb) => qb.limit(limit!))
-          .execute()
-          .then((addresses) =>
-            addresses.map(({ childAddress }) => childAddress),
-          );
+      () => {
+        const filterId = JSON.stringify(filter);
+
+        return (
+          database.qb.sync
+            .selectFrom("factories")
+            .select(["address", sql<number>`block_number`.as("blockNumber")])
+            .where("factory_hash", "=", sql`MD5(${filterId})`)
+            // TODO(kyle) block_number filter
+            .execute()
+            .then(
+              (rows) =>
+                new Map(
+                  rows.map(({ address, blockNumber }) => [
+                    address,
+                    blockNumber,
+                  ]),
+                ),
+            )
+        );
       },
     ),
   filterChildAddresses: ({ filter, addresses }) =>

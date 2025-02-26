@@ -20,7 +20,9 @@ import type {
 } from "@/internal/types.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
+  getChildAddress,
   isAddressFactory,
+  isAddressMatched,
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
@@ -429,9 +431,14 @@ export const createHistoricalSync = async (
       address: filter.address,
     });
 
-    // Insert `logs` into the sync-store
-    await args.syncStore.insertLogs({
-      logs,
+    const childAddresses = new Map<Address, number>();
+    for (const log of logs) {
+      const address = getChildAddress({ log, factory: filter });
+      childAddresses.set(address, hexToNumber(log.blockNumber));
+    }
+
+    await args.syncStore.insertChildAddresses({
+      childAddresses: new Map([[filter, childAddresses]]),
       chainId: args.network.chainId,
     });
   };
@@ -444,20 +451,13 @@ export const createHistoricalSync = async (
   const syncAddressFactory = async (
     filter: Factory,
     interval: Interval,
-  ): Promise<Address[] | undefined> => {
+  ): Promise<Map<Address, number>> => {
     await syncLogFactory(filter, interval);
 
     // Query the sync-store for all addresses that match `filter`.
-    const addresses = await args.syncStore.getChildAddresses({
+    return args.syncStore.getChildAddresses({
       filter,
-      limit: args.common.options.factoryAddressCountThreshold,
     });
-
-    if (addresses.length === args.common.options.factoryAddressCountThreshold) {
-      return undefined;
-    }
-
-    return addresses;
   };
 
   ////////
@@ -467,7 +467,11 @@ export const createHistoricalSync = async (
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
     // Resolve `filter.address`
     const address = isAddressFactory(filter.address)
-      ? await syncAddressFactory(filter.address, interval)
+      ? await syncAddressFactory(filter.address, interval).then((result) =>
+          result.size >= args.common.options.factoryAddressCountThreshold
+            ? undefined
+            : Array.from(result.keys()),
+        )
       : filter.address;
 
     const logs = await syncLogsDynamic({ filter, interval, address });
@@ -563,17 +567,11 @@ export const createHistoricalSync = async (
     interval: Interval,
   ) => {
     const fromChildAddresses = isAddressFactory(filter.fromAddress)
-      ? await syncAddressFactory(filter.fromAddress, interval).then(
-          (addresses) =>
-            addresses === undefined ? undefined : new Set(addresses),
-        )
+      ? await syncAddressFactory(filter.fromAddress, interval)
       : undefined;
 
     const toChildAddresses = isAddressFactory(filter.toAddress)
-      ? await syncAddressFactory(filter.toAddress, interval).then(
-          (addresses) =>
-            addresses === undefined ? undefined : new Set(addresses),
-        )
+      ? await syncAddressFactory(filter.toAddress, interval)
       : undefined;
 
     const blocks = await Promise.all(
@@ -589,9 +587,21 @@ export const createHistoricalSync = async (
           isTransactionFilterMatched({
             filter,
             transaction,
-            fromChildAddresses,
-            toChildAddresses,
-          })
+          }) &&
+          (isAddressFactory(filter.fromAddress)
+            ? isAddressMatched({
+                address: transaction.from,
+                blockNumber: Number(block.number),
+                childAddresses: fromChildAddresses!,
+              })
+            : true) &&
+          (isAddressFactory(filter.toAddress)
+            ? isAddressMatched({
+                address: transaction.to ?? undefined,
+                blockNumber: Number(block.number),
+                childAddresses: toChildAddresses!,
+              })
+            : true)
         ) {
           transactionHashes.add(transaction.hash);
           requiredBlocks.add(block);
@@ -638,30 +648,33 @@ export const createHistoricalSync = async (
         let traces = await syncTrace(number);
 
         // remove unmatched traces
-        traces = traces.filter((trace) =>
-          filter.type === "trace"
-            ? isTraceFilterMatched({
-                filter,
-                trace: trace.trace,
-                block,
-                fromChildAddresses: fromChildAddresses
-                  ? new Set(fromChildAddresses)
-                  : undefined,
-                toChildAddresses: toChildAddresses
-                  ? new Set(toChildAddresses)
-                  : undefined,
-              })
-            : isTransferFilterMatched({
-                filter,
-                trace: trace.trace,
-                block,
-                fromChildAddresses: fromChildAddresses
-                  ? new Set(fromChildAddresses)
-                  : undefined,
-                toChildAddresses: toChildAddresses
-                  ? new Set(toChildAddresses)
-                  : undefined,
-              }),
+        traces = traces.filter(
+          (trace) =>
+            (filter.type === "trace"
+              ? isTraceFilterMatched({
+                  filter,
+                  trace: trace.trace,
+                  block,
+                })
+              : isTransferFilterMatched({
+                  filter,
+                  trace: trace.trace,
+                  block,
+                })) &&
+            (isAddressFactory(filter.fromAddress)
+              ? isAddressMatched({
+                  address: trace.trace.from,
+                  blockNumber: Number(block.number),
+                  childAddresses: fromChildAddresses!,
+                })
+              : true) &&
+            (isAddressFactory(filter.toAddress)
+              ? isAddressMatched({
+                  address: trace.trace.to,
+                  blockNumber: Number(block.number),
+                  childAddresses: toChildAddresses!,
+                })
+              : true),
         );
 
         if (traces.length === 0) return [];
