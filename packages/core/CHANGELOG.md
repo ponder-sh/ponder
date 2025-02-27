@@ -1,5 +1,25 @@
 # ponder
 
+## 0.9.24
+
+### Patch Changes
+
+- [#1447](https://github.com/ponder-sh/ponder/pull/1447) [`2c6f2aaa743483169f3913ae3757e70eda38f073`](https://github.com/ponder-sh/ponder/commit/2c6f2aaa743483169f3913ae3757e70eda38f073) Thanks [@typedarray](https://github.com/typedarray)! - Added support for `ssl` options in Postgres pool configuration.
+
+## 0.9.23
+
+### Patch Changes
+
+- [#1552](https://github.com/ponder-sh/ponder/pull/1552) [`b0618efd5b07feb851463327b4517fdfb31c2384`](https://github.com/ponder-sh/ponder/commit/b0618efd5b07feb851463327b4517fdfb31c2384) Thanks [@normanzb](https://github.com/normanzb)! - Fixed an issue where libraries that subclass `Hono` (like `@hono/zod-openapi`) were not supported by API functions.
+
+- [#1560](https://github.com/ponder-sh/ponder/pull/1560) [`818d20eef48a247b513d7eadfa7c04be74f36477`](https://github.com/ponder-sh/ponder/commit/818d20eef48a247b513d7eadfa7c04be74f36477) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug introduced in `0.9.20` where the `ponder` entrypoint included Node.js-only imports like `"node:path"`, breaking some workflows that use `@ponder/client` in browser environments.
+
+## 0.9.22
+
+### Patch Changes
+
+- [#1557](https://github.com/ponder-sh/ponder/pull/1557) [`3b92c7312889398986e82da543b5872ef15a27f5`](https://github.com/ponder-sh/ponder/commit/3b92c7312889398986e82da543b5872ef15a27f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in v0.9.20 that caused an error when using raw sql queries.
+
 ## 0.9.21
 
 ### Patch Changes

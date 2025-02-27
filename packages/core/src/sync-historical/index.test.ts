@@ -156,7 +156,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
   await historicalSync.sync([1, 2]);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
@@ -255,8 +255,13 @@ test("sync() with log factory", async (context) => {
   await historicalSync.sync([1, 3]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const factories = await database.qb.sync
+    .selectFrom("factories")
+    .selectAll()
+    .execute();
 
-  expect(logs).toHaveLength(2);
+  expect(logs).toHaveLength(1);
+  expect(factories).toHaveLength(1);
 
   const intervals = await database.qb.sync
     .selectFrom("intervals")
@@ -406,7 +411,7 @@ test("sync() with transaction filter", async (context) => {
   expect(transactions).toHaveLength(1);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
@@ -809,6 +814,10 @@ test("syncAddress() handles many addresses", async (context) => {
   await historicalSync.sync([1, 13]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  // 11 pair creations and 1 swap
-  expect(logs).toHaveLength(12);
+  const factories = await database.qb.sync
+    .selectFrom("factories")
+    .selectAll()
+    .execute();
+  expect(logs).toHaveLength(1);
+  expect(factories).toHaveLength(11);
 });

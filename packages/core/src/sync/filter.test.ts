@@ -166,33 +166,17 @@ test("isLogFilterMatched()", async (context) => {
     toBlock: 2,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-
-  let isMatched = isLogFilterMatched({
-    filter,
-    block: rpcBlock,
-    log: rpcLogs[0]!,
-  });
+  let isMatched = isLogFilterMatched({ filter, log: rpcLogs[0]! });
   expect(isMatched).toBe(true);
 
   filter.topic0 = null;
 
-  isMatched = isLogFilterMatched({
-    filter,
-    block: rpcBlock,
-    log: rpcLogs[0]!,
-  });
+  isMatched = isLogFilterMatched({ filter, log: rpcLogs[0]! });
   expect(isMatched).toBe(true);
 
   rpcLogs[0]!.address = zeroAddress;
 
-  isMatched = isLogFilterMatched({
-    filter,
-    block: rpcBlock,
-    log: rpcLogs[0]!,
-  });
+  isMatched = isLogFilterMatched({ filter, log: rpcLogs[0]! });
   expect(isMatched).toBe(false);
 });
 
@@ -266,7 +250,6 @@ test("isTransactionFilterMatched()", async (context) => {
 
   let isMatched = isTransactionFilterMatched({
     filter,
-    block: rpcBlock,
     transaction: rpcBlock.transactions[0]!,
   });
   expect(isMatched).toBe(true);
@@ -275,7 +258,6 @@ test("isTransactionFilterMatched()", async (context) => {
 
   isMatched = isTransactionFilterMatched({
     filter,
-    block: rpcBlock,
     transaction: rpcBlock.transactions[0]!,
   });
   expect(isMatched).toBe(false);

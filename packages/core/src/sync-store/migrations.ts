@@ -1279,8 +1279,8 @@ GROUP BY fragment_id, chain_id
     async up(db) {
       // 1. drop unused indexes
       // 2. drop primary key
-      // 3. drop unused columns
-      // 4. update column types
+      // 3. update column types
+      // 4. drop unused columns
       // 5. rename tables and columns
       // 6. create new primary key
       // 7. reset metadata
@@ -1338,6 +1338,43 @@ GROUP BY fragment_id, chain_id
         .dropConstraint("traces_pkey")
         .execute();
 
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("number", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("timestamp", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .addColumn("transaction_index", "bigint")
+        .execute();
+      await db
+        .updateTable("traces")
+        .set({ transaction_index: sql`SUBSTRING(checkpoint, 43, 16)::bigint` })
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("transaction_index", (col) => col.setNotNull())
+        .execute();
+
       await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
       await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
       await db.schema.alterTable("logs").dropColumn("id").execute();
@@ -1375,31 +1412,6 @@ GROUP BY fragment_id, chain_id
         .dropColumn("functionSelector")
         .execute();
       await db.schema.alterTable("traces").dropColumn("isReverted").execute();
-
-      await db.schema
-        .alterTable("logs")
-        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
-        .execute();
-      await db.schema
-        .alterTable("blocks")
-        .alterColumn("number", (qb) => qb.setDataType("bigint"))
-        .execute();
-      await db.schema
-        .alterTable("blocks")
-        .alterColumn("timestamp", (qb) => qb.setDataType("bigint"))
-        .execute();
-      await db.schema
-        .alterTable("transactions")
-        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
-        .execute();
-      await db.schema
-        .alterTable("transactionReceipts")
-        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
-        .execute();
-      await db.schema
-        .alterTable("traces")
-        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
-        .execute();
 
       await db.schema
         .alterTable("logs")
@@ -1586,11 +1598,6 @@ GROUP BY fragment_id, chain_id
           "transaction_index",
         ])
         .execute();
-      // TODO(kyle) migrate traces.checkpoint
-      await db.schema
-        .alterTable("traces")
-        .addColumn("transaction_index", "bigint", (b) => b.notNull())
-        .execute();
       await db.schema
         .alterTable("traces")
         .addPrimaryKeyConstraint("traces_pkey", [
@@ -1614,262 +1621,6 @@ GROUP BY fragment_id, chain_id
       await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
     },
   },
-  // "2025_02_21_1_body": {
-  //   async up(db) {
-  //     await sql`TRUNCATE TABLE ponder_sync.intervals CASCADE`.execute(db);
-
-  //     await db.schema.dropTable("logs").execute();
-  //     await db.schema.dropTable("blocks").execute();
-  //     await db.schema.dropTable("transactions").execute();
-  //     await db.schema.dropTable("transaction_receipts").execute();
-  //     await db.schema.dropTable("traces").execute();
-
-  //     await db.schema
-  //       .createTable("blocks")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("number", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("transactions")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("transaction_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("transaction_receipts")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("transaction_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("logs")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("log_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("traces")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("transaction_index", "bigint", (col) => col.notNull())
-  //       .addColumn("trace_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .execute();
-
-  //     await db.schema
-  //       .alterTable("blocks")
-  //       .addPrimaryKeyConstraint("blocks_pkey", ["chain_id", "number"])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transactions")
-  //       .addPrimaryKeyConstraint("transactions_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "transaction_index",
-  //       ])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transaction_receipts")
-  //       .addPrimaryKeyConstraint("transaction_receipts_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "transaction_index",
-  //       ])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("logs")
-  //       .addPrimaryKeyConstraint("logs_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "log_index",
-  //       ])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("traces")
-  //       .addPrimaryKeyConstraint("traces_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "transaction_index",
-  //         "trace_index",
-  //       ])
-  //       .execute();
-
-  //     await sql`ANALYZE ponder_sync.logs`.execute(db);
-  //     await sql`ANALYZE ponder_sync.blocks`.execute(db);
-  //     await sql`ANALYZE ponder_sync.transactions`.execute(db);
-  //     await sql`ANALYZE ponder_sync.transaction_receipts`.execute(db);
-  //     await sql`ANALYZE ponder_sync.traces`.execute(db);
-
-  //     await sql`REINDEX TABLE ponder_sync.logs`.execute(db);
-  //     await sql`REINDEX TABLE ponder_sync.blocks`.execute(db);
-  //     await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
-  //     await sql`REINDEX TABLE ponder_sync.transaction_receipts`.execute(db);
-  //     await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
-  //   },
-  // },
-  // "2025_02_24_0_partition_blocks": {
-  //   async up(db) {
-  //     // 1. Create new partitioned tables
-  //     // 2. Create individual partitions for each chain
-  //     // 3. Copy data to partitioned tables
-  //     // 4. Drop old tables
-  //     // 5. Rename partitioned table
-  //     // 6. Reindex new tables
-
-  //     await db.schema
-  //       .createTable("blocks_temp")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("number", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .modifyEnd(sql`PARTITION BY LIST (chain_id)`)
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("transactions_temp")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("transaction_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .modifyEnd(sql`PARTITION BY LIST (chain_id)`)
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("transaction_receipts_temp")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("transaction_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .modifyEnd(sql`PARTITION BY LIST (chain_id)`)
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("logs_temp")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("log_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .modifyEnd(sql`PARTITION BY LIST (chain_id)`)
-  //       .execute();
-
-  //     await db.schema
-  //       .createTable("traces_temp")
-  //       .addColumn("chain_id", "bigint", (col) => col.notNull())
-  //       .addColumn("block_number", "bigint", (col) => col.notNull())
-  //       .addColumn("transaction_index", "bigint", (col) => col.notNull())
-  //       .addColumn("trace_index", "bigint", (col) => col.notNull())
-  //       .addColumn("body", "jsonb", (col) => col.notNull())
-  //       .modifyEnd(sql`PARTITION BY LIST (chain_id)`)
-  //       .execute();
-
-  //     const chainIds = await sql<{
-  //       chain_id: number;
-  //     }>`SELECT DISTINCT chain_id FROM ponder_sync.intervals`.execute(db);
-
-  //     for (const { chain_id } of chainIds.rows) {
-  //       await sql`CREATE TABLE ponder_sync.blocks_${sql.raw(String(chain_id))} PARTITION OF ponder_sync.blocks_temp FOR VALUES IN (${sql.raw(String(chain_id))})`.execute(
-  //         db,
-  //       );
-  //       await sql`CREATE TABLE ponder_sync.transactions_${sql.raw(String(chain_id))} PARTITION OF ponder_sync.transactions_temp FOR VALUES IN (${sql.raw(String(chain_id))})`.execute(
-  //         db,
-  //       );
-  //       await sql`CREATE TABLE ponder_sync.transaction_receipts_${sql.raw(String(chain_id))} PARTITION OF ponder_sync.transaction_receipts_temp FOR VALUES IN (${sql.raw(String(chain_id))})`.execute(
-  //         db,
-  //       );
-  //       await sql`CREATE TABLE ponder_sync.logs_${sql.raw(String(chain_id))} PARTITION OF ponder_sync.logs_temp FOR VALUES IN (${sql.raw(String(chain_id))})`.execute(
-  //         db,
-  //       );
-  //       await sql`CREATE TABLE ponder_sync.traces_${sql.raw(String(chain_id))} PARTITION OF ponder_sync.traces_temp FOR VALUES IN (${sql.raw(String(chain_id))})`.execute(
-  //         db,
-  //       );
-  //     }
-
-  //     await sql`INSERT INTO ponder_sync.blocks_temp (SELECT * FROM ponder_sync.blocks)`.execute(
-  //       db,
-  //     );
-  //     await sql`INSERT INTO ponder_sync.transactions_temp (SELECT * FROM ponder_sync.transactions)`.execute(
-  //       db,
-  //     );
-  //     await sql`INSERT INTO ponder_sync.transaction_receipts_temp (SELECT * FROM ponder_sync.transaction_receipts)`.execute(
-  //       db,
-  //     );
-  //     await sql`INSERT INTO ponder_sync.logs_temp (SELECT * FROM ponder_sync.logs)`.execute(
-  //       db,
-  //     );
-  //     await sql`INSERT INTO ponder_sync.traces_temp (SELECT * FROM ponder_sync.traces)`.execute(
-  //       db,
-  //     );
-
-  //     await db.schema.dropTable("blocks").execute();
-  //     await db.schema.dropTable("transactions").execute();
-  //     await db.schema.dropTable("transaction_receipts").execute();
-  //     await db.schema.dropTable("logs").execute();
-  //     await db.schema.dropTable("traces").execute();
-
-  //     await db.schema.alterTable("blocks_temp").renameTo("blocks").execute();
-  //     await db.schema
-  //       .alterTable("transactions_temp")
-  //       .renameTo("transactions")
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transaction_receipts_temp")
-  //       .renameTo("transaction_receipts")
-  //       .execute();
-  //     await db.schema.alterTable("logs_temp").renameTo("logs").execute();
-  //     await db.schema.alterTable("traces_temp").renameTo("traces").execute();
-
-  //     await db.schema
-  //       .alterTable("blocks")
-  //       .addPrimaryKeyConstraint("blocks_pkey", ["chain_id", "number"])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transactions")
-  //       .addPrimaryKeyConstraint("transactions_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "transaction_index",
-  //       ])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("transaction_receipts")
-  //       .addPrimaryKeyConstraint("transaction_receipts_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "transaction_index",
-  //       ])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("logs")
-  //       .addPrimaryKeyConstraint("logs_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "log_index",
-  //       ])
-  //       .execute();
-  //     await db.schema
-  //       .alterTable("traces")
-  //       .addPrimaryKeyConstraint("traces_pkey", [
-  //         "chain_id",
-  //         "block_number",
-  //         "transaction_index",
-  //         "trace_index",
-  //       ])
-  //       .execute();
-
-  //     await sql`ANALYZE ponder_sync.logs`.execute(db);
-  //     await sql`ANALYZE ponder_sync.blocks`.execute(db);
-  //     await sql`ANALYZE ponder_sync.transactions`.execute(db);
-  //     await sql`ANALYZE ponder_sync.transaction_receipts`.execute(db);
-  //     await sql`ANALYZE ponder_sync.traces`.execute(db);
-  //   },
-  // },
   "2025_02_26_0_factories": {
     async up(db) {
       // TODO(kyle) truncate intervals with factories

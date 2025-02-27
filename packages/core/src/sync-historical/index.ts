@@ -424,21 +424,23 @@ export const createHistoricalSync = async (
   };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
-  const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
+  const syncLogFactory = async (factory: LogFactory, interval: Interval) => {
     const logs = await syncLogsDynamic({
-      filter,
+      filter: factory,
       interval,
-      address: filter.address,
+      address: factory.address,
     });
 
     const childAddresses = new Map<Address, number>();
     for (const log of logs) {
-      const address = getChildAddress({ log, factory: filter });
+      const address = getChildAddress({ log, factory });
       childAddresses.set(address, hexToNumber(log.blockNumber));
     }
 
+    // Note: `factory` must refer to the same original `factory` in `filter`
+    // and not be a recovered factory from `recoverFilter`.
     await args.syncStore.insertChildAddresses({
-      childAddresses: new Map([[filter, childAddresses]]),
+      childAddresses: new Map([[factory, childAddresses]]),
       chainId: args.network.chainId,
     });
   };
@@ -449,15 +451,13 @@ export const createHistoricalSync = async (
    * child addresses is above the limit.
    */
   const syncAddressFactory = async (
-    filter: Factory,
+    factory: Factory,
     interval: Interval,
   ): Promise<Map<Address, number>> => {
-    await syncLogFactory(filter, interval);
-
-    // Query the sync-store for all addresses that match `filter`.
-    return args.syncStore.getChildAddresses({
-      filter,
-    });
+    await syncLogFactory(factory, interval);
+    // Note: `factory` must refer to the same original `factory` in `filter`
+    // and not be a recovered factory from `recoverFilter`.
+    return args.syncStore.getChildAddresses({ factory });
   };
 
   ////////
@@ -475,12 +475,11 @@ export const createHistoricalSync = async (
       : filter.address;
 
     const logs = await syncLogsDynamic({ filter, interval, address });
+    await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
 
     const blocks = await Promise.all(
       logs.map((log) => syncBlock(hexToNumber(log.blockNumber))),
     );
-
-    const requiredBlocks = new Set(blocks.map((b) => b.hash));
 
     // Validate that logs point to the valid transaction hash in the block
     for (let i = 0; i < logs.length; i++) {
@@ -515,18 +514,13 @@ export const createHistoricalSync = async (
       transactionsCache.add(hash);
     }
 
-    await args.syncStore.insertLogs({
-      logs,
-      chainId: args.network.chainId,
-    });
-
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
-        Array.from(requiredBlocks).map((blockHash) => {
+        blocks.map((block) => {
           const blockTransactionHashes = new Set<Hash>();
 
           for (const log of logs) {
-            if (log.blockHash === blockHash) {
+            if (log.blockHash === block.hash) {
               if (log.transactionHash === zeroHash) {
                 args.common.logger.warn({
                   service: "sync",
@@ -538,7 +532,7 @@ export const createHistoricalSync = async (
             }
           }
 
-          return syncTransactionReceipts(blockHash, blockTransactionHashes);
+          return syncTransactionReceipts(block.hash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
 
@@ -654,24 +648,24 @@ export const createHistoricalSync = async (
               ? isTraceFilterMatched({
                   filter,
                   trace: trace.trace,
-                  block,
+                  block: { number: BigInt(number) },
                 })
               : isTransferFilterMatched({
                   filter,
                   trace: trace.trace,
-                  block,
+                  block: { number: BigInt(number) },
                 })) &&
             (isAddressFactory(filter.fromAddress)
               ? isAddressMatched({
                   address: trace.trace.from,
-                  blockNumber: Number(block.number),
+                  blockNumber: number,
                   childAddresses: fromChildAddresses!,
                 })
               : true) &&
             (isAddressFactory(filter.toAddress)
               ? isAddressMatched({
                   address: trace.trace.to,
-                  blockNumber: Number(block.number),
+                  blockNumber: number,
                   childAddresses: toChildAddresses!,
                 })
               : true),
