@@ -48,9 +48,9 @@ export type SyncStore = {
     intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
     chainId: number;
   }): Promise<void>;
-  getIntervals(args: {
-    filters: Filter[];
-  }): Promise<Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>>;
+  getIntervals(args: { filters: Filter[] }): Promise<
+    Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>
+  >;
   insertChildAddresses(args: {
     childAddresses: Map<Factory, Map<Address, number>>;
     chainId: number;
