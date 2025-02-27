@@ -1,6 +1,5 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError } from "@/internal/errors.js";
 import type {
   Factory,
   Filter,
@@ -21,11 +20,6 @@ import type {
 } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { fragmentToId, getFragments } from "@/sync/fragments.js";
-import {
-  ZERO_CHECKPOINT,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
 import type { Interval } from "@/utils/interval.js";
 import { type SelectQueryBuilder, sql as ksql, sql } from "kysely";
 import type { InsertObject } from "kysely";
@@ -34,6 +28,7 @@ import {
   type PonderSyncSchema,
   decodeBlock,
   decodeLog,
+  decodeTrace,
   decodeTransaction,
   decodeTransactionReceipt,
   encodeBlock,
@@ -77,8 +72,8 @@ export type SyncStore = {
   /** Returns an ordered list of events based on the `filters` and pagination arguments. */
   getEventBlockData(args: {
     filters: Filter[];
-    from: string;
-    to: string;
+    fromBlock: number;
+    toBlock: number;
     chainId: number;
     limit?: number;
   }): Promise<{
@@ -89,7 +84,7 @@ export type SyncStore = {
       transactionReceipts: InternalTransactionReceipt[];
       traces: InternalTrace[];
     }[];
-    cursor: string;
+    cursor: number;
   }>;
   insertRpcRequestResult(args: {
     request: string;
@@ -110,10 +105,7 @@ export type SyncStore = {
 export const createSyncStore = ({
   common,
   database,
-}: {
-  common: Common;
-  database: Database;
-}): SyncStore => ({
+}: { common: Common; database: Database }): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
@@ -475,29 +467,10 @@ export const createSyncStore = ({
       },
     );
   },
-  getEventBlockData: async ({ filters, from, to, chainId, limit }) =>
+  getEventBlockData: async ({ filters, fromBlock, toBlock, chainId, limit }) =>
     database.wrap(
       { method: "getEventBlockData", includeTraceLogs: true },
       async () => {
-        // Note: `from` and `to` must be chain-specific
-        const fromBlock = Number(decodeCheckpoint(from).blockNumber);
-        // const fromEventIndex =
-        //   decodeCheckpoint(from).eventIndex > 2147483647n
-        //     ? 2147483647n
-        //     : decodeCheckpoint(from).eventIndex;
-        const toBlock = Number(decodeCheckpoint(to).blockNumber);
-        // const toEventIndex =
-        //   decodeCheckpoint(to).eventIndex > 2147483647n
-        //     ? 2147483647n
-        //     : decodeCheckpoint(to).eventIndex;
-
-        if (
-          decodeCheckpoint(from).chainId !== BigInt(chainId) ||
-          decodeCheckpoint(to).chainId !== BigInt(chainId)
-        ) {
-          throw new NonRetryableError("Invalid checkpoint chainId");
-        }
-
         // TODO(kyle) use relative density heuristics to set
         // different limits for each query
 
@@ -512,13 +485,11 @@ export const createSyncStore = ({
           shouldGetTransactionReceipt,
         );
 
-        // TODO(kyle) prepared statements
-
         const blocksQ = database.qb.sync
           .selectFrom("blocks")
           .selectAll()
           .where("chain_id", "=", chainId)
-          .where("number", ">", fromBlock)
+          .where("number", ">=", fromBlock)
           .where("number", "<=", toBlock)
           .orderBy("number", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -527,10 +498,8 @@ export const createSyncStore = ({
           .selectFrom("transactions")
           .selectAll()
           .where("chain_id", "=", chainId)
-          .where("block_number", ">", fromBlock)
-          // .where("transaction_index", ">", Number(fromEventIndex))
+          .where("block_number", ">=", fromBlock)
           .where("block_number", "<=", toBlock)
-          // .where("transaction_index", "<=", Number(toEventIndex))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -539,10 +508,8 @@ export const createSyncStore = ({
           .selectFrom("transaction_receipts")
           .selectAll()
           .where("chain_id", "=", chainId)
-          .where("block_number", ">", fromBlock)
-          // .where("transaction_index", ">", Number(fromEventIndex))
+          .where("block_number", ">=", fromBlock)
           .where("block_number", "<=", toBlock)
-          // .where("transaction_index", "<=", Number(toEventIndex))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -551,10 +518,8 @@ export const createSyncStore = ({
           .selectFrom("logs")
           .selectAll()
           .where("chain_id", "=", chainId)
-          .where("block_number", ">", fromBlock)
-          // .where("log_index", ">", Number(fromEventIndex))
+          .where("block_number", ">=", fromBlock)
           .where("block_number", "<=", toBlock)
-          // .where("log_index", "<=", Number(toEventIndex))
           .orderBy("block_number", "asc")
           .orderBy("log_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -563,10 +528,8 @@ export const createSyncStore = ({
           .selectFrom("traces")
           .selectAll()
           .where("chain_id", "=", chainId)
-          .where("block_number", ">", fromBlock)
-          // .where("trace_index", ">", Number(fromEventIndex))
+          .where("block_number", ">=", fromBlock)
           .where("block_number", "<=", toBlock)
-          // .where("trace_index", "<=", Number(toEventIndex))
           .orderBy("block_number", "asc")
           .orderBy("trace_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -617,7 +580,7 @@ export const createSyncStore = ({
         }[] = [];
         let transactionIndex = 0;
         let transactionReceiptIndex = 0;
-        // let traceIndex = 0;
+        let traceIndex = 0;
         let logIndex = 0;
         for (const block of blocksRows) {
           if (Number(block.number) > supremum) {
@@ -660,14 +623,14 @@ export const createSyncStore = ({
             logIndex++;
           }
 
-          // while (
-          //   traceIndex < tracesRows.length &&
-          //   tracesRows[traceIndex]!.block_number === block.number
-          // ) {
-          //   const trace = tracesRows[traceIndex]!;
-          //   traces.push(syncTraceToInternal({ trace: trace.body }));
-          //   traceIndex++;
-          // }
+          while (
+            traceIndex < tracesRows.length &&
+            tracesRows[traceIndex]!.block_number === block.number
+          ) {
+            const trace = tracesRows[traceIndex]!;
+            traces.push(decodeTrace({ trace }));
+            traceIndex++;
+          }
 
           blockData.push({
             block: decodeBlock({ block }),
@@ -678,29 +641,32 @@ export const createSyncStore = ({
           });
         }
 
-        let cursor: string;
+        let cursor: number;
         if (
           Math.max(
-            logsRows.length,
             blocksRows.length,
             transactionsRows.length,
             transactionReceiptsRows.length,
+            logsRows.length,
             tracesRows.length,
           ) !== limit
         ) {
-          cursor = to;
+          cursor = toBlock;
+        } else if (
+          blockData.length === limit &&
+          Math.max(
+            transactionsRows.length,
+            transactionReceiptsRows.length,
+            logsRows.length,
+            tracesRows.length,
+          ) !== limit
+        ) {
+          // all events for `supremum` block have been extracted
+          cursor = supremum;
         } else {
+          // there may be events for `supremum` block that have not been extracted
           blockData.pop();
-
-          // Note: this relies on limit > 1
-          const lastBlock = blockData[blockData.length - 1]!.block;
-
-          cursor = encodeCheckpoint({
-            ...ZERO_CHECKPOINT,
-            blockTimestamp: Number(lastBlock.timestamp),
-            chainId: BigInt(chainId),
-            blockNumber: BigInt(lastBlock.number),
-          });
+          cursor = supremum - 1;
         }
 
         return { blockData, cursor };

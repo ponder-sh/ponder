@@ -644,24 +644,24 @@ export const createHistoricalSync = async (
               ? isTraceFilterMatched({
                   filter,
                   trace: trace.trace,
-                  block,
+                  block: { number: BigInt(number) },
                 })
               : isTransferFilterMatched({
                   filter,
                   trace: trace.trace,
-                  block,
+                  block: { number: BigInt(number) },
                 })) &&
             (isAddressFactory(filter.fromAddress)
               ? isAddressMatched({
                   address: trace.trace.from,
-                  blockNumber: Number(block.number),
+                  blockNumber: number,
                   childAddresses: fromChildAddresses!,
                 })
               : true) &&
             (isAddressFactory(filter.toAddress)
               ? isAddressMatched({
                   address: trace.trace.to,
-                  blockNumber: Number(block.number),
+                  blockNumber: number,
                   childAddresses: toChildAddresses!,
                 })
               : true),

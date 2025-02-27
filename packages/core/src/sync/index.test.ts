@@ -158,10 +158,10 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
     hasMatchedFilter: false,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   expect(event.type).toBe("block");
@@ -219,10 +219,10 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     hasMatchedFilter: true,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   const event = await onRealtimeSyncEvent({
@@ -307,10 +307,10 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
     hasMatchedFilter: true,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   const event = await onRealtimeSyncEvent({

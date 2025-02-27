@@ -213,7 +213,7 @@ export const isTraceFilterMatched = ({
 }: {
   filter: TraceFilter;
   trace: InternalTrace | SyncTrace["trace"];
-  block: InternalBlock | SyncBlock;
+  block: Pick<InternalBlock | SyncBlock, "number">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -264,7 +264,7 @@ export const isTransferFilterMatched = ({
 }: {
   filter: TransferFilter;
   trace: InternalTrace | SyncTrace["trace"];
-  block: InternalBlock | SyncBlock;
+  block: Pick<InternalBlock | SyncBlock, "number">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
@@ -274,7 +274,11 @@ export const isTransferFilterMatched = ({
     return false;
   }
 
-  if (trace.value === undefined || trace.value === 0n) {
+  if (
+    trace.value === undefined ||
+    trace.value === null ||
+    BigInt(trace.value) === 0n
+  ) {
     return false;
   }
 
