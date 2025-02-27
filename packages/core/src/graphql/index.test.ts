@@ -8,6 +8,8 @@ import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
+import { toBytes } from "viem";
+import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
@@ -82,6 +84,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       boolean: t.boolean(),
       hex: t.hex(),
       bigint: t.bigint(),
+      bytes: t.bytes(),
 
       stringNotNull: t.text().notNull(),
       intNotNull: t.integer().notNull(),
@@ -89,6 +92,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       booleanNotNull: t.boolean().notNull(),
       hexNotNull: t.hex().notNull(),
       bigintNotNull: t.bigint().notNull(),
+      bytesNotNull: t.bytes().notNull(),
 
       stringArray: t.text().array(),
       intArray: t.integer().array(),
@@ -96,13 +100,14 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       booleanArray: t.boolean().array(),
       hexArray: t.hex().array(),
       bigintArray: t.bigint().array(),
-
+      // bytesArray: t.bytes().array(),
       stringArrayNotNull: t.text().array().notNull(),
       intArrayNotNull: t.integer().array().notNull(),
       floatArrayNotNull: t.doublePrecision().array().notNull(),
       booleanArrayNotNull: t.boolean().array().notNull(),
       hexArrayNotNull: t.hex().array().notNull(),
       bigintArrayNotNull: t.bigint().array().notNull(),
+      // bytesArrayNotNull: t.bytes().array().notNull(),
     })),
   };
 
@@ -121,6 +126,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     boolean: false,
     hex: "0x0",
     bigint: 0n,
+    bytes: toBytes(zeroAddress),
 
     stringNotNull: "0",
     intNotNull: 0,
@@ -128,6 +134,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     booleanNotNull: false,
     hexNotNull: "0x0",
     bigintNotNull: 0n,
+    bytesNotNull: toBytes(zeroAddress),
 
     stringArray: ["0"],
     intArray: [0],
@@ -135,6 +142,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     booleanArray: [false],
     hexArray: ["0x0"],
     bigintArray: [0n],
+    // bytesArray: [toBytes(zeroAddress)],
 
     stringArrayNotNull: ["0"],
     intArrayNotNull: [0],
@@ -142,6 +150,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     booleanArrayNotNull: [false],
     hexArrayNotNull: ["0x0"],
     bigintArrayNotNull: [0n],
+    // bytesArrayNotNull: [toBytes(zeroAddress)],
   });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
@@ -157,6 +166,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         boolean
         hex
         bigint
+        bytes
 
         stringNotNull
         intNotNull
@@ -164,6 +174,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         booleanNotNull
         hexNotNull
         bigintNotNull
+        bytesNotNull
 
         stringArray
         intArray
@@ -171,6 +182,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         booleanArray
         hexArray
         bigintArray
+        bytesArray
 
         stringArrayNotNull
         intArrayNotNull
@@ -178,6 +190,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         booleanArrayNotNull
         hexArrayNotNull
         bigintArrayNotNull
+        bytesArrayNotNull
       }
     }
   `);
@@ -193,6 +206,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       boolean: false,
       hex: "0x00",
       bigint: "0",
+      bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 
       stringNotNull: "0",
       intNotNull: 0,
@@ -200,6 +214,9 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       booleanNotNull: false,
       hexNotNull: "0x00",
       bigintNotNull: "0",
+      bytesNotNull: [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      ],
 
       stringArray: ["0"],
       intArray: [0],
