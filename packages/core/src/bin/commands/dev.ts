@@ -22,6 +22,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const logger = createLogger({
     level: options.logLevel,
     mode: options.logFormat,
+    useWorker: !options.enableUi,
   });
 
   const [major, minor, _patch] = process.versions.node
@@ -77,7 +78,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     await apiShutdown.kill();
   });
 
-  if (cliOptions.disableUi !== true) {
+  if (options.enableUi) {
     createUi({ common: { ...common, shutdown } });
   }
 
