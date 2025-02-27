@@ -1,6 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
-import { normalizeColumn } from "@/indexing-store/cache.js";
+import { normalizeColumn } from "@/indexing-store/utils.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { never } from "@/utils/never.js";
