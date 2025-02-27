@@ -453,11 +453,7 @@ export const createHistoricalSync = async (
     interval: Interval,
   ): Promise<Map<Address, number>> => {
     await syncLogFactory(filter, interval);
-
-    // Query the sync-store for all addresses that match `filter`.
-    return args.syncStore.getChildAddresses({
-      filter,
-    });
+    return args.syncStore.getChildAddresses({ filter });
   };
 
   ////////
@@ -475,12 +471,11 @@ export const createHistoricalSync = async (
       : filter.address;
 
     const logs = await syncLogsDynamic({ filter, interval, address });
+    await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
 
     const blocks = await Promise.all(
       logs.map((log) => syncBlock(hexToNumber(log.blockNumber))),
     );
-
-    const requiredBlocks = new Set(blocks.map((b) => b.hash));
 
     // Validate that logs point to the valid transaction hash in the block
     for (let i = 0; i < logs.length; i++) {
@@ -515,18 +510,13 @@ export const createHistoricalSync = async (
       transactionsCache.add(hash);
     }
 
-    await args.syncStore.insertLogs({
-      logs,
-      chainId: args.network.chainId,
-    });
-
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
-        Array.from(requiredBlocks).map((blockHash) => {
+        blocks.map((block) => {
           const blockTransactionHashes = new Set<Hash>();
 
           for (const log of logs) {
-            if (log.blockHash === blockHash) {
+            if (log.blockHash === block.hash) {
               if (log.transactionHash === zeroHash) {
                 args.common.logger.warn({
                   service: "sync",
@@ -538,7 +528,7 @@ export const createHistoricalSync = async (
             }
           }
 
-          return syncTransactionReceipts(blockHash, blockTransactionHashes);
+          return syncTransactionReceipts(block.hash, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
 
