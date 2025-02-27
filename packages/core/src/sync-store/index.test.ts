@@ -485,7 +485,7 @@ test("getChildAddresses()", async (context) => {
   });
 
   const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
+    factory: filter.address,
   });
 
   expect(addresses).toMatchInlineSnapshot(`
@@ -512,7 +512,7 @@ test("getChildAddresses() empty", async (context) => {
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
   const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
+    factory: filter.address,
   });
 
   expect(addresses).toMatchInlineSnapshot("Map {}");
@@ -544,7 +544,7 @@ test("getChildAddresses() distinct", async (context) => {
   });
 
   const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
+    factory: filter.address,
   });
 
   expect(addresses).toMatchInlineSnapshot(`

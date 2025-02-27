@@ -877,7 +877,7 @@ export const createSync = async (params: {
                 if (isAddressFactory(filter.address)) {
                   const childAddresses =
                     await params.syncStore.getChildAddresses({
-                      filter: filter.address,
+                      factory: filter.address,
                     });
 
                   initialChildAddresses.set(
@@ -893,7 +893,7 @@ export const createSync = async (params: {
                 if (isAddressFactory(filter.fromAddress)) {
                   const childAddresses =
                     await params.syncStore.getChildAddresses({
-                      filter: filter.fromAddress,
+                      factory: filter.fromAddress,
                     });
 
                   initialChildAddresses.set(
@@ -905,7 +905,7 @@ export const createSync = async (params: {
                 if (isAddressFactory(filter.toAddress)) {
                   const childAddresses =
                     await params.syncStore.getChildAddresses({
-                      filter: filter.toAddress,
+                      factory: filter.toAddress,
                     });
 
                   initialChildAddresses.set(
@@ -1153,7 +1153,7 @@ export async function* getLocalEventGenerator(params: {
         case "log":
           if (isAddressFactory(filter.address)) {
             const childAddresses = await params.syncStore.getChildAddresses({
-              filter: filter.address,
+              factory: filter.address,
             });
 
             initialChildAddresses.set(filter.address, new Map(childAddresses));
@@ -1165,7 +1165,7 @@ export async function* getLocalEventGenerator(params: {
         case "trace":
           if (isAddressFactory(filter.fromAddress)) {
             const childAddresses = await params.syncStore.getChildAddresses({
-              filter: filter.fromAddress,
+              factory: filter.fromAddress,
             });
 
             initialChildAddresses.set(
@@ -1176,7 +1176,7 @@ export async function* getLocalEventGenerator(params: {
 
           if (isAddressFactory(filter.toAddress)) {
             const childAddresses = await params.syncStore.getChildAddresses({
-              filter: filter.toAddress,
+              factory: filter.toAddress,
             });
 
             initialChildAddresses.set(

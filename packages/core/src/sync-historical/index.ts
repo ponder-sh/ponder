@@ -424,21 +424,23 @@ export const createHistoricalSync = async (
   };
 
   /** Extract and insert the log-based addresses that match `filter` + `interval`. */
-  const syncLogFactory = async (filter: LogFactory, interval: Interval) => {
+  const syncLogFactory = async (factory: LogFactory, interval: Interval) => {
     const logs = await syncLogsDynamic({
-      filter,
+      filter: factory,
       interval,
-      address: filter.address,
+      address: factory.address,
     });
 
     const childAddresses = new Map<Address, number>();
     for (const log of logs) {
-      const address = getChildAddress({ log, factory: filter });
+      const address = getChildAddress({ log, factory });
       childAddresses.set(address, hexToNumber(log.blockNumber));
     }
 
+    // Note: `factory` must refer to the same original `factory` in `filter`
+    // and not be a recovered factory from `recoverFilter`.
     await args.syncStore.insertChildAddresses({
-      childAddresses: new Map([[filter, childAddresses]]),
+      childAddresses: new Map([[factory, childAddresses]]),
       chainId: args.network.chainId,
     });
   };
@@ -449,11 +451,13 @@ export const createHistoricalSync = async (
    * child addresses is above the limit.
    */
   const syncAddressFactory = async (
-    filter: Factory,
+    factory: Factory,
     interval: Interval,
   ): Promise<Map<Address, number>> => {
-    await syncLogFactory(filter, interval);
-    return args.syncStore.getChildAddresses({ filter });
+    await syncLogFactory(factory, interval);
+    // Note: `factory` must refer to the same original `factory` in `filter`
+    // and not be a recovered factory from `recoverFilter`.
+    return args.syncStore.getChildAddresses({ factory });
   };
 
   ////////

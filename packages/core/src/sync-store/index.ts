@@ -19,7 +19,12 @@ import type {
   SyncTransactionReceipt,
 } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
-import { fragmentToId, getFragments } from "@/sync/fragments.js";
+import {
+  fragmentAddressToId,
+  fragmentToId,
+  getAddressFragments,
+  getFragments,
+} from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import { type SelectQueryBuilder, sql as ksql, sql } from "kysely";
 import type { InsertObject } from "kysely";
@@ -50,7 +55,7 @@ export type SyncStore = {
     childAddresses: Map<Factory, Map<Address, number>>;
     chainId: number;
   }): Promise<void>;
-  getChildAddresses(args: { filter: Factory }): Promise<Map<Address, number>>;
+  getChildAddresses(args: { factory: Factory }): Promise<Map<Address, number>>;
   insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   insertTransactions(args: {
@@ -231,17 +236,32 @@ export const createSyncStore = ({
         return result;
       },
     ),
-  insertChildAddresses: ({ childAddresses, chainId }) =>
-    database.wrap(
+  insertChildAddresses: async ({ childAddresses, chainId }) => {
+    if (
+      childAddresses.size === 0 ||
+      Array.from(childAddresses.values()).every(
+        (addresses) => addresses.size === 0,
+      )
+    ) {
+      return;
+    }
+    await database.wrap(
       { method: "insertChildAddresses", includeTraceLogs: true },
       async () => {
         const values: InsertObject<PonderSyncSchema, "factories">[] = [];
         for (const [factory, addresses] of childAddresses) {
-          const filterId = JSON.stringify(factory);
+          const fragmentIds = getAddressFragments(factory)
+            .map(({ fragment }) => fragmentAddressToId(fragment))
+            .sort((a, b) =>
+              a === null ? -1 : b === null ? 1 : a < b ? -1 : 1,
+            );
+          const factoryId = fragmentIds.join("_");
+
+          // Note: factories must be keyed by fragment, then how do we know which address belongs to which fragment
 
           for (const [address, blockNumber] of addresses) {
             values.push({
-              factory_hash: sql`MD5(${filterId})`,
+              factory_hash: sql`MD5(${factoryId})`,
               chain_id: chainId,
               block_number: blockNumber,
               address: address,
@@ -249,24 +269,23 @@ export const createSyncStore = ({
           }
         }
 
-        if (values.length > 0) {
-          await database.qb.sync
-            .insertInto("factories")
-            .values(values)
-            .execute();
-        }
+        await database.qb.sync.insertInto("factories").values(values).execute();
       },
-    ),
-  getChildAddresses: ({ filter }) =>
+    );
+  },
+  getChildAddresses: ({ factory }) =>
     database.wrap(
       { method: "getChildAddresses", includeTraceLogs: true },
       () => {
-        const filterId = JSON.stringify(filter);
+        const fragmentIds = getAddressFragments(factory)
+          .map(({ fragment }) => fragmentAddressToId(fragment))
+          .sort((a, b) => (a === null ? -1 : b === null ? 1 : a < b ? -1 : 1));
+        const factoryId = fragmentIds.join("_");
 
         return database.qb.sync
           .selectFrom("factories")
           .select(["address", sql<number>`block_number`.as("blockNumber")])
-          .where("factory_hash", "=", sql`MD5(${filterId})`)
+          .where("factory_hash", "=", sql`MD5(${factoryId})`)
           .execute()
           .then((rows) => {
             const result = new Map<Address, number>();

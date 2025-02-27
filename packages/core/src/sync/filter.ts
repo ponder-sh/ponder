@@ -69,8 +69,8 @@ export const isAddressMatched = ({
 }) => {
   if (address === undefined) return false;
   if (
-    childAddresses.has(address) &&
-    childAddresses.get(address)! <= blockNumber
+    childAddresses.has(toLowerCase(address)) &&
+    childAddresses.get(toLowerCase(address))! <= blockNumber
   ) {
     return true;
   }

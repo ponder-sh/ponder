@@ -38,7 +38,7 @@ type FragmentReturnType = {
   adjacentIds: FragmentId[];
 }[];
 
-const getAddressFragments = (
+export const getAddressFragments = (
   address: Address | Address[] | Factory | undefined,
 ) => {
   const fragments: {
@@ -302,7 +302,7 @@ export const getTransferFilterFragments = ({
   return fragments;
 };
 
-const fragmentAddressToId = (
+export const fragmentAddressToId = (
   fragmentAddress: FragmentAddress,
 ): FragmentAddressId => {
   if (fragmentAddress === null) return null;
@@ -332,23 +332,12 @@ const recoverAddress = (
   if (baseAddress === undefined) return undefined;
   if (typeof baseAddress === "string") return baseAddress;
   if (Array.isArray(baseAddress)) return dedupe(fragmentAddresses) as Address[];
-  if (typeof baseAddress.address === "string") return baseAddress;
 
-  const address = {
-    type: "log",
-    chainId: baseAddress.chainId,
-    address: [] as Address[],
-    eventSelector: baseAddress.eventSelector,
-    childAddressLocation: baseAddress.childAddressLocation,
-  } satisfies Factory;
+  // Note: At this point, `baseAddress` is a factory. We explicitly don't try to recover the factory
+  // address from the fragments because we want a `insertChildAddresses` and `getChildAddresses` to
+  // use the factory as a stable key.
 
-  address.address = dedupe(
-    (fragmentAddresses as Extract<FragmentAddress, { address: Address }>[]).map(
-      ({ address }) => address,
-    ),
-  );
-
-  return address;
+  return baseAddress;
 };
 
 const recoverSelector = (
