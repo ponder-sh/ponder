@@ -21,6 +21,16 @@ export type PgHexBuilderInitial<TName extends string> = PgHexBuilder<{
   generated: undefined;
 }>;
 
+export type PgBytesBuilderInitial<TName extends string> = PgBytesBuilder<{
+  name: TName;
+  dataType: "buffer";
+  columnType: "PgBytes";
+  data: `0x${string}`;
+  driverParam: Uint8Array;
+  enumValues: undefined;
+  generated: undefined;
+}>;
+
 export class PgHexBuilder<
   T extends ColumnBuilderBaseConfig<"string", "PgHex">,
 > extends PgColumnBuilder<T> {
@@ -42,6 +52,27 @@ export class PgHexBuilder<
   }
 }
 
+export class PgBytesBuilder<
+  T extends ColumnBuilderBaseConfig<"buffer", "PgBytes">,
+> extends PgColumnBuilder<T> {
+  static readonly [entityKind]: string = "PgHexBuilder";
+
+  constructor(name: T["name"]) {
+    super(name, "buffer", "PgBytes");
+  }
+
+  /** @internal */
+  // @ts-ignore
+  override build<TTableName extends string>(
+    table: AnyPgTable<{ name: TTableName }>,
+  ): PgBytes<MakeColumnConfig<T, TTableName>> {
+    return new PgBytes<MakeColumnConfig<T, TTableName>>(
+      table,
+      this.config as ColumnBuilderRuntimeConfig<any, any>,
+    );
+  }
+}
+
 export class PgHex<
   T extends ColumnBaseConfig<"string", "PgHex">,
 > extends PgColumn<T> {
@@ -54,5 +85,15 @@ export class PgHex<
   override mapToDriverValue(value: `0x${string}`) {
     if (value.length % 2 === 0) return value.toLowerCase() as `0x${string}`;
     return `0x0${value.slice(2)}`.toLowerCase() as `0x${string}`;
+  }
+}
+
+export class PgBytes<
+  T extends ColumnBaseConfig<"buffer", "PgBytes">,
+> extends PgColumn<T> {
+  static readonly [entityKind]: string = "PgBytes";
+
+  getSQLType(): string {
+    return "bytea";
   }
 }
