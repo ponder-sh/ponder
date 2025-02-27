@@ -23,6 +23,7 @@ import {
   getPgColumnBuilders,
 } from "drizzle-orm/pg-core/columns/all";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
+import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
 
 // @ts-ignore
@@ -41,6 +42,15 @@ export function bigint<name extends string>(
 ): PgBigintBuilderInitial<name>;
 export function bigint(columnName?: string) {
   return new PgBigintBuilder(columnName ?? "");
+}
+
+// @ts-ignore
+export function bytes(): PgBytesBuilderInitial<"">;
+export function bytes<name extends string>(
+  columnName: name,
+): PgBytesBuilderInitial<name>;
+export function bytes(columnName?: string) {
+  return new PgBytesBuilder(columnName ?? "");
 }
 
 export const onchain = Symbol.for("ponder:onchain");
@@ -102,18 +112,31 @@ type PgColumnsBuilders = Omit<
    */
   hex: typeof hex;
   /**
-   * Create a column for hex strings
+   * Create a column for Ethereum integers
    *
    * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
    *
    * @example
-   * import { hex, onchainTable } from "ponder";
+   * import { bigint, onchainTable } from "ponder";
    *
    * export const account = onchainTable("account", (p) => ({
    *   balance: p.bigint(),
    * }));
    */
   bigint: typeof bigint;
+  /**
+   * Create a column for Ethereum bytes
+   *
+   * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
+   *
+   * @example
+   * import { bytes, onchainTable } from "ponder";
+   *
+   * export const account = onchainTable("account", (p) => ({
+   *   calldata: p.bytes(),
+   * }));
+   */
+  bytes: typeof bytes;
 };
 
 /**
@@ -221,7 +244,7 @@ function pgTableWithSchema<
 
   const parsedColumns: columns =
     typeof columns === "function"
-      ? columns({ ...restColumns, int8, hex, bigint })
+      ? columns({ ...restColumns, int8, hex, bigint, bytes })
       : columns;
 
   const builtColumns = Object.fromEntries(
