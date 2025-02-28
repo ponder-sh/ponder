@@ -36,23 +36,19 @@ export const initialUiState: UiState = {
   },
 };
 
-const renderProgressBar = (
-  current: number,
-  end: number,
-  width = 48,
-): string => {
+const buildProgressBar = (current: number, end: number, width = 48): string => {
   const fraction = current / end;
   const count = Math.min(Math.floor(width * fraction), width);
   return "█".repeat(count) + "░".repeat(width - count);
 };
 
-const renderTable = <TRow extends { [key: string]: any }>(
-  rows: TRow[],
+export const buildTable = (
+  rows: { [key: string]: any }[],
   columns: {
     title: string;
-    key: keyof TRow;
-    align: "left" | "right";
-    format?: (value: any, row: TRow) => string | number;
+    key: string;
+    align: "left" | "right" | string;
+    format?: (value: any, row: { [key: string]: any }) => string | number;
   }[],
 ): string[] => {
   if (rows.length === 0) {
@@ -140,7 +136,7 @@ export const buildUiLines = (ui: UiState): string[] => {
     lines.push("Waiting to start...");
   } else {
     lines.push(
-      ...renderTable(sync, [
+      ...buildTable(sync, [
         {
           title: "Network",
           key: "networkName",
@@ -178,7 +174,7 @@ export const buildUiLines = (ui: UiState): string[] => {
     lines.push("Waiting to start...");
   } else {
     lines.push(
-      ...renderTable(indexing.events, [
+      ...buildTable(indexing.events, [
         { title: "Event", key: "eventName", align: "left" },
         { title: "Count", key: "count", align: "right" },
         {
@@ -201,7 +197,7 @@ export const buildUiLines = (ui: UiState): string[] => {
   lines.push("");
 
   const progressValue = app.mode === "realtime" ? 1 : app.progress;
-  const progressBar = renderProgressBar(progressValue, 1, 48);
+  const progressBar = buildProgressBar(progressValue, 1, 48);
   let progressText = `${progressBar} ${formatPercentage(progressValue)}`;
 
   if (app.eta !== undefined && app.eta !== 0) {

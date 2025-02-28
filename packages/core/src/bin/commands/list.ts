@@ -5,8 +5,8 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
-// import { printTable } from "@/ui/app.js";
-// import { formatEta } from "@/utils/format.js";
+import { buildTable } from "@/ui/app.js";
+import { formatEta } from "@/utils/format.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
 import { pgSchema } from "drizzle-orm/pg-core";
@@ -97,30 +97,39 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   // @ts-ignore
   const result = await unionAll(...queries);
 
-  // printTable({
-  //   columns: [
-  //     { title: "Schema", key: "table_schema", align: "left" },
-  //     { title: "Active", key: "active", align: "right" },
-  //     { title: "Last active", key: "last_active", align: "right" },
-  //     { title: "Table count", key: "table_count", align: "right" },
-  //   ],
-  //   rows: result
-  //     .filter((row) => row.value.is_dev === 0)
-  //     .map((row) => ({
-  //       table_schema: row.schema,
-  //       active:
-  //         row.value.is_locked === 1 &&
-  //         row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
-  //           Date.now()
-  //           ? "yes"
-  //           : "no",
-  //       last_active:
-  //         row.value.is_locked === 1
-  //           ? "---"
-  //           : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
-  //       table_count: row.value.table_names.length,
-  //     })),
-  // });
+  const columns = [
+    { title: "Schema", key: "table_schema", align: "left" },
+    { title: "Active", key: "active", align: "right" },
+    { title: "Last active", key: "last_active", align: "right" },
+    { title: "Table count", key: "table_count", align: "right" },
+  ];
+
+  const rows = result
+    .filter((row) => row.value.is_dev === 0)
+    .map((row) => ({
+      table_schema: row.schema,
+      active:
+        row.value.is_locked === 1 &&
+        row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
+          Date.now()
+          ? "yes"
+          : "no",
+      last_active:
+        row.value.is_locked === 1
+          ? "---"
+          : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
+      table_count: row.value.table_names.length,
+    }));
+
+  if (rows.length === 0) {
+    console.log("No 'ponder start' apps found in this database.\n");
+    await exit({ reason: "Success", code: 0 });
+    return;
+  }
+
+  const lines = buildTable(rows, columns);
+  const text = [...lines, ""].join("\n");
+  console.log(text);
 
   await exit({ reason: "Success", code: 0 });
 }
