@@ -717,7 +717,7 @@ export const createSyncStore = ({
           .selectFrom("rpc_request_results")
           .select("result")
           .where("request_hash", "=", ksql`MD5(${request})`)
-          .where("chain_id", "=", chainId)
+          .where("chain_id", "=", String(chainId))
           .executeTakeFirst();
 
         return result?.result;
@@ -728,11 +728,11 @@ export const createSyncStore = ({
     return database.wrap(
       { method: "pruneRpcRequestResult", includeTraceLogs: true },
       async () => {
-        const numbers = blocks.map(({ number }) => hexToNumber(number));
+        const numbers = blocks.map(({ number }) => String(hexToNumber(number)));
 
         await database.qb.sync
           .deleteFrom("rpc_request_results")
-          .where("chain_id", "=", chainId)
+          .where("chain_id", "=", String(chainId))
           .where("block_number", "in", numbers)
           .execute();
       },

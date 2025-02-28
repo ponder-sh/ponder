@@ -1045,25 +1045,25 @@ test("pruneRpcRequestResult", async (context) => {
 
   await syncStore.insertRpcRequestResult({
     request: "0x1",
-    blockNumber: 1n,
+    blockNumber: 1,
     chainId: 1,
     result: "0x1",
   });
   await syncStore.insertRpcRequestResult({
     request: "0x2",
-    blockNumber: 2n,
+    blockNumber: 2,
     chainId: 1,
     result: "0x2",
   });
   await syncStore.insertRpcRequestResult({
     request: "0x3",
-    blockNumber: 3n,
+    blockNumber: 3,
     chainId: 1,
     result: "0x3",
   });
   await syncStore.insertRpcRequestResult({
     request: "0x4",
-    blockNumber: 4n,
+    blockNumber: 4,
     chainId: 1,
     result: "0x4",
   });
