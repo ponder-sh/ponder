@@ -223,7 +223,7 @@ export const createSync = async (params: {
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
-  initialCheckpoint: string;
+  crashRecoveryCheckpoint: string;
   ordering: "omnichain" | "multichain";
 }): Promise<Sync> => {
   const perNetworkSync = new Map<
@@ -306,16 +306,10 @@ export const createSync = async (params: {
   };
 
   async function* getEvents() {
-    const from =
-      params.initialCheckpoint !== ZERO_CHECKPOINT_STRING
-        ? params.initialCheckpoint
-        : getOmnichainCheckpoint({ tag: "start" })!;
-
     const to = min(
       getOmnichainCheckpoint({ tag: "finalized" })!,
       getOmnichainCheckpoint({ tag: "end" })!,
     );
-    let cursor = from;
 
     const eventGenerators = Array.from(perNetworkSync.entries()).map(
       ([network, { syncProgress, historicalSync }]) => {
@@ -339,18 +333,28 @@ export const createSync = async (params: {
           }
         }
 
-        // Sort out any events between the omnichain finalized checkpoint and the single-chain
-        // finalized checkpoint and add them to pendingEvents. These events are synced during
-        // the historical phase, but must be indexed in the realtime phase because events
-        // synced in realtime on other chains might be ordered before them.
-        async function* sortPendingEvents(
+        async function* sortCompletedAndPendingEvents(
           eventGenerator: AsyncGenerator<{
             events: Event[];
             checkpoint: string;
           }>,
         ) {
           for await (const { events, checkpoint } of eventGenerator) {
-            if (checkpoint > to) {
+            // Sort out any events before the crash recovery checkpoint
+            if (
+              events.length > 0 &&
+              events[0]!.checkpoint < params.crashRecoveryCheckpoint
+            ) {
+              const [, right] = partition(
+                events,
+                (event) => event.checkpoint <= params.crashRecoveryCheckpoint,
+              );
+              yield { events: right, checkpoint };
+              // Sort out any events between the omnichain finalized checkpoint and the single-chain
+              // finalized checkpoint and add them to pendingEvents. These events are synced during
+              // the historical phase, but must be indexed in the realtime phase because events
+              // synced in realtime on other chains might be ordered before them.
+            } else if (checkpoint > to) {
               const [left, right] = partition(
                 events,
                 (event) => event.checkpoint <= to,
@@ -387,22 +391,21 @@ export const createSync = async (params: {
           ),
         });
 
-        // TODO(kyle) handle events before the `from` checkpoint
-
         return bufferAsyncGenerator(
-          sortPendingEvents(decodeEventGenerator(localEventGenerator)),
+          sortCompletedAndPendingEvents(
+            decodeEventGenerator(localEventGenerator),
+          ),
           1,
         );
       },
     );
 
-    for await (const {
-      events,
-      checkpoint,
-    } of mergeAsyncGeneratorsWithEventOrder(eventGenerators)) {
+    for await (const { events } of mergeAsyncGeneratorsWithEventOrder(
+      eventGenerators,
+    )) {
       params.common.logger.debug({
         service: "sync",
-        msg: `Sequenced ${events.length} events for timestamp range [${decodeCheckpoint(cursor).blockTimestamp}, ${decodeCheckpoint(checkpoint).blockTimestamp}]`,
+        msg: `Sequenced ${events.length} events`,
       });
 
       for (const network of params.indexingBuild.networks) {
@@ -410,7 +413,6 @@ export const createSync = async (params: {
       }
 
       yield events;
-      cursor = checkpoint;
     }
   }
 
@@ -554,7 +556,7 @@ export const createSync = async (params: {
 
             params.common.logger.debug({
               service: "sync",
-              msg: `Sequenced ${readyEvents.length} events for timestamp range [${decodeCheckpoint(from).blockTimestamp}, ${decodeCheckpoint(to).blockTimestamp}]`,
+              msg: `Sequenced ${readyEvents.length} events`,
             });
 
             params
@@ -833,7 +835,7 @@ export const createSync = async (params: {
         min(
           getOmnichainCheckpoint({ tag: "end" }),
           getOmnichainCheckpoint({ tag: "finalized" }),
-          params.initialCheckpoint,
+          params.crashRecoveryCheckpoint,
         ),
       ).blockTimestamp,
     };

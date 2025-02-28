@@ -248,7 +248,7 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     [
       {
         "blocks": "{[0,2]}",
-        "chain_id": 1,
+        "chain_id": "1",
         "fragment_id": "block_1_1_0",
       },
     ]
@@ -486,7 +486,7 @@ test("getLocalSyncGenerator()", async (context) => {
     [
       {
         "blocks": "{[0,2]}",
-        "chain_id": 1,
+        "chain_id": "1",
         "fragment_id": "block_1_1_0",
       },
     ]
@@ -573,7 +573,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     [
       {
         "blocks": "{[0,3]}",
-        "chain_id": 1,
+        "chain_id": "1",
         "fragment_id": "block_1_1_0",
       },
     ]
@@ -1006,7 +1006,7 @@ test("createSync()", async (context) => {
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1038,7 +1038,7 @@ test("getEvents() multichain", async (context) => {
     requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1075,7 +1075,7 @@ test("getEvents() omnichain", async (context) => {
     requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "omnichain",
   });
 
@@ -1113,7 +1113,7 @@ test("getEvents() mulitchain updates status", async (context) => {
     requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1151,7 +1151,7 @@ test("getEvents() omnichain updates status", async (context) => {
     requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1189,7 +1189,7 @@ test("getEvents() with initial checkpoint", async (context) => {
     requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: MAX_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: MAX_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1226,7 +1226,7 @@ test.skip("startRealtime()", async (context) => {
     requestQueues: [createRequestQueue({ network, common: context.common })],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1271,7 +1271,7 @@ test("onEvent() multichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1315,7 +1315,7 @@ test("onEvent() omnichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "omnichain",
   });
 
@@ -1361,7 +1361,7 @@ test("onEvent() handles finalize", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1412,7 +1412,7 @@ test("onEvent() kills realtime when finalized", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1456,7 +1456,7 @@ test("onEvent() handles errors", async (context) => {
     onFatalError: () => {
       promise.resolve();
     },
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 

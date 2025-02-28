@@ -20,8 +20,8 @@ import type {
 } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
+  encodeFragment,
   fragmentAddressToId,
-  fragmentToId,
   getAddressFragments,
   getFragments,
 } from "@/sync/fragments.js";
@@ -124,7 +124,7 @@ export const createSyncStore = ({
 
         for (const { filter, interval } of intervals) {
           for (const fragment of getFragments(filter)) {
-            const fragmentId = fragmentToId(fragment.fragment);
+            const fragmentId = encodeFragment(fragment.fragment);
             if (perFragmentIntervals.has(fragmentId) === false) {
               perFragmentIntervals.set(fragmentId, []);
             }
@@ -284,17 +284,17 @@ export const createSyncStore = ({
 
         return database.qb.sync
           .selectFrom("factories")
-          .select(["address", sql<number>`block_number`.as("blockNumber")])
+          .select(["address", "block_number"])
           .where("factory_hash", "=", sql`MD5(${factoryId})`)
           .execute()
           .then((rows) => {
             const result = new Map<Address, number>();
-            for (const { address, blockNumber } of rows) {
+            for (const { address, block_number } of rows) {
               if (
                 result.has(address) === false ||
-                result.get(address)! > blockNumber
+                result.get(address)! > Number(block_number)
               ) {
-                result.set(address, blockNumber);
+                result.set(address, Number(block_number));
               }
             }
             return result;
@@ -507,18 +507,18 @@ export const createSyncStore = ({
         const blocksQ = database.qb.sync
           .selectFrom("blocks")
           .selectAll()
-          .where("chain_id", "=", chainId)
-          .where("number", ">=", fromBlock)
-          .where("number", "<=", toBlock)
+          .where("chain_id", "=", String(chainId))
+          .where("number", ">=", String(fromBlock))
+          .where("number", "<=", String(toBlock))
           .orderBy("number", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
         const transactionsQ = database.qb.sync
           .selectFrom("transactions")
           .selectAll()
-          .where("chain_id", "=", chainId)
-          .where("block_number", ">=", fromBlock)
-          .where("block_number", "<=", toBlock)
+          .where("chain_id", "=", String(chainId))
+          .where("block_number", ">=", String(fromBlock))
+          .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -526,9 +526,9 @@ export const createSyncStore = ({
         const transactionReceiptsQ = database.qb.sync
           .selectFrom("transaction_receipts")
           .selectAll()
-          .where("chain_id", "=", chainId)
-          .where("block_number", ">=", fromBlock)
-          .where("block_number", "<=", toBlock)
+          .where("chain_id", "=", String(chainId))
+          .where("block_number", ">=", String(fromBlock))
+          .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -536,9 +536,9 @@ export const createSyncStore = ({
         const logsQ = database.qb.sync
           .selectFrom("logs")
           .selectAll()
-          .where("chain_id", "=", chainId)
-          .where("block_number", ">=", fromBlock)
-          .where("block_number", "<=", toBlock)
+          .where("chain_id", "=", String(chainId))
+          .where("block_number", ">=", String(fromBlock))
+          .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("log_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -546,9 +546,9 @@ export const createSyncStore = ({
         const tracesQ = database.qb.sync
           .selectFrom("traces")
           .selectAll()
-          .where("chain_id", "=", chainId)
-          .where("block_number", ">=", fromBlock)
-          .where("block_number", "<=", toBlock)
+          .where("chain_id", "=", String(chainId))
+          .where("block_number", ">=", String(fromBlock))
+          .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("trace_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
@@ -741,20 +741,30 @@ export const createSyncStore = ({
   pruneByChain: async ({ chainId }) =>
     database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
       database.qb.sync.transaction().execute(async (tx) => {
-        await tx.deleteFrom("logs").where("chain_id", "=", chainId).execute();
-        await tx.deleteFrom("blocks").where("chain_id", "=", chainId).execute();
         await tx
-          .deleteFrom("rpc_request_results")
-          .where("chain_id", "=", chainId)
+          .deleteFrom("logs")
+          .where("chain_id", "=", String(chainId))
           .execute();
-        await tx.deleteFrom("traces").where("chain_id", "=", chainId).execute();
+        await tx
+          .deleteFrom("blocks")
+          .where("chain_id", "=", String(chainId))
+          .execute();
+
+        await tx
+          .deleteFrom("traces")
+          .where("chain_id", "=", String(chainId))
+          .execute();
         await tx
           .deleteFrom("transactions")
-          .where("chain_id", "=", chainId)
+          .where("chain_id", "=", String(chainId))
           .execute();
         await tx
           .deleteFrom("transaction_receipts")
-          .where("chain_id", "=", chainId)
+          .where("chain_id", "=", String(chainId))
+          .execute();
+        await tx
+          .deleteFrom("factories")
+          .where("chain_id", "=", String(chainId))
           .execute();
       }),
     ),
