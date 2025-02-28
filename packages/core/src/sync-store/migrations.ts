@@ -1,4 +1,6 @@
 import type { Common } from "@/internal/common.js";
+import type { FragmentId } from "@/internal/types.js";
+import { decodeFragment, isFragmentAddressFactory } from "@/sync/fragments.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 
@@ -1556,10 +1558,6 @@ GROUP BY fragment_id, chain_id
         .alterTable("traces")
         .renameColumn("index", "trace_index")
         .execute();
-      // await db.schema
-      //   .alterTable("traces")
-      //   .renameColumn("transactionIndex", "transaction_index")
-      //   .execute();
       await db.schema
         .alterTable("traces")
         .renameColumn("gasUsed", "gas_used")
@@ -1622,7 +1620,60 @@ GROUP BY fragment_id, chain_id
   },
   "2025_02_26_0_factories": {
     async up(db) {
-      // TODO(kyle) truncate intervals with factories
+      const fragmentIds = await db
+        .selectFrom("intervals")
+        .select("fragment_id")
+        .distinct()
+        .execute()
+        .then((r) => r.map((r) => r.fragment_id as FragmentId));
+
+      const deletedFragmentIds: FragmentId[] = [];
+      for (const fragmentId of fragmentIds) {
+        const fragment = decodeFragment(fragmentId);
+
+        switch (fragment.type) {
+          case "block":
+            break;
+          case "transaction":
+            if (
+              isFragmentAddressFactory(fragment.fromAddress) ||
+              isFragmentAddressFactory(fragment.toAddress)
+            ) {
+              deletedFragmentIds.push(fragmentId);
+            }
+            break;
+          case "trace":
+            if (
+              isFragmentAddressFactory(fragment.fromAddress) ||
+              isFragmentAddressFactory(fragment.toAddress)
+            ) {
+              deletedFragmentIds.push(fragmentId);
+            }
+            break;
+          case "log":
+            if (isFragmentAddressFactory(fragment.address)) {
+              deletedFragmentIds.push(fragmentId);
+            }
+            break;
+          case "transfer":
+            if (
+              isFragmentAddressFactory(fragment.fromAddress) ||
+              isFragmentAddressFactory(fragment.toAddress)
+            ) {
+              deletedFragmentIds.push(fragmentId);
+            }
+            break;
+        }
+
+        deletedFragmentIds.push(fragmentId);
+      }
+
+      if (deletedFragmentIds.length > 0) {
+        await db
+          .deleteFrom("intervals")
+          .where("fragment_id", "in", deletedFragmentIds)
+          .execute();
+      }
 
       await db.schema
         .createTable("factories")
@@ -1640,6 +1691,8 @@ GROUP BY fragment_id, chain_id
         .on("factories")
         .column("factory_hash")
         .execute();
+
+      await sql`ANALYZE ponder_sync.factories`.execute(db);
     },
   },
 };

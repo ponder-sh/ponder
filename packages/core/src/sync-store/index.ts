@@ -20,8 +20,8 @@ import type {
 } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
+  encodeFragment,
   fragmentAddressToId,
-  fragmentToId,
   getAddressFragments,
   getFragments,
 } from "@/sync/fragments.js";
@@ -124,7 +124,7 @@ export const createSyncStore = ({
 
         for (const { filter, interval } of intervals) {
           for (const fragment of getFragments(filter)) {
-            const fragmentId = fragmentToId(fragment.fragment);
+            const fragmentId = encodeFragment(fragment.fragment);
             if (perFragmentIntervals.has(fragmentId) === false) {
               perFragmentIntervals.set(fragmentId, []);
             }

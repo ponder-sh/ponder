@@ -16,6 +16,14 @@ import { dedupe } from "@/utils/dedupe.js";
 import type { Address, Hex } from "viem";
 import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 
+export const isFragmentAddressFactory = (
+  fragmentAddress: FragmentAddress,
+): boolean => {
+  if (fragmentAddress === null) return false;
+  if (typeof fragmentAddress === "string") return false;
+  return true;
+};
+
 export const getFragments = (
   filter: FilterWithoutBlocks,
 ): FragmentReturnType => {
@@ -310,7 +318,7 @@ export const fragmentAddressToId = (
   return `${fragmentAddress.address}_${fragmentAddress.eventSelector}_${fragmentAddress.childAddressLocation}`;
 };
 
-export const fragmentToId = (fragment: Fragment): FragmentId => {
+export const encodeFragment = (fragment: Fragment): FragmentId => {
   switch (fragment.type) {
     case "block":
       return `block_${fragment.chainId}_${fragment.interval}_${fragment.offset}`;
@@ -322,6 +330,197 @@ export const fragmentToId = (fragment: Fragment): FragmentId => {
       return `log_${fragment.chainId}_${fragmentAddressToId(fragment.address)}_${fragment.topic0}_${fragment.topic1}_${fragment.topic2}_${fragment.topic3}_${fragment.includeTransactionReceipts ? 1 : 0}`;
     case "transfer":
       return `transfer_${fragment.chainId}_${fragmentAddressToId(fragment.fromAddress)}_${fragmentAddressToId(fragment.toAddress)}_${fragment.includeTransactionReceipts ? 1 : 0}`;
+  }
+};
+
+export const decodeFragment = (fragmentId: FragmentId): Fragment => {
+  const [type, chainId] = fragmentId.split("_");
+
+  const decodeFragmentAddress = (offset: number): FragmentAddress => {
+    const fragmentAddressId = fragmentId.split("_").slice(offset);
+
+    if (fragmentAddressId[0] === "null") {
+      return null;
+    }
+
+    if (fragmentAddressId.length === 1) {
+      return fragmentAddressId[0] as Address;
+    }
+
+    if (
+      fragmentAddressId.length >= 3 &&
+      (fragmentAddressId[2]!.startsWith("topic") ||
+        fragmentAddressId[2]!.startsWith("offset"))
+    ) {
+      return {
+        address: fragmentAddressId[0] as Address,
+        eventSelector: fragmentAddressId[1] as Hex,
+        childAddressLocation:
+          fragmentAddressId[2] as Factory["childAddressLocation"],
+      } satisfies FragmentAddress;
+    }
+
+    return fragmentAddressId[0] as Address;
+  };
+
+  switch (type! as Fragment["type"]) {
+    case "block": {
+      const [, chainId, interval, offset] = fragmentId.split("_");
+      return {
+        type: "block",
+        chainId: Number(chainId),
+        interval: Number(interval),
+        offset: Number(offset),
+      };
+    }
+    case "transaction": {
+      const fragmentFromAddress = decodeFragmentAddress(2);
+      if (isFragmentAddressFactory(fragmentFromAddress)) {
+        const fragmentToAddress = decodeFragmentAddress(5);
+        return {
+          type: "transaction",
+          chainId: Number(chainId),
+          fromAddress: fragmentFromAddress,
+          toAddress: fragmentToAddress,
+        };
+      }
+
+      const fragmentToAddress = decodeFragmentAddress(3);
+      return {
+        type: "transaction",
+        chainId: Number(chainId),
+        fromAddress: fragmentFromAddress,
+        toAddress: fragmentToAddress,
+      };
+    }
+    case "trace": {
+      const fragmentFromAddress = decodeFragmentAddress(2);
+      if (isFragmentAddressFactory(fragmentFromAddress)) {
+        const fragmentToAddress = decodeFragmentAddress(5);
+        if (isFragmentAddressFactory(fragmentToAddress)) {
+          const [, , , , , , , , functionSelector, includeTxr] =
+            fragmentId.split("_");
+          return {
+            type: "trace",
+            chainId: Number(chainId),
+            fromAddress: fragmentFromAddress,
+            toAddress: fragmentToAddress,
+            functionSelector: functionSelector as Hex,
+            includeTransactionReceipts: includeTxr === "1",
+          };
+        }
+        const [, , , , , , functionSelector, includeTxr] =
+          fragmentId.split("_");
+        return {
+          type: "trace",
+          chainId: Number(chainId),
+          fromAddress: fragmentFromAddress,
+          toAddress: fragmentToAddress,
+          functionSelector: functionSelector as Hex,
+          includeTransactionReceipts: includeTxr === "1",
+        };
+      }
+
+      const fragmentToAddress = decodeFragmentAddress(3);
+      if (isFragmentAddressFactory(fragmentToAddress)) {
+        const [, , , , , , functionSelector, includeTxr] =
+          fragmentId.split("_");
+        return {
+          type: "trace",
+          chainId: Number(chainId),
+          fromAddress: fragmentFromAddress,
+          toAddress: fragmentToAddress,
+          functionSelector: functionSelector as Hex,
+          includeTransactionReceipts: includeTxr === "1",
+        };
+      }
+
+      const [, , , , functionSelector, includeTxr] = fragmentId.split("_");
+      return {
+        type: "trace",
+        chainId: Number(chainId),
+        fromAddress: fragmentFromAddress,
+        toAddress: fragmentToAddress,
+        functionSelector: functionSelector as Hex,
+        includeTransactionReceipts: includeTxr === "1",
+      };
+    }
+    case "log": {
+      const fragmentAddress = decodeFragmentAddress(2);
+      if (isFragmentAddressFactory(fragmentAddress)) {
+        const [, , , , , topic0, topic1, topic2, topic3, includeTxr] =
+          fragmentId.split("_");
+        return {
+          type: "log",
+          chainId: Number(chainId),
+          address: fragmentAddress,
+          topic0: topic0! === "null" ? null : (topic0 as Hex),
+          topic1: topic1! === "null" ? null : (topic1 as Hex),
+          topic2: topic2! === "null" ? null : (topic2 as Hex),
+          topic3: topic3! === "null" ? null : (topic3 as Hex),
+          includeTransactionReceipts: includeTxr === "1",
+        };
+      }
+
+      const [, , , topic0, topic1, topic2, topic3, includeTxr] =
+        fragmentId.split("_");
+
+      return {
+        type: "log",
+        chainId: Number(chainId),
+        address: fragmentAddress,
+        topic0: topic0! === "null" ? null : (topic0 as Hex),
+        topic1: topic1! === "null" ? null : (topic1 as Hex),
+        topic2: topic2! === "null" ? null : (topic2 as Hex),
+        topic3: topic3! === "null" ? null : (topic3 as Hex),
+        includeTransactionReceipts: includeTxr === "1",
+      };
+    }
+    case "transfer": {
+      const fragmentFromAddress = decodeFragmentAddress(2);
+      if (isFragmentAddressFactory(fragmentFromAddress)) {
+        const fragmentToAddress = decodeFragmentAddress(5);
+        if (isFragmentAddressFactory(fragmentToAddress)) {
+          const [, , , , , , , , includeTxr] = fragmentId.split("_");
+          return {
+            type: "transfer",
+            chainId: Number(chainId),
+            fromAddress: fragmentFromAddress,
+            toAddress: fragmentToAddress,
+            includeTransactionReceipts: includeTxr === "1",
+          };
+        }
+        const [, , , , , , includeTxr] = fragmentId.split("_");
+        return {
+          type: "transfer",
+          chainId: Number(chainId),
+          fromAddress: fragmentFromAddress,
+          toAddress: fragmentToAddress,
+          includeTransactionReceipts: includeTxr === "1",
+        };
+      }
+
+      const fragmentToAddress = decodeFragmentAddress(3);
+      if (isFragmentAddressFactory(fragmentToAddress)) {
+        const [, , , , , , includeTxr] = fragmentId.split("_");
+        return {
+          type: "transfer",
+          chainId: Number(chainId),
+          fromAddress: fragmentFromAddress,
+          toAddress: fragmentToAddress,
+          includeTransactionReceipts: includeTxr === "1",
+        };
+      }
+
+      const [, , , , includeTxr] = fragmentId.split("_");
+      return {
+        type: "transfer",
+        chainId: Number(chainId),
+        fromAddress: fragmentFromAddress,
+        toAddress: fragmentToAddress,
+        includeTransactionReceipts: includeTxr === "1",
+      };
+    }
   }
 };
 
