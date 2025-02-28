@@ -178,11 +178,7 @@ test("processEvent()", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -200,7 +196,7 @@ test("processEvent()", async (context) => {
     ],
   ).toHaveBeenCalledWith({
     event: {
-      name: "Transfer(address indexed from, address indexed to, uint256 amount)",
+      id: expect.any(String),
       args: expect.any(Object),
       log: expect.any(Object),
       block: expect.any(Object),
@@ -249,10 +245,7 @@ test("processEvents eventCount", async (context) => {
   const topics = encodeEventTopics({
     abi: erc20ABI,
     eventName: "Transfer",
-    args: {
-      from: zeroAddress,
-      to: ALICE,
-    },
+    args: { from: zeroAddress, to: ALICE },
   });
 
   const data = padHex(toHex(parseEther("1")), { size: 32 });
@@ -263,11 +256,7 @@ test("processEvents eventCount", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -469,11 +458,7 @@ test("processEvents() context.client", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -535,11 +520,7 @@ test("processEvents() context.db", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -590,11 +571,7 @@ test("processEvents() metrics", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -650,11 +627,7 @@ test("processEvents() error", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -718,11 +691,7 @@ test("processEvents() error with missing event object properties", async (contex
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);

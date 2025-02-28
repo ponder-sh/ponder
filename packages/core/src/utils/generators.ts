@@ -87,3 +87,18 @@ export async function drainAsyncGenerator<T>(
 
   return result;
 }
+
+/**
+ * Records the total time taken to yield results from an async generator.
+ *
+ * @param asyncGenerator - The async generator to record.
+ * @returns An async generator that yields results from the input generator.
+ */
+export async function* recordAsyncGenerator<T>(
+  asyncGenerator: AsyncGenerator<T>,
+): AsyncGenerator<T> {
+  // TODO(kyle) add metrics
+  for await (const result of asyncGenerator) {
+    yield result;
+  }
+}

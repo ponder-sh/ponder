@@ -38,7 +38,7 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const initialCheckpoint = await database.recoverCheckpoint();
+  const crashRecoveryCheckpoint = await database.recoverCheckpoint();
   await database.migrateSync();
 
   runCodegen({ common });
@@ -64,7 +64,7 @@ export async function run({
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
-    initialCheckpoint,
+    crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
   });
 
@@ -78,7 +78,7 @@ export async function run({
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
-    checkpoint: initialCheckpoint,
+    checkpoint: crashRecoveryCheckpoint,
   });
 
   await database.setStatus(sync.getStatus());
@@ -117,7 +117,7 @@ export async function run({
   common.metrics.start_timestamp = Date.now();
 
   // If the initial checkpoint is zero, we need to run setup events.
-  if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
+  if (crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING) {
     await database.retry(async () => {
       await database.transaction(async (client, tx) => {
         const historicalIndexingStore = createHistoricalIndexingStore({
