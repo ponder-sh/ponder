@@ -490,7 +490,7 @@ test("getChildAddresses()", async (context) => {
 
   expect(addresses).toMatchInlineSnapshot(`
     Map {
-      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => "0",
+      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
     }
   `);
 });
@@ -549,7 +549,7 @@ test("getChildAddresses() distinct", async (context) => {
 
   expect(addresses).toMatchInlineSnapshot(`
     Map {
-      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => "0",
+      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
     }
   `);
 });

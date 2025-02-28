@@ -1360,12 +1360,20 @@ GROUP BY fragment_id, chain_id
         .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
         .execute();
       await db.schema
+        .alterTable("transactionReceipts")
+        .alterColumn("chainId", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
         .alterTable("traces")
         .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
         .execute();
       await db.schema
         .alterTable("traces")
-        .addColumn("transaction_index", "bigint")
+        .alterColumn("chainId", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .addColumn("transaction_index", "integer")
         .execute();
       await db
         .updateTable("traces")
@@ -1374,6 +1382,10 @@ GROUP BY fragment_id, chain_id
       await db.schema
         .alterTable("traces")
         .alterColumn("transaction_index", (col) => col.setNotNull())
+        .execute();
+      await db.schema
+        .alterTable("intervals")
+        .alterColumn("chain_id", (qb) => qb.setDataType("bigint"))
         .execute();
 
       await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
@@ -1677,7 +1689,7 @@ GROUP BY fragment_id, chain_id
 
       await db.schema
         .createTable("factories")
-        .addColumn("id", "int2", (col) =>
+        .addColumn("id", "integer", (col) =>
           col.generatedAlwaysAsIdentity().primaryKey(),
         )
         .addColumn("factory_hash", "text", (col) => col.notNull())

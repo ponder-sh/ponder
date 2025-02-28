@@ -204,7 +204,7 @@ export const createRealtimeSync = (
       }
     }
 
-    // Save ...
+    // Save per block child addresses so that they can be undone in the event of a reorg.
     childAddressesPerBlock.set(hexToNumber(block.number), blockChildAddresses);
 
     /**

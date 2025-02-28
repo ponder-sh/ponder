@@ -23,11 +23,12 @@ import type { Address, Hash, Hex, TransactionReceipt } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
 type PgNumeric = ColumnType<string, string | bigint, string | bigint>;
+type PgBigInt = ColumnType<string, string | number, string | number>;
 
 type BlocksTable = {
-  chain_id: number;
-  number: number;
-  timestamp: number;
+  chain_id: PgBigInt;
+  number: PgBigInt;
+  timestamp: PgBigInt;
   hash: Hash;
   parent_hash: Hash;
   logs_bloom: Hex;
@@ -102,8 +103,8 @@ export const decodeBlock = ({ block }: { block: DbBlock }): InternalBlock => ({
 });
 
 type LogsTable = {
-  chain_id: number;
-  block_number: number;
+  chain_id: PgBigInt;
+  block_number: PgBigInt;
   log_index: number;
   transaction_index: number;
   address: Address;
@@ -142,13 +143,13 @@ export const decodeLog = ({ log }: { log: DbLog }): InternalLog => ({
   data: log.data,
   logIndex: log.log_index,
   removed: false,
-  blockNumber: log.block_number,
+  blockNumber: Number(log.block_number),
   transactionIndex: log.transaction_index,
 });
 
 type TransactionsTable = {
-  chain_id: number;
-  block_number: number;
+  chain_id: PgBigInt;
+  block_number: PgBigInt;
   transaction_index: number;
   hash: Hash;
   from: Address;
@@ -203,7 +204,7 @@ export const encodeTransaction = ({
 export const decodeTransaction = ({
   transaction,
 }: { transaction: DbTransaction }): InternalTransaction => ({
-  blockNumber: transaction.block_number,
+  blockNumber: Number(transaction.block_number),
   transactionIndex: transaction.transaction_index,
   hash: transaction.hash,
   from: transaction.from,
@@ -250,8 +251,8 @@ export const decodeTransaction = ({
 });
 
 type TransactionReceiptsTable = {
-  chain_id: number;
-  block_number: number;
+  chain_id: PgBigInt;
+  block_number: PgBigInt;
   transaction_index: number;
   from: Address;
   to: Address | null;
@@ -292,7 +293,7 @@ export const decodeTransactionReceipt = ({
 }: {
   transactionReceipt: DbTransactionReceipt;
 }): InternalTransactionReceipt => ({
-  blockNumber: transactionReceipt.block_number,
+  blockNumber: Number(transactionReceipt.block_number),
   transactionIndex: transactionReceipt.transaction_index,
   from: transactionReceipt.from,
   to: transactionReceipt.to,
@@ -320,8 +321,8 @@ export const decodeTransactionReceipt = ({
 });
 
 type TracesTable = {
-  chain_id: number;
-  block_number: number;
+  chain_id: PgBigInt;
+  block_number: PgBigInt;
   transaction_index: number;
   trace_index: number;
   from: Address;
@@ -368,7 +369,7 @@ export const encodeTrace = ({
 });
 
 export const decodeTrace = ({ trace }: { trace: DbTrace }): InternalTrace => ({
-  blockNumber: trace.block_number,
+  blockNumber: Number(trace.block_number),
   traceIndex: trace.trace_index,
   transactionIndex: trace.transaction_index,
   from: trace.from,
@@ -400,14 +401,14 @@ type RpcRequestResultsTable = {
 type FactoriesTable = {
   id: ColumnType<number, undefined>;
   factory_hash: string;
-  chain_id: number;
-  block_number: number;
+  chain_id: PgBigInt;
+  block_number: PgBigInt;
   address: Address;
 };
 
 type IntervalTable = {
   fragment_id: FragmentId;
-  chain_id: number;
+  chain_id: PgBigInt;
   blocks: string;
 };
 

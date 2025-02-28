@@ -248,7 +248,7 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     [
       {
         "blocks": "{[0,2]}",
-        "chain_id": 1,
+        "chain_id": "1",
         "fragment_id": "block_1_1_0",
       },
     ]
@@ -486,7 +486,7 @@ test("getLocalSyncGenerator()", async (context) => {
     [
       {
         "blocks": "{[0,2]}",
-        "chain_id": 1,
+        "chain_id": "1",
         "fragment_id": "block_1_1_0",
       },
     ]
@@ -573,7 +573,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     [
       {
         "blocks": "{[0,3]}",
-        "chain_id": 1,
+        "chain_id": "1",
         "fragment_id": "block_1_1_0",
       },
     ]
