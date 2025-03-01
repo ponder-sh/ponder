@@ -4,6 +4,7 @@ import type {
   getSyncProgress,
 } from "@/internal/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import ansi from "ansi-escapes";
 import pc from "picocolors";
 
 export type UiState = {
@@ -208,7 +209,8 @@ export const buildUiLines = (ui: UiState): string[] => {
   lines.push("");
 
   lines.push(pc.bold("API functions"));
-  lines.push(`Server live at http://${hostname}:${port}`);
+  const link = `http://${hostname}:${port}`;
+  lines.push(`${pc.bold("Server live at")} ${ansi.link(link, link)}`);
 
   return lines;
 };
