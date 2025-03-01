@@ -485,8 +485,8 @@ const migrations: Record<string, Migration> = {
     async up(db: Kysely<any>) {
       await db.executeQuery(
         sql`
-        ALTER TABLE ponder_sync.logs 
-        ADD COLUMN IF NOT EXISTS 
+        ALTER TABLE ponder_sync.logs
+        ADD COLUMN IF NOT EXISTS
         checkpoint varchar(75)`.compile(db),
       );
     },
@@ -496,7 +496,7 @@ const migrations: Record<string, Migration> = {
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
       await db.executeQuery(
         sql`
-        CREATE TEMP TABLE cp_vals AS 
+        CREATE TEMP TABLE cp_vals AS
         SELECT
           logs.id,
           (lpad(blocks.timestamp::text, 10, '0') ||
@@ -651,7 +651,7 @@ const migrations: Record<string, Migration> = {
 
       await db.executeQuery(
         sql`
-          CREATE TEMP TABLE bcp_vals AS 
+          CREATE TEMP TABLE bcp_vals AS
           SELECT
             blocks.hash,
             (lpad(blocks.timestamp::text, 10, '0') ||
@@ -857,7 +857,7 @@ const migrations: Record<string, Migration> = {
       await db.executeQuery(
         sql`
 INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
-SELECT 
+SELECT
   CONCAT (
     '{"method":"eth_getbalance","params":["',
     LOWER(SUBSTRING(request, 16)),
@@ -877,7 +877,7 @@ AND ponder_sync."rpcRequestResults"."blockNumber" <= 9223372036854775807;
       await db.executeQuery(
         sql`
 INSERT INTO ponder_sync.rpc_request_results (request, block_number, chain_id, result)
-SELECT 
+SELECT
   CONCAT (
     '{"method":"eth_call","params":[{"data":"',
     LOWER(SUBSTRING(request, 53)),
@@ -1271,6 +1271,31 @@ GROUP BY fragment_id, chain_id
           "request_hash",
           "chain_id",
         ])
+        .execute();
+    },
+  },
+  "2025_03_02_0_chain_id_bigint": {
+    async up(db: Kysely<any>) {
+      // Change chainId columns from integer to bigint in all tables that still use integer type
+
+      await db.schema
+        .alterTable("transactionReceipts")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("chainId", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("intervals")
+        .alterColumn("chain_id", (col) => col.setDataType("int8"))
+        .execute();
+
+      await db.schema
+        .alterTable("rpc_request_results")
+        .alterColumn("chain_id", (col) => col.setDataType("int8"))
         .execute();
     },
   },
