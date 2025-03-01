@@ -4,7 +4,6 @@ import type {
   getSyncProgress,
 } from "@/internal/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
-import ansi from "ansi-escapes";
 import pc from "picocolors";
 
 export type UiState = {
@@ -50,6 +49,7 @@ export const buildTable = (
     key: string;
     align: "left" | "right" | string;
     format?: (value: any, row: { [key: string]: any }) => string | number;
+    maxWidth?: number;
   }[],
 ): string[] => {
   if (rows.length === 0) {
@@ -57,7 +57,7 @@ export const buildTable = (
   }
 
   // Calculate column widths
-  const MAX_COLUMN_WIDTH = 24;
+  const DEFAULT_MAX_COLUMN_WIDTH = 24;
   const columnWidths = columns.map((column) => {
     const formattedRows = rows.map((row) => {
       const value = column.format
@@ -70,7 +70,7 @@ export const buildTable = (
       ...formattedRows.map((val) => val.toString().length),
       column.title.length,
     );
-    return Math.min(maxWidth, MAX_COLUMN_WIDTH);
+    return Math.min(maxWidth, column.maxWidth ?? DEFAULT_MAX_COLUMN_WIDTH);
   });
 
   // Generate header row
@@ -176,7 +176,7 @@ export const buildUiLines = (ui: UiState): string[] => {
   } else {
     lines.push(
       ...buildTable(indexing.events, [
-        { title: "Event", key: "eventName", align: "left" },
+        { title: "Event", key: "eventName", align: "left", maxWidth: 36 },
         { title: "Count", key: "count", align: "right" },
         {
           title: "Duration (ms)",
@@ -209,8 +209,7 @@ export const buildUiLines = (ui: UiState): string[] => {
   lines.push("");
 
   lines.push(pc.bold("API functions"));
-  const link = `http://${hostname}:${port}`;
-  lines.push(`${pc.bold("Server live at")} ${ansi.link(link, link)}`);
+  lines.push(`Server live at http://${hostname}:${port}`);
 
   return lines;
 };

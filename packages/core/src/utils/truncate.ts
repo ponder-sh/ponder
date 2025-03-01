@@ -5,7 +5,7 @@
  * @param maxLength - The maximum length of the truncated string, including the ellipsis. Defaults to 24.
  * @returns The truncated string with ellipsis in the middle if it exceeds the maximum length.
  */
-export const truncateEventName = (string: string, maxLength = 24): string => {
+export const truncateEventName = (string: string, maxLength = 36): string => {
   if (string.length <= maxLength) return string;
 
   const prefixLength = Math.floor(maxLength / 2) - 2; // Keep half the start
