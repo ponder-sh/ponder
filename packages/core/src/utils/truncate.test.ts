@@ -1,21 +1,21 @@
 import { expect } from "vitest";
 import { test } from "vitest";
-import { truncateEventName } from "./truncate.js";
+import { truncate } from "./truncate.js";
 
 test("truncates a long string correctly", () => {
-  expect(truncateEventName("EnergyMarketOrderBookV1Contract", 24)).toBe(
+  expect(truncate("EnergyMarketOrderBookV1Contract", 24)).toBe(
     "EnergyMark...V1Contract",
   );
 });
 
 test("returns the same string if it's within maxLength", () => {
-  expect(truncateEventName("EnergyMarketOrderBookV1Contract", 31)).toBe(
+  expect(truncate("EnergyMarketOrderBookV1Contract", 31)).toBe(
     "EnergyMarketOrderBookV1Contract",
   );
 });
 
 test("truncates a long string correctly with default maxLength", () => {
-  expect(truncateEventName("EnergyMarketOrderBookV1Contract")).toBe(
-    "EnergyMark...V1Contract",
+  expect(truncate("EnergyMarketOrderBookV1Contract:Action")).toBe(
+    "EnergyMarketOrde...1Contract:Action",
   );
 });

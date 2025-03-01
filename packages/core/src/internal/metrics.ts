@@ -1,4 +1,4 @@
-import { truncateEventName } from "@/utils/truncate.js";
+import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
 
 const databaseQueryDurationMs = [
@@ -517,7 +517,7 @@ export async function getIndexingProgress(metrics: MetricsService) {
   }
 
   const events = indexingCompletedEventsMetric.map((m) => {
-    const eventName = truncateEventName(m.labels.event as string);
+    const eventName = truncate(m.labels.event as string);
     const count = m.value;
 
     const durationSum = indexingDurationSum[eventName] ?? 0;

@@ -9,7 +9,6 @@
     "declarationMap": true,
     "sourceMap": true,
 
-    "jsx": "react",
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
