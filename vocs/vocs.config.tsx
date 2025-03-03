@@ -72,12 +72,6 @@ export default defineConfig({
   // },
   // iconUrl: { light: '/favicons/light.png', dark: '/favicons/dark.png' },
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
-  theme: {
-    accentColor: {
-      light: "#0a9fb2",
-      dark: "#10c2d5",
-    },
-  },
   socials: [
     {
       icon: "github",
@@ -91,14 +85,25 @@ export default defineConfig({
       icon: "x",
       link: "https://x.com/ponder_sh",
     },
-    {
-      icon: "warpcast",
-      link: "https://warpcast.com/~/channel/ponder-sh",
-    },
+    // {
+    //   icon: "warpcast",
+    //   link: "https://warpcast.com/~/channel/ponder-sh",
+    // },
   ],
   editLink: {
     pattern: "https://github.com/ponder-sh/ponder/edit/main/vocs/pages/:path",
     text: "Suggest changes to this page",
+  },
+  theme: {
+    accentColor: {
+      light: "#0a9fb2",
+      dark: "#10c2d5",
+    },
+    variables: {
+      content: {
+        width: "calc(70ch + (var(--vocs-content_horizontalPadding) * 2))",
+      },
+    },
   },
 });
 

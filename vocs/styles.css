@@ -2,6 +2,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* CONTENT & SIDEBAR WIDTH */
+:root {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
+}
+
 @theme {
   --color-ponder-50: #39dff2;
   --color-ponder-100: #35cddf;
@@ -38,7 +48,7 @@
 
 /* LOGO SIZING */
 .vocs_NavLogo_logoImage {
-  height: 29%; /* Default: 50% */
+  height: 28%; /* Default: 50% */
 }
 .vocs_DesktopTopNav_logo > a {
   margin-top: 1.5px !important;
@@ -54,4 +64,13 @@
 }
 .vocs_DocsLayout_gutterTop_sticky .vocs_MobileTopNav {
   border-bottom: none;
+}
+
+/* SEARCH BAR */
+.vocs_DesktopTopNav_withLogo {
+  justify-content: end;
+  gap: 0.625rem;
+}
+.vocs_DesktopSearch_search {
+  height: var(--vocs-space_32);
 }
