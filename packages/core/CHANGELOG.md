@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.25
+
+### Patch Changes
+
+- [#1571](https://github.com/ponder-sh/ponder/pull/1571) [`e05716bd35ead4f0a305c2bdd92050d63042f01b`](https://github.com/ponder-sh/ponder/commit/e05716bd35ead4f0a305c2bdd92050d63042f01b) Thanks [@typedarray](https://github.com/typedarray)! - Fixed React 19 compatibility issues in monorepos. Removed `ink` and `react` dependencies, introduced a new terminal UI implementation with the same functionality as before.
+
 ## 0.9.24
 
 ### Patch Changes
