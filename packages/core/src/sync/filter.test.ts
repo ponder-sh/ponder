@@ -87,6 +87,8 @@ test("isLogFactoryMatched()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -140,6 +142,8 @@ test("isLogFilterMatched()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -185,6 +189,8 @@ test("isBlockFilterMatched", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -223,6 +229,8 @@ test("isTransactionFilterMatched()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await transferEth({
@@ -268,6 +276,8 @@ test("isTransferFilterMatched()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { hash } = await transferEth({
@@ -331,6 +341,8 @@ test("isTraceFilterMatched()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });

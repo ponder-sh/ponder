@@ -65,7 +65,14 @@ test("createIndexing()", async (context) => {
       networks,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -85,7 +92,14 @@ test("processSetupEvents() empty", async (context) => {
       networks,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -111,7 +125,14 @@ test("processSetupEvents()", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -157,7 +178,14 @@ test("processEvent()", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -238,7 +266,14 @@ test("processEvents eventCount", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -290,7 +325,12 @@ test("executeSetup() context.client", async (context) => {
     },
   };
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const indexing = createIndexing({
     common,
@@ -337,7 +377,14 @@ test("executeSetup() context.db", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -371,7 +418,14 @@ test("executeSetup() metrics", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -399,7 +453,14 @@ test("executeSetup() error", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -423,7 +484,12 @@ test("processEvents() context.client", async (context) => {
     });
   };
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const indexing = createIndexing({
     common,
@@ -497,7 +563,14 @@ test("processEvents() context.db", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -550,7 +623,14 @@ test("processEvents() metrics", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -602,7 +682,14 @@ test("processEvents() error", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -670,7 +757,14 @@ test("processEvents() error with missing event object properties", async (contex
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
   });
 
@@ -711,7 +805,12 @@ test("ponderActions getBalance()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -734,7 +833,12 @@ test("ponderActions getCode()", async (context) => {
 
   const { address } = await deployErc20({ sender: ALICE });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -763,7 +867,12 @@ test("ponderActions getStorageAt()", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -794,7 +903,12 @@ test("ponderActions readContract()", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -825,7 +939,12 @@ test("ponderActions readContract() blockNumber", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -858,7 +977,12 @@ test.skip("ponderActions multicall()", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+    concurrency: 25,
+    frequency: networks[0]!.maxRequestsPerSecond,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),

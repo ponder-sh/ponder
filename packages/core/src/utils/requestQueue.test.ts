@@ -11,8 +11,10 @@ test("requests", async ({ common }) => {
   const network = getNetwork();
 
   const { request } = createRequestQueue({
-    network: { ...network, maxRequestsPerSecond: 1 },
+    network,
     common,
+    concurrency: 1,
+    frequency: 1,
   });
 
   const chainId = await request({ method: "eth_chainId" });
