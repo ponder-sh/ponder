@@ -1,0 +1,21 @@
+@import "tailwindcss" important;
+
+/* HERO TEXTURE */
+.hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) 0%,
+      #fff 100%
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
+}
+.dark .hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) -20%,
+      #111 100%
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
+}
