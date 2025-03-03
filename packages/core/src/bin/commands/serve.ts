@@ -17,6 +17,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const logger = createLogger({
     level: options.logLevel,
     mode: options.logFormat,
+    useWorker: !options.enableUi,
   });
 
   const [major, minor, _patch] = process.versions.node
