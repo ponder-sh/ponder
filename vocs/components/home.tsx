@@ -14,7 +14,7 @@ const buttonDefaults =
 export function Home() {
   return (
     <main className="w-full max-w-full relative">
-      <div className="max-w-[1180px] mx-auto mt-4 md:mt-16">
+      <div className="max-w-[1180px] mx-auto md:mt-6">
         <div className="w-full flex flex-col justify-between md:flex-row gap-8 p-4 mb-6 md:p-8 rounded-lg text-neutral-950 shadow-sm dark:text-neutral-50 hero-texture">
           <div className="flex flex-col items-start space-y-1.5 max-w-[540px]">
             <p className="pb-4 text-neutral-500 dark:text-neutral-400">
@@ -37,7 +37,7 @@ export function Home() {
                   className={cn([
                     buttonDefaults,
                     "h-10 px-4 py-2",
-                    "flex-grow md:px-10 text-neutral-50 bg-ponder hover:bg-ponder-200/90",
+                    "flex-grow md:px-10 text-neutral-50 bg-ponder-400 hover:bg-ponder-200/90",
                     "inline-flex items-center justify-center",
                   ])}
                 >
@@ -48,7 +48,7 @@ export function Home() {
                   className={cn([
                     buttonDefaults,
                     "h-10 px-4 py-2",
-                    "text-neutral-900 dark:text-neutral-50 bg-white bg-opacity-20 hover:bg-opacity-30",
+                    "text-neutral-900 dark:text-neutral-50 bg-white/20 hover:bg-white/30",
                     "inline-flex items-center justify-center",
                   ])}
                 >
@@ -154,7 +154,7 @@ function Benchmarks({
           <div className="flex flex-col px-4 md:px-8 pt-6 md:pt-8">
             <CardTitle className="mb-6">Benchmarks</CardTitle>
             <div className="flex flex-row justify-start mb-3 gap-3 w-full">
-              <div className="h-[33px] w-[calc((100%-75px)*0.0925)] bg-ponder rounded-[4px]" />
+              <div className="h-[33px] w-[calc((100%-75px)*0.0925)] bg-ponder-400 rounded-[4px]" />
               <p className="pt-[2px]">37s</p>
             </div>
             <div className="flex flex-row justify-start mb-5 gap-3 w-full">
@@ -180,19 +180,19 @@ function Benchmarks({
               RPC Credits
             </div>
 
-            <div className="col-span-1 py-2 pl-4 md:pl-8 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder bg-ponder/10">
+            <div className="col-span-1 py-2 pl-4 md:pl-8 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10">
               Ponder
             </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder bg-ponder/10">
+            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10">
               37s
             </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder bg-ponder/10">
+            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10">
               5s
             </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder bg-ponder/10 hidden md:block">
+            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10 hidden md:block">
               31 MB
             </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b text-ponder bg-ponder/10">
+            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b text-ponder-400 bg-ponder/10">
               108k
             </div>
 
@@ -225,7 +225,7 @@ function Benchmarks({
             href="https://github.com/ponder-sh/ponder/tree/main/benchmarks#readme"
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-ponder hover:text-ponder-50/90"
+            className="text-sm text-ponder-400 hover:text-ponder-50/90"
           >
             Run it yourself →
           </a>
