@@ -490,9 +490,6 @@ export const createSyncStore = ({
     database.wrap(
       { method: "getEventBlockData", includeTraceLogs: true },
       async () => {
-        // TODO(kyle) use relative density heuristics to set
-        // different limits for each query
-
         const shouldQueryBlocks = true;
         const shouldQueryLogs = filters.some((f) => f.type === "log");
         const shouldQueryTraces = filters.some((f) => f.type === "trace");
@@ -504,7 +501,7 @@ export const createSyncStore = ({
           shouldGetTransactionReceipt,
         );
 
-        const blocksQ = database.qb.sync
+        const blocksQuery = database.qb.sync
           .selectFrom("blocks")
           .selectAll()
           .where("chain_id", "=", String(chainId))
@@ -513,7 +510,7 @@ export const createSyncStore = ({
           .orderBy("number", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-        const transactionsQ = database.qb.sync
+        const transactionsQuery = database.qb.sync
           .selectFrom("transactions")
           .selectAll()
           .where("chain_id", "=", String(chainId))
@@ -523,7 +520,7 @@ export const createSyncStore = ({
           .orderBy("transaction_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-        const transactionReceiptsQ = database.qb.sync
+        const transactionReceiptsQuery = database.qb.sync
           .selectFrom("transaction_receipts")
           .selectAll()
           .where("chain_id", "=", String(chainId))
@@ -533,7 +530,7 @@ export const createSyncStore = ({
           .orderBy("transaction_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-        const logsQ = database.qb.sync
+        const logsQuery = database.qb.sync
           .selectFrom("logs")
           .selectAll()
           .where("chain_id", "=", String(chainId))
@@ -543,7 +540,7 @@ export const createSyncStore = ({
           .orderBy("log_index", "asc")
           .$if(limit !== undefined, (qb) => qb.limit(limit!));
 
-        const tracesQ = database.qb.sync
+        const tracesQuery = database.qb.sync
           .selectFrom("traces")
           .selectAll()
           .where("chain_id", "=", String(chainId))
@@ -560,11 +557,13 @@ export const createSyncStore = ({
           logsRows,
           tracesRows,
         ] = await Promise.all([
-          shouldQueryBlocks ? blocksQ.execute() : [],
-          shouldQueryTransactions ? transactionsQ.execute() : [],
-          shouldQueryTransactionReceipts ? transactionReceiptsQ.execute() : [],
-          shouldQueryLogs ? logsQ.execute() : [],
-          shouldQueryTraces ? tracesQ.execute() : [],
+          shouldQueryBlocks ? blocksQuery.execute() : [],
+          shouldQueryTransactions ? transactionsQuery.execute() : [],
+          shouldQueryTransactionReceipts
+            ? transactionReceiptsQuery.execute()
+            : [],
+          shouldQueryLogs ? logsQuery.execute() : [],
+          shouldQueryTraces ? tracesQuery.execute() : [],
         ]);
 
         const supremum = Math.min(

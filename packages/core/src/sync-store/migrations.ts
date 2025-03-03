@@ -1391,27 +1391,10 @@ GROUP BY fragment_id, chain_id
       await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
       await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
       await db.schema.alterTable("logs").dropColumn("id").execute();
-      await db.schema.alterTable("logs").dropColumn("blockHash").execute();
-      await db.schema
-        .alterTable("logs")
-        .dropColumn("transactionHash")
-        .execute();
       await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
       await db.schema
         .alterTable("transactions")
         .dropColumn("checkpoint")
-        .execute();
-      await db.schema
-        .alterTable("transactions")
-        .dropColumn("blockHash")
-        .execute();
-      await db.schema
-        .alterTable("transactionReceipts")
-        .dropColumn("blockHash")
-        .execute();
-      await db.schema
-        .alterTable("transactionReceipts")
-        .dropColumn("transactionHash")
         .execute();
       await db.schema.alterTable("traces").dropColumn("id").execute();
       await db.schema.alterTable("traces").dropColumn("checkpoint").execute();
@@ -1441,6 +1424,14 @@ GROUP BY fragment_id, chain_id
       await db.schema
         .alterTable("logs")
         .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("blockHash", "block_hash")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("transactionHash", "transaction_hash")
         .execute();
       await db.schema
         .alterTable("blocks")
@@ -1508,6 +1499,10 @@ GROUP BY fragment_id, chain_id
         .execute();
       await db.schema
         .alterTable("transactions")
+        .renameColumn("blockHash", "block_hash")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
         .renameColumn("gasPrice", "gas_price")
         .execute();
       await db.schema
@@ -1537,6 +1532,14 @@ GROUP BY fragment_id, chain_id
       await db.schema
         .alterTable("transaction_receipts")
         .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("blockHash", "block_hash")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("transactionHash", "transaction_hash")
         .execute();
       await db.schema
         .alterTable("transaction_receipts")
@@ -1639,7 +1642,7 @@ GROUP BY fragment_id, chain_id
         .execute()
         .then((r) => r.map((r) => r.fragment_id as FragmentId));
 
-      const deletedFragmentIds: FragmentId[] = [];
+      const fragmentIdsToDelete: FragmentId[] = [];
       for (const fragmentId of fragmentIds) {
         const fragment = decodeFragment(fragmentId);
 
@@ -1651,7 +1654,7 @@ GROUP BY fragment_id, chain_id
               isFragmentAddressFactory(fragment.fromAddress) ||
               isFragmentAddressFactory(fragment.toAddress)
             ) {
-              deletedFragmentIds.push(fragmentId);
+              fragmentIdsToDelete.push(fragmentId);
             }
             break;
           case "trace":
@@ -1659,12 +1662,12 @@ GROUP BY fragment_id, chain_id
               isFragmentAddressFactory(fragment.fromAddress) ||
               isFragmentAddressFactory(fragment.toAddress)
             ) {
-              deletedFragmentIds.push(fragmentId);
+              fragmentIdsToDelete.push(fragmentId);
             }
             break;
           case "log":
             if (isFragmentAddressFactory(fragment.address)) {
-              deletedFragmentIds.push(fragmentId);
+              fragmentIdsToDelete.push(fragmentId);
             }
             break;
           case "transfer":
@@ -1672,18 +1675,18 @@ GROUP BY fragment_id, chain_id
               isFragmentAddressFactory(fragment.fromAddress) ||
               isFragmentAddressFactory(fragment.toAddress)
             ) {
-              deletedFragmentIds.push(fragmentId);
+              fragmentIdsToDelete.push(fragmentId);
             }
             break;
         }
 
-        deletedFragmentIds.push(fragmentId);
+        fragmentIdsToDelete.push(fragmentId);
       }
 
-      if (deletedFragmentIds.length > 0) {
+      if (fragmentIdsToDelete.length > 0) {
         await db
           .deleteFrom("intervals")
-          .where("fragment_id", "in", deletedFragmentIds)
+          .where("fragment_id", "in", fragmentIdsToDelete)
           .execute();
       }
 
