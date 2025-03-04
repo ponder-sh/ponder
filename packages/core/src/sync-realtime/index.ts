@@ -116,7 +116,6 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  // let queue: Queue<void, BlockWithEventData & { endClock?: () => number }>;
   let consecutiveErrors = 0;
   let interval: NodeJS.Timeout | undefined;
 
@@ -529,9 +528,10 @@ export const createRealtimeSync = (
 
         const msg = `Encountered unrecoverable '${args.network.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
 
-        args.common.logger.warn({ service: "realtime", msg });
-
-        throw new Error(msg);
+        const error = new Error(msg);
+        args.common.logger.error({ service: "realtime", msg });
+        args.onFatalError(error);
+        return;
       } else {
         remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
           hash: remoteBlock.parentHash,
