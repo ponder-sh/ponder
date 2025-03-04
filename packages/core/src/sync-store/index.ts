@@ -1,6 +1,7 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
+  BlockFilter,
   Factory,
   Filter,
   FilterWithoutBlocks,
@@ -12,13 +13,20 @@ import type {
   InternalTransaction,
   InternalTransactionReceipt,
   LightBlock,
+  LogFilter,
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
 } from "@/internal/types.js";
-import { shouldGetTransactionReceipt } from "@/sync/filter.js";
+import {
+  isAddressFactory,
+  shouldGetTransactionReceipt,
+} from "@/sync/filter.js";
 import {
   encodeFragment,
   fragmentAddressToId,
@@ -26,7 +34,13 @@ import {
   getFragments,
 } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
-import { type SelectQueryBuilder, sql as ksql, sql } from "kysely";
+import {
+  type ExpressionBuilder,
+  type OperandExpression,
+  type SelectQueryBuilder,
+  type SqlBool,
+  sql,
+} from "kysely";
 import type { InsertObject } from "kysely";
 import { type Address, hexToBigInt } from "viem";
 import {
@@ -80,7 +94,7 @@ export type SyncStore = {
     fromBlock: number;
     toBlock: number;
     chainId: number;
-    limit?: number;
+    limit: number;
   }): Promise<{
     blockData: {
       block: InternalBlock;
@@ -148,7 +162,7 @@ export const createSyncStore = ({
           values.push({
             fragment_id: fragmentId,
             chain_id: chainId,
-            blocks: ksql.raw(`nummultirange(${numranges})`),
+            blocks: sql.raw(`nummultirange(${numranges})`),
           });
         }
 
@@ -157,7 +171,7 @@ export const createSyncStore = ({
           .values(values)
           .onConflict((oc) =>
             oc.column("fragment_id").doUpdateSet({
-              blocks: ksql`intervals.blocks + excluded.blocks`,
+              blocks: sql`intervals.blocks + excluded.blocks`,
             }),
           )
           .execute();
@@ -185,14 +199,14 @@ export const createSyncStore = ({
               .selectFrom(
                 database.qb.sync
                   .selectFrom("intervals")
-                  .select(ksql`unnest(blocks)`.as("blocks"))
+                  .select(sql`unnest(blocks)`.as("blocks"))
                   .where("fragment_id", "in", fragment.adjacentIds)
                   .as("unnested"),
               )
               .select([
-                ksql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
-                ksql.raw(`'${i}'`).as("filter"),
-                ksql.raw(`'${j}'`).as("fragment"),
+                sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
+                sql.raw(`'${i}'`).as("filter"),
+                sql.raw(`'${j}'`).as("fragment"),
               ]);
             // @ts-ignore
             query = query === undefined ? _query : query.unionAll(_query);
@@ -490,65 +504,84 @@ export const createSyncStore = ({
     database.wrap(
       { method: "getEventBlockData", includeTraceLogs: true },
       async () => {
+        const logFilters = filters.filter(
+          (f): f is LogFilter => f.type === "log",
+        );
+        const transactionFilters = filters.filter(
+          (f): f is TransactionFilter => f.type === "transaction",
+        );
+        const traceFilters = filters.filter(
+          (f): f is TraceFilter => f.type === "trace",
+        );
+        const transferFilters = filters.filter(
+          (f): f is TransferFilter => f.type === "transfer",
+        );
+
         const shouldQueryBlocks = true;
-        const shouldQueryLogs = filters.some((f) => f.type === "log");
-        const shouldQueryTraces = filters.some((f) => f.type === "trace");
+        const shouldQueryLogs = logFilters.length > 0;
+        const shouldQueryTraces =
+          traceFilters.length > 0 || transferFilters.length > 0;
         const shouldQueryTransactions =
-          filters.some((f) => f.type === "transaction") ||
-          shouldQueryLogs ||
-          shouldQueryTraces;
+          transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
         const shouldQueryTransactionReceipts = filters.some(
           shouldGetTransactionReceipt,
         );
 
         const blocksQuery = database.qb.sync
           .selectFrom("blocks")
+          .where("blocks.chain_id", "=", String(chainId))
+          .where("blocks.number", ">=", String(fromBlock))
+          .where("blocks.number", "<=", String(toBlock))
+          .orderBy("blocks.number", "asc")
           .selectAll()
-          .where("chain_id", "=", String(chainId))
-          .where("number", ">=", String(fromBlock))
-          .where("number", "<=", String(toBlock))
-          .orderBy("number", "asc")
-          .$if(limit !== undefined, (qb) => qb.limit(limit!));
+          .limit(limit);
 
         const transactionsQuery = database.qb.sync
           .selectFrom("transactions")
-          .selectAll()
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
           .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
-          .$if(limit !== undefined, (qb) => qb.limit(limit!));
+          .selectAll()
+          .limit(limit);
 
         const transactionReceiptsQuery = database.qb.sync
           .selectFrom("transaction_receipts")
-          .selectAll()
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
           .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
-          .$if(limit !== undefined, (qb) => qb.limit(limit!));
+          .selectAll()
+          .limit(limit);
 
         const logsQuery = database.qb.sync
           .selectFrom("logs")
+          .where("logs.chain_id", "=", String(chainId))
+          .where("logs.block_number", ">=", String(fromBlock))
+          .where("logs.block_number", "<=", String(toBlock))
+          .orderBy("logs.block_number", "asc")
+          .orderBy("logs.log_index", "asc")
+          .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
           .selectAll()
-          .where("chain_id", "=", String(chainId))
-          .where("block_number", ">=", String(fromBlock))
-          .where("block_number", "<=", String(toBlock))
-          .orderBy("block_number", "asc")
-          .orderBy("log_index", "asc")
-          .$if(limit !== undefined, (qb) => qb.limit(limit!));
+          .limit(limit);
 
         const tracesQuery = database.qb.sync
           .selectFrom("traces")
-          .selectAll()
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
           .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("trace_index", "asc")
-          .$if(limit !== undefined, (qb) => qb.limit(limit!));
+          .where((eb) =>
+            eb.or([
+              ...traceFilters.map((f) => traceFilter(eb, f)),
+              ...transferFilters.map((f) => transferFilter(eb, f)),
+            ]),
+          )
+          .selectAll()
+          .limit(limit);
 
         const [
           blocksRows,
@@ -715,7 +748,7 @@ export const createSyncStore = ({
         const result = await database.qb.sync
           .selectFrom("rpc_request_results")
           .select("result")
-          .where("request_hash", "=", ksql`MD5(${request})`)
+          .where("request_hash", "=", sql`MD5(${request})`)
           .where("chain_id", "=", chainId)
           .executeTakeFirst();
 
@@ -770,3 +803,167 @@ export const createSyncStore = ({
       }),
     ),
 });
+
+const addressFilter = (
+  eb:
+    | ExpressionBuilder<PonderSyncSchema, "logs">
+    | ExpressionBuilder<PonderSyncSchema, "transactions">
+    | ExpressionBuilder<PonderSyncSchema, "traces">,
+  address:
+    | LogFilter["address"]
+    | TransactionFilter["fromAddress"]
+    | TransactionFilter["toAddress"],
+  column: "address" | "from" | "to",
+): OperandExpression<SqlBool> => {
+  if (isAddressFactory(address)) return eb.val(true);
+  // @ts-ignore
+  if (Array.isArray(address)) return eb(column, "in", address);
+  // @ts-ignore
+  if (typeof address === "string") return eb(column, "=", address);
+  return eb.val(true);
+};
+
+const logFilter = (
+  eb: ExpressionBuilder<PonderSyncSchema, "logs">,
+  filter: LogFilter,
+): OperandExpression<SqlBool> => {
+  const conditions: OperandExpression<SqlBool>[] = [];
+
+  for (const idx of [0, 1, 2, 3] as const) {
+    // If it's an array of length 1, collapse it.
+    const raw = filter[`topic${idx}`] ?? null;
+    if (raw === null) continue;
+    const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
+    if (Array.isArray(topic)) {
+      conditions.push(eb.or(topic.map((t) => eb(`logs.topic${idx}`, "=", t))));
+    } else {
+      conditions.push(eb(`logs.topic${idx}`, "=", topic));
+    }
+  }
+
+  conditions.push(addressFilter(eb, filter.address, "address"));
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(eb("logs.block_number", ">=", String(filter.fromBlock!)));
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(eb("logs.block_number", "<=", String(filter.toBlock!)));
+  }
+
+  return eb.and(conditions);
+};
+
+// @ts-expect-error
+const blockFilter = (
+  eb: ExpressionBuilder<PonderSyncSchema, "blocks">,
+  filter: BlockFilter,
+) => {
+  const conditions: OperandExpression<SqlBool>[] = [];
+
+  conditions.push(
+    sql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
+  );
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(eb("blocks.number", ">=", String(filter.fromBlock!)));
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(eb("blocks.number", "<=", String(filter.toBlock!)));
+  }
+
+  return eb.and(conditions);
+};
+
+// @ts-expect-error
+const transactionFilter = (
+  eb: ExpressionBuilder<PonderSyncSchema, "transactions">,
+  filter: TransactionFilter,
+) => {
+  const conditions: OperandExpression<SqlBool>[] = [];
+
+  conditions.push(addressFilter(eb, filter.fromAddress, "from"));
+  conditions.push(addressFilter(eb, filter.toAddress, "to"));
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(
+      eb("transactions.block_number", ">=", String(filter.fromBlock!)),
+    );
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(
+      eb("transactions.block_number", "<=", String(filter.toBlock!)),
+    );
+  }
+
+  return eb.and(conditions);
+};
+
+const transferFilter = (
+  eb: ExpressionBuilder<PonderSyncSchema, "traces">,
+  filter: TransferFilter,
+) => {
+  const conditions: OperandExpression<SqlBool>[] = [];
+
+  conditions.push(addressFilter(eb, filter.fromAddress, "from"));
+  conditions.push(addressFilter(eb, filter.toAddress, "to"));
+
+  if (filter.includeReverted === false) {
+    conditions.push(eb("traces.error", "=", null));
+  }
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(eb("traces.block_number", ">=", String(filter.fromBlock!)));
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(eb("traces.block_number", "<=", String(filter.toBlock!)));
+  }
+
+  return eb.and(conditions);
+};
+
+const traceFilter = (
+  eb: ExpressionBuilder<PonderSyncSchema, "traces">,
+  filter: TraceFilter,
+) => {
+  const conditions: OperandExpression<SqlBool>[] = [];
+
+  conditions.push(addressFilter(eb, filter.fromAddress, "from"));
+  conditions.push(addressFilter(eb, filter.toAddress, "to"));
+
+  if (filter.includeReverted === false) {
+    conditions.push(eb("traces.error", "=", null));
+  }
+
+  if (filter.callType !== undefined) {
+    conditions.push(eb("traces.type", "=", filter.callType));
+  }
+
+  if (filter.functionSelector !== undefined) {
+    if (Array.isArray(filter.functionSelector)) {
+      conditions.push(
+        eb(
+          sql`substring(traces.input from 1 for 10)`,
+          "in",
+          filter.functionSelector,
+        ),
+      );
+    } else {
+      conditions.push(
+        eb(
+          sql`substring(traces.input from 1 for 10)`,
+          "=",
+          filter.functionSelector,
+        ),
+      );
+    }
+  }
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(eb("traces.block_number", ">=", String(filter.fromBlock!)));
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(eb("traces.block_number", "<=", String(filter.toBlock!)));
+  }
+
+  return eb.and(conditions);
+};
