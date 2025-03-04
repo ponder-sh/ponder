@@ -1679,8 +1679,6 @@ GROUP BY fragment_id, chain_id
             }
             break;
         }
-
-        fragmentIdsToDelete.push(fragmentId);
       }
 
       if (fragmentIdsToDelete.length > 0) {
