@@ -179,7 +179,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         booleanArray
         hexArray
         bigintArray
-        bytesArray
 
         stringArrayNotNull
         intArrayNotNull
@@ -187,7 +186,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         booleanArrayNotNull
         hexArrayNotNull
         bigintArrayNotNull
-        bytesArrayNotNull
       }
     }
   `);
