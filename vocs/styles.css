@@ -2,16 +2,6 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* CONTENT & SIDEBAR WIDTH */
-:root {
-  /* Default: 300px */
-  --vocs-sidebar_width: 260px;
-  /* Default: 70ch */
-  --vocs-content_width: calc(
-    74ch + (var(--vocs-content_horizontalPadding) * 2)
-  );
-}
-
 @theme {
   --color-ponder-50: #39dff2;
   --color-ponder-100: #35cddf;
@@ -24,6 +14,25 @@
   --color-ponder-800: #155259;
   --color-ponder-900: #114146;
   --color-ponder-950: #0c2f33;
+}
+
+/* CONTENT & SIDEBAR WIDTH */
+/* Probably a better way to do this */
+:root {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
+}
+:root.dark {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
 }
 
 /* HERO TEXTURE */
@@ -64,6 +73,11 @@
 }
 .vocs_DocsLayout_gutterTop_sticky .vocs_MobileTopNav {
   border-bottom: none;
+}
+
+/* TOP NAV ALIGNMENT */
+.vocs_DesktopTopNav {
+  padding-right: var(--vocs-space_24);
 }
 
 /* SEARCH BAR */

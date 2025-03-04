@@ -1,0 +1,115 @@
+import { Callout } from "vocs/components";
+
+# API functions [Register functions to serve HTTP requests]
+
+<Callout type="tip">
+  This is a low-level reference. For an introduction, visit the
+  [Query](/docs/query/api-functions) section.
+</Callout>
+
+API functions are user-defined TypeScript functions that handle web requests. They allow you to customize the API layer of your app with custom raw SQL queries, data from external sources, and more.
+
+## Hono
+
+API functions are built with [Hono](https://hono.dev/), a fast and lightweight routing framework. Hono supports all standard HTTP methods and an intuitive middleware API. Visit the Hono [documentation](https://hono.dev/) for more details.
+
+| method           | description                          |
+| :--------------- | :----------------------------------- |
+| `get`            | Register a handler for GET requests  |
+| `post`           | Register a handler for POST requests |
+| `use`            | Register middleware for a path       |
+| ...and many more |                                      |
+
+## File requirements
+
+The `src/api/index.ts` file _must_ **default export** a Hono app instance. You can use other files in `src/api/` to organize your code, just be sure to export your final Hono app correctly.
+
+```ts [src/api/index.ts] {1,3,9}
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+
+export default app;
+```
+
+## Database connection
+
+The virtual module `"ponder:api"{:ts}` exports a Drizzle database object that's configured with a read-only connection pool. The `db` object supports the Drizzle [Select](https://orm.drizzle.team/docs/select) and [Query](https://orm.drizzle.team/docs/rqb) APIs.
+
+```ts [src/api/index.ts] {1,8-11}
+import { db } from "ponder:api";
+import { accounts } from "ponder:schema";
+import { Hono } from "hono";
+import { eq } from "ponder";
+
+const app = new Hono();
+
+app.get("/account/:address", async (c) => {
+  const address = c.req.param("address");
+  const account = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.address, address));
+  return c.json(account);
+});
+
+export default app;
+```
+
+## GraphQL middleware
+
+The `graphql` function exported from `"ponder"{:ts}` is a Hono middleware that converts your schema into a performant GraphQL API.
+
+| field      |    type    | description                                                              |
+| :--------- | :--------: | :----------------------------------------------------------------------- |
+| **db**     | `Database` | **Required**. Drizzle database object exported from `"ponder:api"{:ts}`. |
+| **schema** |  `Schema`  | **Required**. Drizzle schema exported from `"ponder:schema"{:ts}`.       |
+
+```ts [src/api/index.ts] {1-3,7-8}
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { graphql } from "ponder";
+import { Hono } from "hono";
+
+const app = new Hono();
+app.use("/", graphql({ db, schema }));
+app.use("/graphql", graphql({ db, schema }));
+
+export default app;
+```
+
+## RPC requests
+
+Use the `publicClients` object exported from `"ponder:api"{:ts}` to make RPC requests. This object includes a Viem [Public Client](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts`.
+
+```ts [src/api/index.ts] {1,8}
+import { publicClients } from "ponder:api";
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/balance/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const balance = await publicClients[8453].getBalance({ address });
+
+  return c.json({ address, balance });
+});
+
+export default app;
+```
+
+## Reserved routes
+
+The following routes are reserved. If you register a route with the same path, the build will fail.
+
+| route      | description                                                                                                      |
+| :--------- | :--------------------------------------------------------------------------------------------------------------- |
+| `/health`  | Returns a `200` status code immediately after the process starts                                                 |
+| `/ready`   | Returns a `200` status code after the instance has completed the backfill and is available to serve HTTP traffic |
+| `/metrics` | Returns Prometheus metrics                                                                                       |
+| `/status`  | Returns indexing status object                                                                                   |

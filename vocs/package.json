@@ -17,7 +17,6 @@
     "vocs": "^1.0.1"
   },
   "devDependencies": {
-    "@types/react": "^19.0.10",
-    "typescript": "^5.8.2"
+    "@types/react": "^19.0.10"
   }
 }

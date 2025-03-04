@@ -6,7 +6,7 @@ export const sidebar = {
       text: "Introduction",
       items: [
         { text: "Getting started", link: "/docs/getting-started" },
-        { text: "System requirements", link: "/docs/system-requirements" },
+        { text: "Installation", link: "/docs/installation" },
         { text: "Migration guide", link: "/docs/migration-guide" },
       ],
     },
@@ -47,6 +47,18 @@ export const sidebar = {
       ],
     },
     {
+      text: "Recipes",
+      items: [
+        { text: "Factory contracts", link: "/docs/recipes/factory-contracts" },
+        { text: "Proxy contracts", link: "/docs/recipes/proxy-contracts" },
+        { text: "Time series data", link: "/docs/recipes/time-series-data" },
+        {
+          text: "Foundry",
+          link: "/docs/recipes/foundry",
+        },
+      ],
+    },
+    {
       text: "Production",
       items: [
         { text: "Introduction", link: "/docs/production" },
@@ -63,47 +75,44 @@ export const sidebar = {
       ],
     },
     {
-      text: "Recipes",
-      items: [
-        { text: "Factory contracts", link: "/docs/recipes/factory-contracts" },
-        { text: "Proxy contracts", link: "/docs/recipes/proxy-contracts" },
-        { text: "Time series data", link: "/docs/recipes/time-series-data" },
-        {
-          text: "With Foundry",
-          link: "/docs/recipes/with-foundry",
-        },
-      ],
-    },
-    {
       text: "API reference",
       items: [
         {
-          text: "ponder.config.ts",
-          link: "/docs/api-reference/ponder.config.ts",
+          text: "ponder",
+          items: [
+            {
+              text: "ponder.config.ts",
+              link: "/docs/api-reference/ponder/config",
+            },
+            {
+              text: "ponder.schema.ts",
+              link: "/docs/api-reference/ponder/schema",
+            },
+            {
+              text: "Indexing functions",
+              link: "/docs/api-reference/ponder/indexing-functions",
+            },
+            {
+              text: "API functions",
+              link: "/docs/api-reference/ponder/api-functions",
+            },
+            {
+              text: "CLI (dev, start, serve)",
+              link: "/docs/api-reference/ponder/cli",
+            },
+          ],
         },
-        {
-          text: "ponder.schema.ts",
-          link: "/docs/api-reference/ponder.schema.ts",
-        },
-        {
-          text: "Indexing functions",
-          link: "/docs/api-reference/indexing-functions",
-        },
-        { text: "API functions", link: "/docs/api-reference/api-functions" },
-        { text: "CLI (dev, start, serve)", link: "/docs/api-reference/cli" },
+        { text: "@ponder/client", link: "/docs/api-reference/ponder-client" },
+        { text: "@ponder/react", link: "/docs/api-reference/ponder-react" },
+        { text: "@ponder/utils", link: "/docs/api-reference/ponder-utils" },
         { text: "create-ponder", link: "/docs/api-reference/create-ponder" },
-        { text: "Logs", link: "/docs/api-reference/logs" },
-        { text: "Metrics", link: "/docs/api-reference/metrics" },
       ],
     },
     {
-      text: "Packages",
+      text: "Advanced",
       items: [
-        { text: "ponder", link: "/docs/packages/ponder" },
-        { text: "@ponder/client", link: "/docs/packages/ponder-client" },
-        { text: "@ponder/react", link: "/docs/packages/ponder-react" },
-        { text: "@ponder/utils", link: "/docs/packages/ponder-utils" },
-        { text: "create-ponder", link: "/docs/packages/create-ponder" },
+        { text: "Logs", link: "/docs/advanced/logs" },
+        { text: "Metrics", link: "/docs/advanced/metrics" },
       ],
     },
   ],
