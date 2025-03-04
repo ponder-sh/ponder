@@ -4,6 +4,7 @@ import type {
   DbTrace,
   DbTransaction,
   DbTransactionReceipt,
+  Factory,
   FragmentId,
   InternalBlock,
   InternalLog,
@@ -23,12 +24,12 @@ import type { Address, Hash, Hex, TransactionReceipt } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
 type PgNumeric = ColumnType<string, string | bigint, string | bigint>;
-type PgBigInt = ColumnType<string, string | number, string | number>;
+type PgInt8 = ColumnType<string, string | number, string | number>;
 
 type BlocksTable = {
-  chain_id: PgBigInt;
-  number: PgBigInt;
-  timestamp: PgBigInt;
+  chain_id: PgInt8;
+  number: PgInt8;
+  timestamp: PgInt8;
   hash: Hash;
   parent_hash: Hash;
   logs_bloom: Hex;
@@ -103,10 +104,12 @@ export const decodeBlock = ({ block }: { block: DbBlock }): InternalBlock => ({
 });
 
 type LogsTable = {
-  chain_id: PgBigInt;
-  block_number: PgBigInt;
+  chain_id: PgInt8;
+  block_number: PgInt8;
   log_index: number;
   transaction_index: number;
+  block_hash: Hash;
+  transaction_hash: Hash;
   address: Address;
   topic0: Hex | null;
   topic1: Hex | null;
@@ -123,6 +126,8 @@ export const encodeLog = ({
   block_number: hexToNumber(log.blockNumber),
   log_index: hexToNumber(log.logIndex),
   transaction_index: hexToNumber(log.transactionIndex),
+  block_hash: log.blockHash,
+  transaction_hash: log.transactionHash,
   address: toLowerCase(log.address),
   topic0: log.topics[0] ? log.topics[0] : null,
   topic1: log.topics[1] ? log.topics[1] : null,
@@ -148,10 +153,11 @@ export const decodeLog = ({ log }: { log: DbLog }): InternalLog => ({
 });
 
 type TransactionsTable = {
-  chain_id: PgBigInt;
-  block_number: PgBigInt;
+  chain_id: PgInt8;
+  block_number: PgInt8;
   transaction_index: number;
   hash: Hash;
+  block_hash: Hash;
   from: Address;
   to: Address | null;
   input: Hex;
@@ -179,6 +185,7 @@ export const encodeTransaction = ({
   block_number: hexToNumber(transaction.blockNumber),
   transaction_index: hexToNumber(transaction.transactionIndex),
   hash: transaction.hash,
+  block_hash: transaction.blockHash,
   from: toLowerCase(transaction.from),
   to: transaction.to ? toLowerCase(transaction.to) : null,
   input: transaction.input,
@@ -251,9 +258,11 @@ export const decodeTransaction = ({
 });
 
 type TransactionReceiptsTable = {
-  chain_id: PgBigInt;
-  block_number: PgBigInt;
+  chain_id: PgInt8;
+  block_number: PgInt8;
   transaction_index: number;
+  transaction_hash: Hash;
+  block_hash: Hash;
   from: Address;
   to: Address | null;
   contract_address: Address | null;
@@ -275,6 +284,8 @@ export const encodeTransactionReceipt = ({
   chain_id: chainId,
   block_number: hexToNumber(transactionReceipt.blockNumber),
   transaction_index: hexToNumber(transactionReceipt.transactionIndex),
+  transaction_hash: transactionReceipt.transactionHash,
+  block_hash: transactionReceipt.blockHash,
   from: toLowerCase(transactionReceipt.from),
   to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,
   contract_address: transactionReceipt.contractAddress
@@ -321,8 +332,8 @@ export const decodeTransactionReceipt = ({
 });
 
 type TracesTable = {
-  chain_id: PgBigInt;
-  block_number: PgBigInt;
+  chain_id: PgInt8;
+  block_number: PgInt8;
   transaction_index: number;
   trace_index: number;
   from: Address;
@@ -392,18 +403,23 @@ type RpcRequestResultsTable = {
   result: string;
 };
 
-type FactoriesTable = {
-  id: ColumnType<number, undefined>;
-  factory_hash: string;
-  chain_id: PgBigInt;
-  block_number: PgBigInt;
-  address: Address;
-};
-
 type IntervalTable = {
   fragment_id: FragmentId;
-  chain_id: PgBigInt;
+  chain_id: PgInt8;
   blocks: string;
+};
+
+type FactoriesTable = {
+  id: ColumnType<number, undefined>;
+  factory: Factory;
+};
+
+type FactoryAddressesTable = {
+  id: ColumnType<number, undefined>;
+  factory_id: number;
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  address: Address;
 };
 
 export type PonderSyncSchema = {
@@ -414,6 +430,7 @@ export type PonderSyncSchema = {
   traces: TracesTable;
 
   rpc_request_results: RpcRequestResultsTable;
-  factories: FactoriesTable;
   intervals: IntervalTable;
+  factories: FactoriesTable;
+  factory_addresses: FactoryAddressesTable;
 };

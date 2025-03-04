@@ -44,7 +44,14 @@ export async function run({
   runCodegen({ common });
 
   const requestQueues = indexingBuild.networks.map((network) =>
-    createRequestQueue({ network, common }),
+    createRequestQueue({
+      network,
+      common,
+      concurrency: Math.floor(
+        common.options.rpcMaxConcurrency / indexingBuild.networks.length,
+      ),
+      frequency: network.maxRequestsPerSecond,
+    }),
   );
 
   const syncStore = createSyncStore({ common, database });

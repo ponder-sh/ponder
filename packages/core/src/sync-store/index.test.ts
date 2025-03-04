@@ -554,6 +554,44 @@ test("getChildAddresses() distinct", async (context) => {
   `);
 });
 
+test("insertChildAddresses()", async (context) => {
+  const { syncStore, database } = await setupDatabaseServices(context);
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { result } = await createPair({ factory: address, sender: ALICE });
+
+  const { config, rawIndexingFunctions } =
+    getPairWithFactoryConfigAndIndexingFunctions({
+      address,
+    });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+  const filter = sources[0]!.filter as LogFilter<Factory>;
+
+  await syncStore.insertChildAddresses({
+    childAddresses: new Map([[filter.address, new Map([[result, 0]])]]),
+    chainId: 1,
+  });
+  await syncStore.insertChildAddresses({
+    childAddresses: new Map([[filter.address, new Map([[result, 3]])]]),
+    chainId: 1,
+  });
+
+  const factories = await database.qb.sync
+    .selectFrom("factories")
+    .selectAll()
+    .execute();
+  const factoryAddresses = await database.qb.sync
+    .selectFrom("factory_addresses")
+    .selectAll()
+    .execute();
+
+  expect(factories).toHaveLength(1);
+  expect(factoryAddresses).toHaveLength(2);
+});
+
 test("insertLogs()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
@@ -561,6 +599,8 @@ test("insertLogs()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -588,6 +628,8 @@ test("insertLogs() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -617,6 +659,8 @@ test("insertBlocks()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -640,6 +684,8 @@ test("insertBlocks() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -664,6 +710,8 @@ test("insertTransactions()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -696,6 +744,8 @@ test("insertTransactions() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -732,6 +782,8 @@ test("insertTransactionReceipts()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -765,6 +817,8 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -802,6 +856,8 @@ test("insertTraces()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -865,6 +921,8 @@ test("insertTraces() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -938,6 +996,8 @@ test("getEvents() returns events", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -997,6 +1057,8 @@ test("getEvents() pagination", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -1088,6 +1150,8 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
