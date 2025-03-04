@@ -94,10 +94,14 @@ export const cachedTransport = ({
             }
           } else {
             const response = await requestQueue.request(body);
-            await syncStore.insertRpcRequestResult({
-              ...cacheKey,
-              result: JSON.stringify(response),
-            });
+            // Note: insertRpcRequestResult errors can be ignored and not awaited, since
+            // the response is already fetched.
+            syncStore
+              .insertRpcRequestResult({
+                ...cacheKey,
+                result: JSON.stringify(response),
+              })
+              .catch(() => {});
             return response;
           }
         } else {
