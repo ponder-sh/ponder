@@ -45,7 +45,7 @@ export class PgBytesBuilder<
    * @deprecated Bytes columns cannot be used as arrays
    */
   override array(): never {
-    throw new Error("Bytes columns cannot be used as arrays");
+    throw new Error("bytes().array() is not supported");
   }
 }
 

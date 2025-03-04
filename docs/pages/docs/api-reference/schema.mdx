@@ -64,6 +64,7 @@ The schema definition API supports most PostgreSQL data types. Here's a quick re
 | `json{:ts}`      | JSON object                                  | `any` or [custom](#json) | `JSON{:sql}`          |
 | `bigint{:ts}`    | Large integer (holds `uint256` and `int256`) | `bigint`                 | `NUMERIC(78,0){:sql}` |
 | `hex{:ts}`       | UTF‐8 character sequence with `0x` prefix    | `0x${string}`            | `TEXT{:sql}`          |
+| `bytes{:ts}`     | Low-level byte array                         | `Uint8Array`             | `bytea{:sql}`         |
 
 ### Column modifiers
 
