@@ -2,7 +2,17 @@ import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
-import { type Hex, type Transport, custom, hexToNumber } from "viem";
+import {
+  type Hex,
+  type Transport,
+  custom,
+  decodeFunctionData,
+  encodeFunctionResult,
+  getAbiItem,
+  hexToNumber,
+  multicall3Abi,
+  toFunctionSelector,
+} from "viem";
 
 /** RPC methods that reference a block. */
 const blockDependentMethods = new Set([
@@ -32,6 +42,10 @@ const nonBlockDependentMethods = new Set([
   "eth_getUncleCountByBlockHash",
 ]);
 
+const MULTICALL_SELECTOR = toFunctionSelector(
+  getAbiItem({ abi: multicall3Abi, name: "aggregate3" }),
+);
+
 export const cachedTransport = ({
   requestQueue,
   syncStore,
@@ -44,7 +58,79 @@ export const cachedTransport = ({
       async request({ method, params }) {
         const body = { method, params };
 
+        // multicall
         if (
+          method === "eth_call" &&
+          params[0]?.data?.startsWith(MULTICALL_SELECTOR)
+        ) {
+          let blockNumber: Hex | "latest" | undefined = undefined;
+          [, blockNumber] = params;
+
+          const multicallData = decodeFunctionData({
+            abi: multicall3Abi,
+            data: params[0]!.data,
+          });
+          // TODO(kyle) handle allowFailure
+          const requests = multicallData.args[0]!.map((call) => ({
+            method: "eth_call",
+            params: [
+              {
+                data: call.callData,
+                to: call.target,
+              },
+              blockNumber,
+            ],
+          })).map((request) =>
+            toLowerCase(JSON.stringify(orderObject(request))),
+          );
+
+          const cachedResults = await Promise.all(
+            requests.map((request) =>
+              syncStore.getRpcRequestResult({
+                request,
+                chainId: chain!.id,
+              }),
+            ),
+          );
+
+          const results = await Promise.all(
+            requests.map((request, index) =>
+              cachedResults[index] === undefined
+                ? requestQueue.request(JSON.parse(request))
+                : cachedResults[index]!,
+            ),
+          );
+
+          for (let i = 0; i < requests.length; i++) {
+            const request = requests[i]!;
+            const result = results[i]!;
+
+            if (cachedResults[i] === undefined) {
+              syncStore
+                .insertRpcRequestResult({
+                  request,
+                  blockNumber:
+                    blockNumber === undefined
+                      ? undefined
+                      : blockNumber === "latest"
+                        ? 0
+                        : hexToNumber(blockNumber),
+                  chainId: chain!.id,
+                  result: JSON.stringify(result),
+                })
+                .catch(() => {});
+            }
+          }
+
+          return encodeFunctionResult({
+            abi: multicall3Abi,
+            functionName: "aggregate3",
+            result: results.map((result) => ({
+              success: true,
+              returnData: result as Hex,
+            })),
+          });
+        } else if (
           blockDependentMethods.has(method) ||
           nonBlockDependentMethods.has(method)
         ) {
@@ -73,18 +159,10 @@ export const cachedTransport = ({
               break;
           }
 
-          const cacheKey = {
-            chainId: chain!.id,
+          const cachedResult = await syncStore.getRpcRequestResult({
             request,
-            blockNumber:
-              blockNumber === undefined
-                ? undefined
-                : blockNumber === "latest"
-                  ? 0
-                  : hexToNumber(blockNumber),
-          };
-
-          const cachedResult = await syncStore.getRpcRequestResult(cacheKey);
+            chainId: chain!.id,
+          });
 
           if (cachedResult !== undefined) {
             try {
@@ -98,7 +176,14 @@ export const cachedTransport = ({
             // the response is already fetched.
             syncStore
               .insertRpcRequestResult({
-                ...cacheKey,
+                chainId: chain!.id,
+                request,
+                blockNumber:
+                  blockNumber === undefined
+                    ? undefined
+                    : blockNumber === "latest"
+                      ? 0
+                      : hexToNumber(blockNumber),
                 result: JSON.stringify(response),
               })
               .catch(() => {});
