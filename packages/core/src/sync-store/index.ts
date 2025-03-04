@@ -27,12 +27,7 @@ import {
   isAddressFactory,
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
-import {
-  encodeFragment,
-  fragmentAddressToId,
-  getAddressFragments,
-  getFragments,
-} from "@/sync/fragments.js";
+import { encodeFragment, getFragments } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import {
   type ExpressionBuilder,
@@ -262,20 +257,12 @@ export const createSyncStore = ({
     await database.wrap(
       { method: "insertChildAddresses", includeTraceLogs: true },
       async () => {
-        const values: InsertObject<PonderSyncSchema, "factories">[] = [];
+        const values: InsertObject<PonderSyncSchema, "factory_addresses">[] =
+          [];
         for (const [factory, addresses] of childAddresses) {
-          const fragmentIds = getAddressFragments(factory)
-            .map(({ fragment }) => fragmentAddressToId(fragment))
-            .sort((a, b) =>
-              a === null ? -1 : b === null ? 1 : a < b ? -1 : 1,
-            );
-          const factoryId = fragmentIds.join("_");
-
-          // Note: factories must be keyed by fragment, then how do we know which address belongs to which fragment
-
           for (const [address, blockNumber] of addresses) {
             values.push({
-              factory_hash: sql`MD5(${factoryId})`,
+              factory_id: sql`(SELECT id FROM factory_insert WHERE factory = ${factory})`,
               chain_id: chainId,
               block_number: blockNumber,
               address: address,
@@ -283,37 +270,62 @@ export const createSyncStore = ({
           }
         }
 
-        await database.qb.sync.insertInto("factories").values(values).execute();
+        await database.qb.sync
+          .with("factory_insert", (qb) =>
+            qb
+              .insertInto("factories")
+              .values(
+                Array.from(childAddresses.keys()).map((factory) => ({
+                  factory,
+                })),
+              )
+              .returningAll()
+              .onConflict((oc) =>
+                oc
+                  .column("factory")
+                  .doUpdateSet({ factory: sql`excluded.factory` }),
+              ),
+          )
+          .insertInto("factory_addresses")
+          .values(values)
+          .execute();
       },
     );
   },
   getChildAddresses: ({ factory }) =>
-    database.wrap(
-      { method: "getChildAddresses", includeTraceLogs: true },
-      () => {
-        const fragmentIds = getAddressFragments(factory)
-          .map(({ fragment }) => fragmentAddressToId(fragment))
-          .sort((a, b) => (a === null ? -1 : b === null ? 1 : a < b ? -1 : 1));
-        const factoryId = fragmentIds.join("_");
-
-        return database.qb.sync
-          .selectFrom("factories")
-          .select(["address", "block_number"])
-          .where("factory_hash", "=", sql`MD5(${factoryId})`)
-          .execute()
-          .then((rows) => {
-            const result = new Map<Address, number>();
-            for (const { address, block_number } of rows) {
-              if (
-                result.has(address) === false ||
-                result.get(address)! > Number(block_number)
-              ) {
-                result.set(address, Number(block_number));
-              }
+    database.wrap({ method: "getChildAddresses", includeTraceLogs: true }, () =>
+      database.qb.sync
+        .with("factory_insert", (qb) =>
+          qb
+            .insertInto("factories")
+            .values({ factory })
+            .returning("id")
+            .onConflict((oc) =>
+              oc
+                .column("factory")
+                .doUpdateSet({ factory: sql`excluded.factory` }),
+            ),
+        )
+        .selectFrom("factory_addresses")
+        .select(["factory_addresses.address", "factory_addresses.block_number"])
+        .where(
+          "factory_addresses.factory_id",
+          "=",
+          sql`(SELECT id FROM factory_insert)`,
+        )
+        .execute()
+        .then((rows) => {
+          const result = new Map<Address, number>();
+          for (const { address, block_number } of rows) {
+            if (
+              result.has(address) === false ||
+              result.get(address)! > Number(block_number)
+            ) {
+              result.set(address, Number(block_number));
             }
-            return result;
-          });
-      },
+          }
+          return result;
+        }),
     ),
   insertLogs: async ({ logs, chainId }) => {
     if (logs.length === 0) return;
@@ -797,7 +809,7 @@ export const createSyncStore = ({
           .where("chain_id", "=", String(chainId))
           .execute();
         await tx
-          .deleteFrom("factories")
+          .deleteFrom("factory_addresses")
           .where("chain_id", "=", String(chainId))
           .execute();
       }),

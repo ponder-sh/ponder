@@ -1693,19 +1693,34 @@ GROUP BY fragment_id, chain_id
         .addColumn("id", "integer", (col) =>
           col.generatedAlwaysAsIdentity().primaryKey(),
         )
-        .addColumn("factory_hash", "text", (col) => col.notNull())
+        .addColumn("factory", "jsonb", (col) => col.notNull().unique())
+        .execute();
+
+      await db.schema
+        .createTable("factory_addresses")
+        .addColumn("id", "integer", (col) =>
+          col.generatedAlwaysAsIdentity().primaryKey(),
+        )
+        .addColumn("factory_id", "integer", (col) => col.notNull())
         .addColumn("chain_id", "bigint", (col) => col.notNull())
         .addColumn("block_number", "bigint", (col) => col.notNull())
         .addColumn("address", "text", (col) => col.notNull())
         .execute();
 
       await db.schema
-        .createIndex("factories_factory_hash_index")
+        .createIndex("factories_factory_index")
         .on("factories")
-        .column("factory_hash")
+        .column("factory")
+        .execute();
+
+      await db.schema
+        .createIndex("factory_addresses_factory_id_index")
+        .on("factory_addresses")
+        .column("factory_id")
         .execute();
 
       await sql`ANALYZE ponder_sync.factories`.execute(db);
+      await sql`ANALYZE ponder_sync.factory_addresses`.execute(db);
     },
   },
 };

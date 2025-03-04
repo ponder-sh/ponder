@@ -4,6 +4,7 @@ import type {
   DbTrace,
   DbTransaction,
   DbTransactionReceipt,
+  Factory,
   FragmentId,
   InternalBlock,
   InternalLog,
@@ -408,18 +409,23 @@ type RpcRequestResultsTable = {
   result: string;
 };
 
-type FactoriesTable = {
-  id: ColumnType<number, undefined>;
-  factory_hash: string;
-  chain_id: PgInt8;
-  block_number: PgInt8;
-  address: Address;
-};
-
 type IntervalTable = {
   fragment_id: FragmentId;
   chain_id: PgInt8;
   blocks: string;
+};
+
+type FactoriesTable = {
+  id: ColumnType<number, undefined>;
+  factory: Factory;
+};
+
+type FactoryAddressesTable = {
+  id: ColumnType<number, undefined>;
+  factory_id: number;
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  address: Address;
 };
 
 export type PonderSyncSchema = {
@@ -430,6 +436,7 @@ export type PonderSyncSchema = {
   traces: TracesTable;
 
   rpc_request_results: RpcRequestResultsTable;
-  factories: FactoriesTable;
   intervals: IntervalTable;
+  factories: FactoriesTable;
+  factory_addresses: FactoryAddressesTable;
 };
