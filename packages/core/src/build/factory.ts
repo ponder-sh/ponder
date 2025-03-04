@@ -17,7 +17,9 @@ export function buildLogFactory({
   chainId: number;
 }): LogFactory {
   const address = Array.isArray(_address)
-    ? dedupe(_address).map(toLowerCase)
+    ? dedupe(_address)
+        .map(toLowerCase)
+        .sort((a, b) => (a < b ? -1 : 1))
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
 

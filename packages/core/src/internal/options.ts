@@ -36,6 +36,8 @@ export type Options = {
   indexingCacheMaxBytes: number;
   indexingCacheEvictRatio: number;
 
+  rpcMaxConcurrency: number;
+
   syncEventsQuerySize: number;
   syncHandoffStaleSeconds: number;
 };
@@ -106,6 +108,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     databaseMaxQueryParameters: 16_000,
 
     factoryAddressCountThreshold: 1_000,
+
+    rpcMaxConcurrency: 256,
 
     // v8.getHeapStatistics().heap_size_limit / 8, bucketed closest to 128, 256, 512, 1024, 2048 mB
     indexingCacheMaxBytes:

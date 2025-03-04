@@ -141,7 +141,7 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) =>
   encodeCheckpoint(a) > encodeCheckpoint(b);
 
 /**
- * Returns true if checkpoint a is greater than or equal to checkpoint b.
+ * Returns true if checkpoint a is greater than or equal to checkpoint b.|
  */
 export const isCheckpointGreaterThanOrEqualTo = (
   a: Checkpoint,

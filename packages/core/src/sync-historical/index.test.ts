@@ -48,6 +48,8 @@ test("createHistoricalSync()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -77,6 +79,8 @@ test("sync() with log filter", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -125,6 +129,8 @@ test("sync() with log filter and transaction receipts", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -156,7 +162,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
   await historicalSync.sync([1, 2]);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
@@ -177,6 +183,8 @@ test("sync() with block filter", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -222,6 +230,8 @@ test("sync() with log factory", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -255,8 +265,13 @@ test("sync() with log factory", async (context) => {
   await historicalSync.sync([1, 3]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const factories = await database.qb.sync
+    .selectFrom("factories")
+    .selectAll()
+    .execute();
 
-  expect(logs).toHaveLength(2);
+  expect(logs).toHaveLength(1);
+  expect(factories).toHaveLength(1);
 
   const intervals = await database.qb.sync
     .selectFrom("intervals")
@@ -273,6 +288,8 @@ test("sync() with trace filter", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -369,6 +386,8 @@ test("sync() with transaction filter", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await transferEth({
@@ -406,7 +425,7 @@ test("sync() with transaction filter", async (context) => {
   expect(transactions).toHaveLength(1);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
@@ -428,6 +447,8 @@ test("sync() with transfer filter", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { hash } = await transferEth({
@@ -508,6 +529,8 @@ test("sync() with many filters", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -564,6 +587,8 @@ test("sync() with cache", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -617,6 +642,8 @@ test("sync() with partial cache", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -723,6 +750,8 @@ test("syncBlock() with cache", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -769,6 +798,8 @@ test("syncAddress() handles many addresses", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   context.common.options.factoryAddressCountThreshold = 10;
@@ -809,6 +840,10 @@ test("syncAddress() handles many addresses", async (context) => {
   await historicalSync.sync([1, 13]);
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  // 11 pair creations and 1 swap
-  expect(logs).toHaveLength(12);
+  const factories = await database.qb.sync
+    .selectFrom("factories")
+    .selectAll()
+    .execute();
+  expect(logs).toHaveLength(1);
+  expect(factories).toHaveLength(11);
 });

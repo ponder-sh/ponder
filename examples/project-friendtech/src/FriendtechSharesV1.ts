@@ -14,7 +14,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
     : event.args.ethAmount - feeAmount;
 
   const tradeEvent = await context.db.insert(schema.tradeEvent).values({
-    id: event.log.id,
+    id: event.id,
     subject: event.args.subject,
     trader: event.args.trader,
     shareAmount: event.args.shareAmount,
