@@ -100,14 +100,13 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       booleanArray: t.boolean().array(),
       hexArray: t.hex().array(),
       bigintArray: t.bigint().array(),
-      // bytesArray: t.bytes().array(),
+
       stringArrayNotNull: t.text().array().notNull(),
       intArrayNotNull: t.integer().array().notNull(),
       floatArrayNotNull: t.doublePrecision().array().notNull(),
       booleanArrayNotNull: t.boolean().array().notNull(),
       hexArrayNotNull: t.hex().array().notNull(),
       bigintArrayNotNull: t.bigint().array().notNull(),
-      // bytesArrayNotNull: t.bytes().array().notNull(),
     })),
   };
 
@@ -142,7 +141,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     booleanArray: [false],
     hexArray: ["0x0"],
     bigintArray: [0n],
-    // bytesArray: [toBytes(zeroAddress)],
 
     stringArrayNotNull: ["0"],
     intArrayNotNull: [0],
@@ -150,7 +148,6 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     booleanArrayNotNull: [false],
     hexArrayNotNull: ["0x0"],
     bigintArrayNotNull: [0n],
-    // bytesArrayNotNull: [toBytes(zeroAddress)],
   });
 
   const graphqlSchema = buildGraphQLSchema({ schema });

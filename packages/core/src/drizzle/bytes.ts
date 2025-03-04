@@ -40,6 +40,13 @@ export class PgBytesBuilder<
       this.config as ColumnBuilderRuntimeConfig<any, any>,
     );
   }
+
+  /**
+   * @deprecated Bytes columns cannot be used as arrays
+   */
+  override array(): never {
+    throw new Error("Bytes columns cannot be used as arrays");
+  }
 }
 
 export class PgBytes<
