@@ -46,7 +46,7 @@ Ponder also includes a few extra column types built specifically for EVM indexin
 | :------------ | :------------------------------------------- | :-------------- | :-------------------- |
 | `bigint{:ts}` | Large integer (holds `uint256` and `int256`) | `bigint`        | `NUMERIC(78,0){:sql}` |
 | `hex{:ts}`    | UTF‐8 character sequence with `0x` prefix    | `0x${string}`   | `TEXT{:sql}`          |
-| `bytes{:ts}`  | Low-level byte array                         | `Uint8Array`    | `bytea{:sql}`         |
+| `bytes{:ts}`  | Byte array                                   | `Uint8Array`    | `bytea{:sql}`         |
 
 <h4 className="text-lg font-semibold mt-10">`bigint`</h4>
 
@@ -78,6 +78,19 @@ import { onchainTable } from "ponder";
 export const accounts = onchainTable("accounts", (t) => ({
   address: t.hex().primaryKey(),
   balance: t.bigint().notNull(),
+}));
+```
+
+<h4 className="text-lg font-semibold mt-10">`bytes`</h4>
+
+The `bytes` column type is useful for low-level byte arrays.
+
+```ts filename="ponder.schema.ts" {4}
+import { onchainTable } from "ponder";
+
+export const accounts = onchainTable("accounts", (t) => ({
+  address: t.hex().primaryKey(),
+  calldata: t.bytes().notNull(),
 }));
 ```
 
