@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
@@ -732,7 +733,10 @@ export const createSyncStore = ({
         await database.qb.sync
           .insertInto("rpc_request_results")
           .values({
-            request_hash: sql`MD5(${request})`,
+            request_hash: crypto
+              .createHash("md5")
+              .update(request)
+              .digest("base64"),
             chain_id: chainId,
             block_number: blockNumber,
             result,
@@ -750,7 +754,11 @@ export const createSyncStore = ({
         const result = await database.qb.sync
           .selectFrom("rpc_request_results")
           .select("result")
-          .where("request_hash", "=", sql`MD5(${request})`)
+          .where(
+            "request_hash",
+            "=",
+            crypto.createHash("md5").update(request).digest("base64"),
+          )
           .where("chain_id", "=", String(chainId))
           .executeTakeFirst();
 
