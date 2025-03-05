@@ -720,13 +720,20 @@ test("revert()", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.delete(account, { address: zeroAddress });
+
+  await database.complete({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
 
   await database.qb.drizzle.transaction(async (tx) => {
     await database.revert({
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
       tx,
     });
   });

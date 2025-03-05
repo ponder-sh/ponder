@@ -30,7 +30,6 @@ import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import {
   type TableConfig,
-  and,
   eq,
   getTableColumns,
   getTableName,
@@ -1289,77 +1288,58 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
       });
     },
     async revert({ checkpoint, tx }) {
-      await this.wrap({ method: "revert", includeTraceLogs: true }, () =>
+      await this.record({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           tables.map(async (table) => {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-            // @ts-ignore
-            const { rows } = await tx.execute<Schema>(
-              sql.raw(
-                `DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}" WHERE checkpoint > '${checkpoint}' RETURNING *`,
-              ),
+            await tx.execute(
+              sql.raw(`
+WITH reverted1 AS (
+  DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > '${checkpoint}' RETURNING *
+), reverted2 AS (
+  SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
+  GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
+), reverted3 AS (
+  SELECT ${Object.values(getTableColumns(table))
+    .map((column) => `reverted1."${getColumnCasing(column, "snake_case")}"`)
+    .join(", ")}, reverted1.operation FROM reverted2
+  INNER JOIN reverted1
+  ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
+  AND reverted2.operation_id = reverted1.operation_id
+), inserted AS (
+  DELETE FROM "${namespace}"."${getTableName(table)}"
+  WHERE ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")} IN (
+    SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(",")} FROM reverted3
+    WHERE operation = 0
+  )
+), updated AS (
+  INSERT INTO  "${namespace}"."${getTableName(table)}"
+  SELECT ${Object.values(getTableColumns(table))
+    .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
+    .join(", ")} FROM reverted3
+  WHERE operation = 1
+  ON CONFLICT (${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")})
+  DO UPDATE SET
+    ${Object.values(getTableColumns(table))
+      .map(
+        (column) =>
+          `"${getColumnCasing(column, "snake_case")}" = EXCLUDED."${getColumnCasing(column, "snake_case")}"`,
+      )
+      .join(", ")}
+), deleted AS (
+  INSERT INTO "${namespace}"."${getTableName(table)}"
+  SELECT ${Object.values(getTableColumns(table))
+    .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
+    .join(", ")} FROM reverted3
+  WHERE operation = 2
+) SELECT * FROM reverted3;`),
             );
-
-            const reversed = rows.sort(
-              // @ts-ignore
-              (a, b) => b.operation_id - a.operation_id,
-            );
-
-            // undo operation
-            for (const log of reversed) {
-              if (log.operation === 0) {
-                // create
-
-                await tx.delete(table).where(
-                  and(
-                    ...primaryKeyColumns.map(({ js, sql }) =>
-                      // @ts-ignore
-                      eq(table[js]!, log[sql]),
-                    ),
-                  ),
-                );
-              } else if (log.operation === 1) {
-                // update
-
-                // @ts-ignore
-                log.operation_id = undefined;
-                // @ts-ignore
-                log.checkpoint = undefined;
-                // @ts-ignore
-                log.operation = undefined;
-                await tx
-                  .update(table)
-                  .set(log)
-                  .where(
-                    and(
-                      ...primaryKeyColumns.map(({ js, sql }) =>
-                        // @ts-ignore
-                        eq(table[js]!, log[sql]),
-                      ),
-                    ),
-                  );
-              } else {
-                // delete
-
-                // @ts-ignore
-                log.operation_id = undefined;
-                // @ts-ignore
-                log.checkpoint = undefined;
-                // @ts-ignore
-                log.operation = undefined;
-                await tx
-                  .insert(table)
-                  .values(log)
-                  .onConflictDoNothing({
-                    target: primaryKeyColumns.map(({ js }) => table[js]!),
-                  });
-              }
-            }
 
             common.logger.info({
               service: "database",
-              msg: `Reverted ${rows.length} unfinalized operations from '${getTableName(table)}'`,
+              msg: `Reverted unfinalized operations from '${getTableName(table)}'`,
             });
           }),
         ),
