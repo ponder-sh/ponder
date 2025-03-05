@@ -1331,7 +1331,7 @@ WITH reverted1 AS (
       )
       .join(", ")}
   RETURNING *
-) SELECT COUNT(*) FROM reverted3 as count;
+) SELECT COUNT(*) FROM reverted1 as count;
 `),
             );
 
