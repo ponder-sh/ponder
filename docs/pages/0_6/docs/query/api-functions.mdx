@@ -173,7 +173,7 @@ ponder.get("/account/:address", async (c) => {
   const account = await c.db
     .select()
     .from(Account)
-    .where(eq(Accout.address, address))
+    .where(eq(Account.address, address))
     .first();
 
   if (account) {
