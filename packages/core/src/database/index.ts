@@ -1331,7 +1331,7 @@ WITH reverted1 AS (
       )
       .join(", ")}
   RETURNING *
-) SELECT (SELECT COUNT(*) FROM updated_or_deleted) + (SELECT COUNT(*) FROM inserted) as count;
+) SELECT COUNT(*) FROM reverted3 as count;
 `),
             );
 
