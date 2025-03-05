@@ -1,5 +1,19 @@
 # ponder
 
+## 0.9.27
+
+### Patch Changes
+
+- [#1582](https://github.com/ponder-sh/ponder/pull/1582) [`8dde38dfbb81777f1ab22fe65ea1166cce1b944f`](https://github.com/ponder-sh/ponder/commit/8dde38dfbb81777f1ab22fe65ea1166cce1b944f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause crash recovery and reorg handling to error for some apps.
+
+## 0.9.26
+
+### Patch Changes
+
+- [#1580](https://github.com/ponder-sh/ponder/pull/1580) [`e601d84bd44c708be9de017fdb393fbf037cebf0`](https://github.com/ponder-sh/ponder/commit/e601d84bd44c708be9de017fdb393fbf037cebf0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed crash behavior when an unrecoverable reorg occurs.
+
+- [#1579](https://github.com/ponder-sh/ponder/pull/1579) [`d87b12a772e1f7f5891ab66bc05afafa24a2a9bb`](https://github.com/ponder-sh/ponder/commit/d87b12a772e1f7f5891ab66bc05afafa24a2a9bb) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `bytes()` column type for low-level byte arrays.
+
 ## 0.9.25
 
 ### Patch Changes
