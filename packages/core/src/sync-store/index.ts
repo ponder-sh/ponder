@@ -101,16 +101,18 @@ export type SyncStore = {
     }[];
     cursor: number;
   }>;
-  insertRpcRequestResult(args: {
-    request: string;
+  insertRpcRequestResults(args: {
+    requests: {
+      request: string;
+      blockNumber: number | undefined;
+      result: string;
+    }[];
     chainId: number;
-    blockNumber: number | undefined;
-    result: string;
   }): Promise<void>;
-  getRpcRequestResult(args: { request: string; chainId: number }): Promise<
-    string | undefined
+  getRpcRequestResults(args: { requests: string[]; chainId: number }): Promise<
+    (string | undefined)[]
   >;
-  pruneRpcRequestResult(args: {
+  pruneRpcRequestResults(args: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
@@ -736,46 +738,55 @@ export const createSyncStore = ({
         return { blockData, cursor };
       },
     ),
-  insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
+  insertRpcRequestResults: async ({ requests, chainId }) =>
     database.wrap(
       { method: "insertRpcRequestResult", includeTraceLogs: true },
       async () => {
+        const values = requests.map(({ request, blockNumber, result }) => ({
+          request_hash: crypto
+            .createHash("md5")
+            .update(request)
+            .digest("base64"),
+          chain_id: chainId,
+          block_number: blockNumber,
+          result,
+        }));
+
         await database.qb.sync
           .insertInto("rpc_request_results")
-          .values({
-            request_hash: crypto
-              .createHash("md5")
-              .update(request)
-              .digest("base64"),
-            chain_id: chainId,
-            block_number: blockNumber,
-            result,
-          })
+          .values(values)
           .onConflict((oc) =>
-            oc.columns(["request_hash", "chain_id"]).doUpdateSet({ result }),
+            oc
+              .columns(["request_hash", "chain_id"])
+              .doUpdateSet({ result: sql`EXCLUDED.result` }),
           )
           .execute();
       },
     ),
-  getRpcRequestResult: async ({ request, chainId }) =>
+  getRpcRequestResults: async ({ requests, chainId }) =>
     database.wrap(
-      { method: "getRpcRequestResult", includeTraceLogs: true },
+      { method: "getRpcRequestResults", includeTraceLogs: true },
       async () => {
+        const requestHashes = requests.map((request) =>
+          crypto.createHash("md5").update(request).digest("base64"),
+        );
+
         const result = await database.qb.sync
           .selectFrom("rpc_request_results")
-          .select("result")
-          .where(
-            "request_hash",
-            "=",
-            crypto.createHash("md5").update(request).digest("base64"),
-          )
+          .select(["request_hash", "result"])
+          .where("request_hash", "in", requestHashes)
           .where("chain_id", "=", String(chainId))
-          .executeTakeFirst();
+          .execute();
 
-        return result?.result;
+        const results = new Map<string, string | undefined>();
+        for (const row of result) {
+          results.set(row.request_hash, row.result);
+        }
+
+        return requestHashes.map((requestHash) => results.get(requestHash));
       },
     ),
-  pruneRpcRequestResult: async ({ blocks, chainId }) => {
+  pruneRpcRequestResults: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
     return database.wrap(
       { method: "pruneRpcRequestResult", includeTraceLogs: true },

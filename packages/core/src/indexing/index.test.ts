@@ -7,7 +7,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import {
   getErc20ConfigAndIndexingFunctions,
   getNetwork,
@@ -962,13 +962,13 @@ test("ponderActions readContract() blockNumber", async (context) => {
   expect(totalSupply).toBe(parseEther("0"));
 });
 
-// Note: Kyle the local chain doesn't have a deployed instance of "multicall3"
-test.skip("ponderActions multicall()", async (context) => {
+test("ponderActions multicall()", async (context) => {
   const { common } = context;
   const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
+  const { address: multicall } = await deployMulticall({ sender: ALICE });
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -988,10 +988,11 @@ test.skip("ponderActions multicall()", async (context) => {
     transport: cachedTransport({ requestQueue, syncStore }),
     chain: networks[0]!.chain,
     // @ts-ignore
-  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
+  }).extend(getPonderActions(() => 3n!)) as ReadOnlyClient;
 
   const [totalSupply] = await client.multicall({
     allowFailure: false,
+    multicallAddress: multicall,
     contracts: [
       {
         abi: erc20ABI,

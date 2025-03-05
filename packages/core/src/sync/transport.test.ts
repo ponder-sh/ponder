@@ -80,8 +80,8 @@ test("request() block dependent method", async (context) => {
 
   expect(response1).toBeDefined();
 
-  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
   const response2 = await transport.request({
     method: "eth_getBlockByNumber",
@@ -129,8 +129,8 @@ test("request() non-block dependent method", async (context) => {
 
   expect(response1).toBeDefined;
 
-  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
   const response2 = await transport.request({
     method: "eth_getTransactionByHash",
@@ -160,8 +160,8 @@ test("request() non-cached method", async (context) => {
     chain: anvil,
   });
 
-  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
-  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
   expect(await transport.request({ method: "eth_blockNumber" })).toBeDefined();
 
