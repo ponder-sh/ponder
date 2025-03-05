@@ -720,13 +720,20 @@ test("revert()", async (context) => {
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
   await database.complete({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.delete(account, { address: zeroAddress });
+
+  await database.complete({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
 
   await database.qb.drizzle.transaction(async (tx) => {
     await database.revert({
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
       tx,
     });
   });
@@ -735,6 +742,72 @@ test("revert()", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+  await context.common.shutdown.kill();
+});
+
+test("revert() with composite primary key", async (context) => {
+  const test = onchainTable(
+    "Test",
+    (p) => ({
+      a: p.integer("A").notNull(),
+      b: p.integer("B").notNull(),
+      c: p.integer("C"),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.a, table.b] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: "public",
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { test },
+      statements: buildSchema({ schema: { test } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc" });
+
+  // setup tables, reorg tables, and metadata checkpoint
+
+  await database.createTriggers();
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { test } },
+    database,
+  });
+
+  await indexingStore.insert(test).values({ a: 1, b: 1 });
+
+  await database.complete({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
+
+  await database.complete({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
+    db: database.qb.drizzle,
+  });
+
+  await database.qb.drizzle.transaction(async (tx) => {
+    await database.revert({
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+      tx,
+    });
+  });
+
+  const rows = await database.qb.drizzle.select().from(test);
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
 
   await context.common.shutdown.kill();
 });
