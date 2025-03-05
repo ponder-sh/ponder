@@ -1314,12 +1314,12 @@ WITH reverted1 AS (
     SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(",")} FROM reverted3
     WHERE operation = 0
   )
-), updated AS (
+), updated_or_deleted AS (
   INSERT INTO  "${namespace}"."${getTableName(table)}"
   SELECT ${Object.values(getTableColumns(table))
     .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
     .join(", ")} FROM reverted3
-  WHERE operation = 1
+  WHERE operation = 1 OR operation = 2
   ON CONFLICT (${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")})
   DO UPDATE SET
     ${Object.values(getTableColumns(table))
@@ -1328,13 +1328,7 @@ WITH reverted1 AS (
           `"${getColumnCasing(column, "snake_case")}" = EXCLUDED."${getColumnCasing(column, "snake_case")}"`,
       )
       .join(", ")}
-), deleted AS (
-  INSERT INTO "${namespace}"."${getTableName(table)}"
-  SELECT ${Object.values(getTableColumns(table))
-    .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
-    .join(", ")} FROM reverted3
-  WHERE operation = 2
-) SELECT * FROM reverted3;`),
+) SELECT;`),
             );
 
             common.logger.info({
