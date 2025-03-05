@@ -1110,32 +1110,32 @@ test("getEventBlockData() pagination", async (context) => {
 test("pruneRpcRequestResult", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertRpcRequestResult({
-    request: "0x1",
-    blockNumber: 1,
+  await syncStore.insertRpcRequestResults({
+    requests: [
+      {
+        request: "0x1",
+        blockNumber: 1,
+        result: "0x1",
+      },
+      {
+        request: "0x2",
+        blockNumber: 2,
+        result: "0x2",
+      },
+      {
+        request: "0x3",
+        blockNumber: 3,
+        result: "0x3",
+      },
+      {
+        request: "0x4",
+        blockNumber: 4,
+        result: "0x4",
+      },
+    ],
     chainId: 1,
-    result: "0x1",
   });
-  await syncStore.insertRpcRequestResult({
-    request: "0x2",
-    blockNumber: 2,
-    chainId: 1,
-    result: "0x2",
-  });
-  await syncStore.insertRpcRequestResult({
-    request: "0x3",
-    blockNumber: 3,
-    chainId: 1,
-    result: "0x3",
-  });
-  await syncStore.insertRpcRequestResult({
-    request: "0x4",
-    blockNumber: 4,
-    chainId: 1,
-    result: "0x4",
-  });
-
-  await syncStore.pruneRpcRequestResult({
+  await syncStore.pruneRpcRequestResults({
     blocks: [{ number: "0x2" }, { number: "0x4" }],
     chainId: 1,
   });

@@ -84,14 +84,10 @@ export const cachedTransport = ({
             toLowerCase(JSON.stringify(orderObject(request))),
           );
 
-          const cachedResults = await Promise.all(
-            requests.map((request) =>
-              syncStore.getRpcRequestResult({
-                request,
-                chainId: chain!.id,
-              }),
-            ),
-          );
+          const cachedResults = await syncStore.getRpcRequestResults({
+            requests,
+            chainId: chain!.id,
+          });
 
           const results = await Promise.all(
             requests.map((request, index) =>
@@ -101,13 +97,13 @@ export const cachedTransport = ({
             ),
           );
 
-          for (let i = 0; i < requests.length; i++) {
-            const request = requests[i]!;
-            const result = results[i]!;
-
-            if (cachedResults[i] === undefined) {
-              syncStore
-                .insertRpcRequestResult({
+          // Note: insertRpcRequestResults errors can be ignored and not awaited, since
+          // the response is already fetched.
+          syncStore
+            .insertRpcRequestResults({
+              requests: requests
+                .map((request, index) => ({
+                  index,
                   request,
                   blockNumber:
                     blockNumber === undefined
@@ -115,20 +111,23 @@ export const cachedTransport = ({
                       : blockNumber === "latest"
                         ? 0
                         : hexToNumber(blockNumber),
-                  chainId: chain!.id,
-                  result: JSON.stringify(result),
-                })
-                .catch(() => {});
-            }
-          }
+                  result: JSON.stringify(results[index]!),
+                }))
+                .filter(({ index }) => cachedResults[index] === undefined),
+              chainId: chain!.id,
+            })
+            .catch(() => {});
 
           return encodeFunctionResult({
             abi: multicall3Abi,
             functionName: "aggregate3",
-            result: results.map((result) => ({
-              success: true,
-              returnData: result as Hex,
-            })),
+            // @ts-ignore
+            result: results.map((result) => [
+              {
+                success: true,
+                returnData: result as Hex,
+              },
+            ]),
           });
         } else if (
           blockDependentMethods.has(method) ||
@@ -159,8 +158,8 @@ export const cachedTransport = ({
               break;
           }
 
-          const cachedResult = await syncStore.getRpcRequestResult({
-            request,
+          const [cachedResult] = await syncStore.getRpcRequestResults({
+            requests: [request],
             chainId: chain!.id,
           });
 
@@ -172,19 +171,23 @@ export const cachedTransport = ({
             }
           } else {
             const response = await requestQueue.request(body);
-            // Note: insertRpcRequestResult errors can be ignored and not awaited, since
+            // Note: insertRpcRequestResults errors can be ignored and not awaited, since
             // the response is already fetched.
             syncStore
-              .insertRpcRequestResult({
+              .insertRpcRequestResults({
+                requests: [
+                  {
+                    request,
+                    blockNumber:
+                      blockNumber === undefined
+                        ? undefined
+                        : blockNumber === "latest"
+                          ? 0
+                          : hexToNumber(blockNumber),
+                    result: JSON.stringify(response),
+                  },
+                ],
                 chainId: chain!.id,
-                request,
-                blockNumber:
-                  blockNumber === undefined
-                    ? undefined
-                    : blockNumber === "latest"
-                      ? 0
-                      : hexToNumber(blockNumber),
-                result: JSON.stringify(response),
               })
               .catch(() => {});
             return response;
