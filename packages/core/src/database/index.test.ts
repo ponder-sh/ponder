@@ -678,6 +678,18 @@ test("complete()", async (context) => {
 });
 
 test("revert()", async (context) => {
+  const test = onchainTable(
+    "Test",
+    (p) => ({
+      a: p.integer("A").notNull(),
+      b: p.integer("B").notNull(),
+      c: p.integer("C"),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.a, table.b] }),
+    }),
+  );
+
   const database = await createDatabase({
     common: context.common,
     namespace: "public",
@@ -685,8 +697,8 @@ test("revert()", async (context) => {
       databaseConfig: context.databaseConfig,
     },
     schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      schema: { account, test },
+      statements: buildSchema({ schema: { account, test } }).statements,
     },
   });
 
@@ -698,7 +710,7 @@ test("revert()", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
-    schemaBuild: { schema: { account } },
+    schemaBuild: { schema: { account, test } },
     database,
   });
 
@@ -742,6 +754,32 @@ test("revert()", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+  await indexingStore.insert(test).values({ a: 1, b: 1 });
+
+  await database.complete({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
+
+  await database.complete({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
+    db: database.qb.drizzle,
+  });
+
+  await database.qb.drizzle.transaction(async (tx) => {
+    await database.revert({
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+      tx,
+    });
+  });
+
+  const rows2 = await database.qb.drizzle.select().from(test);
+
+  expect(rows2).toHaveLength(1);
+  expect(rows2[0]).toStrictEqual({ a: 1, b: 1, c: null });
 
   await context.common.shutdown.kill();
 });

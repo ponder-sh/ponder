@@ -1293,7 +1293,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
           tables.map(async (table) => {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-            await tx.execute(
+            const result = await tx.execute(
               sql.raw(`
 WITH reverted1 AS (
   DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}"
@@ -1309,11 +1309,13 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), inserted AS (
-  DELETE FROM "${namespace}"."${getTableName(table)}"
-  WHERE ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")} IN (
-    SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(",")} FROM reverted3
-    WHERE operation = 0
+  DELETE FROM "${namespace}"."${getTableName(table)}" as t
+  WHERE EXISTS (
+    SELECT * FROM reverted3
+    WHERE ${primaryKeyColumns.map(({ sql }) => `t."${sql}" = reverted3."${sql}"`).join("AND ")}
+    AND OPERATION = 0
   )
+  RETURNING *
 ), updated_or_deleted AS (
   INSERT INTO  "${namespace}"."${getTableName(table)}"
   SELECT ${Object.values(getTableColumns(table))
@@ -1328,12 +1330,15 @@ WITH reverted1 AS (
           `"${getColumnCasing(column, "snake_case")}" = EXCLUDED."${getColumnCasing(column, "snake_case")}"`,
       )
       .join(", ")}
-) SELECT;`),
+  RETURNING *
+) SELECT (SELECT COUNT(*) FROM updated_or_deleted) + (SELECT COUNT(*) FROM inserted) as count;
+`),
             );
 
             common.logger.info({
               service: "database",
-              msg: `Reverted unfinalized operations from '${getTableName(table)}'`,
+              // @ts-ignore
+              msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
             });
           }),
         ),
