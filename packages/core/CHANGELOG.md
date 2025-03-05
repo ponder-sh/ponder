@@ -1,5 +1,11 @@
 # ponder
 
+## 0.9.27
+
+### Patch Changes
+
+- [#1582](https://github.com/ponder-sh/ponder/pull/1582) [`8dde38dfbb81777f1ab22fe65ea1166cce1b944f`](https://github.com/ponder-sh/ponder/commit/8dde38dfbb81777f1ab22fe65ea1166cce1b944f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause crash recovery and reorg handling to error for some apps.
+
 ## 0.9.26
 
 ### Patch Changes
