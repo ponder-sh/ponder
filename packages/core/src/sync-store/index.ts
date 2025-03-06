@@ -62,7 +62,8 @@ export type SyncStore = {
     Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>
   >;
   insertChildAddresses(args: {
-    childAddresses: Map<Factory, Map<Address, number>>;
+    factory: Factory;
+    childAddresses: Map<Address, number>;
     chainId: number;
   }): Promise<void>;
   getChildAddresses(args: { factory: Factory }): Promise<Map<Address, number>>;
@@ -248,13 +249,8 @@ export const createSyncStore = ({
         return result;
       },
     ),
-  insertChildAddresses: async ({ childAddresses, chainId }) => {
-    if (
-      childAddresses.size === 0 ||
-      Array.from(childAddresses.values()).every(
-        (addresses) => addresses.size === 0,
-      )
-    ) {
+  insertChildAddresses: async ({ factory, childAddresses, chainId }) => {
+    if (childAddresses.size === 0) {
       return;
     }
     await database.wrap(
@@ -262,27 +258,21 @@ export const createSyncStore = ({
       async () => {
         const values: InsertObject<PonderSyncSchema, "factory_addresses">[] =
           [];
-        for (const [factory, addresses] of childAddresses) {
-          for (const [address, blockNumber] of addresses) {
-            values.push({
-              factory_id: sql`(SELECT id FROM factory_insert WHERE factory = ${factory})`,
-              chain_id: chainId,
-              block_number: blockNumber,
-              address: address,
-            });
-          }
+        for (const [address, blockNumber] of childAddresses) {
+          values.push({
+            factory_id: sql`(SELECT id FROM factory_insert)`,
+            chain_id: chainId,
+            block_number: blockNumber,
+            address: address,
+          });
         }
 
         await database.qb.sync
           .with("factory_insert", (qb) =>
             qb
               .insertInto("factories")
-              .values(
-                Array.from(childAddresses.keys()).map((factory) => ({
-                  factory,
-                })),
-              )
-              .returningAll()
+              .values({ factory })
+              .returning("id")
               .onConflict((oc) =>
                 oc
                   .column("factory")

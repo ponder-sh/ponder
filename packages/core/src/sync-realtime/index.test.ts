@@ -469,6 +469,8 @@ test("handleBlock() block event with log factory", async (context) => {
         "chainId": 1,
         "childAddressLocation": "topic1",
         "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+        "fromBlock": undefined,
+        "toBlock": undefined,
         "type": "log",
       } => Set {
         "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be",
@@ -482,6 +484,8 @@ test("handleBlock() block event with log factory", async (context) => {
         "chainId": 1,
         "childAddressLocation": "topic1",
         "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+        "fromBlock": undefined,
+        "toBlock": undefined,
         "type": "log",
       } => Set {},
     }
@@ -1027,13 +1031,15 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     blockNumber: 0,
   });
 
+  const spy = vi.fn();
+
   const realtimeSync = createRealtimeSync({
     common,
     network,
     requestQueue,
     sources,
     onEvent: vi.fn(),
-    onFatalError: vi.fn(),
+    onFatalError: spy,
   });
 
   await testClient.mine({ blocks: 3 });
@@ -1059,4 +1065,5 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
+  expect(spy).toHaveBeenCalledWith(expect.any(Error));
 });

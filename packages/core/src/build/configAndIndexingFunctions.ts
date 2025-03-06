@@ -440,6 +440,8 @@ export async function buildConfigAndIndexingFunctions({
             const logFactory = buildLogFactory({
               chainId: network.chainId,
               ...resolvedAddress,
+              fromBlock,
+              toBlock,
             });
 
             const logSources = topicsArray.map(
@@ -617,6 +619,8 @@ export async function buildConfigAndIndexingFunctions({
             const logFactory = buildLogFactory({
               chainId: network.chainId,
               ...resolvedAddress,
+              fromBlock,
+              toBlock,
             });
 
             return [

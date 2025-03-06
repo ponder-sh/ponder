@@ -317,6 +317,8 @@ test("getFragments() factory with topic", () => {
       address: "0xa",
       eventSelector: "0xb",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   });
@@ -361,6 +363,8 @@ test("getFragments() factory with offset", () => {
       address: "0xa",
       eventSelector: "0xb",
       childAddressLocation: "offset64",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   });
@@ -405,6 +409,8 @@ test("getFragments() multiple factories", () => {
       address: ["0xa", "0xb"],
       eventSelector: "0xc",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   });
@@ -492,6 +498,8 @@ test("decodeFragment()", () => {
       address: "0xa",
       eventSelector: "0xc",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     toAddress: "0xb",
     includeReverted: false,
@@ -635,6 +643,8 @@ test("recoverFilter() factory", () => {
       address: "0xa",
       eventSelector: "0xb",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   } satisfies FilterWithoutBlocks;
@@ -663,6 +673,8 @@ test("recoverFilter() multiple factories", () => {
       address: ["0xa", "0xb"],
       eventSelector: "0xc",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   } satisfies FilterWithoutBlocks;

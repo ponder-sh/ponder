@@ -1,4 +1,4 @@
-import { truncateEventName } from "@/utils/truncate.js";
+import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
 
 const databaseQueryDurationMs = [
@@ -25,6 +25,8 @@ export class MetricsService {
     "version" | "major" | "minor" | "patch"
   >;
   ponder_settings_info: prometheus.Gauge<"ordering" | "database" | "command">;
+
+  ponder_historical_phase_duration: prometheus.Gauge<"phase">;
 
   ponder_historical_start_timestamp_seconds: prometheus.Gauge;
   ponder_historical_end_timestamp_seconds: prometheus.Gauge;
@@ -60,6 +62,7 @@ export class MetricsService {
 
   ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
   ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
+  ponder_database_transaction_duration: prometheus.Histogram<"statement">;
 
   ponder_http_server_port: prometheus.Gauge;
   ponder_http_server_active_requests: prometheus.Gauge<"method" | "path">;
@@ -95,6 +98,13 @@ export class MetricsService {
       name: "ponder_settings_info",
       help: "Ponder settings information",
       labelNames: ["ordering", "database", "command"] as const,
+      registers: [this.registry],
+    });
+
+    this.ponder_historical_phase_duration = new prometheus.Gauge({
+      name: "ponder_historical_phase_duration",
+      help: "Duration of individual historical indexing phases",
+      labelNames: ["phase"] as const,
       registers: [this.registry],
     });
 
@@ -253,6 +263,13 @@ export class MetricsService {
       name: "ponder_database_method_error_total",
       help: "Total number of errors encountered during database operations",
       labelNames: ["service", "method"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_database_transaction_duration = new prometheus.Histogram({
+      name: "ponder_database_transaction_duration",
+      help: "Duration of database transaction statements",
+      labelNames: ["statement"] as const,
+      buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
 
@@ -517,7 +534,7 @@ export async function getIndexingProgress(metrics: MetricsService) {
   }
 
   const events = indexingCompletedEventsMetric.map((m) => {
-    const eventName = truncateEventName(m.labels.event as string);
+    const eventName = truncate(m.labels.event as string);
     const count = m.value;
 
     const durationSum = indexingDurationSum[eventName] ?? 0;

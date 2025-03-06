@@ -176,6 +176,8 @@ export type LogFactory = {
   address: Address | Address[];
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
 };
 
 // Fragments

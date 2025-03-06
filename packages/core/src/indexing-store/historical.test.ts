@@ -13,7 +13,7 @@ import {
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
-import { zeroAddress } from "viem";
+import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
 import { createHistoricalIndexingStore } from "./historical.js";
@@ -951,5 +951,46 @@ test("json bigint", async (context) => {
           .insert(schema.account)
           .values({ address: zeroAddress, metadata: { balance: 10n } }),
     ).rejects.toThrowError(BigIntSerializationError);
+  });
+});
+
+test("bytes", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      calldata: t.bytes().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      calldata: toBytes(zeroAddress),
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      calldata: toBytes(zeroAddress),
+    });
   });
 });

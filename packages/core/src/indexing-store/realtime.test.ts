@@ -12,7 +12,7 @@ import {
 } from "@/internal/errors.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
-import { zeroAddress } from "viem";
+import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createRealtimeIndexingStore } from "./realtime.js";
 
@@ -723,5 +723,38 @@ test("bigint array", async (context) => {
   expect(result).toStrictEqual({
     address: zeroAddress,
     balances: [1n, BIGINT_LARGE, BIGINT_MAX],
+  });
+});
+
+test("bytes", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      calldata: t.bytes().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    calldata: toBytes(zeroAddress),
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    calldata: toBytes(zeroAddress),
   });
 });
