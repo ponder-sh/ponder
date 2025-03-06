@@ -7,6 +7,8 @@ import {
   type Transport,
   custom,
   decodeFunctionData,
+  decodeFunctionResult,
+  encodeFunctionData,
   encodeFunctionResult,
   getAbiItem,
   hexToNumber,
@@ -70,7 +72,6 @@ export const cachedTransport = ({
             abi: multicall3Abi,
             data: params[0]!.data,
           });
-          // TODO(kyle) handle allowFailure
           const requests = multicallData.args[0]!.map((call) => ({
             method: "eth_call",
             params: [
@@ -84,26 +85,62 @@ export const cachedTransport = ({
             toLowerCase(JSON.stringify(orderObject(request))),
           );
 
+          if (requests.length === 0) {
+            return encodeFunctionResult({
+              abi: multicall3Abi,
+              functionName: "aggregate3",
+              // @ts-expect-error known issue in viem
+              result: [[]],
+            });
+          }
+
           const cachedResults = await syncStore.getRpcRequestResults({
             requests,
             chainId: chain!.id,
           });
 
-          const results = await Promise.all(
-            requests.map((request, index) =>
-              cachedResults[index] === undefined
-                ? requestQueue.request(JSON.parse(request))
-                : cachedResults[index]!,
-            ),
-          );
+          const multicallResult = await requestQueue
+            .request({
+              method: "eth_call",
+              params: [
+                {
+                  to: params[0]!.to,
+                  data: encodeFunctionData({
+                    abi: multicall3Abi,
+                    functionName: "aggregate3",
+                    args: [
+                      multicallData.args[0]!.filter(
+                        (_, index) => cachedResults[index] === undefined,
+                      ),
+                    ],
+                  }),
+                },
+                blockNumber!,
+              ],
+            })
+            .then((result) =>
+              decodeFunctionResult({
+                abi: multicall3Abi,
+                functionName: "aggregate3",
+                data: result,
+              }),
+            );
 
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
           syncStore
             .insertRpcRequestResults({
               requests: requests
+                .filter((_, index) => cachedResults[index] === undefined)
                 .map((request, index) => ({
-                  index,
+                  request,
+                  result: multicallResult[index]!,
+                }))
+                // Note: we don't cache request that failed or returned "0x". See more about "0x" below.
+                .filter(
+                  ({ result }) => result?.success && result.returnData !== "0x",
+                )
+                .map(({ request, result }) => ({
                   request,
                   blockNumber:
                     blockNumber === undefined
@@ -111,23 +148,32 @@ export const cachedTransport = ({
                       : blockNumber === "latest"
                         ? 0
                         : hexToNumber(blockNumber),
-                  result: JSON.stringify(results[index]!),
-                }))
-                .filter(({ index }) => cachedResults[index] === undefined),
+                  result: JSON.stringify(result.returnData),
+                })),
               chainId: chain!.id,
             })
             .catch(() => {});
 
+          // Note: at this point, it is an invariant that either `allowFailure` is true or
+          // there are no failed requests.
+
+          let multicallIndex = 0;
+
           return encodeFunctionResult({
             abi: multicall3Abi,
             functionName: "aggregate3",
-            // @ts-ignore
-            result: results.map((result) => [
-              {
-                success: true,
-                returnData: result as Hex,
-              },
-            ]),
+            result: [
+              // @ts-expect-error known issue in viem
+              cachedResults.map((result) => {
+                if (result === undefined) {
+                  return multicallResult[multicallIndex++]!;
+                }
+                return {
+                  success: true,
+                  returnData: JSON.parse(result) as Hex,
+                };
+              }),
+            ],
           });
         } else if (
           blockDependentMethods.has(method) ||

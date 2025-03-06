@@ -728,8 +728,9 @@ export const createSyncStore = ({
         return { blockData, cursor };
       },
     ),
-  insertRpcRequestResults: async ({ requests, chainId }) =>
-    database.wrap(
+  insertRpcRequestResults: async ({ requests, chainId }) => {
+    if (requests.length === 0) return;
+    return database.wrap(
       { method: "insertRpcRequestResult", includeTraceLogs: true },
       async () => {
         const values = requests.map(({ request, blockNumber, result }) => ({
@@ -752,7 +753,8 @@ export const createSyncStore = ({
           )
           .execute();
       },
-    ),
+    );
+  },
   getRpcRequestResults: async ({ requests, chainId }) =>
     database.wrap(
       { method: "getRpcRequestResults", includeTraceLogs: true },
