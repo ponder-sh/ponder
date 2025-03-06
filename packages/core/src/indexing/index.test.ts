@@ -999,6 +999,11 @@ test("ponderActions multicall()", async (context) => {
         functionName: "totalSupply",
         address,
       },
+      {
+        abi: erc20ABI,
+        functionName: "totalSupply",
+        address,
+      },
     ],
   });
 

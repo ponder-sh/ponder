@@ -1,4 +1,5 @@
 import { ALICE } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupCleanup,
@@ -6,10 +7,17 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { type Transport, parseEther } from "viem";
+import {
+  type Hex,
+  type Transport,
+  decodeFunctionResult,
+  encodeFunctionData,
+  multicall3Abi,
+  parseEther,
+} from "viem";
 import { toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 import { cachedTransport } from "./transport.js";
@@ -167,4 +175,180 @@ test("request() non-cached method", async (context) => {
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(0);
+});
+
+test("request() multicall", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
+
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const transport = cachedTransport({
+    requestQueue,
+    syncStore,
+  })({
+    chain: anvil,
+  });
+
+  const { address: multicall } = await deployMulticall({ sender: ALICE });
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const response1 = await transport.request({
+    method: "eth_call",
+    params: [
+      {
+        to: multicall,
+        data: encodeFunctionData({
+          abi: multicall3Abi,
+          functionName: "aggregate3",
+          args: [
+            [
+              {
+                target: address,
+                allowFailure: false,
+                callData: encodeFunctionData({
+                  abi: erc20ABI,
+                  functionName: "totalSupply",
+                }),
+              },
+            ],
+          ],
+        }),
+      },
+      "latest",
+    ],
+  });
+
+  expect(response1).toBeDefined();
+
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
+
+  let result = decodeFunctionResult({
+    abi: multicall3Abi,
+    functionName: "aggregate3",
+    data: response1 as Hex,
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    [
+      {
+        "returnData": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "success": true,
+      },
+    ]
+  `);
+
+  const response2 = await transport.request({
+    method: "eth_call",
+    params: [
+      {
+        to: multicall,
+        data: encodeFunctionData({
+          abi: multicall3Abi,
+          functionName: "aggregate3",
+          args: [
+            [
+              {
+                target: address,
+                allowFailure: false,
+                callData: encodeFunctionData({
+                  abi: erc20ABI,
+                  functionName: "totalSupply",
+                }),
+              },
+              {
+                target: address,
+                allowFailure: false,
+                callData: encodeFunctionData({
+                  abi: erc20ABI,
+                  functionName: "balanceOf",
+                  args: [ALICE],
+                }),
+              },
+            ],
+          ],
+        }),
+      },
+      "latest",
+    ],
+  });
+
+  result = decodeFunctionResult({
+    abi: multicall3Abi,
+    functionName: "aggregate3",
+    data: response2 as Hex,
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    [
+      {
+        "returnData": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "success": true,
+      },
+      {
+        "returnData": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "success": true,
+      },
+    ]
+  `);
+  expect(insertSpy).toHaveBeenCalledTimes(1);
+  expect(getSpy).toHaveBeenCalledTimes(1);
+});
+
+test("request() multicall empty", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
+
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const transport = cachedTransport({
+    requestQueue,
+    syncStore,
+  })({
+    chain: anvil,
+  });
+
+  const { address: multicall } = await deployMulticall({ sender: ALICE });
+
+  const response = await transport.request({
+    method: "eth_call",
+    params: [
+      {
+        to: multicall,
+        data: encodeFunctionData({
+          abi: multicall3Abi,
+          functionName: "aggregate3",
+          args: [[]],
+        }),
+      },
+      "latest",
+    ],
+  });
+
+  expect(response).toBeDefined();
+
+  const result = decodeFunctionResult({
+    abi: multicall3Abi,
+    functionName: "aggregate3",
+    data: response as Hex,
+  });
+
+  expect(result).toMatchInlineSnapshot("[]");
 });
