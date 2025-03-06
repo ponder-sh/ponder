@@ -132,7 +132,7 @@ export function Home() {
         <Benchmarks />
       </div>
 
-      <div className="h-48" />
+      <div className="h-12" />
     </main>
   );
 }
