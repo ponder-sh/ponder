@@ -841,7 +841,7 @@ test("syncAddress() handles many addresses", async (context) => {
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   const factories = await database.qb.sync
-    .selectFrom("factories")
+    .selectFrom("factory_addresses")
     .selectAll()
     .execute();
   expect(logs).toHaveLength(1);
