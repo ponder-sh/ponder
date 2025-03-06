@@ -597,34 +597,64 @@ export const createDatabase = async ({
         const client = await (
           database.driver as { internal: Pool }
         ).internal.connect();
+        let endClock = startClock();
         try {
           await client.query("BEGIN");
+          common.metrics.ponder_database_transaction_duration.observe(
+            { statement: "BEGIN" },
+            endClock(),
+          );
           const tx = drizzleNodePg(client, {
             casing: "snake_case",
             schema: schemaBuild.schema,
           });
           const result = await fn(client, tx);
+          endClock = startClock();
           await client.query("COMMIT");
+          common.metrics.ponder_database_transaction_duration.observe(
+            { statement: "COMMIT" },
+            endClock(),
+          );
           return result;
         } catch (error) {
+          endClock = startClock();
           await client.query("ROLLBACK");
+          common.metrics.ponder_database_transaction_duration.observe(
+            { statement: "ROLLBACK" },
+            endClock(),
+          );
           throw error;
         } finally {
           client.release();
         }
       } else {
         const client = (database.driver as { instance: PGlite }).instance;
+        let endClock = startClock();
         try {
           await client.query("BEGIN");
+          common.metrics.ponder_database_transaction_duration.observe(
+            { statement: "BEGIN" },
+            endClock(),
+          );
           const tx = drizzlePglite(client, {
             casing: "snake_case",
             schema: schemaBuild.schema,
           });
           const result = await fn(client, tx);
+          endClock = startClock();
           await client.query("COMMIT");
+          common.metrics.ponder_database_transaction_duration.observe(
+            { statement: "COMMIT" },
+            endClock(),
+          );
           return result;
         } catch (error) {
+          endClock = startClock();
           await client?.query("ROLLBACK");
+          common.metrics.ponder_database_transaction_duration.observe(
+            { statement: "ROLLBACK" },
+            endClock(),
+          );
           throw error;
         }
       }
