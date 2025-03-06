@@ -1060,10 +1060,14 @@ export const getPerChainOnRealtimeSyncEvent = ({
             ),
             chainId: network.chainId,
           }),
-          syncStore.insertChildAddresses({
-            childAddresses,
-            chainId: network.chainId,
-          }),
+          ...Array.from(childAddresses.entries()).map(
+            ([factory, childAddresses]) =>
+              syncStore.insertChildAddresses({
+                factory,
+                childAddresses,
+                chainId: network.chainId,
+              }),
+          ),
         ]);
 
         // Add corresponding intervals to the sync-store

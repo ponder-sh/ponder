@@ -480,7 +480,8 @@ test("getChildAddresses()", async (context) => {
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    childAddresses: new Map([[filter.address, new Map([[result, 0]])]]),
+    factory: filter.address,
+    childAddresses: new Map([[result, 0]]),
     chainId: 1,
   });
 
@@ -535,11 +536,13 @@ test("getChildAddresses() distinct", async (context) => {
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    childAddresses: new Map([[filter.address, new Map([[result, 0]])]]),
+    factory: filter.address,
+    childAddresses: new Map([[result, 0]]),
     chainId: 1,
   });
   await syncStore.insertChildAddresses({
-    childAddresses: new Map([[filter.address, new Map([[result, 3]])]]),
+    factory: filter.address,
+    childAddresses: new Map([[result, 3]]),
     chainId: 1,
   });
 
@@ -571,11 +574,13 @@ test("insertChildAddresses()", async (context) => {
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    childAddresses: new Map([[filter.address, new Map([[result, 0]])]]),
+    factory: filter.address,
+    childAddresses: new Map([[result, 0]]),
     chainId: 1,
   });
   await syncStore.insertChildAddresses({
-    childAddresses: new Map([[filter.address, new Map([[result, 3]])]]),
+    factory: filter.address,
+    childAddresses: new Map([[result, 3]]),
     chainId: 1,
   });
 

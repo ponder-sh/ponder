@@ -440,7 +440,8 @@ export const createHistoricalSync = async (
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
     await args.syncStore.insertChildAddresses({
-      childAddresses: new Map([[factory, childAddresses]]),
+      factory,
+      childAddresses,
       chainId: args.network.chainId,
     });
   };
