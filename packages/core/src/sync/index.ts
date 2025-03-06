@@ -115,7 +115,7 @@ export const blockToCheckpoint = (
 ): Checkpoint => {
   return {
     ...(rounding === "up" ? MAX_CHECKPOINT : ZERO_CHECKPOINT),
-    blockTimestamp: hexToNumber(block.timestamp),
+    blockTimestamp: hexToBigInt(block.timestamp),
     chainId: BigInt(chainId),
     blockNumber: hexToBigInt(block.number),
   };
@@ -171,7 +171,7 @@ export const splitEvents = (
       result.push({
         checkpoint: encodeCheckpoint({
           ...MAX_CHECKPOINT,
-          blockTimestamp: Number(event.event.block.timestamp),
+          blockTimestamp: event.event.block.timestamp,
           chainId: BigInt(event.chainId),
           blockNumber: event.event.block.number,
         }),
@@ -276,7 +276,7 @@ export const createSync = async (params: {
 
       if (network.chainId === event.chainId) {
         status[network.name]!.block = {
-          timestamp: decodeCheckpoint(event.checkpoint).blockTimestamp,
+          timestamp: Number(decodeCheckpoint(event.checkpoint).blockTimestamp),
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
         };
         return;
@@ -823,21 +823,27 @@ export const createSync = async (params: {
 
   for (const network of params.indexingBuild.networks) {
     seconds[network.name] = {
-      start: decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
-        .blockTimestamp,
-      end: decodeCheckpoint(
-        min(
-          getOmnichainCheckpoint({ tag: "end" }),
-          getOmnichainCheckpoint({ tag: "finalized" }),
-        ),
-      ).blockTimestamp,
-      cached: decodeCheckpoint(
-        min(
-          getOmnichainCheckpoint({ tag: "end" }),
-          getOmnichainCheckpoint({ tag: "finalized" }),
-          params.crashRecoveryCheckpoint,
-        ),
-      ).blockTimestamp,
+      start: Number(
+        decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
+          .blockTimestamp,
+      ),
+      end: Number(
+        decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+          ),
+        ).blockTimestamp,
+      ),
+      cached: Number(
+        decodeCheckpoint(
+          min(
+            getOmnichainCheckpoint({ tag: "end" }),
+            getOmnichainCheckpoint({ tag: "finalized" }),
+            params.crashRecoveryCheckpoint,
+          ),
+        ).blockTimestamp,
+      ),
     };
   }
 
@@ -1221,9 +1227,7 @@ export async function* getLocalEventGenerator(params: {
       } else {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
-          blockTimestamp: Number(
-            blockData[blockData.length - 1]!.block.timestamp,
-          ),
+          blockTimestamp: blockData[blockData.length - 1]!.block.timestamp,
           chainId: BigInt(params.network.chainId),
           blockNumber: blockData[blockData.length - 1]!.block.number,
         });
