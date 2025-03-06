@@ -1,6 +1,4 @@
 import type { Common } from "@/internal/common.js";
-import type { FragmentId } from "@/internal/types.js";
-import { decodeFragment, isFragmentAddressFactory } from "@/sync/fragments.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 
@@ -1635,58 +1633,16 @@ GROUP BY fragment_id, chain_id
   },
   "2025_02_26_0_factories": {
     async up(db) {
-      const fragmentIds = await db
-        .selectFrom("intervals")
-        .select("fragment_id")
-        .distinct()
-        .execute()
-        .then((r) => r.map((r) => r.fragment_id as FragmentId));
-
-      const fragmentIdsToDelete: FragmentId[] = [];
-      for (const fragmentId of fragmentIds) {
-        const fragment = decodeFragment(fragmentId);
-
-        switch (fragment.type) {
-          case "block":
-            break;
-          case "transaction":
-            if (
-              isFragmentAddressFactory(fragment.fromAddress) ||
-              isFragmentAddressFactory(fragment.toAddress)
-            ) {
-              fragmentIdsToDelete.push(fragmentId);
-            }
-            break;
-          case "trace":
-            if (
-              isFragmentAddressFactory(fragment.fromAddress) ||
-              isFragmentAddressFactory(fragment.toAddress)
-            ) {
-              fragmentIdsToDelete.push(fragmentId);
-            }
-            break;
-          case "log":
-            if (isFragmentAddressFactory(fragment.address)) {
-              fragmentIdsToDelete.push(fragmentId);
-            }
-            break;
-          case "transfer":
-            if (
-              isFragmentAddressFactory(fragment.fromAddress) ||
-              isFragmentAddressFactory(fragment.toAddress)
-            ) {
-              fragmentIdsToDelete.push(fragmentId);
-            }
-            break;
-        }
-      }
-
-      if (fragmentIdsToDelete.length > 0) {
-        await db
-          .deleteFrom("intervals")
-          .where("fragment_id", "in", fragmentIdsToDelete)
-          .execute();
-      }
+      // drop any intervals that contain a factory address
+      await db
+        .deleteFrom("intervals")
+        .where((qb) =>
+          qb.or([
+            qb("fragment_id", "like", "%offset%"),
+            qb("fragment_id", "like", "%topic%"),
+          ]),
+        )
+        .execute();
 
       await db.schema
         .createTable("factories")
