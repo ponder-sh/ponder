@@ -1731,6 +1731,10 @@ GROUP BY fragment_id, chain_id
         .on("rpc_request_results")
         .columns(["chain_id", "block_number"])
         .execute();
+      await db
+        .deleteFrom("rpc_request_results")
+        .where("result", "=", "0x")
+        .execute();
       await sql`ANALYZE ponder_sync.rpc_request_results`.execute(db);
     },
   },

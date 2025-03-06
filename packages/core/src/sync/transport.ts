@@ -171,25 +171,29 @@ export const cachedTransport = ({
             }
           } else {
             const response = await requestQueue.request(body);
-            // Note: insertRpcRequestResults errors can be ignored and not awaited, since
-            // the response is already fetched.
-            syncStore
-              .insertRpcRequestResults({
-                requests: [
-                  {
-                    request,
-                    blockNumber:
-                      blockNumber === undefined
-                        ? undefined
-                        : blockNumber === "latest"
-                          ? 0
-                          : hexToNumber(blockNumber),
-                    result: JSON.stringify(response),
-                  },
-                ],
-                chainId: chain!.id,
-              })
-              .catch(() => {});
+            // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
+            // Because the frequency of these valid requests with no return data is very low, we don't cache it.
+            if (response !== "0x") {
+              // Note: insertRpcRequestResults errors can be ignored and not awaited, since
+              // the response is already fetched.
+              syncStore
+                .insertRpcRequestResults({
+                  requests: [
+                    {
+                      request,
+                      blockNumber:
+                        blockNumber === undefined
+                          ? undefined
+                          : blockNumber === "latest"
+                            ? 0
+                            : hexToNumber(blockNumber),
+                      result: JSON.stringify(response),
+                    },
+                  ],
+                  chainId: chain!.id,
+                })
+                .catch(() => {});
+            }
             return response;
           }
         } else {
