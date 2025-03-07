@@ -734,10 +734,7 @@ export const createSyncStore = ({
       { method: "insertRpcRequestResult", includeTraceLogs: true },
       async () => {
         const values = requests.map(({ request, blockNumber, result }) => ({
-          request_hash: crypto
-            .createHash("md5")
-            .update(request)
-            .digest("base64"),
+          request_hash: crypto.createHash("md5").update(request).digest("hex"),
           chain_id: chainId,
           block_number: blockNumber,
           result,
@@ -760,7 +757,7 @@ export const createSyncStore = ({
       { method: "getRpcRequestResults", includeTraceLogs: true },
       async () => {
         const requestHashes = requests.map((request) =>
-          crypto.createHash("md5").update(request).digest("base64"),
+          crypto.createHash("md5").update(request).digest("hex"),
         );
 
         const result = await database.qb.sync
