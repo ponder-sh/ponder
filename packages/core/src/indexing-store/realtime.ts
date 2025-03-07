@@ -308,6 +308,5 @@ export const createRealtimeIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
-    event: undefined,
   };
 };
