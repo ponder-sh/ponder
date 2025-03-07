@@ -341,7 +341,7 @@ export const createIndexingCache = ({
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   const cache: Cache = new Map();
-  const spillover: Cache = new Map();
+  const spillover: Map<Table, Set<string>> = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
   const access: Access = new Map();
@@ -359,7 +359,7 @@ export const createIndexingCache = ({
 
   for (const table of tables) {
     cache.set(table, new Map());
-    spillover.set(table, new Map());
+    spillover.set(table, new Set());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
     isCacheComplete.set(table, checkpoint === ZERO_CHECKPOINT_STRING);
@@ -375,7 +375,6 @@ export const createIndexingCache = ({
       const ck = getCacheKey(table, key, primaryKeyCache);
       return (
         cache.get(table)!.has(ck) ??
-        spillover.get(table)!.has(ck) ??
         insertBuffer.get(table)!.has(ck) ??
         updateBuffer.get(table)!.has(ck)
       );
@@ -414,14 +413,8 @@ export const createIndexingCache = ({
       }
 
       const cacheEntry = cache.get(table)!.get(ck);
-      const spilloverEntry = spillover.get(table)!.get(ck);
 
-      const entry =
-        cacheEntry !== undefined
-          ? cacheEntry
-          : spilloverEntry !== undefined
-            ? spilloverEntry
-            : undefined;
+      const entry = cacheEntry !== undefined ? cacheEntry : undefined;
 
       if (entry !== undefined) {
         common.metrics.ponder_indexing_cache_hit.inc();
@@ -433,6 +426,8 @@ export const createIndexingCache = ({
         return null;
       }
 
+      spillover.get(table)!.add(ck);
+
       common.metrics.ponder_indexing_cache_miss.inc();
       return database.record(
         {
@@ -443,11 +438,11 @@ export const createIndexingCache = ({
             .select()
             .from(table)
             .where(getWhereCondition(table, key))
-            .then((res) => (res.length === 0 ? null : res[0]!)),
-        // .then((row) => {
-        //   spillover.get(table)!.set(ck, structuredClone(row));
-        //   return row;
-        // }),
+            .then((res) => (res.length === 0 ? null : res[0]!))
+            .then((row) => {
+              cache.get(table)!.set(ck, structuredClone(row));
+              return row;
+            }),
       );
     },
     set({ table, key, row: _row, isUpdate }) {
@@ -474,12 +469,9 @@ export const createIndexingCache = ({
         insertBuffer.get(table)!.delete(ck) ||
         updateBuffer.get(table)!.delete(ck);
 
-      if (
-        (cache.get(table)!.has(ck) && cache.get(table)!.get(ck)) ||
-        (spillover.get(table)!.has(ck) && spillover.get(table)!.get(ck))
-      ) {
+      if (cache.get(table)!.has(ck) && cache.get(table)!.get(ck)) {
         cache.get(table)!.delete(ck);
-        spillover.get(table)!.delete(ck);
+        // spillover.get(table)!.delete(ck);
         isCacheComplete.set(table, false);
 
         return db
@@ -488,7 +480,7 @@ export const createIndexingCache = ({
           .then(() => true);
       }
 
-      if (cache.get(table)!.has(ck) || spillover.get(table)?.has(ck)) {
+      if (cache.get(table)!.has(ck)) {
         return inBuffer;
       }
 
@@ -734,13 +726,20 @@ export const createIndexingCache = ({
 
       for (const [table, tableCache] of cache) {
         for (const key of tableCache.keys()) {
-          if (cachePrediction.get(table)!.has(key)) {
+          if (
+            spillover.get(table)!.has(key) ||
+            cachePrediction.get(table)!.has(key)
+          ) {
             cachePrediction.get(table)!.delete(key);
           } else {
             tableCache.delete(key);
             isCacheComplete.set(table, false);
           }
         }
+      }
+
+      for (const [table] of spillover) {
+        spillover.get(table)!.clear();
       }
 
       await Promise.all(
@@ -751,6 +750,8 @@ export const createIndexingCache = ({
               Array.from(tablePredictions),
               ([key]) => key,
             ).map(([, prediction]) => getWhereCondition(table, prediction));
+
+            // TODO(kyle) mark `null` results
 
             return database.record(
               { method: `${getTableName(table)}.cache.load()` },
