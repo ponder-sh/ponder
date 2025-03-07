@@ -1124,7 +1124,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
             hexToNumber(block.number) <= hexToNumber(event.block.number),
         );
 
-        await syncStore.pruneRpcRequestResult({
+        await syncStore.pruneRpcRequestResults({
           chainId: network.chainId,
           blocks: event.reorgedBlocks,
         });
