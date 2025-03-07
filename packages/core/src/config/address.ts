@@ -6,7 +6,7 @@ export type Factory<event extends AbiEvent = AbiEvent> = {
   /** ABI event that announces the creation of a new instance of this contract. */
   event: event;
   /** Name of the factory event parameter that contains the new child contract address. */
-  parameter: Exclude<event["inputs"][number]["name"], undefined>;
+  parameterPath: string;
 };
 
 export const factory = <event extends AbiEvent>(factory: Factory<event>) =>
