@@ -161,6 +161,7 @@ export async function run({
       );
     },
   )) {
+    await indexingCache.commit({ events, db: database.qb.drizzle });
     if (events.length > 0) {
       let endClock = startClock();
       await database.retry(async () => {
@@ -185,6 +186,7 @@ export async function run({
               const result = await indexing.processEvents({
                 events: eventChunk,
                 db: historicalIndexingStore,
+                cache: indexingCache,
               });
 
               if (result.status === "error") {
@@ -273,7 +275,6 @@ export async function run({
             throw error;
           });
       });
-      indexingCache.commit();
       common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
         endClock(),
