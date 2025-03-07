@@ -1,19 +1,22 @@
 import type { LogFactory } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { getBytesConsumedByParam } from "@/utils/offset.js";
+import {
+  computeNestedOffset,
+  getBytesConsumedByParam,
+} from "@/utils/offset.js";
 import type { AbiEvent } from "abitype";
 import { type Address, toEventSelector } from "viem";
 
 export function buildLogFactory({
   address: _address,
   event,
-  parameter,
+  parameterPath,
   chainId,
 }: {
   address: Address | readonly Address[];
   event: AbiEvent;
-  parameter: string;
+  parameterPath: string;
   chainId: number;
 }): LogFactory {
   const address = Array.isArray(_address)
@@ -21,12 +24,21 @@ export function buildLogFactory({
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
 
+  const [parameter, ...pathSegments] = parameterPath.split(".");
+
   // Check if the provided parameter is present in the list of indexed inputs.
   const indexedInputPosition = event.inputs
     .filter((x) => "indexed" in x && x.indexed)
     .findIndex((input) => input.name === parameter);
 
   if (indexedInputPosition > -1) {
+    // If the parameter is indexed, nested paths cannot be accessed.
+    if (pathSegments.length > 0) {
+      throw new Error(
+        `Factory event parameter is indexed, so nested path '${parameterPath}' cannot be accessed.`,
+      );
+    }
+
     return {
       type: "log",
       chainId,
@@ -53,9 +65,15 @@ export function buildLogFactory({
   }
 
   let offset = 0;
+
   for (let i = 0; i < nonIndexedInputPosition; i++) {
     offset += getBytesConsumedByParam(nonIndexedInputs[i]!);
   }
+
+  offset += computeNestedOffset(
+    nonIndexedInputs[nonIndexedInputPosition]!,
+    pathSegments,
+  );
 
   return {
     type: "log",

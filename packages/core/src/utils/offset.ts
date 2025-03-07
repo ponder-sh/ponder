@@ -5,9 +5,9 @@ import { InvalidAbiDecodingTypeError } from "viem";
 // https://github.com/wagmi-dev/viem/blob/5c95fafceffe7f399b5b5ee32119e2d78a0c8acd/src/utils/abi/decodeEventLog.ts
 
 export function getBytesConsumedByParam(param: AbiParameter): number {
-  const arrayComponents = getArrayComponents(param.type);
+  const arrayComponents = getArrayComponents(param);
   if (arrayComponents) {
-    const [length, innerType] = arrayComponents;
+    const { length, innerType } = arrayComponents;
 
     // If the array is dynamic or has dynamic children, it uses the
     // dynamic encoding scheme (32 byte header).
@@ -18,10 +18,7 @@ export function getBytesConsumedByParam(param: AbiParameter): number {
     // If the length of the array is known in advance,
     // and the length of each element in the array is known,
     // the array data is encoded contiguously after the array.
-    const bytesConsumedByInnerType = getBytesConsumedByParam({
-      ...param,
-      type: innerType,
-    });
+    const bytesConsumedByInnerType = getBytesConsumedByParam(innerType);
     return length * bytesConsumedByInnerType;
   }
 
@@ -67,22 +64,96 @@ function hasDynamicChild(param: AbiParameter) {
 
   if (type === "tuple") return (param as any).components?.some(hasDynamicChild);
 
-  const arrayComponents = getArrayComponents(param.type);
-  if (
-    arrayComponents &&
-    hasDynamicChild({ ...param, type: arrayComponents[1] } as AbiParameter)
-  )
+  const arrayComponents = getArrayComponents(param);
+  if (arrayComponents && hasDynamicChild(arrayComponents.innerType))
     return true;
 
   return false;
 }
 
 function getArrayComponents(
-  type: string,
-): [length: number | null, innerType: string] | undefined {
-  const matches = type.match(/^(.*)\[(\d+)?\]$/);
-  return matches
-    ? // Return `null` if the array is dynamic.
-      [matches[2] ? Number(matches[2]) : null, matches[1]!]
-    : undefined;
+  param: AbiParameter,
+): { length: number | null; innerType: AbiParameter } | undefined {
+  const matches = param.type.match(/^(.*)\[(\d+)?\]$/);
+  if (!matches || !matches[1]) {
+    return undefined;
+  }
+  // Return `null` length if the array is dynamic.
+  const length = Number(matches?.[2]) || null;
+  const innerType = { type: matches[1] };
+  // If the array contains a tuple, include its components in innerType.
+  if (innerType.type === "tuple") {
+    Object.assign(innerType, { components: (param as any).components });
+  }
+  return { length, innerType };
+}
+
+export function computeNestedOffset(
+  param: AbiParameter,
+  pathSegments: string[],
+): number {
+  if (pathSegments.length === 0) {
+    if (param.type !== "address") {
+      throw new Error(
+        `Factory event parameter is not an address. Got '${param.type}'.`,
+      );
+    }
+    return 0;
+  }
+
+  const [currentSegment, ...restSegments] = pathSegments;
+
+  const arrayComponents = getArrayComponents(param);
+
+  // fixed length array
+  if (arrayComponents?.length) {
+    if (hasDynamicChild(param)) {
+      throw new Error(
+        "Factory event parameter must not be in a dynamic array.",
+      );
+    }
+    const { length, innerType } = arrayComponents;
+    const arrayIndex = Number.parseInt(currentSegment!);
+    if (Number.isNaN(arrayIndex) || arrayIndex < 0 || arrayIndex >= length) {
+      throw new Error(
+        `Factory event parameter path contains invalid array index '${currentSegment}'. Array length is ${length}.`,
+      );
+    }
+    let offset = arrayIndex * getBytesConsumedByParam(innerType);
+    offset += computeNestedOffset(innerType, restSegments);
+    return offset;
+  }
+  // tuple
+  else if (param.type === "tuple" && "components" in param) {
+    if (hasDynamicChild(param)) {
+      throw new Error(
+        "Factory event parameter must not be in a dynamic tuple.",
+      );
+    }
+    const componentIndex = param.components.findIndex(
+      (component) => component.name === currentSegment,
+    );
+    if (componentIndex === -1) {
+      throw new Error(
+        `Factory event parameter path contains invalid tuple field. Got '${currentSegment}', expected one of [${param.components
+          .map((c) => `'${c.name}'`)
+          .join(", ")}].`,
+      );
+    }
+    let offset = 0;
+    for (let i = 0; i < componentIndex; i++) {
+      offset += getBytesConsumedByParam(param.components[i]!);
+    }
+    offset += computeNestedOffset(
+      param.components[componentIndex]!,
+      restSegments,
+    );
+    return offset;
+  }
+  // other types (nested path not supported)
+  else {
+    throw new Error(
+      `Factory event parameter must be a static type. Got '${param.type}'.`,
+    );
+  }
 }
