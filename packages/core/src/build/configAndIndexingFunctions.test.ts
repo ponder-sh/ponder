@@ -573,7 +573,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
         address: factory({
           address: address2,
           event: eventFactory,
-          parameterPath: "child",
+          parameter: "child",
         }),
         abi: [func0],
       },

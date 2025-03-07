@@ -102,7 +102,7 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
         address: factory({
           address: params.address,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
-          parameterPath: "pair",
+          parameter: "pair",
         }),
         includeCallTraces: params.includeCallTraces,
         includeTransactionReceipts: params.includeTransactionReceipts,

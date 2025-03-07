@@ -11,18 +11,28 @@ import { type Address, toEventSelector } from "viem";
 export function buildLogFactory({
   address: _address,
   event,
+  parameter: oldParameter,
   parameterPath,
   chainId,
 }: {
   address: Address | readonly Address[];
   event: AbiEvent;
-  parameterPath: string;
+  parameter?: string;
+  parameterPath?: string;
   chainId: number;
 }): LogFactory {
   const address = Array.isArray(_address)
     ? dedupe(_address).map(toLowerCase)
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
+
+  if (oldParameter && parameterPath) {
+    throw new Error(
+      `Only one of factory event 'parameter' and 'parameterPath' must be set.`,
+    );
+  }
+
+  parameterPath = parameterPath || oldParameter!;
 
   const [parameter, ...pathSegments] = parameterPath.split(".");
 
