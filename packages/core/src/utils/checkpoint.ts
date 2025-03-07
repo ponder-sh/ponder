@@ -1,5 +1,5 @@
 export type Checkpoint = {
-  blockTimestamp: number;
+  blockTimestamp: bigint;
   chainId: bigint;
   blockNumber: bigint;
   transactionIndex: bigint;
@@ -68,9 +68,8 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
 export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
   let offset = 0;
 
-  const blockTimestamp = +checkpoint.slice(
-    offset,
-    offset + BLOCK_TIMESTAMP_DIGITS,
+  const blockTimestamp = BigInt(
+    checkpoint.slice(offset, offset + BLOCK_TIMESTAMP_DIGITS),
   );
   offset += BLOCK_TIMESTAMP_DIGITS;
 
@@ -106,7 +105,7 @@ export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
 };
 
 export const ZERO_CHECKPOINT: Checkpoint = {
-  blockTimestamp: 0,
+  blockTimestamp: 0n,
   chainId: 0n,
   blockNumber: 0n,
   transactionIndex: 0n,
@@ -115,7 +114,7 @@ export const ZERO_CHECKPOINT: Checkpoint = {
 };
 
 export const MAX_CHECKPOINT: Checkpoint = {
-  blockTimestamp: 99999_99999,
+  blockTimestamp: 99999_99999n,
   chainId: 9999_9999_9999_9999n,
   blockNumber: 9999_9999_9999_9999n,
   transactionIndex: 9999_9999_9999_9999n,
@@ -141,7 +140,7 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) =>
   encodeCheckpoint(a) > encodeCheckpoint(b);
 
 /**
- * Returns true if checkpoint a is greater than or equal to checkpoint b.
+ * Returns true if checkpoint a is greater than or equal to checkpoint b.|
  */
 export const isCheckpointGreaterThanOrEqualTo = (
   a: Checkpoint,

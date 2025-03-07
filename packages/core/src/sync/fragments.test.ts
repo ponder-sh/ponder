@@ -1,6 +1,11 @@
 import type { FilterWithoutBlocks } from "@/internal/types.js";
 import { expect, test } from "vitest";
-import { getFragments, recoverFilter } from "./fragments.js";
+import {
+  decodeFragment,
+  encodeFragment,
+  getFragments,
+  recoverFilter,
+} from "./fragments.js";
 
 test("getFragments() block filter", () => {
   const fragments = getFragments({
@@ -312,6 +317,8 @@ test("getFragments() factory with topic", () => {
       address: "0xa",
       eventSelector: "0xb",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   });
@@ -356,6 +363,8 @@ test("getFragments() factory with offset", () => {
       address: "0xa",
       eventSelector: "0xb",
       childAddressLocation: "offset64",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   });
@@ -400,6 +409,8 @@ test("getFragments() multiple factories", () => {
       address: ["0xa", "0xb"],
       eventSelector: "0xc",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   });
@@ -448,6 +459,71 @@ test("getFragments() multiple factories", () => {
       },
     ]
   `);
+});
+
+test("decodeFragment()", () => {
+  const [blockFragment] = getFragments({
+    type: "block",
+    chainId: 1,
+    interval: 100,
+    offset: 5,
+    include: [],
+  });
+
+  expect(decodeFragment(encodeFragment(blockFragment!.fragment))).toStrictEqual(
+    blockFragment!.fragment,
+  );
+
+  const [logFragment] = getFragments({
+    type: "log",
+    chainId: 1,
+    address: ["0xa", "0xb"],
+    topic0: ["0xc", "0xd"],
+    topic1: null,
+    topic2: "0xe",
+    topic3: null,
+    include: [],
+  });
+
+  expect(decodeFragment(encodeFragment(logFragment!.fragment))).toStrictEqual(
+    logFragment!.fragment,
+  );
+
+  const [traceFragment] = getFragments({
+    type: "trace",
+    chainId: 1,
+    fromAddress: {
+      type: "log",
+      chainId: 1,
+      address: "0xa",
+      eventSelector: "0xc",
+      childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
+    },
+    toAddress: "0xb",
+    includeReverted: false,
+    functionSelector: "0xd",
+    callType: "CALL",
+    include: [],
+  });
+
+  expect(decodeFragment(encodeFragment(traceFragment!.fragment))).toStrictEqual(
+    traceFragment!.fragment,
+  );
+
+  const [transferFragment] = getFragments({
+    type: "transfer",
+    chainId: 1,
+    fromAddress: "0xa",
+    toAddress: undefined,
+    includeReverted: false,
+    include: ["transactionReceipt.status"],
+  });
+
+  expect(
+    decodeFragment(encodeFragment(transferFragment!.fragment)),
+  ).toStrictEqual(transferFragment!.fragment);
 });
 
 test("recoverFilter() block filter", () => {
@@ -567,6 +643,8 @@ test("recoverFilter() factory", () => {
       address: "0xa",
       eventSelector: "0xb",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   } satisfies FilterWithoutBlocks;
@@ -595,6 +673,8 @@ test("recoverFilter() multiple factories", () => {
       address: ["0xa", "0xb"],
       eventSelector: "0xc",
       childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
     },
     include: [],
   } satisfies FilterWithoutBlocks;
