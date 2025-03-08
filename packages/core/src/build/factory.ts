@@ -1,3 +1,4 @@
+import type { Factory } from "@/config/address.js";
 import type { LogFactory } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -5,35 +6,25 @@ import {
   computeNestedOffset,
   getBytesConsumedByParam,
 } from "@/utils/offset.js";
-import type { AbiEvent } from "abitype";
-import { type Address, toEventSelector } from "viem";
+import { type AbiEvent, toEventSelector } from "viem";
 
-export function buildLogFactory({
+type BuildLogFactoryParams<event extends AbiEvent> = Factory<event> & {
+  chainId: number;
+};
+
+export function buildLogFactory<event extends AbiEvent>({
   address: _address,
   event,
-  parameter: oldParameter,
-  parameterPath,
+  parameter: oldParameterInput,
+  parameterPath: newParameterInput,
   chainId,
-}: {
-  address: Address | readonly Address[];
-  event: AbiEvent;
-  parameter?: string;
-  parameterPath?: string;
-  chainId: number;
-}): LogFactory {
+}: BuildLogFactoryParams<event>): LogFactory {
   const address = Array.isArray(_address)
     ? dedupe(_address).map(toLowerCase)
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
 
-  if (oldParameter && parameterPath) {
-    throw new Error(
-      `Only one of factory event 'parameter' and 'parameterPath' must be set.`,
-    );
-  }
-
-  parameterPath = parameterPath || oldParameter!;
-
+  const parameterPath = (newParameterInput || oldParameterInput)!;
   const [parameter, ...pathSegments] = parameterPath.split(".");
 
   // Check if the provided parameter is present in the list of indexed inputs.
