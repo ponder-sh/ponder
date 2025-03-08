@@ -38,7 +38,7 @@ type ExtractValidPaths<T extends AbiParameter> = T extends {
         }
         ? `${Name}[${number}].${ExtractValidPaths<Components[number]>}`
         : never
-      : Type extends `address[${string}]`
+      : Type extends `address[${number}]`
         ? // Case 3: Simple arrays - must access with index
           // Example: "myArray[0]"
           `${Name}[${number}]`

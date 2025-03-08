@@ -59,7 +59,7 @@ test("buildLogFactory handles Morpho CreateMarket marketParams.oracle", () => {
 const testEventAbiItem = parseAbiItem([
   "struct SomeNestedStruct { uint256 c1; address[3] c2; }",
   "struct SomeStruct { address b1; SomeNestedStruct[42] b2; }",
-  "event SomeEvent(SomeStruct indexed a1, SomeStruct a2, address[] a3, (uint256[] x, address y) z, (string s, address t)[10] u)",
+  "event SomeEvent(SomeStruct indexed a1, SomeStruct a2, (uint256[] x, address y) z, (string s, address t)[10] u)",
 ]);
 
 test("buildLogFactory handles fixed length arrays and tuples", () => {
@@ -100,19 +100,6 @@ test("buildLogFactory throws if provided path accesses invalid array index", () 
     });
   }).toThrowError(
     "Factory event parameter path contains invalid array index '100'. Array length is 42.",
-  );
-});
-
-test("buildLogFactory throws if provided path is not in a static type", () => {
-  expect(() => {
-    buildLogFactory({
-      address: "0xa",
-      event: testEventAbiItem,
-      parameterPath: "a3[1]",
-      chainId: 1,
-    });
-  }).toThrowError(
-    "Factory event parameter must be a static type. Got 'address[]'.",
   );
 });
 
