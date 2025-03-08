@@ -8,14 +8,15 @@ type CommonFactoryParams<event extends AbiEvent = AbiEvent> = {
   event: event;
 };
 
-type DeprecatedFactoryEventParameter<event extends AbiEvent = AbiEvent> = {
-  /**
-   * Name of the factory event parameter that contains the new child contract address.
-   * @deprecated Use `parameterPath` instead
-   * */
-  parameter: Exclude<event["inputs"][number]["name"], undefined>;
-  parameterPath?: never;
-};
+export type DeprecatedFactoryEventParameter<event extends AbiEvent = AbiEvent> =
+  {
+    /**
+     * Name of the factory event parameter that contains the new child contract address.
+     * @deprecated Use `parameterPath` instead
+     * */
+    parameter: Exclude<event["inputs"][number]["name"], undefined>;
+    parameterPath?: never;
+  };
 
 type ExtractValidPaths<T extends AbiParameter> = T extends {
   name: infer Name extends string;
@@ -57,8 +58,14 @@ type FactoryEventParameter<event extends AbiEvent = AbiEvent> = {
 };
 
 export type Factory<event extends AbiEvent = AbiEvent> =
-  CommonFactoryParams<event> &
-    (FactoryEventParameter<event> | DeprecatedFactoryEventParameter<event>);
+  | DeprecatedFactory<event>
+  | NewFactory<event>;
+
+type NewFactory<event extends AbiEvent = AbiEvent> =
+  CommonFactoryParams<event> & FactoryEventParameter<event>;
+
+export type DeprecatedFactory<event extends AbiEvent = AbiEvent> =
+  CommonFactoryParams<event> & DeprecatedFactoryEventParameter<event>;
 
 export const factory = <event extends AbiEvent>(factory: Factory<event>) =>
   factory;

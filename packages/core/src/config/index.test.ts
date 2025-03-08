@@ -1,6 +1,6 @@
 import { http, type Abi, type HttpTransport, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
-import { factory } from "./address.js";
+import { type DeprecatedFactory, factory } from "./address.js";
 import { createConfig } from "./index.js";
 
 const event0 = parseAbiItem(
@@ -99,7 +99,7 @@ test("createConfig factory", () => {
           address: "0x",
           event: event0,
           parameter: "arg",
-        }),
+        } as DeprecatedFactory),
       },
     },
   });
