@@ -6,19 +6,6 @@ const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
-test("buildLogFactory throws if provided parameter not found in inputs", () => {
-  expect(() =>
-    buildLogFactory({
-      address: "0xa",
-      event: llamaFactoryEventAbiItem,
-      parameterPath: "fakeParameter",
-      chainId: 1,
-    }),
-  ).toThrowError(
-    "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
-  );
-});
-
 test("buildLogFactory handles LlamaInstanceCreated llamaCore", () => {
   const criteria = buildLogFactory({
     address: "0xa",
@@ -114,30 +101,6 @@ test("buildLogFactory throws if provided path accesses invalid array index", () 
   }).toThrowError(
     "Factory event parameter path contains invalid array index '100'. Array length is 42.",
   );
-});
-
-test("buildLogFactory throws if provided path accesses invalid tuple field", () => {
-  expect(() => {
-    buildLogFactory({
-      address: "0xa",
-      event: testEventAbiItem,
-      parameterPath: "a2.b2[10].c3",
-      chainId: 1,
-    });
-  }).toThrowError(
-    "Factory event parameter path contains invalid tuple field. Got 'c3', expected one of ['c1', 'c2'].",
-  );
-});
-
-test("buildLogFactory throws if provided path is not an address", () => {
-  expect(() => {
-    buildLogFactory({
-      address: "0xa",
-      event: testEventAbiItem,
-      parameterPath: "a2.b2[10].c1",
-      chainId: 1,
-    });
-  }).toThrowError("Factory event parameter is not an address. Got 'uint256'.");
 });
 
 test("buildLogFactory throws if provided path is not in a static type", () => {
