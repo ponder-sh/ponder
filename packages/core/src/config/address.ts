@@ -1,10 +1,5 @@
-import type {
-  AbiParameter,
-  SolidityArray,
-  SolidityArrayWithTuple,
-  SolidityTuple,
-} from "abitype";
-import type { AbiEvent } from "viem";
+import type { SolidityArrayWithTuple, SolidityTuple } from "abitype";
+import type { AbiEvent, AbiParameter } from "viem";
 
 type CommonFactoryParams<event extends AbiEvent = AbiEvent> = {
   /** Address of the factory contract that creates this contract. */
