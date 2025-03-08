@@ -79,7 +79,7 @@ test("buildLogFactory handles fixed length arrays and tuples", () => {
   const criteria = buildLogFactory({
     address: "0xa",
     event: testEventAbiItem,
-    parameterPath: "a2.b2.10.c2.1",
+    parameterPath: "a2.b2[10].c2[1]",
     chainId: 1,
   });
 
@@ -95,11 +95,11 @@ test("buildLogFactory throws if provided path is nested in an indexed parameter"
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
-      parameterPath: "a1.b2.10.c2.1",
+      parameterPath: "a1.b2[10].c2[1]",
       chainId: 1,
     });
   }).toThrowError(
-    "Factory event parameter is indexed, so nested path 'a1.b2.10.c2.1' cannot be accessed.",
+    "Factory event parameter is indexed, so nested path 'a1.b2[10].c2[1]' cannot be accessed.",
   );
 });
 
@@ -108,7 +108,7 @@ test("buildLogFactory throws if provided path accesses invalid array index", () 
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
-      parameterPath: "a2.b2.100.c2.1",
+      parameterPath: "a2.b2[100].c2[1]",
       chainId: 1,
     });
   }).toThrowError(
@@ -121,7 +121,7 @@ test("buildLogFactory throws if provided path accesses invalid tuple field", () 
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
-      parameterPath: "a2.b2.10.c3",
+      parameterPath: "a2.b2[10].c3",
       chainId: 1,
     });
   }).toThrowError(
@@ -134,7 +134,7 @@ test("buildLogFactory throws if provided path is not an address", () => {
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
-      parameterPath: "a2.b2.10.c1",
+      parameterPath: "a2.b2[10].c1",
       chainId: 1,
     });
   }).toThrowError("Factory event parameter is not an address. Got 'uint256'.");
@@ -145,7 +145,7 @@ test("buildLogFactory throws if provided path is not in a static type", () => {
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
-      parameterPath: "a3.1",
+      parameterPath: "a3[1]",
       chainId: 1,
     });
   }).toThrowError(
@@ -169,7 +169,7 @@ test("buildLogFactory throws if provided path is in a dynamic array", () => {
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
-      parameterPath: "u.3.t",
+      parameterPath: "u[3].t",
       chainId: 1,
     });
   }).toThrowError("Factory event parameter must not be in a dynamic array.");

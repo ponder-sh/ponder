@@ -4,6 +4,7 @@ import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
   computeNestedOffset,
+  convertToDotNotation,
   getBytesConsumedByParam,
 } from "@/utils/offset.js";
 import { type AbiEvent, toEventSelector } from "viem";
@@ -25,7 +26,8 @@ export function buildLogFactory<event extends AbiEvent>({
   const eventSelector = toEventSelector(event);
 
   const parameterPath = (newParameterInput || oldParameterInput)!;
-  const [parameter, ...pathSegments] = parameterPath.split(".");
+  const [parameter, ...pathSegments] =
+    convertToDotNotation(parameterPath).split(".");
 
   // Check if the provided parameter is present in the list of indexed inputs.
   const indexedInputPosition = event.inputs

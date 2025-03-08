@@ -157,3 +157,8 @@ export function computeNestedOffset(
     );
   }
 }
+
+// Converts from a2.b2[10].c2[1] to a2.b2.10.c2.1
+export function convertToDotNotation(input: string): string {
+  return input.replace(/\[(\d+)\]/g, ".$1");
+}
