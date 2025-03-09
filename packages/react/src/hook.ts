@@ -36,7 +36,7 @@ export function usePonderQuery<result>(
       () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
     );
     return unsubscribe;
-  }, queryOptions.queryKey);
+  }, [queryOptions.queryKey]);
 
   return useQuery({
     ...params,
