@@ -61,10 +61,7 @@ test("decodeEvents() log", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];

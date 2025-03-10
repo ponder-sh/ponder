@@ -143,7 +143,7 @@ const getBytes = (value: unknown) => {
   return size;
 };
 
-const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/;
+const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
 
 export const getCopyText = (
   table: Table,
