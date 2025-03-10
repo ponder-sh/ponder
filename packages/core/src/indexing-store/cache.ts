@@ -686,6 +686,10 @@ export const createIndexingCache = ({
               .from(table)
               .where(or(...conditions))
               .then((results) => {
+                common.logger.debug({
+                  service: "indexing",
+                  msg: `Loaded ${results.length} '${getTableName(table)}' rows based on previous access patterns`,
+                });
                 const resultsPerKey = new Map<
                   string,
                   { [key: string]: unknown }
