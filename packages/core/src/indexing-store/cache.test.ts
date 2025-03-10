@@ -283,8 +283,6 @@ test("commit() evicts rows", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  context.common.options.indexingCacheMaxBytes = 0;
-
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
