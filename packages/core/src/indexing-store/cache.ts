@@ -28,7 +28,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
-import { getAccess, getAccessKey, recoverAccess } from "./access.js";
+import { getAccessKey, predictAccess, recoverAccess } from "./access.js";
 import { parseSqlError } from "./index.js";
 import { getCacheKey, getWhereCondition, normalizeRow } from "./utils.js";
 
@@ -262,9 +262,15 @@ export const createIndexingCache = ({
           }
         }
 
-        // TODO(kyle) this seems like a lot of work to do for every event
-
-        const a = recoverAccess(event, table, key, primaryKeyCache);
+        const a = predictAccess(
+          event,
+          table,
+          key,
+          Array.from(access.get(event.name)!.get(table)!.values()).map(
+            ({ access }) => access,
+          ),
+          primaryKeyCache,
+        );
         if (a) {
           const tableAccess = access.get(event.name)!.get(table)!;
           const ak = getAccessKey(a);
@@ -615,6 +621,7 @@ export const createIndexingCache = ({
       for (const [eventName, events] of eventsPerName) {
         for (const table of tables) {
           const tableAccess = access.get(eventName)?.get(table);
+          console.log(tableAccess);
           if (tableAccess) {
             const sortedTableAccess = Array.from(tableAccess.values()).sort(
               (a, b) => b.count - a.count,
@@ -630,7 +637,10 @@ export const createIndexingCache = ({
                   if (value === "chainId") {
                     prediction[key] = event.chainId;
                   } else {
-                    prediction[key] = getAccess(event.event, value.split("."));
+                    prediction[key] = recoverAccess(
+                      event.event,
+                      value.split("."),
+                    );
                   }
                 }
 
