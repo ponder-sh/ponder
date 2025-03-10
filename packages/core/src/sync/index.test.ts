@@ -255,7 +255,7 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-  expect(intervals[0].blocks).toBe("{[0,2]}");
+  expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
@@ -521,7 +521,7 @@ test("getLocalSyncGenerator()", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-  expect(intervals[0].blocks).toBe("{[0,2]}");
+  expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
 test("getLocalSyncGenerator() with partial cache", async (context) => {
@@ -621,7 +621,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     .execute();
 
   expect(intervals).toHaveLength(1);
-  expect(intervals[0].blocks).toBe("{[0,3]}");
+  expect(intervals[0]!.blocks).toBe("{[0,3]}");
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
