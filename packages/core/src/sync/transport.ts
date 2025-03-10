@@ -99,32 +99,36 @@ export const cachedTransport = ({
             chainId: chain!.id,
           });
 
-          const multicallResult = await requestQueue
-            .request({
-              method: "eth_call",
-              params: [
-                {
-                  to: params[0]!.to,
-                  data: encodeFunctionData({
+          const multicallResult = cachedResults.every(
+            (result) => result !== undefined,
+          )
+            ? []
+            : await requestQueue
+                .request({
+                  method: "eth_call",
+                  params: [
+                    {
+                      to: params[0]!.to,
+                      data: encodeFunctionData({
+                        abi: multicall3Abi,
+                        functionName: "aggregate3",
+                        args: [
+                          multicallData.args[0]!.filter(
+                            (_, index) => cachedResults[index] === undefined,
+                          ),
+                        ],
+                      }),
+                    },
+                    blockNumber!,
+                  ],
+                })
+                .then((result) =>
+                  decodeFunctionResult({
                     abi: multicall3Abi,
                     functionName: "aggregate3",
-                    args: [
-                      multicallData.args[0]!.filter(
-                        (_, index) => cachedResults[index] === undefined,
-                      ),
-                    ],
+                    data: result,
                   }),
-                },
-                blockNumber!,
-              ],
-            })
-            .then((result) =>
-              decodeFunctionResult({
-                abi: multicall3Abi,
-                functionName: "aggregate3",
-                data: result,
-              }),
-            );
+                );
 
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
