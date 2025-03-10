@@ -396,23 +396,17 @@ export const decodeTrace = ({ trace }: { trace: DbTrace }): InternalTrace => ({
   subcalls: trace.subcalls,
 });
 
-type RpcRequestResultsTable = {
-  request: string;
-  request_hash: ColumnType<string, undefined>;
-  chain_id: number;
-  // TODO(kyle) number?
-  block_number: ColumnType<
-    string | undefined,
-    string | bigint | undefined,
-    string | bigint | undefined
-  >;
-  result: string;
-};
-
 type IntervalTable = {
   fragment_id: FragmentId;
   chain_id: PgInt8;
   blocks: string;
+};
+
+type RpcRequestResultsTable = {
+  request_hash: string;
+  chain_id: PgInt8;
+  block_number: PgInt8 | undefined;
+  result: string;
 };
 
 type FactoriesTable = {

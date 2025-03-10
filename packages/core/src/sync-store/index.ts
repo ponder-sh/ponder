@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
@@ -37,7 +38,7 @@ import {
   sql,
 } from "kysely";
 import type { InsertObject } from "kysely";
-import { type Address, hexToBigInt } from "viem";
+import { type Address, hexToNumber } from "viem";
 import {
   type PonderSyncSchema,
   decodeBlock,
@@ -101,16 +102,18 @@ export type SyncStore = {
     }[];
     cursor: number;
   }>;
-  insertRpcRequestResult(args: {
-    request: string;
+  insertRpcRequestResults(args: {
+    requests: {
+      request: string;
+      blockNumber: number | undefined;
+      result: string;
+    }[];
     chainId: number;
-    blockNumber: bigint | undefined;
-    result: string;
   }): Promise<void>;
-  getRpcRequestResult(args: { request: string; chainId: number }): Promise<
-    string | undefined
+  getRpcRequestResults(args: { requests: string[]; chainId: number }): Promise<
+    (string | undefined)[]
   >;
-  pruneRpcRequestResult(args: {
+  pruneRpcRequestResults(args: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
@@ -725,55 +728,68 @@ export const createSyncStore = ({
         return { blockData, cursor };
       },
     ),
-  insertRpcRequestResult: async ({ request, blockNumber, chainId, result }) =>
-    database.wrap(
+  insertRpcRequestResults: async ({ requests, chainId }) => {
+    if (requests.length === 0) return;
+    return database.wrap(
       { method: "insertRpcRequestResult", includeTraceLogs: true },
       async () => {
+        const values = requests.map(({ request, blockNumber, result }) => ({
+          request_hash: crypto.createHash("md5").update(request).digest("hex"),
+          chain_id: chainId,
+          block_number: blockNumber,
+          result,
+        }));
+
         await database.qb.sync
           .insertInto("rpc_request_results")
-          .values({
-            request,
-            block_number: blockNumber,
-            chain_id: chainId,
-            result,
-          })
+          .values(values)
           .onConflict((oc) =>
-            oc.columns(["request_hash", "chain_id"]).doUpdateSet({ result }),
+            oc
+              .columns(["request_hash", "chain_id"])
+              .doUpdateSet({ result: sql`EXCLUDED.result` }),
           )
           .execute();
       },
-    ),
-  getRpcRequestResult: async ({ request, chainId }) =>
+    );
+  },
+  getRpcRequestResults: async ({ requests, chainId }) =>
     database.wrap(
-      { method: "getRpcRequestResult", includeTraceLogs: true },
+      { method: "getRpcRequestResults", includeTraceLogs: true },
       async () => {
+        const requestHashes = requests.map((request) =>
+          crypto.createHash("md5").update(request).digest("hex"),
+        );
+
         const result = await database.qb.sync
           .selectFrom("rpc_request_results")
-          .select("result")
-          .where("request_hash", "=", sql`MD5(${request})`)
-          .where("chain_id", "=", chainId)
-          .executeTakeFirst();
+          .select(["request_hash", "result"])
+          .where("request_hash", "in", requestHashes)
+          .where("chain_id", "=", String(chainId))
+          .execute();
 
-        return result?.result;
+        const results = new Map<string, string | undefined>();
+        for (const row of result) {
+          results.set(row.request_hash, row.result);
+        }
+
+        return requestHashes.map((requestHash) => results.get(requestHash));
       },
     ),
-  pruneRpcRequestResult: async ({ blocks, chainId }) =>
-    database.wrap(
+  pruneRpcRequestResults: async ({ blocks, chainId }) => {
+    if (blocks.length === 0) return;
+    return database.wrap(
       { method: "pruneRpcRequestResult", includeTraceLogs: true },
       async () => {
-        if (blocks.length === 0) return;
-
-        const numbers = blocks.map(({ number }) =>
-          hexToBigInt(number).toString(),
-        );
+        const numbers = blocks.map(({ number }) => String(hexToNumber(number)));
 
         await database.qb.sync
           .deleteFrom("rpc_request_results")
-          .where("chain_id", "=", chainId)
+          .where("chain_id", "=", String(chainId))
           .where("block_number", "in", numbers)
           .execute();
       },
-    ),
+    );
+  },
   pruneByChain: async ({ chainId }) =>
     database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
       database.qb.sync.transaction().execute(async (tx) => {
