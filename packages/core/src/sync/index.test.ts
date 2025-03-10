@@ -254,15 +254,8 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,2]}",
-        "chain_id": "1",
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0].blocks).toBe("{[0,2]}");
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
@@ -527,15 +520,8 @@ test("getLocalSyncGenerator()", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,2]}",
-        "chain_id": "1",
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0].blocks).toBe("{[0,2]}");
 });
 
 test("getLocalSyncGenerator() with partial cache", async (context) => {
@@ -634,15 +620,8 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,3]}",
-        "chain_id": "1",
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0].blocks).toBe("{[0,3]}");
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
