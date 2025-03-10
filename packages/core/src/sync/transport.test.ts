@@ -234,6 +234,7 @@ test("request() multicall", async (context) => {
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
+  const requestSpy = vi.spyOn(requestQueue, "request");
 
   let result = decodeFunctionResult({
     abi: multicall3Abi,
@@ -305,6 +306,7 @@ test("request() multicall", async (context) => {
   `);
   expect(insertSpy).toHaveBeenCalledTimes(1);
   expect(getSpy).toHaveBeenCalledTimes(1);
+  expect(requestSpy).toHaveBeenCalledTimes(1);
 });
 
 test("request() multicall empty", async (context) => {
