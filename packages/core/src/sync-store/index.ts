@@ -706,7 +706,7 @@ export const createSyncStore = ({
         ) {
           cursor = toBlock;
         } else if (
-          blockData.length === limit &&
+          blocksRows.length === limit &&
           Math.max(
             transactionsRows.length,
             transactionReceiptsRows.length,

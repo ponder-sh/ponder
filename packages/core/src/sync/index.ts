@@ -1228,7 +1228,7 @@ export async function* getLocalEventGenerator(params: {
       cursor = queryCursor + 1;
       if (cursor === toBlock) {
         yield { events, checkpoint: params.to };
-      } else {
+      } else if (blockData.length > 0) {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
           blockTimestamp: blockData[blockData.length - 1]!.block.timestamp,
